@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mystic Engine</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="destiny-screen">
+    <main class="app-shell destiny-shell">
+      <header class="app-topbar destiny-topbar">
+        <div>
+          <p class="eyebrow">Mystic Engine</p>
+          <h1>Pantheon 命書</h1>
+        </div>
+        <a class="secondary-link" href="/personality">64 分支人格測試</a>
+      </header>
+
+      <section class="destiny-workbench">
+        <aside class="destiny-sidebar">
+          <form id="birth-form" class="input-panel destiny-input-panel">
+            <div class="brand-row">
+              <div>
+                <p class="eyebrow">Birth Profile</p>
+                <h2>基本資料</h2>
+              </div>
+              <span class="status-pill" id="api-status">API ready</span>
+            </div>
+
+            <label>
+              <span>姓名</span>
+              <input name="name" placeholder="可留空；填中文可啟用姓名合參" autocomplete="name" />
+            </label>
+
+            <div class="field-grid">
+              <label>
+                <span>生日</span>
+                <input name="birth_date" type="date" value="1990-05-15" required />
+              </label>
+              <label>
+                <span>出生時間</span>
+                <input name="birth_time" type="time" value="15:30" required />
+              </label>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                <span>性別</span>
+                <select name="gender">
+                  <option value="female" selected>女性</option>
+                  <option value="male">男性</option>
+                  <option value="other">其他</option>
+                </select>
+              </label>
+              <label>
+                <span>流年年份</span>
+                <input name="target_year" type="number" min="1900" max="2200" value="2026" />
+              </label>
+            </div>
+
+            <label>
+              <span>出生地</span>
+              <input name="location" value="Taipei" autocomplete="address-level2" />
+            </label>
+
+            <input name="utc_offset" type="hidden" value="+08:00" />
+
+            <details class="advanced-panel">
+              <summary>
+                <span>進階排盤設定</span>
+                <em>時區、經緯度、算法依據</em>
+              </summary>
+              <div class="advanced-panel-body">
+                <label>
+                  <span>時區</span>
+                  <select name="timezone">
+                    <option value="Asia/Taipei" selected>Asia/Taipei</option>
+                    <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles</option>
+                  </select>
+                </label>
+
+                <div class="field-grid">
+                  <label>
+                    <span>緯度</span>
+                    <input name="latitude" type="number" step="0.0001" value="25.033" />
+                  </label>
+                  <label>
+                    <span>經度</span>
+                    <input name="longitude" type="number" step="0.0001" value="121.5654" />
+                  </label>
+                </div>
+
+                <label>
+                  <span>出生時間準確度</span>
+                  <select name="birth_time_confidence">
+                    <option value="exact" selected>很準確</option>
+                    <option value="approximate">大約時間</option>
+                    <option value="unknown">不確定</option>
+                  </select>
+                </label>
+
+                <label class="precision-toggle">
+                  <input name="use_true_solar_time" type="checkbox" />
+                  <span>
+                    <strong>套用真太陽時</strong>
+                    <em>依經度與均時差修正出生時間</em>
+                  </span>
+                </label>
+
+                <section class="policy-panel" aria-label="算法設定">
+                  <div class="section-heading compact">
+                    <p class="eyebrow">Policy</p>
+                    <h2>算法依據</h2>
+                  </div>
+                  <label>
+                    <span>旺衰模型</span>
+                    <select name="bazi_strength_model">
+                      <option value="pantheon_strength_v1" selected>Pantheon v1 候選分</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>紫微派別</span>
+                    <select name="ziwei_school">
+                      <option value="iztro_default" selected>iztro default</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>姓名吉凶表</span>
+                    <select name="nameology_luck_table">
+                      <option value="disabled_until_audited" selected>審核前停用</option>
+                    </select>
+                  </label>
+                </section>
+              </div>
+            </details>
+
+            <section class="topic-panel" aria-label="分析主題">
+              <div class="section-heading compact">
+                <p class="eyebrow">Focus</p>
+                <h2>分析主題</h2>
+              </div>
+              <div class="topic-chip-grid">
+                <button type="button" class="topic-chip active">總覽</button>
+                <button type="button" class="topic-chip">今年事業</button>
+                <button type="button" class="topic-chip">財運</button>
+                <button type="button" class="topic-chip">人際</button>
+                <button type="button" class="topic-chip">壓力</button>
+                <button type="button" class="topic-chip">流年</button>
+              </div>
+              <textarea class="topic-note" rows="3" placeholder="可輸入想問的主題，例如：2026 年是否適合換工作"></textarea>
+            </section>
+
+            <button type="submit" class="primary-action">開始推演命盤</button>
+            <p class="fine-print">結果會標示算法依據與未啟用項目；只作文化與自我探索用途。</p>
+          </form>
+        </aside>
+
+        <section class="destiny-stage">
+          <div class="stage-header">
+            <div>
+              <p class="eyebrow">Reading Desk</p>
+              <h2>命書報告</h2>
+            </div>
+            <div class="mode-switch stage-mode-switch" role="tablist" aria-label="報告模式">
+              <button type="button" class="mode-button active" data-mode="paper" aria-pressed="true">命書</button>
+              <button type="button" class="mode-button" data-mode="dashboard" aria-pressed="false">排盤</button>
+            </div>
+          </div>
+
+          <section class="overview-panel" data-mode-panel="dashboard" hidden>
+            <div class="identity-strip destiny-identity-strip" id="identity-strip"></div>
+            <div class="pillar-card-grid" id="pillar-cards"></div>
+
+            <nav class="chart-tabbar" aria-label="命盤分頁">
+              <button type="button" class="chart-tab active" data-chart-tab="overview" aria-pressed="true">命盤總覽</button>
+              <button type="button" class="chart-tab" data-chart-tab="ten-gods" aria-pressed="false">十神結構</button>
+              <button type="button" class="chart-tab" data-chart-tab="timing" aria-pressed="false">大運流年</button>
+              <button type="button" class="chart-tab" data-chart-tab="ai" aria-pressed="false">AI 解讀</button>
+              <button type="button" class="chart-tab" data-chart-tab="signals" aria-pressed="false">原始訊號</button>
+            </nav>
+
+            <section class="chart-view active" data-chart-view="overview">
+              <div class="destiny-main-grid">
+                <section class="chart-block destiny-wheel-block">
+                  <div class="section-heading">
+                    <p class="eyebrow">Natal Wheel</p>
+                    <h2>命盤輪</h2>
+                  </div>
+                  <div id="destiny-wheel" class="destiny-wheel-wrap"></div>
+                </section>
+                <section class="chart-block">
+                  <div class="section-heading">
+                    <p class="eyebrow">Elements</p>
+                    <h2>五行能量</h2>
+                  </div>
+                  <div id="element-bars" class="element-bars"></div>
+                </section>
+                <section class="chart-block">
+                  <div class="section-heading">
+                    <p class="eyebrow">Radar</p>
+                    <h2>特質雷達</h2>
+                  </div>
+                  <div id="radar-chart" class="radar-wrap"></div>
+                </section>
+              </div>
+            </section>
+
+            <section class="chart-view" data-chart-view="ten-gods" hidden>
+              <div id="ten-god-board" class="ten-god-board"></div>
+            </section>
+
+            <section class="chart-view" data-chart-view="timing" hidden>
+              <div id="timing-board" class="timing-board"></div>
+            </section>
+
+            <section class="chart-view" data-chart-view="ai" hidden>
+              <div id="combo-cards" class="combo-grid destiny-combo-grid"></div>
+              <div id="reading-blocks" class="reading-grid destiny-reading-grid"></div>
+            </section>
+
+            <section class="chart-view" data-chart-view="signals" hidden>
+              <div id="signals-table" class="signals-table destiny-signals-table"></div>
+            </section>
+          </section>
+
+          <section class="fortune-panel" id="fortune-paper" data-mode-panel="paper"></section>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "pantheon-engine-bridges",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ziwei:chart": "node services/ziwei/iztro_chart.mjs"
+  },
+  "dependencies": {
+    "iztro": "^2.5.8"
+  }
+}
