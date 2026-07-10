@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
 
     @app.get("/articles", include_in_schema=False)
     def articles_page() -> FileResponse:
-        return FileResponse(WEB_DIR / "article.html")
+        return FileResponse(WEB_DIR / "articles.html")
 
     @app.get("/articles/intents/{intent}", include_in_schema=False)
     def article_intent_page(intent: str) -> FileResponse:

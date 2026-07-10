@@ -3629,6 +3629,16 @@ select:focus {
   padding: 26px 0 18px;
 }
 
+.articles-hub-breadcrumb {
+  width: min(1120px, calc(100% - 32px));
+  margin: 22px auto 0;
+  color: rgba(244, 234, 211, 0.72);
+}
+
+.articles-hub-breadcrumb a {
+  color: #d8aa48;
+}
+
 .content-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);

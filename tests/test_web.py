@@ -80,9 +80,27 @@ def test_effects_demo_page_serves_motion_lab() -> None:
     assert "/static/effects-demo.js" in response.text
 
 
+def test_articles_latest_hub_serves_collection_page() -> None:
+    client = TestClient(app)
+    response = client.get("/articles")
+    assert response.status_code == 200
+    assert "最新文章 | Pantheon" in response.text
+    assert "class=\"destiny-screen articles-hub-screen\"" in response.text
+    assert "articles-hub-breadcrumb" in response.text
+    assert "data-home-articles" in response.text
+    assert "content-hub-grid" in response.text
+    assert "href=\"/articles/personality/mbti-meaning\"" in response.text
+    assert "href=\"/reading\"" in response.text
+    assert "個人化解讀" in response.text
+    assert "\"@type\": \"CollectionPage\"" in response.text
+    assert "/static/styles.css?v=articles-hub-20260710-1" in response.text
+    assert "/static/articles.js?v=articles-hub-20260710-1" in response.text
+    assert "id=\"birth-form\"" not in response.text
+
+
 def test_article_urls_serve_article_template() -> None:
     client = TestClient(app)
-    for path in ["/articles", "/articles/astro", "/articles/astro/love-forecast", "/articles/intents/love"]:
+    for path in ["/articles/astro", "/articles/astro/love-forecast", "/articles/intents/love"]:
         response = client.get(path)
         assert response.status_code == 200
         assert "data-article-header" in response.text
@@ -120,6 +138,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
+        assert "/static/styles.css" in response.text
         assert "/static/article.js?v=article-hub-20260710-1" in response.text
 
 
@@ -128,6 +147,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_meta_js = Path("app/web/static/article-meta.js").read_text()
     article_seo_js = Path("app/web/static/article-seo.js").read_text()
     article_registry_js = Path("app/web/static/article-registry.js").read_text()
+    articles_js = Path("app/web/static/articles.js").read_text()
+    styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
     assert "buildArticleContent(window.location.pathname, window.location.origin" in article_js
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
@@ -146,6 +167,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.productCrumb.href = content.productHref" in article_js
     assert "dom.articleTitle.textContent = content.title" in article_js
     assert "dom.titleCrumb.hidden = false" in article_js
+    assert "pickLatestArticles(listArticleRecords())" in articles_js
+    assert "card.dataset.productTheme = article.product" in articles_js
+    assert ".articles-hub-breadcrumb" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
@@ -185,7 +209,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "has_tag" in article_registry_js
     assert "/ /articles 302" in redirects
     assert "/reading /index.html 200" in redirects
-    assert "/articles /article 200" in redirects
+    assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
     assert "/articles /article.html 200" not in redirects
     assert "/personality /personality.html 200" not in redirects
