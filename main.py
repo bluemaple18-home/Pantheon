@@ -65,6 +65,10 @@ def create_app() -> FastAPI:
     def article_page(product: str, slug: str) -> FileResponse:
         return FileResponse(WEB_DIR / "article.html")
 
+    @app.get("/topics/{topic}", include_in_schema=False)
+    def topic_page(topic: str) -> FileResponse:
+        return FileResponse(WEB_DIR / "article.html")
+
     @app.get("/article-admin", include_in_schema=False)
     def article_admin_page() -> FileResponse:
         return FileResponse(WEB_DIR / "article-admin.html")

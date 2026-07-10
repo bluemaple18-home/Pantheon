@@ -1,5 +1,5 @@
 import { buildPredictionPayload, fetchPrediction } from "./api.js";
-import { getProductThemeRecord, listArticleRecords } from "./article-registry.js";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js";
 import { renderDashboard } from "./dashboard.js";
 import { renderFortunePaper } from "./paper.js";
 
@@ -109,12 +109,16 @@ function renderHomeArticles() {
     const productTheme = getProductThemeRecord(article.product);
     const card = document.createElement("a");
     card.className = "home-article-card";
-    card.href = `/articles/${article.product}/${article.slug}`;
+    card.href = getArticlePath(article);
     card.dataset.productTheme = article.product;
     card.dataset.themeGlyph = productTheme.glyph;
 
     const meta = document.createElement("div");
     meta.className = "home-article-meta";
+
+    const serial = document.createElement("span");
+    serial.className = "home-article-serial";
+    serial.textContent = article.serial;
 
     const product = document.createElement("span");
     product.className = "home-article-product";
@@ -130,7 +134,7 @@ function renderHomeArticles() {
     const description = document.createElement("p");
     description.textContent = article.description;
 
-    meta.append(product, keyword);
+    meta.append(serial, product, keyword);
     card.append(meta, title, description);
     return card;
   }));

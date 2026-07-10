@@ -1,9 +1,13 @@
 import {
   enforceArticlePolicy,
+  getArticlePath,
   getArticleRecord,
   getArticleSectionRecord,
   getLifeIntentRecord,
   getProductThemeRecord,
+  getTopicForLabel,
+  getTopicRecord,
+  listArticlesForTopic,
 } from "./article-registry.js";
 
 const INTERNAL_DISPLAY_TAGS = new Set([
@@ -298,6 +302,10 @@ const ARTICLE_BODY_LIBRARY = {
 
 export function buildArticleContent(pathname, origin, defaults = {}) {
   const route = parseArticleRoute(pathname);
+  const topic = route.topic ? getTopicRecord(route.topic) : null;
+  if (route.topic) {
+    return buildTopicContent(route, topic, origin, defaults);
+  }
   const isLatestHub = !route.product && !route.slug && !route.intent;
   const intent = route.intent ? getLifeIntentRecord(route.intent) : null;
   const article = route.product && route.slug ? getArticleRecord(route.product, route.slug) : null;
@@ -307,11 +315,16 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       redirectTo: section?.product ? `/articles/${section.product}` : "/articles",
     };
   }
+  if (route.slug && article && route.slug !== article.urlSlug) {
+    return {
+      redirectTo: getArticlePath(article),
+    };
+  }
   const productThemeRecord = getProductThemeRecord(article?.product || route.product || section?.product);
   const canonicalPath = route.intent
     ? `/articles/intents/${route.intent}`
-    : route.product && route.slug
-      ? `/articles/${route.product}/${route.slug}`
+    : article
+      ? getArticlePath(article)
       : route.product
         ? `/articles/${route.product}`
       : "/articles";
@@ -327,8 +340,11 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
   const updated = defaults.updated || new Date().toISOString().slice(0, 10);
   const author = defaults.author || "Pantheon 編輯部";
   const managedArticle = enforceArticlePolicy({
+    id: article?.id,
     section: article?.section || route.product,
     slug: route.slug,
+    serial: article?.serial,
+    urlSlug: article?.urlSlug,
     title,
     product: article?.product || route.product,
     primaryKeyword: article?.primaryKeyword || title,
@@ -351,6 +367,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
         : "最新文章";
   return {
     title: displayTitle,
+    contentType: route.slug ? "Article" : "CollectionPage",
     pageTitle,
     description,
     canonicalPath,
@@ -361,7 +378,8 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     section: managedArticle.section || "",
     productCrumb: route.product,
     productCrumbLabel: route.intent ? "搜尋意圖" : productTheme.label,
-    slug: route.slug,
+    slug: article?.urlSlug || route.slug,
+    serial: managedArticle.serial || "",
     author,
     updated,
     published: defaults.published || updated,
@@ -374,11 +392,12 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     keywords: managedArticle.keywords,
     tags: managedArticle.tags,
     displayTags: buildDisplayTags(article, managedArticle, productTheme),
+    displayTagLinks: buildDisplayTagLinks(article, managedArticle, productTheme),
     answer: article?.answer || buildAnswer(route),
     bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
     faq: buildArticleFaq(route, article, productTheme),
-    relatedLinks: buildRelatedLinks(article, managedArticle, productTheme),
-    cta: buildArticleCta(article, productTheme),
+    relatedLinks: buildRelatedLinks(article, managedArticle, productTheme, route),
+    cta: buildArticleCta(article, productTheme, route),
   };
 }
 
@@ -399,6 +418,16 @@ function buildDisplayTags(article, managedArticle, productTheme) {
     .slice(0, 8);
 }
 
+function buildDisplayTagLinks(article, managedArticle, productTheme) {
+  return buildDisplayTags(article, managedArticle, productTheme).map((label) => {
+    const topic = getTopicForLabel(label);
+    return {
+      label,
+      href: topic ? topic.href : "",
+    };
+  });
+}
+
 function uniqueList(values = []) {
   const seen = new Set();
   return values
@@ -412,6 +441,19 @@ function uniqueList(values = []) {
 
 function parseArticleRoute(pathname) {
   const segments = pathname.split("/").filter(Boolean);
+  const [scope = "", first = "", second = ""] = segments;
+  if (scope === "topics") {
+    return {
+      product: "",
+      productLabel: "最新文章",
+      requestedSection: "",
+      slug: "",
+      intent: "",
+      topic: first,
+      intentLabel: "",
+      title: humanizeSlug(first) || "標籤",
+    };
+  }
   const [, productOrScope = "", slug = ""] = segments;
   const isIntentHub = productOrScope === "intents";
   const intent = isIntentHub ? slug : "";
@@ -423,6 +465,7 @@ function parseArticleRoute(pathname) {
     requestedSection: legacySection ? productOrScope : "",
     slug: isIntentHub ? "" : slug,
     intent,
+    topic: "",
     intentLabel: intent ? getLifeIntentRecord(intent)?.label || humanizeSlug(intent) : "",
     title: humanizeSlug(slug) || "文章",
   };
@@ -434,6 +477,122 @@ function buildDescription(route, article, section, intent, productTheme) {
   if (route.intent) return `Pantheon ${intent?.label || route.intentLabel}文章主題入口，整理相關問題、文章脈絡與延伸閱讀。`;
   if (route.product) return section?.seoDescription || `Pantheon ${productTheme.label}文章列表，整理基礎概念、常見問題與延伸閱讀。`;
   return "Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。";
+}
+
+function buildTopicContent(route, topic, origin, defaults = {}) {
+  const safeTopic = topic || {
+    slug: route.topic,
+    label: humanizeSlug(route.topic),
+    aliases: [],
+    href: `/topics/${route.topic}`,
+  };
+  const articles = listArticlesForTopic(safeTopic.slug);
+  const updated = defaults.updated || new Date().toISOString().slice(0, 10);
+  return {
+    title: buildTopicTitle(safeTopic.label),
+    contentType: "CollectionPage",
+    pageTitle: `${buildTopicTitle(safeTopic.label)} | Pantheon`,
+    description: `Pantheon ${safeTopic.label}文章集結頁，整理相關公開文章、延伸閱讀與適用限制。`,
+    canonicalPath: `/topics/${safeTopic.slug}`,
+    canonicalUrl: `${origin}/topics/${safeTopic.slug}`,
+    product: "topics",
+    productLabel: "標籤",
+    productHref: "/articles",
+    section: "topics",
+    productCrumb: "topics",
+    productCrumbLabel: "標籤",
+    slug: safeTopic.slug,
+    serial: safeTopic.id || "",
+    author: defaults.author || "Pantheon 編輯部",
+    updated,
+    published: defaults.published || updated,
+    sectionDescription: `${safeTopic.label}標籤會把相關公開文章串起來，方便從同一個概念延伸閱讀。`,
+    productTheme: "latest",
+    productThemeLabel: "標籤",
+    productThemeGlyph: "#",
+    productThemeDescription: "常用標籤集結頁，用來串聯文章與文章。",
+    intent: "",
+    keywords: uniqueList([safeTopic.label, ...(safeTopic.aliases || []), "Pantheon", "公開文章"]),
+    tags: uniqueList([safeTopic.label, ...(safeTopic.aliases || [])]),
+    displayTags: uniqueList([safeTopic.label, ...(safeTopic.aliases || [])]).slice(0, 8),
+    displayTagLinks: uniqueList([safeTopic.label, ...(safeTopic.aliases || [])]).slice(0, 8).map((label) => ({
+      label,
+      href: `/topics/${safeTopic.slug}`,
+    })),
+    answer: `${safeTopic.label}文章集結頁會整理掛上這個標籤的公開文章，先看共通概念，再進到單篇文章。`,
+    bodySections: buildTopicBodySections(safeTopic, articles),
+    faq: buildTopicFaq(safeTopic),
+    relatedLinks: buildTopicRelatedLinks(safeTopic, articles),
+    cta: {
+      title: "從哪篇開始？",
+      body: `如果你是從「${safeTopic.label}」進來，先讀基礎概念文章，再依照感情、事業、人際、財富或人生方向補情境文章。`,
+      links: buildTopicRelatedLinks(safeTopic, articles).slice(0, 3),
+    },
+  };
+}
+
+function buildTopicBodySections(topic, articles) {
+  const articleList = articles.slice(0, 8).map((article) => `${article.serial} ${article.title}`).join("、");
+  return [
+    {
+      heading: `${topic.label}文章集結頁整理什麼？`,
+      paragraphs: [
+        `${topic.label}標籤會把同一個概念底下的文章串起來。它不是單篇文章，而是讓讀者從一個常用詞進到相關主題、產品線與情境問題。`,
+        "標籤頁適合用來補脈絡：先看這個詞和哪些文章有關，再決定要讀定義、工具限制、情境應用，或下一篇延伸閱讀。",
+      ],
+    },
+    {
+      heading: `目前有哪些 ${topic.label} 相關文章？`,
+      paragraphs: [
+        articleList ? `目前收錄：${articleList}。` : `目前這個標籤正在建立文章索引，後續會把相關公開文章集中到這裡。`,
+        "每篇文章仍會保留公開內容邊界：只講通用概念、適用情境和限制，不把標籤直接寫成你的個人結論。",
+      ],
+    },
+    {
+      heading: "標籤和文章分類有什麼不同？",
+      paragraphs: [
+        "文章分類負責管理內容主線，例如命盤、人格、塔羅、星盤、感情或人際。標籤則負責橫向串聯，例如 MBTI 可能同時出現在人格、自我理解和人際文章裡。",
+        "這樣做的目的，是讓大量文章可以被多條路徑找到，而不是只能靠最新文章列表或單一產品線入口。",
+      ],
+    },
+  ];
+}
+
+function buildTopicTitle(label) {
+  return /^[\x00-\x7F]+$/.test(label) ? `${label} 文章` : `${label}文章`;
+}
+
+function buildTopicFaq(topic) {
+  return [
+    {
+      question: `${topic.label}文章頁是什麼？`,
+      answer: `${topic.label}文章頁是標籤集結頁，會整理掛上這個標籤的公開文章與延伸閱讀。`,
+    },
+    {
+      question: `標籤頁和單篇文章差在哪裡？`,
+      answer: "單篇文章回答一個搜尋問題；標籤頁負責把多篇相關文章串起來，方便讀者沿著同一個概念繼續讀。",
+    },
+    {
+      question: `${topic.label}標籤可以直接代表個人狀況嗎？`,
+      answer: "不可以。標籤只能協助分類和延伸閱讀，不能替任何人的感情、工作或人生方向下個人結論。",
+    },
+  ];
+}
+
+function buildTopicRelatedLinks(topic, articles) {
+  const articleLinks = articles.slice(0, 8).map((article) => ({
+    label: `${article.serial} ${article.title}`,
+    href: getArticlePath(article),
+    kind: "相關文章",
+  }));
+  const fallbackLinks = [
+    { label: "最新文章", href: "/articles", kind: "文章入口" },
+    { label: "命盤文章入口", href: "/articles/fortune", kind: "產品線入口" },
+    { label: "人格文章入口", href: "/articles/personality", kind: "產品線入口" },
+    { label: "塔羅文章入口", href: "/articles/tarot", kind: "產品線入口" },
+    { label: "星座文章入口", href: "/articles/astro", kind: "產品線入口" },
+  ];
+  return uniqueLinks([...articleLinks, ...fallbackLinks]).filter((item) => item.href !== `/topics/${topic.slug}`).slice(0, 8);
 }
 
 function buildSectionDescription(route, section, intent, productTheme) {
@@ -467,15 +626,7 @@ function buildBodySections(route, article, section, intent, productTheme, manage
     ];
   }
   if (route.product) {
-    return [
-      {
-        heading: `${productTheme.label}文章怎麼讀？`,
-        paragraphs: [
-          section?.description || `${productTheme.label}文章會先整理常見概念，再補充使用限制與延伸閱讀。`,
-          `建議先從「${section?.primaryKeyword || productTheme.label}」開始，再依照你真正想解決的問題往下閱讀。`,
-        ],
-      },
-    ];
+    return buildProductHubSections(route, section, productTheme);
   }
   return [
     {
@@ -483,6 +634,47 @@ function buildBodySections(route, article, section, intent, productTheme, manage
       paragraphs: [
         "最新文章頁整理 Pantheon 已公開的命盤、人格、塔羅、星座與人生方向內容，適合先用搜尋問題找到一篇可讀答案。",
         "公開文章只處理通用概念、適用情境與限制，不直接替任何人的人生、感情或工作下結論。",
+      ],
+    },
+  ];
+}
+
+function buildProductHubSections(route, section, productTheme) {
+  const articles = getRelatedArticleLinks(route.product);
+  const articleNames = articles.map((item) => item.label).join("、");
+  return [
+    {
+      heading: `${productTheme.label}文章入口整理什麼？`,
+      paragraphs: [
+        section?.description || `${productTheme.label}文章會先整理常見概念，再補充使用限制與延伸閱讀。`,
+        `${productTheme.label}入口不是單篇薄內容，而是把同一產品線的公開文章集中在一起。讀者可以先從「${section?.primaryKeyword || productTheme.label}」建立基本語言，再依照自己真正想問的情境往下讀。`,
+        "這個入口也負責把文章編號固定下來。每篇文章用英文分類加流水號管理，例如 fortune-0001 或 tarot-0004；標題以後可以調整，但正式網址和內容索引不會跟著亂掉。",
+      ],
+    },
+    {
+      heading: `這裡先讀哪幾篇${productTheme.label}文章？`,
+      paragraphs: [
+        articleNames
+          ? `目前這個入口收錄：${articleNames}。每篇都會先回答搜尋問題，再說明適用情境、常見誤解和不能代表什麼。`
+          : `目前這個入口會收錄${productTheme.label}基礎概念、常見問題與延伸閱讀。`,
+        `如果你只是想查定義，先讀第一篇基礎文就好；如果你已經卡在感情、事業、人際、財富或人生方向，則建議搭配五大情境入口閱讀。`,
+        "不要從入口頁直接跳到個人結論。入口頁的價值，是讓你知道有哪些文章、每篇負責哪一層問題，以及下一篇該怎麼選。",
+      ],
+    },
+    {
+      heading: `${productTheme.label}文章和個人判讀的邊界`,
+      paragraphs: [
+        getProductBoundarySentence(productTheme.label),
+        "公開文章只能整理共通知識、名詞差異和閱讀順序，不會把單一宮位、人格類型、牌義或星座落點寫成你的個人結論。真正套用到自己身上時，仍然要回到資料、問題和當下情境。",
+        "如果你是從搜尋進來，先確認自己要的是概念、比較、使用限制，還是想找下一篇文章。這四種需求會導向不同閱讀路徑，也會影響你是否需要再看 topic 集結頁。",
+      ],
+    },
+    {
+      heading: "下一步怎麼選文章？",
+      paragraphs: [
+        "如果你不知道從哪裡開始，先選一篇最接近你搜尋字的文章；如果讀完還是不確定，再回到同分類延伸閱讀或五大情境入口。這樣可以避免在不同工具之間跳來跳去，卻沒有真正釐清問題。",
+        "比較好的順序是：先讀產品線基礎文章，再看單一概念文章，最後才進到感情、事業、人際、財富或人生方向主題。文章入口的任務，是讓讀者知道下一篇該補哪一層。",
+        "如果你看到文章標籤，也可以直接點進 topic 頁。topic 頁會把跨分類文章串起來，例如 MBTI 可以連到人格、人際和自我理解；塔羅也可以連到牌義、正逆位和感情提問。",
       ],
     },
   ];
@@ -941,26 +1133,37 @@ function buildEntryAnswer(article, productTheme) {
   return `可以先從${productTheme.label}入口建立背景，再依照感情、事業、人際、財富或人生方向選擇更具體的問題。`;
 }
 
-function buildRelatedLinks(article, managedArticle, productTheme) {
+function buildRelatedLinks(article, managedArticle, productTheme, route = {}) {
+  if (!article && route.product) {
+    const productArticles = getRelatedArticleLinks(route.product);
+    const intentLinks = [
+      { label: "感情文章入口", href: "/articles/intents/love", kind: "情境入口" },
+      { label: "事業文章入口", href: "/articles/intents/career", kind: "情境入口" },
+      { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "情境入口" },
+      { label: "財富文章入口", href: "/articles/intents/wealth", kind: "情境入口" },
+      { label: "人生方向文章入口", href: "/articles/intents/life", kind: "情境入口" },
+    ];
+    return uniqueLinks([...productArticles, ...intentLinks]).slice(0, 8);
+  }
   if (!article) return [];
-  const currentPath = `/articles/${article.product}/${article.slug}`;
+  const currentPath = getArticlePath(article);
   const productLinks = [
-    { label: `${productTheme.label}文章入口`, href: `/articles/${article.product}`, kind: "產品線入口" },
-    { label: "感情文章入口", href: "/articles/intents/love", kind: "五大情境" },
-    { label: "事業文章入口", href: "/articles/intents/career", kind: "五大情境" },
-    { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "五大情境" },
-    { label: "人生方向文章入口", href: "/articles/intents/life", kind: "五大情境" },
+    { label: `${productTheme.label}文章入口`, href: `/articles/${article.product}`, kind: "主題入口" },
+    { label: "感情文章入口", href: "/articles/intents/love", kind: "情境入口" },
+    { label: "事業文章入口", href: "/articles/intents/career", kind: "情境入口" },
+    { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "情境入口" },
+    { label: "人生方向文章入口", href: "/articles/intents/life", kind: "情境入口" },
   ];
   const sameProduct = getRelatedArticleLinks(article.product)
-    .filter((item) => item.href !== currentPath)
+    .filter((item) => item.href !== currentPath && item.href !== `/articles/${article.product}/${article.slug}`)
     .slice(0, 3);
   const crossProduct = article.product === "personality"
     ? [
-      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-card-meanings", kind: "跨分類" },
+      { label: "tarot-0001 塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "跨分類" },
       { label: "人生方向文章入口", href: "/articles/intents/life", kind: "跨分類" },
     ]
     : [
-      { label: "MBTI 是什麼", href: "/articles/personality/mbti-meaning", kind: "跨分類" },
+      { label: "personality-0001 MBTI 是什麼", href: "/articles/personality/personality-0001", kind: "跨分類" },
       { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "跨分類" },
     ];
   return uniqueLinks([...productLinks, ...sameProduct, ...crossProduct]).slice(0, 8);
@@ -969,40 +1172,40 @@ function buildRelatedLinks(article, managedArticle, productTheme) {
 function getRelatedArticleLinks(product) {
   if (product === "personality") {
     return [
-      { label: "MBTI 是什麼", href: "/articles/personality/mbti-meaning", kind: "同分類" },
-      { label: "16 型人格完整整理", href: "/articles/personality/16-personalities", kind: "同分類" },
-      { label: "MBTI 測驗前先知道", href: "/articles/personality/mbti-test", kind: "同分類" },
-      { label: "MBTI 準嗎", href: "/articles/personality/mbti-accuracy", kind: "同分類" },
-      { label: "INTJ 是什麼", href: "/articles/personality/intj-meaning", kind: "同分類" },
-      { label: "INFP 是什麼", href: "/articles/personality/infp-meaning", kind: "同分類" },
+      { label: "personality-0001 MBTI 是什麼", href: "/articles/personality/personality-0001", kind: "同分類" },
+      { label: "personality-0002 16 型人格完整整理", href: "/articles/personality/personality-0002", kind: "同分類" },
+      { label: "personality-0003 MBTI 測驗前先知道", href: "/articles/personality/personality-0003", kind: "同分類" },
+      { label: "personality-0004 MBTI 準嗎", href: "/articles/personality/personality-0004", kind: "同分類" },
+      { label: "personality-0005 INTJ 是什麼", href: "/articles/personality/personality-0005", kind: "同分類" },
+      { label: "personality-0006 INFP 是什麼", href: "/articles/personality/personality-0006", kind: "同分類" },
     ];
   }
   if (product === "tarot") {
     return [
-      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-card-meanings", kind: "同分類" },
-      { label: "塔羅牌正位逆位", href: "/articles/tarot/upright-reversed", kind: "同分類" },
-      { label: "愚者牌意思", href: "/articles/tarot/fool-card-meaning", kind: "同分類" },
-      { label: "魔術師牌意思", href: "/articles/tarot/magician-card-meaning", kind: "同分類" },
-      { label: "戀人牌意思", href: "/articles/tarot/lovers-card-meaning", kind: "同分類" },
-      { label: "死神牌意思", href: "/articles/tarot/death-card-meaning", kind: "同分類" },
+      { label: "tarot-0001 塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "同分類" },
+      { label: "tarot-0002 塔羅牌正位逆位", href: "/articles/tarot/tarot-0002", kind: "同分類" },
+      { label: "tarot-0003 愚者牌意思", href: "/articles/tarot/tarot-0003", kind: "同分類" },
+      { label: "tarot-0004 魔術師牌意思", href: "/articles/tarot/tarot-0004", kind: "同分類" },
+      { label: "tarot-0005 戀人牌意思", href: "/articles/tarot/tarot-0005", kind: "同分類" },
+      { label: "tarot-0006 死神牌意思", href: "/articles/tarot/tarot-0006", kind: "同分類" },
     ];
   }
   if (product === "fortune") {
     return [
-      { label: "命盤是什麼", href: "/articles/fortune/birth-chart-meaning", kind: "同分類" },
-      { label: "八字是什麼", href: "/articles/fortune/bazi-meaning", kind: "同分類" },
-      { label: "紫微斗數是什麼", href: "/articles/fortune/ziwei-doushu-meaning", kind: "同分類" },
-      { label: "命宮是什麼", href: "/articles/fortune/ming-gong-meaning", kind: "同分類" },
-      { label: "夫妻宮是什麼", href: "/articles/fortune/spouse-palace-meaning", kind: "同分類" },
-      { label: "財帛宮是什麼", href: "/articles/fortune/wealth-palace-meaning", kind: "同分類" },
+      { label: "fortune-0001 命盤是什麼", href: "/articles/fortune/fortune-0001", kind: "同分類" },
+      { label: "fortune-0002 八字是什麼", href: "/articles/fortune/fortune-0002", kind: "同分類" },
+      { label: "fortune-0003 紫微斗數是什麼", href: "/articles/fortune/fortune-0003", kind: "同分類" },
+      { label: "fortune-0004 命宮是什麼", href: "/articles/fortune/fortune-0004", kind: "同分類" },
+      { label: "fortune-0005 夫妻宮是什麼", href: "/articles/fortune/fortune-0005", kind: "同分類" },
+      { label: "fortune-0006 財帛宮是什麼", href: "/articles/fortune/fortune-0006", kind: "同分類" },
     ];
   }
   if (product === "astro") {
     return [
-      { label: "星盤是什麼", href: "/articles/astro/birth-chart-astrology", kind: "同分類" },
-      { label: "上升星座是什麼", href: "/articles/astro/ascendant-sign-meaning", kind: "同分類" },
-      { label: "月亮星座是什麼", href: "/articles/astro/moon-sign-meaning", kind: "同分類" },
-      { label: "感情塔羅怎麼問", href: "/articles/tarot/love-tarot-questions", kind: "跨分類" },
+      { label: "astrology-0001 星盤是什麼", href: "/articles/astrology/astrology-0001", kind: "同分類" },
+      { label: "astrology-0002 上升星座是什麼", href: "/articles/astrology/astrology-0002", kind: "同分類" },
+      { label: "astrology-0003 月亮星座是什麼", href: "/articles/astrology/astrology-0003", kind: "同分類" },
+      { label: "love-0001 感情塔羅怎麼問", href: "/articles/love/love-0001", kind: "跨分類" },
     ];
   }
   return [];
@@ -1017,7 +1220,15 @@ function uniqueLinks(items = []) {
   });
 }
 
-function buildArticleCta(article, productTheme) {
+function buildArticleCta(article, productTheme, route = {}) {
+  if (!article && route.product) {
+    const productLinks = getProductHubCtaLinks(route.product);
+    return {
+      title: "從哪篇開始？",
+      body: `${productTheme.label}文章入口會先把同分類文章放在一起。先讀基礎概念，再依照感情、事業、人際、財富或人生方向補充情境文章。`,
+      links: productLinks,
+    };
+  }
   if (!article) return null;
   const productLinks = (() => {
     if (article.product === "personality") return [
@@ -1046,6 +1257,29 @@ function buildArticleCta(article, productTheme) {
     body: `如果你只是想理解這個概念，這篇文章已經足夠。${getProductBoundarySentence(productTheme.label)}如果你想知道它放到自己的狀況裡代表什麼，可以先選一個入口。`,
     links: productLinks,
   };
+}
+
+function getProductHubCtaLinks(product) {
+  if (product === "fortune") return [
+    { label: "fortune-0001 命盤是什麼", href: "/articles/fortune/fortune-0001" },
+    { label: "fortune-0002 八字是什麼", href: "/articles/fortune/fortune-0002" },
+    { label: "fortune-0003 紫微斗數是什麼", href: "/articles/fortune/fortune-0003" },
+  ];
+  if (product === "personality") return [
+    { label: "personality-0001 MBTI 是什麼", href: "/articles/personality/personality-0001" },
+    { label: "personality-0002 16 型人格完整整理", href: "/articles/personality/personality-0002" },
+    { label: "interpersonal-0001 人際關係卡住怎麼辦", href: "/articles/interpersonal/interpersonal-0001" },
+  ];
+  if (product === "tarot") return [
+    { label: "tarot-0001 塔羅牌意思總覽", href: "/articles/tarot/tarot-0001" },
+    { label: "tarot-0002 塔羅牌正位逆位", href: "/articles/tarot/tarot-0002" },
+    { label: "love-0001 感情塔羅怎麼問", href: "/articles/love/love-0001" },
+  ];
+  return [
+    { label: "astrology-0001 星盤是什麼", href: "/articles/astrology/astrology-0001" },
+    { label: "astrology-0002 上升星座是什麼", href: "/articles/astrology/astrology-0002" },
+    { label: "astrology-0003 月亮星座是什麼", href: "/articles/astrology/astrology-0003" },
+  ];
 }
 
 function getProductEntry(label) {

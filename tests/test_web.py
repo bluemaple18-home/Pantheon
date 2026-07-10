@@ -7,40 +7,40 @@ from main import app
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
-    "/articles/personality/mbti-meaning",
-    "/articles/personality/16-personalities",
-    "/articles/personality/mbti-test",
-    "/articles/personality/mbti-accuracy",
-    "/articles/personality/intj-meaning",
-    "/articles/personality/infp-meaning",
-    "/articles/personality/infj-meaning",
-    "/articles/personality/enfp-meaning",
-    "/articles/tarot/tarot-card-meanings",
-    "/articles/tarot/upright-reversed",
-    "/articles/tarot/fool-card-meaning",
-    "/articles/tarot/magician-card-meaning",
-    "/articles/tarot/lovers-card-meaning",
-    "/articles/tarot/death-card-meaning",
-    "/articles/tarot/tower-card-meaning",
-    "/articles/tarot/world-card-meaning",
-    "/articles/fortune/birth-chart-meaning",
-    "/articles/fortune/bazi-meaning",
-    "/articles/fortune/ziwei-doushu-meaning",
-    "/articles/fortune/ming-gong-meaning",
-    "/articles/fortune/spouse-palace-meaning",
-    "/articles/fortune/wealth-palace-meaning",
-    "/articles/astro/birth-chart-astrology",
-    "/articles/astro/ascendant-sign-meaning",
-    "/articles/astro/moon-sign-meaning",
-    "/articles/tarot/love-tarot-questions",
-    "/articles/fortune/career-fortune",
-    "/articles/personality/relationships-stuck",
-    "/articles/fortune/wealth-fortune",
-    "/articles/fortune/life-direction",
+    "/articles/personality/personality-0001",
+    "/articles/personality/personality-0002",
+    "/articles/personality/personality-0003",
+    "/articles/personality/personality-0004",
+    "/articles/personality/personality-0005",
+    "/articles/personality/personality-0006",
+    "/articles/personality/personality-0007",
+    "/articles/personality/personality-0008",
+    "/articles/tarot/tarot-0001",
+    "/articles/tarot/tarot-0002",
+    "/articles/tarot/tarot-0003",
+    "/articles/tarot/tarot-0004",
+    "/articles/tarot/tarot-0005",
+    "/articles/tarot/tarot-0006",
+    "/articles/tarot/tarot-0007",
+    "/articles/tarot/tarot-0008",
+    "/articles/fortune/fortune-0001",
+    "/articles/fortune/fortune-0002",
+    "/articles/fortune/fortune-0003",
+    "/articles/fortune/fortune-0004",
+    "/articles/fortune/fortune-0005",
+    "/articles/fortune/fortune-0006",
+    "/articles/astrology/astrology-0001",
+    "/articles/astrology/astrology-0002",
+    "/articles/astrology/astrology-0003",
+    "/articles/love/love-0001",
+    "/articles/career/career-0001",
+    "/articles/interpersonal/interpersonal-0001",
+    "/articles/wealth/wealth-0001",
+    "/articles/life-direction/life-direction-0001",
 ]
 
 EXTRA_PUBLIC_ARTICLE_PATHS = [
-    "/articles/astro/love-forecast",
+    "/articles/astrology/astrology-0004",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
@@ -84,18 +84,18 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "articles-hub-breadcrumb" in response.text
     assert "data-home-articles" in response.text
     assert "content-hub-grid" in response.text
-    assert "href=\"/articles/personality/mbti-meaning\"" in response.text
+    assert "href=\"/articles/personality/personality-0001\"" in response.text
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
     assert "/static/styles.css?v=articles-hub-20260710-4" in response.text
-    assert "/static/articles.js?v=articles-hub-20260710-2" in response.text
+    assert "/static/articles.js?v=articles-hub-20260710-3" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
 def test_article_urls_serve_article_template() -> None:
     client = TestClient(app)
-    for path in ["/articles/astro", "/articles/astro/love-forecast", "/articles/intents/love"]:
+    for path in ["/articles/astro", "/articles/astrology/astrology-0004", "/articles/intents/love", "/topics/mbti"]:
         response = client.get(path)
         assert response.status_code == 200
         assert "data-article-header" in response.text
@@ -136,7 +136,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-8" in response.text
+        assert "/static/article.js?v=article-content-20260710-9" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -175,8 +175,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "bodySections: buildBodySections" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
-    assert "buildRelatedLinks(article, managedArticle, productTheme)" in article_meta_js
-    assert "buildArticleCta(article, productTheme)" in article_meta_js
+    assert "buildRelatedLinks(article, managedArticle, productTheme, route)" in article_meta_js
+    assert "buildArticleCta(article, productTheme, route)" in article_meta_js
     assert "\"mbti-meaning\"" in article_meta_js
     assert "\"magician-card-meaning\"" in article_meta_js
     assert "MBTI 是一套描述人格偏好的分類工具" in article_meta_js
@@ -188,7 +188,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "displayTags: buildDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
     assert "content.displayTags || content.tags || []" in article_js
+    assert "content.displayTagLinks" in article_js
+    assert "getTopicForLabel" in article_meta_js
+    assert "buildTopicContent(route, topic" in article_meta_js
     assert "pickLatestArticles(listArticleRecords())" in articles_js
+    assert "getArticlePath(article)" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
     assert "SEARCH_SNIPPETS" in articles_js
     assert "MBTI 用四組偏好組成 16 型人格" in articles_js
@@ -221,7 +225,10 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "HUMANIZER_POLICY" in article_registry_js
     assert "PRODUCT_THEME_REGISTRY" in article_registry_js
     assert "ARTICLE_URL_CONTRACT" in article_registry_js
-    assert "articlePattern: \"/articles/{product}/{slug}\"" in article_registry_js
+    assert "articlePattern: \"/articles/{category}/{category}-{number}\"" in article_registry_js
+    assert "TOPIC_REGISTRY" in article_registry_js
+    assert "export function listTopicRecords" in article_registry_js
+    assert "export function getArticlePath" in article_registry_js
     assert "LIFE_INTENT_REGISTRY" in article_registry_js
     assert "export function getProductThemeRecord" in article_registry_js
     assert "product: \"astro\"" in article_registry_js
@@ -255,6 +262,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/articles/astro/12-zodiac-signs /articles/astro 302" in redirects
     assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
+    assert "/topics/* /article 200" in redirects
     assert "/reading /index.html 200" not in redirects
     assert "/articles /article.html 200" not in redirects
     assert "/personality /personality.html 200" not in redirects
@@ -268,8 +276,8 @@ def test_public_articles_follow_latest_publication_standard() -> None:
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 const paths = {json.dumps(PUBLIC_ARTICLE_PATHS)};
 const summaryPaths = new Set([
-  "/articles/personality/16-personalities",
-  "/articles/tarot/tarot-card-meanings",
+  "/articles/personality/personality-0002",
+  "/articles/tarot/tarot-0001",
 ]);
 const data = paths.map((path) => {{
   const content = buildArticleContent(path, "https://mysticpantheon.com", {{
@@ -328,6 +336,51 @@ console.log(JSON.stringify(content));
     assert json.loads(result.stdout) == {"redirectTo": "/articles/astro"}
 
 
+def test_legacy_article_slug_redirects_to_serial_url() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+const legacy = buildArticleContent("/articles/personality/relationships-stuck", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+const canonical = buildArticleContent("/articles/interpersonal/interpersonal-0001", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+const topic = buildArticleContent("/topics/mbti", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+console.log(JSON.stringify({
+  legacy,
+  canonical: {
+    title: canonical.title,
+    serial: canonical.serial,
+    canonicalPath: canonical.canonicalPath,
+    tagHref: canonical.displayTagLinks.find((tag) => tag.label === "人際關係")?.href,
+  },
+  topic: {
+    title: topic.title,
+    canonicalPath: topic.canonicalPath,
+    relatedCount: topic.relatedLinks.length,
+  },
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["legacy"] == {"redirectTo": "/articles/interpersonal/interpersonal-0001"}
+    assert data["canonical"]["serial"] == "interpersonal-0001"
+    assert data["canonical"]["canonicalPath"] == "/articles/interpersonal/interpersonal-0001"
+    assert data["canonical"]["tagHref"] == "/topics/interpersonal"
+    assert data["topic"]["canonicalPath"] == "/topics/mbti"
+    assert data["topic"]["relatedCount"] >= 3
+
+
 def test_article_admin_serves_management_console() -> None:
     client = TestClient(app)
     response = client.get("/article-admin")
@@ -366,44 +419,48 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/fortune" in sitemap.text
     assert "https://mysticpantheon.com/articles/personality" in sitemap.text
     assert "https://mysticpantheon.com/articles/astro" in sitemap.text
+    assert "https://mysticpantheon.com/articles/fortune/fortune-0001" in sitemap.text
+    assert "https://mysticpantheon.com/articles/interpersonal/interpersonal-0001" in sitemap.text
+    assert "https://mysticpantheon.com/topics/mbti" in sitemap.text
     assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
     assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
+    assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
 
 
 def test_first_30_article_plan_is_registered_for_site() -> None:
     article_registry_js = Path("app/web/static/article-registry.js").read_text()
     sitemap_xml = Path("app/web/sitemap.xml").read_text()
     expected_articles = [
-        ("MBTI 是什麼", "/articles/personality/mbti-meaning"),
-        ("16 型人格", "/articles/personality/16-personalities"),
-        ("MBTI 測驗", "/articles/personality/mbti-test"),
-        ("MBTI 準嗎", "/articles/personality/mbti-accuracy"),
-        ("INTJ 是什麼", "/articles/personality/intj-meaning"),
-        ("INFP 是什麼", "/articles/personality/infp-meaning"),
-        ("INFJ 是什麼", "/articles/personality/infj-meaning"),
-        ("ENFP 是什麼", "/articles/personality/enfp-meaning"),
-        ("塔羅牌意思", "/articles/tarot/tarot-card-meanings"),
-        ("塔羅牌正位逆位", "/articles/tarot/upright-reversed"),
-        ("愚者牌意思", "/articles/tarot/fool-card-meaning"),
-        ("魔術師牌意思", "/articles/tarot/magician-card-meaning"),
-        ("戀人牌意思", "/articles/tarot/lovers-card-meaning"),
-        ("死神牌意思", "/articles/tarot/death-card-meaning"),
-        ("高塔牌意思", "/articles/tarot/tower-card-meaning"),
-        ("世界牌意思", "/articles/tarot/world-card-meaning"),
-        ("命盤是什麼", "/articles/fortune/birth-chart-meaning"),
-        ("八字是什麼", "/articles/fortune/bazi-meaning"),
-        ("紫微斗數是什麼", "/articles/fortune/ziwei-doushu-meaning"),
-        ("命宮是什麼", "/articles/fortune/ming-gong-meaning"),
-        ("夫妻宮是什麼", "/articles/fortune/spouse-palace-meaning"),
-        ("財帛宮是什麼", "/articles/fortune/wealth-palace-meaning"),
-        ("星盤是什麼", "/articles/astro/birth-chart-astrology"),
-        ("上升星座是什麼", "/articles/astro/ascendant-sign-meaning"),
-        ("月亮星座是什麼", "/articles/astro/moon-sign-meaning"),
-        ("感情塔羅", "/articles/tarot/love-tarot-questions"),
-        ("事業運勢", "/articles/fortune/career-fortune"),
-        ("人際關係", "/articles/personality/relationships-stuck"),
-        ("財富運勢", "/articles/fortune/wealth-fortune"),
-        ("人生方向", "/articles/fortune/life-direction"),
+        ("MBTI 是什麼", "/articles/personality/personality-0001"),
+        ("16 型人格", "/articles/personality/personality-0002"),
+        ("MBTI 測驗", "/articles/personality/personality-0003"),
+        ("MBTI 準嗎", "/articles/personality/personality-0004"),
+        ("INTJ 是什麼", "/articles/personality/personality-0005"),
+        ("INFP 是什麼", "/articles/personality/personality-0006"),
+        ("INFJ 是什麼", "/articles/personality/personality-0007"),
+        ("ENFP 是什麼", "/articles/personality/personality-0008"),
+        ("塔羅牌意思", "/articles/tarot/tarot-0001"),
+        ("塔羅牌正位逆位", "/articles/tarot/tarot-0002"),
+        ("愚者牌意思", "/articles/tarot/tarot-0003"),
+        ("魔術師牌意思", "/articles/tarot/tarot-0004"),
+        ("戀人牌意思", "/articles/tarot/tarot-0005"),
+        ("死神牌意思", "/articles/tarot/tarot-0006"),
+        ("高塔牌意思", "/articles/tarot/tarot-0007"),
+        ("世界牌意思", "/articles/tarot/tarot-0008"),
+        ("命盤是什麼", "/articles/fortune/fortune-0001"),
+        ("八字是什麼", "/articles/fortune/fortune-0002"),
+        ("紫微斗數是什麼", "/articles/fortune/fortune-0003"),
+        ("命宮是什麼", "/articles/fortune/fortune-0004"),
+        ("夫妻宮是什麼", "/articles/fortune/fortune-0005"),
+        ("財帛宮是什麼", "/articles/fortune/fortune-0006"),
+        ("星盤是什麼", "/articles/astrology/astrology-0001"),
+        ("上升星座是什麼", "/articles/astrology/astrology-0002"),
+        ("月亮星座是什麼", "/articles/astrology/astrology-0003"),
+        ("感情塔羅", "/articles/love/love-0001"),
+        ("事業運勢", "/articles/career/career-0001"),
+        ("人際關係", "/articles/interpersonal/interpersonal-0001"),
+        ("財富運勢", "/articles/wealth/wealth-0001"),
+        ("人生方向", "/articles/life-direction/life-direction-0001"),
     ]
     for keyword, path in expected_articles:
         assert f'primaryKeyword: "{keyword}"' in article_registry_js

@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-8";
-import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-8";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-9";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-9";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -8,6 +8,8 @@ const dom = {
   titleSeparator: document.querySelector("[data-title-separator]"),
   articleProduct: document.querySelector("[data-article-product]"),
   articleTitle: document.querySelector("[data-article-title]"),
+  articleSerialWrapper: document.querySelector("[data-article-serial-wrapper]"),
+  articleSerial: document.querySelector("[data-article-serial]"),
   articleAuthor: document.querySelector("[data-article-author]"),
   articleUpdated: document.querySelector("[data-article-updated]"),
   sectionDescription: document.querySelector("[data-section-description]"),
@@ -51,6 +53,10 @@ function renderArticleChrome(content) {
   dom.articleTitle.textContent = content.title;
   dom.titleCrumb.textContent = content.title;
   dom.articleProduct.textContent = content.productCrumbLabel;
+  if (content.serial && dom.articleSerial && dom.articleSerialWrapper) {
+    dom.articleSerial.textContent = content.serial;
+    dom.articleSerialWrapper.hidden = false;
+  }
 
   if (content.productCrumb) {
     dom.productCrumb.hidden = false;
@@ -69,10 +75,11 @@ function renderArticleChrome(content) {
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
-  dom.articleTags.replaceChildren(...(content.displayTags || content.tags || []).map((tag) => {
-    const item = document.createElement("span");
+  dom.articleTags.replaceChildren(...(content.displayTagLinks || (content.displayTags || content.tags || []).map((label) => ({ label }))).map((tag) => {
+    const item = document.createElement(tag.href ? "a" : "span");
     item.className = "ui-chip";
-    item.textContent = tag;
+    item.textContent = tag.label;
+    if (tag.href) item.href = tag.href;
     return item;
   }));
   renderArticleBody(content);

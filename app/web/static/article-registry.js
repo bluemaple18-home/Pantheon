@@ -26,6 +26,40 @@ export const HUMANIZER_POLICY = {
   ],
 };
 
+export const ARTICLE_SERIAL_REGISTRY = {
+  "MBTI-BASE-01": "personality-0001",
+  "MBTI-BASE-02": "personality-0002",
+  "MBTI-BASE-03": "personality-0003",
+  "MBTI-BASE-04": "personality-0004",
+  "MBTI-TYPE-INTJ": "personality-0005",
+  "MBTI-TYPE-INFP": "personality-0006",
+  "MBTI-TYPE-INFJ": "personality-0007",
+  "MBTI-TYPE-ENFP": "personality-0008",
+  "TAROT-BASE-01": "tarot-0001",
+  "TAROT-BASE-02": "tarot-0002",
+  "TAROT-M00": "tarot-0003",
+  "TAROT-M01": "tarot-0004",
+  "TAROT-M06": "tarot-0005",
+  "TAROT-M13": "tarot-0006",
+  "TAROT-M16": "tarot-0007",
+  "TAROT-M21": "tarot-0008",
+  "CHART-BASE-01": "fortune-0001",
+  "CHART-BASE-02": "fortune-0002",
+  "CHART-ZIWEI-01": "fortune-0003",
+  "CHART-ZIWEI-02": "fortune-0004",
+  "CHART-ZIWEI-03": "fortune-0005",
+  "CHART-ZIWEI-04": "fortune-0006",
+  "ASTRO-BASE-01": "astrology-0001",
+  "ASTRO-BASE-02": "astrology-0002",
+  "ASTRO-BASE-03": "astrology-0003",
+  "ASTRO-LOVE-01": "astrology-0004",
+  "THEME-LOVE-01": "love-0001",
+  "THEME-CAREER-01": "career-0001",
+  "THEME-INTERPERSONAL-01": "interpersonal-0001",
+  "THEME-WEALTH-01": "wealth-0001",
+  "THEME-LIFE-01": "life-direction-0001",
+};
+
 export const PRODUCT_THEME_REGISTRY = {
   fortune: {
     label: "命盤",
@@ -50,11 +84,28 @@ export const PRODUCT_THEME_REGISTRY = {
 };
 
 export const ARTICLE_URL_CONTRACT = {
-  articlePattern: "/articles/{product}/{slug}",
+  articlePattern: "/articles/{category}/{category}-{number}",
   productHubPattern: "/articles/{product}",
   intentHubPattern: "/articles/intents/{intent}",
-  products: ["fortune", "personality", "tarot", "astro"],
+  topicPattern: "/topics/{topic-slug}",
+  categories: ["fortune", "personality", "tarot", "astrology", "love", "career", "interpersonal", "wealth", "life-direction"],
 };
+
+export const TOPIC_REGISTRY = [
+  { id: "topic-0001", slug: "mbti", label: "MBTI", aliases: ["MBTI 是什麼", "MBTI 人格", "MBTI 測驗", "人格測驗"] },
+  { id: "topic-0002", slug: "16-personalities", label: "16 型人格", aliases: ["16 型人格", "人格類型", "INTJ", "INFP", "INFJ", "ENFP"] },
+  { id: "topic-0003", slug: "tarot", label: "塔羅", aliases: ["塔羅", "塔羅牌意思", "塔羅牌牌義", "牌義", "大阿爾克那", "魔術師牌意思", "愚者牌意思", "戀人牌意思", "死神牌意思", "高塔牌意思", "世界牌意思"] },
+  { id: "topic-0004", slug: "upright-reversed", label: "正位逆位", aliases: ["正位逆位", "塔羅牌正位逆位", "塔羅逆位", "塔羅正位"] },
+  { id: "topic-0005", slug: "fortune", label: "命盤", aliases: ["命盤", "個人命盤", "八字命盤", "紫微命盤"] },
+  { id: "topic-0006", slug: "bazi", label: "八字", aliases: ["八字", "八字是什麼", "生辰八字", "干支"] },
+  { id: "topic-0007", slug: "ziwei-doushu", label: "紫微斗數", aliases: ["紫微斗數", "紫微命盤", "命宮", "夫妻宮", "財帛宮"] },
+  { id: "topic-0008", slug: "astrology", label: "星盤", aliases: ["星盤", "星盤是什麼", "個人星盤", "星盤查詢", "星座命盤", "占星命盤", "星座", "上升星座", "月亮星座"] },
+  { id: "topic-0009", slug: "love", label: "感情", aliases: ["感情", "感情塔羅", "關係", "相處模式"] },
+  { id: "topic-0010", slug: "career", label: "事業", aliases: ["事業", "工作", "職涯", "轉職"] },
+  { id: "topic-0011", slug: "interpersonal", label: "人際", aliases: ["人際", "人際關係", "溝通", "關係界線"] },
+  { id: "topic-0012", slug: "wealth", label: "財富", aliases: ["財富", "財運", "金錢觀", "資源"] },
+  { id: "topic-0013", slug: "life-direction", label: "人生方向", aliases: ["人生方向", "人生迷惘", "自我理解", "選擇"] },
+];
 
 export const LIFE_INTENT_REGISTRY = {
   love: {
@@ -102,6 +153,15 @@ export const ARTICLE_SECTION_REGISTRY = {
     primaryKeyword: "星座",
     requiredTags: ["星座", "星盤", "運勢"],
   },
+  love: {
+    product: "tarot",
+    intent: "love",
+    label: "感情",
+    description: "整理感情、關係互動與相處模式文章，先回答問題，再連到人格、塔羅與命盤脈絡。",
+    seoDescription: "Pantheon 感情文章主頁，整理感情塔羅、人格相處與關係問題的繁體中文內容。",
+    primaryKeyword: "感情塔羅",
+    requiredTags: ["感情", "關係", "相處模式"],
+  },
   bazi: {
     product: "fortune",
     intent: "",
@@ -130,6 +190,15 @@ export const ARTICLE_SECTION_REGISTRY = {
     requiredTags: ["人際", "關係界線", "溝通模式"],
   },
   life: {
+    product: "fortune",
+    intent: "life",
+    label: "人生方向",
+    description: "整理人生方向、自我理解與選擇節奏相關文章，協助讀者先釐清問題。",
+    seoDescription: "Pantheon 人生方向文章主頁，整理自我理解、選擇節奏與人生主題內容。",
+    primaryKeyword: "人生方向",
+    requiredTags: ["人生方向", "自我理解", "選擇"],
+  },
+  "life-direction": {
     product: "fortune",
     intent: "life",
     label: "人生方向",
@@ -551,6 +620,41 @@ export function listArticleRecords() {
   return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy(article, getArticleSectionRecord(article.section)));
 }
 
+export function getArticlePath(article) {
+  const record = article?.urlSlug ? article : enforceArticlePolicy(article, getArticleSectionRecord(article?.section));
+  return `/articles/${record.articleCategory || record.product}/${record.urlSlug || record.slug}`;
+}
+
+export function listTopicRecords() {
+  return TOPIC_REGISTRY.map((topic) => ({
+    ...topic,
+    href: `/topics/${topic.slug}`,
+  }));
+}
+
+export function getTopicRecord(slug = "") {
+  return listTopicRecords().find((topic) => topic.slug === slug) || null;
+}
+
+export function getTopicForLabel(label = "") {
+  const normalized = String(label || "").trim();
+  return listTopicRecords().find((topic) => topic.label === normalized || topic.aliases.includes(normalized)) || null;
+}
+
+export function listArticlesForTopic(topicSlug = "") {
+  const topic = getTopicRecord(topicSlug);
+  if (!topic) return [];
+  return listArticleRecords().filter((article) => {
+    const values = [
+      article.primaryKeyword,
+      ...(article.secondaryKeywords || []),
+      ...(article.originalTags || []),
+      ...(article.tags || []),
+    ].filter(Boolean);
+    return values.some((value) => topic.label === value || topic.aliases.includes(value));
+  });
+}
+
 export function listArticleVoiceAudits() {
   return listArticleRecords().map((article) => auditArticleVoice(article));
 }
@@ -570,6 +674,7 @@ export function auditArticleVoice(article) {
   if (!/不|不能|不應|不是|不代表|不可以/.test(text)) issues.push("缺少公開文章邊界");
   return {
     articleId: article.id || `${article.product}/${article.slug}`,
+    serial: article.serial,
     title: article.title,
     status: issues.length ? "needs_review" : "pass",
     issues,
@@ -608,8 +713,9 @@ export function buildArticleGraph() {
       id: articleId,
       kind: "article",
       label: article.title,
+      serial: article.serial,
       keyword: article.primaryKeyword,
-      url: `/articles/${article.product}/${article.slug}`,
+      url: getArticlePath(article),
     });
     addLink(sectionId, articleId, "contains_article");
     article.tags.forEach((tag) => {
@@ -638,7 +744,12 @@ export function getProductThemeRecord(productTheme = "fortune") {
 }
 
 export function getArticleRecord(product = "", slug = "") {
-  const record = ARTICLE_REGISTRY.find((article) => resolveArticleProduct(article) === product && article.slug === slug);
+  const record = ARTICLE_REGISTRY.find((article) => {
+    const managed = enforceArticlePolicy(article, getArticleSectionRecord(article.section));
+    const routeMatches = managed.product === product || managed.articleCategory === product || managed.section === product;
+    const slugMatches = managed.slug === slug || managed.urlSlug === slug;
+    return routeMatches && slugMatches;
+  });
   return record ? enforceArticlePolicy(record, getArticleSectionRecord(record.section)) : null;
 }
 
@@ -660,6 +771,9 @@ export function enforceArticlePolicy(article, section = null) {
   ]);
   return {
     ...article,
+    serial: article?.serial || ARTICLE_SERIAL_REGISTRY[article?.id] || "",
+    articleCategory: getArticleCategory(article?.serial || ARTICLE_SERIAL_REGISTRY[article?.id] || "", product),
+    urlSlug: article?.urlSlug || buildArticleUrlSlug(article?.serial || ARTICLE_SERIAL_REGISTRY[article?.id] || ""),
     sectionDescription: section?.description || "",
     sectionSeoDescription: section?.seoDescription || section?.description || "",
     product,
@@ -669,6 +783,15 @@ export function enforceArticlePolicy(article, section = null) {
     originalTags: article?.tags || [],
     tags,
   };
+}
+
+function buildArticleUrlSlug(serial) {
+  return serial || "";
+}
+
+function getArticleCategory(serial, fallbackProduct) {
+  const match = String(serial || "").match(/^(.+)-\d{4}$/);
+  return match ? match[1] : fallbackProduct;
 }
 
 export function fallbackArticleSectionLabel(section = "") {

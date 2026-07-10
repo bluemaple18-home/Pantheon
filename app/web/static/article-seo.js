@@ -42,6 +42,26 @@ export function buildBreadcrumbJsonLd(content, origin) {
 }
 
 export function buildArticleJsonLd(content, origin) {
+  if (content.contentType === "CollectionPage") {
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: content.title,
+      description: content.description,
+      inLanguage: "zh-Hant-TW",
+      url: content.canonicalUrl,
+      mainEntityOfPage: content.canonicalUrl,
+      publisher: {
+        "@type": "Organization",
+        name: "Pantheon",
+        url: `${origin}/`,
+      },
+      about: (content.displayTags || content.tags || []).map((tag) => ({
+        "@type": "Thing",
+        name: tag,
+      })),
+    };
+  }
   return {
     "@context": "https://schema.org",
     "@type": "Article",

@@ -1,4 +1,5 @@
-import { getProductThemeRecord, listArticleRecords } from "./article-registry.js";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js";
+import { initPantheonAnimatedLogos } from "./pantheon-logo.js";
 
 const articleGrid = document.querySelector("[data-home-articles]");
 const SEARCH_SNIPPETS = {
@@ -17,6 +18,7 @@ const SEARCH_SNIPPETS = {
 };
 
 renderLatestArticles();
+initPantheonAnimatedLogos();
 
 function renderLatestArticles() {
   if (!articleGrid) return;
@@ -24,12 +26,16 @@ function renderLatestArticles() {
     const productTheme = getProductThemeRecord(article.product);
     const card = document.createElement("a");
     card.className = "home-article-card";
-    card.href = `/articles/${article.product}/${article.slug}`;
+    card.href = getArticlePath(article);
     card.dataset.productTheme = article.product;
     card.dataset.themeGlyph = productTheme.glyph;
 
     const meta = document.createElement("div");
     meta.className = "home-article-meta";
+
+    const serial = document.createElement("span");
+    serial.className = "home-article-serial";
+    serial.textContent = article.serial;
 
     const product = document.createElement("span");
     product.className = "home-article-product";
@@ -45,7 +51,7 @@ function renderLatestArticles() {
     const description = document.createElement("p");
     description.textContent = SEARCH_SNIPPETS[article.slug] || article.description;
 
-    meta.append(product, keyword);
+    meta.append(serial, product, keyword);
     card.append(meta, title, description);
     return card;
   }));
