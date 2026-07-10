@@ -141,7 +141,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-1" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-2" in response.text
         assert "/static/article.js?v=article-content-20260710-3" in response.text
 
 
@@ -187,6 +187,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-page-bg:' in styles_css
     assert '.article-screen[data-product-theme="fortune"]' in styles_css
     assert '.article-screen[data-product-theme="personality"]' in styles_css
+    assert '.article-screen[data-product-theme="fortune"] {\n  --article-accent: var(--cinnabar);' in styles_css
+    assert '.article-screen[data-product-theme="personality"] {\n  --article-accent: #b98624;' in styles_css
     assert '.article-screen[data-product-theme="tarot"]' in styles_css
     assert '.article-screen[data-product-theme="astro"]' in styles_css
     assert '--article-header-bg:' in styles_css
