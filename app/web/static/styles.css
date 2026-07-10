@@ -632,15 +632,17 @@ a.ui-chip:hover {
 }
 
 .article-inline-topic-link {
-  color: var(--article-accent);
-  font-weight: 760;
+  color: inherit;
+  font-weight: inherit;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
+  text-decoration-color: var(--article-line);
 }
 
 .article-inline-topic-link:hover {
-  color: var(--article-text);
+  color: inherit;
+  text-decoration-color: var(--article-accent);
 }
 
 .article-site-footer {

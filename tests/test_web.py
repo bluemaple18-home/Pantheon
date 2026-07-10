@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-11" in response.text
+        assert "/static/article.js?v=article-content-20260710-12" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -167,13 +167,16 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.productCrumb.href = content.productHref" in article_js
     assert "dom.articleTitle.textContent = content.title" in article_js
     assert "dom.titleCrumb.hidden = false" in article_js
-    assert "renderArticleBody(content)" in article_js
+    assert "renderArticleBody(content, inlineTopicState)" in article_js
     assert "renderArticleFaq(content)" in article_js
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
-    assert "listTopicRecords" in article_js
-    assert "replaceWithInlineTopicLinks(dom.answerText, content.answer)" in article_js
-    assert "appendInlineTopicLinks(paragraph, text)" in article_js
+    assert "INLINE_TOPIC_MAX_LINKS = 8" in article_js
+    assert "buildInlineTopicState(content)" in article_js
+    assert "buildInlineTermsFromTag(tag)" in article_js
+    assert "label.match(/^[A-Z][A-Z0-9]{1,}(?=\\s|$)/)" in article_js
+    assert "content.displayTagLinks || []" in article_js
+    assert "appendInlineTopicLinks(paragraph, text, inlineTopicState)" in article_js
     assert "article-inline-topic-link" in article_js
     assert "data-article-related" in Path("app/web/article.html").read_text()
     assert "data-article-cta" in Path("app/web/article.html").read_text()

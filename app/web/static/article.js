@@ -1,9 +1,7 @@
 import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-10";
-import { listTopicRecords } from "./article-registry.js?v=article-content-20260710-11";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
-const INLINE_TOPIC_EXCLUSIONS = new Set(["關係", "工作", "選擇", "資源"]);
-const INLINE_TOPIC_TERMS = buildInlineTopicTerms();
+const INLINE_TOPIC_MAX_LINKS = 8;
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -52,6 +50,7 @@ if (content.redirectTo) {
 }
 
 function renderArticleChrome(content) {
+  const inlineTopicState = buildInlineTopicState(content);
   document.body.dataset.productTheme = content.productTheme;
   document.body.dataset.intent = content.intent;
   dom.articleTitle.textContent = content.title;
@@ -75,7 +74,7 @@ function renderArticleChrome(content) {
   }
 
   dom.sectionDescription.textContent = content.sectionDescription;
-  replaceWithInlineTopicLinks(dom.answerText, content.answer);
+  dom.answerText.textContent = content.answer;
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
@@ -86,13 +85,13 @@ function renderArticleChrome(content) {
     if (tag.href) item.href = tag.href;
     return item;
   }));
-  renderArticleBody(content);
+  renderArticleBody(content, inlineTopicState);
   renderArticleFaq(content);
   renderArticleRelated(content);
   renderArticleCta(content);
 }
 
-function renderArticleBody(content) {
+function renderArticleBody(content, inlineTopicState) {
   if (!dom.articleBody) return;
   const blocks = content.bodySections.map((section) => {
     const block = document.createElement("section");
@@ -100,7 +99,7 @@ function renderArticleBody(content) {
     heading.textContent = section.heading;
     block.append(heading, ...section.paragraphs.map((text) => {
       const paragraph = document.createElement("p");
-      appendInlineTopicLinks(paragraph, text);
+      appendInlineTopicLinks(paragraph, text, inlineTopicState);
       return paragraph;
     }));
     return block;
@@ -108,39 +107,51 @@ function renderArticleBody(content) {
   dom.articleBody.replaceChildren(...blocks);
 }
 
-function buildInlineTopicTerms() {
-  const terms = [];
-  listTopicRecords().forEach((topic) => {
-    [topic.label, ...(topic.aliases || [])].forEach((label) => {
-      const text = String(label || "").trim();
-      if (!text || INLINE_TOPIC_EXCLUSIONS.has(text)) return;
-      terms.push({
-        text,
-        href: topic.href,
-        slug: topic.slug,
-      });
-    });
-  });
-  return terms
+function buildInlineTopicState(content) {
+  const terms = (content.displayTagLinks || [])
+    .filter((tag) => tag?.href?.startsWith("/topics/") && tag.label)
+    .flatMap((tag) => buildInlineTermsFromTag(tag))
+    .filter((term) => term.text)
     .filter((term, index, list) => list.findIndex((item) => item.text === term.text && item.href === term.href) === index)
     .sort((a, b) => b.text.length - a.text.length || a.text.localeCompare(b.text));
+  return {
+    terms,
+    linkedTerms: new Set(),
+    linkCount: 0,
+  };
 }
 
-function replaceWithInlineTopicLinks(node, text) {
-  if (!node) return;
-  node.replaceChildren();
-  appendInlineTopicLinks(node, text);
+function buildInlineTermsFromTag(tag) {
+  const label = String(tag.label || "").trim();
+  const terms = [
+    {
+      text: label,
+      href: tag.href,
+    },
+  ];
+  const acronym = label.match(/^[A-Z][A-Z0-9]{1,}(?=\s|$)/)?.[0];
+  if (acronym) {
+    terms.push({
+      text: acronym,
+      href: tag.href,
+    });
+  }
+  return terms;
 }
 
-function appendInlineTopicLinks(node, text = "") {
+function appendInlineTopicLinks(node, text = "", inlineTopicState) {
   const source = String(text || "");
-  const linkedTopics = new Set();
+  const state = inlineTopicState || buildInlineTopicState({});
   let cursor = 0;
 
   while (cursor < source.length) {
-    const match = INLINE_TOPIC_TERMS.find((term) => !linkedTopics.has(term.slug) && source.startsWith(term.text, cursor));
+    const match = state.linkCount < INLINE_TOPIC_MAX_LINKS
+      ? state.terms.find((term) => !state.linkedTerms.has(term.text) && source.startsWith(term.text, cursor))
+      : null;
     if (!match) {
-      const nextMatchIndex = findNextInlineTopicIndex(source, cursor + 1, linkedTopics);
+      const nextMatchIndex = state.linkCount < INLINE_TOPIC_MAX_LINKS
+        ? findNextInlineTopicIndex(source, cursor + 1, state)
+        : source.length;
       node.append(document.createTextNode(source.slice(cursor, nextMatchIndex)));
       cursor = nextMatchIndex;
       continue;
@@ -151,15 +162,16 @@ function appendInlineTopicLinks(node, text = "") {
     link.href = match.href;
     link.textContent = match.text;
     node.append(link);
-    linkedTopics.add(match.slug);
+    state.linkedTerms.add(match.text);
+    state.linkCount += 1;
     cursor += match.text.length;
   }
 }
 
-function findNextInlineTopicIndex(source, start, linkedTopics) {
+function findNextInlineTopicIndex(source, start, state) {
   let next = source.length;
-  INLINE_TOPIC_TERMS.forEach((term) => {
-    if (linkedTopics.has(term.slug)) return;
+  state.terms.forEach((term) => {
+    if (state.linkedTerms.has(term.text)) return;
     const index = source.indexOf(term.text, start);
     if (index !== -1 && index < next) next = index;
   });
