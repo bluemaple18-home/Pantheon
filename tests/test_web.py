@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-5" in response.text
-        assert "/static/article.js?v=article-content-20260710-13" in response.text
+        assert "/static/article.js?v=article-content-20260710-14" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -371,7 +371,10 @@ console.log(JSON.stringify({
   topic: {
     title: topic.title,
     canonicalPath: topic.canonicalPath,
+    bodyLinkCount: topic.bodySections.flatMap((section) => section.links || []).length,
+    faqCount: topic.faq.length,
     relatedCount: topic.relatedLinks.length,
+    bodyText: topic.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join(" "),
   },
 }));
 """
@@ -387,7 +390,12 @@ console.log(JSON.stringify({
     assert data["canonical"]["canonicalPath"] == "/articles/interpersonal/interpersonal-0001"
     assert data["canonical"]["tagHref"] == "/topics/interpersonal"
     assert data["topic"]["canonicalPath"] == "/topics/mbti"
-    assert data["topic"]["relatedCount"] >= 3
+    assert data["topic"]["title"] == "MBTI 相關文章"
+    assert data["topic"]["bodyLinkCount"] >= 3
+    assert data["topic"]["faqCount"] == 0
+    assert data["topic"]["relatedCount"] == 0
+    assert "標籤頁" not in data["topic"]["bodyText"]
+    assert "集結頁" not in data["topic"]["bodyText"]
 
 
 def test_article_knowledge_base_serial_and_topic_contract() -> None:
@@ -422,6 +430,7 @@ const articleSummaries = records.map((article) => {{
 }});
 
 const topicSummaries = topics.map((topic) => {{
+  const topicArticlePaths = listArticlesForTopic(topic.slug).map(getArticlePath);
   const content = buildArticleContent(topic.href, "https://mysticpantheon.com", {{
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
@@ -432,7 +441,11 @@ const topicSummaries = topics.map((topic) => {{
     href: topic.href,
     canonicalPath: content.canonicalPath,
     contentType: content.contentType,
+    bodyLinkCount: content.bodySections.flatMap((section) => section.links || []).length,
+    bodyText: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join(" "),
+    faqCount: content.faq.length,
     relatedCount: content.relatedLinks.length,
+    topicArticleCount: topicArticlePaths.length,
   }};
 }});
 
@@ -481,7 +494,11 @@ console.log(JSON.stringify({{
         assert topic["href"] == f"/topics/{topic['slug']}"
         assert topic["canonicalPath"] == topic["href"]
         assert topic["contentType"] == "CollectionPage"
-        assert topic["relatedCount"] >= 1
+        assert topic["bodyLinkCount"] == topic["topicArticleCount"]
+        assert topic["faqCount"] == 0
+        assert topic["relatedCount"] == 0
+        assert "標籤頁" not in topic["bodyText"]
+        assert "集結頁" not in topic["bodyText"]
 
 
 def test_article_admin_serves_management_console() -> None:

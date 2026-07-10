@@ -492,25 +492,25 @@ function buildTopicContent(route, topic, origin, defaults = {}) {
     title: buildTopicTitle(safeTopic.label),
     contentType: "CollectionPage",
     pageTitle: `${buildTopicTitle(safeTopic.label)} | Pantheon`,
-    description: `Pantheon ${safeTopic.label}文章集結頁，整理相關公開文章、延伸閱讀與適用限制。`,
+    description: `整理 Pantheon 中提到 ${safeTopic.label} 的公開文章，方便直接找到相關內容。`,
     canonicalPath: `/topics/${safeTopic.slug}`,
     canonicalUrl: `${origin}/topics/${safeTopic.slug}`,
     product: "topics",
-    productLabel: "標籤",
+    productLabel: "主題",
     productHref: "/articles",
     section: "topics",
     productCrumb: "topics",
-    productCrumbLabel: "標籤",
+    productCrumbLabel: "主題",
     slug: safeTopic.slug,
     serial: safeTopic.id || "",
     author: defaults.author || "Pantheon 編輯部",
     updated,
     published: defaults.published || updated,
-    sectionDescription: `${safeTopic.label}標籤會把相關公開文章串起來，方便從同一個概念延伸閱讀。`,
+    sectionDescription: `整理所有提到「${safeTopic.label}」的公開文章。`,
     productTheme: "latest",
-    productThemeLabel: "標籤",
+    productThemeLabel: "主題",
     productThemeGlyph: "#",
-    productThemeDescription: "常用標籤集結頁，用來串聯文章與文章。",
+    productThemeDescription: "同一主題的文章列表。",
     intent: "",
     keywords: uniqueList([safeTopic.label, ...(safeTopic.aliases || []), "Pantheon", "公開文章"]),
     tags: uniqueList([safeTopic.label, ...(safeTopic.aliases || [])]),
@@ -519,64 +519,33 @@ function buildTopicContent(route, topic, origin, defaults = {}) {
       label,
       href: `/topics/${safeTopic.slug}`,
     })),
-    answer: `${safeTopic.label}文章集結頁會整理掛上這個標籤的公開文章，先看共通概念，再進到單篇文章。`,
+    answer: `這裡整理所有提到「${safeTopic.label}」的公開文章，直接選一篇進去讀。`,
     bodySections: buildTopicBodySections(safeTopic, articles),
-    faq: buildTopicFaq(safeTopic),
-    relatedLinks: buildTopicRelatedLinks(safeTopic, articles),
-    cta: {
-      title: "從哪篇開始？",
-      body: `如果你是從「${safeTopic.label}」進來，先讀基礎概念文章，再依照感情、事業、人際、財富或人生方向補情境文章。`,
-      links: buildTopicRelatedLinks(safeTopic, articles).slice(0, 3),
-    },
+    faq: [],
+    relatedLinks: [],
+    cta: null,
   };
 }
 
 function buildTopicBodySections(topic, articles) {
-  const articleList = articles.slice(0, 8).map((article) => `${article.serial} ${article.title}`).join("、");
+  const articleLinks = articles.slice(0, 24).map((article) => ({
+    label: article.title,
+    href: getArticlePath(article),
+    kind: article.serial,
+  }));
   return [
     {
-      heading: `${topic.label}文章集結頁整理什麼？`,
+      heading: `${topic.label} 相關文章`,
       paragraphs: [
-        `${topic.label}標籤會把同一個概念底下的文章串起來。它不是單篇文章，而是讓讀者從一個常用詞進到相關主題、產品線與情境問題。`,
-        "標籤頁適合用來補脈絡：先看這個詞和哪些文章有關，再決定要讀定義、工具限制、情境應用，或下一篇延伸閱讀。",
+        articleLinks.length ? `目前收錄 ${articleLinks.length} 篇文章。` : "目前還沒有收錄文章。",
       ],
-    },
-    {
-      heading: `目前有哪些 ${topic.label} 相關文章？`,
-      paragraphs: [
-        articleList ? `目前收錄：${articleList}。` : `目前這個標籤正在建立文章索引，後續會把相關公開文章集中到這裡。`,
-        "每篇文章仍會保留公開內容邊界：只講通用概念、適用情境和限制，不把標籤直接寫成你的個人結論。",
-      ],
-    },
-    {
-      heading: "標籤和文章分類有什麼不同？",
-      paragraphs: [
-        "文章分類負責管理內容主線，例如命盤、人格、塔羅、星盤、感情或人際。標籤則負責橫向串聯，例如 MBTI 可能同時出現在人格、自我理解和人際文章裡。",
-        "這樣做的目的，是讓大量文章可以被多條路徑找到，而不是只能靠最新文章列表或單一產品線入口。",
-      ],
+      links: articleLinks,
     },
   ];
 }
 
 function buildTopicTitle(label) {
-  return /^[\x00-\x7F]+$/.test(label) ? `${label} 文章` : `${label}文章`;
-}
-
-function buildTopicFaq(topic) {
-  return [
-    {
-      question: `${topic.label}文章頁是什麼？`,
-      answer: `${topic.label}文章頁是標籤集結頁，會整理掛上這個標籤的公開文章與延伸閱讀。`,
-    },
-    {
-      question: `標籤頁和單篇文章差在哪裡？`,
-      answer: "單篇文章回答一個搜尋問題；標籤頁負責把多篇相關文章串起來，方便讀者沿著同一個概念繼續讀。",
-    },
-    {
-      question: `${topic.label}標籤可以直接代表個人狀況嗎？`,
-      answer: "不可以。標籤只能協助分類和延伸閱讀，不能替任何人的感情、工作或人生方向下個人結論。",
-    },
-  ];
+  return `${label} 相關文章`;
 }
 
 function buildTopicRelatedLinks(topic, articles) {

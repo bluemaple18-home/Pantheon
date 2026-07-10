@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-10";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-14";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
@@ -102,6 +102,21 @@ function renderArticleBody(content, inlineTopicState) {
       appendInlineTopicLinks(paragraph, text, inlineTopicState);
       return paragraph;
     }));
+    if (section.links?.length) {
+      const list = document.createElement("ul");
+      list.className = "article-link-list";
+      section.links.forEach((item) => {
+        const link = document.createElement("a");
+        const meta = document.createElement("span");
+        const row = document.createElement("li");
+        link.href = item.href;
+        link.textContent = item.label;
+        meta.textContent = item.kind;
+        row.append(link, meta);
+        list.append(row);
+      });
+      block.append(list);
+    }
     return block;
   });
   dom.articleBody.replaceChildren(...blocks);
@@ -180,6 +195,12 @@ function findNextInlineTopicIndex(source, start, state) {
 
 function renderArticleFaq(content) {
   if (!dom.articleFaq) return;
+  if (!content.faq?.length) {
+    dom.articleFaq.hidden = true;
+    dom.articleFaq.replaceChildren();
+    return;
+  }
+  dom.articleFaq.hidden = false;
   const heading = document.createElement("h2");
   heading.textContent = "常見問題";
   const questions = content.faq.map((item) => {
