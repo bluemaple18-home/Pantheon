@@ -136,7 +136,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-7" in response.text
+        assert "/static/article.js?v=article-content-20260710-8" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -148,6 +148,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
     assert "buildArticleContent(window.location.pathname, window.location.origin" in article_js
+    assert "if (content.redirectTo)" in article_js
+    assert "window.location.replace(content.redirectTo)" in article_js
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
     assert "getArticleSectionRecord(route.product)" in article_meta_js
     assert "getArticleRecord(route.product, route.slug)" in article_meta_js
@@ -250,6 +252,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/personality.html /articles 302" in redirects
     assert "/effects-demo.html /articles 302" in redirects
     assert "/strategy.html /articles 302" in redirects
+    assert "/articles/astro/12-zodiac-signs /articles/astro 302" in redirects
     assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
     assert "/reading /index.html 200" not in redirects
@@ -305,6 +308,24 @@ console.log(JSON.stringify(data));
         assert record["ctaCount"] >= 3, record
         assert record["hasLimit"], record
         assert not record["hasForbidden"], record
+
+
+def test_unknown_article_slug_redirects_to_product_hub() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+const content = buildArticleContent("/articles/astro/12-zodiac-signs", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+console.log(JSON.stringify(content));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout) == {"redirectTo": "/articles/astro"}
 
 
 def test_article_admin_serves_management_console() -> None:

@@ -302,6 +302,11 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
   const intent = route.intent ? getLifeIntentRecord(route.intent) : null;
   const article = route.product && route.slug ? getArticleRecord(route.product, route.slug) : null;
   const section = article ? getArticleSectionRecord(article.section) : getArticleSectionRecord(route.product);
+  if (route.slug && !article) {
+    return {
+      redirectTo: section?.product ? `/articles/${section.product}` : "/articles",
+    };
+  }
   const productThemeRecord = getProductThemeRecord(article?.product || route.product || section?.product);
   const canonicalPath = route.intent
     ? `/articles/intents/${route.intent}`

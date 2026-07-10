@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-7";
-import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-7";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-8";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-8";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -38,8 +38,12 @@ const content = buildArticleContent(window.location.pathname, window.location.or
   updated: dom.articleUpdated?.dateTime,
 });
 
-renderArticleChrome(content);
-applyArticleSeo(content, dom, window.location.origin);
+if (content.redirectTo) {
+  window.location.replace(content.redirectTo);
+} else {
+  renderArticleChrome(content);
+  applyArticleSeo(content, dom, window.location.origin);
+}
 
 function renderArticleChrome(content) {
   document.body.dataset.productTheme = content.productTheme;
