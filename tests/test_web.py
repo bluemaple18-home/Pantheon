@@ -185,8 +185,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "has_tag" in article_registry_js
     assert "/ /articles 302" in redirects
     assert "/reading /index.html 200" in redirects
-    assert "/articles /article.html 200" in redirects
-    assert "/articles/* /article.html 200" in redirects
+    assert "/articles /article 200" in redirects
+    assert "/articles/* /article 200" in redirects
+    assert "/articles /article.html 200" not in redirects
     assert "/personality /personality.html 200" not in redirects
     assert "/strategy /strategy.html 200" not in redirects
     assert "/effects-demo /effects-demo.html 200" not in redirects
