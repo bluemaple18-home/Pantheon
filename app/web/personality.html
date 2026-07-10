@@ -3,67 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>64 分支人格測試</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <meta name="robots" content="noindex,follow" />
+    <meta http-equiv="refresh" content="0; url=/articles" />
+    <title>Pantheon 最新文章</title>
+    <link rel="canonical" href="https://mysticpantheon.com/articles" />
+    <script>
+      window.location.replace("/articles");
+    </script>
   </head>
-  <body class="personality-screen">
-    <main class="app-shell personality-shell">
-      <header class="app-topbar personality-only-topbar ui-topbar-row">
-        <div>
-          <p class="eyebrow">Private Questionnaire</p>
-          <h1>64 分支人格測試</h1>
-        </div>
-        <a class="secondary-link ui-button ui-button-secondary" href="/">回到命書</a>
-      </header>
-
-      <section class="personality-page standalone">
-        <section class="personality-intro" aria-label="測驗摘要">
-          <div>
-            <p class="eyebrow">64 Personality</p>
-            <h2>用 48 個日常片段，抓出你的核心型與分支碼。</h2>
-            <p>題目會被打散，不直接標出測量項目；照直覺選就好，不需要想成標準答案。</p>
-          </div>
-          <div class="personality-stats">
-            <span><strong>48</strong> 題</span>
-            <span><strong>6</strong> 段</span>
-            <span><strong>64</strong> 分支</span>
-          </div>
-        </section>
-
-        <section class="personality-layout">
-          <form id="personality-form" class="personality-test-panel">
-            <div class="personality-hero">
-              <div>
-                <p class="eyebrow">Questionnaire</p>
-                <h2>日常反應測驗</h2>
-              </div>
-              <span class="question-count">約 6 分鐘</span>
-            </div>
-            <div class="question-progress" aria-live="polite">
-              <div>
-                <strong id="mbti-progress-text">段落 1 / 6</strong>
-                <span id="mbti-answer-status">尚未作答</span>
-              </div>
-              <div class="progress-track" aria-hidden="true">
-                <span id="mbti-progress-fill"></span>
-              </div>
-            </div>
-            <div id="mbti-questions" class="mbti-questions"></div>
-            <div class="question-nav">
-              <button type="button" id="mbti-prev" class="secondary-action ui-button ui-button-secondary">返回</button>
-              <button type="button" id="mbti-next" class="secondary-action ui-button ui-button-secondary">繼續</button>
-            </div>
-            <button type="submit" id="personality-submit" class="primary-action ui-button ui-button-primary" disabled>完成後產生結果</button>
-          </form>
-
-          <aside class="personality-result-panel" id="personality-result">
-            <p class="eyebrow">Result</p>
-            <h2>先完成測驗</h2>
-            <p>作答後會在這裡顯示核心型、分支碼與六軸偏好。</p>
-          </aside>
-        </section>
-      </section>
-    </main>
-    <script type="module" src="/static/personality.js"></script>
+  <body>
+    <p><a href="/articles">前往 Pantheon 最新文章</a></p>
   </body>
 </html>

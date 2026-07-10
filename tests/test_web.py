@@ -50,17 +50,19 @@ def test_home_redirects_to_latest_articles() -> None:
 
 def test_non_article_product_pages_redirect_to_articles() -> None:
     client = TestClient(app)
-    for path in ["/reading", "/personality", "/effects-demo"]:
+    for path in [
+        "/reading",
+        "/index.html",
+        "/personality",
+        "/personality.html",
+        "/effects-demo",
+        "/effects-demo.html",
+        "/strategy",
+        "/strategy.html",
+    ]:
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 302
         assert response.headers["location"] == "/articles"
-
-
-def test_strategy_page_is_not_public() -> None:
-    client = TestClient(app)
-    for path in ["/strategy", "/strategy.html"]:
-        response = client.get(path)
-        assert response.status_code == 404
 
 
 def test_articles_latest_hub_serves_collection_page() -> None:
@@ -235,9 +237,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/reading /articles 302" in redirects
     assert "/personality /articles 302" in redirects
     assert "/effects-demo /articles 302" in redirects
+    assert "/strategy /articles 302" in redirects
     assert "/index.html /articles 302" in redirects
     assert "/personality.html /articles 302" in redirects
     assert "/effects-demo.html /articles 302" in redirects
+    assert "/strategy.html /articles 302" in redirects
     assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
     assert "/reading /index.html 200" not in redirects
@@ -372,9 +376,12 @@ def test_first_30_article_plan_is_registered_for_site() -> None:
         assert f"https://mysticpantheon.com{path}" in sitemap_xml
 
 
-def test_product_pages_use_shared_ui_primitives() -> None:
-    index_html = Path("app/web/index.html").read_text()
-    personality_html = Path("app/web/personality.html").read_text()
+def test_retired_static_product_pages_redirect_to_articles() -> None:
+    retired_pages = [
+        Path("app/web/index.html"),
+        Path("app/web/personality.html"),
+        Path("app/web/effects-demo.html"),
+    ]
     styles_css = Path("app/web/static/styles.css").read_text()
     for selector in [
         ".ui-page-shell",
@@ -385,12 +392,14 @@ def test_product_pages_use_shared_ui_primitives() -> None:
         ".ui-chip",
     ]:
         assert selector in styles_css
-    assert "app-topbar destiny-topbar ui-topbar-row" in index_html
-    assert "topbar-actions ui-actions" in index_html
-    assert "primary-action ui-button ui-button-primary" in index_html
-    assert "app-topbar personality-only-topbar ui-topbar-row" in personality_html
-    assert "secondary-action ui-button ui-button-secondary" in personality_html
-    assert "primary-action ui-button ui-button-primary" in personality_html
+    for page in retired_pages:
+        html = page.read_text()
+        assert 'content="0; url=/articles"' in html
+        assert 'window.location.replace("/articles")' in html
+        assert 'meta name="robots" content="noindex,follow"' in html
+        assert "個人化解讀" not in html
+        assert "人格測試" not in html
+        assert "app-topbar" not in html
 
 
 def test_mbti_questions_use_mixed_display_order() -> None:

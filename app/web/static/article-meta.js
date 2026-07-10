@@ -10,7 +10,7 @@ const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
   "繁體中文",
   "公開文章",
-  "非個人化解讀",
+  "通用知識",
   "SEO",
   "AEO",
   "GEO",
@@ -657,8 +657,8 @@ function buildNextStepSection(article, productTheme, managedArticle) {
     heading: buildNextStepHeading(article, productTheme),
     paragraphs: [
       `如果你只是想理解「${article.primaryKeyword}」這個概念，讀到這裡已經足夠。公開文章的任務是幫你建立語言、釐清情境和知道限制，不會把通用知識包裝成你的個人答案。`,
-      `如果你想把它放回自己的狀況裡，可以先選一個入口：${productEntry}；如果你已經有明確問題，再往 ${intentEntry} 這類五大主題小報告整理。`,
-      "比較好的順序是：先把問題寫清楚，再選工具，再看結果能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷，也不要省略自己的限制條件。",
+      `如果你想把它放回自己的狀況裡，可以先選一個入口：${productEntry}；如果你已經有明確問題，再往 ${intentEntry} 這類五大主題文章整理。`,
+      "比較好的順序是：先把問題寫清楚，再選閱讀入口，再看內容能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷，也不要省略自己的限制條件。",
     ],
   };
 }
@@ -821,8 +821,8 @@ function buildLimitAnswer(article, productTheme, topic) {
 }
 
 function buildEntryAnswer(article, productTheme) {
-  if (article?.product === "personality") return "如果想看自己的反應模式，可以先做 64 分支人格測試；如果已有明確感情、事業或人際問題，再用五大主題小報告整理。";
-  if (article?.product === "tarot") return "如果只是想理解牌義，讀文章即可；如果想整理當下問題，可以先抽一張塔羅，再把問題放回感情、事業或人生方向入口。";
+  if (article?.product === "personality") return "如果想看自己的反應模式，可以先讀人格文章入口；如果已有明確感情、事業或人際問題，再用五大主題文章整理。";
+  if (article?.product === "tarot") return "如果只是想理解牌義，讀文章即可；如果想整理當下問題，可以先把問題寫清楚，再放回感情、事業或人生方向入口。";
   return `可以先從${productTheme.label}入口建立背景，再依照感情、事業、人際、財富或人生方向選擇更具體的問題。`;
 }
 
@@ -907,17 +907,17 @@ function buildArticleCta(article, productTheme) {
   const productLinks = (() => {
     if (article.product === "personality") return [
       { label: "看人格熱門文章", href: "/articles/personality" },
-      { label: "看人際主題小報告", href: "/articles/intents/interpersonal" },
+      { label: "看人際主題文章", href: "/articles/intents/interpersonal" },
       { label: "整理人生方向問題", href: "/articles/intents/life" },
     ];
     if (article.product === "tarot") return [
       { label: "看塔羅熱門文章", href: "/articles/tarot" },
-      { label: "看感情主題小報告", href: "/articles/intents/love" },
+      { label: "看感情主題文章", href: "/articles/intents/love" },
       { label: "整理事業主題問題", href: "/articles/intents/career" },
     ];
     if (article.product === "fortune") return [
       { label: "看命盤熱門文章", href: "/articles/fortune" },
-      { label: "看事業主題小報告", href: "/articles/intents/career" },
+      { label: "看事業主題文章", href: "/articles/intents/career" },
       { label: "整理財富主題問題", href: "/articles/intents/wealth" },
     ];
     return [
@@ -934,8 +934,8 @@ function buildArticleCta(article, productTheme) {
 }
 
 function getProductEntry(label) {
-  if (label === "人格") return "做 64 分支人格測試，看你的反應模式";
-  if (label === "塔羅") return "抽一張塔羅，看當下問題";
+  if (label === "人格") return "看人格文章入口，整理你的反應模式";
+  if (label === "塔羅") return "看塔羅文章入口，整理當下問題";
   if (label === "命盤") return "看命盤簡介，了解長期底色";
   if (label === "星座") return "看星盤或星座落點，整理情緒和安全感";
   return "先選一個最接近你問題的 Pantheon 入口";

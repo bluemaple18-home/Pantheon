@@ -3,115 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pantheon Effects Demo</title>
-    <link rel="stylesheet" href="/static/effects-demo.css" />
+    <meta name="robots" content="noindex,follow" />
+    <meta http-equiv="refresh" content="0; url=/articles" />
+    <title>Pantheon 最新文章</title>
+    <link rel="canonical" href="https://mysticpantheon.com/articles" />
+    <script>
+      window.location.replace("/articles");
+    </script>
   </head>
-  <body class="effects-screen">
-    <canvas id="starfield" aria-hidden="true"></canvas>
-    <div class="atmosphere" aria-hidden="true"></div>
-    <main class="effects-shell">
-      <header class="effects-header">
-        <div>
-          <p class="eyebrow">Pantheon Motion Lab</p>
-          <h1>三功能特效語言展示</h1>
-        </div>
-        <nav class="effects-tabs" aria-label="特效分類">
-          <button type="button" class="active" data-scene="fortune">命書</button>
-          <button type="button" data-scene="personality">人格</button>
-          <button type="button" data-scene="tarot">塔羅</button>
-        </nav>
-      </header>
-
-      <section class="scene active" id="fortune-effects" data-scene-panel="fortune" aria-label="命書特效展示">
-        <div class="scene-copy">
-          <p class="eyebrow">Fortune Report</p>
-          <h2>命盤啟動與資料解碼</h2>
-          <p>適合命書頁：掃描線、命盤輪、五行充能、報告段落依序浮現。</p>
-        </div>
-        <div class="fortune-stage">
-          <div class="terminal-frame" aria-hidden="true">
-            <span>ASTRAL CORE</span>
-            <span>SYNC 08:08</span>
-          </div>
-          <div class="chart-orbit">
-            <span></span><span></span><span></span><span></span>
-            <strong>命</strong>
-          </div>
-          <div class="energy-stack" aria-label="五行能量示意">
-            <div style="--level: 82%"><b>木</b><span></span></div>
-            <div style="--level: 66%"><b>火</b><span></span></div>
-            <div style="--level: 44%"><b>土</b><span></span></div>
-            <div style="--level: 73%"><b>金</b><span></span></div>
-            <div style="--level: 58%"><b>水</b><span></span></div>
-          </div>
-          <div class="decode-panel">
-            <i></i>
-            <p>Signal chain resolved</p>
-            <p>Life palace axis online</p>
-            <p>Report blocks materializing</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="scene" id="personality-effects" data-scene-panel="personality" aria-label="人格特效展示">
-        <div class="scene-copy">
-          <p class="eyebrow">Personality Matrix</p>
-          <h2>測驗進度與人格矩陣展開</h2>
-          <p>適合人格頁：題目切換、答案脈衝、進度充能、結果代碼揭露。</p>
-        </div>
-        <div class="personality-stage">
-          <div class="cognition-map" aria-hidden="true">
-            <span></span><span></span><span></span><span></span>
-          </div>
-          <div class="pulse-ring">
-            <span></span>
-            <strong>INTJ-AH</strong>
-          </div>
-          <div class="question-card">
-            <p>我通常先建立架構，再決定要怎麼行動。</p>
-            <div class="choice-row">
-              <button type="button">1</button>
-              <button type="button">2</button>
-              <button type="button" class="selected">3</button>
-              <button type="button">4</button>
-              <button type="button">5</button>
-            </div>
-          </div>
-          <div class="matrix-grid" aria-label="人格維度示意">
-            <span>EI</span><span>SN</span><span>TF</span><span>JP</span><span>AO</span><span>HC</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="scene" id="tarot-effects" data-scene-panel="tarot" aria-label="塔羅特效展示">
-        <div class="scene-copy">
-          <p class="eyebrow">Tarot Ritual</p>
-          <h2>抽牌儀式與光門翻牌</h2>
-          <p>適合塔羅頁：漂浮牌陣、磁場 hover、飛牌翻面、粒子與光門。</p>
-        </div>
-        <div class="tarot-stage">
-          <div class="ritual-arc" aria-hidden="true"></div>
-          <div class="portal"></div>
-          <div class="tarot-fan" aria-label="塔羅牌陣示意">
-            <span style="--i: -5; --d: 5"></span>
-            <span style="--i: -4; --d: 4"></span>
-            <span style="--i: -3; --d: 3"></span>
-            <span style="--i: -2; --d: 2"></span>
-            <span style="--i: -1; --d: 1"></span>
-            <span style="--i: 0; --d: 0"></span>
-            <span style="--i: 1; --d: 1"></span>
-            <span style="--i: 2; --d: 2"></span>
-            <span style="--i: 3; --d: 3"></span>
-            <span style="--i: 4; --d: 4"></span>
-            <span style="--i: 5; --d: 5"></span>
-          </div>
-          <div class="selected-card">
-            <span></span>
-            <b>XVII</b>
-          </div>
-        </div>
-      </section>
-    </main>
-    <script type="module" src="/static/effects-demo.js"></script>
+  <body>
+    <p><a href="/articles">前往 Pantheon 最新文章</a></p>
   </body>
 </html>

@@ -30,15 +30,23 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/reading", include_in_schema=False)
+    @app.get("/index.html", include_in_schema=False)
     def reading_page() -> RedirectResponse:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/personality", include_in_schema=False)
+    @app.get("/personality.html", include_in_schema=False)
     def personality_page() -> RedirectResponse:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/effects-demo", include_in_schema=False)
+    @app.get("/effects-demo.html", include_in_schema=False)
     def effects_demo_page() -> RedirectResponse:
+        return RedirectResponse(url="/articles", status_code=302)
+
+    @app.get("/strategy", include_in_schema=False)
+    @app.get("/strategy.html", include_in_schema=False)
+    def strategy_page() -> RedirectResponse:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/articles", include_in_schema=False)

@@ -1,7 +1,7 @@
 export const GLOBAL_ARTICLE_POLICY = {
-  requiredTags: ["Pantheon", "繁體中文", "公開文章", "非個人化解讀"],
+  requiredTags: ["Pantheon", "繁體中文", "公開文章", "通用知識"],
   requiredKeywordTags: ["SEO", "AEO", "GEO"],
-  publicContentBoundary: "公開文章只講通用知識，不給個人化結論，不承諾結果。",
+  publicContentBoundary: "公開文章只講通用知識，不給個人結論，不承諾結果。",
 };
 
 export const HUMANIZER_POLICY = {
@@ -79,7 +79,7 @@ export const ARTICLE_SECTION_REGISTRY = {
     product: "fortune",
     intent: "",
     label: "命盤",
-    description: "整理命盤、八字、紫微與人生主題文章，先建立公開知識入口，再導向個人化解讀。",
+    description: "整理命盤、八字、紫微與人生主題文章，先建立公開知識入口，再說明適用情境與限制。",
     seoDescription: "Pantheon 命盤文章主頁，整理命盤是什麼、八字、紫微斗數與五大人生主題。",
     primaryKeyword: "命盤是什麼",
     requiredTags: ["命盤", "八字", "紫微斗數"],
@@ -106,7 +106,7 @@ export const ARTICLE_SECTION_REGISTRY = {
     product: "fortune",
     intent: "",
     label: "八字",
-    description: "整理八字、命盤與出生年月日時相關概念，保留公開文章與個人化解讀的邊界。",
+    description: "整理八字、命盤與出生年月日時相關概念，保留公開文章與個人判讀的邊界。",
     seoDescription: "Pantheon 八字文章主頁，整理八字是什麼、命盤怎麼看與常見命理概念。",
     primaryKeyword: "八字是什麼",
     requiredTags: ["八字", "命盤", "出生年月日時"],
@@ -207,7 +207,7 @@ export const ARTICLE_REGISTRY = [
       },
       {
         question: "想看自己的 MBTI 狀況要從哪裡開始？",
-        answer: "可以先做人格測試整理偏好，再把結果放回實際關係、工作和人際情境。",
+        answer: "可以先用人格文章整理偏好，再把描述放回實際關係、工作和人際情境。",
       },
     ],
   },
