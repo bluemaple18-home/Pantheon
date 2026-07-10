@@ -142,7 +142,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-2" in response.text
-        assert "/static/article.js?v=article-content-20260710-3" in response.text
+        assert "/static/article.js?v=article-content-20260710-4" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -174,6 +174,13 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "renderArticleFaq(content)" in article_js
     assert "bodySections: buildBodySections" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
+    assert "ARTICLE_BODY_LIBRARY" in article_meta_js
+    assert "\"mbti-meaning\"" in article_meta_js
+    assert "\"magician-card-meaning\"" in article_meta_js
+    assert "MBTI 是一套描述人格偏好的分類工具" in article_meta_js
+    assert "魔術師牌通常代表資源、行動、創造力" in article_meta_js
+    assert "buildFallbackFaq(route, article, productTheme)" in article_meta_js
+    assert "cleanFaqTopic(primary)" in article_meta_js
     assert "displayTags: buildDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
     assert "content.displayTags || content.tags || []" in article_js
