@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-6";
-import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-6";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-7";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-7";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
