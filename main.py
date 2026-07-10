@@ -37,10 +37,6 @@ def create_app() -> FastAPI:
     def personality_page() -> FileResponse:
         return FileResponse(WEB_DIR / "personality.html")
 
-    @app.get("/strategy", include_in_schema=False)
-    def strategy_page() -> FileResponse:
-        return FileResponse(WEB_DIR / "strategy.html")
-
     @app.get("/effects-demo", include_in_schema=False)
     def effects_demo_page() -> FileResponse:
         return FileResponse(WEB_DIR / "effects-demo.html")

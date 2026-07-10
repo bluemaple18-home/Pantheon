@@ -17,21 +17,6 @@ const INTERNAL_DISPLAY_TAGS = new Set([
   "公開文章邊界",
 ]);
 
-const CORE_ARTICLE_SLUGS = new Set([
-  "mbti-meaning",
-  "16-personalities",
-  "mbti-test",
-  "mbti-accuracy",
-  "intj-meaning",
-  "infp-meaning",
-  "infj-meaning",
-  "enfp-meaning",
-  "tarot-card-meanings",
-  "upright-reversed",
-  "fool-card-meaning",
-  "magician-card-meaning",
-]);
-
 const ARTICLE_BODY_LIBRARY = {
   "mbti-meaning": [
     {
@@ -504,7 +489,7 @@ function buildArticleBody(article, productTheme, managedArticle) {
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   const tagText = (article.originalTags?.length ? article.originalTags : managedArticle.tags).slice(0, 4).join("、");
-  return [
+  return enrichArticleBody(article, productTheme, managedArticle, [
     {
       heading: buildDefinitionHeading(primary),
       paragraphs: [
@@ -512,13 +497,7 @@ function buildArticleBody(article, productTheme, managedArticle) {
         article.description,
       ],
     },
-    {
-      heading: `這篇文章會怎麼看 ${primary}？`,
-      paragraphs: [
-        `閱讀 ${primary} 時，先把它當成一個理解問題的入口，而不是最後答案。${productTheme.label}文章會先整理定義，再說明它通常能看什麼、不能直接代表什麼。`,
-        `如果你是從「${related}」這類搜尋進來，建議先確認你要問的是概念定義、使用方式、關係判斷，還是想把它套到自己的情境。`,
-      ],
-    },
+    buildFallbackAngleSection(article, productTheme, primary, related),
     {
       heading: "常見誤解",
       paragraphs: [
@@ -535,11 +514,10 @@ function buildArticleBody(article, productTheme, managedArticle) {
         "如果你要的是個人化判斷，文章只能當作背景知識；真正套用到個人情境時，仍需要明確問題、資料與限制。",
       ],
     },
-  ];
+  ]);
 }
 
 function enrichArticleBody(article, productTheme, managedArticle, customBody) {
-  if (!CORE_ARTICLE_SLUGS.has(article.slug)) return customBody;
   const [opening, ...rest] = customBody;
   return [
     opening,
@@ -555,7 +533,7 @@ function buildSearchIntentSection(article, productTheme) {
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   return {
-    heading: `${cleanFaqTopic(primary)}通常在問什麼？`,
+    heading: buildSearchIntentHeading(article, primary),
     paragraphs: [
       `搜尋「${primary}」的人，多半不是只想背一個定義，而是想知道這個概念能不能解釋自己正在遇到的狀況。可以先把問題分成三層：名詞本身是什麼、它能看哪些生活情境、它不能直接替你判斷什麼。`,
       `如果你是從「${related}」這類關鍵字進來，建議先不要急著把結果套到自己身上。先確認你要找的是自我理解、關係互動、工作節奏，還是只是想知道某個詞在網路上常被怎麼使用。`,
@@ -567,7 +545,7 @@ function buildSearchIntentSection(article, productTheme) {
 function buildScenarioSection(article, productTheme) {
   if (article.product === "personality") {
     return {
-      heading: `${productTheme.label}放到感情、工作和人際怎麼看？`,
+      heading: "感情、工作、人際各看哪一層？",
       paragraphs: [
         "放到感情裡，人格文章適合看相處偏好、溝通節奏和安全感來源。它可以提醒你為什麼有些互動特別消耗，或為什麼你會在某種關係裡反覆卡住，但不能直接判定兩個人合不合。",
         "放到工作裡，人格可以整理你偏好的決策方式、資訊處理方式和合作節奏。這能幫你理解自己適合怎樣的環境，也能幫你把需求說清楚，而不是把職涯選擇交給四個字母。",
@@ -577,7 +555,7 @@ function buildScenarioSection(article, productTheme) {
   }
   if (article.product === "tarot") {
     return {
-      heading: `${productTheme.label}放到感情、工作和人生方向怎麼看？`,
+      heading: "牌義進入感情或工作題時，會改變什麼？",
       paragraphs: [
         "放到感情裡，塔羅牌義適合整理當下互動狀態、期待落差和下一步可以注意的盲點。它可以幫你把問題問清楚，但不能替對方發言，也不能承諾關係結果。",
         "放到工作裡，塔羅比較適合看短期卡點、資源是否到位、行動是否清楚。它不是職涯承諾，也不是投資或財務建議；真正的選擇仍要回到能力、環境、時間和風險。",
@@ -585,8 +563,28 @@ function buildScenarioSection(article, productTheme) {
       ],
     };
   }
+  if (article.product === "fortune") {
+    return {
+      heading: "感情、事業與財富題，命盤各自看哪一層？",
+      paragraphs: [
+        "放到感情裡，命盤文章適合整理長期關係課題、互動模式和安全感來源，但不能只用單一宮位或星曜判定一段關係。",
+        "放到事業與財富裡，命盤可以協助讀者理解資源節奏、工作傾向和選擇壓力。它不是投資建議，也不能承諾收入、升遷或創業結果。",
+        "放到人生方向裡，命盤比較適合看階段主題和反覆出現的課題。真正的選擇仍要回到現實條件、個人資料和當下問題。",
+      ],
+    };
+  }
+  if (article.product === "astro") {
+    return {
+      heading: "太陽、月亮、上升不能混成同一個答案",
+      paragraphs: [
+        "放到感情裡，星座與星盤文章適合整理情緒、安全感和互動節奏，但不能只靠太陽星座判斷一段關係。",
+        "放到人際裡，上升、月亮和星盤落點可以幫讀者描述自己如何被看見、如何感到安全，以及在互動中容易出現的反應。",
+        "放到人生方向裡，星盤比較像一張傾向地圖。它能幫你整理主題和提醒，但不替你決定未來，也不把星座寫成固定命運。",
+      ],
+    };
+  }
   return {
-    heading: `${productTheme.label}放到五大情境怎麼看？`,
+    heading: "五大情境裡，先分清問題層次",
     paragraphs: [
       `${productTheme.label}文章可以協助整理感情、事業、人際、財富和人生方向的共通問題。公開內容只說明概念和限制，不把單一訊號寫成完整人生判斷。`,
       "如果問題牽涉金錢、健康、法律或重大風險，文章只能當作背景知識，不能取代專業意見或你自己的資料判斷。",
@@ -598,11 +596,11 @@ function buildNextStepSection(article, productTheme, managedArticle) {
   const productEntry = getProductEntry(productTheme.label);
   const intentEntry = getIntentEntry(article, managedArticle);
   return {
-    heading: "如果想看自己的狀況，下一步怎麼做？",
+    heading: buildNextStepHeading(article, productTheme),
     paragraphs: [
       `如果你只是想理解「${article.primaryKeyword}」這個概念，讀到這裡已經足夠。公開文章的任務是幫你建立語言、釐清情境和知道限制，不會把通用知識包裝成你的個人答案。`,
       `如果你想把它放回自己的狀況裡，可以先選一個入口：${productEntry}；如果你已經有明確問題，再往 ${intentEntry} 這類五大主題小報告整理。`,
-      "比較好的順序是：先把問題寫清楚，再選工具，再看結果能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷。",
+      "比較好的順序是：先把問題寫清楚，再選工具，再看結果能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷，也不要省略自己的限制條件。",
     ],
   };
 }
@@ -610,7 +608,7 @@ function buildNextStepSection(article, productTheme, managedArticle) {
 function buildRelatedReadingSection(article, productTheme) {
   if (article.product === "personality") {
     return {
-      heading: "延伸閱讀可以怎麼安排？",
+      heading: "人格文章不要只讀單一類型",
       paragraphs: [
         "讀人格文章時，建議不要只停在單一類型。你可以先讀 MBTI 是什麼，再看 16 型人格的整體架構，最後回到某一型在感情、工作和人際裡的表現。這樣比較不會把一個類型描述誤讀成固定身份。",
         "如果你正在處理關係或職場問題，也可以跨讀塔羅和命盤文章。人格看反應模式，塔羅看當下互動盲點，命盤看長期課題；三者分工不同，不需要互相取代。",
@@ -619,7 +617,7 @@ function buildRelatedReadingSection(article, productTheme) {
   }
   if (article.product === "tarot") {
     return {
-      heading: "延伸閱讀可以怎麼安排？",
+      heading: "牌義、逆位和情境要分開讀",
       paragraphs: [
         "讀塔羅文章時，建議先理解 78 張牌的基本牌義，再看正位逆位，最後才回到單張牌在感情、工作和人生方向裡的語氣。這樣比較不會只靠一個關鍵字解讀整個牌陣。",
         "如果問題牽涉某個人的反應模式，可以搭配人格文章一起看；如果問題牽涉長期節奏，可以再看命盤或人生方向入口。公開文章負責建立脈絡，不替任何工具製造權威感。",
@@ -627,11 +625,32 @@ function buildRelatedReadingSection(article, productTheme) {
       ],
     };
   }
+  if (article.product === "fortune") {
+    return {
+      heading: "命盤文章建議照層次讀",
+      paragraphs: [
+        "讀命盤文章時，可以先看命盤是什麼，再分別閱讀八字、紫微、命宮、夫妻宮和財帛宮。先建立共同語言，再回到自己真正想問的情境。",
+        "如果問題牽涉感情、事業、財富或人生方向，可以跨讀人格、塔羅和星座文章。命盤看長期課題，其他工具則補上當下互動、反應模式和情緒節奏。",
+        "看到某個宮位或星曜時，也要避免只取單點解讀。比較穩的讀法，是把它放回完整命盤、時間節奏和讀者當下的問題裡一起看，再確認這個判斷能否回到現實行動。",
+      ],
+    };
+  }
+  if (article.product === "astro") {
+    return {
+      heading: "星座文章先分清落點",
+      paragraphs: [
+        "讀星座文章時，可以先看星盤是什麼，再看上升星座和月亮星座。太陽、月亮和上升各自說明不同層次，不適合只抓一個落點下結論。",
+        "如果你是從感情或人生方向問題進來，可以搭配人格與塔羅文章一起讀。星盤整理情緒和安全感，其他工具補上互動模式與當下選項。",
+        "看到某個星座落點時，也要記得它只是整張星盤的一部分。公開文章能提供語言和方向，但不能把單一落點寫成固定人生劇本，也不能替讀者做最後選擇。",
+      ],
+    };
+  }
   return {
-    heading: "延伸閱讀可以怎麼安排？",
+    heading: "下一篇應該補哪一層？",
     paragraphs: [
       `讀${productTheme.label}文章時，可以先看產品線入口，再回到同分類文章補概念，最後用五大情境入口整理自己的問題。`,
       "延伸閱讀不是為了堆連結，而是讓讀者知道下一篇要解決哪一層問題：定義、情境、限制，還是個人化入口。",
+      "如果你已經有一個具體問題，先把情境寫成一句話，再選文章或工具。這能避免把通用內容誤讀成個人判斷。",
     ],
   };
 }
@@ -639,8 +658,6 @@ function buildRelatedReadingSection(article, productTheme) {
 function buildFallbackFaq(route, article, productTheme) {
   const primary = article?.primaryKeyword || route.title || productTheme.label;
   const topic = cleanFaqTopic(primary);
-  const topicQuestionPrefix = formatFaqTopicPrefix(topic);
-  const topicInline = formatInlineTopic(topic);
   const definitionQuestion = /[？?]$/.test(primary) || primary.includes("是什麼")
     ? buildDefinitionHeading(primary)
     : `${primary}是什麼？`;
@@ -650,12 +667,12 @@ function buildFallbackFaq(route, article, productTheme) {
       answer: article?.answer || `${primary} 是理解${productTheme.label}主題的入口，適合先看定義、適用情境與限制。`,
     },
     {
-      question: `${topicQuestionPrefix}可以怎麼用？`,
-      answer: `可以用來整理問題、建立背景知識和延伸閱讀，但不要直接把${topicInline}當成個人化結論。`,
+      question: buildUseQuestion(article, productTheme, topic),
+      answer: buildUseAnswer(article, productTheme, topic),
     },
     {
-      question: `${topicQuestionPrefix}不能代表什麼？`,
-      answer: `${topicQuestionPrefix}不能單獨決定感情、工作或人生結果；真正判斷仍需要放回具體問題和情境。`,
+      question: buildMistakeQuestion(article, productTheme, topic),
+      answer: buildMistakeAnswer(article, productTheme, topic),
     },
   ];
 }
@@ -667,7 +684,7 @@ function buildArticleFaq(route, article, productTheme) {
   return uniqueFaq([
     ...base,
     {
-      question: `${formatFaqTopicPrefix(topic)}不能代表什麼？`,
+      question: buildLimitQuestion(article, productTheme, topic),
       answer: buildLimitAnswer(article, productTheme, topic),
     },
     {
@@ -744,6 +761,24 @@ function getRelatedArticleLinks(product) {
       { label: "死神牌意思", href: "/articles/tarot/death-card-meaning", kind: "同分類" },
     ];
   }
+  if (product === "fortune") {
+    return [
+      { label: "命盤是什麼", href: "/articles/fortune/birth-chart-meaning", kind: "同分類" },
+      { label: "八字是什麼", href: "/articles/fortune/bazi-meaning", kind: "同分類" },
+      { label: "紫微斗數是什麼", href: "/articles/fortune/ziwei-doushu-meaning", kind: "同分類" },
+      { label: "命宮是什麼", href: "/articles/fortune/ming-gong-meaning", kind: "同分類" },
+      { label: "夫妻宮是什麼", href: "/articles/fortune/spouse-palace-meaning", kind: "同分類" },
+      { label: "財帛宮是什麼", href: "/articles/fortune/wealth-palace-meaning", kind: "同分類" },
+    ];
+  }
+  if (product === "astro") {
+    return [
+      { label: "星盤是什麼", href: "/articles/astro/birth-chart-astrology", kind: "同分類" },
+      { label: "上升星座是什麼", href: "/articles/astro/ascendant-sign-meaning", kind: "同分類" },
+      { label: "月亮星座是什麼", href: "/articles/astro/moon-sign-meaning", kind: "同分類" },
+      { label: "感情塔羅怎麼問", href: "/articles/tarot/love-tarot-questions", kind: "跨分類" },
+    ];
+  }
   return [];
 }
 
@@ -758,17 +793,28 @@ function uniqueLinks(items = []) {
 
 function buildArticleCta(article, productTheme) {
   if (!article) return null;
-  const productLinks = article.product === "personality"
-    ? [
+  const productLinks = (() => {
+    if (article.product === "personality") return [
       { label: "做 64 分支人格測試", href: "/personality" },
       { label: "看人際主題小報告", href: "/articles/intents/interpersonal" },
       { label: "整理人生方向問題", href: "/articles/intents/life" },
-    ]
-    : [
+    ];
+    if (article.product === "tarot") return [
       { label: "抽一張塔羅看當下問題", href: "/reading" },
       { label: "看感情主題小報告", href: "/articles/intents/love" },
       { label: "整理事業主題問題", href: "/articles/intents/career" },
     ];
+    if (article.product === "fortune") return [
+      { label: "看命盤簡介", href: "/reading" },
+      { label: "看事業主題小報告", href: "/articles/intents/career" },
+      { label: "整理財富主題問題", href: "/articles/intents/wealth" },
+    ];
+    return [
+      { label: "看星盤與星座入口", href: "/articles/astro" },
+      { label: "整理感情主題問題", href: "/articles/intents/love" },
+      { label: "整理人生方向問題", href: "/articles/intents/life" },
+    ];
+  })();
   return {
     title: "下一步",
     body: `如果你只是想理解這個概念，這篇文章已經足夠。${getProductBoundarySentence(productTheme.label)}如果你想知道它放到自己的狀況裡代表什麼，可以先選一個入口。`,

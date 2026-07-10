@@ -19,6 +19,25 @@ FIRST_BATCH_ARTICLE_PATHS = [
     "/articles/tarot/upright-reversed",
     "/articles/tarot/fool-card-meaning",
     "/articles/tarot/magician-card-meaning",
+    "/articles/tarot/lovers-card-meaning",
+    "/articles/tarot/death-card-meaning",
+    "/articles/tarot/tower-card-meaning",
+    "/articles/tarot/world-card-meaning",
+    "/articles/fortune/birth-chart-meaning",
+    "/articles/fortune/bazi-meaning",
+    "/articles/fortune/ziwei-doushu-meaning",
+    "/articles/fortune/ming-gong-meaning",
+    "/articles/fortune/spouse-palace-meaning",
+    "/articles/fortune/wealth-palace-meaning",
+    "/articles/astro/birth-chart-astrology",
+    "/articles/astro/ascendant-sign-meaning",
+    "/articles/astro/moon-sign-meaning",
+    "/articles/astro/love-forecast",
+    "/articles/tarot/love-tarot-questions",
+    "/articles/fortune/career-fortune",
+    "/articles/personality/relationships-stuck",
+    "/articles/fortune/wealth-fortune",
+    "/articles/fortune/life-direction",
 ]
 
 
@@ -87,6 +106,13 @@ def test_personality_page_serves_standalone_frontend() -> None:
     assert "/static/personality.js" in response.text
 
 
+def test_strategy_page_is_not_public() -> None:
+    client = TestClient(app)
+    for path in ["/strategy", "/strategy.html"]:
+        response = client.get(path)
+        assert response.status_code == 404
+
+
 def test_effects_demo_page_serves_motion_lab() -> None:
     client = TestClient(app)
     response = client.get("/effects-demo")
@@ -135,6 +161,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-product-theme-glyph" in response.text
         assert "href=\"/articles/fortune\"" in response.text
         assert "href=\"/articles/personality\"" in response.text
+        assert "href=\"/strategy\"" not in response.text
         assert "name=\"robots\"" in response.text
         assert "name=\"keywords\"" in response.text
         assert "property=\"og:type\" content=\"article\"" in response.text
@@ -197,7 +224,6 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "bodySections: buildBodySections" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
-    assert "CORE_ARTICLE_SLUGS" in article_meta_js
     assert "buildRelatedLinks(article, managedArticle, productTheme)" in article_meta_js
     assert "buildArticleCta(article, productTheme)" in article_meta_js
     assert "\"mbti-meaning\"" in article_meta_js
