@@ -311,7 +311,97 @@ CTA：
 延伸閱讀：塔羅牌正位逆位是什麼、感情塔羅怎麼問、人際關係卡住怎麼辦
 ```
 
-## 11. FAQ 規範
+## 11. 文章知識庫與流水號規範
+
+目前文章知識庫以靜態前端 registry 管理，不另外開 CMS。正式 source of truth 是：
+
+```text
+app/web/static/article-registry.js
+app/web/static/article-meta.js
+app/web/sitemap.xml
+tests/test_web.py
+```
+
+`article-registry.js` 負責管理：
+
+- `ARTICLE_SERIAL_REGISTRY`：內部文章 ID 對公開流水號。
+- `TOPIC_REGISTRY`：常用標籤的 topic ID、英文 slug、中文 label、aliases。
+- `ARTICLE_URL_CONTRACT`：公開 URL 契約。
+- `getArticlePath()`：產生正式文章 URL。
+- `listArticlesForTopic()`：從 topic 反查相關文章。
+
+`article-meta.js` 負責管理：
+
+- `ARTICLE_BODY_LIBRARY`：正式文章內文。
+- `buildArticleContent()`：文章頁、產品線頁、topic 集結頁的內容輸出。
+- `displayTagLinks`：公開可見標籤與 `/topics/...` 超連結。
+
+公開文章 URL 固定使用英文分類流水號：
+
+```text
+/articles/personality/personality-0001
+/articles/tarot/tarot-0001
+/articles/fortune/fortune-0001
+/articles/astrology/astrology-0001
+/articles/love/love-0001
+/articles/career/career-0001
+/articles/interpersonal/interpersonal-0001
+/articles/wealth/wealth-0001
+/articles/life-direction/life-direction-0001
+```
+
+流水號原則：
+
+- 分類名稱全英文，不使用中文。
+- 號碼固定 4 位數，從 `0001` 開始。
+- 同一分類往後累加，不重用舊號。
+- 舊語意 slug 只能做相容轉址，不再作為 canonical。
+- canonical、sitemap、文章卡片、延伸閱讀都必須使用流水號 URL。
+
+topic 集結頁 URL 固定使用英文 slug：
+
+```text
+/topics/mbti
+/topics/16-personalities
+/topics/fortune
+/topics/bazi
+/topics/ziwei-doushu
+/topics/astrology
+/topics/love
+/topics/career
+/topics/interpersonal
+/topics/wealth
+/topics/life-direction
+```
+
+topic 管理原則：
+
+- topic 內部 ID 使用 `topic-0001`、`topic-0002`。
+- 公開 URL 使用英文 slug，不使用流水號，保留搜尋可讀性。
+- `label` 是讀者看到的中文或英文詞。
+- `aliases` 放常見搜尋詞與同義詞，用來讓文章標籤自動連回 topic。
+- 常用公開標籤必須有 topic 頁，不能只顯示成死文字。
+- 內部標籤如 `SEO`、`AEO`、`GEO`、`公開文章`、`通用知識` 不應顯示在公開標籤列。
+
+文章內標籤規則：
+
+- 公開標籤顯示給自然流量讀者看，必須像正常文章導覽，不像內部營運 metadata。
+- 有 topic 對應的標籤要輸出成 `/topics/...` 連結。
+- 沒有 topic 的詞可以暫時顯示純文字，但不能成為主要導覽。
+- 每篇文章至少要有一個可點擊 topic 標籤。
+- topic 頁使用 `CollectionPage` JSON-LD；單篇文章使用 `Article` JSON-LD。
+
+當文章量擴到數百篇以上，應把 registry 拆成資料檔，但公開契約不變：
+
+```text
+data/articles/*.json
+data/article_bodies/*.md
+data/topics.json
+```
+
+拆檔只是維護方式改變，不得改變正式 URL、topic URL、canonical、sitemap 或舊 slug 轉址。
+
+## 12. FAQ 規範
 
 FAQ 要回答真問題，不寫漂亮但沒有資訊的句子。
 
@@ -330,7 +420,7 @@ Q: 塔羅牌可以看復合嗎？
 A: 可以整理這段關係目前卡在哪裡，但不能保證對方一定會回來。比較好的問法是：我現在能看見什麼盲點，下一步怎麼做比較清楚？
 ```
 
-## 12. 收攏 CTA 規範
+## 13. 收攏 CTA 規範
 
 CTA 要承接文章，不要硬賣。
 
@@ -354,7 +444,7 @@ CTA 要承接文章，不要硬賣。
 - 命盤：單一宮位只能說明一個觀察角度。
 - 星座：單一星座落點只能說明一部分。
 
-## 13. 上稿檢查表
+## 14. 上稿檢查表
 
 發布前逐項確認：
 
@@ -370,7 +460,7 @@ CTA 要承接文章，不要硬賣。
 - meta title、description、canonical、Article JSON-LD、FAQ JSON-LD 都完整。
 - 沒有保證、恐嚇、醫療、法律、投資建議。
 
-## 14. 一篇合格文章的骨架
+## 15. 一篇合格文章的骨架
 
 ```text
 H1: 感情塔羅怎麼問？復合、曖昧、關係卡住怎麼看

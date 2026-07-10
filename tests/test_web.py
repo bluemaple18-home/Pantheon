@@ -381,6 +381,100 @@ console.log(JSON.stringify({
     assert data["topic"]["relatedCount"] >= 3
 
 
+def test_article_knowledge_base_serial_and_topic_contract() -> None:
+    script = f"""
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{
+  ARTICLE_URL_CONTRACT,
+  getArticlePath,
+  listArticleRecords,
+  listArticlesForTopic,
+  listTopicRecords,
+}} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(PUBLIC_ARTICLE_PATHS)});
+const records = listArticleRecords();
+const topics = listTopicRecords();
+const articleSummaries = records.map((article) => {{
+  const path = getArticlePath(article);
+  const content = buildArticleContent(path, "https://mysticpantheon.com", {{
+    author: "Pantheon 編輯部",
+    updated: "2026-07-10",
+  }});
+  return {{
+    id: article.id,
+    path,
+    serial: article.serial,
+    canonicalPath: content.canonicalPath,
+    visibleTagCount: content.displayTagLinks.length,
+    linkedTagCount: content.displayTagLinks.filter((tag) => tag.href?.startsWith("/topics/")).length,
+    internalTagVisible: content.displayTagLinks.some((tag) => ["SEO", "AEO", "GEO", "公開文章", "通用知識"].includes(tag.label)),
+  }};
+}});
+
+const topicSummaries = topics.map((topic) => {{
+  const content = buildArticleContent(topic.href, "https://mysticpantheon.com", {{
+    author: "Pantheon 編輯部",
+    updated: "2026-07-10",
+  }});
+  return {{
+    id: topic.id,
+    slug: topic.slug,
+    href: topic.href,
+    canonicalPath: content.canonicalPath,
+    contentType: content.contentType,
+    relatedCount: content.relatedLinks.length,
+  }};
+}});
+
+console.log(JSON.stringify({{
+  articlePattern: ARTICLE_URL_CONTRACT.articlePattern,
+  topicPattern: ARTICLE_URL_CONTRACT.topicPattern,
+  articleSummaries,
+  topicSummaries,
+  mbtiPaths: listArticlesForTopic("mbti").map(getArticlePath),
+  fortunePaths: listArticlesForTopic("fortune").map(getArticlePath),
+  interpersonalPaths: listArticlesForTopic("interpersonal").map(getArticlePath),
+}}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["articlePattern"] == "/articles/{category}/{category}-{number}"
+    assert data["topicPattern"] == "/topics/{topic-slug}"
+
+    expected_paths = set(PUBLIC_ARTICLE_PATHS)
+    assert {record["path"] for record in data["articleSummaries"]} == expected_paths
+    for record in data["articleSummaries"]:
+        category, slug = record["path"].removeprefix("/articles/").split("/")
+        assert record["path"] in expected_paths
+        assert record["serial"] == slug
+        assert record["serial"].startswith(f"{category}-")
+        assert record["canonicalPath"] == record["path"]
+        assert record["visibleTagCount"] >= 1
+        assert record["linkedTagCount"] >= 1
+        assert not record["internalTagVisible"]
+
+    assert "/articles/personality/personality-0001" in data["mbtiPaths"]
+    assert "/articles/fortune/fortune-0001" in data["fortunePaths"]
+    assert "/articles/interpersonal/interpersonal-0001" in data["interpersonalPaths"]
+
+    topic_ids = [topic["id"] for topic in data["topicSummaries"]]
+    assert len(topic_ids) == len(set(topic_ids))
+    for topic in data["topicSummaries"]:
+        assert topic["id"].startswith("topic-")
+        assert topic["id"].split("-")[1].isdigit()
+        assert len(topic["id"].split("-")[1]) == 4
+        assert topic["href"] == f"/topics/{topic['slug']}"
+        assert topic["canonicalPath"] == topic["href"]
+        assert topic["contentType"] == "CollectionPage"
+        assert topic["relatedCount"] >= 1
+
+
 def test_article_admin_serves_management_console() -> None:
     client = TestClient(app)
     response = client.get("/article-admin")
