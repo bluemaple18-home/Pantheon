@@ -6,7 +6,7 @@
     <title>Mystic Engine</title>
     <meta name="description" content="Pantheon 文章首頁，整理命理、人格、塔羅、星座與人生方向主題，先用公開文章回答搜尋問題，再保留個人化工具入口。" />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
-    <link rel="stylesheet" href="/static/styles.css?v=home-articles-20260710-2" />
+    <link rel="stylesheet" href="/static/styles.css?v=home-articles-20260710-3" />
   </head>
   <body class="destiny-screen">
     <main class="app-shell destiny-shell">
@@ -27,7 +27,7 @@
       <section class="content-first-home" aria-labelledby="content-home-title">
         <div class="content-hero">
           <div class="content-hero-copy">
-            <p class="eyebrow">Articles First</p>
+            <p class="eyebrow">文章入口</p>
             <h2 id="content-home-title">先讀懂問題，再決定要不要做個人化解讀</h2>
             <p>這裡先整理命盤、人格、塔羅、星座與人生方向的公開文章。文章只講通用知識與限制，不把搜尋問題直接包裝成你的個人結論。</p>
             <div class="content-hero-actions ui-actions" aria-label="文章主題">
@@ -36,16 +36,21 @@
               <a class="ui-button ui-button-secondary" href="/articles/intents/career">事業</a>
             </div>
           </div>
-          <aside class="content-topic-panel" aria-label="自然流量主題">
-            <span>自然流量入口</span>
-            <strong>30</strong>
-            <p>第一批文章涵蓋 MBTI、塔羅牌義、命盤、紫微、星盤與五大人生意圖。</p>
+          <aside class="content-topic-panel" aria-label="文章主題捷徑">
+            <span>熱門問題</span>
+            <nav aria-label="熱門文章主題">
+              <a href="/articles/personality/mbti-meaning">MBTI 是什麼</a>
+              <a href="/articles/tarot/tarot-card-meanings">塔羅牌意思</a>
+              <a href="/articles/fortune/birth-chart-meaning">命盤是什麼</a>
+              <a href="/articles/astro/birth-chart-astrology">星盤是什麼</a>
+            </nav>
+            <p>每篇都先講通用概念、適用情境與限制。</p>
           </aside>
         </div>
 
         <section class="article-entry-section" aria-labelledby="featured-articles-title">
           <div class="section-heading">
-            <p class="eyebrow">Featured</p>
+            <p class="eyebrow">精選</p>
             <h2 id="featured-articles-title">精選文章</h2>
           </div>
           <div class="home-article-grid" data-home-articles></div>
@@ -294,6 +299,6 @@
       </section>
       </details>
     </main>
-    <script type="module" src="/static/app.js?v=home-articles-20260710-2"></script>
+    <script type="module" src="/static/app.js?v=home-articles-20260710-3"></script>
   </body>
 </html>

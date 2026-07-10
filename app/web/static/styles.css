@@ -3667,9 +3667,9 @@ select:focus {
 
 .content-topic-panel {
   display: grid;
-  align-content: end;
-  gap: 12px;
-  min-height: 280px;
+  align-content: center;
+  gap: 14px;
+  min-height: 220px;
   padding: 22px;
   border: 1px solid rgba(225, 199, 128, 0.18);
   border-radius: 8px;
@@ -3679,7 +3679,7 @@ select:focus {
   box-shadow: 0 20px 52px rgba(0, 0, 0, 0.2);
 }
 
-.content-topic-panel span,
+.content-topic-panel > span,
 .home-article-card span,
 .content-hub-grid span {
   color: #d8aa48;
@@ -3688,10 +3688,29 @@ select:focus {
   letter-spacing: 0;
 }
 
-.content-topic-panel strong {
+.content-topic-panel nav {
+  display: grid;
+  gap: 8px;
+}
+
+.content-topic-panel a {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(225, 199, 128, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
   color: #fff3cf;
-  font-size: 72px;
-  line-height: 0.9;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.content-topic-panel a:hover {
+  border-color: rgba(216, 170, 72, 0.45);
+  color: #ffe3a0;
 }
 
 .content-topic-panel p {

@@ -12,7 +12,14 @@ def test_home_serves_frontend() -> None:
     assert "先讀懂問題，再決定要不要做個人化解讀" in response.text
     assert "data-home-articles" in response.text
     assert "精選文章" in response.text
-    assert "自然流量入口" in response.text
+    assert "文章入口" in response.text
+    assert "熱門問題" in response.text
+    assert "熱門文章主題" in response.text
+    assert "每篇都先講通用概念、適用情境與限制。" in response.text
+    assert "href=\"/articles/personality/mbti-meaning\"" in response.text
+    assert "href=\"/articles/tarot/tarot-card-meanings\"" in response.text
+    assert "href=\"/articles/fortune/birth-chart-meaning\"" in response.text
+    assert "href=\"/articles/astro/birth-chart-astrology\"" in response.text
     assert "href=\"/articles\"" in response.text
     assert "href=\"/articles/fortune\"" in response.text
     assert "href=\"/articles/personality\"" in response.text
@@ -36,8 +43,8 @@ def test_home_serves_frontend() -> None:
     assert "/strategy" not in response.text
     assert "64 分支人格測試" not in response.text
     assert "id=\"personality-form\"" not in response.text
-    assert "/static/styles.css?v=home-articles-20260710-2" in response.text
-    assert "/static/app.js?v=home-articles-20260710-2" in response.text
+    assert "/static/styles.css?v=home-articles-20260710-3" in response.text
+    assert "/static/app.js?v=home-articles-20260710-3" in response.text
 
 
 def test_personality_page_serves_standalone_frontend() -> None:
