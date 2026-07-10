@@ -1,5 +1,9 @@
 import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-10";
+import { listTopicRecords } from "./article-registry.js?v=article-content-20260710-11";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
+
+const INLINE_TOPIC_EXCLUSIONS = new Set(["關係", "工作", "選擇", "資源"]);
+const INLINE_TOPIC_TERMS = buildInlineTopicTerms();
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -71,7 +75,7 @@ function renderArticleChrome(content) {
   }
 
   dom.sectionDescription.textContent = content.sectionDescription;
-  dom.answerText.textContent = content.answer;
+  replaceWithInlineTopicLinks(dom.answerText, content.answer);
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
@@ -96,12 +100,70 @@ function renderArticleBody(content) {
     heading.textContent = section.heading;
     block.append(heading, ...section.paragraphs.map((text) => {
       const paragraph = document.createElement("p");
-      paragraph.textContent = text;
+      appendInlineTopicLinks(paragraph, text);
       return paragraph;
     }));
     return block;
   });
   dom.articleBody.replaceChildren(...blocks);
+}
+
+function buildInlineTopicTerms() {
+  const terms = [];
+  listTopicRecords().forEach((topic) => {
+    [topic.label, ...(topic.aliases || [])].forEach((label) => {
+      const text = String(label || "").trim();
+      if (!text || INLINE_TOPIC_EXCLUSIONS.has(text)) return;
+      terms.push({
+        text,
+        href: topic.href,
+        slug: topic.slug,
+      });
+    });
+  });
+  return terms
+    .filter((term, index, list) => list.findIndex((item) => item.text === term.text && item.href === term.href) === index)
+    .sort((a, b) => b.text.length - a.text.length || a.text.localeCompare(b.text));
+}
+
+function replaceWithInlineTopicLinks(node, text) {
+  if (!node) return;
+  node.replaceChildren();
+  appendInlineTopicLinks(node, text);
+}
+
+function appendInlineTopicLinks(node, text = "") {
+  const source = String(text || "");
+  const linkedTopics = new Set();
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const match = INLINE_TOPIC_TERMS.find((term) => !linkedTopics.has(term.slug) && source.startsWith(term.text, cursor));
+    if (!match) {
+      const nextMatchIndex = findNextInlineTopicIndex(source, cursor + 1, linkedTopics);
+      node.append(document.createTextNode(source.slice(cursor, nextMatchIndex)));
+      cursor = nextMatchIndex;
+      continue;
+    }
+
+    const link = document.createElement("a");
+    link.className = "article-inline-topic-link";
+    link.href = match.href;
+    link.textContent = match.text;
+    node.append(link);
+    linkedTopics.add(match.slug);
+    cursor += match.text.length;
+  }
+}
+
+function findNextInlineTopicIndex(source, start, linkedTopics) {
+  let next = source.length;
+  INLINE_TOPIC_TERMS.forEach((term) => {
+    if (linkedTopics.has(term.slug)) return;
+    const index = source.indexOf(term.text, start);
+    if (index !== -1 && index < next) next = index;
+  });
+  return next;
 }
 
 function renderArticleFaq(content) {

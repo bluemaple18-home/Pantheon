@@ -387,6 +387,7 @@ topic 管理原則：
 
 - 公開標籤顯示給自然流量讀者看，必須像正常文章導覽，不像內部營運 metadata。
 - 有 topic 對應的標籤要輸出成 `/topics/...` 連結。
+- 正文段落裡打到常用 topic 詞時，也要在不影響閱讀的前提下轉成 `/topics/...` 內文連結。
 - 沒有 topic 的詞可以暫時顯示純文字，但不能成為主要導覽。
 - 每篇文章至少要有一個可點擊 topic 標籤。
 - topic 頁使用 `CollectionPage` JSON-LD；單篇文章使用 `Article` JSON-LD。

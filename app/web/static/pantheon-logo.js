@@ -8,24 +8,24 @@ const RUNE_PATHS = [
 ];
 
 const RUNE_COLORS = [
-  "rgba(198, 161, 91, 0.82)",
-  "rgba(47, 124, 116, 0.68)",
-  "rgba(44, 53, 95, 0.64)",
-  "rgba(122, 46, 58, 0.64)",
-  "rgba(139, 168, 157, 0.72)",
-  "rgba(238, 220, 180, 0.72)",
+  "rgba(246, 220, 164, 0.92)",
+  "rgba(107, 196, 184, 0.78)",
+  "rgba(119, 132, 211, 0.76)",
+  "rgba(190, 95, 106, 0.76)",
+  "rgba(169, 212, 190, 0.82)",
+  "rgba(255, 244, 213, 0.86)",
 ];
 
-const DEFAULT_RUNE_COUNT = 64;
+const DEFAULT_RUNE_COUNT = 92;
 const MAX_DPR = 2;
 
 function createRunes(count = DEFAULT_RUNE_COUNT) {
   return Array.from({ length: count }, (_, index) => ({
     pathIndex: index % RUNE_PATHS.length,
     progress: (index * 0.61803398875) % 1,
-    speed: 0.00012 + (index % 9) * 0.000018,
+    speed: 0.0002 + (index % 9) * 0.000026,
     color: RUNE_COLORS[index % RUNE_COLORS.length],
-    size: 1.05 + (index % 5) * 0.42,
+    size: 1.18 + (index % 5) * 0.5,
     type: index % 5,
     depthPhase: index * 0.47,
   }));
@@ -149,8 +149,8 @@ function mountPantheonLogo(root) {
       const [relX, relY] = cubicBezierPoint(rune.progress, path.p0, path.p1, path.p2, path.p3);
       const edgeFade = Math.sin(rune.progress * Math.PI);
       const depth = 0.58 + 0.42 * Math.sin(rune.progress * Math.PI * 2 + rune.depthPhase);
-      const opacity = edgeFade * (0.14 + depth * 0.48);
-      const scale = 0.82 + depth * 0.56;
+      const opacity = edgeFade * (0.24 + depth * 0.62);
+      const scale = 0.9 + depth * 0.68;
 
       ctx.save();
       ctx.translate(relX * width, relY * height);

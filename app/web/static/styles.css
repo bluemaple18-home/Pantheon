@@ -631,6 +631,18 @@ a.ui-chip:hover {
   line-height: 1.75;
 }
 
+.article-inline-topic-link {
+  color: var(--article-accent);
+  font-weight: 760;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.article-inline-topic-link:hover {
+  color: var(--article-text);
+}
+
 .article-site-footer {
   border-top: 1px solid var(--article-line);
   background: var(--article-footer-bg);
@@ -3822,6 +3834,33 @@ select:focus {
   user-select: none;
 }
 
+.pantheon-hero-logo::before,
+.pantheon-hero-logo::after {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  z-index: 3;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.pantheon-hero-logo::before {
+  border: 1px solid rgba(216, 170, 72, 0.24);
+  border-top-color: rgba(238, 220, 180, 0.68);
+  border-right-color: rgba(47, 124, 116, 0.3);
+  opacity: 0.72;
+  animation: pantheonOrbitSpin 18s linear infinite;
+}
+
+.pantheon-hero-logo::after {
+  inset: 13%;
+  border: 1px dashed rgba(238, 220, 180, 0.28);
+  border-left-color: rgba(122, 46, 58, 0.34);
+  border-bottom-color: rgba(44, 53, 95, 0.32);
+  opacity: 0.58;
+  animation: pantheonOrbitSpinReverse 26s linear infinite;
+}
+
 .pantheon-hero-logo__aura {
   position: absolute;
   inset: 9%;
@@ -3837,7 +3876,7 @@ select:focus {
   z-index: 2;
   display: grid;
   place-items: center;
-  animation: pantheonLogoDrift 14s ease-in-out infinite alternate;
+  animation: pantheonLogoDrift 10s ease-in-out infinite alternate;
   will-change: transform;
 }
 
@@ -3853,13 +3892,13 @@ select:focus {
   top: 50%;
   left: 50%;
   z-index: 3;
-  width: 14%;
+  width: 18%;
   aspect-ratio: 1 / 1;
   border-radius: 999px;
   background: radial-gradient(circle, rgba(255, 232, 176, 0.78) 0%, rgba(198, 161, 91, 0.34) 34%, transparent 72%);
   mix-blend-mode: screen;
   transform: translate(-50%, -50%);
-  animation: pantheonCorePulse 4s ease-in-out infinite alternate;
+  animation: pantheonCorePulse 3.2s ease-in-out infinite alternate;
   will-change: transform, opacity;
 }
 
@@ -3869,9 +3908,13 @@ select:focus {
   z-index: 4;
   width: 100%;
   height: 100%;
-  animation: pantheonLogoDrift 16s ease-in-out infinite alternate-reverse;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 7px rgba(216, 170, 72, 0.34));
+  animation: pantheonLogoDrift 12s ease-in-out infinite alternate-reverse;
 }
 
+.pantheon-hero-logo.is-paused::before,
+.pantheon-hero-logo.is-paused::after,
 .pantheon-hero-logo.is-paused .pantheon-hero-logo__aura,
 .pantheon-hero-logo.is-paused .pantheon-hero-logo__image-wrap,
 .pantheon-hero-logo.is-paused .pantheon-hero-logo__core,
@@ -3879,6 +3922,8 @@ select:focus {
   animation-play-state: paused;
 }
 
+.pantheon-hero-logo.is-reduced-motion::before,
+.pantheon-hero-logo.is-reduced-motion::after,
 .pantheon-hero-logo.is-reduced-motion .pantheon-hero-logo__aura,
 .pantheon-hero-logo.is-reduced-motion .pantheon-hero-logo__image-wrap,
 .pantheon-hero-logo.is-reduced-motion .pantheon-hero-logo__core,
@@ -3893,23 +3938,23 @@ select:focus {
 
 @keyframes pantheonLogoDrift {
   0% {
-    transform: scale(1) rotate(-0.5deg);
+    transform: scale(1) rotate(-2.2deg);
   }
 
   100% {
-    transform: scale(1.015) rotate(0.6deg);
+    transform: scale(1.035) rotate(2.2deg);
   }
 }
 
 @keyframes pantheonCorePulse {
   0% {
-    opacity: 0.34;
-    transform: translate(-50%, -50%) scale(0.88);
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(0.78);
   }
 
   100% {
-    opacity: 0.82;
-    transform: translate(-50%, -50%) scale(1.16);
+    opacity: 0.96;
+    transform: translate(-50%, -50%) scale(1.26);
   }
 }
 
@@ -3922,6 +3967,18 @@ select:focus {
   100% {
     opacity: 1;
     transform: scale(1.05);
+  }
+}
+
+@keyframes pantheonOrbitSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pantheonOrbitSpinReverse {
+  to {
+    transform: rotate(-360deg);
   }
 }
 

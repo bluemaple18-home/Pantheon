@@ -78,7 +78,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     response = client.get("/articles")
     assert response.status_code == 200
     assert "最新文章 | Pantheon" in response.text
-    assert "MBTI、塔羅、命盤、星盤是什麼？先看白話答案" in response.text
+    assert "MBTI、塔羅、命盤、星盤" in response.text
+    assert "是什麼？先看白話答案" in response.text
     assert "從 MBTI 是什麼、16 型人格、塔羅牌意思" in response.text
     assert "class=\"destiny-screen articles-hub-screen\"" in response.text
     assert "articles-hub-breadcrumb" in response.text
@@ -88,8 +89,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
-    assert "/static/styles.css?v=articles-hub-20260710-logo-2" in response.text
-    assert "/static/articles.js?v=articles-hub-20260710-logo-2" in response.text
+    assert "/static/styles.css?v=articles-hub-20260710-logo-3" in response.text
+    assert "/static/articles.js?v=articles-hub-20260710-logo-3" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -136,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-10" in response.text
+        assert "/static/article.js?v=article-content-20260710-11" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -170,6 +171,10 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "renderArticleFaq(content)" in article_js
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
+    assert "listTopicRecords" in article_js
+    assert "replaceWithInlineTopicLinks(dom.answerText, content.answer)" in article_js
+    assert "appendInlineTopicLinks(paragraph, text)" in article_js
+    assert "article-inline-topic-link" in article_js
     assert "data-article-related" in Path("app/web/article.html").read_text()
     assert "data-article-cta" in Path("app/web/article.html").read_text()
     assert "bodySections: buildBodySections" in article_meta_js
@@ -210,6 +215,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-panel-bg:' in styles_css
     assert ".article-related" in styles_css
     assert ".article-cta-actions" in styles_css
+    assert ".article-inline-topic-link" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
