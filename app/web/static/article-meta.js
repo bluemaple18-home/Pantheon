@@ -6,6 +6,17 @@ import {
   getProductThemeRecord,
 } from "./article-registry.js";
 
+const INTERNAL_DISPLAY_TAGS = new Set([
+  "Pantheon",
+  "繁體中文",
+  "公開文章",
+  "非個人化解讀",
+  "SEO",
+  "AEO",
+  "GEO",
+  "公開文章邊界",
+]);
+
 export function buildArticleContent(pathname, origin, defaults = {}) {
   const route = parseArticleRoute(pathname);
   const isLatestHub = !route.product && !route.slug && !route.intent;
@@ -78,6 +89,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     intent: route.intent || managedArticle.intent,
     keywords: managedArticle.keywords,
     tags: managedArticle.tags,
+    displayTags: buildDisplayTags(article, managedArticle, productTheme),
     answer: article?.answer || buildAnswer(route),
     bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
     faq: article?.faq || [
@@ -91,6 +103,34 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       },
     ],
   };
+}
+
+function buildDisplayTags(article, managedArticle, productTheme) {
+  const source = article
+    ? [
+      article.primaryKeyword,
+      ...(article.secondaryKeywords || []),
+      ...(article.originalTags || []),
+    ]
+    : [
+      managedArticle.primaryKeyword,
+      productTheme.label,
+      ...(managedArticle.originalTags || []),
+    ];
+  return uniqueList(source)
+    .filter((tag) => tag && !INTERNAL_DISPLAY_TAGS.has(tag))
+    .slice(0, 8);
+}
+
+function uniqueList(values = []) {
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
 }
 
 function parseArticleRoute(pathname) {

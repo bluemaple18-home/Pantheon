@@ -63,7 +63,7 @@ export function buildArticleJsonLd(content, origin) {
     },
     articleSection: content.productThemeLabel,
     keywords: content.keywords.join(", "),
-    about: content.tags.map((tag) => ({
+    about: content.displayTags.map((tag) => ({
       "@type": "Thing",
       name: tag,
     })),

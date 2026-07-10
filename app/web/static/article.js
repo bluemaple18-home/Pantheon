@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-1";
-import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-1";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-2";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-2";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -63,7 +63,7 @@ function renderArticleChrome(content) {
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
-  dom.articleTags.replaceChildren(...content.tags.map((tag) => {
+  dom.articleTags.replaceChildren(...content.displayTags.map((tag) => {
     const item = document.createElement("span");
     item.className = "ui-chip";
     item.textContent = tag;
