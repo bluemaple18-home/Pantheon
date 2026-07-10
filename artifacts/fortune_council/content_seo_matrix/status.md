@@ -10,6 +10,7 @@
 - first_30_keyword_plan.md
 - article_briefs_first_30.md
 - internal_link_map_first_30.md
+- docs/pantheon_article_publication_standard.md
 內容:
 - 1 個總入口
 - 5 個分類入口
@@ -22,9 +23,11 @@
 - 新增第一批 30 篇文章寫作 brief：文章目的、必寫段落、內部連結、FAQ、收攏 CTA
 - 修正第一批篇數為真正 30 篇：MBTI 8、塔羅 8、命盤 6、星盤 3、五大主題 5
 - 新增第一批 30 篇內部連結表：上游入口、上下篇、同分類、跨分類、免費入口、付費 CTA
+- 整合 Click108 近兩年文章研究，新增 Pantheon 公開文章展出規範：寫字風格、SEO/AEO/GEO 欄位、產品線對應、五大情境模板、版型與上稿檢查表
 限制:
 - 目前是種子關鍵字矩陣，不是搜尋量驗證報告
 - 需再用關鍵字工具驗證月搜尋量、競爭度與相關問題
+- Click108 只借鑑可讀性與結構，不借鑑保證式運勢承諾
 主題:
 - 感情
 - 事業
