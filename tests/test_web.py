@@ -22,6 +22,10 @@ def test_home_serves_frontend() -> None:
     assert "data-product-theme=\"personality\"" in response.text
     assert "data-product-theme=\"tarot\"" in response.text
     assert "data-product-theme=\"astro\"" in response.text
+    assert "<em aria-hidden=\"true\">命</em>" in response.text
+    assert "<em aria-hidden=\"true\">64</em>" in response.text
+    assert "<em aria-hidden=\"true\">XVII</em>" in response.text
+    assert "<em aria-hidden=\"true\">星</em>" in response.text
     assert "個人化命書工具" in response.text
     assert "id=\"destiny-tool\"" in response.text
     assert "基本資料" in response.text
@@ -293,12 +297,17 @@ def test_destiny_page_does_not_auto_generate_report() -> None:
     assert "renderInitialState()" in app_js
     assert "尚未推演命盤" in app_js
     assert "listArticleRecords" in app_js
+    assert "getProductThemeRecord" in app_js
     assert "renderHomeArticles()" in app_js
     assert "pickFeaturedArticles" in app_js
     assert "card.dataset.productTheme = article.product" in app_js
+    assert "card.dataset.themeGlyph = productTheme.glyph" in app_js
+    assert "home-article-product" in app_js
     assert "dispatchEvent(new Event(\"submit\"))" not in app_js
     styles_css = Path("app/web/static/styles.css").read_text()
     assert ".product-drawer:not([open]) > .destiny-workbench" in styles_css
+    assert "content: attr(data-theme-glyph)" in styles_css
+    assert ".home-article-product" in styles_css
     assert '.home-article-card[data-product-theme="personality"]' in styles_css
     assert '.home-article-card[data-product-theme="tarot"]' in styles_css
     assert '.home-article-card[data-product-theme="astro"]' in styles_css

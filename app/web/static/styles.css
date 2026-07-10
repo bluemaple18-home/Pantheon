@@ -3728,7 +3728,7 @@ select:focus {
   position: relative;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 12px;
   min-height: 184px;
   padding: 18px;
   border: 1px solid rgba(var(--home-theme-rgb), 0.24);
@@ -3741,6 +3741,18 @@ select:focus {
   overflow: hidden;
   text-decoration: none;
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.16);
+}
+
+.home-article-card::after {
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  color: rgba(var(--home-theme-rgb), 0.13);
+  content: attr(data-theme-glyph);
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .home-article-card::before,
@@ -3758,10 +3770,24 @@ select:focus {
   --home-theme-rgb: 174, 70, 53;
 }
 
+.home-article-card[data-product-theme="personality"] {
+  background:
+    linear-gradient(90deg, rgba(var(--home-theme-rgb), 0.14) 1px, transparent 1px) 0 0 / 32px 100%,
+    linear-gradient(180deg, rgba(var(--home-theme-rgb), 0.1), transparent 44%),
+    #171b29;
+}
+
 .home-article-card[data-product-theme="tarot"],
 .content-hub-grid a[data-product-theme="tarot"] {
   --home-theme-accent: #8066b0;
   --home-theme-rgb: 128, 102, 176;
+}
+
+.home-article-card[data-product-theme="tarot"] {
+  background:
+    repeating-linear-gradient(135deg, rgba(var(--home-theme-rgb), 0.13) 0 1px, transparent 1px 18px),
+    linear-gradient(180deg, rgba(var(--home-theme-rgb), 0.12), transparent 48%),
+    #17182a;
 }
 
 .home-article-card[data-product-theme="astro"],
@@ -3770,22 +3796,54 @@ select:focus {
   --home-theme-rgb: 18, 107, 96;
 }
 
+.home-article-card[data-product-theme="astro"] {
+  background:
+    linear-gradient(90deg, transparent 24%, rgba(var(--home-theme-rgb), 0.16) 24% 25%, transparent 25% 74%, rgba(var(--home-theme-rgb), 0.12) 74% 75%, transparent 75%),
+    linear-gradient(180deg, rgba(var(--home-theme-rgb), 0.12), transparent 48%),
+    #111d27;
+}
+
 .home-article-card:hover {
   border-color: rgba(var(--home-theme-rgb), 0.56);
   transform: translateY(-1px);
 }
 
-.home-article-card span {
+.home-article-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.home-article-product,
+.home-article-keyword {
   color: var(--home-theme-accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.home-article-product {
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid rgba(var(--home-theme-rgb), 0.28);
+  border-radius: 6px;
+  background: rgba(var(--home-theme-rgb), 0.12);
 }
 
 .home-article-card strong {
+  position: relative;
+  z-index: 1;
   color: #fff3cf;
   font-size: 18px;
   line-height: 1.35;
 }
 
 .home-article-card p {
+  position: relative;
+  z-index: 1;
   margin: 0;
   color: rgba(244, 234, 211, 0.66);
   font-size: 14px;
@@ -3803,7 +3861,8 @@ select:focus {
   --home-theme-rgb: 185, 134, 36;
   position: relative;
   display: grid;
-  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px;
   min-height: 104px;
   padding: 16px;
   border: 1px solid rgba(var(--home-theme-rgb), 0.22);
@@ -3814,6 +3873,21 @@ select:focus {
   color: #f4ead3;
   overflow: hidden;
   text-decoration: none;
+}
+
+.content-hub-grid a em {
+  grid-row: span 2;
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(var(--home-theme-rgb), 0.34);
+  border-radius: 8px;
+  background: rgba(var(--home-theme-rgb), 0.12);
+  color: var(--home-theme-accent);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .content-hub-grid a:hover {
