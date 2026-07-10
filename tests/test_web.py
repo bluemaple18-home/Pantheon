@@ -6,7 +6,7 @@ import subprocess
 from main import app
 
 
-FIRST_BATCH_ARTICLE_PATHS = [
+INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/mbti-meaning",
     "/articles/personality/16-personalities",
     "/articles/personality/mbti-test",
@@ -32,12 +32,20 @@ FIRST_BATCH_ARTICLE_PATHS = [
     "/articles/astro/birth-chart-astrology",
     "/articles/astro/ascendant-sign-meaning",
     "/articles/astro/moon-sign-meaning",
-    "/articles/astro/love-forecast",
     "/articles/tarot/love-tarot-questions",
     "/articles/fortune/career-fortune",
     "/articles/personality/relationships-stuck",
     "/articles/fortune/wealth-fortune",
     "/articles/fortune/life-direction",
+]
+
+EXTRA_PUBLIC_ARTICLE_PATHS = [
+    "/articles/astro/love-forecast",
+]
+
+PUBLIC_ARTICLE_PATHS = [
+    *INITIAL_FIRST_30_ARTICLE_PATHS,
+    *EXTRA_PUBLIC_ARTICLE_PATHS,
 ]
 
 
@@ -128,7 +136,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-5" in response.text
+        assert "/static/article.js?v=article-content-20260710-6" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -252,10 +260,14 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/article-admin /article-admin.html 200" not in redirects
 
 
-def test_first_batch_articles_follow_publication_standard() -> None:
+def test_public_articles_follow_latest_publication_standard() -> None:
     script = f"""
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
-const paths = {json.dumps(FIRST_BATCH_ARTICLE_PATHS)};
+const paths = {json.dumps(PUBLIC_ARTICLE_PATHS)};
+const summaryPaths = new Set([
+  "/articles/personality/16-personalities",
+  "/articles/tarot/tarot-card-meanings",
+]);
 const data = paths.map((path) => {{
   const content = buildArticleContent(path, "https://mysticpantheon.com", {{
     author: "Pantheon 編輯部",
@@ -271,6 +283,7 @@ const data = paths.map((path) => {{
     relatedCount: content.relatedLinks.length,
     ctaCount: content.cta.links.length,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
+    minBodyLength: summaryPaths.has(path) ? 2400 : 1600,
     hasForbidden: forbidden.some((word) => bodyText.includes(word) || content.title.includes(word)),
   }};
 }});
@@ -283,10 +296,10 @@ console.log(JSON.stringify(data));
         text=True,
     )
     records = json.loads(result.stdout)
-    assert len(records) == len(FIRST_BATCH_ARTICLE_PATHS)
+    assert len(records) == len(PUBLIC_ARTICLE_PATHS)
     for record in records:
-        assert record["bodySectionCount"] >= 5, record
-        assert record["bodyLength"] >= 1200, record
+        assert record["bodySectionCount"] >= 8, record
+        assert record["bodyLength"] >= record["minBodyLength"], record
         assert 3 <= record["faqCount"] <= 5, record
         assert record["relatedCount"] >= 6, record
         assert record["ctaCount"] >= 3, record
