@@ -80,7 +80,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
-    assert "/static/styles.css?v=articles-hub-20260710-3" in response.text
+    assert "/static/styles.css?v=articles-hub-20260710-4" in response.text
     assert "/static/articles.js?v=articles-hub-20260710-2" in response.text
     assert "id=\"birth-form\"" not in response.text
 
@@ -127,7 +127,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-3" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
         assert "/static/article.js?v=article-content-20260710-5" in response.text
 
 
@@ -188,8 +188,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-page-bg:' in styles_css
     assert '.article-screen[data-product-theme="fortune"]' in styles_css
     assert '.article-screen[data-product-theme="personality"]' in styles_css
-    assert '.article-screen[data-product-theme="fortune"] {\n  --article-accent: #b98624;' in styles_css
-    assert '.article-screen[data-product-theme="personality"] {\n  --article-accent: var(--cinnabar);' in styles_css
+    assert '.article-screen[data-product-theme="fortune"] {\n  --article-accent: var(--cinnabar);' in styles_css
+    assert '.article-screen[data-product-theme="personality"] {\n  --article-accent: #b98624;' in styles_css
     assert '.article-screen[data-product-theme="tarot"]' in styles_css
     assert '.article-screen[data-product-theme="astro"]' in styles_css
     assert '--article-header-bg:' in styles_css
@@ -441,7 +441,9 @@ def test_destiny_page_does_not_auto_generate_report() -> None:
     assert ".product-drawer:not([open]) > .destiny-workbench" in styles_css
     assert "content: attr(data-theme-glyph)" in styles_css
     assert ".home-article-product" in styles_css
+    assert ".home-article-card {\n  --home-theme-accent: #ae4635;" in styles_css
     assert '.home-article-card[data-product-theme="personality"]' in styles_css
+    assert '.home-article-card[data-product-theme="personality"],\n.content-hub-grid a[data-product-theme="personality"] {\n  --home-theme-accent: #b98624;' in styles_css
     assert '.home-article-card[data-product-theme="tarot"]' in styles_css
     assert '.home-article-card[data-product-theme="astro"]' in styles_css
     assert '.content-hub-grid a[data-product-theme="personality"]' in styles_css

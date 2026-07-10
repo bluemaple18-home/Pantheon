@@ -192,25 +192,6 @@
 }
 
 .article-screen[data-product-theme="fortune"] {
-  --article-accent: #b98624;
-  --article-accent-soft: rgba(185, 134, 36, 0.14);
-  --article-accent-rgb: 185, 134, 36;
-  --article-page-bg:
-    radial-gradient(circle at 18% 8%, rgba(185, 134, 36, 0.18), transparent 30%),
-    linear-gradient(180deg, #121722 0%, #0d111c 78%, #0a0d15 100%);
-  --article-text: #fff3cf;
-  --article-muted: rgba(244, 234, 211, 0.72);
-  --article-line: rgba(225, 199, 128, 0.16);
-  --article-panel-bg: rgba(20, 27, 43, 0.84);
-  --article-header-bg: rgba(13, 17, 28, 0.96);
-  --article-footer-bg: #0b0f18;
-  --article-visual-bg:
-    linear-gradient(90deg, rgba(185, 134, 36, 0.18) 1px, transparent 1px) 0 0 / 33.333% 100%,
-    linear-gradient(0deg, rgba(185, 134, 36, 0.12) 1px, transparent 1px) 0 0 / 100% 33.333%,
-    rgba(20, 27, 43, 0.88);
-}
-
-.article-screen[data-product-theme="personality"] {
   --article-accent: var(--cinnabar);
   --article-accent-soft: rgba(174, 70, 53, 0.15);
   --article-accent-rgb: 174, 70, 53;
@@ -228,6 +209,25 @@
     linear-gradient(90deg, rgba(174, 70, 53, 0.16) 1px, transparent 1px) 0 0 / 36px 100%,
     linear-gradient(180deg, rgba(174, 70, 53, 0.12), transparent 44%),
     rgba(25, 27, 42, 0.9);
+}
+
+.article-screen[data-product-theme="personality"] {
+  --article-accent: #b98624;
+  --article-accent-soft: rgba(185, 134, 36, 0.14);
+  --article-accent-rgb: 185, 134, 36;
+  --article-page-bg:
+    radial-gradient(circle at 18% 8%, rgba(185, 134, 36, 0.18), transparent 30%),
+    linear-gradient(180deg, #121722 0%, #0d111c 78%, #0a0d15 100%);
+  --article-text: #fff3cf;
+  --article-muted: rgba(244, 234, 211, 0.72);
+  --article-line: rgba(225, 199, 128, 0.16);
+  --article-panel-bg: rgba(20, 27, 43, 0.84);
+  --article-header-bg: rgba(13, 17, 28, 0.96);
+  --article-footer-bg: #0b0f18;
+  --article-visual-bg:
+    linear-gradient(90deg, rgba(185, 134, 36, 0.18) 1px, transparent 1px) 0 0 / 33.333% 100%,
+    linear-gradient(0deg, rgba(185, 134, 36, 0.12) 1px, transparent 1px) 0 0 / 100% 33.333%,
+    rgba(20, 27, 43, 0.88);
 }
 
 .article-screen[data-product-theme="tarot"] {
@@ -3860,8 +3860,8 @@ select:focus {
 }
 
 .home-article-card {
-  --home-theme-accent: #b98624;
-  --home-theme-rgb: 185, 134, 36;
+  --home-theme-accent: #ae4635;
+  --home-theme-rgb: 174, 70, 53;
   position: relative;
   display: grid;
   align-content: start;
@@ -3903,8 +3903,8 @@ select:focus {
 
 .home-article-card[data-product-theme="personality"],
 .content-hub-grid a[data-product-theme="personality"] {
-  --home-theme-accent: #ae4635;
-  --home-theme-rgb: 174, 70, 53;
+  --home-theme-accent: #b98624;
+  --home-theme-rgb: 185, 134, 36;
 }
 
 .home-article-card[data-product-theme="personality"] {
@@ -3994,8 +3994,8 @@ select:focus {
 }
 
 .content-hub-grid a {
-  --home-theme-accent: #b98624;
-  --home-theme-rgb: 185, 134, 36;
+  --home-theme-accent: #ae4635;
+  --home-theme-rgb: 174, 70, 53;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
