@@ -136,8 +136,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-12" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-5" in response.text
+        assert "/static/article.js?v=article-content-20260710-13" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
