@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-4";
-import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-4";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-5";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-5";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -18,6 +18,8 @@ const dom = {
   answerText: document.querySelector("[data-answer-text]"),
   articleBody: document.querySelector("[data-article-body]"),
   articleFaq: document.querySelector("[data-article-faq]"),
+  articleRelated: document.querySelector("[data-article-related]"),
+  articleCta: document.querySelector("[data-article-cta]"),
   canonical: document.querySelector("link[rel='canonical']"),
   description: document.querySelector("meta[name='description']"),
   keywords: document.querySelector("meta[name='keywords']"),
@@ -71,6 +73,8 @@ function renderArticleChrome(content) {
   }));
   renderArticleBody(content);
   renderArticleFaq(content);
+  renderArticleRelated(content);
+  renderArticleCta(content);
 }
 
 function renderArticleBody(content) {
@@ -103,4 +107,43 @@ function renderArticleFaq(content) {
     return detail;
   });
   dom.articleFaq.replaceChildren(heading, ...questions);
+}
+
+function renderArticleRelated(content) {
+  if (!dom.articleRelated || !content.relatedLinks?.length) return;
+  dom.articleRelated.hidden = false;
+  const heading = document.createElement("h2");
+  heading.textContent = "延伸閱讀";
+  const list = document.createElement("ul");
+  list.className = "article-link-list";
+  content.relatedLinks.forEach((item) => {
+    const link = document.createElement("a");
+    const meta = document.createElement("span");
+    const row = document.createElement("li");
+    link.href = item.href;
+    link.textContent = item.label;
+    meta.textContent = item.kind;
+    row.append(link, meta);
+    list.append(row);
+  });
+  dom.articleRelated.replaceChildren(heading, list);
+}
+
+function renderArticleCta(content) {
+  if (!dom.articleCta || !content.cta) return;
+  dom.articleCta.hidden = false;
+  const heading = document.createElement("h2");
+  const body = document.createElement("p");
+  const links = document.createElement("div");
+  heading.textContent = content.cta.title;
+  body.textContent = content.cta.body;
+  links.className = "article-cta-actions";
+  content.cta.links.forEach((item) => {
+    const link = document.createElement("a");
+    link.className = "ui-button ui-button-secondary";
+    link.href = item.href;
+    link.textContent = item.label;
+    links.append(link);
+  });
+  dom.articleCta.replaceChildren(heading, body, links);
 }

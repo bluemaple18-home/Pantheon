@@ -17,6 +17,21 @@ const INTERNAL_DISPLAY_TAGS = new Set([
   "公開文章邊界",
 ]);
 
+const CORE_ARTICLE_SLUGS = new Set([
+  "mbti-meaning",
+  "16-personalities",
+  "mbti-test",
+  "mbti-accuracy",
+  "intj-meaning",
+  "infp-meaning",
+  "infj-meaning",
+  "enfp-meaning",
+  "tarot-card-meanings",
+  "upright-reversed",
+  "fool-card-meaning",
+  "magician-card-meaning",
+]);
+
 const ARTICLE_BODY_LIBRARY = {
   "mbti-meaning": [
     {
@@ -30,7 +45,7 @@ const ARTICLE_BODY_LIBRARY = {
       heading: "16 型人格怎麼看？",
       paragraphs: [
         "16 型人格來自 E/I、S/N、T/F、J/P 四組偏好組合。例如有人偏外向互動，有人需要獨處充電；有人重視具體經驗，有人習慣先看可能性。這些差異可以幫你理解自己為什麼在某些情境特別順或特別卡。",
-        "比較健康的用法，是用 MBTI 找出你常見的反應模式，再回頭檢查現實情境。不要只看四個字母就認定自己只能做某種工作、只能愛某種人，或一定會有某種命運。",
+        "比較健康的用法，是用 MBTI 找出你常見的反應模式，再回頭檢查現實情境。不要只看四個字母就認定自己只能做某種工作、只能愛某種人，或會有固定命運。",
       ],
     },
     {
@@ -59,7 +74,7 @@ const ARTICLE_BODY_LIBRARY = {
     {
       heading: "怎麼避免把 16 型人格看歪？",
       paragraphs: [
-        "最常見的問題，是把類型當成身份標籤。像 INTJ 不一定冷漠，INFP 不一定脆弱，ENFP 不一定三分鐘熱度。類型描述的是偏好，不是固定人格。",
+        "最常見的問題，是把類型當成身份標籤。像 INTJ 不代表冷漠，INFP 不代表脆弱，ENFP 不代表三分鐘熱度。類型描述的是偏好，不是固定人格。",
         "比較好的讀法，是把每一型當成提問清單：我在什麼情境會像這個描述？什麼時候不像？哪些是偏好，哪些只是壓力下的反應？",
       ],
     },
@@ -82,7 +97,7 @@ const ARTICLE_BODY_LIBRARY = {
     {
       heading: "MBTI 測驗結果怎麼用才合理？",
       paragraphs: [
-        "合理用法是把結果當成討論工具：它可以幫你描述工作偏好、溝通方式、壓力來源和關係需求。它不能證明你適合或不適合某個人，也不能保證你會成為某種樣子。",
+        "合理用法是把結果當成討論工具：它可以幫你描述工作偏好、溝通方式、壓力來源和關係需求。它不能證明你適合或不適合某個人，也無法承諾你會成為某種樣子。",
         "如果你想用 MBTI 做自我整理，建議搭配實際例子：最近一次衝突、一次工作決策、一次感情卡住的經驗。能對照現實的結果，才有參考價值。",
       ],
     },
@@ -115,13 +130,13 @@ const ARTICLE_BODY_LIBRARY = {
       heading: "INTJ 是什麼？",
       paragraphs: [
         "INTJ 通常被描述為重視策略、結構和長期目標的人格類型。他們習慣先理解系統怎麼運作，再思考怎麼改進，比起臨場反應，更在意方向是否合理。",
-        "這不代表 INTJ 一定冷漠，也不代表每個 INTJ 都適合當領導者。INTJ 只是偏好模式，不是一個人的全部人格。",
+        "這不代表 INTJ 冷漠，也不代表每個 INTJ 都適合當領導者。INTJ 只是偏好模式，不是一個人的全部人格。",
       ],
     },
     {
       heading: "INTJ 在感情和人際裡常見什麼模式？",
       paragraphs: [
-        "在感情裡，INTJ 常常需要時間確認關係是否有長期價值。他們不一定擅長即時表達情緒，但通常會用規劃、承諾和解決問題來表示在意。",
+        "在感情裡，INTJ 常常需要時間確認關係是否有長期價值。他們未必擅長即時表達情緒，但通常會用規劃、承諾和解決問題來表示在意。",
         "在人際裡，INTJ 可能不喜歡過多寒暄，更在意對話是否有內容。這有時會被誤解成距離感，但很多時候只是他們需要更明確的交流目的。",
       ],
     },
@@ -161,7 +176,7 @@ const ARTICLE_BODY_LIBRARY = {
       heading: "INFJ 是什麼？",
       paragraphs: [
         "INFJ 通常被描述為重視洞察、理想和深層關係的人格類型。他們常會注意到別人沒有明說的情緒或模式，也容易思考一段關係或一個選擇背後的長期意義。",
-        "INFJ 稀有不代表比較優越，也不代表一定神秘。它只是指出一種偏好：更常從整體脈絡、關係感受和內在價值來理解世界。",
+        "INFJ 稀有不代表比較優越，也不代表神秘。它只是指出一種偏好：更常從整體脈絡、關係感受和內在價值來理解世界。",
       ],
     },
     {
@@ -211,10 +226,10 @@ const ARTICLE_BODY_LIBRARY = {
       ],
     },
     {
-      heading: "正位和逆位一定代表好壞嗎？",
+      heading: "正位和逆位等於好壞嗎？",
       paragraphs: [
         "正位和逆位不是單純的好壞。正位通常表示能量比較順、比較容易表現出牌的核心意義；逆位可能代表阻塞、過度、延遲，或需要換角度看。",
-        "例如一張牌在感情、工作和人生方向裡的語氣可能不同。不能只看到某張牌就說一定會分手、一定成功或一定失敗。",
+        "例如一張牌在感情、工作和人生方向裡的語氣可能不同。不能只看到某張牌就說會分手、會成功或會失敗。",
       ],
     },
     {
@@ -230,7 +245,7 @@ const ARTICLE_BODY_LIBRARY = {
       heading: "塔羅牌正位逆位是什麼？",
       paragraphs: [
         "塔羅牌正位逆位是同一張牌的兩種表現方式。正位常表示牌義比較順暢地出現，逆位則可能代表能量被壓住、過度表現、延遲發生，或需要回頭檢查。",
-        "逆位不一定比較壞，正位也不一定就是好。重點是這張牌在你的問題裡提醒什麼，而不是只看牌是否倒過來。",
+        "逆位未必比較壞，正位也未必就是好。重點是這張牌在你的問題裡提醒什麼，而不是只看牌是否倒過來。",
       ],
     },
     {
@@ -266,7 +281,7 @@ const ARTICLE_BODY_LIBRARY = {
     {
       heading: "愚者牌在感情和工作裡代表什麼？",
       paragraphs: [
-        "在感情裡，愚者牌可能代表新關係、重新開始，或對未知關係的好奇。但它不保證穩定，也不保證對方已經準備好承諾。",
+        "在感情裡，愚者牌可能代表新關係、重新開始，或對未知關係的好奇。但它無法承諾穩定，也無法替對方確認是否準備好承諾。",
         "在工作裡，愚者牌可能指向新計畫、新職位或想轉換方向。它鼓勵探索，但也提醒你確認資源、時間和基本風險。",
       ],
     },
@@ -371,7 +386,9 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     displayTags: buildDisplayTags(article, managedArticle, productTheme),
     answer: article?.answer || buildAnswer(route),
     bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
-    faq: article?.faq || buildFallbackFaq(route, article, productTheme),
+    faq: buildArticleFaq(route, article, productTheme),
+    relatedLinks: buildRelatedLinks(article, managedArticle, productTheme),
+    cta: buildArticleCta(article, productTheme),
   };
 }
 
@@ -483,7 +500,7 @@ function buildBodySections(route, article, section, intent, productTheme, manage
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const customBody = ARTICLE_BODY_LIBRARY[article.slug];
-  if (customBody) return customBody;
+  if (customBody) return enrichArticleBody(article, productTheme, managedArticle, customBody);
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   const tagText = (article.originalTags?.length ? article.originalTags : managedArticle.tags).slice(0, 4).join("、");
@@ -521,6 +538,104 @@ function buildArticleBody(article, productTheme, managedArticle) {
   ];
 }
 
+function enrichArticleBody(article, productTheme, managedArticle, customBody) {
+  if (!CORE_ARTICLE_SLUGS.has(article.slug)) return customBody;
+  const [opening, ...rest] = customBody;
+  return [
+    opening,
+    buildSearchIntentSection(article, productTheme),
+    ...rest,
+    buildScenarioSection(article, productTheme),
+    buildRelatedReadingSection(article, productTheme),
+    buildNextStepSection(article, productTheme, managedArticle),
+  ];
+}
+
+function buildSearchIntentSection(article, productTheme) {
+  const primary = article.primaryKeyword || article.title;
+  const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
+  return {
+    heading: `${cleanFaqTopic(primary)}通常在問什麼？`,
+    paragraphs: [
+      `搜尋「${primary}」的人，多半不是只想背一個定義，而是想知道這個概念能不能解釋自己正在遇到的狀況。可以先把問題分成三層：名詞本身是什麼、它能看哪些生活情境、它不能直接替你判斷什麼。`,
+      `如果你是從「${related}」這類關鍵字進來，建議先不要急著把結果套到自己身上。先確認你要找的是自我理解、關係互動、工作節奏，還是只是想知道某個詞在網路上常被怎麼使用。`,
+      `Pantheon 的公開文章會先把通用意思說清楚，再把限制講出來。這樣讀者可以拿到可搜尋、可引用的答案，但不會被推向沒有根據的個人結論。`,
+    ],
+  };
+}
+
+function buildScenarioSection(article, productTheme) {
+  if (article.product === "personality") {
+    return {
+      heading: `${productTheme.label}放到感情、工作和人際怎麼看？`,
+      paragraphs: [
+        "放到感情裡，人格文章適合看相處偏好、溝通節奏和安全感來源。它可以提醒你為什麼有些互動特別消耗，或為什麼你會在某種關係裡反覆卡住，但不能直接判定兩個人合不合。",
+        "放到工作裡，人格可以整理你偏好的決策方式、資訊處理方式和合作節奏。這能幫你理解自己適合怎樣的環境，也能幫你把需求說清楚，而不是把職涯選擇交給四個字母。",
+        "放到人際與人生方向裡，人格比較像一張反應模式地圖。它能幫你看見慣性，但不能替你決定要不要離職、分手、轉換跑道或做任何重大人生選擇。",
+      ],
+    };
+  }
+  if (article.product === "tarot") {
+    return {
+      heading: `${productTheme.label}放到感情、工作和人生方向怎麼看？`,
+      paragraphs: [
+        "放到感情裡，塔羅牌義適合整理當下互動狀態、期待落差和下一步可以注意的盲點。它可以幫你把問題問清楚，但不能替對方發言，也不能承諾關係結果。",
+        "放到工作裡，塔羅比較適合看短期卡點、資源是否到位、行動是否清楚。它不是職涯承諾，也不是投資或財務建議；真正的選擇仍要回到能力、環境、時間和風險。",
+        "放到人生方向裡，單張牌可以提供一個反思角度，牌陣則能把選項、阻力和提醒整理得更清楚。它提醒你看見問題，但不替你做重大人生決策。",
+      ],
+    };
+  }
+  return {
+    heading: `${productTheme.label}放到五大情境怎麼看？`,
+    paragraphs: [
+      `${productTheme.label}文章可以協助整理感情、事業、人際、財富和人生方向的共通問題。公開內容只說明概念和限制，不把單一訊號寫成完整人生判斷。`,
+      "如果問題牽涉金錢、健康、法律或重大風險，文章只能當作背景知識，不能取代專業意見或你自己的資料判斷。",
+    ],
+  };
+}
+
+function buildNextStepSection(article, productTheme, managedArticle) {
+  const productEntry = getProductEntry(productTheme.label);
+  const intentEntry = getIntentEntry(article, managedArticle);
+  return {
+    heading: "如果想看自己的狀況，下一步怎麼做？",
+    paragraphs: [
+      `如果你只是想理解「${article.primaryKeyword}」這個概念，讀到這裡已經足夠。公開文章的任務是幫你建立語言、釐清情境和知道限制，不會把通用知識包裝成你的個人答案。`,
+      `如果你想把它放回自己的狀況裡，可以先選一個入口：${productEntry}；如果你已經有明確問題，再往 ${intentEntry} 這類五大主題小報告整理。`,
+      "比較好的順序是：先把問題寫清楚，再選工具，再看結果能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷。",
+    ],
+  };
+}
+
+function buildRelatedReadingSection(article, productTheme) {
+  if (article.product === "personality") {
+    return {
+      heading: "延伸閱讀可以怎麼安排？",
+      paragraphs: [
+        "讀人格文章時，建議不要只停在單一類型。你可以先讀 MBTI 是什麼，再看 16 型人格的整體架構，最後回到某一型在感情、工作和人際裡的表現。這樣比較不會把一個類型描述誤讀成固定身份。",
+        "如果你正在處理關係或職場問題，也可以跨讀塔羅和命盤文章。人格看反應模式，塔羅看當下互動盲點，命盤看長期課題；三者分工不同，不需要互相取代。",
+      ],
+    };
+  }
+  if (article.product === "tarot") {
+    return {
+      heading: "延伸閱讀可以怎麼安排？",
+      paragraphs: [
+        "讀塔羅文章時，建議先理解 78 張牌的基本牌義，再看正位逆位，最後才回到單張牌在感情、工作和人生方向裡的語氣。這樣比較不會只靠一個關鍵字解讀整個牌陣。",
+        "如果問題牽涉某個人的反應模式，可以搭配人格文章一起看；如果問題牽涉長期節奏，可以再看命盤或人生方向入口。公開文章負責建立脈絡，不替任何工具製造權威感。",
+        "看到比較緊繃的牌時，也不要急著把它翻成壞結果。先回到問題本身：它是在提醒溝通、資源、時機、界線，還是提醒你需要換一種問法。",
+      ],
+    };
+  }
+  return {
+    heading: "延伸閱讀可以怎麼安排？",
+    paragraphs: [
+      `讀${productTheme.label}文章時，可以先看產品線入口，再回到同分類文章補概念，最後用五大情境入口整理自己的問題。`,
+      "延伸閱讀不是為了堆連結，而是讓讀者知道下一篇要解決哪一層問題：定義、情境、限制，還是個人化入口。",
+    ],
+  };
+}
+
 function buildFallbackFaq(route, article, productTheme) {
   const primary = article?.primaryKeyword || route.title || productTheme.label;
   const topic = cleanFaqTopic(primary);
@@ -543,6 +658,147 @@ function buildFallbackFaq(route, article, productTheme) {
       answer: `${topicQuestionPrefix}不能單獨決定感情、工作或人生結果；真正判斷仍需要放回具體問題和情境。`,
     },
   ];
+}
+
+function buildArticleFaq(route, article, productTheme) {
+  const base = article?.faq?.length ? article.faq : buildFallbackFaq(route, article, productTheme);
+  const primary = article?.primaryKeyword || route.title || productTheme.label;
+  const topic = cleanFaqTopic(primary);
+  return uniqueFaq([
+    ...base,
+    {
+      question: `${formatFaqTopicPrefix(topic)}不能代表什麼？`,
+      answer: buildLimitAnswer(article, productTheme, topic),
+    },
+    {
+      question: `想看自己的狀況，應該從哪個入口開始？`,
+      answer: buildEntryAnswer(article, productTheme),
+    },
+  ]).slice(0, 5);
+}
+
+function uniqueFaq(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.question || seen.has(item.question)) return false;
+    seen.add(item.question);
+    return true;
+  });
+}
+
+function buildLimitAnswer(article, productTheme, topic) {
+  if (article?.product === "personality") return `${formatFaqTopicPrefix(topic)}只能整理常見偏好，不能取代心理診斷，也不能單獨判定感情、工作或人生結果。`;
+  if (article?.product === "tarot") return `${formatFaqTopicPrefix(topic)}只能提供牌義和情境提醒，不能替對方下結論，也不能承諾復合、成功或最終結果。`;
+  return `${formatFaqTopicPrefix(topic)}只能當成理解${productTheme.label}的入口，不能替代個人資料、具體問題與專業判斷。`;
+}
+
+function buildEntryAnswer(article, productTheme) {
+  if (article?.product === "personality") return "如果想看自己的反應模式，可以先做 64 分支人格測試；如果已有明確感情、事業或人際問題，再用五大主題小報告整理。";
+  if (article?.product === "tarot") return "如果只是想理解牌義，讀文章即可；如果想整理當下問題，可以先抽一張塔羅，再把問題放回感情、事業或人生方向入口。";
+  return `可以先從${productTheme.label}入口建立背景，再依照感情、事業、人際、財富或人生方向選擇更具體的問題。`;
+}
+
+function buildRelatedLinks(article, managedArticle, productTheme) {
+  if (!article) return [];
+  const currentPath = `/articles/${article.product}/${article.slug}`;
+  const productLinks = [
+    { label: `${productTheme.label}文章入口`, href: `/articles/${article.product}`, kind: "產品線入口" },
+    { label: "感情文章入口", href: "/articles/intents/love", kind: "五大情境" },
+    { label: "事業文章入口", href: "/articles/intents/career", kind: "五大情境" },
+    { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "五大情境" },
+    { label: "人生方向文章入口", href: "/articles/intents/life", kind: "五大情境" },
+  ];
+  const sameProduct = getRelatedArticleLinks(article.product)
+    .filter((item) => item.href !== currentPath)
+    .slice(0, 3);
+  const crossProduct = article.product === "personality"
+    ? [
+      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-card-meanings", kind: "跨分類" },
+      { label: "人生方向文章入口", href: "/articles/intents/life", kind: "跨分類" },
+    ]
+    : [
+      { label: "MBTI 是什麼", href: "/articles/personality/mbti-meaning", kind: "跨分類" },
+      { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "跨分類" },
+    ];
+  return uniqueLinks([...productLinks, ...sameProduct, ...crossProduct]).slice(0, 8);
+}
+
+function getRelatedArticleLinks(product) {
+  if (product === "personality") {
+    return [
+      { label: "MBTI 是什麼", href: "/articles/personality/mbti-meaning", kind: "同分類" },
+      { label: "16 型人格完整整理", href: "/articles/personality/16-personalities", kind: "同分類" },
+      { label: "MBTI 測驗前先知道", href: "/articles/personality/mbti-test", kind: "同分類" },
+      { label: "MBTI 準嗎", href: "/articles/personality/mbti-accuracy", kind: "同分類" },
+      { label: "INTJ 是什麼", href: "/articles/personality/intj-meaning", kind: "同分類" },
+      { label: "INFP 是什麼", href: "/articles/personality/infp-meaning", kind: "同分類" },
+    ];
+  }
+  if (product === "tarot") {
+    return [
+      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-card-meanings", kind: "同分類" },
+      { label: "塔羅牌正位逆位", href: "/articles/tarot/upright-reversed", kind: "同分類" },
+      { label: "愚者牌意思", href: "/articles/tarot/fool-card-meaning", kind: "同分類" },
+      { label: "魔術師牌意思", href: "/articles/tarot/magician-card-meaning", kind: "同分類" },
+      { label: "戀人牌意思", href: "/articles/tarot/lovers-card-meaning", kind: "同分類" },
+      { label: "死神牌意思", href: "/articles/tarot/death-card-meaning", kind: "同分類" },
+    ];
+  }
+  return [];
+}
+
+function uniqueLinks(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.href || seen.has(item.href)) return false;
+    seen.add(item.href);
+    return true;
+  });
+}
+
+function buildArticleCta(article, productTheme) {
+  if (!article) return null;
+  const productLinks = article.product === "personality"
+    ? [
+      { label: "做 64 分支人格測試", href: "/personality" },
+      { label: "看人際主題小報告", href: "/articles/intents/interpersonal" },
+      { label: "整理人生方向問題", href: "/articles/intents/life" },
+    ]
+    : [
+      { label: "抽一張塔羅看當下問題", href: "/reading" },
+      { label: "看感情主題小報告", href: "/articles/intents/love" },
+      { label: "整理事業主題問題", href: "/articles/intents/career" },
+    ];
+  return {
+    title: "下一步",
+    body: `如果你只是想理解這個概念，這篇文章已經足夠。${getProductBoundarySentence(productTheme.label)}如果你想知道它放到自己的狀況裡代表什麼，可以先選一個入口。`,
+    links: productLinks,
+  };
+}
+
+function getProductEntry(label) {
+  if (label === "人格") return "做 64 分支人格測試，看你的反應模式";
+  if (label === "塔羅") return "抽一張塔羅，看當下問題";
+  if (label === "命盤") return "看命盤簡介，了解長期底色";
+  if (label === "星座") return "看星盤或星座落點，整理情緒和安全感";
+  return "先選一個最接近你問題的 Pantheon 入口";
+}
+
+function getIntentEntry(article, managedArticle) {
+  const tags = [...(article?.originalTags || []), ...(managedArticle?.tags || [])].join(" ");
+  if (/感情|關係/.test(tags)) return "感情";
+  if (/事業|工作|職涯/.test(tags)) return "事業";
+  if (/人際|溝通/.test(tags)) return "人際";
+  if (/財富|金錢|資源/.test(tags)) return "財富";
+  return "人生方向";
+}
+
+function getProductBoundarySentence(label) {
+  if (label === "人格") return "類型只能說明常見偏好，不是你的完整人格。";
+  if (label === "塔羅") return "單張牌只能提供一個反思角度，不是預言。";
+  if (label === "命盤") return "單一宮位只能說明一個觀察角度。";
+  if (label === "星座") return "單一星座落點只能說明一部分。";
+  return "公開文章只能講通用意思。";
 }
 
 function cleanFaqTopic(primary) {
@@ -570,7 +826,7 @@ function buildMisunderstandingParagraph(article, productTheme) {
   if (article.product === "personality") return "人格類型適合描述偏好與互動模式，不適合拿來替一個人貼永久標籤，也不能取代心理診斷。";
   if (article.product === "tarot") return "塔羅牌義適合先理解象徵和提醒，但不能只看單張牌就斷定感情、工作或人生結果。";
   if (article.product === "astro") return "星盤與星座適合看傾向和主題，不能只用單一星座就推論一個人的完整樣貌。";
-  if (article.product === "fortune") return "命盤、八字或紫微適合整理人生主題與節奏，不適合被說成固定命運或保證結果。";
+  if (article.product === "fortune") return "命盤、八字或紫微適合整理人生主題與節奏，不適合被說成固定命運或結果承諾。";
   return `${productTheme.label}文章適合建立概念，但不能替代個人化判斷。`;
 }
 

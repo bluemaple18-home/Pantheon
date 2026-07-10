@@ -1,7 +1,25 @@
 from fastapi.testclient import TestClient
+import json
 from pathlib import Path
+import subprocess
 
 from main import app
+
+
+FIRST_BATCH_ARTICLE_PATHS = [
+    "/articles/personality/mbti-meaning",
+    "/articles/personality/16-personalities",
+    "/articles/personality/mbti-test",
+    "/articles/personality/mbti-accuracy",
+    "/articles/personality/intj-meaning",
+    "/articles/personality/infp-meaning",
+    "/articles/personality/infj-meaning",
+    "/articles/personality/enfp-meaning",
+    "/articles/tarot/tarot-card-meanings",
+    "/articles/tarot/upright-reversed",
+    "/articles/tarot/fool-card-meaning",
+    "/articles/tarot/magician-card-meaning",
+]
 
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -142,7 +160,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-2" in response.text
-        assert "/static/article.js?v=article-content-20260710-4" in response.text
+        assert "/static/article.js?v=article-content-20260710-5" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -172,15 +190,24 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.titleCrumb.hidden = false" in article_js
     assert "renderArticleBody(content)" in article_js
     assert "renderArticleFaq(content)" in article_js
+    assert "renderArticleRelated(content)" in article_js
+    assert "renderArticleCta(content)" in article_js
+    assert "data-article-related" in Path("app/web/article.html").read_text()
+    assert "data-article-cta" in Path("app/web/article.html").read_text()
     assert "bodySections: buildBodySections" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
+    assert "CORE_ARTICLE_SLUGS" in article_meta_js
+    assert "buildRelatedLinks(article, managedArticle, productTheme)" in article_meta_js
+    assert "buildArticleCta(article, productTheme)" in article_meta_js
     assert "\"mbti-meaning\"" in article_meta_js
     assert "\"magician-card-meaning\"" in article_meta_js
     assert "MBTI 是一套描述人格偏好的分類工具" in article_meta_js
     assert "魔術師牌通常代表資源、行動、創造力" in article_meta_js
     assert "buildFallbackFaq(route, article, productTheme)" in article_meta_js
+    assert "buildArticleFaq(route, article, productTheme)" in article_meta_js
     assert "cleanFaqTopic(primary)" in article_meta_js
+    assert "想看自己的狀況，應該從哪個入口開始？" in article_meta_js
     assert "displayTags: buildDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
     assert "content.displayTags || content.tags || []" in article_js
@@ -200,6 +227,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '.article-screen[data-product-theme="astro"]' in styles_css
     assert '--article-header-bg:' in styles_css
     assert '--article-panel-bg:' in styles_css
+    assert ".article-related" in styles_css
+    assert ".article-cta-actions" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
@@ -246,6 +275,48 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/strategy /strategy.html 200" not in redirects
     assert "/effects-demo /effects-demo.html 200" not in redirects
     assert "/article-admin /article-admin.html 200" not in redirects
+
+
+def test_first_batch_articles_follow_publication_standard() -> None:
+    script = f"""
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+const paths = {json.dumps(FIRST_BATCH_ARTICLE_PATHS)};
+const data = paths.map((path) => {{
+  const content = buildArticleContent(path, "https://mysticpantheon.com", {{
+    author: "Pantheon 編輯部",
+    updated: "2026-07-10",
+  }});
+  const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  const forbidden = ["全面解析", "深度解析", "不可或缺", "賦能", "總而言之", "值得注意的是", "必看", "一定", "保證", "注定"];
+  return {{
+    path,
+    bodySectionCount: content.bodySections.length,
+    bodyLength: [...bodyText].length,
+    faqCount: content.faq.length,
+    relatedCount: content.relatedLinks.length,
+    ctaCount: content.cta.links.length,
+    hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
+    hasForbidden: forbidden.some((word) => bodyText.includes(word) || content.title.includes(word)),
+  }};
+}});
+console.log(JSON.stringify(data));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    records = json.loads(result.stdout)
+    assert len(records) == len(FIRST_BATCH_ARTICLE_PATHS)
+    for record in records:
+        assert record["bodySectionCount"] >= 5, record
+        assert record["bodyLength"] >= 1200, record
+        assert 3 <= record["faqCount"] <= 5, record
+        assert record["relatedCount"] >= 6, record
+        assert record["ctaCount"] >= 3, record
+        assert record["hasLimit"], record
+        assert not record["hasForbidden"], record
 
 
 def test_article_admin_serves_management_console() -> None:

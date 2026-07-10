@@ -510,7 +510,9 @@
 }
 
 .article-answer-summary,
-.article-faq {
+.article-faq,
+.article-related,
+.article-cta {
   display: grid;
   gap: 12px;
   max-width: 760px;
@@ -521,14 +523,17 @@
 }
 
 .article-answer-summary h2,
-.article-faq h2 {
+.article-faq h2,
+.article-related h2,
+.article-cta h2 {
   margin: 0;
   color: var(--article-text);
   font-size: 20px;
 }
 
 .article-answer-summary p,
-.article-faq p {
+.article-faq p,
+.article-cta p {
   margin: 0;
   color: var(--article-muted);
   line-height: 1.7;
@@ -547,6 +552,48 @@
 
 .article-faq details p {
   margin-top: 8px;
+}
+
+.article-link-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-link-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--article-line);
+}
+
+.article-link-list a {
+  color: var(--article-text);
+  font-weight: 820;
+  line-height: 1.45;
+}
+
+.article-link-list span {
+  color: var(--article-accent);
+  font-size: 12px;
+  font-weight: 860;
+  white-space: nowrap;
+}
+
+.article-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.article-cta-actions .ui-button {
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
 }
 
 .article-body {
