@@ -1,8 +1,4 @@
-/personality /personality.html 200
-/strategy /strategy.html 200
-/effects-demo /effects-demo.html 200
 /articles /article.html 200
 /articles/* /article.html 200
-/article-admin /article-admin.html 200
 /robots.txt /robots.txt 200
 /sitemap.xml /sitemap.xml 200
