@@ -9,14 +9,28 @@ def test_home_serves_frontend() -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "Mystic Engine" in response.text
-    assert "Pantheon 命書" in response.text
+    assert "先讀懂問題，再決定要不要做個人化解讀" in response.text
+    assert "data-home-articles" in response.text
+    assert "精選文章" in response.text
+    assert "自然流量入口" in response.text
+    assert "href=\"/articles\"" in response.text
+    assert "href=\"/articles/fortune\"" in response.text
+    assert "href=\"/articles/personality\"" in response.text
+    assert "href=\"/articles/tarot\"" in response.text
+    assert "href=\"/articles/astro\"" in response.text
+    assert "data-product-theme=\"fortune\"" in response.text
+    assert "data-product-theme=\"personality\"" in response.text
+    assert "data-product-theme=\"tarot\"" in response.text
+    assert "data-product-theme=\"astro\"" in response.text
+    assert "個人化命書工具" in response.text
+    assert "id=\"destiny-tool\"" in response.text
     assert "基本資料" in response.text
     assert "命書報告" in response.text
     assert "進階排盤設定" in response.text
     assert "命盤總覽" in response.text
     assert "開始推演命盤" in response.text
-    assert "/personality" in response.text
-    assert "64 分支人格測試" in response.text
+    assert "/strategy" not in response.text
+    assert "64 分支人格測試" not in response.text
     assert "id=\"personality-form\"" not in response.text
     assert "/static/app.js" in response.text
 
@@ -278,7 +292,17 @@ def test_destiny_page_does_not_auto_generate_report() -> None:
     app_js = Path("app/web/static/app.js").read_text()
     assert "renderInitialState()" in app_js
     assert "尚未推演命盤" in app_js
+    assert "listArticleRecords" in app_js
+    assert "renderHomeArticles()" in app_js
+    assert "pickFeaturedArticles" in app_js
+    assert "card.dataset.productTheme = article.product" in app_js
     assert "dispatchEvent(new Event(\"submit\"))" not in app_js
+    styles_css = Path("app/web/static/styles.css").read_text()
+    assert ".product-drawer:not([open]) > .destiny-workbench" in styles_css
+    assert '.home-article-card[data-product-theme="personality"]' in styles_css
+    assert '.home-article-card[data-product-theme="tarot"]' in styles_css
+    assert '.home-article-card[data-product-theme="astro"]' in styles_css
+    assert '.content-hub-grid a[data-product-theme="personality"]' in styles_css
 
 
 def test_frontend_uses_public_api_base_outside_localhost() -> None:

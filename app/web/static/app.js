@@ -1,4 +1,5 @@
 import { buildPredictionPayload, fetchPrediction } from "./api.js";
+import { listArticleRecords } from "./article-registry.js";
 import { renderDashboard } from "./dashboard.js";
 import { renderFortunePaper } from "./paper.js";
 
@@ -20,6 +21,7 @@ const dom = {
   modePanels: [...document.querySelectorAll("[data-mode-panel]")],
   chartTabs: [...document.querySelectorAll(".chart-tab")],
   chartViews: [...document.querySelectorAll("[data-chart-view]")],
+  homeArticles: document.querySelector("[data-home-articles]"),
 };
 
 let currentMode = "paper";
@@ -86,6 +88,7 @@ function renderReport(result) {
 }
 
 function renderInitialState() {
+  renderHomeArticles();
   dom.fortunePaper.innerHTML = `
     <div class="empty report-empty-state">
       <div>
@@ -97,6 +100,43 @@ function renderInitialState() {
   `;
   setStatus("待推演", "idle");
   setMode("paper");
+}
+
+function renderHomeArticles() {
+  if (!dom.homeArticles) return;
+  const featuredArticles = pickFeaturedArticles(listArticleRecords());
+  dom.homeArticles.replaceChildren(...featuredArticles.map((article) => {
+    const card = document.createElement("a");
+    card.className = "home-article-card";
+    card.href = `/articles/${article.product}/${article.slug}`;
+    card.dataset.productTheme = article.product;
+
+    const keyword = document.createElement("span");
+    keyword.textContent = article.primaryKeyword;
+
+    const title = document.createElement("strong");
+    title.textContent = article.title;
+
+    const description = document.createElement("p");
+    description.textContent = article.description;
+
+    card.append(keyword, title, description);
+    return card;
+  }));
+}
+
+function pickFeaturedArticles(articles) {
+  const preferredSlugs = [
+    "mbti-meaning",
+    "tarot-card-meanings",
+    "birth-chart-meaning",
+    "birth-chart-astrology",
+    "career-fortune",
+    "life-direction",
+  ];
+  return preferredSlugs
+    .map((slug) => articles.find((article) => article.slug === slug))
+    .filter(Boolean);
 }
 
 renderInitialState();
