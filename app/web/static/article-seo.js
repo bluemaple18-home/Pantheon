@@ -1,0 +1,89 @@
+export function applyArticleSeo(content, dom, origin) {
+  document.title = content.pageTitle;
+  dom.canonical.href = content.canonicalUrl;
+  dom.description.content = content.description;
+  dom.keywords.content = content.keywords.join(", ");
+  dom.ogTitle.content = content.pageTitle;
+  dom.ogDescription.content = content.description;
+  dom.ogUrl.content = content.canonicalUrl;
+  dom.twitterTitle.content = content.pageTitle;
+  dom.twitterDescription.content = content.description;
+  dom.answerText.textContent = content.answer;
+  writeJsonLd(dom.breadcrumbJsonLd, buildBreadcrumbJsonLd(content, origin));
+  writeJsonLd(dom.articleJsonLd, buildArticleJsonLd(content, origin));
+  writeJsonLd(dom.faqJsonLd, buildFaqJsonLd(content));
+}
+
+export function buildBreadcrumbJsonLd(content, origin) {
+  const items = [
+    { name: "首頁", item: `${origin}/` },
+    { name: "文章", item: `${origin}/articles` },
+  ];
+  if (content.category) {
+    items.push({
+      name: content.categoryLabel,
+      item: `${origin}/articles/${content.category}`,
+    });
+  }
+  if (content.slug) {
+    items.push({ name: content.title, item: content.canonicalUrl });
+  }
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.item,
+    })),
+  };
+}
+
+export function buildArticleJsonLd(content, origin) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: content.slug ? content.title : content.pageTitle.replace(" | Pantheon", ""),
+    description: content.description,
+    inLanguage: "zh-Hant-TW",
+    url: content.canonicalUrl,
+    mainEntityOfPage: content.canonicalUrl,
+    datePublished: content.published,
+    dateModified: content.updated,
+    author: {
+      "@type": "Organization",
+      name: content.author,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "Pantheon",
+      url: `${origin}/`,
+    },
+    articleSection: content.categoryLabel,
+    keywords: content.keywords.join(", "),
+    about: content.tags.map((tag) => ({
+      "@type": "Thing",
+      name: tag,
+    })),
+  };
+}
+
+export function buildFaqJsonLd(content) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: content.faq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
+}
+
+function writeJsonLd(node, data) {
+  node.textContent = JSON.stringify(data);
+}

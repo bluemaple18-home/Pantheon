@@ -1,28 +1,5 @@
 import { ELEMENT_ORDER, escapeHtml, formatAnnual, formatBirth, formatDecade } from "./utils.js";
 
-const TWELVE_GROWTH = {
-  甲: { 亥: "長生", 子: "沐浴", 丑: "冠帶", 寅: "臨官", 卯: "帝旺", 辰: "衰", 巳: "病", 午: "死", 未: "墓", 申: "絕", 酉: "胎", 戌: "養" },
-  乙: { 午: "長生", 巳: "沐浴", 辰: "冠帶", 卯: "臨官", 寅: "帝旺", 丑: "衰", 子: "病", 亥: "死", 戌: "墓", 酉: "絕", 申: "胎", 未: "養" },
-  丙: { 寅: "長生", 卯: "沐浴", 辰: "冠帶", 巳: "臨官", 午: "帝旺", 未: "衰", 申: "病", 酉: "死", 戌: "墓", 亥: "絕", 子: "胎", 丑: "養" },
-  丁: { 酉: "長生", 申: "沐浴", 未: "冠帶", 午: "臨官", 巳: "帝旺", 辰: "衰", 卯: "病", 寅: "死", 丑: "墓", 子: "絕", 亥: "胎", 戌: "養" },
-  戊: { 寅: "長生", 卯: "沐浴", 辰: "冠帶", 巳: "臨官", 午: "帝旺", 未: "衰", 申: "病", 酉: "死", 戌: "墓", 亥: "絕", 子: "胎", 丑: "養" },
-  己: { 酉: "長生", 申: "沐浴", 未: "冠帶", 午: "臨官", 巳: "帝旺", 辰: "衰", 卯: "病", 寅: "死", 丑: "墓", 子: "絕", 亥: "胎", 戌: "養" },
-  庚: { 巳: "長生", 午: "沐浴", 未: "冠帶", 申: "臨官", 酉: "帝旺", 戌: "衰", 亥: "病", 子: "死", 丑: "墓", 寅: "絕", 卯: "胎", 辰: "養" },
-  辛: { 子: "長生", 亥: "沐浴", 戌: "冠帶", 酉: "臨官", 申: "帝旺", 未: "衰", 午: "病", 巳: "死", 辰: "墓", 卯: "絕", 寅: "胎", 丑: "養" },
-  壬: { 申: "長生", 酉: "沐浴", 戌: "冠帶", 亥: "臨官", 子: "帝旺", 丑: "衰", 寅: "病", 卯: "死", 辰: "墓", 巳: "絕", 午: "胎", 未: "養" },
-  癸: { 卯: "長生", 寅: "沐浴", 丑: "冠帶", 子: "臨官", 亥: "帝旺", 戌: "衰", 酉: "病", 申: "死", 未: "墓", 午: "絕", 巳: "胎", 辰: "養" },
-};
-
-const LU_BRANCH = { 甲: "寅", 乙: "卯", 丙: "巳", 丁: "午", 戊: "巳", 己: "午", 庚: "申", 辛: "酉", 壬: "亥", 癸: "子" };
-const YANGREN_BRANCH = { 甲: "卯", 乙: "寅", 丙: "午", 丁: "巳", 戊: "午", 己: "巳", 庚: "酉", 辛: "申", 壬: "子", 癸: "亥" };
-const SIX_ELEGANCE_DAYS = new Set(["丙午", "丁未", "戊子", "戊午", "己丑", "己未"]);
-const WENCHANG_BRANCH = { 甲: "巳", 乙: "午", 丙: "申", 丁: "酉", 戊: "申", 己: "酉", 庚: "亥", 辛: "子", 壬: "寅", 癸: "卯" };
-const TAOHUA_BRANCH = { 申子辰: "酉", 寅午戌: "卯", 巳酉丑: "午", 亥卯未: "子" };
-const YIMA_BRANCH = { 申子辰: "寅", 寅午戌: "申", 巳酉丑: "亥", 亥卯未: "巳" };
-const HUAGAI_BRANCH = { 申子辰: "辰", 寅午戌: "戌", 巳酉丑: "丑", 亥卯未: "未" };
-const YUEDE_STEM = { 寅: "丙", 午: "丙", 戌: "丙", 申: "壬", 子: "壬", 辰: "壬", 亥: "甲", 卯: "甲", 未: "甲", 巳: "庚", 酉: "庚", 丑: "庚" };
-const TIAN_YI_BRANCHES = { 甲: ["丑", "未"], 戊: ["丑", "未"], 庚: ["丑", "未"], 乙: ["子", "申"], 己: ["子", "申"], 丙: ["亥", "酉"], 丁: ["亥", "酉"], 壬: ["卯", "巳"], 癸: ["卯", "巳"], 辛: ["寅", "午"] };
-
 export function renderFortunePaper(result, container) {
   const bazi = result.charts.bazi || {};
   const ziwei = result.charts.ziwei || {};
@@ -48,10 +25,16 @@ export function renderFortunePaper(result, container) {
   const strength = bazi.strength_analysis || {};
   const solarTime = bazi.solar_time || {};
   const flowMonths = annual.flow_months || [];
-  const destinyProfile = buildDestinyProfile(bazi, ziwei, nameology, combos, readingBlocks);
-  const growthStates = deriveGrowthStates(bazi);
-  const specialForces = deriveSpecialForces(bazi, growthStates);
-  const shensha = deriveShensha(bazi, ziwei);
+  const baziItems = bazi.calculated_items || {};
+  const ziweiItems = ziwei.calculated_items || {};
+  const growthStates = baziItems.growth_states || [];
+  const specialForces = baziItems.special_forces || [];
+  const shensha = {
+    bazi: baziItems.shensha || [],
+    ziwei: ziweiItems.support_stars || [],
+    note: buildShenshaNote(baziItems.shensha || []),
+  };
+  const destinyProfile = buildDestinyProfile(bazi, ziwei, nameology, combos, readingBlocks, growthStates, specialForces);
   const careerReading = deriveCareerReading(bazi, ziwei, mainCombo, timingCombo);
   const yearlyNotes = deriveYearlyNotes(bazi, destinyProfile);
 
@@ -119,7 +102,8 @@ export function renderFortunePaper(result, container) {
                 ${["year", "month", "day", "hour"].map((key) => renderPillarCell(key, pillars[key], tenGods[key])).join("")}
               </div>
             </div>
-            ${renderListPanel("盤裡有的十神", listPresentTenGods(tenGods))}
+            ${renderListPanel("明顯十神", listProminentTenGods(tenGods))}
+            ${renderListPanel("藏干補充", listHiddenTenGods(tenGods))}
             ${renderNarrativePanel("十神用法", destinyProfile.tenGodUse)}
           </div>
         </section>
@@ -127,8 +111,8 @@ export function renderFortunePaper(result, container) {
         <section class="paper-section">
           ${renderSectionHeading("05", "十二長生 / 祿刃", "看能量是怎麼發動，不和十神混在一起")}
           <div class="paper-grid-map force-grid">
-            ${renderListPanel("十二長生", growthStates.map((item) => `${item.label}：${item.branch}${item.count > 1 ? ` x${item.count}` : ""}`))}
-            ${renderListPanel("祿刃與特殊氣", specialForces.map((item) => `${item.label}：${item.note}`))}
+            ${renderListPanel("十二長生", growthStates.map(formatGrowthState))}
+            ${renderListPanel("祿刃與特殊氣", specialForces.map(formatCalculatedItem))}
             ${renderNarrativePanel("力量怎麼用", destinyProfile.forceUse)}
           </div>
         </section>
@@ -136,8 +120,8 @@ export function renderFortunePaper(result, container) {
         <section class="paper-section">
           ${renderSectionHeading("06", "神煞", "目前是規則補判，只列有命中的項目")}
           <div class="paper-grid-map shensha-grid">
-            ${renderListPanel("八字神煞", shensha.bazi.map((item) => `${item.label}：${item.note}`))}
-            ${renderListPanel("紫微輔星", shensha.ziwei.map((item) => `${item.label}：${item.note}`))}
+            ${renderListPanel("八字神煞", shensha.bazi.map(formatCalculatedItem))}
+            ${renderListPanel("紫微輔星", shensha.ziwei.map(formatCalculatedItem))}
             ${renderNarrativePanel("神煞提醒", shensha.note)}
           </div>
         </section>
@@ -386,7 +370,22 @@ function renderPolicyChips(policy = {}) {
   `;
 }
 
-function buildDestinyProfile(bazi = {}, ziwei = {}, nameology = {}, combos = [], blocks = []) {
+function formatGrowthState(item = {}) {
+  const branches = item.branches || (item.branch ? [item.branch] : []);
+  const branchText = branches.join("、") || "未標支";
+  return `${item.label || "長生狀態"}：${branchText}${item.count > 1 ? ` x${item.count}` : ""}`;
+}
+
+function formatCalculatedItem(item = {}) {
+  if (!item.label) return "";
+  return `${item.label}：${item.note || item.basis || "已命中"}`;
+}
+
+function buildShenshaNote(items = []) {
+  return items.length ? "神煞只作輔助，不壓過本命五行、十神與流年。" : "本次未見需要特別標出的八字神煞。";
+}
+
+function buildDestinyProfile(bazi = {}, ziwei = {}, nameology = {}, combos = [], blocks = [], growthStates = [], specialForces = []) {
   const day = bazi.day_master || {};
   const elements = bazi.elements || {};
   const strongest = topElement(elements);
@@ -405,8 +404,8 @@ function buildDestinyProfile(bazi = {}, ziwei = {}, nameology = {}, combos = [],
         : `${day.element || "日主"}代表此盤的核心行動方式。`,
     elementUse: elementUseText(strongest.name, mainCombo.therefore || careerBlock.summary),
     elementRisk: elementRiskText(weakest.name),
-    tenGodUse: tenGodUseText(listPresentTenGods(bazi.ten_gods || [])),
-    forceUse: forceUseText(day.element, strongest.name),
+    tenGodUse: tenGodUseText(listProminentTenGods(bazi.ten_gods || {})),
+    forceUse: forceUseText(growthStates, specialForces),
     lifePalace: ziweiLifeText(ziwei.life_palace_stars || []),
     bodyPalace: ziweiBodyText(ziwei.body_palace_stars || []),
     moneyPalace: ziweiMoneyText(findPalaceStars(ziwei, "財帛")),
@@ -446,10 +445,15 @@ function tenGodUseText(gods = []) {
   return "十神要看哪些最明顯，再轉成工作上的輸出方式。";
 }
 
-function forceUseText(dayElement, strongestElement) {
-  if (dayElement === "火" || strongestElement === "火") return "長生、祿、帝旺、羊刃若同時明顯，代表能量很足；有容器就是作品和收入，沒容器就變成急、硬、燥。";
-  if (dayElement === "土" || strongestElement === "土") return "土氣有旺勢時，代表能扛事、有底線、有責任感；要避免把所有壓力都吞下去。";
-  return "長生祿刃看的是能量發動方式：是起勢、旺勢，還是收斂轉化。";
+function forceUseText(growthStates = [], specialForces = []) {
+  const growthLabels = growthStates.map((item) => item.label).filter(Boolean);
+  const forceLabels = specialForces.map((item) => item.label).filter(Boolean);
+  const labels = [...new Set([...growthLabels, ...forceLabels])];
+  if (!labels.length) return "本次沒有明確命中的長生、帝旺、祿或羊刃，不額外放大這段。";
+  if (labels.includes("帝旺") && labels.includes("羊刃")) return "帝旺和羊刃同時命中時，主導與爆發力會被放大；要用規則和交付把力道收住。";
+  if (labels.includes("祿")) return "命中祿地，重點是把能力變成穩定位置、資源和可被市場接受的交付。";
+  if (labels.includes("長生")) return "命中長生，代表這股能量有起勢和生發感，適合放在學習、開局和新方向。";
+  return `本次命中 ${labels.join("、")}，只作能量狀態輔助，不取代五行與十神主判。`;
 }
 
 function ziweiLifeText(stars = []) {
@@ -512,85 +516,17 @@ function deriveYearlyNotes(bazi = {}, profile = {}) {
   };
 }
 
-function deriveGrowthStates(bazi = {}) {
-  const dayStem = bazi.day_master?.stem;
-  const branches = pillarBranches(bazi.pillars || {});
-  const map = TWELVE_GROWTH[dayStem] || {};
-  const counts = branches.reduce((acc, branch) => {
-    if (map[branch]) acc[map[branch]] = { label: map[branch], branch, count: (acc[map[branch]]?.count || 0) + 1 };
-    return acc;
-  }, {});
-  return ["長生", "臨官", "帝旺", "墓", "胎", "養"]
-    .map((label) => counts[label])
-    .filter(Boolean);
+function listProminentTenGods(tenGods = {}) {
+  const values = Object.values(tenGods || {}).map((item) => item.god);
+  return [...new Set(values.filter(Boolean))];
 }
 
-function deriveSpecialForces(bazi = {}, growthStates = []) {
-  const dayStem = bazi.day_master?.stem;
-  const branches = pillarBranches(bazi.pillars || {});
-  const results = [];
-  const lu = LU_BRANCH[dayStem];
-  const yangren = YANGREN_BRANCH[dayStem];
-  if (lu && branches.includes(lu)) results.push({ label: "祿", note: `${lu} 為祿地，代表吃飯能力和位置資源。` });
-  const yangrenCount = yangren ? branches.filter((branch) => branch === yangren).length : 0;
-  if (yangrenCount) results.push({ label: "羊刃", note: `${yangren} 命中${yangrenCount > 1 ? ` ${yangrenCount} 次` : ""}，代表主導、爆發與硬度。` });
-  if (listPresentTenGods(bazi.ten_gods || {}).includes("食神")) results.push({ label: "食祿", note: "食神有根，適合靠作品、技能、教學、產品化吃飯。" });
-  if (!results.length && growthStates.length) results.push({ label: "氣勢", note: "以十二長生狀態判斷能量發動方式。" });
-  return results;
-}
-
-function deriveShensha(bazi = {}, ziwei = {}) {
-  const dayStem = bazi.day_master?.stem;
-  const pillars = bazi.pillars || {};
-  const dayPillar = pillars.day || "";
-  const branches = pillarBranches(pillars);
-  const stems = pillarStems(pillars);
-  const hiddenStems = Object.values(bazi.hidden_stems || {}).flat().map((item) => item.stem);
-  const yearBranch = branchOf(pillars.year);
-  const monthBranch = branchOf(pillars.month);
-  const dayBranch = branchOf(pillars.day);
-  const baziItems = [];
-
-  if (SIX_ELEGANCE_DAYS.has(dayPillar)) baziItems.push({ label: "六秀", note: `${dayPillar} 日，才氣、審美、表達與包裝能力加分。` });
-  const wenchang = WENCHANG_BRANCH[dayStem];
-  if (wenchang && branches.includes(wenchang)) baziItems.push({ label: "文昌", note: `${dayStem} 日文昌在 ${wenchang}，學習、文字、企劃與說明能力加分。` });
-  const taohua = TAOHUA_BRANCH[groupKey(yearBranch)] || TAOHUA_BRANCH[groupKey(dayBranch)];
-  if (taohua && branches.includes(taohua)) baziItems.push({ label: "桃花", note: `${taohua} 入盤，人緣、曝光、話題感與吸引力較明顯。` });
-  const yimaYear = YIMA_BRANCH[groupKey(yearBranch)];
-  const yimaDay = YIMA_BRANCH[groupKey(dayBranch)];
-  const yimaHits = [...new Set([yimaYear, yimaDay].filter((branch) => branch && branches.includes(branch)))];
-  if (yimaHits.length) baziItems.push({ label: "驛馬", note: `${yimaHits.join("、")} 入盤，工作與環境容易有移動、變動、跨域。` });
-  const huagai = HUAGAI_BRANCH[groupKey(dayBranch)] || HUAGAI_BRANCH[groupKey(yearBranch)];
-  if (huagai && branches.includes(huagai)) baziItems.push({ label: "華蓋", note: `${huagai} 入盤，專注、研究、獨立感明顯，也容易悶著想。` });
-  const yuede = YUEDE_STEM[monthBranch];
-  if (yuede && stems.includes(yuede)) baziItems.push({ label: "月德", note: `${monthBranch} 月月德在 ${yuede}，明透，遇事較有轉圜與貴人緩衝。` });
-  else if (yuede && hiddenStems.includes(yuede)) baziItems.push({ label: "月德", note: `${monthBranch} 月月德在 ${yuede}，藏於地支，屬暗中緩衝。` });
-  const tianyi = TIAN_YI_BRANCHES[dayStem] || [];
-  const tianyiHits = tianyi.filter((branch) => branches.includes(branch));
-  if (tianyiHits.length) baziItems.push({ label: "天乙", note: `${tianyiHits.join("、")} 入盤，貴人與解圍機會較明顯。` });
-
-  const ziweiItems = [];
-  const supportStars = ["月德", "天德", "天喜", "天貴", "天魁", "天鉞", "左輔", "右弼", "文昌", "文曲", "紅鸞", "天馬", "祿存", "華蓋"];
-  (ziwei.palaces || []).forEach((palace) => {
-    (palace.stars || []).forEach((star) => {
-      const hit = supportStars.find((name) => star.includes(name));
-      if (hit) ziweiItems.push({ label: hit, note: `${palace.name} 宮見 ${star}` });
-    });
-  });
-  const uniqueZiwei = [...new Map(ziweiItems.map((item) => [`${item.label}-${item.note}`, item])).values()].slice(0, 8);
-  return {
-    bazi: baziItems,
-    ziwei: uniqueZiwei,
-    note: baziItems.length ? "神煞只作輔助，不壓過本命五行、十神與流年。" : "本次未見需要特別標出的八字神煞。",
-  };
-}
-
-function listPresentTenGods(tenGods = {}) {
+function listHiddenTenGods(tenGods = {}) {
   const values = Object.values(tenGods || {}).flatMap((item) => [
-    item.god,
     ...(item.hidden_stems || []).map((hidden) => hidden.god),
   ]);
-  return [...new Set(values.filter(Boolean))];
+  const visible = new Set(listProminentTenGods(tenGods));
+  return [...new Set(values.filter((value) => value && !visible.has(value)))];
 }
 
 function findPalaceStars(ziwei = {}, palaceName) {
@@ -635,30 +571,6 @@ function mostFrequent(values = []) {
     return acc;
   }, {});
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-}
-
-function pillarBranches(pillars = {}) {
-  return ["year", "month", "day", "hour"].map((key) => branchOf(pillars[key])).filter(Boolean);
-}
-
-function pillarStems(pillars = {}) {
-  return ["year", "month", "day", "hour"].map((key) => stemOf(pillars[key])).filter(Boolean);
-}
-
-function stemOf(pillar = "") {
-  return String(pillar || "").slice(0, 1);
-}
-
-function branchOf(pillar = "") {
-  return String(pillar || "").slice(1, 2);
-}
-
-function groupKey(branch) {
-  if (["申", "子", "辰"].includes(branch)) return "申子辰";
-  if (["寅", "午", "戌"].includes(branch)) return "寅午戌";
-  if (["巳", "酉", "丑"].includes(branch)) return "巳酉丑";
-  if (["亥", "卯", "未"].includes(branch)) return "亥卯未";
-  return "";
 }
 
 function renderComboProofCard(card = {}, fallbackTitle) {

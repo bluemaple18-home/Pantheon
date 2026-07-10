@@ -1,0 +1,716 @@
+:root {
+  color-scheme: dark;
+  --ink: #f6f1e8;
+  --muted: rgba(246, 241, 232, 0.66);
+  --line: rgba(246, 241, 232, 0.16);
+  --gold: #e6c46b;
+  --cyan: #8de7df;
+  --ember: #d86e5f;
+  --violet: #a68fd6;
+  --blueprint: rgba(141, 231, 223, 0.085);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.effects-screen {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(141, 231, 223, 0.11), transparent 28rem),
+    radial-gradient(circle at 82% 18%, rgba(230, 196, 107, 0.12), transparent 24rem),
+    radial-gradient(circle at 70% 85%, rgba(141, 231, 223, 0.08), transparent 26rem),
+    linear-gradient(135deg, #030506, #090c10 48%, #020303);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.018) 50%, transparent 50%),
+    radial-gradient(circle at 50% 20%, rgba(246, 241, 232, 0.055), transparent 38rem);
+  background-size: 100% 4px, auto;
+  mix-blend-mode: screen;
+  opacity: 0.42;
+}
+
+.atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background-image:
+    repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,0.32) 0 1px, transparent 1px 5px);
+  filter: contrast(160%);
+}
+
+#starfield {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.effects-shell {
+  position: relative;
+  width: min(1180px, calc(100vw - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 34px 0 42px;
+}
+
+.effects-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 4vw, 4.6rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+h2 {
+  margin-bottom: 12px;
+  font-size: clamp(1.55rem, 3vw, 3rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.effects-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  background: rgba(4, 7, 10, 0.72);
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.effects-tabs button,
+.choice-row button {
+  min-width: 58px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.effects-tabs button {
+  height: 38px;
+}
+
+.effects-tabs button:hover,
+.choice-row button:hover {
+  transform: translateY(-1px);
+  color: var(--ink);
+  border-color: rgba(102, 240, 255, 0.32);
+}
+
+.effects-tabs button.active {
+  color: #05100f;
+  background: linear-gradient(135deg, var(--cyan), #d9c27a);
+  box-shadow: 0 0 28px rgba(141, 231, 223, 0.22);
+}
+
+.scene {
+  min-height: 650px;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(460px, 1.3fr);
+  gap: 28px;
+  align-items: stretch;
+  animation: sceneIn 520ms ease both;
+}
+
+.scene + .scene {
+  margin-top: 42px;
+}
+
+.scene-copy {
+  align-self: center;
+  max-width: 420px;
+}
+
+.scene-copy p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+.fortune-stage,
+.personality-stage,
+.tarot-stage {
+  position: relative;
+  min-height: 640px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(var(--blueprint) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 231, 223, 0.055) 1px, transparent 1px),
+    rgba(2, 5, 7, 0.58);
+  background-size: 52px 52px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    inset 0 0 90px rgba(141, 231, 223, 0.055),
+    0 28px 80px rgba(0, 0, 0, 0.34);
+}
+
+.fortune-stage::after,
+.personality-stage::after,
+.tarot-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0 43%, rgba(230, 196, 107, 0.13) 49%, transparent 56% 100%);
+  transform: translateX(-120%);
+  animation: scanSweep 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.terminal-frame {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  right: 22px;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(246, 241, 232, 0.38);
+  font: 700 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.18em;
+}
+
+.terminal-frame::before,
+.terminal-frame::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  width: 74px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(230, 196, 107, 0.6), transparent);
+}
+
+.terminal-frame::before {
+  left: 0;
+}
+
+.terminal-frame::after {
+  right: 0;
+  transform: scaleX(-1);
+}
+
+.chart-orbit {
+  position: absolute;
+  top: 72px;
+  left: 64px;
+  width: 300px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(230, 196, 107, 0.28);
+  border-radius: 50%;
+  animation: slowSpin 18s linear infinite;
+  box-shadow: inset 0 0 34px rgba(230, 196, 107, 0.05);
+}
+
+.chart-orbit::before,
+.chart-orbit::after {
+  content: "";
+  position: absolute;
+  inset: 34px;
+  border: 1px solid rgba(141, 231, 223, 0.25);
+  border-radius: 50%;
+}
+
+.chart-orbit::after {
+  inset: 88px;
+  border-color: rgba(255, 107, 95, 0.3);
+}
+
+.chart-orbit span {
+  position: absolute;
+  width: 18px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 24px var(--gold);
+}
+
+.chart-orbit span:nth-child(1) { top: -9px; left: 141px; }
+.chart-orbit span:nth-child(2) { right: 18px; top: 210px; background: var(--cyan); box-shadow: 0 0 24px rgba(141, 231, 223, 0.78); }
+.chart-orbit span:nth-child(3) { bottom: 18px; left: 52px; background: var(--ember); box-shadow: 0 0 24px var(--ember); }
+.chart-orbit span:nth-child(4) { top: 80px; left: -9px; background: var(--violet); box-shadow: 0 0 24px var(--violet); }
+
+.chart-orbit strong {
+  position: absolute;
+  inset: 112px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(246, 241, 232, 0.22);
+  border-radius: 50%;
+  background: rgba(2, 5, 7, 0.8);
+  font-size: 3rem;
+}
+
+.energy-stack {
+  position: absolute;
+  right: 54px;
+  top: 86px;
+  display: grid;
+  gap: 16px;
+  width: min(310px, 42%);
+}
+
+.energy-stack div {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.energy-stack b {
+  color: var(--gold);
+}
+
+.energy-stack span {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(102, 240, 255, 0.24);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.42);
+}
+
+.energy-stack span::before {
+  content: "";
+  display: block;
+  width: var(--level);
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--gold));
+  box-shadow: 0 0 18px rgba(141, 231, 223, 0.42);
+  animation: charge 2.8s ease-in-out infinite;
+}
+
+.decode-panel {
+  position: absolute;
+  right: 54px;
+  bottom: 76px;
+  width: min(420px, calc(100% - 108px));
+  padding: 22px;
+  border: 1px solid rgba(246, 241, 232, 0.14);
+  background: rgba(4, 7, 10, 0.76);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.decode-panel i {
+  display: block;
+  height: 2px;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--gold), transparent);
+  animation: linePulse 1.7s ease-in-out infinite;
+}
+
+.decode-panel p {
+  margin: 10px 0;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cognition-map {
+  position: absolute;
+  inset: 44px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(166, 143, 214, 0.18), transparent 4px),
+    radial-gradient(circle at 32% 30%, rgba(141, 231, 223, 0.18), transparent 3px),
+    radial-gradient(circle at 70% 34%, rgba(230, 196, 107, 0.18), transparent 3px),
+    radial-gradient(circle at 62% 72%, rgba(216, 110, 95, 0.14), transparent 3px);
+}
+
+.cognition-map span {
+  position: absolute;
+  height: 1px;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, rgba(166, 143, 214, 0.4), transparent);
+  transform-origin: left center;
+  animation: linePulse 2.8s ease-in-out infinite;
+}
+
+.cognition-map span:nth-child(1) { left: 31%; top: 31%; transform: rotate(28deg); }
+.cognition-map span:nth-child(2) { left: 50%; top: 50%; transform: rotate(-28deg); animation-delay: 300ms; }
+.cognition-map span:nth-child(3) { left: 36%; top: 68%; transform: rotate(-58deg); animation-delay: 600ms; }
+.cognition-map span:nth-child(4) { left: 45%; top: 28%; transform: rotate(88deg); animation-delay: 900ms; }
+
+.pulse-ring {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  width: min(430px, 70%);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(166, 143, 214, 0.28);
+  border-radius: 50%;
+}
+
+.pulse-ring::before,
+.pulse-ring::after,
+.pulse-ring span {
+  content: "";
+  position: absolute;
+  inset: 34px;
+  border: 1px solid rgba(141, 231, 223, 0.2);
+  border-radius: 50%;
+  animation: breathe 3.2s ease-in-out infinite;
+}
+
+.pulse-ring::after {
+  inset: 82px;
+  animation-delay: 600ms;
+}
+
+.pulse-ring span {
+  inset: 128px;
+  border-color: rgba(230, 196, 107, 0.3);
+  animation-delay: 1.2s;
+}
+
+.pulse-ring strong {
+  position: relative;
+  font-size: clamp(2rem, 6vw, 5.4rem);
+  letter-spacing: 0;
+  text-shadow: 0 0 30px rgba(166, 143, 214, 0.42);
+  animation: textReveal 3s steps(8) infinite;
+}
+
+.question-card {
+  position: absolute;
+  left: 58px;
+  right: 58px;
+  bottom: 66px;
+  padding: 24px;
+  border: 1px solid rgba(246, 241, 232, 0.16);
+  background: rgba(4, 7, 10, 0.78);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.32), inset 0 1px rgba(255, 255, 255, 0.05);
+  animation: cardFloat 4s ease-in-out infinite;
+}
+
+.question-card p {
+  margin-bottom: 18px;
+  font-size: clamp(1.08rem, 2vw, 1.45rem);
+  line-height: 1.45;
+}
+
+.choice-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(42px, 1fr));
+  gap: 10px;
+}
+
+.choice-row button {
+  height: 44px;
+  border-color: rgba(246, 241, 232, 0.18);
+  color: var(--ink);
+}
+
+.choice-row button.selected {
+  color: #070709;
+  background: var(--gold);
+  box-shadow: 0 0 22px rgba(230, 196, 107, 0.42);
+}
+
+.matrix-grid {
+  position: absolute;
+  right: 42px;
+  top: 56px;
+  display: grid;
+  grid-template-columns: repeat(2, 54px);
+  gap: 10px;
+}
+
+.matrix-grid span {
+  display: grid;
+  place-items: center;
+  height: 54px;
+  border: 1px solid rgba(102, 240, 255, 0.2);
+  color: var(--cyan);
+  background: rgba(141, 231, 223, 0.055);
+  animation: tileWake 2.8s ease-in-out infinite;
+}
+
+.matrix-grid span:nth-child(2n) {
+  animation-delay: 240ms;
+}
+
+.matrix-grid span:nth-child(3n) {
+  animation-delay: 480ms;
+}
+
+.tarot-stage {
+  perspective: 1200px;
+}
+
+.ritual-arc {
+  position: absolute;
+  left: 50%;
+  bottom: -160px;
+  width: min(760px, 112%);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 1px solid rgba(230, 196, 107, 0.18);
+  box-shadow:
+    inset 0 36px 90px rgba(230, 196, 107, 0.08),
+    0 -32px 70px rgba(141, 231, 223, 0.08);
+}
+
+.portal {
+  position: absolute;
+  inset: 50%;
+  width: 360px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 31%, rgba(141, 231, 223, 0.13) 32% 36%, transparent 37%),
+    conic-gradient(from 0deg, transparent, rgba(141, 231, 223, 0.36), transparent, rgba(230, 196, 107, 0.28), transparent);
+  filter: drop-shadow(0 0 32px rgba(141, 231, 223, 0.34));
+  animation: portalSpin 8s linear infinite;
+}
+
+.portal::after {
+  content: "";
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 241, 232, 0.08), transparent 60%);
+  box-shadow: 0 0 68px rgba(230, 196, 107, 0.16);
+}
+
+.tarot-fan {
+  position: absolute;
+  left: 50%;
+  bottom: 74px;
+  width: 1px;
+  height: 1px;
+  transform-style: preserve-3d;
+}
+
+.tarot-fan span,
+.selected-card {
+  position: absolute;
+  width: 92px;
+  height: 142px;
+  border: 1px solid rgba(230, 196, 107, 0.5);
+  background:
+    linear-gradient(135deg, rgba(230, 196, 107, 0.22), transparent 32%),
+    linear-gradient(160deg, #0d0d0c, #211d15);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42), 0 0 20px rgba(230, 196, 107, 0.13);
+}
+
+.tarot-fan span {
+  transform:
+    translateX(calc(var(--i) * 42px - 46px))
+    translateY(calc(var(--d) * 8px))
+    rotate(calc(var(--i) * 7deg));
+  animation: cardDrift 3.6s ease-in-out infinite;
+  animation-delay: calc((var(--i) + 5) * 90ms);
+}
+
+.tarot-fan span::after,
+.selected-card span {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(246, 241, 232, 0.26);
+  background: radial-gradient(circle at 50% 38%, rgba(141, 231, 223, 0.15), transparent 42%);
+}
+
+.selected-card {
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -58%) rotateY(0deg);
+  animation: chosenCard 4.6s ease-in-out infinite;
+}
+
+.selected-card b {
+  position: relative;
+  z-index: 1;
+  color: var(--gold);
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+}
+
+@keyframes sceneIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanSweep {
+  0%, 40% { transform: translateX(-130%); opacity: 0; }
+  52% { opacity: 1; }
+  70%, 100% { transform: translateX(130%); opacity: 0; }
+}
+
+@keyframes slowSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes charge {
+  0% { transform: translateX(-100%); }
+  35%, 100% { transform: translateX(0); }
+}
+
+@keyframes linePulse {
+  0%, 100% { opacity: 0.28; transform: scaleX(0.45); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.45; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes textReveal {
+  0%, 14% { clip-path: inset(0 100% 0 0); }
+  42%, 100% { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes tileWake {
+  0%, 100% { opacity: 0.55; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-4px); }
+}
+
+@keyframes portalSpin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes cardDrift {
+  0%, 100% { margin-top: 0; filter: brightness(0.86); }
+  50% { margin-top: -13px; filter: brightness(1.22); }
+}
+
+@keyframes chosenCard {
+  0%, 100% { transform: translate(-50%, -58%) rotateY(0deg) scale(1); box-shadow: 0 0 22px rgba(230, 196, 107, 0.22); }
+  44% { transform: translate(-50%, -64%) rotateY(92deg) scale(1.06); box-shadow: 0 0 52px rgba(141, 231, 223, 0.36); }
+  54% { transform: translate(-50%, -64%) rotateY(180deg) scale(1.1); box-shadow: 0 0 70px rgba(230, 196, 107, 0.56); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .effects-shell {
+    width: min(100vw - 22px, 680px);
+    padding-top: 18px;
+  }
+
+  .effects-header,
+  .scene {
+    grid-template-columns: 1fr;
+  }
+
+  .effects-header {
+    align-items: stretch;
+  }
+
+  .effects-tabs {
+    overflow-x: auto;
+  }
+
+  .scene {
+    min-height: auto;
+  }
+
+  .fortune-stage,
+  .personality-stage,
+  .tarot-stage {
+    min-height: 560px;
+  }
+
+  .chart-orbit {
+    left: 50%;
+    top: 42px;
+    width: 240px;
+    transform: translateX(-50%);
+  }
+
+  .terminal-frame {
+    left: 16px;
+    right: 16px;
+  }
+
+  .energy-stack {
+    left: 24px;
+    right: 24px;
+    top: 314px;
+    width: auto;
+  }
+
+  .decode-panel {
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    width: auto;
+  }
+
+  .question-card {
+    left: 18px;
+    right: 18px;
+  }
+
+  .matrix-grid {
+    right: 18px;
+    grid-template-columns: repeat(2, 48px);
+  }
+
+  .matrix-grid span {
+    height: 48px;
+  }
+
+  .tarot-fan span,
+  .selected-card {
+    width: 72px;
+    height: 112px;
+  }
+}

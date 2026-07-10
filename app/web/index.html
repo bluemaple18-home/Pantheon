@@ -8,12 +8,15 @@
   </head>
   <body class="destiny-screen">
     <main class="app-shell destiny-shell">
-      <header class="app-topbar destiny-topbar">
+      <header class="app-topbar destiny-topbar ui-topbar-row">
         <div>
           <p class="eyebrow">Mystic Engine</p>
           <h1>Pantheon 命書</h1>
         </div>
-        <a class="secondary-link" href="/personality">64 分支人格測試</a>
+        <nav class="topbar-actions ui-actions" aria-label="主要頁面">
+          <a class="secondary-link ui-button ui-button-secondary" href="/strategy">商業飛輪全貌</a>
+          <a class="secondary-link ui-button ui-button-secondary" href="/personality">64 分支人格測試</a>
+        </nav>
       </header>
 
       <section class="destiny-workbench">
@@ -152,12 +155,12 @@
               <textarea class="topic-note" rows="3" placeholder="可輸入想問的主題，例如：2026 年是否適合換工作"></textarea>
             </section>
 
-            <button type="submit" class="primary-action">開始推演命盤</button>
+            <button type="submit" class="primary-action ui-button ui-button-primary">開始推演命盤</button>
             <p class="fine-print">結果會標示算法依據與未啟用項目；只作文化與自我探索用途。</p>
           </form>
         </aside>
 
-        <section class="destiny-stage">
+          <section class="destiny-stage">
           <div class="stage-header">
             <div>
               <p class="eyebrow">Reading Desk</p>

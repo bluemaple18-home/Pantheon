@@ -1,5 +1,14 @@
 import { normalizeOptionalNumber } from "./utils.js";
 
+const LOCAL_HOSTS = new Set(["", "localhost", "127.0.0.1"]);
+const API_BASE =
+  window.PANTHEON_API_BASE ??
+  (LOCAL_HOSTS.has(window.location.hostname) ? "" : "https://api.mysticpantheon.com");
+
+function apiUrl(path) {
+  return `${API_BASE}${path}`;
+}
+
 export function buildPredictionPayload(form) {
   const data = Object.fromEntries(new FormData(form));
   normalizeOptionalNumber(data, "latitude");
@@ -32,7 +41,7 @@ function collectPersonalityAnswers(form) {
 }
 
 export async function fetchPrediction(payload) {
-  const response = await fetch("/api/v1/predict", {
+  const response = await fetch(apiUrl("/api/v1/predict"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -44,7 +53,7 @@ export async function fetchPrediction(payload) {
 }
 
 export async function fetchPersonality(payload) {
-  const response = await fetch("/api/v1/personality", {
+  const response = await fetch(apiUrl("/api/v1/personality"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

@@ -85,4 +85,18 @@ function renderReport(result) {
   setMode(userSelectedMode ? currentMode : "paper");
 }
 
-dom.birthForm.dispatchEvent(new Event("submit"));
+function renderInitialState() {
+  dom.fortunePaper.innerHTML = `
+    <div class="empty report-empty-state">
+      <div>
+        <p class="eyebrow">Ready</p>
+        <h2>尚未推演命盤</h2>
+        <p>填好基本資料後，按下「開始推演命盤」才會產生命書。</p>
+      </div>
+    </div>
+  `;
+  setStatus("待推演", "idle");
+  setMode("paper");
+}
+
+renderInitialState();

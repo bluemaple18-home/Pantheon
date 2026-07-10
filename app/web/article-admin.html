@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>文章管理 | Pantheon</title>
+    <meta name="description" content="Pantheon 文章、主題描述、強制關鍵字標籤管理介面。" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="article-screen article-admin-screen">
+    <header class="article-site-header ui-topbar" data-article-header>
+      <div class="article-site-header-inner ui-topbar-inner">
+        <a class="article-brand ui-brand" href="/articles" aria-label="Pantheon 文章首頁">
+          <span class="ui-brand-kicker">Pantheon</span>
+          <strong class="ui-brand-title">文章管理</strong>
+        </a>
+        <nav class="article-primary-nav ui-nav" aria-label="文章管理入口">
+          <a href="/articles">文章首頁</a>
+          <a href="/articles/mbti">人格</a>
+          <a href="/articles/tarot">塔羅</a>
+          <a href="/articles/ziwei">紫微</a>
+          <a href="/articles/bazi">八字</a>
+          <a href="/articles/interpersonal">人際</a>
+        </nav>
+        <nav class="article-utility-nav ui-actions" aria-label="站內入口">
+          <a class="ui-button ui-button-secondary" href="/">命書工具</a>
+          <a class="ui-button ui-button-secondary" href="/personality">人格測試</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="article-admin-shell ui-page-shell">
+      <section class="article-admin-hero" aria-labelledby="article-admin-title">
+        <p class="eyebrow">Content Governance</p>
+        <h1 id="article-admin-title">文章管理</h1>
+        <p>統一管理所有文章、主題頁描述、主關鍵字、FAQ 與強制關鍵字標籤。</p>
+      </section>
+
+      <section class="article-admin-section ui-panel" aria-labelledby="article-policy-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="article-policy-title">強制關鍵字標籤</h2>
+          <p data-policy-boundary></p>
+        </div>
+        <div class="article-tag-list article-admin-tags ui-chip-list" data-policy-tags></div>
+      </section>
+
+      <section class="article-admin-section ui-panel" aria-labelledby="topic-admin-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="topic-admin-title">主題主頁描述</h2>
+          <p>每個主題頁的 label、SEO description、主關鍵字與必帶標籤都從 registry 統一管理。</p>
+        </div>
+        <div class="article-admin-topic-grid" data-topic-table></div>
+      </section>
+
+      <section class="article-admin-section ui-panel" aria-labelledby="article-graph-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="article-graph-title">內容圖譜</h2>
+          <p>先用 topic / article / tag 的 nodes、links 建立穩定資料契約，後續可接 3D force graph、語意聚類或 tag route 視圖。</p>
+        </div>
+        <div class="article-admin-graph-summary" data-graph-summary></div>
+        <div class="article-admin-graph-list" data-graph-links></div>
+      </section>
+
+      <section class="article-admin-section ui-panel" aria-labelledby="humanizer-gate-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="humanizer-gate-title">語氣品質 Gate</h2>
+          <p data-humanizer-purpose></p>
+        </div>
+        <div class="article-admin-checklist" data-humanizer-checks></div>
+        <div class="article-admin-audit-list" data-humanizer-audits></div>
+      </section>
+
+      <section class="article-admin-section ui-panel" aria-labelledby="article-admin-list-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="article-admin-list-title">所有文章</h2>
+          <p>列表顯示 policy 合成後的最終 tags / keywords，用來檢查是否符合 SEO、AEO、GEO 文章規範。</p>
+        </div>
+        <div class="article-admin-table-wrap">
+          <table class="article-admin-table">
+            <thead>
+              <tr>
+                <th>文章</th>
+                <th>分類</th>
+                <th>主關鍵字</th>
+                <th>最終標籤</th>
+              </tr>
+            </thead>
+            <tbody data-article-table></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/static/article-admin.js"></script>
+  </body>
+</html>
