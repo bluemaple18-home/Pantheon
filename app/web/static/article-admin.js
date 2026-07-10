@@ -4,13 +4,13 @@ import {
   HUMANIZER_POLICY,
   listArticleVoiceAudits,
   listArticleRecords,
-  listTopicRecords,
+  listArticleSectionRecords,
 } from "./article-registry.js";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
   policyTags: document.querySelector("[data-policy-tags]"),
-  topicTable: document.querySelector("[data-topic-table]"),
+  sectionTable: document.querySelector("[data-section-table]"),
   graphSummary: document.querySelector("[data-graph-summary]"),
   graphLinks: document.querySelector("[data-graph-links]"),
   humanizerPurpose: document.querySelector("[data-humanizer-purpose]"),
@@ -20,7 +20,7 @@ const dom = {
 };
 
 renderPolicy();
-renderTopics();
+renderSections();
 renderGraph();
 renderHumanizerGate();
 renderArticles();
@@ -35,21 +35,21 @@ function renderPolicy() {
   );
 }
 
-function renderTopics() {
-  dom.topicTable.replaceChildren(...listTopicRecords().map((topic) => {
+function renderSections() {
+  dom.sectionTable.replaceChildren(...listArticleSectionRecords().map((section) => {
     const card = document.createElement("article");
-    card.className = "article-admin-topic ui-panel";
+    card.className = "article-admin-section-card ui-panel";
     card.innerHTML = `
       <div>
-        <p>${topic.slug}</p>
-        <h3>${topic.label}</h3>
+        <p>${section.slug}</p>
+        <h3>${section.label}</h3>
       </div>
-      <p>${topic.description}</p>
-      <strong>${topic.primaryKeyword}</strong>
+      <p>${section.description}</p>
+      <strong>${section.primaryKeyword}</strong>
     `;
     const tags = document.createElement("div");
     tags.className = "article-tag-list ui-chip-list";
-    tags.replaceChildren(...topic.requiredTags.map(renderTag));
+    tags.replaceChildren(...section.requiredTags.map(renderTag));
     card.append(tags);
     return card;
   }));
@@ -62,7 +62,7 @@ function renderGraph() {
     [node.kind]: (total[node.kind] || 0) + 1,
   }), {});
   dom.graphSummary.replaceChildren(
-    renderMetric("Topic nodes", counts.topic || 0),
+    renderMetric("Section nodes", counts.section || 0),
     renderMetric("Article nodes", counts.article || 0),
     renderMetric("Tag nodes", counts.tag || 0),
     renderMetric("Links", graph.links.length),
@@ -100,10 +100,10 @@ function renderArticles() {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>
-        <a href="/articles/${article.category}/${article.slug}">${article.title}</a>
+        <a href="/articles/${article.product}/${article.slug}">${article.title}</a>
         <span>${article.description}</span>
       </td>
-      <td>${article.category}</td>
+      <td>${article.section}</td>
       <td>${article.primaryKeyword}</td>
     `;
     const tagCell = document.createElement("td");

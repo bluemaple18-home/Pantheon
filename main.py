@@ -45,12 +45,16 @@ def create_app() -> FastAPI:
     def articles_page() -> FileResponse:
         return FileResponse(WEB_DIR / "article.html")
 
-    @app.get("/articles/{category}", include_in_schema=False)
-    def article_category_page(category: str) -> FileResponse:
+    @app.get("/articles/intents/{intent}", include_in_schema=False)
+    def article_intent_page(intent: str) -> FileResponse:
         return FileResponse(WEB_DIR / "article.html")
 
-    @app.get("/articles/{category}/{slug}", include_in_schema=False)
-    def article_page(category: str, slug: str) -> FileResponse:
+    @app.get("/articles/{product}", include_in_schema=False)
+    def article_product_page(product: str) -> FileResponse:
+        return FileResponse(WEB_DIR / "article.html")
+
+    @app.get("/articles/{product}/{slug}", include_in_schema=False)
+    def article_page(product: str, slug: str) -> FileResponse:
         return FileResponse(WEB_DIR / "article.html")
 
     @app.get("/article-admin", include_in_schema=False)

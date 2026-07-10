@@ -7,7 +7,7 @@
 ```bash
 uv venv
 uv pip install -e ".[dev]"
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8877 --reload
 ```
 
 測試：

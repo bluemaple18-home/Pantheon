@@ -17,11 +17,10 @@
         </a>
         <nav class="article-primary-nav ui-nav" aria-label="文章管理入口">
           <a href="/articles">文章首頁</a>
-          <a href="/articles/mbti">人格</a>
+          <a href="/articles/fortune">命盤</a>
+          <a href="/articles/personality">人格</a>
           <a href="/articles/tarot">塔羅</a>
-          <a href="/articles/ziwei">紫微</a>
-          <a href="/articles/bazi">八字</a>
-          <a href="/articles/interpersonal">人際</a>
+          <a href="/articles/astro">星座</a>
         </nav>
         <nav class="article-utility-nav ui-actions" aria-label="站內入口">
           <a class="ui-button ui-button-secondary" href="/">命書工具</a>
@@ -34,7 +33,7 @@
       <section class="article-admin-hero" aria-labelledby="article-admin-title">
         <p class="eyebrow">Content Governance</p>
         <h1 id="article-admin-title">文章管理</h1>
-        <p>統一管理所有文章、主題頁描述、主關鍵字、FAQ 與強制關鍵字標籤。</p>
+        <p>統一管理所有文章、產品頁描述、文章 section、主關鍵字、FAQ 與強制關鍵字標籤。</p>
       </section>
 
       <section class="article-admin-section ui-panel" aria-labelledby="article-policy-title">
@@ -45,18 +44,18 @@
         <div class="article-tag-list article-admin-tags ui-chip-list" data-policy-tags></div>
       </section>
 
-      <section class="article-admin-section ui-panel" aria-labelledby="topic-admin-title">
+      <section class="article-admin-section ui-panel" aria-labelledby="section-admin-title">
         <div class="article-admin-section-heading ui-section-heading">
-          <h2 id="topic-admin-title">主題主頁描述</h2>
-          <p>每個主題頁的 label、SEO description、主關鍵字與必帶標籤都從 registry 統一管理。</p>
+          <h2 id="section-admin-title">文章 Section 描述</h2>
+          <p>每個內容 section 的 label、SEO description、主關鍵字與必帶標籤都從 registry 統一管理。</p>
         </div>
-        <div class="article-admin-topic-grid" data-topic-table></div>
+        <div class="article-admin-section-grid" data-section-table></div>
       </section>
 
       <section class="article-admin-section ui-panel" aria-labelledby="article-graph-title">
         <div class="article-admin-section-heading ui-section-heading">
           <h2 id="article-graph-title">內容圖譜</h2>
-          <p>先用 topic / article / tag 的 nodes、links 建立穩定資料契約，後續可接 3D force graph、語意聚類或 tag route 視圖。</p>
+          <p>先用 section / article / tag 的 nodes、links 建立穩定資料契約，後續可接 3D force graph、語意聚類或 tag route 視圖。</p>
         </div>
         <div class="article-admin-graph-summary" data-graph-summary></div>
         <div class="article-admin-graph-list" data-graph-links></div>
@@ -81,7 +80,7 @@
             <thead>
               <tr>
                 <th>文章</th>
-                <th>分類</th>
+                <th>Section</th>
                 <th>主關鍵字</th>
                 <th>最終標籤</th>
               </tr>

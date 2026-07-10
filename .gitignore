@@ -4,6 +4,12 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .env
+.DS_Store
+.work/
+.playwright-cli/
+output/
+TASK-*/evidence/
+scripts/__pycache__/
 .codegraph/
 node_modules/
 app/database/*.sqlite

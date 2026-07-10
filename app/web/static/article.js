@@ -2,15 +2,15 @@ import { buildArticleContent } from "./article-meta.js";
 import { applyArticleSeo } from "./article-seo.js";
 
 const dom = {
-  categoryCrumb: document.querySelector("[data-category-crumb]"),
-  categorySeparator: document.querySelector("[data-category-separator]"),
+  productCrumb: document.querySelector("[data-product-crumb]"),
+  productSeparator: document.querySelector("[data-product-separator]"),
   titleCrumb: document.querySelector("[data-title-crumb]"),
   titleSeparator: document.querySelector("[data-title-separator]"),
-  articleCategory: document.querySelector("[data-article-category]"),
+  articleProduct: document.querySelector("[data-article-product]"),
   articleTitle: document.querySelector("[data-article-title]"),
   articleAuthor: document.querySelector("[data-article-author]"),
   articleUpdated: document.querySelector("[data-article-updated]"),
-  topicDescription: document.querySelector("[data-topic-description]"),
+  sectionDescription: document.querySelector("[data-section-description]"),
   productThemeLabel: document.querySelector("[data-product-theme-label]"),
   productThemeGlyph: document.querySelector("[data-product-theme-glyph]"),
   productThemeDescription: document.querySelector("[data-product-theme-description]"),
@@ -39,14 +39,14 @@ applyArticleSeo(content, dom, window.location.origin);
 
 function renderArticleChrome(content) {
   document.body.dataset.productTheme = content.productTheme;
-  document.body.dataset.topicIntent = content.topicIntent;
+  document.body.dataset.intent = content.intent;
 
-  if (content.category) {
-    dom.categoryCrumb.hidden = false;
-    dom.categorySeparator.hidden = false;
-    dom.categoryCrumb.textContent = content.categoryLabel;
-    dom.categoryCrumb.href = `/articles/${content.category}`;
-    dom.articleCategory.textContent = content.categoryLabel;
+  if (content.productCrumb) {
+    dom.productCrumb.hidden = false;
+    dom.productSeparator.hidden = false;
+    dom.productCrumb.textContent = content.productCrumbLabel;
+    dom.productCrumb.href = content.productHref;
+    dom.articleProduct.textContent = content.productCrumbLabel;
   }
 
   if (content.slug) {
@@ -55,7 +55,7 @@ function renderArticleChrome(content) {
     dom.articleTitle.textContent = content.title;
   }
 
-  dom.topicDescription.textContent = content.topicDescription;
+  dom.sectionDescription.textContent = content.sectionDescription;
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;

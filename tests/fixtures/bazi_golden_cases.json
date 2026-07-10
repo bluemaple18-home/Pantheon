@@ -1,0 +1,158 @@
+[
+  {
+    "id": "fire_day_male_1989_yin",
+    "description": "丙火日主樣本，鎖定明透神煞、祿刃與流年欄位。",
+    "mock_pillars": {
+      "year": "己巳",
+      "month": "庚午",
+      "day": "丙午",
+      "hour": "庚寅"
+    },
+    "input": {
+      "birth_date": "1989-06-15",
+      "birth_time": "04:00:00",
+      "gender": "male",
+      "timezone": "Asia/Taipei",
+      "calendar": "solar",
+      "target_year": 2026,
+      "longitude": 121.5654,
+      "utc_offset": "+08:00"
+    },
+    "expected": {
+      "pillars": {
+        "year": "己巳",
+        "month": "庚午",
+        "day": "丙午",
+        "hour": "庚寅"
+      },
+      "day_master": {
+        "stem": "丙",
+        "element": "火"
+      },
+      "ten_gods": {
+        "visible_labels": ["傷官", "偏財", "比肩"],
+        "hidden_labels": ["比肩", "食神", "偏財", "劫財", "傷官", "偏印"]
+      },
+      "calculated_items": {
+        "growth_labels": ["長生", "臨官", "帝旺"],
+        "special_force_labels": ["祿", "羊刃"],
+        "shensha_labels": ["六秀", "桃花", "月德"]
+      },
+      "luck_cycles": {
+        "annual": {
+          "year": 2026,
+          "pillar": "丙午",
+          "ten_god": "比肩"
+        },
+        "qiyun_status": "computed"
+      },
+      "policy": {
+        "ruleset_version": "pantheon-bazi-rules-mvp-0.2",
+        "calendar_provider": "lunar-python",
+        "strength_model": "pantheon_strength_v1",
+        "items_source": "pantheon_deterministic_rules"
+      }
+    }
+  },
+  {
+    "id": "water_day_female_1992_zi",
+    "description": "壬水日主樣本，鎖定只顯示確定命中的天乙與羊刃。",
+    "mock_pillars": {
+      "year": "壬申",
+      "month": "癸卯",
+      "day": "壬子",
+      "hour": "庚子"
+    },
+    "input": {
+      "birth_date": "1992-03-12",
+      "birth_time": "23:30:00",
+      "gender": "female",
+      "timezone": "Asia/Taipei",
+      "calendar": "solar",
+      "target_year": 2026
+    },
+    "expected": {
+      "pillars": {
+        "year": "壬申",
+        "month": "癸卯",
+        "day": "壬子",
+        "hour": "庚子"
+      },
+      "day_master": {
+        "stem": "壬",
+        "element": "水"
+      },
+      "ten_gods": {
+        "visible_labels": ["比肩", "劫財", "偏印"],
+        "hidden_labels": ["偏印", "比肩", "七殺", "傷官", "劫財"]
+      },
+      "calculated_items": {
+        "growth_labels": ["長生", "帝旺"],
+        "special_force_labels": ["羊刃"],
+        "shensha_labels": ["天乙"]
+      },
+      "luck_cycles": {
+        "annual": {
+          "year": 2026,
+          "pillar": "丙午",
+          "ten_god": "偏財"
+        },
+        "qiyun_status": "computed"
+      },
+      "policy": {
+        "ruleset_version": "pantheon-bazi-rules-mvp-0.2",
+        "calendar_provider": "lunar-python",
+        "strength_model": "pantheon_strength_v1",
+        "items_source": "pantheon_deterministic_rules"
+      }
+    }
+  },
+  {
+    "id": "earth_day_fallback_engine",
+    "description": "強制四柱 calendar fallback，鎖定 fallback policy 與穩定輸出欄位。",
+    "input": {
+      "birth_date": "1990-05-15",
+      "birth_time": "15:30:00",
+      "gender": "female",
+      "timezone": "Asia/Taipei",
+      "calendar": "solar",
+      "target_year": 2026
+    },
+    "force_calendar_fallback": true,
+    "expected": {
+      "pillars": {
+        "year": "庚午",
+        "month": "壬午",
+        "day": "庚子",
+        "hour": "甲申"
+      },
+      "day_master": {
+        "stem": "庚",
+        "element": "金"
+      },
+      "ten_gods": {
+        "visible_labels": ["比肩", "食神", "偏財"],
+        "hidden_labels": ["正官", "正印", "傷官", "比肩", "食神", "偏印"]
+      },
+      "calculated_items": {
+        "growth_labels": ["臨官"],
+        "special_force_labels": ["祿"],
+        "shensha_labels": ["驛馬"]
+      },
+      "luck_cycles": {
+        "annual": {
+          "year": 2026,
+          "pillar": "丙午",
+          "ten_god": "七殺"
+        },
+        "qiyun_status": "computed"
+      },
+      "policy": {
+        "ruleset_version": "pantheon-bazi-rules-mvp-0.2",
+        "calendar_provider": "pantheon-internal",
+        "strength_model": "pantheon_strength_v1",
+        "items_source": "pantheon_deterministic_rules"
+      }
+    }
+  }
+]

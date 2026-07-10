@@ -5,117 +5,21 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from app.calculators.base import BaseDivination
-
-
-HEAVENLY_STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
-EARTHLY_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
-ZODIACS = {
-    "子": "鼠",
-    "丑": "牛",
-    "寅": "虎",
-    "卯": "兔",
-    "辰": "龍",
-    "巳": "蛇",
-    "午": "馬",
-    "未": "羊",
-    "申": "猴",
-    "酉": "雞",
-    "戌": "狗",
-    "亥": "豬",
-}
-STEM_POLARITY = {
-    "甲": "yang",
-    "乙": "yin",
-    "丙": "yang",
-    "丁": "yin",
-    "戊": "yang",
-    "己": "yin",
-    "庚": "yang",
-    "辛": "yin",
-    "壬": "yang",
-    "癸": "yin",
-}
-STEM_ELEMENTS = {
-    "甲": "木",
-    "乙": "木",
-    "丙": "火",
-    "丁": "火",
-    "戊": "土",
-    "己": "土",
-    "庚": "金",
-    "辛": "金",
-    "壬": "水",
-    "癸": "水",
-}
-BRANCH_ELEMENTS = {
-    "子": "水",
-    "丑": "土",
-    "寅": "木",
-    "卯": "木",
-    "辰": "土",
-    "巳": "火",
-    "午": "火",
-    "未": "土",
-    "申": "金",
-    "酉": "金",
-    "戌": "土",
-    "亥": "水",
-}
-HIDDEN_STEMS = {
-    "子": [{"stem": "癸", "role": "main", "weight": 100}],
-    "丑": [
-        {"stem": "己", "role": "main", "weight": 60},
-        {"stem": "癸", "role": "middle", "weight": 30},
-        {"stem": "辛", "role": "residual", "weight": 10},
-    ],
-    "寅": [
-        {"stem": "甲", "role": "main", "weight": 60},
-        {"stem": "丙", "role": "middle", "weight": 30},
-        {"stem": "戊", "role": "residual", "weight": 10},
-    ],
-    "卯": [{"stem": "乙", "role": "main", "weight": 100}],
-    "辰": [
-        {"stem": "戊", "role": "main", "weight": 60},
-        {"stem": "乙", "role": "middle", "weight": 30},
-        {"stem": "癸", "role": "residual", "weight": 10},
-    ],
-    "巳": [
-        {"stem": "丙", "role": "main", "weight": 60},
-        {"stem": "戊", "role": "middle", "weight": 30},
-        {"stem": "庚", "role": "residual", "weight": 10},
-    ],
-    "午": [
-        {"stem": "丁", "role": "main", "weight": 70},
-        {"stem": "己", "role": "middle", "weight": 30},
-    ],
-    "未": [
-        {"stem": "己", "role": "main", "weight": 60},
-        {"stem": "丁", "role": "middle", "weight": 30},
-        {"stem": "乙", "role": "residual", "weight": 10},
-    ],
-    "申": [
-        {"stem": "庚", "role": "main", "weight": 60},
-        {"stem": "壬", "role": "middle", "weight": 30},
-        {"stem": "戊", "role": "residual", "weight": 10},
-    ],
-    "酉": [{"stem": "辛", "role": "main", "weight": 100}],
-    "戌": [
-        {"stem": "戊", "role": "main", "weight": 60},
-        {"stem": "辛", "role": "middle", "weight": 30},
-        {"stem": "丁", "role": "residual", "weight": 10},
-    ],
-    "亥": [
-        {"stem": "壬", "role": "main", "weight": 70},
-        {"stem": "甲", "role": "middle", "weight": 30},
-    ],
-}
-ELEMENT_GENERATES = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
-ELEMENT_CONTROLS = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
-STEM_COMBINES = {"甲": "己", "乙": "庚", "丙": "辛", "丁": "壬", "戊": "癸"}
-STEM_CLASHES = {"甲": "庚", "乙": "辛", "丙": "壬", "丁": "癸"}
-BRANCH_CLASHES = {"子": "午", "丑": "未", "寅": "申", "卯": "酉", "辰": "戌", "巳": "亥"}
-BRANCH_HARMONIES = {"子": "丑", "寅": "亥", "卯": "戌", "辰": "酉", "巳": "申", "午": "未"}
-RELATION_LABELS = {"combine": "合", "clash": "沖", "harmony": "合"}
+from app.calculators.bazi_interactions import annual_relations, chart_relations, interaction_summary
+from app.calculators.bazi_items import calculate_bazi_items
+from app.calculators.bazi_policy import BAZI_RULESET_VERSION, active_calendar_engine, fallback_calendar_engine
+from app.calculators.bazi_rules import (
+    BRANCH_ELEMENTS,
+    EARTHLY_BRANCHES,
+    ELEMENT_CONTROLS,
+    ELEMENT_GENERATES,
+    HEAVENLY_STEMS,
+    HIDDEN_STEMS,
+    STEM_ELEMENTS,
+    STEM_POLARITY,
+    ZODIACS,
+)
+from app.calculators.bazi_strength import strength_analysis
 
 
 def _sexagenary(index: int) -> str:
@@ -180,17 +84,7 @@ def _calendar_pillars(birth_date: date, birth_time: time) -> tuple[dict[str, str
         provider_error = None
 
     if provider_pillars:
-        return provider_pillars, {
-            "provider": "lunar-python",
-            "provider_status": "active",
-            "algorithm_level": "calendar_provider_lunar_python_rules_mvp",
-            "notice": "四柱由 lunar-python 產出；藏干、十神、合沖與大運仍由 Pantheon rules layer 計算。",
-            "policies": {
-                "month_boundary": "solar_term_by_provider",
-                "day_boundary": "provider_default",
-                "true_solar_time": "not_applied",
-            },
-        }
+        return provider_pillars, active_calendar_engine()
 
     day = _day_pillar(birth_date)
     fallback_pillars = {
@@ -199,20 +93,7 @@ def _calendar_pillars(birth_date: date, birth_time: time) -> tuple[dict[str, str
         "day": day,
         "hour": _hour_pillar(day, birth_time),
     }
-    notice = "目前使用內建 MVP 曆法骨架；尚未啟用 lunar-python，月柱不是正式節氣換月。"
-    if provider_error:
-        notice = f"{notice} lunar-python adapter error: {provider_error}."
-    return fallback_pillars, {
-        "provider": "pantheon-internal",
-        "provider_status": "fallback",
-        "algorithm_level": "mvp_scaffold",
-        "notice": notice,
-        "policies": {
-            "month_boundary": "calendar_month_mvp",
-            "day_boundary": "clock_date_mvp",
-            "true_solar_time": "not_applied",
-        },
-    }
+    return fallback_pillars, fallback_calendar_engine(provider_error)
 
 
 def _parse_date(value: Any) -> date:
@@ -275,16 +156,6 @@ def _element_scores(pillars: dict[str, str]) -> dict[str, int]:
         for hidden in HIDDEN_STEMS[pillar[1]]:
             scores[STEM_ELEMENTS[hidden["stem"]]] += max(1, hidden["weight"] // 50)
     return scores
-
-
-def _relation_pairs(values: list[str], mapping: dict[str, str], label: str) -> list[dict[str, str]]:
-    found: list[dict[str, str]] = []
-    for left in values:
-        right = mapping.get(left)
-        if right and right in values:
-            relation_name = RELATION_LABELS.get(label, label)
-            found.append({"type": label, "name": f"{left}{right}{relation_name}", "left": left, "right": right})
-    return found
 
 
 def _ten_god(day_stem: str, target_stem: str) -> str:
@@ -381,17 +252,6 @@ def _notable_patterns(
     return patterns
 
 
-def _annual_relations(annual_pillar: str, pillars: dict[str, str]) -> dict[str, list[dict[str, str]]]:
-    stems = [annual_pillar[0], *[pillar[0] for pillar in pillars.values()]]
-    branches = [annual_pillar[1], *[pillar[1] for pillar in pillars.values()]]
-    return {
-        "stem": _relation_pairs(stems, STEM_COMBINES, "combine")
-        + _relation_pairs(stems, STEM_CLASHES, "clash"),
-        "branch": _relation_pairs(branches, BRANCH_HARMONIES, "harmony")
-        + _relation_pairs(branches, BRANCH_CLASHES, "clash"),
-    }
-
-
 def _luck_cycles(
     birth_date: date,
     target_year: int,
@@ -430,7 +290,7 @@ def _luck_cycles(
         )
     annual_pillar = _year_pillar(date(target_year, 1, 1))
     annual_ten_god = _ten_god(day_master, annual_pillar[0])
-    annual_relations = _annual_relations(annual_pillar, pillars)
+    year_relations = annual_relations(annual_pillar, pillars)
     return {
         "algorithm_level": "mvp_age_decade_not_qiyun",
         "notice": "目前已依年干陰陽與性別判斷大運順逆，但尚未用精確節氣時計算起運歲數；十年段仍為 MVP 定位。",
@@ -450,9 +310,9 @@ def _luck_cycles(
             "pillar": annual_pillar,
             "zodiac": ZODIACS[annual_pillar[1]],
             "ten_god": annual_ten_god,
-            "theme": _annual_theme(annual_ten_god, annual_relations),
-            "interaction_summary": _interaction_summary(annual_relations),
-            "relations": annual_relations,
+            "theme": _annual_theme(annual_ten_god, year_relations),
+            "interaction_summary": interaction_summary(year_relations),
+            "relations": year_relations,
             "flow_months": _flow_months(target_year, day_master),
         },
     }
@@ -506,7 +366,7 @@ def _lunar_python_luck_cycles(
             current_decade = cycle
     annual_pillar = _provider_year_pillar(target_year)
     annual_ten_god = _ten_god(day_master, annual_pillar[0])
-    annual_relations = _annual_relations(annual_pillar, {
+    year_relations = annual_relations(annual_pillar, {
         "year": lunar.getYearInGanZhi(),
         "month": lunar.getMonthInGanZhi(),
         "day": lunar.getDayInGanZhi(),
@@ -535,9 +395,9 @@ def _lunar_python_luck_cycles(
             "pillar": annual_pillar,
             "zodiac": ZODIACS[annual_pillar[1]],
             "ten_god": annual_ten_god,
-            "theme": _annual_theme(annual_ten_god, annual_relations),
-            "interaction_summary": _interaction_summary(annual_relations),
-            "relations": annual_relations,
+            "theme": _annual_theme(annual_ten_god, year_relations),
+            "interaction_summary": interaction_summary(year_relations),
+            "relations": year_relations,
         },
     }
 
@@ -625,61 +485,8 @@ def _annual_theme(ten_god: str, relations: dict[str, list[dict[str, str]]]) -> s
         "偏印": "今年適合研究、修正方向與建立新的理解框架。",
         "正印": "今年適合補課、取得支持、修復狀態，不宜過度消耗。",
     }.get(ten_god, "今年主題待補")
-    interaction = _interaction_summary(relations)
+    interaction = interaction_summary(relations)
     return f"{base} 本命互動：{interaction}。"
-
-
-def _interaction_summary(relations: dict[str, list[dict[str, str]]]) -> str:
-    names = [item["name"] for item in relations.get("stem", []) + relations.get("branch", [])]
-    if not names:
-        return "互動較少，年度重點以流年十神本身為主"
-    clashes = [name for name in names if name.endswith("沖")]
-    harmonies = [name for name in names if name.endswith("合")]
-    if clashes and harmonies:
-        return f"{'、'.join(clashes[:2])} 帶來變動，{'、'.join(harmonies[:2])} 帶來可借力之處"
-    if clashes:
-        return f"{'、'.join(clashes[:3])}，今年事件感與變動感較強"
-    if harmonies:
-        return f"{'、'.join(harmonies[:3])}，今年較適合整合資源與修補關係"
-    return "有互動訊號，但仍需進一步校準權重"
-
-
-def _strength_analysis(pillars: dict[str, str], scores: dict[str, int], day_master: str) -> dict[str, Any]:
-    day_element = STEM_ELEMENTS[day_master]
-    month_branch = pillars["month"][1]
-    supporting_elements = {
-        day_element,
-        next(element for element, generated in ELEMENT_GENERATES.items() if generated == day_element),
-    }
-    draining_element = ELEMENT_GENERATES[day_element]
-    controlling_element = next(element for element, controlled in ELEMENT_CONTROLS.items() if controlled == day_element)
-    wealth_element = ELEMENT_CONTROLS[day_element]
-    support_score = sum(scores[element] for element in supporting_elements)
-    pressure_score = scores[draining_element] + scores[controlling_element] + scores[wealth_element]
-    month_support = STEM_ELEMENTS[HIDDEN_STEMS[month_branch][0]["stem"]] in supporting_elements
-    total = support_score + pressure_score or 1
-    ratio = support_score / total
-    if month_support:
-        ratio += 0.08
-    label = "strong_candidate" if ratio >= 0.58 else "weak_candidate" if ratio <= 0.42 else "balanced_candidate"
-    return {
-        "status": "candidate_not_final_useful_god",
-        "model": "pantheon_strength_v1",
-        "day_element": day_element,
-        "supporting_elements": sorted(supporting_elements),
-        "support_score": support_score,
-        "pressure_score": pressure_score,
-        "month_branch": month_branch,
-        "month_command_supports_day_master": month_support,
-        "ratio": round(ratio, 3),
-        "label": label,
-        "basis": [
-            "日主同五行與生日主五行列為 support",
-            "日主所生、剋日主、日主所剋列為 pressure",
-            "月令主氣若支持日主，ratio 加權 0.08",
-        ],
-        "caution": "旺衰只是候選評分；格局、調候、通關與用神不可由此單獨定案。",
-    }
 
 
 class BaziCalculator(BaseDivination):
@@ -700,18 +507,13 @@ class BaziCalculator(BaseDivination):
         year = pillars["year"]
         month = pillars["month"]
         day = pillars["day"]
-        stems = [pillar[0] for pillar in pillars.values()]
-        branches = [pillar[1] for pillar in pillars.values()]
         scores = _element_scores(pillars)
         day_master = day[0]
         day_master_element = STEM_ELEMENTS[day_master]
         supporting_score = scores[day_master_element]
-        relations = {
-            "stem": _relation_pairs(stems, STEM_COMBINES, "combine")
-            + _relation_pairs(stems, STEM_CLASHES, "clash"),
-            "branch": _relation_pairs(branches, BRANCH_HARMONIES, "harmony")
-            + _relation_pairs(branches, BRANCH_CLASHES, "clash"),
-        }
+        hidden_stems = _hidden_stems(day_master, pillars)
+        ten_gods = _ten_gods(day_master, pillars)
+        relations = chart_relations(pillars)
 
         return {
             "system": self.name,
@@ -720,7 +522,7 @@ class BaziCalculator(BaseDivination):
             "notice": calendar_engine["notice"],
             "calendar_engine": calendar_engine,
             "solar_time": solar_time,
-            "ruleset_version": "pantheon-bazi-rules-mvp-0.2",
+            "ruleset_version": BAZI_RULESET_VERSION,
             "pillars": pillars,
             "zodiac": {
                 "branch": year[1],
@@ -733,11 +535,12 @@ class BaziCalculator(BaseDivination):
                 "supporting_score": supporting_score,
                 "strength": "strong" if supporting_score >= 7 else "weak",
             },
-            "hidden_stems": _hidden_stems(day_master, pillars),
-            "ten_gods": _ten_gods(day_master, pillars),
+            "hidden_stems": hidden_stems,
+            "ten_gods": ten_gods,
             "elements": scores,
             "relations": relations,
-            "strength_analysis": _strength_analysis(pillars, scores, day_master),
+            "calculated_items": calculate_bazi_items(day_master, pillars, hidden_stems),
+            "strength_analysis": strength_analysis(pillars, scores, day_master),
             "notable_patterns": _notable_patterns(pillars, scores, day_master, relations),
             "luck_cycles": _luck_cycles(
                 calculation_dt.date(),

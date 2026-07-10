@@ -8,6 +8,7 @@ from typing import Any
 
 from app.calculators.base import BaseDivination
 from app.calculators.ziwei_fusion import PRIMARY_PROVIDER, build_ziwei_fusion
+from app.calculators.ziwei_items import calculate_ziwei_items
 
 
 PALACES = ["命宮", "兄弟", "夫妻", "子女", "財帛", "疾厄", "遷移", "僕役", "官祿", "田宅", "福德", "父母"]
@@ -55,6 +56,7 @@ class ZiweiCalculator(BaseDivination):
                 "life_palace_stars": iztro_chart["life_palace_stars"],
                 "body_palace_stars": iztro_chart["body_palace_stars"],
                 "palaces": iztro_chart["palaces"],
+                "calculated_items": calculate_ziwei_items(iztro_chart["palaces"]),
                 "raw_chart": {
                     key: iztro_chart.get(key)
                     for key in [
@@ -129,6 +131,7 @@ class ZiweiCalculator(BaseDivination):
             "life_palace_stars": life_palace["stars"],
             "body_palace_stars": body_palace["stars"],
             "palaces": palaces,
+            "calculated_items": calculate_ziwei_items(palaces),
             "notable_patterns": _notable_patterns(life_palace, body_palace),
             "fusion": build_ziwei_fusion(
                 {

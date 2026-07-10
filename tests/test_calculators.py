@@ -1,7 +1,9 @@
 from app.calculators.bazi import BaziCalculator
+from app.calculators.bazi_items import calculate_bazi_items
 from app.calculators.mbti import MbtiCalculator
 from app.calculators.nameology import NameologyCalculator
 from app.calculators.ziwei import ZiweiCalculator
+from app.calculators.ziwei_items import calculate_ziwei_items
 from app.core.registry import build_default_registry
 
 
@@ -27,6 +29,44 @@ def test_bazi_returns_standard_payload() -> None:
     assert {"stem", "god", "weight", "source_branch"} <= set(
         result["ten_gods"]["year"]["hidden_stems"][0]
     )
+    assert result["calculated_items"]["policy"]["source"] == "pantheon_deterministic_rules"
+    assert set(result["calculated_items"]) >= {"growth_states", "special_forces", "shensha"}
+
+
+def test_bazi_calculates_confirmed_items_from_backend(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.calculators.bazi._lunar_python_pillars",
+        lambda *_: {"year": "己巳", "month": "庚午", "day": "丙午", "hour": "庚寅"},
+    )
+
+    result = BaziCalculator().calculate({**USER_DATA, "birth_date": "1989-06-15", "birth_time": "04:00:00"})
+    items = result["calculated_items"]
+    shensha_labels = {item["label"] for item in items["shensha"]}
+    force_labels = {item["label"] for item in items["special_forces"]}
+    growth_labels = {item["label"] for item in items["growth_states"]}
+
+    assert {"六秀", "月德", "桃花"} <= shensha_labels
+    assert {"祿", "羊刃"} <= force_labels
+    assert {"長生", "帝旺"} <= growth_labels
+    assert next(item for item in items["shensha"] if item["label"] == "月德")["basis"] == "月令月德"
+
+
+def test_bazi_items_engine_is_standalone() -> None:
+    hidden_stems = {
+        "year": [{"stem": "丙"}],
+        "month": [{"stem": "丁"}],
+        "day": [{"stem": "丁"}],
+        "hour": [{"stem": "甲"}],
+    }
+    items = calculate_bazi_items(
+        "丙",
+        {"year": "己巳", "month": "庚午", "day": "丙午", "hour": "庚寅"},
+        hidden_stems,
+    )
+
+    assert items["policy"]["source"] == "pantheon_deterministic_rules"
+    assert {item["label"] for item in items["shensha"]} >= {"六秀", "月德", "桃花"}
+    assert {item["label"] for item in items["special_forces"]} == {"祿", "羊刃"}
 
 
 def test_bazi_marks_calendar_fallback_when_lunar_python_is_unavailable(monkeypatch) -> None:
@@ -116,6 +156,22 @@ def test_ziwei_returns_palace_payload() -> None:
     assert len(result["palaces"]) == 12
     assert result["life_palace"]
     assert result["reference_dataset"]["status"] == "active"
+    assert result["calculated_items"]["policy"]["source"] == "pantheon_ziwei_focus_filter"
+    assert "support_stars" in result["calculated_items"]
+
+
+def test_ziwei_items_engine_filters_focus_palaces() -> None:
+    items = calculate_ziwei_items(
+        [
+            {"name": "命宮", "stars": ["天機", "文昌"]},
+            {"name": "官祿", "stars": ["左輔", "天鉞"]},
+            {"name": "兄弟", "stars": ["天魁"]},
+        ]
+    )
+
+    labels = [item["label"] for item in items["support_stars"]]
+    assert labels == ["文昌", "天鉞", "左輔"]
+    assert "兄弟" not in {item["palace"] for item in items["support_stars"]}
 
 
 def test_ziwei_falls_back_when_iztro_bridge_is_unavailable(monkeypatch) -> None:
