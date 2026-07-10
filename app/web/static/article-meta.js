@@ -529,6 +529,54 @@ function enrichArticleBody(article, productTheme, managedArticle, customBody) {
   ];
 }
 
+function buildFallbackAngleSection(article, productTheme, primary, related) {
+  if (article.product === "personality") {
+    return {
+      heading: "先看偏好，不急著貼標籤",
+      paragraphs: [
+        `閱讀 ${primary} 時，重點不是把人固定成某一型，而是看它能不能幫你說清楚偏好、壓力反應和互動節奏。`,
+        `如果你是從「${related}」這類搜尋進來，建議先分清楚你想理解的是人格偏好、關係互動、工作合作，還是只是想找一個身份名稱。`,
+      ],
+    };
+  }
+  if (article.product === "tarot") {
+    return {
+      heading: "先把牌義放回提問",
+      paragraphs: [
+        `閱讀 ${primary} 時，不要只把牌義翻成好壞結果。塔羅文章更適合幫你看見問題裡的狀態、阻力和下一步提醒。`,
+        `如果你是從「${related}」這類搜尋進來，先確認你問的是單張牌義、正逆位語氣、感情互動，還是工作與人生方向裡的短期卡點。`,
+      ],
+    };
+  }
+  if (article.product === "fortune") {
+    return {
+      heading: "先分清系統、觀察點和問題",
+      paragraphs: [
+        `閱讀 ${primary} 時，先看它屬於命盤、八字、紫微宮位還是人生主題。不同系統的語言不能直接混成同一句結論。`,
+        `如果你是從「${related}」這類搜尋進來，建議先確認自己要查的是概念、宮位意義、長期節奏，還是想把它套回感情、事業或財富問題。`,
+        "這樣讀會比較慢一點，但能避免把單一名詞誤讀成命書結論，也比較容易知道下一篇該補哪個背景。",
+      ],
+    };
+  }
+  if (article.product === "astro") {
+    return {
+      heading: "先分清落點，再談情境",
+      paragraphs: [
+        `閱讀 ${primary} 時，先分清太陽、月亮、上升或整張星盤各自在看什麼。單一落點只能提供一個角度，不是完整答案。`,
+        `如果你是從「${related}」這類搜尋進來，建議先確認你想理解的是個性語言、情緒安全感、關係互動，還是人生方向裡的節奏感。`,
+        "星盤文章最有用的地方，是把不同落點分工說清楚；讀者才不會把一個星座詞直接套成感情或人生判斷。",
+      ],
+    };
+  }
+  return {
+    heading: `${productTheme.label}文章先處理哪一層？`,
+    paragraphs: [
+      `閱讀 ${primary} 時，先把它當成理解問題的入口，而不是最後答案。`,
+      `如果你是從「${related}」這類搜尋進來，建議先確認你要問的是概念定義、使用方式、關係判斷，還是想把它套到自己的情境。`,
+    ],
+  };
+}
+
 function buildSearchIntentSection(article, productTheme) {
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
@@ -540,6 +588,16 @@ function buildSearchIntentSection(article, productTheme) {
       `Pantheon 的公開文章會先把通用意思說清楚，再把限制講出來。這樣讀者可以拿到可搜尋、可引用的答案，但不會被推向沒有根據的個人結論。`,
     ],
   };
+}
+
+function buildSearchIntentHeading(article, primary) {
+  const topic = cleanFaqTopic(primary);
+  if (article.product === "personality" && /^[A-Z]{4}$/.test(topic)) return `查「${primary}」時，先別急著套標籤`;
+  if (article.product === "personality") return `查「${primary}」時，先看它能解哪種問題`;
+  if (article.product === "tarot") return `查「${primary}」時，不只是在背牌義`;
+  if (article.product === "fortune") return `查「${primary}」時，先分清是哪個觀察點`;
+  if (article.product === "astro") return `查「${primary}」時，別只看單一星座`;
+  return `查「${primary}」時，先問自己想解哪一層`;
 }
 
 function buildScenarioSection(article, productTheme) {
@@ -603,6 +661,14 @@ function buildNextStepSection(article, productTheme, managedArticle) {
       "比較好的順序是：先把問題寫清楚，再選工具，再看結果能不能回到現實情境。不要把任何一篇文章、單一人格類型或單張牌，直接當成最後判斷，也不要省略自己的限制條件。",
     ],
   };
+}
+
+function buildNextStepHeading(article, productTheme) {
+  if (article.product === "personality") return "什麼時候需要回到自己的互動經驗？";
+  if (article.product === "tarot") return "什麼時候該從牌義進到抽牌？";
+  if (article.product === "fortune") return "什麼時候需要完整資料，而不是只看單點？";
+  if (article.product === "astro") return "什麼時候需要看整張星盤？";
+  return `什麼時候需要把${productTheme.label}放回個人情境？`;
 }
 
 function buildRelatedReadingSection(article, productTheme) {
@@ -703,6 +769,51 @@ function uniqueFaq(items = []) {
   });
 }
 
+function buildUseQuestion(article, productTheme, topic) {
+  const subject = formatInlineTopic(topic);
+  if (article?.product === "personality") return `讀${subject}時，應該先看哪一層？`;
+  if (article?.product === "tarot") return `${topic}在不同問題裡會一樣嗎？`;
+  if (article?.product === "fortune") return `看${subject}時，為什麼不能只看單點？`;
+  if (article?.product === "astro") return `${topic}要和哪些星盤資訊一起看？`;
+  return `${productTheme.label}文章適合先解決什麼問題？`;
+}
+
+function buildUseAnswer(article, productTheme, topic) {
+  const prefix = formatFaqTopicPrefix(topic);
+  if (article?.product === "personality") return `先看${prefix}描述的偏好和壓力反應，再對照真實互動；不要只把類型名稱當成身份標籤。`;
+  if (article?.product === "tarot") return "不會完全一樣。同一張牌放在感情、工作或人生方向裡，會因問題和牌陣位置而有不同語氣。";
+  if (article?.product === "fortune") return `${prefix}通常只是命盤或命理系統中的一個觀察點，需要搭配其他資料和當下問題一起看。`;
+  if (article?.product === "astro") return `${prefix}最好搭配太陽、月亮、上升或完整星盤理解，避免把單一落點寫成完整人格。`;
+  return `${productTheme.label}文章適合先建立背景知識，再依照具體問題判斷下一步閱讀。`;
+}
+
+function buildMistakeQuestion(article, productTheme, topic) {
+  const subject = formatInlineTopic(topic);
+  if (article?.product === "personality") return `最容易把${subject}誤會成什麼？`;
+  if (article?.product === "tarot") return `看${subject}時，最容易問錯什麼？`;
+  if (article?.product === "fortune") return `${topic}最常被過度解讀在哪裡？`;
+  if (article?.product === "astro") return `${topic}最容易被簡化成什麼？`;
+  return `讀${productTheme.label}文章時，最該避免什麼？`;
+}
+
+function buildMistakeAnswer(article, productTheme, topic) {
+  const prefix = formatFaqTopicPrefix(topic);
+  if (article?.product === "personality") return `最常見的誤會，是把${prefix}當成固定人格或感情答案；它比較適合用來整理偏好，不適合替人下定論。`;
+  if (article?.product === "tarot") return "最容易問成「會不會一定發生」。比較好的問法，是問目前卡在哪裡、自己能看見什麼、下一步如何更清楚。";
+  if (article?.product === "fortune") return `最常被過度解讀成固定命運。${prefix}可以提供語言和角度，但不能離開完整資料和現實情境。`;
+  if (article?.product === "astro") return `最容易被簡化成單一個性描述。${prefix}只能說明一部分，不能取代完整星盤和實際相處。`;
+  return `最該避免把通用${productTheme.label}知識直接套成個人結論。`;
+}
+
+function buildLimitQuestion(article, productTheme, topic) {
+  const subject = formatInlineTopic(topic);
+  if (article?.product === "personality") return `哪些情況不適合用${subject}下結論？`;
+  if (article?.product === "tarot") return `可以用${subject}直接判斷結果嗎？`;
+  if (article?.product === "fortune") return `什麼時候需要完整資料，而不是只看${subject}？`;
+  if (article?.product === "astro") return `可以只靠${subject}判斷一個人嗎？`;
+  return `${productTheme.label}文章不能替你判斷什麼？`;
+}
+
 function buildLimitAnswer(article, productTheme, topic) {
   if (article?.product === "personality") return `${formatFaqTopicPrefix(topic)}只能整理常見偏好，不能取代心理診斷，也不能單獨判定感情、工作或人生結果。`;
   if (article?.product === "tarot") return `${formatFaqTopicPrefix(topic)}只能提供牌義和情境提醒，不能替對方下結論，也不能承諾復合、成功或最終結果。`;
@@ -795,17 +906,17 @@ function buildArticleCta(article, productTheme) {
   if (!article) return null;
   const productLinks = (() => {
     if (article.product === "personality") return [
-      { label: "做 64 分支人格測試", href: "/personality" },
+      { label: "看人格熱門文章", href: "/articles/personality" },
       { label: "看人際主題小報告", href: "/articles/intents/interpersonal" },
       { label: "整理人生方向問題", href: "/articles/intents/life" },
     ];
     if (article.product === "tarot") return [
-      { label: "抽一張塔羅看當下問題", href: "/reading" },
+      { label: "看塔羅熱門文章", href: "/articles/tarot" },
       { label: "看感情主題小報告", href: "/articles/intents/love" },
       { label: "整理事業主題問題", href: "/articles/intents/career" },
     ];
     if (article.product === "fortune") return [
-      { label: "看命盤簡介", href: "/reading" },
+      { label: "看命盤熱門文章", href: "/articles/fortune" },
       { label: "看事業主題小報告", href: "/articles/intents/career" },
       { label: "整理財富主題問題", href: "/articles/intents/wealth" },
     ];

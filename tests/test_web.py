@@ -48,62 +48,12 @@ def test_home_redirects_to_latest_articles() -> None:
     assert response.headers["location"] == "/articles"
 
 
-def test_reading_page_serves_personalized_tool() -> None:
+def test_non_article_product_pages_redirect_to_articles() -> None:
     client = TestClient(app)
-    response = client.get("/reading")
-    assert response.status_code == 200
-    assert "Mystic Engine" in response.text
-    assert "先讀懂問題，再決定要不要做個人化解讀" in response.text
-    assert "data-home-articles" in response.text
-    assert "精選文章" in response.text
-    assert "文章入口" in response.text
-    assert "熱門問題" in response.text
-    assert "熱門文章主題" in response.text
-    assert "每篇都先講通用概念、適用情境與限制。" in response.text
-    assert "href=\"/articles/personality/mbti-meaning\"" in response.text
-    assert "href=\"/articles/tarot/tarot-card-meanings\"" in response.text
-    assert "href=\"/articles/fortune/birth-chart-meaning\"" in response.text
-    assert "href=\"/articles/astro/birth-chart-astrology\"" in response.text
-    assert "href=\"/articles\"" in response.text
-    assert "href=\"/articles/fortune\"" in response.text
-    assert "href=\"/articles/personality\"" in response.text
-    assert "href=\"/articles/tarot\"" in response.text
-    assert "href=\"/articles/astro\"" in response.text
-    assert "data-product-theme=\"fortune\"" in response.text
-    assert "data-product-theme=\"personality\"" in response.text
-    assert "data-product-theme=\"tarot\"" in response.text
-    assert "data-product-theme=\"astro\"" in response.text
-    assert "<em aria-hidden=\"true\">命</em>" in response.text
-    assert "<em aria-hidden=\"true\">64</em>" in response.text
-    assert "<em aria-hidden=\"true\">XVII</em>" in response.text
-    assert "<em aria-hidden=\"true\">星</em>" in response.text
-    assert "個人化解讀" in response.text
-    assert "個人化解讀工具" in response.text
-    assert "命書工具" not in response.text
-    assert "id=\"destiny-tool\"" in response.text
-    assert "基本資料" in response.text
-    assert "命書報告" in response.text
-    assert "進階排盤設定" in response.text
-    assert "命盤總覽" in response.text
-    assert "開始推演命盤" in response.text
-    assert "/strategy" not in response.text
-    assert "64 分支人格測試" not in response.text
-    assert "id=\"personality-form\"" not in response.text
-    assert "/static/styles.css?v=home-articles-20260710-4" in response.text
-    assert "/static/app.js?v=home-articles-20260710-4" in response.text
-
-
-def test_personality_page_serves_standalone_frontend() -> None:
-    client = TestClient(app)
-    response = client.get("/personality")
-    assert response.status_code == 200
-    assert "64 分支人格測試" in response.text
-    assert "id=\"personality-form\"" in response.text
-    assert "段落 1 / 6" in response.text
-    assert "返回" in response.text
-    assert "繼續" in response.text
-    assert "完成後產生結果" in response.text
-    assert "/static/personality.js" in response.text
+    for path in ["/reading", "/personality", "/effects-demo"]:
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/articles"
 
 
 def test_strategy_page_is_not_public() -> None:
@@ -111,17 +61,6 @@ def test_strategy_page_is_not_public() -> None:
     for path in ["/strategy", "/strategy.html"]:
         response = client.get(path)
         assert response.status_code == 404
-
-
-def test_effects_demo_page_serves_motion_lab() -> None:
-    client = TestClient(app)
-    response = client.get("/effects-demo")
-    assert response.status_code == 200
-    assert "三功能特效語言展示" in response.text
-    assert "data-scene=\"fortune\"" in response.text
-    assert "data-scene=\"personality\"" in response.text
-    assert "data-scene=\"tarot\"" in response.text
-    assert "/static/effects-demo.js" in response.text
 
 
 def test_articles_latest_hub_serves_collection_page() -> None:
@@ -136,8 +75,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "data-home-articles" in response.text
     assert "content-hub-grid" in response.text
     assert "href=\"/articles/personality/mbti-meaning\"" in response.text
-    assert "href=\"/reading\"" in response.text
-    assert "個人化解讀" in response.text
+    assert "href=\"/reading\"" not in response.text
+    assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
     assert "/static/styles.css?v=articles-hub-20260710-2" in response.text
     assert "/static/articles.js?v=articles-hub-20260710-2" in response.text
@@ -171,9 +110,9 @@ def test_article_urls_serve_article_template() -> None:
         assert "id=\"faq-jsonld\"" in response.text
         assert "aria-label=\"文章產品\"" in response.text
         assert "href=\"/articles/astro\"" in response.text
-        assert "href=\"/reading\"" in response.text
-        assert "個人化解讀" in response.text
-        assert "href=\"/personality\"" in response.text
+        assert "href=\"/reading\"" not in response.text
+        assert "href=\"/personality\"" not in response.text
+        assert "熱門文章" in response.text
         assert "aria-label=\"麵包屑\"" in response.text
         assert "aria-label=\"重點答案\"" in response.text
         assert "data-answer-summary" in response.text
@@ -293,9 +232,15 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "contains_article" in article_registry_js
     assert "has_tag" in article_registry_js
     assert "/ /articles 302" in redirects
-    assert "/reading /index.html 200" in redirects
+    assert "/reading /articles 302" in redirects
+    assert "/personality /articles 302" in redirects
+    assert "/effects-demo /articles 302" in redirects
+    assert "/index.html /articles 302" in redirects
+    assert "/personality.html /articles 302" in redirects
+    assert "/effects-demo.html /articles 302" in redirects
     assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
+    assert "/reading /index.html 200" not in redirects
     assert "/articles /article.html 200" not in redirects
     assert "/personality /personality.html 200" not in redirects
     assert "/strategy /strategy.html 200" not in redirects

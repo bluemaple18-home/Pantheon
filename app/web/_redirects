@@ -1,5 +1,10 @@
 / /articles 302
-/reading /index.html 200
+/reading /articles 302
+/personality /articles 302
+/effects-demo /articles 302
+/index.html /articles 302
+/personality.html /articles 302
+/effects-demo.html /articles 302
 /articles /articles 200
 /articles/* /article 200
 /robots.txt /robots.txt 200
