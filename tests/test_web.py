@@ -33,7 +33,9 @@ def test_home_serves_frontend() -> None:
     assert "<em aria-hidden=\"true\">64</em>" in response.text
     assert "<em aria-hidden=\"true\">XVII</em>" in response.text
     assert "<em aria-hidden=\"true\">星</em>" in response.text
-    assert "個人化命書工具" in response.text
+    assert "個人化解讀" in response.text
+    assert "個人化解讀工具" in response.text
+    assert "命書工具" not in response.text
     assert "id=\"destiny-tool\"" in response.text
     assert "基本資料" in response.text
     assert "命書報告" in response.text
@@ -43,8 +45,8 @@ def test_home_serves_frontend() -> None:
     assert "/strategy" not in response.text
     assert "64 分支人格測試" not in response.text
     assert "id=\"personality-form\"" not in response.text
-    assert "/static/styles.css?v=home-articles-20260710-3" in response.text
-    assert "/static/app.js?v=home-articles-20260710-3" in response.text
+    assert "/static/styles.css?v=home-articles-20260710-4" in response.text
+    assert "/static/app.js?v=home-articles-20260710-4" in response.text
 
 
 def test_personality_page_serves_standalone_frontend() -> None:
