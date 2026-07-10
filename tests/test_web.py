@@ -36,7 +36,8 @@ def test_home_serves_frontend() -> None:
     assert "/strategy" not in response.text
     assert "64 分支人格測試" not in response.text
     assert "id=\"personality-form\"" not in response.text
-    assert "/static/app.js" in response.text
+    assert "/static/styles.css?v=home-articles-20260710-2" in response.text
+    assert "/static/app.js?v=home-articles-20260710-2" in response.text
 
 
 def test_personality_page_serves_standalone_frontend() -> None:
