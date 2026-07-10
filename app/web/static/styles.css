@@ -501,13 +501,26 @@
   margin-top: 8px;
 }
 
-.article-placeholder {
+.article-body {
   max-width: 760px;
   padding: 20px 0;
   border-top: 1px solid var(--line);
 }
 
-.article-placeholder p {
+.article-body section {
+  display: grid;
+  gap: 10px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(31, 46, 42, 0.1);
+}
+
+.article-body h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.article-body p {
   margin: 0;
   color: var(--muted-ink);
   line-height: 1.75;
@@ -3874,7 +3887,7 @@ select:focus {
   position: relative;
   z-index: 1;
   margin: 0;
-  color: rgba(244, 234, 211, 0.66);
+  color: rgba(244, 234, 211, 0.78);
   font-size: 14px;
   line-height: 1.65;
 }

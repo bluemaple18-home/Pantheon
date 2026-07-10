@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js?v=article-hub-20260710-1";
-import { applyArticleSeo } from "./article-seo.js?v=article-hub-20260710-1";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-1";
+import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-1";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -16,6 +16,8 @@ const dom = {
   productThemeDescription: document.querySelector("[data-product-theme-description]"),
   articleTags: document.querySelector("[data-article-tags]"),
   answerText: document.querySelector("[data-answer-text]"),
+  articleBody: document.querySelector("[data-article-body]"),
+  articleFaq: document.querySelector("[data-article-faq]"),
   canonical: document.querySelector("link[rel='canonical']"),
   description: document.querySelector("meta[name='description']"),
   keywords: document.querySelector("meta[name='keywords']"),
@@ -57,6 +59,7 @@ function renderArticleChrome(content) {
   }
 
   dom.sectionDescription.textContent = content.sectionDescription;
+  dom.answerText.textContent = content.answer;
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
@@ -66,4 +69,38 @@ function renderArticleChrome(content) {
     item.textContent = tag;
     return item;
   }));
+  renderArticleBody(content);
+  renderArticleFaq(content);
+}
+
+function renderArticleBody(content) {
+  if (!dom.articleBody) return;
+  const blocks = content.bodySections.map((section) => {
+    const block = document.createElement("section");
+    const heading = document.createElement("h2");
+    heading.textContent = section.heading;
+    block.append(heading, ...section.paragraphs.map((text) => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = text;
+      return paragraph;
+    }));
+    return block;
+  });
+  dom.articleBody.replaceChildren(...blocks);
+}
+
+function renderArticleFaq(content) {
+  if (!dom.articleFaq) return;
+  const heading = document.createElement("h2");
+  heading.textContent = "常見問題";
+  const questions = content.faq.map((item) => {
+    const detail = document.createElement("details");
+    const summary = document.createElement("summary");
+    const answer = document.createElement("p");
+    summary.textContent = item.question;
+    answer.textContent = item.answer;
+    detail.append(summary, answer);
+    return detail;
+  });
+  dom.articleFaq.replaceChildren(heading, ...questions);
 }

@@ -85,6 +85,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     response = client.get("/articles")
     assert response.status_code == 200
     assert "最新文章 | Pantheon" in response.text
+    assert "MBTI、塔羅、命盤、星盤是什麼？先看白話答案" in response.text
+    assert "從 MBTI 是什麼、16 型人格、塔羅牌意思" in response.text
     assert "class=\"destiny-screen articles-hub-screen\"" in response.text
     assert "articles-hub-breadcrumb" in response.text
     assert "data-home-articles" in response.text
@@ -93,8 +95,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" in response.text
     assert "個人化解讀" in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
-    assert "/static/styles.css?v=articles-hub-20260710-1" in response.text
-    assert "/static/articles.js?v=articles-hub-20260710-1" in response.text
+    assert "/static/styles.css?v=articles-hub-20260710-2" in response.text
+    assert "/static/articles.js?v=articles-hub-20260710-2" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -131,6 +133,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "aria-label=\"重點答案\"" in response.text
         assert "data-answer-summary" in response.text
         assert "data-section-description" in response.text
+        assert "data-article-body" in response.text
         assert "data-article-tags" in response.text
         assert "aria-label=\"常見問題\"" in response.text
         assert "href=\"/articles\"" in response.text
@@ -139,7 +142,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css" in response.text
-        assert "/static/article.js?v=article-hub-20260710-1" in response.text
+        assert "/static/article.js?v=article-content-20260710-1" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -167,9 +170,17 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.productCrumb.href = content.productHref" in article_js
     assert "dom.articleTitle.textContent = content.title" in article_js
     assert "dom.titleCrumb.hidden = false" in article_js
+    assert "renderArticleBody(content)" in article_js
+    assert "renderArticleFaq(content)" in article_js
+    assert "bodySections: buildBodySections" in article_meta_js
+    assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "pickLatestArticles(listArticleRecords())" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
+    assert "SEARCH_SNIPPETS" in articles_js
+    assert "MBTI 用四組偏好組成 16 型人格" in articles_js
+    assert "塔羅牌意思先看 78 張牌的象徵" in articles_js
     assert ".articles-hub-breadcrumb" in styles_css
+    assert "color: rgba(244, 234, 211, 0.78)" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js

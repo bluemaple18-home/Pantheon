@@ -79,6 +79,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     keywords: managedArticle.keywords,
     tags: managedArticle.tags,
     answer: article?.answer || buildAnswer(route),
+    bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
     faq: article?.faq || [
       {
         question: "這篇文章適合誰閱讀？",
@@ -130,6 +131,96 @@ function buildAnswer(route) {
   if (route.intent) return `${route.intentLabel}文章會先整理搜尋者真正想解決的問題，再連到相關產品內容。`;
   if (route.product) return `${route.productLabel}文章會先整理核心概念，再連到相關主題與個人化工具。`;
   return "最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。";
+}
+
+function buildBodySections(route, article, section, intent, productTheme, managedArticle) {
+  if (route.slug && article) {
+    return buildArticleBody(article, productTheme, managedArticle);
+  }
+  if (route.intent) {
+    const label = intent?.label || route.intentLabel;
+    return [
+      {
+        heading: `${label}文章先看什麼？`,
+        paragraphs: [
+          `${label}相關搜尋通常不是只想看一個名詞，而是想知道現在遇到的問題可以從哪些角度理解。這個入口會整理人格、塔羅、命盤與星盤中和${label}有關的文章。`,
+          "公開文章適合先建立概念、看常見問題與限制；如果要做個人化判斷，仍需要回到具體資料與情境。",
+        ],
+      },
+    ];
+  }
+  if (route.product) {
+    return [
+      {
+        heading: `${productTheme.label}文章怎麼讀？`,
+        paragraphs: [
+          section?.description || `${productTheme.label}文章會先整理常見概念，再補充使用限制與延伸閱讀。`,
+          `建議先從「${section?.primaryKeyword || productTheme.label}」開始，再依照你真正想解決的問題往下閱讀。`,
+        ],
+      },
+    ];
+  }
+  return [
+    {
+      heading: "最新文章怎麼使用？",
+      paragraphs: [
+        "最新文章頁整理 Pantheon 已公開的命盤、人格、塔羅、星座與人生方向內容，適合先用搜尋問題找到一篇可讀答案。",
+        "公開文章只處理通用概念、適用情境與限制，不直接替任何人的人生、感情或工作下結論。",
+      ],
+    },
+  ];
+}
+
+function buildArticleBody(article, productTheme, managedArticle) {
+  const primary = article.primaryKeyword || article.title;
+  const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
+  const tagText = (article.originalTags?.length ? article.originalTags : managedArticle.tags).slice(0, 4).join("、");
+  return [
+    {
+      heading: buildDefinitionHeading(primary),
+      paragraphs: [
+        article.answer,
+        article.description,
+      ],
+    },
+    {
+      heading: `這篇文章會怎麼看 ${primary}？`,
+      paragraphs: [
+        `閱讀 ${primary} 時，先把它當成一個理解問題的入口，而不是最後答案。${productTheme.label}文章會先整理定義，再說明它通常能看什麼、不能直接代表什麼。`,
+        `如果你是從「${related}」這類搜尋進來，建議先確認你要問的是概念定義、使用方式、關係判斷，還是想把它套到自己的情境。`,
+      ],
+    },
+    {
+      heading: "常見誤解",
+      paragraphs: [
+        buildMisunderstandingParagraph(article, productTheme),
+        "公開文章可以幫你釐清語言與邏輯，但不應把單一名詞、牌義、宮位、星座或人格類型直接變成個人結論。",
+      ],
+    },
+    {
+      heading: "下一步可以讀什麼？",
+      paragraphs: [
+        tagText
+          ? `你可以沿著 ${tagText} 這幾個主題繼續閱讀，先把相關概念串起來。`
+          : `你可以沿著 ${productTheme.label} 的其他文章繼續閱讀，先把相關概念串起來。`,
+        "如果你要的是個人化判斷，文章只能當作背景知識；真正套用到個人情境時，仍需要明確問題、資料與限制。",
+      ],
+    },
+  ];
+}
+
+function buildDefinitionHeading(primary) {
+  if (/[？?]$/.test(primary)) return primary;
+  if (primary.includes("是什麼")) return primary;
+  return `${primary}是什麼？`;
+}
+
+function buildMisunderstandingParagraph(article, productTheme) {
+  if (article.product === "personality") return "人格類型適合描述偏好與互動模式，不適合拿來替一個人貼永久標籤，也不能取代心理診斷。";
+  if (article.product === "tarot") return "塔羅牌義適合先理解象徵和提醒，但不能只看單張牌就斷定感情、工作或人生結果。";
+  if (article.product === "astro") return "星盤與星座適合看傾向和主題，不能只用單一星座就推論一個人的完整樣貌。";
+  if (article.product === "fortune") return "命盤、八字或紫微適合整理人生主題與節奏，不適合被說成固定命運或保證結果。";
+  return `${productTheme.label}文章適合建立概念，但不能替代個人化判斷。`;
 }
 
 function humanizeSlug(value = "") {

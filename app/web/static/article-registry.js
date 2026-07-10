@@ -662,6 +662,7 @@ export function enforceArticlePolicy(article, section = null) {
     productTheme,
     intent,
     keywords,
+    originalTags: article?.tags || [],
     tags,
   };
 }
