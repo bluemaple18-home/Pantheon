@@ -142,7 +142,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-1" in response.text
-        assert "/static/article.js?v=article-content-20260710-2" in response.text
+        assert "/static/article.js?v=article-content-20260710-3" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -176,7 +176,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "displayTags: buildDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
-    assert "content.displayTags.map" in article_js
+    assert "content.displayTags || content.tags || []" in article_js
     assert "pickLatestArticles(listArticleRecords())" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
     assert "SEARCH_SNIPPETS" in articles_js
@@ -194,7 +194,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
-    assert "about: content.displayTags.map" in article_seo_js
+    assert "about: (content.displayTags || content.tags || []).map" in article_seo_js
     assert "\"@type\": \"Article\"" not in article_js
     assert "{ name: \"Pantheon\", item: `${origin}/articles` }" in article_seo_js
     assert "{ name: \"最新文章\", item: `${origin}/articles` }" in article_seo_js
