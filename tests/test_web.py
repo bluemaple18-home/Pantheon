@@ -141,7 +141,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-1" in response.text
         assert "/static/article.js?v=article-content-20260710-1" in response.text
 
 
@@ -181,6 +181,13 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "塔羅牌意思先看 78 張牌的象徵" in articles_js
     assert ".articles-hub-breadcrumb" in styles_css
     assert "color: rgba(244, 234, 211, 0.78)" in styles_css
+    assert '--article-page-bg:' in styles_css
+    assert '.article-screen[data-product-theme="fortune"]' in styles_css
+    assert '.article-screen[data-product-theme="personality"]' in styles_css
+    assert '.article-screen[data-product-theme="tarot"]' in styles_css
+    assert '.article-screen[data-product-theme="astro"]' in styles_css
+    assert '--article-header-bg:' in styles_css
+    assert '--article-panel-bg:' in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
