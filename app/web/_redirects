@@ -1,3 +1,5 @@
+/ /articles 302
+/reading /index.html 200
 /articles /article.html 200
 /articles/* /article.html 200
 /robots.txt /robots.txt 200

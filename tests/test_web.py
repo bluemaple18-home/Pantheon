@@ -4,9 +4,16 @@ from pathlib import Path
 from main import app
 
 
-def test_home_serves_frontend() -> None:
+def test_home_redirects_to_latest_articles() -> None:
     client = TestClient(app)
-    response = client.get("/")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/articles"
+
+
+def test_reading_page_serves_personalized_tool() -> None:
+    client = TestClient(app)
+    response = client.get("/reading")
     assert response.status_code == 200
     assert "Mystic Engine" in response.text
     assert "先讀懂問題，再決定要不要做個人化解讀" in response.text
@@ -79,6 +86,7 @@ def test_article_urls_serve_article_template() -> None:
         response = client.get(path)
         assert response.status_code == 200
         assert "data-article-header" in response.text
+        assert "最新文章" in response.text
         assert "ui-topbar" in response.text
         assert "ui-topbar-inner" in response.text
         assert "ui-page-shell" in response.text
@@ -98,6 +106,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "id=\"faq-jsonld\"" in response.text
         assert "aria-label=\"文章產品\"" in response.text
         assert "href=\"/articles/astro\"" in response.text
+        assert "href=\"/reading\"" in response.text
+        assert "個人化解讀" in response.text
         assert "href=\"/personality\"" in response.text
         assert "aria-label=\"麵包屑\"" in response.text
         assert "aria-label=\"重點答案\"" in response.text
@@ -110,7 +120,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/article.js" in response.text
+        assert "/static/article.js?v=article-hub-20260710-1" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -134,11 +144,15 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.productThemeGlyph.textContent = content.productThemeGlyph" in article_js
     assert "item.className = \"ui-chip\"" in article_js
     assert "dom.productCrumb.href = content.productHref" in article_js
+    assert "dom.articleTitle.textContent = content.title" in article_js
+    assert "dom.titleCrumb.hidden = false" in article_js
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
     assert "about: content.tags.map" in article_seo_js
     assert "\"@type\": \"Article\"" not in article_js
+    assert "{ name: \"Pantheon\", item: `${origin}/articles` }" in article_seo_js
+    assert "{ name: \"最新文章\", item: `${origin}/articles` }" in article_seo_js
     assert "export function applyArticleSeo" in article_seo_js
     assert "\"@type\": \"Article\"" in article_seo_js
     assert "\"@type\": \"BreadcrumbList\"" in article_seo_js
@@ -169,6 +183,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "export function buildArticleGraph" in article_registry_js
     assert "contains_article" in article_registry_js
     assert "has_tag" in article_registry_js
+    assert "/ /articles 302" in redirects
+    assert "/reading /index.html 200" in redirects
     assert "/articles /article.html 200" in redirects
     assert "/articles/* /article.html 200" in redirects
     assert "/personality /personality.html 200" not in redirects
@@ -211,6 +227,7 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "Sitemap: https://mysticpantheon.com/sitemap.xml" in robots.text
     assert sitemap.status_code == 200
     assert "https://mysticpantheon.com/articles" in sitemap.text
+    assert "https://mysticpantheon.com/</loc>" not in sitemap.text
     assert "https://mysticpantheon.com/articles/fortune" in sitemap.text
     assert "https://mysticpantheon.com/articles/personality" in sitemap.text
     assert "https://mysticpantheon.com/articles/astro" in sitemap.text

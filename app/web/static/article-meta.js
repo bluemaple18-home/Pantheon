@@ -8,6 +8,7 @@ import {
 
 export function buildArticleContent(pathname, origin, defaults = {}) {
   const route = parseArticleRoute(pathname);
+  const isLatestHub = !route.product && !route.slug && !route.intent;
   const intent = route.intent ? getLifeIntentRecord(route.intent) : null;
   const article = route.product && route.slug ? getArticleRecord(route.product, route.slug) : null;
   const section = article ? getArticleSectionRecord(article.section) : getArticleSectionRecord(route.product);
@@ -26,7 +27,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       ? `${intent?.label || route.intentLabel}文章 | Pantheon`
       : route.product
       ? `${productThemeRecord.label}文章 | Pantheon`
-      : "文章 | Pantheon";
+      : "最新文章 | Pantheon";
   const description = buildDescription(route, article, section, intent, productThemeRecord);
   const updated = defaults.updated || new Date().toISOString().slice(0, 10);
   const author = defaults.author || "Pantheon 編輯部";
@@ -39,14 +40,20 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     secondaryKeywords: article?.secondaryKeywords || [],
     tags: article?.tags || [],
   }, section);
-  const productTheme = getProductThemeRecord(managedArticle.productTheme);
+  const productTheme = isLatestHub
+    ? {
+      label: "最新文章",
+      glyph: "文",
+      description: "Pantheon 最新文章入口，整理命盤、人格、塔羅、星座與人生方向主題。",
+    }
+    : getProductThemeRecord(managedArticle.productTheme);
   const displayTitle = route.slug
     ? title
     : route.intent
       ? `${intent?.label || route.intentLabel}文章`
       : route.product
         ? `${productTheme.label}文章`
-        : "文章";
+        : "最新文章";
   return {
     title: displayTitle,
     pageTitle,
@@ -64,7 +71,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     updated,
     published: defaults.published || updated,
     sectionDescription: buildSectionDescription(route, section, intent, productTheme),
-    productTheme: managedArticle.productTheme,
+    productTheme: isLatestHub ? "latest" : managedArticle.productTheme,
     productThemeLabel: productTheme.label,
     productThemeGlyph: productTheme.glyph,
     productThemeDescription: productTheme.description,
@@ -108,21 +115,21 @@ function buildDescription(route, article, section, intent, productTheme) {
   if (route.slug) return `${route.title}：Pantheon 以繁體中文整理${productTheme.label}主題，提供清楚摘要、背景脈絡與延伸閱讀。`;
   if (route.intent) return `Pantheon ${intent?.label || route.intentLabel}文章主題入口，整理相關問題、產品脈絡與延伸閱讀。`;
   if (route.product) return section?.seoDescription || `Pantheon ${productTheme.label}文章列表，整理基礎概念、常見問題與延伸閱讀。`;
-  return "Pantheon 文章頁，整理命理、人格與人生決策主題。";
+  return "Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。";
 }
 
 function buildSectionDescription(route, section, intent, productTheme) {
   if (route.intent) return `${intent?.label || route.intentLabel}文章會作為搜尋意圖入口，再連回對應產品文章與工具。`;
   if (route.product && section?.description) return section.description;
   if (route.product) return `${productTheme.label}文章列表，整理基礎概念、常見問題與延伸閱讀。`;
-  return "集中整理 Pantheon 的命理、人格、塔羅、星座與人生主題文章。";
+  return "最新文章入口，集中整理命盤、人格、塔羅、星座與人生方向主題。";
 }
 
 function buildAnswer(route) {
   if (route.slug) return `${route.title} 的重點會先用短摘要回答，再補充適用情境、限制與下一步閱讀。`;
   if (route.intent) return `${route.intentLabel}文章會先整理搜尋者真正想解決的問題，再連到相關產品內容。`;
   if (route.product) return `${route.productLabel}文章會先整理核心概念，再連到相關主題與個人化工具。`;
-  return "Pantheon 文章頁會把命理、人格與人生方向主題整理成可搜尋、可引用、可延伸的內容。";
+  return "最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。";
 }
 
 function humanizeSlug(value = "") {

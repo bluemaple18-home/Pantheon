@@ -16,15 +16,16 @@ export function applyArticleSeo(content, dom, origin) {
 
 export function buildBreadcrumbJsonLd(content, origin) {
   const items = [
-    { name: "首頁", item: `${origin}/` },
-    { name: "文章", item: `${origin}/articles` },
+    { name: "Pantheon", item: `${origin}/articles` },
+    { name: "最新文章", item: `${origin}/articles` },
   ];
-  if (content.category) {
+  if (content.productCrumb) {
     items.push({
-      name: content.categoryLabel,
-      item: `${origin}/articles/${content.category}`,
+      name: content.slug ? content.productCrumbLabel : content.title,
+      item: content.productHref.startsWith("http") ? content.productHref : `${origin}${content.productHref}`,
     });
   }
+  if (content.intent && !content.slug) items.push({ name: content.title, item: content.canonicalUrl });
   if (content.slug) {
     items.push({ name: content.title, item: content.canonicalUrl });
   }
@@ -60,7 +61,7 @@ export function buildArticleJsonLd(content, origin) {
       name: "Pantheon",
       url: `${origin}/`,
     },
-    articleSection: content.categoryLabel,
+    articleSection: content.productThemeLabel,
     keywords: content.keywords.join(", "),
     about: content.tags.map((tag) => ({
       "@type": "Thing",

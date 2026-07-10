@@ -2,7 +2,7 @@ from app.api.routes import router
 from app.core.config import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
@@ -26,7 +26,11 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 
     @app.get("/", include_in_schema=False)
-    def home() -> FileResponse:
+    def home() -> RedirectResponse:
+        return RedirectResponse(url="/articles", status_code=302)
+
+    @app.get("/reading", include_in_schema=False)
+    def reading_page() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
 
     @app.get("/personality", include_in_schema=False)

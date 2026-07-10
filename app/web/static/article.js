@@ -1,5 +1,5 @@
-import { buildArticleContent } from "./article-meta.js";
-import { applyArticleSeo } from "./article-seo.js";
+import { buildArticleContent } from "./article-meta.js?v=article-hub-20260710-1";
+import { applyArticleSeo } from "./article-seo.js?v=article-hub-20260710-1";
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -40,19 +40,20 @@ applyArticleSeo(content, dom, window.location.origin);
 function renderArticleChrome(content) {
   document.body.dataset.productTheme = content.productTheme;
   document.body.dataset.intent = content.intent;
+  dom.articleTitle.textContent = content.title;
+  dom.titleCrumb.textContent = content.title;
+  dom.articleProduct.textContent = content.productCrumbLabel;
 
   if (content.productCrumb) {
     dom.productCrumb.hidden = false;
     dom.productSeparator.hidden = false;
-    dom.productCrumb.textContent = content.productCrumbLabel;
+    dom.productCrumb.textContent = content.slug ? content.productCrumbLabel : content.title;
     dom.productCrumb.href = content.productHref;
-    dom.articleProduct.textContent = content.productCrumbLabel;
   }
 
-  if (content.slug) {
+  if (content.slug || content.intent) {
     dom.titleSeparator.hidden = false;
-    dom.titleCrumb.textContent = content.title;
-    dom.articleTitle.textContent = content.title;
+    dom.titleCrumb.hidden = false;
   }
 
   dom.sectionDescription.textContent = content.sectionDescription;
