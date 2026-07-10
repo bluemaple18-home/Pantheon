@@ -88,8 +88,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
-    assert "/static/styles.css?v=articles-hub-20260710-4" in response.text
-    assert "/static/articles.js?v=articles-hub-20260710-3" in response.text
+    assert "/static/styles.css?v=articles-hub-20260710-logo-2" in response.text
+    assert "/static/articles.js?v=articles-hub-20260710-logo-2" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -136,7 +136,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-4" in response.text
-        assert "/static/article.js?v=article-content-20260710-9" in response.text
+        assert "/static/article.js?v=article-content-20260710-10" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:

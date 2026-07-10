@@ -4756,6 +4756,15 @@ select:focus {
     overflow-x: hidden;
   }
 
+  .articles-hub-screen .app-topbar {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .articles-hub-screen .topbar-actions {
+    justify-content: flex-start;
+  }
+
   .personality-screen,
   .personality-screen .app-shell {
     width: 100%;
@@ -4806,6 +4815,7 @@ select:focus {
   .content-hero-copy h2 {
     font-size: 36px;
     line-height: 1.08;
+    overflow-wrap: anywhere;
   }
 
   .content-hero-copy p {

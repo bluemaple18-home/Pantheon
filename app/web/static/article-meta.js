@@ -8,7 +8,7 @@ import {
   getTopicForLabel,
   getTopicRecord,
   listArticlesForTopic,
-} from "./article-registry.js";
+} from "./article-registry.js?v=article-content-20260710-10";
 
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
