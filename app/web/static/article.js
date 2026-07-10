@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-14";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-16";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
@@ -216,13 +216,24 @@ function renderArticleFaq(content) {
 }
 
 function renderArticleRelated(content) {
-  if (!dom.articleRelated || !content.relatedLinks?.length) return;
+  if (!dom.articleRelated || (!content.navigationLinks?.length && !content.relatedLinks?.length)) return;
   dom.articleRelated.hidden = false;
   const heading = document.createElement("h2");
+  const groups = [];
   heading.textContent = "延伸閱讀";
+  if (content.navigationLinks?.length) {
+    groups.push(renderArticleLinkList(content.navigationLinks, "article-navigation-list"));
+  }
+  if (content.relatedLinks?.length) {
+    groups.push(renderArticleLinkList(content.relatedLinks, "article-link-list"));
+  }
+  dom.articleRelated.replaceChildren(heading, ...groups);
+}
+
+function renderArticleLinkList(items, className) {
   const list = document.createElement("ul");
-  list.className = "article-link-list";
-  content.relatedLinks.forEach((item) => {
+  list.className = className;
+  items.forEach((item) => {
     const link = document.createElement("a");
     const meta = document.createElement("span");
     const row = document.createElement("li");
@@ -232,7 +243,7 @@ function renderArticleRelated(content) {
     row.append(link, meta);
     list.append(row);
   });
-  dom.articleRelated.replaceChildren(heading, list);
+  return list;
 }
 
 function renderArticleCta(content) {

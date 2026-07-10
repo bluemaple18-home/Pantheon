@@ -7,6 +7,7 @@ import {
   getProductThemeRecord,
   getTopicForLabel,
   getTopicRecord,
+  listArticleRecords,
   listArticlesForTopic,
 } from "./article-registry.js?v=article-content-20260710-10";
 
@@ -396,6 +397,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     answer: article?.answer || buildAnswer(route),
     bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
     faq: buildArticleFaq(route, article, productTheme),
+    navigationLinks: buildArticleNavigationLinks(article),
     relatedLinks: buildRelatedLinks(article, managedArticle, productTheme, route),
     cta: buildArticleCta(article, productTheme, route),
   };
@@ -1123,61 +1125,102 @@ function buildRelatedLinks(article, managedArticle, productTheme, route = {}) {
     { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "情境入口" },
     { label: "人生方向文章入口", href: "/articles/intents/life", kind: "情境入口" },
   ];
-  const sameProduct = getRelatedArticleLinks(article.product)
+  const recommendedArticles = getRecommendedArticleLinks(article)
     .filter((item) => item.href !== currentPath && item.href !== `/articles/${article.product}/${article.slug}`)
-    .slice(0, 3);
+    .slice(0, 4);
   const crossProduct = article.product === "personality"
     ? [
-      { label: "tarot-0001 塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "跨分類" },
+      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "跨分類" },
       { label: "人生方向文章入口", href: "/articles/intents/life", kind: "跨分類" },
     ]
     : [
-      { label: "personality-0001 MBTI 是什麼", href: "/articles/personality/personality-0001", kind: "跨分類" },
+      { label: "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看", href: "/articles/personality/personality-0001", kind: "跨分類" },
       { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "跨分類" },
     ];
-  return uniqueLinks([...productLinks, ...sameProduct, ...crossProduct]).slice(0, 8);
+  return uniqueLinks([...productLinks, ...recommendedArticles, ...crossProduct]).slice(0, 8);
 }
 
 function getRelatedArticleLinks(product) {
-  if (product === "personality") {
-    return [
-      { label: "personality-0001 MBTI 是什麼", href: "/articles/personality/personality-0001", kind: "同分類" },
-      { label: "personality-0002 16 型人格完整整理", href: "/articles/personality/personality-0002", kind: "同分類" },
-      { label: "personality-0003 MBTI 測驗前先知道", href: "/articles/personality/personality-0003", kind: "同分類" },
-      { label: "personality-0004 MBTI 準嗎", href: "/articles/personality/personality-0004", kind: "同分類" },
-      { label: "personality-0005 INTJ 是什麼", href: "/articles/personality/personality-0005", kind: "同分類" },
-      { label: "personality-0006 INFP 是什麼", href: "/articles/personality/personality-0006", kind: "同分類" },
-    ];
-  }
-  if (product === "tarot") {
-    return [
-      { label: "tarot-0001 塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "同分類" },
-      { label: "tarot-0002 塔羅牌正位逆位", href: "/articles/tarot/tarot-0002", kind: "同分類" },
-      { label: "tarot-0003 愚者牌意思", href: "/articles/tarot/tarot-0003", kind: "同分類" },
-      { label: "tarot-0004 魔術師牌意思", href: "/articles/tarot/tarot-0004", kind: "同分類" },
-      { label: "tarot-0005 戀人牌意思", href: "/articles/tarot/tarot-0005", kind: "同分類" },
-      { label: "tarot-0006 死神牌意思", href: "/articles/tarot/tarot-0006", kind: "同分類" },
-    ];
-  }
-  if (product === "fortune") {
-    return [
-      { label: "fortune-0001 命盤是什麼", href: "/articles/fortune/fortune-0001", kind: "同分類" },
-      { label: "fortune-0002 八字是什麼", href: "/articles/fortune/fortune-0002", kind: "同分類" },
-      { label: "fortune-0003 紫微斗數是什麼", href: "/articles/fortune/fortune-0003", kind: "同分類" },
-      { label: "fortune-0004 命宮是什麼", href: "/articles/fortune/fortune-0004", kind: "同分類" },
-      { label: "fortune-0005 夫妻宮是什麼", href: "/articles/fortune/fortune-0005", kind: "同分類" },
-      { label: "fortune-0006 財帛宮是什麼", href: "/articles/fortune/fortune-0006", kind: "同分類" },
-    ];
-  }
-  if (product === "astro") {
-    return [
-      { label: "astrology-0001 星盤是什麼", href: "/articles/astrology/astrology-0001", kind: "同分類" },
-      { label: "astrology-0002 上升星座是什麼", href: "/articles/astrology/astrology-0002", kind: "同分類" },
-      { label: "astrology-0003 月亮星座是什麼", href: "/articles/astrology/astrology-0003", kind: "同分類" },
-      { label: "love-0001 感情塔羅怎麼問", href: "/articles/love/love-0001", kind: "跨分類" },
-    ];
-  }
-  return [];
+  const articles = listArticleRecords()
+    .filter((item) => item.product === product || item.articleCategory === product)
+    .sort(compareArticleSerial);
+  if (!articles.length) return [];
+  return articles.map((item) => ({
+    label: item.title,
+    href: getArticlePath(item),
+    kind: "同分類",
+  }));
+}
+
+function buildArticleNavigationLinks(article) {
+  if (!article) return [];
+  const siblings = listArticleRecords()
+    .filter((item) => item.articleCategory === article.articleCategory)
+    .sort(compareArticleSerial);
+  const index = siblings.findIndex((item) => item.serial === article.serial);
+  if (index === -1) return [];
+  return [
+    siblings[index - 1]
+      ? { label: siblings[index - 1].title, href: getArticlePath(siblings[index - 1]), kind: "上一篇" }
+      : null,
+    siblings[index + 1]
+      ? { label: siblings[index + 1].title, href: getArticlePath(siblings[index + 1]), kind: "下一篇" }
+      : null,
+  ].filter(Boolean);
+}
+
+function getRecommendedArticleLinks(article) {
+  if (!article) return [];
+  const currentPath = getArticlePath(article);
+  return listArticleRecords()
+    .filter((candidate) => getArticlePath(candidate) !== currentPath)
+    .map((candidate) => ({
+      article: candidate,
+      score: scoreRelatedArticle(article, candidate),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || compareArticleSerial(a.article, b.article))
+    .map(({ article: candidate }) => ({
+      label: candidate.title,
+      href: getArticlePath(candidate),
+      kind: "相關文章",
+    }));
+}
+
+function scoreRelatedArticle(article, candidate) {
+  const sourceTopics = new Set(getArticleTopicSlugs(article));
+  const candidateTopics = new Set(getArticleTopicSlugs(candidate));
+  const sharedTopicCount = [...sourceTopics].filter((topic) => candidateTopics.has(topic)).length;
+  const sourceTerms = new Set(getArticleSearchTerms(article));
+  const candidateTerms = new Set(getArticleSearchTerms(candidate));
+  const sharedTermCount = [...sourceTerms].filter((term) => candidateTerms.has(term)).length;
+  let score = 0;
+  score += sharedTopicCount * 8;
+  score += sharedTermCount * 2;
+  if (article.articleCategory === candidate.articleCategory) score += 4;
+  if (article.product === candidate.product) score += 3;
+  if (article.intent && article.intent === candidate.intent) score += 3;
+  if (article.section === candidate.section) score += 2;
+  return score;
+}
+
+function getArticleTopicSlugs(article) {
+  return getArticleSearchTerms(article)
+    .map((term) => getTopicForLabel(term)?.slug)
+    .filter(Boolean);
+}
+
+function getArticleSearchTerms(article) {
+  return uniqueList([
+    article.primaryKeyword,
+    ...(article.secondaryKeywords || []),
+    ...(article.originalTags || []),
+    ...(article.tags || []),
+  ]);
+}
+
+function compareArticleSerial(a, b) {
+  return String(a.serial || "").localeCompare(String(b.serial || ""), "en", { numeric: true });
 }
 
 function uniqueLinks(items = []) {

@@ -572,6 +572,20 @@ a.ui-chip:hover {
   list-style: none;
 }
 
+.article-navigation-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--article-line);
+  list-style: none;
+}
+
+.article-navigation-list + .article-link-list {
+  padding-top: 4px;
+}
+
+.article-navigation-list li,
 .article-link-list li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -581,12 +595,18 @@ a.ui-chip:hover {
   border-top: 1px solid var(--article-line);
 }
 
+.article-navigation-list li:first-child {
+  border-top: 0;
+}
+
+.article-navigation-list a,
 .article-link-list a {
   color: var(--article-text);
   font-weight: 820;
   line-height: 1.45;
 }
 
+.article-navigation-list span,
 .article-link-list span {
   color: var(--article-accent);
   font-size: 12px;

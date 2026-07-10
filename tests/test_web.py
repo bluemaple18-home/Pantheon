@@ -136,8 +136,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-5" in response.text
-        assert "/static/article.js?v=article-content-20260710-14" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-6" in response.text
+        assert "/static/article.js?v=article-content-20260710-16" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -171,6 +171,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "renderArticleFaq(content)" in article_js
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
+    assert "content.navigationLinks" in article_js
+    assert "article-navigation-list" in article_js
     assert "INLINE_TOPIC_MAX_LINKS = 8" in article_js
     assert "buildInlineTopicState(content)" in article_js
     assert "buildInlineTermsFromTag(tag)" in article_js
@@ -184,6 +186,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
     assert "buildRelatedLinks(article, managedArticle, productTheme, route)" in article_meta_js
+    assert "getRecommendedArticleLinks(article)" in article_meta_js
+    assert "scoreRelatedArticle(article, candidate)" in article_meta_js
+    assert "sharedTopicCount * 8" in article_meta_js
     assert "buildArticleCta(article, productTheme, route)" in article_meta_js
     assert "\"mbti-meaning\"" in article_meta_js
     assert "\"magician-card-meaning\"" in article_meta_js
@@ -217,6 +222,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-header-bg:' in styles_css
     assert '--article-panel-bg:' in styles_css
     assert ".article-related" in styles_css
+    assert ".article-navigation-list" in styles_css
     assert ".article-cta-actions" in styles_css
     assert ".article-inline-topic-link" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
@@ -356,6 +362,10 @@ const canonical = buildArticleContent("/articles/interpersonal/interpersonal-000
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
+const sequenceArticle = buildArticleContent("/articles/personality/personality-0002", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
 const topic = buildArticleContent("/topics/mbti", "https://mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
@@ -366,7 +376,13 @@ console.log(JSON.stringify({
     title: canonical.title,
     serial: canonical.serial,
     canonicalPath: canonical.canonicalPath,
+    relatedLabels: canonical.relatedLinks.map((item) => item.label),
     tagHref: canonical.displayTagLinks.find((tag) => tag.label === "人際關係")?.href,
+  },
+  sequenceArticle: {
+    navigationLinks: sequenceArticle.navigationLinks,
+    relatedLabels: sequenceArticle.relatedLinks.map((item) => item.label),
+    relatedKinds: sequenceArticle.relatedLinks.map((item) => item.kind),
   },
   topic: {
     title: topic.title,
@@ -388,6 +404,10 @@ console.log(JSON.stringify({
     assert data["legacy"] == {"redirectTo": "/articles/interpersonal/interpersonal-0001"}
     assert data["canonical"]["serial"] == "interpersonal-0001"
     assert data["canonical"]["canonicalPath"] == "/articles/interpersonal/interpersonal-0001"
+    assert [item["kind"] for item in data["sequenceArticle"]["navigationLinks"]] == ["上一篇", "下一篇"]
+    assert not any("000" in label for label in data["canonical"]["relatedLabels"])
+    assert not any("000" in label for label in data["sequenceArticle"]["relatedLabels"])
+    assert "相關文章" in data["sequenceArticle"]["relatedKinds"]
     assert data["canonical"]["tagHref"] == "/topics/interpersonal"
     assert data["topic"]["canonicalPath"] == "/topics/mbti"
     assert data["topic"]["title"] == "MBTI 相關文章"
