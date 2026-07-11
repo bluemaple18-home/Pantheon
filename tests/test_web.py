@@ -136,7 +136,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-7" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-8" in response.text
         assert "/static/article.js?v=article-content-20260710-19" in response.text
 
 
@@ -232,7 +232,14 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '.article-screen[data-product-theme="astro"]' in styles_css
     assert '--article-header-bg:' in styles_css
     assert '--article-panel-bg:' in styles_css
+    assert "[hidden] {\n  display: none !important;" in styles_css
     assert ".article-related" in styles_css
+    assert "grid-template-columns: minmax(0, 760px) minmax(240px, 320px)" in styles_css
+    assert "grid-column: 2;" in styles_css
+    assert "position: sticky;" in styles_css
+    assert "border-left: 1px solid var(--article-line)" in styles_css
+    assert ".article-sequence {\n  display: block;" in styles_css
+    assert "background: transparent;" in styles_css
     assert ".article-sequence-actions" in styles_css
     assert ".article-sequence-button" in styles_css
     assert ".article-cta-actions" in styles_css

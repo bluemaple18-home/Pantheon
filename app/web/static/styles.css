@@ -380,13 +380,17 @@ a.ui-chip:hover {
 
 .article-page {
   display: grid;
-  gap: 22px;
+  grid-template-columns: minmax(0, 760px) minmax(240px, 320px);
+  column-gap: 32px;
+  row-gap: 22px;
+  align-items: start;
 }
 
 .article-page-header {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: minmax(0, 760px) minmax(240px, 320px);
-  gap: 8px;
+  gap: 32px;
   align-items: stretch;
   max-width: 100%;
 }
@@ -525,11 +529,32 @@ a.ui-chip:hover {
 .article-cta {
   display: grid;
   gap: 12px;
-  max-width: 760px;
   padding: 18px 20px;
   border: 1px solid rgba(var(--article-accent-rgb), 0.16);
   border-radius: 8px;
   background: var(--article-panel-bg);
+}
+
+.article-answer-summary,
+.article-body,
+.article-sequence,
+.article-faq,
+.article-cta {
+  grid-column: 1;
+  width: 100%;
+}
+
+.article-related {
+  grid-column: 2;
+  grid-row: 2 / span 4;
+  position: sticky;
+  top: 92px;
+  width: 100%;
+  padding: 0 0 0 18px;
+  border: 0;
+  border-left: 1px solid var(--article-line);
+  border-radius: 0;
+  background: transparent;
 }
 
 .article-answer-summary h2,
@@ -595,29 +620,35 @@ a.ui-chip:hover {
 }
 
 .article-sequence {
-  padding: 16px;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .article-sequence-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 18px;
+  border-top: 1px solid var(--article-line);
+  border-bottom: 1px solid var(--article-line);
 }
 
 .article-sequence-button,
 .article-sequence-placeholder {
-  min-height: 86px;
+  min-height: 44px;
 }
 
 .article-sequence-button {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid var(--article-line);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--article-panel-bg) 72%, transparent);
+  gap: 4px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--article-text);
   text-decoration: none;
 }
@@ -635,7 +666,7 @@ a.ui-chip:hover {
 
 .article-sequence-button strong {
   color: var(--article-text);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -652,7 +683,6 @@ a.ui-chip:hover {
 }
 
 .article-body {
-  max-width: 760px;
   padding: 20px 0;
   border-top: 1px solid var(--article-line);
 }
@@ -1808,6 +1838,10 @@ body {
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 button,
@@ -5271,6 +5305,31 @@ select:focus {
   .node-share::after {
     content: "回到 01 外部曝光，也回到 Discord 每日儀式";
     color: var(--jade);
+  }
+}
+
+@media (max-width: 980px) {
+  .article-page {
+    grid-template-columns: 1fr;
+  }
+
+  .article-page-header,
+  .article-answer-summary,
+  .article-body,
+  .article-sequence,
+  .article-faq,
+  .article-related,
+  .article-cta {
+    grid-column: 1;
+  }
+
+  .article-related {
+    grid-row: auto;
+    position: static;
+    padding: 18px 20px;
+    border: 1px solid rgba(var(--article-accent-rgb), 0.16);
+    border-radius: 8px;
+    background: var(--article-panel-bg);
   }
 }
 
