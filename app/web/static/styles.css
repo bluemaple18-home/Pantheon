@@ -4241,17 +4241,17 @@ select:focus {
 .orbitTrack {
   fill: none;
   vector-effect: non-scaling-stroke;
-  stroke: rgb(48 40 27 / 0.5);
-  stroke-width: 1.25;
+  stroke: rgb(198 161 91 / 0.8);
+  stroke-width: 1.5;
 }
 
 .middleTrack {
-  stroke: rgb(59 48 30 / 0.42);
+  stroke: rgb(178 145 83 / 0.72);
   stroke-dasharray: 2 7 20 7;
 }
 
 .innerTrack {
-  stroke: rgb(59 48 30 / 0.38);
+  stroke: rgb(214 174 96 / 0.68);
   stroke-dasharray: 1 6;
 }
 
