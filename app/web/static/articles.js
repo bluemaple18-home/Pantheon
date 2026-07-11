@@ -1,8 +1,10 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=articles-hub-20260711-motion-logo-2";
-import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-motion-logo-2";
-import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-motion-logo-2";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=articles-hub-20260711-balanced-1";
+import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-balanced-1";
+import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-balanced-1";
 
-const articleGrid = document.querySelector("[data-home-articles]");
+export const ARTICLE_HUB_DISPLAY_LIMIT = 12;
+
+const articleGrid = typeof document === "undefined" ? null : document.querySelector("[data-home-articles]");
 const SEARCH_SNIPPETS = {
   "mbti-meaning": "MBTI 用四組偏好組成 16 型人格，常用來理解自我、溝通和工作模式，但不能當心理診斷。",
   "16-personalities": "16 型人格整理每一型常見特質、感情、人際和工作傾向，適合先建立快速對照。",
@@ -18,9 +20,11 @@ const SEARCH_SNIPPETS = {
   "birth-chart-astrology": "星盤用行星、宮位和星座看性格與生命主題，不能只看太陽星座就下結論。",
 };
 
-renderLatestArticles();
-initPantheonAnimatedLogos();
-initPantheonMotionVisuals();
+if (typeof document !== "undefined") {
+  renderLatestArticles();
+  initPantheonAnimatedLogos();
+  initPantheonMotionVisuals();
+}
 
 function renderLatestArticles() {
   if (!articleGrid) return;
@@ -59,6 +63,23 @@ function renderLatestArticles() {
   }));
 }
 
-function pickLatestArticles(articles) {
-  return articles.slice(0, 12);
+export function pickLatestArticles(articles) {
+  return pickBalancedArticles(articles, ARTICLE_HUB_DISPLAY_LIMIT);
+}
+
+export function pickBalancedArticles(articles, limit = ARTICLE_HUB_DISPLAY_LIMIT) {
+  const buckets = new Map();
+  articles.forEach((article) => {
+    const key = article.articleCategory || article.section || article.product;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(article);
+  });
+
+  const selected = [];
+  while (selected.length < limit && [...buckets.values()].some((bucket) => bucket.length)) {
+    buckets.forEach((bucket) => {
+      if (selected.length < limit && bucket.length) selected.push(bucket.shift());
+    });
+  }
+  return selected;
 }

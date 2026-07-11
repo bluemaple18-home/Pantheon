@@ -117,8 +117,63 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
     assert "/static/styles.css?v=articles-hub-20260711-motion-logo-3" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-motion-logo-2" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-balanced-1" in response.text
     assert "id=\"birth-form\"" not in response.text
+
+
+def test_articles_hub_uses_balanced_display_order() -> None:
+    script = """
+import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+import { ARTICLE_HUB_DISPLAY_LIMIT, pickLatestArticles } from "./app/web/static/articles.js";
+
+const selected = pickLatestArticles(listArticleRecords());
+const records = selected.map((article) => ({
+  path: getArticlePath(article),
+  category: article.articleCategory,
+}));
+console.log(JSON.stringify({
+  limit: ARTICLE_HUB_DISPLAY_LIMIT,
+  records,
+  adjacentSameCategory: records.some((record, index) => index > 0 && record.category === records[index - 1].category),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["limit"] == 12
+    assert [record["category"] for record in data["records"]] == [
+        "personality",
+        "tarot",
+        "fortune",
+        "astrology",
+        "love",
+        "career",
+        "interpersonal",
+        "wealth",
+        "life-direction",
+        "personality",
+        "tarot",
+        "fortune",
+    ]
+    assert [record["path"] for record in data["records"]] == [
+        "/articles/personality/personality-0001",
+        "/articles/tarot/tarot-0001",
+        "/articles/fortune/fortune-0001",
+        "/articles/astrology/astrology-0001",
+        "/articles/love/love-0001",
+        "/articles/career/career-0001",
+        "/articles/interpersonal/interpersonal-0001",
+        "/articles/wealth/wealth-0001",
+        "/articles/life-direction/life-direction-0001",
+        "/articles/personality/personality-0002",
+        "/articles/tarot/tarot-0002",
+        "/articles/fortune/fortune-0002",
+    ]
+    assert data["adjacentSameCategory"] is False
 
 
 def test_article_urls_serve_article_template() -> None:
@@ -245,10 +300,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "getTopicForLabel" in article_meta_js
     assert "buildTopicContent(route, topic" in article_meta_js
     assert "pickLatestArticles(listArticleRecords())" in articles_js
+    assert "pickBalancedArticles(articles, ARTICLE_HUB_DISPLAY_LIMIT)" in articles_js
     assert "getArticlePath(article)" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
     assert "initPantheonMotionVisuals()" in articles_js
-    assert "pantheon-motion-visual.js?v=articles-hub-20260711-motion-logo-2" in articles_js
+    assert "pantheon-motion-visual.js?v=articles-hub-20260711-balanced-1" in articles_js
     assert "mask-image: none;" in styles_css
     assert "-webkit-mask-image: none;" in styles_css
     assert "SEARCH_SNIPPETS" in articles_js
