@@ -102,14 +102,25 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     response = client.get("/articles")
     assert response.status_code == 200
     assert "最新文章 | Pantheon" in response.text
-    assert "MBTI、塔羅、命盤、星盤" in response.text
-    assert "是什麼？先看白話答案" in response.text
-    assert "從 MBTI 是什麼、16 型人格、塔羅牌意思" in response.text
+    assert "感情、工作、人際卡住" in response.text
+    assert "先找一篇能回答的文章" in response.text
+    assert "文章會先回答讀者正在煩惱的感情、工作、人際、財富與人生方向問題" in response.text
+    assert "曖昧沒進展" in response.text
+    assert "適合轉職嗎" in response.text
+    assert "存不住錢" in response.text
     assert "class=\"destiny-screen articles-hub-screen\"" in response.text
     assert "articles-hub-breadcrumb" in response.text
     assert "data-home-articles" in response.text
     assert "content-hub-grid" in response.text
-    assert "href=\"/articles/personality/personality-0001\"" in response.text
+    assert "工作、財富與安全感卡住時怎麼整理" in response.text
+    assert "相處很累、溝通不順與自我懷疑" in response.text
+    assert "曖昧、復合、等待與下一步怎麼辦" in response.text
+    assert "情緒安全感、喜歡方式與關係需求" in response.text
+    assert "八字、紫微、命宮與財帛宮" not in response.text
+    assert "MBTI、16 型人格與人際模式" not in response.text
+    assert "牌義、正逆位與感情提問" not in response.text
+    assert "星盤、上升星座與月亮星座" not in response.text
+    assert "href=\"/articles/love/love-0002\"" in response.text
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
