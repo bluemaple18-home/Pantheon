@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-21";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-22";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;

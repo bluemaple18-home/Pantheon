@@ -91,21 +91,33 @@ export const ARTICLE_URL_CONTRACT = {
   categories: ["fortune", "personality", "tarot", "astrology", "love", "career", "interpersonal", "wealth", "life-direction"],
 };
 
+export const PUBLIC_TOPIC_MIN_ARTICLES = 10;
+
 export const TOPIC_REGISTRY = [
   { id: "topic-0001", slug: "mbti", label: "MBTI", aliases: ["MBTI 是什麼", "MBTI 人格", "MBTI 測驗", "人格測驗"] },
-  { id: "topic-0002", slug: "16-personalities", label: "16 型人格", aliases: ["16 型人格", "人格類型", "INTJ", "INFP", "INFJ", "ENFP"] },
-  { id: "topic-0003", slug: "tarot", label: "塔羅", aliases: ["塔羅", "塔羅牌意思", "塔羅牌牌義", "牌義", "大阿爾克那", "魔術師牌意思", "愚者牌意思", "戀人牌意思", "死神牌意思", "高塔牌意思", "世界牌意思"] },
-  { id: "topic-0004", slug: "upright-reversed", label: "正位逆位", aliases: ["正位逆位", "塔羅牌正位逆位", "塔羅逆位", "塔羅正位"] },
+  { id: "topic-0002", slug: "personality", label: "人格", aliases: ["16 型人格", "16 型人格測驗", "人格類型", "64 分支人格", "INTJ", "INFP", "INFJ", "ENFP"] },
+  { id: "topic-0003", slug: "tarot", label: "塔羅", aliases: ["塔羅", "塔羅牌意思", "塔羅牌牌義", "牌義", "大阿爾克那", "阿爾克那"] },
+  { id: "topic-0004", slug: "upright", label: "正位", aliases: ["正位", "塔羅正位", "塔羅牌正位"] },
   { id: "topic-0005", slug: "fortune", label: "命盤", aliases: ["命盤", "個人命盤", "八字命盤", "紫微命盤"] },
   { id: "topic-0006", slug: "bazi", label: "八字", aliases: ["八字", "八字是什麼", "生辰八字", "干支"] },
-  { id: "topic-0007", slug: "ziwei-doushu", label: "紫微斗數", aliases: ["紫微斗數", "紫微命盤", "命宮", "夫妻宮", "財帛宮"] },
+  { id: "topic-0007", slug: "ziwei", label: "紫微", aliases: ["紫微", "紫微斗數", "紫微命盤", "命宮", "夫妻宮", "財帛宮"] },
   { id: "topic-0008", slug: "astrology", label: "星盤", aliases: ["星盤", "星盤是什麼", "個人星盤", "星盤查詢", "星座命盤", "占星命盤", "星座", "上升星座", "月亮星座"] },
   { id: "topic-0009", slug: "love", label: "感情", aliases: ["感情", "感情塔羅", "關係", "相處模式"] },
-  { id: "topic-0010", slug: "career", label: "事業", aliases: ["事業", "工作", "職涯", "轉職"] },
+  { id: "topic-0010", slug: "career", label: "工作", aliases: ["工作", "事業", "職涯", "轉職"] },
   { id: "topic-0011", slug: "interpersonal", label: "人際", aliases: ["人際", "人際關係", "溝通", "關係界線"] },
   { id: "topic-0012", slug: "wealth", label: "財富", aliases: ["財富", "財運", "金錢觀", "資源"] },
   { id: "topic-0013", slug: "life-direction", label: "人生方向", aliases: ["人生方向", "人生迷惘", "自我理解", "選擇"] },
+  { id: "topic-0014", slug: "reversed", label: "逆位", aliases: ["逆位", "塔羅逆位", "塔羅牌逆位"] },
+  { id: "topic-0015", slug: "fool", label: "愚者", aliases: ["愚者", "愚者牌", "愚者牌意思"] },
+  { id: "topic-0016", slug: "magician", label: "魔術師", aliases: ["魔術師", "魔術師牌", "魔術師牌意思"] },
+  { id: "topic-0017", slug: "lovers", label: "戀人", aliases: ["戀人", "戀人牌", "戀人牌意思"] },
+  { id: "topic-0018", slug: "death", label: "死神", aliases: ["死神", "死神牌", "死神牌意思"] },
+  { id: "topic-0019", slug: "tower", label: "高塔", aliases: ["高塔", "高塔牌", "高塔牌意思"] },
+  { id: "topic-0020", slug: "world", label: "世界", aliases: ["世界", "世界牌", "世界牌意思"] },
 ];
+
+const publicTagLabelCache = new Map();
+let topicCandidateRecordCache = null;
 
 export const LIFE_INTENT_REGISTRY = {
   love: {
@@ -625,11 +637,99 @@ export function getArticlePath(article) {
   return `/articles/${record.articleCategory || record.product}/${record.urlSlug || record.slug}`;
 }
 
-export function listTopicRecords() {
-  return TOPIC_REGISTRY.map((topic) => ({
+function uniqueValues(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+export function expandPublicTagLabels(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  const labels = [];
+  const push = (label) => {
+    if (label && !labels.includes(label)) labels.push(label);
+  };
+  if (/MBTI/i.test(raw)) push("MBTI");
+  if (/16\s*型|人格|INTJ|INFP|INFJ|ENFP|64\s*分支/.test(raw)) push("人格");
+  if (/愚者/.test(raw)) push("愚者");
+  if (/魔術師/.test(raw)) push("魔術師");
+  if (/戀人/.test(raw)) push("戀人");
+  if (/死神/.test(raw)) push("死神");
+  if (/高塔/.test(raw)) push("高塔");
+  if (/世界/.test(raw)) push("世界");
+  if (/正位/.test(raw)) push("正位");
+  if (/逆位/.test(raw)) push("逆位");
+  if (/塔羅|牌義|阿爾克那|牌意思/.test(raw)) push("塔羅");
+  if (/命盤|紫微|八字|命宮|夫妻宮|財帛宮/.test(raw)) push("命盤");
+  if (/紫微/.test(raw)) push("紫微");
+  if (/八字|生辰八字|干支/.test(raw)) push("八字");
+  if (/星盤|星座|上升|月亮|占星/.test(raw)) push("星盤");
+  if (/感情|關係|復合|曖昧|相處/.test(raw)) push("感情");
+  if (/工作|事業|職涯|轉職|創業/.test(raw)) push("工作");
+  if (/人際|溝通|界線/.test(raw)) push("人際");
+  if (/財富|財運|金錢|資源/.test(raw)) push("財富");
+  if (/人生方向|人生迷惘|自我理解|選擇/.test(raw)) push("人生方向");
+  return labels.length ? labels : [raw];
+}
+
+export function normalizePublicTagLabel(value = "") {
+  return expandPublicTagLabels(value)[0] || "";
+}
+
+export function listPublicTagLabelsForArticle(article = {}) {
+  const cacheKey = article.id || article.serial || article.slug || JSON.stringify([
+    article.primaryKeyword,
+    article.secondaryKeywords,
+    article.originalTags,
+    article.tags,
+  ]);
+  if (publicTagLabelCache.has(cacheKey)) return publicTagLabelCache.get(cacheKey);
+  const source = [
+    article.product === "tarot" ? "塔羅" : "",
+    article.product === "fortune" ? "命盤" : "",
+    article.product === "personality" ? "人格" : "",
+    article.product === "astro" ? "星盤" : "",
+    article.primaryKeyword,
+    ...(article.secondaryKeywords || []),
+    ...(article.originalTags || []),
+    ...(article.tags || []),
+  ];
+  const labels = uniqueValues(source.flatMap(expandPublicTagLabels))
+    .filter((label) => label && !GLOBAL_ARTICLE_POLICY.requiredTags.includes(label))
+    .filter((label) => !GLOBAL_ARTICLE_POLICY.requiredKeywordTags.includes(label));
+  publicTagLabelCache.set(cacheKey, labels);
+  return labels;
+}
+
+function findTopicCandidate(slug = "") {
+  return TOPIC_REGISTRY.find((topic) => topic.slug === slug) || null;
+}
+
+function articleMatchesTopic(article, topic) {
+  const labels = listPublicTagLabelsForArticle(article);
+  return labels.includes(topic.label) || labels.some((label) => topic.aliases.includes(label));
+}
+
+function enrichTopicRecord(topic) {
+  const articles = listArticleRecords().filter((article) => articleMatchesTopic(article, topic));
+  const isGenerated = articles.length >= PUBLIC_TOPIC_MIN_ARTICLES;
+  return {
     ...topic,
-    href: `/topics/${topic.slug}`,
-  }));
+    articleCount: articles.length,
+    minArticles: PUBLIC_TOPIC_MIN_ARTICLES,
+    isGenerated,
+    href: isGenerated ? `/topics/${topic.slug}` : "",
+  };
+}
+
+export function listTopicCandidateRecords() {
+  if (!topicCandidateRecordCache) {
+    topicCandidateRecordCache = TOPIC_REGISTRY.map(enrichTopicRecord);
+  }
+  return topicCandidateRecordCache;
+}
+
+export function listTopicRecords() {
+  return listTopicCandidateRecords().filter((topic) => topic.isGenerated);
 }
 
 export function getTopicRecord(slug = "") {
@@ -642,17 +742,22 @@ export function getTopicForLabel(label = "") {
 }
 
 export function listArticlesForTopic(topicSlug = "") {
-  const topic = getTopicRecord(topicSlug);
+  const topic = findTopicCandidate(topicSlug);
   if (!topic) return [];
-  return listArticleRecords().filter((article) => {
-    const values = [
-      article.primaryKeyword,
-      ...(article.secondaryKeywords || []),
-      ...(article.originalTags || []),
-      ...(article.tags || []),
-    ].filter(Boolean);
-    return values.some((value) => topic.label === value || topic.aliases.includes(value));
-  });
+  return listArticleRecords().filter((article) => articleMatchesTopic(article, topic));
+}
+
+export function listTagManagementRecords() {
+  return listTopicCandidateRecords()
+    .map((topic) => ({
+      ...topic,
+      articles: listArticlesForTopic(topic.slug).map((article) => ({
+        title: article.title,
+        path: getArticlePath(article),
+        serial: article.serial,
+      })),
+    }))
+    .sort((a, b) => b.articleCount - a.articleCount || a.label.localeCompare(b.label));
 }
 
 export function listArticleVoiceAudits() {

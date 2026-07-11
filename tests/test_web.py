@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-8" in response.text
-        assert "/static/article.js?v=article-content-20260710-21" in response.text
+        assert "/static/article.js?v=article-content-20260710-22" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -484,18 +484,23 @@ const sequenceArticle = buildArticleContent("/articles/personality/personality-0
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
-const topic = buildArticleContent("/topics/mbti", "https://mysticpantheon.com", {
+const topic = buildArticleContent("/topics/personality", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+const ineligibleTopic = buildArticleContent("/topics/fool", "https://mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
 console.log(JSON.stringify({
   legacy,
+  ineligibleTopic,
   canonical: {
     title: canonical.title,
     serial: canonical.serial,
     canonicalPath: canonical.canonicalPath,
     relatedLabels: canonical.relatedLinks.map((item) => item.label),
-    tagHref: canonical.displayTagLinks.find((tag) => tag.label === "人際關係")?.href,
+    interpersonalTagHref: canonical.displayTagLinks.find((tag) => tag.label === "人際")?.href || "",
   },
   sequenceArticle: {
     navigationLinks: sequenceArticle.navigationLinks,
@@ -538,9 +543,10 @@ console.log(JSON.stringify({
     assert len(same_category) <= 2
     assert len(cross_category) <= 3
     assert len({item["category"] for item in cross_category}) == len(cross_category)
-    assert data["canonical"]["tagHref"] == "/topics/interpersonal"
-    assert data["topic"]["canonicalPath"] == "/topics/mbti"
-    assert data["topic"]["title"] == "MBTI 相關文章"
+    assert data["canonical"]["interpersonalTagHref"] == ""
+    assert data["ineligibleTopic"] == {"redirectTo": "/articles"}
+    assert data["topic"]["canonicalPath"] == "/topics/personality"
+    assert data["topic"]["title"] == "人格 相關文章"
     assert data["topic"]["bodyLinkCount"] >= 3
     assert data["topic"]["faqCount"] == 0
     assert data["topic"]["relatedCount"] == 0
@@ -556,12 +562,14 @@ import {{
   getArticlePath,
   listArticleRecords,
   listArticlesForTopic,
+  listTagManagementRecords,
   listTopicRecords,
 }} from "./app/web/static/article-registry.js";
 
 const expectedPaths = new Set({json.dumps(PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords();
 const topics = listTopicRecords();
+const tagManagement = listTagManagementRecords();
 const articleSummaries = records.map((article) => {{
   const path = getArticlePath(article);
   const content = buildArticleContent(path, "https://mysticpantheon.com", {{
@@ -604,9 +612,18 @@ console.log(JSON.stringify({{
   topicPattern: ARTICLE_URL_CONTRACT.topicPattern,
   articleSummaries,
   topicSummaries,
-  mbtiPaths: listArticlesForTopic("mbti").map(getArticlePath),
+  personalityPaths: listArticlesForTopic("personality").map(getArticlePath),
   fortunePaths: listArticlesForTopic("fortune").map(getArticlePath),
   interpersonalPaths: listArticlesForTopic("interpersonal").map(getArticlePath),
+  generatedTopicLabels: topics.map((topic) => topic.label),
+  tagManagement: tagManagement.map((tag) => ({{
+    label: tag.label,
+    slug: tag.slug,
+    articleCount: tag.articleCount,
+    minArticles: tag.minArticles,
+    isGenerated: tag.isGenerated,
+    href: tag.href,
+  }})),
 }}));
 """
     result = subprocess.run(
@@ -628,12 +645,21 @@ console.log(JSON.stringify({{
         assert record["serial"].startswith(f"{category}-")
         assert record["canonicalPath"] == record["path"]
         assert record["visibleTagCount"] >= 1
-        assert record["linkedTagCount"] >= 1
+        assert record["linkedTagCount"] >= 0
         assert not record["internalTagVisible"]
 
-    assert "/articles/personality/personality-0001" in data["mbtiPaths"]
+    assert "/articles/personality/personality-0001" in data["personalityPaths"]
     assert "/articles/fortune/fortune-0001" in data["fortunePaths"]
     assert "/articles/interpersonal/interpersonal-0001" in data["interpersonalPaths"]
+    assert set(data["generatedTopicLabels"]) == {"人格", "塔羅", "命盤", "感情", "工作", "人生方向"}
+    tag_management = {item["slug"]: item for item in data["tagManagement"]}
+    assert tag_management["fool"]["label"] == "愚者"
+    assert tag_management["fool"]["articleCount"] < tag_management["fool"]["minArticles"]
+    assert tag_management["fool"]["isGenerated"] is False
+    assert tag_management["fool"]["href"] == ""
+    assert tag_management["tarot"]["articleCount"] >= tag_management["tarot"]["minArticles"]
+    assert tag_management["tarot"]["isGenerated"] is True
+    assert tag_management["tarot"]["href"] == "/topics/tarot"
 
     topic_ids = [topic["id"] for topic in data["topicSummaries"]]
     assert len(topic_ids) == len(set(topic_ids))
@@ -659,6 +685,7 @@ def test_article_admin_serves_management_console() -> None:
     assert "強制關鍵字標籤" in response.text
     assert "文章 Section 描述" in response.text
     assert "內容圖譜" in response.text
+    assert "標籤集結頁管理" in response.text
     assert "語氣品質 Gate" in response.text
     assert "所有文章" in response.text
     assert "name=\"robots\" content=\"noindex,nofollow\"" in response.text
@@ -667,11 +694,14 @@ def test_article_admin_serves_management_console() -> None:
     assert "buildArticleGraph" in article_admin_js
     assert "renderHumanizerGate" in article_admin_js
     assert "listArticleVoiceAudits" in article_admin_js
+    assert "listTagManagementRecords" in article_admin_js
+    assert "renderTagManagement" in article_admin_js
     assert "ui-panel" in article_admin_js
     assert "ui-chip-list" in article_admin_js
     assert "ui-chip" in article_admin_js
     assert "data-graph-summary" in response.text
     assert "data-graph-links" in response.text
+    assert "data-tag-management-table" in response.text
     assert "data-humanizer-checks" in response.text
     assert "data-humanizer-audits" in response.text
 
@@ -691,7 +721,10 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/astro" in sitemap.text
     assert "https://mysticpantheon.com/articles/fortune/fortune-0001" in sitemap.text
     assert "https://mysticpantheon.com/articles/interpersonal/interpersonal-0001" in sitemap.text
-    assert "https://mysticpantheon.com/topics/mbti" in sitemap.text
+    assert "https://mysticpantheon.com/topics/tarot" in sitemap.text
+    assert "https://mysticpantheon.com/topics/personality" in sitemap.text
+    assert "https://mysticpantheon.com/topics/fool" not in sitemap.text
+    assert "https://mysticpantheon.com/topics/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
     assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text

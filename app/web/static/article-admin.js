@@ -5,7 +5,8 @@ import {
   listArticleVoiceAudits,
   listArticleRecords,
   listArticleSectionRecords,
-} from "./article-registry.js";
+  listTagManagementRecords,
+} from "./article-registry.js?v=article-content-20260710-12";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
@@ -13,6 +14,7 @@ const dom = {
   sectionTable: document.querySelector("[data-section-table]"),
   graphSummary: document.querySelector("[data-graph-summary]"),
   graphLinks: document.querySelector("[data-graph-links]"),
+  tagManagementTable: document.querySelector("[data-tag-management-table]"),
   humanizerPurpose: document.querySelector("[data-humanizer-purpose]"),
   humanizerChecks: document.querySelector("[data-humanizer-checks]"),
   humanizerAudits: document.querySelector("[data-humanizer-audits]"),
@@ -22,6 +24,7 @@ const dom = {
 renderPolicy();
 renderSections();
 renderGraph();
+renderTagManagement();
 renderHumanizerGate();
 renderArticles();
 
@@ -71,6 +74,23 @@ function renderGraph() {
     const item = document.createElement("p");
     item.textContent = `${link.kind}: ${link.source} -> ${link.target}`;
     return item;
+  }));
+}
+
+function renderTagManagement() {
+  dom.tagManagementTable.replaceChildren(...listTagManagementRecords().map((tag) => {
+    const row = document.createElement("tr");
+    const articleLinks = tag.articles.slice(0, 6).map((article) => `<a href="${article.path}">${article.title}</a>`).join("");
+    row.innerHTML = `
+      <td>
+        <strong>${tag.label}</strong>
+        <span>${tag.slug}</span>
+      </td>
+      <td>${tag.articleCount} / ${tag.minArticles}</td>
+      <td>${tag.isGenerated ? "已產生集結頁" : "未達門檻"}</td>
+      <td>${articleLinks || "尚無文章"}</td>
+    `;
+    return row;
   }));
 }
 

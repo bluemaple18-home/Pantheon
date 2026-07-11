@@ -60,6 +60,26 @@
         <div class="article-admin-graph-list" data-graph-links></div>
       </section>
 
+      <section class="article-admin-section ui-panel" aria-labelledby="tag-admin-title">
+        <div class="article-admin-section-heading ui-section-heading">
+          <h2 id="tag-admin-title">標籤集結頁管理</h2>
+          <p>短標籤達 10 篇文章才會產生可點擊主題頁；未達標只顯示 chip，不建立公開集結頁。</p>
+        </div>
+        <div class="article-admin-table-wrap">
+          <table class="article-admin-table">
+            <thead>
+              <tr>
+                <th>標籤</th>
+                <th>文章數</th>
+                <th>狀態</th>
+                <th>文章</th>
+              </tr>
+            </thead>
+            <tbody data-tag-management-table></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="article-admin-section ui-panel" aria-labelledby="humanizer-gate-title">
         <div class="article-admin-section-heading ui-section-heading">
           <h2 id="humanizer-gate-title">語氣品質 Gate</h2>
@@ -90,6 +110,6 @@
       </section>
     </main>
 
-    <script type="module" src="/static/article-admin.js"></script>
+    <script type="module" src="/static/article-admin.js?v=tag-management-20260711-1"></script>
   </body>
 </html>

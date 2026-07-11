@@ -9,7 +9,8 @@ import {
   getTopicRecord,
   listArticleRecords,
   listArticlesForTopic,
-} from "./article-registry.js?v=article-content-20260710-11";
+  listPublicTagLabelsForArticle,
+} from "./article-registry.js?v=article-content-20260710-12";
 
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
@@ -305,6 +306,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
   const route = parseArticleRoute(pathname);
   const topic = route.topic ? getTopicRecord(route.topic) : null;
   if (route.topic) {
+    if (!topic) return { redirectTo: "/articles" };
     return buildTopicContent(route, topic, origin, defaults);
   }
   const isLatestHub = !route.product && !route.slug && !route.intent;
@@ -405,14 +407,10 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
 
 function buildDisplayTags(article, managedArticle, productTheme) {
   const source = article
-    ? [
-      article.primaryKeyword,
-      ...(article.secondaryKeywords || []),
-      ...(article.originalTags || []),
-    ]
+    ? listPublicTagLabelsForArticle(article)
     : [
-      managedArticle.primaryKeyword,
       productTheme.label,
+      managedArticle.primaryKeyword,
       ...(managedArticle.originalTags || []),
     ];
   return uniqueList(source)
