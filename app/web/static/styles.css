@@ -4176,6 +4176,7 @@ select:focus {
   object-position: center;
   mask-image: none;
   -webkit-mask-image: none;
+  clip-path: inset(15% 0 16% 0);
 }
 
 .poster {
