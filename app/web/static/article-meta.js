@@ -1230,33 +1230,7 @@ function buildArticleCta(article, productTheme, route = {}) {
     };
   }
   if (!article) return null;
-  const productLinks = (() => {
-    if (article.product === "personality") return [
-      { label: "看人格熱門文章", href: "/articles/personality" },
-      { label: "看人際主題文章", href: "/articles/intents/interpersonal" },
-      { label: "整理人生方向問題", href: "/articles/intents/life" },
-    ];
-    if (article.product === "tarot") return [
-      { label: "看塔羅熱門文章", href: "/articles/tarot" },
-      { label: "看感情主題文章", href: "/articles/intents/love" },
-      { label: "整理事業主題問題", href: "/articles/intents/career" },
-    ];
-    if (article.product === "fortune") return [
-      { label: "看命盤熱門文章", href: "/articles/fortune" },
-      { label: "看事業主題文章", href: "/articles/intents/career" },
-      { label: "整理財富主題問題", href: "/articles/intents/wealth" },
-    ];
-    return [
-      { label: "看星盤與星座入口", href: "/articles/astro" },
-      { label: "整理感情主題問題", href: "/articles/intents/love" },
-      { label: "整理人生方向問題", href: "/articles/intents/life" },
-    ];
-  })();
-  return {
-    title: "下一步",
-    body: `如果你只是想理解這個概念，這篇文章已經足夠。${getProductBoundarySentence(productTheme.label)}如果你想知道它放到自己的狀況裡代表什麼，可以先選一個入口。`,
-    links: productLinks,
-  };
+  return null;
 }
 
 function getProductHubCtaLinks(product) {

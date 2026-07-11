@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-7" in response.text
-        assert "/static/article.js?v=article-content-20260710-18" in response.text
+        assert "/static/article.js?v=article-content-20260710-19" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -321,7 +321,7 @@ const data = paths.map((path) => {{
     relatedCount: content.relatedLinks.length,
     relatedHasEntrance: content.relatedLinks.some((item) => item.label.includes("入口") || item.kind.includes("入口")),
     relatedAllArticles: content.relatedLinks.every((item) => item.kind === "相關文章"),
-    ctaCount: content.cta.links.length,
+    ctaCount: content.cta?.links?.length || 0,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
     minBodyLength: summaryPaths.has(path) ? 2400 : 1600,
     hasForbidden: forbidden.some((word) => bodyText.includes(word) || content.title.includes(word)),
@@ -344,7 +344,7 @@ console.log(JSON.stringify(data));
         assert 1 <= record["relatedCount"] <= 5, record
         assert record["relatedAllArticles"], record
         assert not record["relatedHasEntrance"], record
-        assert record["ctaCount"] >= 3, record
+        assert record["ctaCount"] == 0, record
         assert record["hasLimit"], record
         assert not record["hasForbidden"], record
 
