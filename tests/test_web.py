@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-8" in response.text
-        assert "/static/article.js?v=article-content-20260710-19" in response.text
+        assert "/static/article.js?v=article-content-20260710-20" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -208,7 +208,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "buildFallbackFaq(route, article, productTheme)" in article_meta_js
     assert "buildArticleFaq(route, article, productTheme)" in article_meta_js
     assert "cleanFaqTopic(primary)" in article_meta_js
-    assert "想看自己的狀況，應該從哪個入口開始？" in article_meta_js
+    assert "想看自己的狀況，應該先整理什麼？" in article_meta_js
     assert "displayTags: buildDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
     assert "content.displayTags || content.tags || []" in article_js
@@ -220,7 +220,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "card.dataset.productTheme = article.product" in articles_js
     assert "SEARCH_SNIPPETS" in articles_js
     assert "MBTI 用四組偏好組成 16 型人格" in articles_js
-    assert "塔羅牌意思先看 78 張牌的象徵" in articles_js
+    assert "塔羅牌意思先看你正在問的問題" in articles_js
     assert ".articles-hub-breadcrumb" in styles_css
     assert "color: rgba(244, 234, 211, 0.78)" in styles_css
     assert '--article-page-bg:' in styles_css
@@ -318,10 +318,29 @@ const data = paths.map((path) => {{
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
   }});
+  const headingText = content.bodySections.map((section) => section.heading).join("");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  const articleText = `${{headingText}}${{bodyText}}`;
   const forbidden = ["全面解析", "深度解析", "不可或缺", "賦能", "總而言之", "值得注意的是", "必看", "一定", "保證", "注定"];
+  const forbiddenReaderPhrases = [
+    "公開文章的任務",
+    "公開文章負責",
+    "可以先選一個入口",
+    "五大主題文章",
+    "人生方向入口",
+    "焦慮放大器",
+    "文章入口整理",
+  ];
+  const forbiddenTarotCoursePhrases = [
+    "什麼時候需要抽牌",
+    "什麼時候該從牌義進到抽牌",
+    "牌義、逆位和情境要分開讀",
+    "先理解 78 張牌",
+    "讀塔羅文章時",
+  ];
   return {{
     path,
+    headings: headingText,
     bodySectionCount: content.bodySections.length,
     bodyLength: [...bodyText].length,
     faqCount: content.faq.length,
@@ -331,7 +350,9 @@ const data = paths.map((path) => {{
     ctaCount: content.cta?.links?.length || 0,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
     minBodyLength: summaryPaths.has(path) ? 2400 : 1600,
-    hasForbidden: forbidden.some((word) => bodyText.includes(word) || content.title.includes(word)),
+    hasForbidden: forbidden.some((word) => articleText.includes(word) || content.title.includes(word)),
+    hasReaderHostilePhrase: forbiddenReaderPhrases.some((word) => articleText.includes(word) || content.faq.some((item) => item.question.includes(word) || item.answer.includes(word))),
+    hasTarotCoursePhrase: path.includes("/tarot/") && forbiddenTarotCoursePhrases.some((word) => articleText.includes(word)),
   }};
 }});
 console.log(JSON.stringify(data));
@@ -354,6 +375,13 @@ console.log(JSON.stringify(data));
         assert record["ctaCount"] == 0, record
         assert record["hasLimit"], record
         assert not record["hasForbidden"], record
+        assert not record["hasReaderHostilePhrase"], record
+        assert not record["hasTarotCoursePhrase"], record
+        if "/tarot/" in record["path"]:
+            assert "先看你現在卡在哪一種煩惱" in record["headings"], record
+            assert "不要只問這張牌好不好" in record["headings"], record
+            assert "把問題改成現在能處理的事" in record["headings"], record
+            assert "什麼時候需要再往下整理？" in record["headings"], record
 
 
 def test_unknown_article_slug_redirects_to_product_hub() -> None:
