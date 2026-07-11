@@ -136,8 +136,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260710-6" in response.text
-        assert "/static/article.js?v=article-content-20260710-17" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260710-7" in response.text
+        assert "/static/article.js?v=article-content-20260710-18" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -145,6 +145,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_meta_js = Path("app/web/static/article-meta.js").read_text()
     article_seo_js = Path("app/web/static/article-seo.js").read_text()
     article_registry_js = Path("app/web/static/article-registry.js").read_text()
+    article_html = Path("app/web/article.html").read_text()
     articles_js = Path("app/web/static/articles.js").read_text()
     styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
@@ -168,11 +169,14 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.articleTitle.textContent = content.title" in article_js
     assert "dom.titleCrumb.hidden = false" in article_js
     assert "renderArticleBody(content, inlineTopicState)" in article_js
+    assert "renderArticleNavigation(content)" in article_js
     assert "renderArticleFaq(content)" in article_js
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
     assert "content.navigationLinks" in article_js
-    assert "article-navigation-list" in article_js
+    assert "article-sequence-button-${direction}" in article_js
+    assert "\"← 上一篇\"" in article_js
+    assert "\"下一篇 →\"" in article_js
     assert "INLINE_TOPIC_MAX_LINKS = 8" in article_js
     assert "buildInlineTopicState(content)" in article_js
     assert "buildInlineTermsFromTag(tag)" in article_js
@@ -180,8 +184,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "content.displayTagLinks || []" in article_js
     assert "appendInlineTopicLinks(paragraph, text, inlineTopicState)" in article_js
     assert "article-inline-topic-link" in article_js
-    assert "data-article-related" in Path("app/web/article.html").read_text()
-    assert "data-article-cta" in Path("app/web/article.html").read_text()
+    assert "data-article-related" in article_html
+    assert "data-article-navigation" in article_html
+    assert "data-article-cta" in article_html
+    assert article_html.index("data-article-navigation") < article_html.index("data-article-faq")
+    assert article_html.index("data-article-faq") < article_html.index("data-article-related")
     assert "bodySections: buildBodySections" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
@@ -226,7 +233,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-header-bg:' in styles_css
     assert '--article-panel-bg:' in styles_css
     assert ".article-related" in styles_css
-    assert ".article-navigation-list" in styles_css
+    assert ".article-sequence-actions" in styles_css
+    assert ".article-sequence-button" in styles_css
     assert ".article-cta-actions" in styles_css
     assert ".article-inline-topic-link" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js

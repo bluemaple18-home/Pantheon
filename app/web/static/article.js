@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-17";
+import { buildArticleContent } from "./article-meta.js?v=article-content-20260710-18";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
@@ -21,6 +21,7 @@ const dom = {
   articleTags: document.querySelector("[data-article-tags]"),
   answerText: document.querySelector("[data-answer-text]"),
   articleBody: document.querySelector("[data-article-body]"),
+  articleNavigation: document.querySelector("[data-article-navigation]"),
   articleFaq: document.querySelector("[data-article-faq]"),
   articleRelated: document.querySelector("[data-article-related]"),
   articleCta: document.querySelector("[data-article-cta]"),
@@ -86,6 +87,7 @@ function renderArticleChrome(content) {
     return item;
   }));
   renderArticleBody(content, inlineTopicState);
+  renderArticleNavigation(content);
   renderArticleFaq(content);
   renderArticleRelated(content);
   renderArticleCta(content);
@@ -215,19 +217,54 @@ function renderArticleFaq(content) {
   dom.articleFaq.replaceChildren(heading, ...questions);
 }
 
-function renderArticleRelated(content) {
-  if (!dom.articleRelated || (!content.navigationLinks?.length && !content.relatedLinks?.length)) return;
-  dom.articleRelated.hidden = false;
-  const heading = document.createElement("h2");
-  const groups = [];
-  heading.textContent = "延伸閱讀";
+function renderArticleNavigation(content) {
+  if (!dom.articleNavigation) return;
   if (content.navigationLinks?.length) {
-    groups.push(renderArticleLinkList(content.navigationLinks, "article-navigation-list"));
+    const previous = content.navigationLinks.find((item) => item.kind === "上一篇");
+    const next = content.navigationLinks.find((item) => item.kind === "下一篇");
+    const actions = document.createElement("div");
+    actions.className = "article-sequence-actions";
+    actions.append(
+      renderSequenceButton(previous, "previous"),
+      renderSequenceButton(next, "next"),
+    );
+    dom.articleNavigation.hidden = false;
+    dom.articleNavigation.replaceChildren(actions);
+    return;
   }
+  dom.articleNavigation.hidden = true;
+  dom.articleNavigation.replaceChildren();
+}
+
+function renderSequenceButton(item, direction) {
+  if (!item) {
+    const placeholder = document.createElement("span");
+    placeholder.className = `article-sequence-placeholder article-sequence-placeholder-${direction}`;
+    placeholder.setAttribute("aria-hidden", "true");
+    return placeholder;
+  }
+  const link = document.createElement("a");
+  const meta = document.createElement("span");
+  const title = document.createElement("strong");
+  link.className = `article-sequence-button article-sequence-button-${direction}`;
+  link.href = item.href;
+  meta.textContent = direction === "previous" ? "← 上一篇" : "下一篇 →";
+  title.textContent = item.label;
+  link.append(meta, title);
+  return link;
+}
+
+function renderArticleRelated(content) {
+  if (!dom.articleRelated) return;
   if (content.relatedLinks?.length) {
-    groups.push(renderArticleLinkList(content.relatedLinks, "article-link-list"));
+    const heading = document.createElement("h2");
+    heading.textContent = "延伸閱讀";
+    dom.articleRelated.hidden = false;
+    dom.articleRelated.replaceChildren(heading, renderArticleLinkList(content.relatedLinks, "article-link-list"));
+    return;
   }
-  dom.articleRelated.replaceChildren(heading, ...groups);
+  dom.articleRelated.hidden = true;
+  dom.articleRelated.replaceChildren();
 }
 
 function renderArticleLinkList(items, className) {
