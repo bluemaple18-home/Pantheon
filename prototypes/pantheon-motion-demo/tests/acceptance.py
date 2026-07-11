@@ -10,6 +10,7 @@ EVIDENCE = ROOT / "evidence"
 URL = "http://127.0.0.1:5173"
 VIDEO_ASSET = ROOT / "public" / "pantheon-orb-alpha-v2.webm"
 POSTER_ASSET = ROOT / "public" / "pantheon-orb-alpha-poster.webp"
+LOGO_ASSET = ROOT / "public" / "pantheon-symbol-logo.png"
 CHROME = os.environ.get(
     "BROWSER_BINARY",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -64,6 +65,8 @@ def inspect_page(page):
         () => {
           const video = document.querySelector('video');
           const poster = document.querySelector('img[src="/pantheon-orb-alpha-poster.webp"]');
+          const brandLogo = document.querySelector('.brand-mark-image');
+          const heroLogo = document.querySelector('.hero-brand-logo img');
           const orbitalField = document.querySelector('[data-orbital-field]');
           const orbitLayers = [...document.querySelectorAll('[data-orbit-layer]')];
           const orbitSignatures = Object.fromEntries(
@@ -105,6 +108,20 @@ def inspect_page(page):
               display: getComputedStyle(video).display,
               opacity: getComputedStyle(video).opacity,
             } : null,
+            brandLogo: brandLogo ? {
+              src: brandLogo.getAttribute('src'),
+              complete: brandLogo.complete,
+              naturalWidth: brandLogo.naturalWidth,
+              naturalHeight: brandLogo.naturalHeight,
+              visible: brandLogo.getBoundingClientRect().width > 0,
+            } : null,
+            heroLogo: heroLogo ? {
+              src: heroLogo.getAttribute('src'),
+              complete: heroLogo.complete,
+              naturalWidth: heroLogo.naturalWidth,
+              naturalHeight: heroLogo.naturalHeight,
+              visible: heroLogo.getBoundingClientRect().width > 0,
+            } : null,
             orbitalField: orbitalField ? {
               viewBox: orbitalField.getAttribute('viewBox'),
               trackCount: orbitalField.querySelectorAll('[data-orbit-track]').length,
@@ -132,6 +149,7 @@ def run():
         "asset_sizes": {
             "video": VIDEO_ASSET.stat().st_size,
             "poster": POSTER_ASSET.stat().st_size,
+            "logo": LOGO_ASSET.stat().st_size,
         },
     }
 
@@ -245,8 +263,13 @@ def run():
     assert result["reduced_motion"]["posterOpacity"] == "1", result
     assert result["desktop"]["heroLinkVisible"], result
     assert result["mobile"]["heroLinkVisible"], result
+    assert result["desktop"]["brandLogo"]["src"] == "/pantheon-symbol-logo.png", result
+    assert result["mobile"]["brandLogo"]["complete"], result
+    assert result["desktop"]["heroLogo"]["visible"], result
+    assert result["mobile"]["heroLogo"]["naturalWidth"] == 1254, result
     assert result["asset_sizes"]["video"] < 1_800_000, result
     assert result["asset_sizes"]["poster"] < 100_000, result
+    assert result["asset_sizes"]["logo"] < 1_100_000, result
 
     (EVIDENCE / "acceptance.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2),

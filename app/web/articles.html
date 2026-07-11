@@ -16,7 +16,8 @@
     <meta name="twitter:title" content="最新文章 | Pantheon" />
     <meta name="twitter:description" content="Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。" />
     <link rel="canonical" href="https://mysticpantheon.com/articles" />
-    <link rel="stylesheet" href="/static/styles.css?v=articles-hub-20260710-logo-3" />
+    <link rel="preload" as="image" href="/static/pantheon-symbol-logo.png" type="image/png" />
+    <link rel="stylesheet" href="/static/styles.css?v=articles-hub-20260711-logo-4" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -54,9 +55,14 @@
   <body class="destiny-screen articles-hub-screen">
     <main class="app-shell destiny-shell">
       <header class="app-topbar destiny-topbar ui-topbar-row">
-        <div>
+        <div class="topbar-title-lockup">
+          <span class="ui-brand-mark" aria-hidden="true">
+            <img src="/static/pantheon-symbol-logo.png" alt="" width="84" height="84" />
+          </span>
+          <div class="topbar-title-copy">
           <p class="eyebrow">Pantheon</p>
           <h1>最新文章</h1>
+          </div>
         </div>
         <nav class="topbar-actions ui-actions" aria-label="主要頁面">
           <a class="secondary-link ui-button ui-button-secondary" href="/articles/fortune">命盤</a>
@@ -93,8 +99,8 @@
               <picture class="pantheon-hero-logo__image-wrap">
                 <img
                   class="pantheon-hero-logo__image"
-                  src="/static/pantheon-oracle-sphere-transparent.png"
-                  alt="Pantheon 五維神諭資料球體"
+                  src="/static/pantheon-symbol-logo.png"
+                  alt="Pantheon 品牌標誌"
                   width="1024"
                   height="1024"
                   loading="eager"
@@ -147,6 +153,6 @@
         </nav>
       </section>
     </main>
-    <script type="module" src="/static/articles.js?v=articles-hub-20260710-logo-3"></script>
+    <script type="module" src="/static/articles.js?v=articles-hub-20260711-logo-4"></script>
   </body>
 </html>

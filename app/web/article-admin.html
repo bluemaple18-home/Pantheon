@@ -6,14 +6,20 @@
     <title>文章管理 | Pantheon</title>
     <meta name="description" content="Pantheon 文章、主題描述、強制關鍵字標籤管理介面。" />
     <meta name="robots" content="noindex,nofollow" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="preload" as="image" href="/static/pantheon-symbol-logo.png" type="image/png" />
+    <link rel="stylesheet" href="/static/styles.css?v=article-admin-20260711-logo-1" />
   </head>
   <body class="article-screen article-admin-screen">
     <header class="article-site-header ui-topbar" data-article-header>
       <div class="article-site-header-inner ui-topbar-inner">
         <a class="article-brand ui-brand" href="/articles" aria-label="Pantheon 文章首頁">
-          <span class="ui-brand-kicker">Pantheon</span>
-          <strong class="ui-brand-title">文章管理</strong>
+          <span class="ui-brand-mark" aria-hidden="true">
+            <img src="/static/pantheon-symbol-logo.png" alt="" width="84" height="84" />
+          </span>
+          <span class="ui-brand-copy">
+            <span class="ui-brand-kicker">Pantheon</span>
+            <strong class="ui-brand-title">文章管理</strong>
+          </span>
         </a>
         <nav class="article-primary-nav ui-nav" aria-label="文章管理入口">
           <a href="/articles">文章首頁</a>
