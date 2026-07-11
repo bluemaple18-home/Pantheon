@@ -16,6 +16,12 @@ uvicorn main:app --host 0.0.0.0 --port 8877 --reload
 uv run pytest
 ```
 
+## 部署 Workflow
+
+公開頁、文章、SEO、sitemap、redirect、cache 版號與部署驗收流程，統一依照：
+
+- `docs/pantheon_deployment_workflow.md`
+
 ## API
 
 `POST /api/v1/predict`
