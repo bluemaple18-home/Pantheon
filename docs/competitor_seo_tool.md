@@ -1,0 +1,102 @@
+# 競品 SEO 作戰工具
+
+## 目的
+
+`scripts/competitor_seo_tool.py` 用來把公開競品網站拆成可執行的 Pantheon SEO 作戰資料。
+
+它不是用來複製競品正文、圖片或品牌資產；它只抽取：
+
+- 技術 SEO 缺口：robots、sitemap、canonical、meta description、JSON-LD、H1、內鏈。
+- 內容結構：標題公式、分類頻率、RSS 文章樣本、H2/小標模板。
+- 關鍵字差距：把競品內容和 `artifacts/fortune_council/content_seo_matrix/keyword_seed_matrix.md` 對照。
+- Git / 研究來源邊界：把 `artifacts/fortune_council/competitor_git_intake/source_manifest.md` 寫進 playbook，提醒撰文只可借題材、schema 與驗證邊界。
+- 作戰手冊：30 / 60 / 90 天要補哪些內容與結構。
+
+## 基本用法
+
+```bash
+.venv/bin/python scripts/competitor_seo_tool.py \
+  --site-url https://news.click108.com.tw \
+  --name Click108 \
+  --since 2024-07-10 \
+  --max-feed-pages 5 \
+  --max-category-pages 1 \
+  --sample-limit 10 \
+  --source-intake artifacts/fortune_council/competitor_git_intake/source_manifest.md
+```
+
+輸出預設會放在：
+
+```text
+output/competitor_seo/<hostname>/
+```
+
+以 Click108 為例：
+
+```text
+output/competitor_seo/news.click108.com.tw/
+```
+
+## 輸出檔
+
+| 檔案 | 用途 |
+|---|---|
+| `competitor_audit.json` | 完整機器可讀資料 |
+| `seo_audit.md` | 技術 SEO 缺口與頁面摘要 |
+| `keyword_gap.csv` | Pantheon 關鍵字與競品命中對照 |
+| `playbook.md` | 30 / 60 / 90 天 SEO 超車作戰手冊，含 Git / 研究來源邊界 |
+
+## 判讀方式
+
+優先看 `seo_audit.md`：
+
+- 競品缺 sitemap，我們就要保持 sitemap 全量可讀。
+- 競品缺 meta description，我們每篇都要補 70-95 字描述。
+- 競品缺 Article / FAQPage JSON-LD，我們每篇固定輸出 `Article + FAQPage + BreadcrumbList`。
+- 競品分類頁缺 canonical，我們分類頁、topic 頁、文章頁都不能缺。
+
+再看 `keyword_gap.csv`：
+
+- `competitor_hit_count > 0`：競品已經碰到的詞，我們要用更乾淨的 SEO 結構與更完整 FAQ 超過它。
+- `competitor_hit_count = 0`：競品沒碰到或覆蓋弱的詞，優先卡位。
+
+最後看 `playbook.md`：
+
+- 30 天：先補第一批 30 篇。
+- 60 天：展開塔羅 78 張、MBTI 16 型、紫微十二宮/十四主星。
+- 90 天：用 Search Console 看曝光與 CTR，再重寫 title / description / FAQ。
+
+## Click108 目前小樣本結論
+
+小樣本命令已驗證可跑，結果在：
+
+```text
+output/competitor_seo/news.click108.com.tw/
+```
+
+目前能確認：
+
+- RSS 可讀，適合持續追蹤競品新文。
+- sitemap 回 404，是技術 SEO 缺口。
+- 多數頁面 meta description 為空。
+- 文章頁 canonical 有，但分類頁 canonical 缺。
+- JSON-LD 主要只有 BreadcrumbList，缺 Article 和 FAQPage。
+- 它的內容強在量、分類內鏈與固定標題公式；我們短期應該用更乾淨的 technical SEO + FAQ/AEO 結構超過它。
+
+## 已整合的 Git / 研究來源
+
+工具預設會嘗試讀：
+
+```text
+artifacts/fortune_council/competitor_git_intake/source_manifest.md
+```
+
+目前判定：
+
+- `taibu`、`ziwei-doushu`、`life-chart-engine` 這類來源是產品題材、schema、驗證器參考，不是 SEO 排名證據。
+- `china-testing/bazi` 與部分 MBTI / Tarot / Human Design 來源授權仍待審，只能當題材提示。
+- 短期要贏 Click108，重點不是複製 git 或競品文案，而是把題材矩陣、FAQ、Article/FAQPage/Breadcrumb schema、topic 內鏈做得更完整。
+
+## 注意
+
+這個工具只使用公開頁面資料。不要把競品正文、圖片、Logo、品牌文案直接搬進 Pantheon。
