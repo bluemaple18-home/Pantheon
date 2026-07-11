@@ -1,7 +1,4 @@
 import PantheonMotionVisual from "./components/PantheonMotionVisual.jsx";
-import PantheonAnimatedLogo from "./components/PantheonAnimatedLogo.jsx";
-
-const logoSrc = "/pantheon-symbol-logo.png";
 
 const layers = [
   {
@@ -26,9 +23,7 @@ export default function App() {
     <main>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Pantheon 首頁">
-          <span className="brand-mark" aria-hidden="true">
-            <img className="brand-mark-image" src={logoSrc} alt="" width="48" height="48" />
-          </span>
+          <span className="brand-mark" aria-hidden="true">✦</span>
           <span>PANTHEON</span>
         </a>
         <span className="header-meta">Motion study · 01</span>
@@ -36,18 +31,6 @@ export default function App() {
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <div className="hero-logo-lockup">
-            <PantheonAnimatedLogo
-              baseImageSrc={logoSrc}
-              altText="Pantheon 品牌標誌"
-              className="hero-brand-logo"
-              runeCount={34}
-            />
-            <div className="hero-logo-copy">
-              <span>Brand symbol integrated</span>
-              <span>Oracle mark · motion field</span>
-            </div>
-          </div>
           <p className="eyebrow">Oracle interface · Motion study</p>
           <h1>
             讓指引，
