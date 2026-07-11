@@ -9,8 +9,9 @@
 `FULL-DRAFTS-FIRST-10` 已完成初版：`evidence/next_30/full_drafts_first_10.md`。
 `FULL-DRAFTS-11-20` 已完成初版：`evidence/next_30/full_drafts_11_20.md`。
 `FULL-DRAFTS-21-30` 已完成初版：`evidence/next_30/full_drafts_21_30.md`。
+`NEXT-30-PUBLISH` 已完成：30 篇已登錄前台 registry/body，sitemap 已同步，前台公開文章總數為 81 篇。
 
-本檔只承接撰文計劃與內容規格，不代表已上稿、已改前端或已部署。
+本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 
 ## 現況判斷
 
@@ -207,6 +208,7 @@ QA 狀態:
 2. `CARD-SEO-WRITE-002` 已建立 125 篇 cluster 規劃：`evidence/scale_clusters/cluster_plan.md`。
 3. `NEXT-30-DRAFTS` 已產出 30 篇可上稿草稿規格：`evidence/next_30/next_30_article_drafts.md`。
 4. `FULL-DRAFTS-FIRST-10` 已產出前 10 篇完整正文稿：`evidence/next_30/full_drafts_first_10.md`。
-5. `FULL-DRAFTS-11-20` 與 `FULL-DRAFTS-21-30` 已補齊，下一步可跑人工 QA gate 後轉正式 registry/body。
+5. `FULL-DRAFTS-11-20` 與 `FULL-DRAFTS-21-30` 已補齊，且 `NEXT-30-PUBLISH` 已轉入正式 registry/body。
+6. 下一步可從 Search Console / sitemap 提交與前台抽樣瀏覽驗收開始。
 
 目前品質風險不在「不知道寫什麼」，而在「大量寫完後又滑回工具課或舊式導流」。後續每篇文章先過 QA gate，再進入上稿或工程登錄。

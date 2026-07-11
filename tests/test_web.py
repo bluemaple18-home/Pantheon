@@ -66,12 +66,45 @@ SECOND_BATCH_PUBLIC_ARTICLE_PATHS = [
     "/articles/life-direction/life-direction-0002",
 ]
 
+NEXT_30_PUBLIC_ARTICLE_PATHS = [
+    "/articles/tarot/tarot-0012",
+    "/articles/tarot/tarot-0013",
+    "/articles/tarot/tarot-0014",
+    "/articles/tarot/tarot-0015",
+    "/articles/tarot/tarot-0016",
+    "/articles/tarot/tarot-0017",
+    "/articles/tarot/tarot-0018",
+    "/articles/tarot/tarot-0019",
+    "/articles/tarot/tarot-0020",
+    "/articles/tarot/tarot-0021",
+    "/articles/tarot/tarot-0022",
+    "/articles/tarot/tarot-0023",
+    "/articles/tarot/tarot-0024",
+    "/articles/tarot/tarot-0025",
+    "/articles/tarot/tarot-0026",
+    "/articles/tarot/tarot-0027",
+    "/articles/tarot/tarot-0028",
+    "/articles/tarot/tarot-0029",
+    "/articles/tarot/tarot-0030",
+    "/articles/tarot/tarot-0031",
+    "/articles/tarot/tarot-0032",
+    "/articles/personality/personality-0012",
+    "/articles/personality/personality-0013",
+    "/articles/personality/personality-0014",
+    "/articles/personality/personality-0015",
+    "/articles/personality/personality-0016",
+    "/articles/personality/personality-0017",
+    "/articles/personality/personality-0018",
+    "/articles/personality/personality-0019",
+    "/articles/personality/personality-0020",
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
     *SECOND_BATCH_PUBLIC_ARTICLE_PATHS,
+    *NEXT_30_PUBLIC_ARTICLE_PATHS,
 ]
-
 
 def test_home_redirects_to_latest_articles() -> None:
     client = TestClient(app)
@@ -128,7 +161,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
     assert "/static/styles.css?v=articles-hub-20260711-motion-logo-5" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-balanced-1" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-content-2" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -232,7 +265,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
-        assert "/static/article.js?v=article-content-20260711-23" in response.text
+        assert "/static/article.js?v=article-content-20260711-24" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
