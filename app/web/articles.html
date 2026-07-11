@@ -16,8 +16,8 @@
     <meta name="twitter:title" content="最新文章 | Pantheon" />
     <meta name="twitter:description" content="Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。" />
     <link rel="canonical" href="https://mysticpantheon.com/articles" />
-    <link rel="preload" as="image" href="/static/pantheon-symbol-logo.png" type="image/png" />
-    <link rel="stylesheet" href="/static/styles.css?v=articles-hub-20260711-logo-4" />
+    <link rel="preload" as="image" href="/static/pantheon-orb-alpha-poster.webp" type="image/webp" />
+    <link rel="stylesheet" href="/static/styles.css?v=articles-hub-20260711-motion-logo-1" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -57,7 +57,7 @@
       <header class="app-topbar destiny-topbar ui-topbar-row">
         <div class="topbar-title-lockup">
           <span class="ui-brand-mark" aria-hidden="true">
-            <img src="/static/pantheon-symbol-logo.png" alt="" width="84" height="84" />
+            <img src="/static/pantheon-orb-alpha-poster.webp" alt="" width="84" height="84" />
           </span>
           <div class="topbar-title-copy">
           <p class="eyebrow">Pantheon</p>
@@ -99,14 +99,29 @@
               <picture class="pantheon-hero-logo__image-wrap">
                 <img
                   class="pantheon-hero-logo__image"
-                  src="/static/pantheon-symbol-logo.png"
-                  alt="Pantheon 品牌標誌"
-                  width="1024"
-                  height="1024"
+                  src="/static/pantheon-orb-alpha-poster.webp"
+                  alt="Pantheon 五維神諭動態標誌"
+                  width="720"
+                  height="864"
                   loading="eager"
                   decoding="async"
                 />
               </picture>
+              <video
+                class="pantheon-hero-logo__video"
+                muted
+                autoplay
+                loop
+                playsinline
+                preload="metadata"
+                poster="/static/pantheon-orb-alpha-poster.webp"
+                width="720"
+                height="864"
+                aria-hidden="true"
+                tabindex="-1"
+              >
+                <source src="/static/pantheon-orb-alpha-v2.webm" type="video/webm" />
+              </video>
               <div class="pantheon-hero-logo__core" aria-hidden="true"></div>
               <canvas class="pantheon-hero-logo__runes" data-pantheon-logo-canvas aria-hidden="true"></canvas>
             </div>
@@ -153,6 +168,6 @@
         </nav>
       </section>
     </main>
-    <script type="module" src="/static/articles.js?v=articles-hub-20260711-logo-4"></script>
+    <script type="module" src="/static/articles.js?v=articles-hub-20260711-motion-logo-1"></script>
   </body>
 </html>

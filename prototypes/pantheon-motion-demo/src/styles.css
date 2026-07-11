@@ -59,17 +59,8 @@ a {
   place-items: center;
   border: 1px solid rgb(36 33 30 / 0.35);
   border-radius: 50%;
-  overflow: hidden;
-  background: #efe7d7;
-  box-shadow: 0 8px 18px rgb(66 42 15 / 0.08);
-}
-
-.brand-mark-image {
-  width: 130%;
-  height: 130%;
-  object-fit: cover;
-  object-position: center;
-  filter: saturate(0.96) contrast(1.05);
+  color: #8b6331;
+  font-size: 0.72rem;
 }
 
 .header-meta,
@@ -96,47 +87,6 @@ footer {
   position: relative;
   z-index: 2;
   max-width: 42rem;
-}
-
-.hero-logo-lockup {
-  display: inline-grid;
-  grid-template-columns: 5.25rem minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid rgb(36 33 30 / 0.12);
-}
-
-.hero-brand-logo {
-  width: 5.25rem;
-  max-width: 5.25rem;
-  margin: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #efe7d7;
-  box-shadow: 0 18px 40px rgb(66 42 15 / 0.12);
-}
-
-.hero-logo-copy {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.hero-logo-copy span:first-child {
-  color: #8b6331;
-  font-size: 0.69rem;
-  font-weight: 760;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.hero-logo-copy span:last-child {
-  color: rgb(36 33 30 / 0.58);
-  font-size: 0.78rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
 }
 
 .eyebrow {
@@ -301,10 +251,6 @@ footer {
     max-width: 46rem;
   }
 
-  .hero-logo-lockup {
-    margin-bottom: 24px;
-  }
-
   .hero-visual-column {
     margin-top: -1.5rem;
   }
@@ -330,37 +276,6 @@ footer {
   .hero {
     gap: 16px;
     padding-top: 112px;
-  }
-
-  .brand {
-    gap: 10px;
-    letter-spacing: 0.16em;
-  }
-
-  .brand-mark {
-    width: 27px;
-  }
-
-  .hero-logo-lockup {
-    grid-template-columns: 4.4rem minmax(0, 1fr);
-    gap: 13px;
-    margin-bottom: 22px;
-    padding-bottom: 16px;
-  }
-
-  .hero-brand-logo {
-    width: 4.4rem;
-    max-width: 4.4rem;
-  }
-
-  .hero-logo-copy span:first-child {
-    font-size: 0.62rem;
-    letter-spacing: 0.14em;
-  }
-
-  .hero-logo-copy span:last-child {
-    font-size: 0.72rem;
-    letter-spacing: 0.04em;
   }
 
   .eyebrow {

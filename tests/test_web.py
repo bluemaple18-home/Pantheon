@@ -89,10 +89,11 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
-    assert "/static/pantheon-symbol-logo.png" in response.text
-    assert "Pantheon 品牌標誌" in response.text
-    assert "/static/styles.css?v=articles-hub-20260711-logo-4" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-logo-4" in response.text
+    assert "/static/pantheon-orb-alpha-poster.webp" in response.text
+    assert "/static/pantheon-orb-alpha-v2.webm" in response.text
+    assert "Pantheon 五維神諭動態標誌" in response.text
+    assert "/static/styles.css?v=articles-hub-20260711-motion-logo-1" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-motion-logo-1" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -138,9 +139,9 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
-        assert "/static/pantheon-symbol-logo.png" in response.text
+        assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260711-logo-1" in response.text
+        assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
         assert "/static/article.js?v=article-content-20260710-22" in response.text
 
 
@@ -694,7 +695,7 @@ def test_article_admin_serves_management_console() -> None:
     assert "所有文章" in response.text
     assert "name=\"robots\" content=\"noindex,nofollow\"" in response.text
     assert "/static/article-admin.js" in response.text
-    assert "/static/pantheon-symbol-logo.png" in response.text
+    assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "ui-brand-mark" in response.text
     article_admin_js = Path("app/web/static/article-admin.js").read_text()
     assert "buildArticleGraph" in article_admin_js
