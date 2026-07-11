@@ -552,18 +552,11 @@ function buildTopicTitle(label) {
 
 function buildTopicRelatedLinks(topic, articles) {
   const articleLinks = articles.slice(0, 8).map((article) => ({
-    label: `${article.serial} ${article.title}`,
+    label: article.title,
     href: getArticlePath(article),
     kind: "相關文章",
   }));
-  const fallbackLinks = [
-    { label: "最新文章", href: "/articles", kind: "文章入口" },
-    { label: "命盤文章入口", href: "/articles/fortune", kind: "產品線入口" },
-    { label: "人格文章入口", href: "/articles/personality", kind: "產品線入口" },
-    { label: "塔羅文章入口", href: "/articles/tarot", kind: "產品線入口" },
-    { label: "星座文章入口", href: "/articles/astro", kind: "產品線入口" },
-  ];
-  return uniqueLinks([...articleLinks, ...fallbackLinks]).filter((item) => item.href !== `/topics/${topic.slug}`).slice(0, 8);
+  return uniqueLinks(articleLinks).filter((item) => item.href !== `/topics/${topic.slug}`).slice(0, 8);
 }
 
 function buildSectionDescription(route, section, intent, productTheme) {
@@ -1106,38 +1099,10 @@ function buildEntryAnswer(article, productTheme) {
 
 function buildRelatedLinks(article, managedArticle, productTheme, route = {}) {
   if (!article && route.product) {
-    const productArticles = getRelatedArticleLinks(route.product);
-    const intentLinks = [
-      { label: "感情文章入口", href: "/articles/intents/love", kind: "情境入口" },
-      { label: "事業文章入口", href: "/articles/intents/career", kind: "情境入口" },
-      { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "情境入口" },
-      { label: "財富文章入口", href: "/articles/intents/wealth", kind: "情境入口" },
-      { label: "人生方向文章入口", href: "/articles/intents/life", kind: "情境入口" },
-    ];
-    return uniqueLinks([...productArticles, ...intentLinks]).slice(0, 8);
+    return getRelatedArticleLinks(route.product).slice(0, 8);
   }
   if (!article) return [];
-  const currentPath = getArticlePath(article);
-  const productLinks = [
-    { label: `${productTheme.label}文章入口`, href: `/articles/${article.product}`, kind: "主題入口" },
-    { label: "感情文章入口", href: "/articles/intents/love", kind: "情境入口" },
-    { label: "事業文章入口", href: "/articles/intents/career", kind: "情境入口" },
-    { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "情境入口" },
-    { label: "人生方向文章入口", href: "/articles/intents/life", kind: "情境入口" },
-  ];
-  const recommendedArticles = getRecommendedArticleLinks(article)
-    .filter((item) => item.href !== currentPath && item.href !== `/articles/${article.product}/${article.slug}`)
-    .slice(0, 4);
-  const crossProduct = article.product === "personality"
-    ? [
-      { label: "塔羅牌意思總覽", href: "/articles/tarot/tarot-0001", kind: "跨分類" },
-      { label: "人生方向文章入口", href: "/articles/intents/life", kind: "跨分類" },
-    ]
-    : [
-      { label: "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看", href: "/articles/personality/personality-0001", kind: "跨分類" },
-      { label: "人際文章入口", href: "/articles/intents/interpersonal", kind: "跨分類" },
-    ];
-  return uniqueLinks([...productLinks, ...recommendedArticles, ...crossProduct]).slice(0, 8);
+  return buildArticleRecommendationLinks(article);
 }
 
 function getRelatedArticleLinks(product) {
@@ -1169,7 +1134,35 @@ function buildArticleNavigationLinks(article) {
   ].filter(Boolean);
 }
 
+function buildArticleRecommendationLinks(article) {
+  const candidates = getRecommendedArticleCandidates(article);
+  const currentCategory = article.articleCategory || article.product;
+  const sameCategoryRecommendations = candidates
+    .filter(({ article: candidate }) => (candidate.articleCategory || candidate.product) === currentCategory)
+    .slice(0, 2);
+  const usedCategories = new Set([currentCategory]);
+  const crossCategoryRecommendations = [];
+  candidates.forEach((candidate) => {
+    if (crossCategoryRecommendations.length >= 3) return;
+    const candidateCategory = candidate.article.articleCategory || candidate.article.product;
+    if (!candidateCategory || usedCategories.has(candidateCategory)) return;
+    usedCategories.add(candidateCategory);
+    crossCategoryRecommendations.push(candidate);
+  });
+  return [...sameCategoryRecommendations, ...crossCategoryRecommendations]
+    .slice(0, 5)
+    .map(({ article: candidate }) => ({
+      label: candidate.title,
+      href: getArticlePath(candidate),
+      kind: "相關文章",
+    }));
+}
+
 function getRecommendedArticleLinks(article) {
+  return buildArticleRecommendationLinks(article);
+}
+
+function getRecommendedArticleCandidates(article) {
   if (!article) return [];
   const currentPath = getArticlePath(article);
   return listArticleRecords()
@@ -1179,12 +1172,7 @@ function getRecommendedArticleLinks(article) {
       score: scoreRelatedArticle(article, candidate),
     }))
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || compareArticleSerial(a.article, b.article))
-    .map(({ article: candidate }) => ({
-      label: candidate.title,
-      href: getArticlePath(candidate),
-      kind: "相關文章",
-    }));
+    .sort((a, b) => b.score - a.score || compareArticleSerial(a.article, b.article));
 }
 
 function scoreRelatedArticle(article, candidate) {

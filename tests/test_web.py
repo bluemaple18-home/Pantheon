@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-6" in response.text
-        assert "/static/article.js?v=article-content-20260710-16" in response.text
+        assert "/static/article.js?v=article-content-20260710-17" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -186,7 +186,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
     assert "buildRelatedLinks(article, managedArticle, productTheme, route)" in article_meta_js
+    assert "buildArticleRecommendationLinks(article)" in article_meta_js
+    assert "sameCategoryRecommendations" in article_meta_js
+    assert "crossCategoryRecommendations" in article_meta_js
     assert "getRecommendedArticleLinks(article)" in article_meta_js
+    assert "getRecommendedArticleCandidates(article)" in article_meta_js
     assert "scoreRelatedArticle(article, candidate)" in article_meta_js
     assert "sharedTopicCount * 8" in article_meta_js
     assert "buildArticleCta(article, productTheme, route)" in article_meta_js
@@ -307,6 +311,8 @@ const data = paths.map((path) => {{
     bodyLength: [...bodyText].length,
     faqCount: content.faq.length,
     relatedCount: content.relatedLinks.length,
+    relatedHasEntrance: content.relatedLinks.some((item) => item.label.includes("入口") || item.kind.includes("入口")),
+    relatedAllArticles: content.relatedLinks.every((item) => item.kind === "相關文章"),
     ctaCount: content.cta.links.length,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
     minBodyLength: summaryPaths.has(path) ? 2400 : 1600,
@@ -327,7 +333,9 @@ console.log(JSON.stringify(data));
         assert record["bodySectionCount"] >= 8, record
         assert record["bodyLength"] >= record["minBodyLength"], record
         assert 3 <= record["faqCount"] <= 5, record
-        assert record["relatedCount"] >= 6, record
+        assert 1 <= record["relatedCount"] <= 5, record
+        assert record["relatedAllArticles"], record
+        assert not record["relatedHasEntrance"], record
         assert record["ctaCount"] >= 3, record
         assert record["hasLimit"], record
         assert not record["hasForbidden"], record
@@ -381,8 +389,12 @@ console.log(JSON.stringify({
   },
   sequenceArticle: {
     navigationLinks: sequenceArticle.navigationLinks,
-    relatedLabels: sequenceArticle.relatedLinks.map((item) => item.label),
-    relatedKinds: sequenceArticle.relatedLinks.map((item) => item.kind),
+    relatedLinks: sequenceArticle.relatedLinks.map((item) => ({
+      label: item.label,
+      kind: item.kind,
+      href: item.href,
+      category: item.href.split("/")[2],
+    })),
   },
   topic: {
     title: topic.title,
@@ -406,8 +418,16 @@ console.log(JSON.stringify({
     assert data["canonical"]["canonicalPath"] == "/articles/interpersonal/interpersonal-0001"
     assert [item["kind"] for item in data["sequenceArticle"]["navigationLinks"]] == ["上一篇", "下一篇"]
     assert not any("000" in label for label in data["canonical"]["relatedLabels"])
-    assert not any("000" in label for label in data["sequenceArticle"]["relatedLabels"])
-    assert "相關文章" in data["sequenceArticle"]["relatedKinds"]
+    related_links = data["sequenceArticle"]["relatedLinks"]
+    assert len(related_links) <= 5
+    assert all(item["kind"] == "相關文章" for item in related_links)
+    assert not any("入口" in item["label"] or "入口" in item["kind"] for item in related_links)
+    assert not any("000" in item["label"] for item in related_links)
+    same_category = [item for item in related_links if item["category"] == "personality"]
+    cross_category = [item for item in related_links if item["category"] != "personality"]
+    assert len(same_category) <= 2
+    assert len(cross_category) <= 3
+    assert len({item["category"] for item in cross_category}) == len(cross_category)
     assert data["canonical"]["tagHref"] == "/topics/interpersonal"
     assert data["topic"]["canonicalPath"] == "/topics/mbti"
     assert data["topic"]["title"] == "MBTI 相關文章"
