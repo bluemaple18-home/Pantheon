@@ -160,8 +160,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
-    assert "/static/styles.css?v=articles-hub-20260711-motion-logo-5" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-content-2" in response.text
+    assert "/static/styles.css?v=articles-hub-20260711-mobile-motion-1" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-mobile-motion-1" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -275,6 +275,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_registry_js = Path("app/web/static/article-registry.js").read_text()
     article_html = Path("app/web/article.html").read_text()
     articles_js = Path("app/web/static/articles.js").read_text()
+    motion_visual_js = Path("app/web/static/pantheon-motion-visual.js").read_text()
     styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
     assert "buildArticleContent(window.location.pathname, window.location.origin" in article_js
@@ -348,10 +349,15 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "getArticlePath(article)" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
     assert "initPantheonMotionVisuals()" in articles_js
-    assert "pantheon-motion-visual.js?v=articles-hub-20260711-balanced-1" in articles_js
+    assert "pantheon-motion-visual.js?v=articles-hub-20260711-mobile-motion-1" in articles_js
     assert "mask-image: none;" in styles_css
     assert "-webkit-mask-image: none;" in styles_css
     assert "clip-path: inset(15% 0 16% 0);" in styles_css
+    assert ".playbackFallback .mediaFrame" in styles_css
+    assert "@keyframes pantheonFallbackDrift" in styles_css
+    assert 'video.canPlayType("video/webm")' in motion_visual_js
+    assert 'document.createElement("source")' in motion_visual_js
+    assert "visual.classList.toggle(\"playbackFallback\", playbackFallback)" in motion_visual_js
     assert "stroke: rgb(198 161 91 / 0.8);" in styles_css
     assert "stroke-width: 1.5;" in styles_css
     assert "stroke: rgb(178 145 83 / 0.72);" in styles_css

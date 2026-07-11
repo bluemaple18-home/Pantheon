@@ -74,8 +74,9 @@ function renderOrbitGlyph({ angle, type, tone }, radius) {
   `;
 }
 
-function setStaticMode(visual, staticMode, videoReady = false) {
+function setStaticMode(visual, staticMode, videoReady = false, playbackFallback = false) {
   visual.classList.toggle("staticMode", staticMode);
+  visual.classList.toggle("playbackFallback", playbackFallback);
   const video = visual.querySelector("video");
   const poster = visual.querySelector(".poster");
   if (video) video.hidden = staticMode;
@@ -122,9 +123,7 @@ function mountPantheonMotionVisual(target) {
           disablepictureinpicture
           aria-hidden="true"
           tabindex="-1"
-        >
-          <source src="${videoSrc}" type="video/webm" />
-        </video>
+        ></video>
       </div>
       <svg class="orbitalField" data-orbital-field viewBox="0 0 720 864" aria-hidden="true" focusable="false">
         <g class="outerOrbit" data-orbit-layer data-orbit-kind="outer">
@@ -162,7 +161,8 @@ function mountPantheonMotionVisual(target) {
 
   const syncPlayback = () => {
     const staticMode = getStaticMode();
-    setStaticMode(visual, staticMode, videoReady);
+    const playbackFallback = playbackFailed && !reducedMotion && !saveData;
+    setStaticMode(visual, staticMode, videoReady, playbackFallback);
 
     if (staticMode || document.hidden || !isInView) {
       video.pause();
@@ -174,6 +174,15 @@ function mountPantheonMotionVisual(target) {
       syncPlayback();
     });
   };
+
+  if (video.canPlayType("video/webm")) {
+    const source = document.createElement("source");
+    source.src = videoSrc;
+    source.type = "video/webm";
+    video.append(source);
+  } else {
+    playbackFailed = true;
+  }
 
   video.addEventListener("playing", () => {
     videoReady = true;

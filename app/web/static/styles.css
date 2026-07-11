@@ -4208,6 +4208,10 @@ select:focus {
   opacity: 1;
 }
 
+.playbackFallback .mediaFrame {
+  animation: pantheonFallbackDrift 9s ease-in-out infinite alternate;
+}
+
 .orbitalField {
   position: absolute;
   inset: 0;
@@ -4344,6 +4348,16 @@ select:focus {
 
 @keyframes nodeFloat {
   to { translate: 0 -9px; }
+}
+
+@keyframes pantheonFallbackDrift {
+  0% {
+    transform: translate3d(-2px, -1px, 0) scale(0.992) rotate(-1.1deg);
+  }
+
+  100% {
+    transform: translate3d(2px, 1px, 0) scale(1.012) rotate(1.1deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
