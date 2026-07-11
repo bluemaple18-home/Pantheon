@@ -212,3 +212,11 @@ QA 狀態:
 6. 下一步可從 Search Console / sitemap 提交與前台抽樣瀏覽驗收開始。
 
 目前品質風險不在「不知道寫什麼」，而在「大量寫完後又滑回工具課或舊式導流」。後續每篇文章先過 QA gate，再進入上稿或工程登錄。
+
+## SCALE-TO-125 Publish
+
+- 已補 44 篇塔羅小牌正式文章，前台 registry 總數由 81 篇補到 125 篇。
+- 新增正文庫：`app/web/static/article-bodies-scale-44.js`。
+- 新增 URL：`/articles/tarot/tarot-0033` 到 `/articles/tarot/tarot-0076`。
+- 內容邊界：不寫產品使用教學，不承諾感情、工作或財務結果；每篇以正位、逆位、感情、工作困擾為主。
+- 驗證狀態：`node --check`、新增 44 篇 voice/body gate、sitemap 對齊檢查、`pytest tests/test_web.py -q`、`git diff --check` 已通過。

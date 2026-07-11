@@ -10,9 +10,10 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=article-content-20260711-24";
-import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260711-24";
-import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260711-24";
+} from "./article-registry.js?v=article-content-20260711-25";
+import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260711-25";
+import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260711-25";
+import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260711-25";
 
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
@@ -28,6 +29,7 @@ const INTERNAL_DISPLAY_TAGS = new Set([
 const ARTICLE_BODY_LIBRARY = {
   ...SECOND_BATCH_ARTICLE_BODY_LIBRARY,
   ...NEXT_30_ARTICLE_BODY_LIBRARY,
+  ...SCALE_44_ARTICLE_BODY_LIBRARY,
   "mbti-meaning": [
     {
       heading: "MBTI 是什麼？",

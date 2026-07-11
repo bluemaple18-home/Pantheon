@@ -99,11 +99,59 @@ NEXT_30_PUBLIC_ARTICLE_PATHS = [
     "/articles/personality/personality-0020",
 ]
 
+SCALE_TO_125_PUBLIC_ARTICLE_PATHS = [
+    "/articles/tarot/tarot-0033",
+    "/articles/tarot/tarot-0034",
+    "/articles/tarot/tarot-0035",
+    "/articles/tarot/tarot-0036",
+    "/articles/tarot/tarot-0037",
+    "/articles/tarot/tarot-0038",
+    "/articles/tarot/tarot-0039",
+    "/articles/tarot/tarot-0040",
+    "/articles/tarot/tarot-0041",
+    "/articles/tarot/tarot-0042",
+    "/articles/tarot/tarot-0043",
+    "/articles/tarot/tarot-0044",
+    "/articles/tarot/tarot-0045",
+    "/articles/tarot/tarot-0046",
+    "/articles/tarot/tarot-0047",
+    "/articles/tarot/tarot-0048",
+    "/articles/tarot/tarot-0049",
+    "/articles/tarot/tarot-0050",
+    "/articles/tarot/tarot-0051",
+    "/articles/tarot/tarot-0052",
+    "/articles/tarot/tarot-0053",
+    "/articles/tarot/tarot-0054",
+    "/articles/tarot/tarot-0055",
+    "/articles/tarot/tarot-0056",
+    "/articles/tarot/tarot-0057",
+    "/articles/tarot/tarot-0058",
+    "/articles/tarot/tarot-0059",
+    "/articles/tarot/tarot-0060",
+    "/articles/tarot/tarot-0061",
+    "/articles/tarot/tarot-0062",
+    "/articles/tarot/tarot-0063",
+    "/articles/tarot/tarot-0064",
+    "/articles/tarot/tarot-0065",
+    "/articles/tarot/tarot-0066",
+    "/articles/tarot/tarot-0067",
+    "/articles/tarot/tarot-0068",
+    "/articles/tarot/tarot-0069",
+    "/articles/tarot/tarot-0070",
+    "/articles/tarot/tarot-0071",
+    "/articles/tarot/tarot-0072",
+    "/articles/tarot/tarot-0073",
+    "/articles/tarot/tarot-0074",
+    "/articles/tarot/tarot-0075",
+    "/articles/tarot/tarot-0076",
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
     *SECOND_BATCH_PUBLIC_ARTICLE_PATHS,
     *NEXT_30_PUBLIC_ARTICLE_PATHS,
+    *SCALE_TO_125_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -161,7 +209,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
     assert "/static/styles.css?v=articles-hub-20260711-mobile-motion-1" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-mobile-motion-1" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-content-3" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -265,7 +313,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
-        assert "/static/article.js?v=article-content-20260711-24" in response.text
+        assert "/static/article.js?v=article-content-20260711-25" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
