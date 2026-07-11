@@ -1,0 +1,7 @@
+node_modules/
+.venv/
+dist/
+evidence/
+source-assets/
+design-qa.md
+.DS_Store
