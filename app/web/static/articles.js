@@ -1,5 +1,6 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=articles-hub-20260711-motion-logo-1";
-import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-motion-logo-1";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=articles-hub-20260711-motion-logo-2";
+import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-motion-logo-2";
+import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-motion-logo-2";
 
 const articleGrid = document.querySelector("[data-home-articles]");
 const SEARCH_SNIPPETS = {
@@ -19,6 +20,7 @@ const SEARCH_SNIPPETS = {
 
 renderLatestArticles();
 initPantheonAnimatedLogos();
+initPantheonMotionVisuals();
 
 function renderLatestArticles() {
   if (!articleGrid) return;

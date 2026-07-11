@@ -91,9 +91,9 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "\"@type\": \"CollectionPage\"" in response.text
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
-    assert "Pantheon 五維神諭動態標誌" in response.text
-    assert "/static/styles.css?v=articles-hub-20260711-motion-logo-1" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-motion-logo-1" in response.text
+    assert "data-pantheon-motion-visual" in response.text
+    assert "/static/styles.css?v=articles-hub-20260711-motion-logo-2" in response.text
+    assert "/static/articles.js?v=articles-hub-20260711-motion-logo-2" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -223,6 +223,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "pickLatestArticles(listArticleRecords())" in articles_js
     assert "getArticlePath(article)" in articles_js
     assert "card.dataset.productTheme = article.product" in articles_js
+    assert "initPantheonMotionVisuals()" in articles_js
+    assert "pantheon-motion-visual.js?v=articles-hub-20260711-motion-logo-2" in articles_js
     assert "SEARCH_SNIPPETS" in articles_js
     assert "MBTI 用四組偏好組成 16 型人格" in articles_js
     assert "塔羅牌意思先看你正在問的問題" in articles_js
