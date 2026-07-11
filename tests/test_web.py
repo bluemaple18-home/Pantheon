@@ -137,7 +137,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
         assert "/static/styles.css?v=article-product-theme-20260710-8" in response.text
-        assert "/static/article.js?v=article-content-20260710-20" in response.text
+        assert "/static/article.js?v=article-content-20260710-21" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -323,6 +323,8 @@ const data = paths.map((path) => {{
   const articleText = `${{headingText}}${{bodyText}}`;
   const forbidden = ["全面解析", "深度解析", "不可或缺", "賦能", "總而言之", "值得注意的是", "必看", "一定", "保證", "注定"];
   const forbiddenReaderPhrases = [
+    "入口",
+    "文章即可",
     "公開文章的任務",
     "公開文章負責",
     "可以先選一個入口",
@@ -382,6 +384,71 @@ console.log(JSON.stringify(data));
             assert "不要只問這張牌好不好" in record["headings"], record
             assert "把問題改成現在能處理的事" in record["headings"], record
             assert "什麼時候需要再往下整理？" in record["headings"], record
+
+
+def test_public_generated_text_does_not_leak_internal_entry_language() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { getArticlePath, listArticleRecords, listTopicRecords } from "./app/web/static/article-registry.js";
+
+const paths = [
+  "/articles",
+  "/articles/personality",
+  "/articles/tarot",
+  "/articles/fortune",
+  "/articles/astro",
+  ...listArticleRecords().map(getArticlePath),
+  ...listTopicRecords().map((topic) => topic.href),
+];
+const forbidden = [
+  "入口",
+  "文章即可",
+  "讀文章即可",
+  "哪個入口",
+  "從哪個入口開始",
+  "文章入口",
+  "人生方向入口",
+  "五大主題文章",
+  "公開文章負責",
+  "公開文章的任務",
+  "標籤頁",
+  "集結頁",
+  "工具課",
+];
+const records = paths.map((path) => {
+  const content = buildArticleContent(path, "https://mysticpantheon.com", {
+    author: "Pantheon 編輯部",
+    updated: "2026-07-10",
+  });
+  const text = [
+    content.title,
+    content.pageTitle,
+    content.description,
+    content.sectionDescription,
+    content.answer,
+    ...(content.bodySections || []).flatMap((section) => [
+      section.heading,
+      ...(section.paragraphs || []),
+      ...(section.links || []).flatMap((link) => [link.label, link.kind]),
+    ]),
+    ...(content.faq || []).flatMap((item) => [item.question, item.answer]),
+    ...(content.relatedLinks || []).flatMap((link) => [link.label, link.kind]),
+    ...(content.displayTagLinks || []).map((tag) => tag.label),
+  ].filter(Boolean).join("\\n");
+  return {
+    path,
+    hits: forbidden.filter((phrase) => text.includes(phrase)),
+  };
+}).filter((record) => record.hits.length);
+console.log(JSON.stringify(records));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout) == []
 
 
 def test_unknown_article_slug_redirects_to_product_hub() -> None:

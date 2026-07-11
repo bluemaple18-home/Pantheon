@@ -9,7 +9,7 @@ import {
   getTopicRecord,
   listArticleRecords,
   listArticlesForTopic,
-} from "./article-registry.js?v=article-content-20260710-10";
+} from "./article-registry.js?v=article-content-20260710-11";
 
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
@@ -51,7 +51,7 @@ const ARTICLE_BODY_LIBRARY = {
       heading: "16 型人格是什麼？",
       paragraphs: [
         "16 型人格是把 MBTI 的四組偏好組合成 16 種常見類型，用來快速整理一個人在思考、感受、工作和人際裡的傾向。它比較像分類索引，不是人格的完整說明書。",
-        "同一型的人仍然可能差很多，因為成長背景、壓力狀態、價值觀和生活經驗都會影響表現。類型可以當入口，但不能當結論。",
+        "同一型的人仍然可能差很多，因為成長背景、壓力狀態、價值觀和生活經驗都會影響表現。類型可以當成整理偏好的起點，但不能當結論。",
       ],
     },
     {
@@ -356,7 +356,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     ? {
       label: "最新文章",
       glyph: "文",
-      description: "Pantheon 最新文章入口，整理命盤、人格、塔羅、星座與人生方向主題。",
+      description: "Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。",
     }
     : getProductThemeRecord(managedArticle.productTheme);
   const displayTitle = route.slug
@@ -476,7 +476,7 @@ function parseArticleRoute(pathname) {
 function buildDescription(route, article, section, intent, productTheme) {
   if (route.slug && article?.description) return article.description;
   if (route.slug) return `${route.title}：Pantheon 以繁體中文整理${productTheme.label}主題，提供清楚摘要、背景脈絡與延伸閱讀。`;
-  if (route.intent) return `Pantheon ${intent?.label || route.intentLabel}文章主題入口，整理相關問題、文章脈絡與延伸閱讀。`;
+  if (route.intent) return `Pantheon ${intent?.label || route.intentLabel}文章主題，整理相關問題、文章脈絡與延伸閱讀。`;
   if (route.product) return section?.seoDescription || `Pantheon ${productTheme.label}文章列表，整理基礎概念、常見問題與延伸閱讀。`;
   return "Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。";
 }
@@ -560,10 +560,10 @@ function buildTopicRelatedLinks(topic, articles) {
 }
 
 function buildSectionDescription(route, section, intent, productTheme) {
-  if (route.intent) return `${intent?.label || route.intentLabel}文章會作為搜尋意圖入口，再連回對應產品線文章與主題文章。`;
+  if (route.intent) return `${intent?.label || route.intentLabel}文章會整理搜尋者真正想解決的問題，再連回對應產品線文章與主題文章。`;
   if (route.product && section?.description) return section.description;
   if (route.product) return `${productTheme.label}文章列表，整理基礎概念、常見問題與延伸閱讀。`;
-  return "最新文章入口，集中整理命盤、人格、塔羅、星座與人生方向主題。";
+  return "最新文章集中整理命盤、人格、塔羅、星座與人生方向主題。";
 }
 
 function buildAnswer(route) {
@@ -583,7 +583,7 @@ function buildBodySections(route, article, section, intent, productTheme, manage
       {
         heading: `${label}文章先看什麼？`,
         paragraphs: [
-          `${label}相關搜尋通常不是只想看一個名詞，而是想知道現在遇到的問題可以從哪些角度理解。這個入口會整理人格、塔羅、命盤與星盤中和${label}有關的文章。`,
+          `${label}相關搜尋通常不是只想看一個名詞，而是想知道現在遇到的問題可以從哪些角度理解。這裡會整理人格、塔羅、命盤與星盤中和${label}有關的文章。`,
           "公開文章適合先建立概念、看常見問題與限制；如果要做個人化判斷，仍需要回到具體資料與情境。",
         ],
       },
@@ -611,18 +611,18 @@ function buildProductHubSections(route, section, productTheme) {
       heading: `${productTheme.label}文章會先整理什麼？`,
       paragraphs: [
         section?.description || `${productTheme.label}文章會先整理常見概念，再補充使用限制與延伸閱讀。`,
-        `${productTheme.label}入口不是單篇薄內容，而是把同一產品線的公開文章集中在一起。讀者可以先從「${section?.primaryKeyword || productTheme.label}」建立基本語言，再依照自己真正想問的情境往下讀。`,
-        "這個入口也負責把文章編號固定下來。每篇文章用英文分類加流水號管理，例如 fortune-0001 或 tarot-0004；標題以後可以調整，但正式網址和內容索引不會跟著亂掉。",
+        `${productTheme.label}文章會把同一產品線的公開內容集中在一起。讀者可以先從「${section?.primaryKeyword || productTheme.label}」建立基本語言，再依照自己真正想問的情境往下讀。`,
+        "文章編號會維持固定，方便之後擴充到更多內容。讀者不需要記編號，只要看標題和情境，選最接近自己問題的文章就好。",
       ],
     },
     {
       heading: `這裡先讀哪幾篇${productTheme.label}文章？`,
       paragraphs: [
         articleNames
-          ? `目前這個入口收錄：${articleNames}。每篇都會先回答搜尋問題，再說明適用情境、常見誤解和不能代表什麼。`
-          : `目前這個入口會收錄${productTheme.label}基礎概念、常見問題與延伸閱讀。`,
-        `如果你只是想查定義，先讀第一篇基礎文就好；如果你已經卡在感情、事業、人際、財富或人生方向，則建議搭配五大情境入口閱讀。`,
-        "不要從入口頁直接跳到個人結論。入口頁的價值，是讓你知道有哪些文章、每篇負責哪一層問題，以及下一篇該怎麼選。",
+          ? `目前收錄：${articleNames}。每篇都會先回答搜尋問題，再說明適用情境、常見誤解和不能代表什麼。`
+          : `目前會收錄${productTheme.label}基礎概念、常見問題與延伸閱讀。`,
+        `如果你只是想查定義，先讀第一篇基礎文就好；如果你已經卡在感情、事業、人際、財富或人生方向，就選最接近當下煩惱的主題文章。`,
+        "不要從列表直接跳到個人結論。這裡的價值，是讓你知道有哪些文章、每篇負責哪一層問題，以及下一篇該怎麼選。",
       ],
     },
     {
@@ -630,15 +630,15 @@ function buildProductHubSections(route, section, productTheme) {
       paragraphs: [
         getProductBoundarySentence(productTheme.label),
         "公開文章只能整理共通知識、名詞差異和閱讀順序，不會把單一宮位、人格類型、牌義或星座落點寫成你的個人結論。真正套用到自己身上時，仍然要回到資料、問題和當下情境。",
-        "如果你是從搜尋進來，先確認自己要的是概念、比較、使用限制，還是想找下一篇文章。這四種需求會導向不同閱讀路徑，也會影響你是否需要再看 topic 集結頁。",
+        "如果你是從搜尋進來，先確認自己要的是概念、比較、使用限制，還是想找下一篇文章。這四種需求會導向不同閱讀路徑，也會影響你要不要改讀更接近情境的文章。",
       ],
     },
     {
       heading: "下一步怎麼選文章？",
       paragraphs: [
-        "如果你不知道從哪裡開始，先選一篇最接近你搜尋字的文章；如果讀完還是不確定，再回到同分類延伸閱讀或五大情境入口。這樣可以避免在不同工具之間跳來跳去，卻沒有真正釐清問題。",
-        "比較好的順序是：先讀產品線基礎文章，再看單一概念文章，最後才進到感情、事業、人際、財富或人生方向主題。文章入口的任務，是讓讀者知道下一篇該補哪一層。",
-        "如果你看到文章標籤，也可以直接點進 topic 頁。topic 頁會把跨分類文章串起來，例如 MBTI 可以連到人格、人際和自我理解；塔羅也可以連到牌義、正逆位和感情提問。",
+        "如果你不知道從哪裡開始，先選一篇最接近你搜尋字的文章；如果讀完還是不確定，再回到同分類延伸閱讀或更接近情境的主題文章。這樣可以避免在不同工具之間跳來跳去，卻沒有真正釐清問題。",
+        "比較好的順序是：先讀產品線基礎文章，再看單一概念文章，最後才進到感情、事業、人際、財富或人生方向主題。重點不是多讀，而是知道下一篇要補哪一層。",
+        "如果你看到文章標籤，也可以直接點進主題列表。主題列表會把跨分類文章串起來，例如 MBTI 可以連到人格、人際和自我理解；塔羅也可以連到牌義、正逆位和感情提問。",
       ],
     },
   ];
@@ -785,7 +785,7 @@ function buildFallbackAngleSection(article, productTheme, primary, related) {
   return {
     heading: `${productTheme.label}文章先處理哪一層？`,
     paragraphs: [
-      `閱讀 ${primary} 時，先把它當成理解問題的入口，而不是最後答案。`,
+      `閱讀 ${primary} 時，先把它當成整理問題的起點，而不是最後答案。`,
       `如果你是從「${related}」這類搜尋進來，建議先確認你要問的是概念定義、使用方式、關係判斷，還是想把它套到自己的情境。`,
     ],
   };
@@ -969,7 +969,7 @@ function buildReaderDecisionSection(article, productTheme) {
     heading: "讀完文章後，先把問題寫成一句話",
     paragraphs: [
       `讀完${productTheme.label}文章後，先把你真正想問的問題寫成一句話，再回頭看文章提供的是定義、背景、限制，還是下一步閱讀方向。`,
-      "公開文章最適合幫你建立語言和分類，不適合直接替你做人生判斷。能把問題說清楚，才是進入下一篇文章或下一個入口前最重要的事。",
+      "公開文章最適合幫你建立語言和分類，不適合直接替你做人生判斷。能把問題說清楚，才是決定下一篇要補哪一層前最重要的事。",
       "如果一篇文章讓你更想追問，可以把追問拆成事實、感受、限制和可行動選項。這四層分開後，後續閱讀才不會一直繞回同一個焦慮。",
       "最後確認這篇文章留下的是判斷方法，而不是情緒答案。方法可以被帶到下一個問題裡重複使用；情緒答案通常只會讓人短暫安心，卻沒有真正釐清問題。",
     ],
@@ -1019,8 +1019,8 @@ function buildRelatedReadingSection(article, productTheme) {
   return {
     heading: "下一篇應該補哪一層？",
     paragraphs: [
-      `讀${productTheme.label}文章時，可以先看產品線入口，再回到同分類文章補概念，最後用五大情境入口整理自己的問題。`,
-      "延伸閱讀不是為了堆連結，而是讓讀者知道下一篇要解決哪一層問題：定義、情境、限制，還是個人化入口。",
+      `讀${productTheme.label}文章時，可以先看同分類基礎文章，再回到單篇文章補概念，最後用感情、事業、人際、財富或人生方向整理自己的問題。`,
+      "延伸閱讀不是為了堆連結，而是讓讀者知道下一篇要解決哪一層問題：定義、情境、限制，還是自己的具體狀況。",
       "如果你已經有一個具體問題，先把情境寫成一句話，再選文章或工具。這能避免把通用內容誤讀成個人判斷。",
     ],
   };
@@ -1035,7 +1035,7 @@ function buildFallbackFaq(route, article, productTheme) {
   return [
     {
       question: definitionQuestion,
-      answer: article?.answer || `${primary} 是理解${productTheme.label}主題的入口，適合先看定義、適用情境與限制。`,
+      answer: article?.answer || `${primary} 適合先看定義、適用情境與限制，再決定要不要放回自己的問題裡。`,
     },
     {
       question: buildUseQuestion(article, productTheme, topic),
@@ -1122,7 +1122,7 @@ function buildLimitQuestion(article, productTheme, topic) {
 function buildLimitAnswer(article, productTheme, topic) {
   if (article?.product === "personality") return `${formatFaqTopicPrefix(topic)}只能整理常見偏好，不能取代心理診斷，也不能單獨判定感情、工作或人生結果。`;
   if (article?.product === "tarot") return `${formatFaqTopicPrefix(topic)}只能提供牌義和情境提醒，不能替對方下結論，也不能承諾復合、成功或最終結果。`;
-  return `${formatFaqTopicPrefix(topic)}只能當成理解${productTheme.label}的入口，不能替代個人資料、具體問題與專業判斷。`;
+  return `${formatFaqTopicPrefix(topic)}只能幫你理解${productTheme.label}的通用概念，不能替代個人資料、具體問題與專業判斷。`;
 }
 
 function buildEntryAnswer(article, productTheme) {
@@ -1259,7 +1259,7 @@ function buildArticleCta(article, productTheme, route = {}) {
     const productLinks = getProductHubCtaLinks(route.product);
     return {
       title: "從哪篇開始？",
-      body: `${productTheme.label}文章入口會先把同分類文章放在一起。先讀基礎概念，再依照感情、事業、人際、財富或人生方向補充情境文章。`,
+      body: `${productTheme.label}文章會先把同分類內容放在一起。先讀基礎概念，再依照感情、事業、人際、財富或人生方向補充情境文章。`,
       links: productLinks,
     };
   }
@@ -1291,11 +1291,11 @@ function getProductHubCtaLinks(product) {
 }
 
 function getProductEntry(label) {
-  if (label === "人格") return "看人格文章入口，整理你的反應模式";
-  if (label === "塔羅") return "看塔羅文章入口，整理當下問題";
+  if (label === "人格") return "看人格文章，整理你的反應模式";
+  if (label === "塔羅") return "看塔羅文章，整理當下問題";
   if (label === "命盤") return "看命盤簡介，了解長期底色";
   if (label === "星座") return "看星盤或星座落點，整理情緒和安全感";
-  return "先選一個最接近你問題的 Pantheon 入口";
+  return "先選一篇最接近你問題的 Pantheon 文章";
 }
 
 function getIntentEntry(article, managedArticle) {
