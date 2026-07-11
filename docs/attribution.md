@@ -12,7 +12,7 @@
 
 ## Life Chart Engine Reference
 
-`zhenheco/life-chart-engine` 目前只作為欄位契約、外部驗證器與 golden sample 參考。其 README 標示 repo 為 AGPL-3.0，且西洋星盤計算依賴 Swiss Ephemeris；本專案沒有直接複製或 import 其程式碼。
+`zhenheco/life-chart-engine` 目前只作為欄位契約、外部驗證器與 golden sample 參考。2026-07-11 核對 GitHub 頁面時，README / badge 顯示 repo license 為 MIT；產品化前仍需重新審其第三方計算依賴與星曆資料授權。本專案沒有直接複製或 import 其程式碼。
 
 ## MBTI / Tarot / Human Design Research References
 

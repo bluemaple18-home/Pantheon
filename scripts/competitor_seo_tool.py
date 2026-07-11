@@ -23,7 +23,7 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 )
 DEFAULT_KEYWORD_MATRIX = Path("artifacts/fortune_council/content_seo_matrix/keyword_seed_matrix.md")
-DEFAULT_SOURCE_INTAKE = Path("artifacts/fortune_council/competitor_git_intake/source_manifest.md")
+DEFAULT_SOURCE_INTAKE = Path("artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md")
 KEYWORD_STOPWORDS = {"文章", "分支文章", "主型", "牌組", "內容線", "文章型態", "標題", "內部連結", "上下篇", "跨線連結"}
 
 

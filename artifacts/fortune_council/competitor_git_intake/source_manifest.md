@@ -1,11 +1,13 @@
-# Pantheon 競品 SEO Git Source Intake
+# Pantheon 命理產品 Git Source Intake
 
 日期：2026-07-11
 狀態：已讀本地文件與公開 GitHub 頁面；只抽取可用結構，不複製程式碼、資料集、題庫、牌義或文案。
 
+注意：這份不是 SEO/GEO 專用 repo intake。SEO/GEO 專用來源已移到 `artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md`。
+
 ## 結論
 
-之前你給的 git，多數不是「競品 SEO repo」，而是 Pantheon 命理產品、資料 schema、驗證器與內容題材來源。它們對 Click108 作戰有用，但用法不是直接丟進爬蟲，而是轉成三層：
+這份整理的是 Pantheon 命理產品、資料 schema、驗證器與內容題材來源。它們對內容題材有用，但不是 SEO/GEO 工具 repo。用法是轉成三層：
 
 1. 產品題材層：決定我們要補哪些 MBTI、塔羅、命盤、紫微、八字內容。
 2. 內容信任層：每篇文章要有可追溯來源、邊界、不可保證式結論。

@@ -8,6 +8,7 @@ __pycache__/
 .work/
 .playwright-cli/
 output/
+outputs/
 TASK-*/evidence/
 scripts/__pycache__/
 .codegraph/

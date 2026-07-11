@@ -9,7 +9,7 @@
 - 技術 SEO 缺口：robots、sitemap、canonical、meta description、JSON-LD、H1、內鏈。
 - 內容結構：標題公式、分類頻率、RSS 文章樣本、H2/小標模板。
 - 關鍵字差距：把競品內容和 `artifacts/fortune_council/content_seo_matrix/keyword_seed_matrix.md` 對照。
-- Git / 研究來源邊界：把 `artifacts/fortune_council/competitor_git_intake/source_manifest.md` 寫進 playbook，提醒撰文只可借題材、schema 與驗證邊界。
+- SEO / GEO Git 來源邊界：把 `artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md` 寫進 playbook，提醒本工具應吸收哪些 audit、GEO、AI visibility、schema、citation 方向。
 - 作戰手冊：30 / 60 / 90 天要補哪些內容與結構。
 
 ## 基本用法
@@ -22,7 +22,7 @@
   --max-feed-pages 5 \
   --max-category-pages 1 \
   --sample-limit 10 \
-  --source-intake artifacts/fortune_council/competitor_git_intake/source_manifest.md
+  --source-intake artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md
 ```
 
 輸出預設會放在：
@@ -83,19 +83,20 @@ output/competitor_seo/news.click108.com.tw/
 - JSON-LD 主要只有 BreadcrumbList，缺 Article 和 FAQPage。
 - 它的內容強在量、分類內鏈與固定標題公式；我們短期應該用更乾淨的 technical SEO + FAQ/AEO 結構超過它。
 
-## 已整合的 Git / 研究來源
+## 已整合的 SEO / GEO Git 來源
 
 工具預設會嘗試讀：
 
 ```text
-artifacts/fortune_council/competitor_git_intake/source_manifest.md
+artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md
 ```
 
 目前判定：
 
-- `taibu`、`ziwei-doushu`、`life-chart-engine` 這類來源是產品題材、schema、驗證器參考，不是 SEO 排名證據。
-- `china-testing/bazi` 與部分 MBTI / Tarot / Human Design 來源授權仍待審，只能當題材提示。
-- 短期要贏 Click108，重點不是複製 git 或競品文案，而是把題材矩陣、FAQ、Article/FAQPage/Breadcrumb schema、topic 內鏈做得更完整。
+- `Auriti-Labs/geo-optimizer-skill`、`anyin-ai/aperture`、`danishashko/geo-aeo-tracker` 是第一批要研究的 GEO / AI visibility 來源。
+- `ultimate-seo-geo`、`seo-geo-audit`、`geo-seo-claude`、`geoskills` 是 Audit / Plan / Execute / Monitor workflow 的主要參考。
+- `Firecrawl` 類 crawler 可參考介面，但 AGPL 或 API key 邊界不能直接混進產品。
+- 短期要贏 Click108，重點是把 technical SEO、GEO、schema、citability、entity、AI visibility、內鏈與內容量一起做成 reviewer pipeline。
 
 ## 注意
 

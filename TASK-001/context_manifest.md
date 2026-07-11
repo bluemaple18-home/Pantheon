@@ -31,5 +31,5 @@
 - `taibu`: README states core/MCP packages are MIT; other repo code is AGPL-3.0-only.
 - `china-testing/bazi`: no clear license was found on the GitHub page during this pass.
 - `ziwei-doushu`: README states code is MIT and dataset is attribution-required.
-- `life-chart-engine`: README states repo is AGPL-3.0 and depends on Swiss Ephemeris through `pyswisseph`; use only as field contract, external verifier, and golden sample reference for now.
+- `life-chart-engine`: 2026-07-11 GitHub README/badge shows MIT; older local notes recorded AGPL. Keep it as field contract, external verifier, and golden sample reference until dependency licenses are re-audited.
 - Ziwei fusion: Pantheon/`ziwei-doushu` is the primary line; `life-chart-engine` can only validate, supplement, or flag conflicts.

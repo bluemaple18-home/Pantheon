@@ -1,7 +1,7 @@
 # life-chart-engine Intake
 
 日期：2026-06-08
-狀態：研究參考，不直接導入程式碼
+狀態：研究參考，不直接導入程式碼；2026-07-11 重新核對 GitHub 頁面後，license 判定由舊 AGPL 記錄改為目前 README 顯示的 MIT，但產品化前仍需重新審依賴授權。
 
 ## 結論
 
@@ -11,7 +11,7 @@
 
 - 它能從同一筆出生資料輸出西洋星盤、人類圖、紫微斗數 JSON，剛好補 Pantheon 目前 `ziwei` 與 `human_design` 算力偏薄的問題。
 - 它依賴 `pyswisseph` 與 `py-iztro`，並要求 CPython 3.12；Pantheon 目前是 Python `>=3.11` 的純 FastAPI 插件架構。
-- repo 與 Swiss Ephemeris 授權邊界偏重。若 Pantheon 要走 closed-source SaaS，不能把它直接 linked/import 到產品後端。
+- repo 目前 README 顯示 MIT，但仍依賴天文/曆法與第三方套件；若 Pantheon 要走 closed-source SaaS，產品化前仍需重審 dependency license 與商用邊界。
 
 ## 外部 repo 現況
 
@@ -104,7 +104,7 @@ scripts/compare_life_chart_engine.py
 目前已實作 `scripts/compare_life_chart_engine.py`：
 
 - 預設執行 `life-chart --json`，也可用 `--input-json` 讀既有輸出。
-- 只使用 subprocess 呼叫外部 CLI，不 import 或 vendoring AGPL 程式碼。
+- 只使用 subprocess 呼叫外部 CLI，不 import 或 vendoring 外部程式碼。
 - 驗證 `ok=true`，且 `western.planets[]`、`western.houses[]`、`human_design.gates[]`、`ziwei.palaces[]` 必須為非空陣列。
 - 輸出 Pantheon normalized JSON，含 `western_astrology`、`human_design`、`ziwei` 三個 chart payload 與 `metadata.external_engine`。
 - 可用 `--expect-json` 對照 normalized snapshot。
@@ -133,7 +133,7 @@ uv run python scripts/compare_life_chart_engine.py --input-json /path/to/life-ch
 
 | 路線 | 優點 | 風險 |
 |---|---|---|
-| 外部 local subprocess | 最快、最少衍生作品風險 | 仍需 AGPL 邊界與安裝 UX |
+| 外部 local subprocess | 最快、最少衍生作品風險 | 仍需 dependency license 重審與安裝 UX |
 | 商業 Swiss Ephemeris license | 可保留高品質星曆 | 需法務與授權費 |
 | 替換 permissive ephemeris | closed-source 風險最低 | 要重寫西洋星盤與 HD 基礎計算 |
 | 只借欄位契約，不借 code | 最安全 | 需要自己補算力 |
@@ -144,7 +144,7 @@ uv run python scripts/compare_life_chart_engine.py --input-json /path/to/life-ch
 
 - 不把 `life-chart-engine` 加進 `pyproject.toml`。
 - 不複製它的 `scripts/chart_engine.py`。
-- 不把 AGPL code 混進 `app/calculators/`。
+- 不把外部 repo code 混進 `app/calculators/`。
 - 不宣稱 Pantheon 的現有紫微輸出已等同完整排盤。
 
 ## 來源
@@ -152,5 +152,5 @@ uv run python scripts/compare_life_chart_engine.py --input-json /path/to/life-ch
 - GitHub repo: https://github.com/zhenheco/life-chart-engine
 - README 說明它是三合一離線 CLI，輸出 Markdown/JSON 給程式與 AI agent。
 - README 標示直接依賴 `pyswisseph==2.10.3.2` 與 `py-iztro==0.1.5`，並要求 CPython 3.12。
-- README 標示 repo license 為 AGPL-3.0。
-- Swiss Ephemeris 官方文件說明其雙授權模式：AGPL 或 Swiss Ephemeris Professional License。
+- 2026-07-11 核對 GitHub README 與 repo badge，頁面顯示 repo license 為 MIT；本文件舊版 AGPL 記錄已降級為歷史註記。
+- 產品化前仍需重新審 `pyswisseph`、`py-iztro`、星曆資料與任何外部計算依賴的商用條件。
