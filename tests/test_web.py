@@ -43,9 +43,33 @@ EXTRA_PUBLIC_ARTICLE_PATHS = [
     "/articles/astrology/astrology-0004",
 ]
 
+SECOND_BATCH_PUBLIC_ARTICLE_PATHS = [
+    "/articles/tarot/tarot-0009",
+    "/articles/tarot/tarot-0010",
+    "/articles/tarot/tarot-0011",
+    "/articles/fortune/fortune-0007",
+    "/articles/fortune/fortune-0008",
+    "/articles/fortune/fortune-0009",
+    "/articles/personality/personality-0009",
+    "/articles/personality/personality-0010",
+    "/articles/personality/personality-0011",
+    "/articles/astrology/astrology-0005",
+    "/articles/love/love-0002",
+    "/articles/love/love-0003",
+    "/articles/love/love-0004",
+    "/articles/career/career-0002",
+    "/articles/career/career-0003",
+    "/articles/career/career-0004",
+    "/articles/interpersonal/interpersonal-0002",
+    "/articles/wealth/wealth-0002",
+    "/articles/wealth/wealth-0003",
+    "/articles/life-direction/life-direction-0002",
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
+    *SECOND_BATCH_PUBLIC_ARTICLE_PATHS,
 ]
 
 
@@ -142,7 +166,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
-        assert "/static/article.js?v=article-content-20260710-22" in response.text
+        assert "/static/article.js?v=article-content-20260711-23" in response.text
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -550,7 +574,7 @@ console.log(JSON.stringify({
     assert len(same_category) <= 2
     assert len(cross_category) <= 3
     assert len({item["category"] for item in cross_category}) == len(cross_category)
-    assert data["canonical"]["interpersonalTagHref"] == ""
+    assert data["canonical"]["interpersonalTagHref"] == "/topics/interpersonal"
     assert data["ineligibleTopic"] == {"redirectTo": "/articles"}
     assert data["topic"]["canonicalPath"] == "/topics/personality"
     assert data["topic"]["title"] == "人格 相關文章"
@@ -658,7 +682,7 @@ console.log(JSON.stringify({{
     assert "/articles/personality/personality-0001" in data["personalityPaths"]
     assert "/articles/fortune/fortune-0001" in data["fortunePaths"]
     assert "/articles/interpersonal/interpersonal-0001" in data["interpersonalPaths"]
-    assert set(data["generatedTopicLabels"]) == {"人格", "塔羅", "命盤", "感情", "工作", "人生方向"}
+    assert set(data["generatedTopicLabels"]) == {"MBTI", "人格", "塔羅", "正位", "命盤", "感情", "工作", "人際", "人生方向", "逆位"}
     tag_management = {item["slug"]: item for item in data["tagManagement"]}
     assert tag_management["fool"]["label"] == "愚者"
     assert tag_management["fool"]["articleCount"] < tag_management["fool"]["minArticles"]
@@ -677,7 +701,7 @@ console.log(JSON.stringify({{
         assert topic["href"] == f"/topics/{topic['slug']}"
         assert topic["canonicalPath"] == topic["href"]
         assert topic["contentType"] == "CollectionPage"
-        assert topic["bodyLinkCount"] == topic["topicArticleCount"]
+        assert topic["bodyLinkCount"] == min(topic["topicArticleCount"], 24)
         assert topic["faqCount"] == 0
         assert topic["relatedCount"] == 0
         assert "標籤頁" not in topic["bodyText"]
@@ -732,8 +756,11 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/interpersonal/interpersonal-0001" in sitemap.text
     assert "https://mysticpantheon.com/topics/tarot" in sitemap.text
     assert "https://mysticpantheon.com/topics/personality" in sitemap.text
+    assert "https://mysticpantheon.com/topics/mbti" in sitemap.text
+    assert "https://mysticpantheon.com/topics/upright" in sitemap.text
+    assert "https://mysticpantheon.com/topics/interpersonal" in sitemap.text
+    assert "https://mysticpantheon.com/topics/reversed" in sitemap.text
     assert "https://mysticpantheon.com/topics/fool" not in sitemap.text
-    assert "https://mysticpantheon.com/topics/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
     assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
