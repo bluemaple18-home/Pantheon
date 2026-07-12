@@ -12,6 +12,24 @@ from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, rend
 
 WEB_DIR = Path("app/web")
 REDIRECTS_PATH = WEB_DIR / "_redirects"
+PRODUCT_HUBS = {
+    "fortune": {
+        "title": "命盤文章",
+        "description": "Pantheon 命盤文章主頁，整理命盤是什麼、八字、紫微斗數、事業、財富與人生方向主題，公開文章只提供通用知識與閱讀順序。",
+    },
+    "personality": {
+        "title": "人格文章",
+        "description": "Pantheon 人格文章主頁，整理 MBTI、16 型人格、人際互動與自我理解主題，協助讀者分清偏好、情境與使用限制。",
+    },
+    "tarot": {
+        "title": "塔羅文章",
+        "description": "Pantheon 塔羅文章主頁，整理塔羅牌意思、正位逆位、感情、工作與人生方向問題，先看牌義再回到具體情境。",
+    },
+    "astro": {
+        "title": "星座文章",
+        "description": "Pantheon 星座文章主頁，整理星盤、上升星座、月亮星座、金星星座與感情需求，避免把單一星座當成完整結論。",
+    },
+}
 MIN_CITABILITY_DESCRIPTION_LEN = 50
 MAX_CITABILITY_DESCRIPTION_LEN = 160
 
@@ -96,6 +114,21 @@ def build_internal_links(article: dict[str, str], articles: list[dict[str, str]]
     return links[:8]
 
 
+def build_hub_internal_links(hub_route: str, product: str, articles: list[dict[str, str]]) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    add_unique_link(links, "/articles", "最新文章", hub_route)
+    for hub_product, hub in PRODUCT_HUBS.items():
+        if hub_product != product:
+            add_unique_link(links, f"/articles/{hub_product}", hub["title"], hub_route)
+
+    product_articles = [article for article in articles if article.get("product_hub") == product]
+    for article in [*product_articles[:4], *product_articles[-2:]]:
+        add_unique_link(links, article["route"], article["title"], hub_route)
+        if len(links) >= 10:
+            break
+    return links[:10]
+
+
 def build_prerender_articles() -> list[dict[str, str]]:
     articles = []
     for record in registry_articles():
@@ -121,8 +154,33 @@ def build_prerender_articles() -> list[dict[str, str]]:
     return articles
 
 
+def build_prerender_hubs(articles: list[dict[str, str]]) -> list[dict[str, str]]:
+    hubs = []
+    for product, hub in PRODUCT_HUBS.items():
+        route = f"/articles/{product}"
+        hubs.append(
+            {
+                "route": route,
+                "target": target_for_route(route),
+                "title": hub["title"],
+                "page_title": f"{hub['title']} | Pantheon",
+                "description": citability_description(hub["description"]),
+                "canonical": f"{SITE_ORIGIN}{route}",
+                "path": route,
+                "product": product,
+                "product_label": hub["title"].removesuffix("文章"),
+                "product_hub": product,
+                "content_type": "CollectionPage",
+                "internal_links": build_hub_internal_links(route, product, articles),
+            }
+        )
+    return hubs
+
+
 PRERENDER_ARTICLES = build_prerender_articles()
-PRERENDER_ROUTES = {article["route"]: article["target"] for article in PRERENDER_ARTICLES}
+PRERENDER_HUBS = build_prerender_hubs(PRERENDER_ARTICLES)
+PRERENDER_PAGES = [*PRERENDER_HUBS, *PRERENDER_ARTICLES]
+PRERENDER_ROUTES = {page["route"]: page["target"] for page in PRERENDER_PAGES}
 
 
 def redirect_target(target: str) -> str:
@@ -140,11 +198,11 @@ def update_redirects() -> None:
 
 def prerender() -> list[Path]:
     written: list[Path] = []
-    for article in PRERENDER_ARTICLES:
-        target = article["target"]
+    for page in PRERENDER_PAGES:
+        target = page["target"]
         output_path = WEB_DIR / target
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        response = render_article_shell_from_meta(article)
+        response = render_article_shell_from_meta(page)
         output_path.write_text(response.body.decode("utf-8"), encoding="utf-8")
         written.append(output_path)
     update_redirects()

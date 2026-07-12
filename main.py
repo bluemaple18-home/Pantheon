@@ -111,6 +111,15 @@ def build_raw_jsonld(meta: dict[str, str]) -> tuple[dict, dict, dict]:
     website_ref = {"@id": f"{SITE_ORIGIN}/#website"}
     main_type = meta["content_type"]
     if main_type == "CollectionPage":
+        linked_pages = [
+            {
+                "@type": "WebPage",
+                "name": link["label"],
+                "url": f"{SITE_ORIGIN}{link['href']}",
+            }
+            for link in meta.get("internal_links", [])
+            if link.get("href", "").startswith("/articles")
+        ]
         main = {
             "@context": "https://schema.org",
             "@type": "CollectionPage",
@@ -123,6 +132,8 @@ def build_raw_jsonld(meta: dict[str, str]) -> tuple[dict, dict, dict]:
             "publisher": organization_ref,
             "image": f"{SITE_ORIGIN}/static/pantheon-orb-alpha-poster.webp",
         }
+        if linked_pages:
+            main["hasPart"] = linked_pages
     else:
         main = {
             "@context": "https://schema.org",

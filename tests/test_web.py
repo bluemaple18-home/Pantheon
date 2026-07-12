@@ -6,7 +6,7 @@ import subprocess
 
 from main import RAW_ARTICLE_META, app
 from scripts.competitor_seo_tool import endpoint_label
-from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_ROUTES, redirect_target
+from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, redirect_target
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -386,7 +386,7 @@ def test_raw_article_descriptions_meet_citability_length_gate() -> None:
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
     redirects = Path("app/web/_redirects").read_text()
 
-    assert len(PRERENDER_ROUTES) == 125
+    assert len(PRERENDER_ARTICLES) == 125
     for route, target in PRERENDER_ROUTES.items():
         assert f"{route} /{redirect_target(target)} 200" in redirects
         prerendered = Path("app/web") / target
@@ -398,6 +398,34 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
         assert 'id="faq-jsonld">' in html
         assert 'id="article-jsonld"></script>' not in html
     assert redirects.count(" /seo/articles/") == len(PRERENDER_ROUTES)
+
+
+def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
+    redirects = Path("app/web/_redirects").read_text()
+    expected_routes = {
+        "/articles/fortune",
+        "/articles/personality",
+        "/articles/tarot",
+        "/articles/astro",
+    }
+
+    assert {hub["route"] for hub in PRERENDER_HUBS} == expected_routes
+    for hub in PRERENDER_HUBS:
+        route = hub["route"]
+        target = PRERENDER_ROUTES[route]
+        assert f"{route} /{redirect_target(target)} 200" in redirects
+        html = (Path("app/web") / target).read_text()
+        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert '"@type":"CollectionPage"' in html
+        assert '"hasPart":[' in html
+        assert 'data-prerender-internal-links' in html
+        assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in html
+
+    tarot_html = Path("app/web/seo/articles/tarot/index.html").read_text()
+    assert 'href="/articles/tarot/tarot-0001"' in tarot_html
+    assert 'href="/articles/tarot/tarot-0076"' in tarot_html
+    astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
+    assert 'href="/articles/astrology/astrology-0001"' in astro_html
 
 
 def test_prerender_article_descriptions_meet_citability_length_gate() -> None:
