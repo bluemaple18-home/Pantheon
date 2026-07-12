@@ -9,8 +9,6 @@
 /strategy.html /articles 302
 /articles/astro/12-zodiac-signs /articles/astro 302
 /articles /articles 200
-/articles/* /article 200
-/topics/* /article 200
 /robots.txt /robots.txt 200
 /sitemap.xml /sitemap.xml 200
 /llms.txt /llms.txt 200
