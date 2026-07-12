@@ -184,8 +184,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert response.status_code == 200
     assert "最新文章 | Pantheon" in response.text
     assert "感情、工作、人際卡住" in response.text
-    assert "先找一篇能回答的文章" in response.text
-    assert "文章會先回答讀者正在煩惱的感情、工作、人際、財富與人生方向問題" in response.text
+    assert "先從你的問題開始" in response.text
+    assert "MBTI 是什麼、塔羅牌意思、命盤是什麼也會放回真實情境裡說清楚" in response.text
     assert "曖昧沒進展" in response.text
     assert "適合轉職嗎" in response.text
     assert "存不住錢" in response.text
