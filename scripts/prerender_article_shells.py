@@ -24,6 +24,8 @@ const records = listArticleRecords().map((article) => ({
   title: article.title || '',
   description: article.description || '',
   productLabel: getArticleSectionRecord(article.section)?.label || article.articleCategory || article.product || '文章',
+  productHub: getArticleSectionRecord(article.section)?.product || article.product || article.articleCategory || 'fortune',
+  articleCategory: article.articleCategory || article.product || '',
   contentType: 'Article',
 }));
 console.log(JSON.stringify(records));
@@ -50,6 +52,50 @@ def target_for_route(route: str) -> str:
     return f"seo/{route.strip('/')}/index.html"
 
 
+def article_category(route: str) -> str:
+    parts = route.strip("/").split("/")
+    return parts[1] if len(parts) >= 2 else ""
+
+
+def add_unique_link(links: list[dict[str, str]], href: str, label: str, current_route: str) -> None:
+    if not href or href == current_route:
+        return
+    if any(link["href"] == href for link in links):
+        return
+    links.append({"href": href, "label": label})
+
+
+def build_internal_links(article: dict[str, str], articles: list[dict[str, str]]) -> list[dict[str, str]]:
+    route = article["route"]
+    category = article_category(route)
+    product_hub = article.get("product_hub") or category
+    links: list[dict[str, str]] = []
+    add_unique_link(links, f"/articles/{product_hub}", f"{article['product_label']}文章", route)
+
+    same_category = [item for item in articles if article_category(item["route"]) == category]
+    current_index = next((index for index, item in enumerate(same_category) if item["route"] == route), -1)
+    if current_index > 0:
+        previous_article = same_category[current_index - 1]
+        add_unique_link(links, previous_article["route"], f"上一篇：{previous_article['title']}", route)
+    if 0 <= current_index < len(same_category) - 1:
+        next_article = same_category[current_index + 1]
+        add_unique_link(links, next_article["route"], f"下一篇：{next_article['title']}", route)
+
+    for related in same_category:
+        add_unique_link(links, related["route"], related["title"], route)
+        if len([link for link in links if article_category(link["href"]) == category]) >= min(5, max(len(same_category) - 1, 0)):
+            break
+
+    same_product = [item for item in articles if item.get("product_hub") == product_hub]
+    for related in same_product:
+        add_unique_link(links, related["route"], related["title"], route)
+        if len(links) >= 8:
+            break
+
+    add_unique_link(links, "/articles", "最新文章", route)
+    return links[:8]
+
+
 def build_prerender_articles() -> list[dict[str, str]]:
     articles = []
     for record in registry_articles():
@@ -66,9 +112,12 @@ def build_prerender_articles() -> list[dict[str, str]]:
                 "path": route,
                 "product": route.split("/")[2],
                 "product_label": record["productLabel"],
+                "product_hub": record["productHub"],
                 "content_type": record["contentType"],
             }
         )
+    for article in articles:
+        article["internal_links"] = build_internal_links(article, articles)
     return articles
 
 

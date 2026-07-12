@@ -90,6 +90,22 @@ def json_script(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
+def build_prerender_internal_links(links: list[dict[str, str]]) -> str:
+    if not links:
+        return ""
+    anchors = []
+    for link in links:
+        href = html.escape(link["href"], quote=True)
+        label = html.escape(link["label"], quote=False)
+        anchors.append(f'<a href="{href}">{label}</a>')
+    return (
+        '<section class="article-prerender-links" aria-label="文章內鏈" hidden data-prerender-internal-links>'
+        "<h2>文章內鏈</h2>"
+        f"<nav>{''.join(anchors)}</nav>"
+        "</section>"
+    )
+
+
 def build_raw_jsonld(meta: dict[str, str]) -> tuple[dict, dict, dict]:
     organization_ref = {"@id": f"{SITE_ORIGIN}/#organization"}
     website_ref = {"@id": f"{SITE_ORIGIN}/#website"}
@@ -203,6 +219,7 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
         count=1,
         flags=re.S,
     )
+    markup = markup.replace("</article>", f"{build_prerender_internal_links(meta.get('internal_links', []))}</article>", 1)
     return HTMLResponse(markup)
 
 

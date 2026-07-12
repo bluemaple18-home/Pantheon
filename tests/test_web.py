@@ -405,6 +405,31 @@ def test_prerender_article_descriptions_meet_citability_length_gate() -> None:
         assert 50 <= len(article["description"]) <= 160, article["route"]
 
 
+def test_prerender_articles_have_non_visible_internal_link_clusters() -> None:
+    valid_article_routes = {article["route"] for article in PRERENDER_ARTICLES}
+    article_counts_by_category = {}
+    for article in PRERENDER_ARTICLES:
+        category = article["route"].split("/")[2]
+        article_counts_by_category[category] = article_counts_by_category.get(category, 0) + 1
+
+    for article in PRERENDER_ARTICLES:
+        route = article["route"]
+        category = route.split("/")[2]
+        links = article["internal_links"]
+        article_links = [link for link in links if link["href"] in valid_article_routes]
+        same_category_links = [link for link in article_links if link["href"].split("/")[2] == category]
+        assert len(links) >= 6, route
+        assert any(link["href"] == f"/articles/{article['product_hub']}" for link in links), route
+        assert len(same_category_links) >= min(3, article_counts_by_category[category] - 1), route
+        assert all(link["href"] == "/articles" or link["href"].startswith("/articles/") for link in links), route
+
+    sample_html = Path("app/web/seo/articles/tarot/tarot-0075/index.html").read_text()
+    assert 'data-prerender-internal-links' in sample_html
+    assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in sample_html
+    assert 'href="/articles/tarot"' in sample_html
+    assert 'href="/articles/tarot/tarot-0074"' in sample_html
+
+
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_js = Path("app/web/static/article.js").read_text()
     article_meta_js = Path("app/web/static/article-meta.js").read_text()
