@@ -6,6 +6,7 @@ import subprocess
 
 from main import app
 from scripts.competitor_seo_tool import endpoint_label
+from scripts.prerender_article_shells import PRERENDER_ROUTES
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -377,22 +378,19 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
     assert faq["@type"] == "FAQPage"
 
 
-def test_cloudflare_worker_renders_article_seo_shell_for_static_pages() -> None:
-    worker = Path("app/web/_worker.js").read_text()
+def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
+    redirects = Path("app/web/_redirects").read_text()
 
-    assert "env.ASSETS.fetch(request)" in worker
-    assert "env.ASSETS.fetch(articleRequest)" in worker
-    assert 'assetUrl.pathname = "/article.html"' in worker
-    assert 'pathname.startsWith("/articles/")' in worker
-    assert 'pathname.startsWith("/topics/")' in worker
-    assert '"/articles/tarot/tarot-0001"' in worker
-    assert '"@type": "Article"' in worker
-    assert '"@type": "BreadcrumbList"' in worker
-    assert '"@type": "FAQPage"' in worker
-    assert "article-jsonld" in worker
-    assert "breadcrumb-jsonld" in worker
-    assert "faq-jsonld" in worker
-    assert "STATIC_REDIRECTS" in worker
+    for route, target in PRERENDER_ROUTES.items():
+        assert f"{route} /{target} 200" in redirects
+        prerendered = Path("app/web") / target
+        assert prerendered.exists()
+        html = prerendered.read_text()
+        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert 'id="article-jsonld">' in html
+        assert 'id="breadcrumb-jsonld">' in html
+        assert 'id="faq-jsonld">' in html
+        assert 'id="article-jsonld"></script>' not in html
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
