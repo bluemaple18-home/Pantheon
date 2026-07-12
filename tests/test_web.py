@@ -347,8 +347,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "href=\"https://schema.org/Article\"" in response.text
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
-        assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
-        assert "/static/article.js?v=article-content-20260711-25" in response.text
+        assert "/static/styles.css?v=article-visible-links-20260713-1" in response.text
+        assert "/static/article.js?v=article-visible-links-20260713-1" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
