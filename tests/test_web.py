@@ -648,6 +648,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "export function getArticlePath" in article_registry_js
     assert "LIFE_INTENT_REGISTRY" in article_registry_js
     assert "export function getProductThemeRecord" in article_registry_js
+    assert "TAG_TAXONOMY_POLICY" in article_registry_js
+    assert "TAG_TAXONOMY_REGISTRY" in article_registry_js
+    assert "export function listTagTaxonomyRecords" in article_registry_js
+    assert "taxonomyStatus" in article_registry_js
+    assert "indexPolicy" in article_registry_js
     assert "product: \"astro\"" in article_registry_js
     assert "product: \"personality\"" in article_registry_js
     assert "product: \"tarot\"" in article_registry_js
@@ -948,17 +953,22 @@ def test_article_knowledge_base_serial_and_topic_contract() -> None:
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 import {{
   ARTICLE_URL_CONTRACT,
+  TAG_TAXONOMY_POLICY,
+  TAG_TAXONOMY_REGISTRY,
   getArticlePath,
   listArticleRecords,
   listArticlesForTopic,
   listTagManagementRecords,
+  listTagTaxonomyRecords,
   listTopicRecords,
+  normalizePublicTagLabel,
 }} from "./app/web/static/article-registry.js";
 
 const expectedPaths = new Set({json.dumps(PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords();
 const topics = listTopicRecords();
 const tagManagement = listTagManagementRecords();
+const taxonomy = listTagTaxonomyRecords();
 const articleSummaries = records.map((article) => {{
   const path = getArticlePath(article);
   const content = buildArticleContent(path, "https://mysticpantheon.com", {{
@@ -1005,11 +1015,30 @@ console.log(JSON.stringify({{
   fortunePaths: listArticlesForTopic("fortune").map(getArticlePath),
   interpersonalPaths: listArticlesForTopic("interpersonal").map(getArticlePath),
   generatedTopicLabels: topics.map((topic) => topic.label),
+  taxonomyPolicy: TAG_TAXONOMY_POLICY,
+  taxonomyCount: TAG_TAXONOMY_REGISTRY.length,
+  normalizedTags: {{
+    career: normalizePublicTagLabel("轉職"),
+    tarot: normalizePublicTagLabel("塔羅牌意思"),
+    internal: normalizePublicTagLabel("SEO"),
+  }},
+  taxonomy: taxonomy.map((item) => ({{
+    topicSlug: item.topicSlug,
+    canonicalLabel: item.canonicalLabel,
+    indexPolicy: item.indexPolicy,
+    articleCount: item.articleCount,
+    minArticles: item.minArticles,
+    isGenerated: item.isGenerated,
+    href: item.href,
+  }})),
   tagManagement: tagManagement.map((tag) => ({{
     label: tag.label,
     slug: tag.slug,
     articleCount: tag.articleCount,
     minArticles: tag.minArticles,
+    taxonomyStatus: tag.taxonomyStatus,
+    canonicalLabel: tag.canonicalLabel,
+    indexPolicy: tag.indexPolicy,
     isGenerated: tag.isGenerated,
     href: tag.href,
   }})),
@@ -1037,12 +1066,49 @@ console.log(JSON.stringify({{
         assert record["linkedTagCount"] >= 0
         assert not record["internalTagVisible"]
 
+    assert data["taxonomyPolicy"]["publicTopicMinArticles"] == 10
+    assert "SEO" in data["taxonomyPolicy"]["internalOnlyTags"]
+    assert data["taxonomyCount"] == 20
+    assert data["normalizedTags"] == {"career": "工作", "tarot": "塔羅", "internal": "SEO"}
+
     assert "/articles/personality/personality-0001" in data["personalityPaths"]
     assert "/articles/fortune/fortune-0001" in data["fortunePaths"]
     assert "/articles/interpersonal/interpersonal-0001" in data["interpersonalPaths"]
     assert set(data["generatedTopicLabels"]) == {"MBTI", "人格", "塔羅", "正位", "命盤", "感情", "工作", "人際", "人生方向", "逆位"}
+    taxonomy = {item["topicSlug"]: item for item in data["taxonomy"]}
+    assert set(taxonomy) == {
+        "mbti",
+        "personality",
+        "tarot",
+        "upright",
+        "fortune",
+        "bazi",
+        "ziwei",
+        "astrology",
+        "love",
+        "career",
+        "interpersonal",
+        "wealth",
+        "life-direction",
+        "reversed",
+        "fool",
+        "magician",
+        "lovers",
+        "death",
+        "tower",
+        "world",
+    }
+    assert taxonomy["career"]["canonicalLabel"] == "工作"
+    assert taxonomy["career"]["indexPolicy"] == "min_articles"
+    assert taxonomy["career"]["href"] == "/topics/career"
+    assert taxonomy["fool"]["indexPolicy"] == "min_articles"
+    assert taxonomy["fool"]["isGenerated"] is False
+    assert taxonomy["fool"]["href"] == ""
     tag_management = {item["slug"]: item for item in data["tagManagement"]}
     assert tag_management["fool"]["label"] == "愚者"
+    assert tag_management["fool"]["taxonomyStatus"] == "managed"
+    assert tag_management["fool"]["canonicalLabel"] == "愚者"
+    assert tag_management["fool"]["indexPolicy"] == "min_articles"
     assert tag_management["fool"]["articleCount"] < tag_management["fool"]["minArticles"]
     assert tag_management["fool"]["isGenerated"] is False
     assert tag_management["fool"]["href"] == ""

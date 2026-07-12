@@ -211,6 +211,42 @@ export const TOPIC_REGISTRY = [
   { id: "topic-0020", slug: "world", label: "世界", aliases: ["世界", "世界牌", "世界牌意思"] },
 ];
 
+export const TAG_TAXONOMY_POLICY = {
+  publicTopicMinArticles: PUBLIC_TOPIC_MIN_ARTICLES,
+  defaultIndexPolicy: "blocked",
+  indexPolicies: {
+    min_articles: "達到公開文章數門檻才可進 sitemap、prerender 與 index。",
+    blocked: "只能當內部或候選標籤，不可產生公開 topic URL。",
+  },
+  internalOnlyTags: [
+    ...GLOBAL_ARTICLE_POLICY.requiredTags,
+    ...GLOBAL_ARTICLE_POLICY.requiredKeywordTags,
+  ],
+};
+
+export const TAG_TAXONOMY_REGISTRY = [
+  { topicSlug: "mbti", canonicalLabel: "MBTI", indexPolicy: "min_articles", matchPatterns: ["MBTI"] },
+  { topicSlug: "personality", canonicalLabel: "人格", indexPolicy: "min_articles", matchPatterns: ["16\\s*型", "人格", "INTJ", "INFP", "INFJ", "ENFP", "64\\s*分支"] },
+  { topicSlug: "tarot", canonicalLabel: "塔羅", indexPolicy: "min_articles", matchPatterns: ["塔羅", "牌義", "阿爾克那", "牌意思"] },
+  { topicSlug: "upright", canonicalLabel: "正位", indexPolicy: "min_articles", matchPatterns: ["正位"] },
+  { topicSlug: "fortune", canonicalLabel: "命盤", indexPolicy: "min_articles", matchPatterns: ["命盤", "紫微", "八字", "命宮", "夫妻宮", "財帛宮"] },
+  { topicSlug: "bazi", canonicalLabel: "八字", indexPolicy: "min_articles", matchPatterns: ["八字", "生辰八字", "干支"] },
+  { topicSlug: "ziwei", canonicalLabel: "紫微", indexPolicy: "min_articles", matchPatterns: ["紫微"] },
+  { topicSlug: "astrology", canonicalLabel: "星盤", indexPolicy: "min_articles", matchPatterns: ["星盤", "星座", "上升", "月亮", "占星"] },
+  { topicSlug: "love", canonicalLabel: "感情", indexPolicy: "min_articles", matchPatterns: ["感情", "關係", "復合", "曖昧", "相處"] },
+  { topicSlug: "career", canonicalLabel: "工作", indexPolicy: "min_articles", matchPatterns: ["工作", "事業", "職涯", "轉職", "創業"] },
+  { topicSlug: "interpersonal", canonicalLabel: "人際", indexPolicy: "min_articles", matchPatterns: ["人際", "溝通", "界線"] },
+  { topicSlug: "wealth", canonicalLabel: "財富", indexPolicy: "min_articles", matchPatterns: ["財富", "財運", "金錢", "資源"] },
+  { topicSlug: "life-direction", canonicalLabel: "人生方向", indexPolicy: "min_articles", matchPatterns: ["人生方向", "人生迷惘", "自我理解", "選擇"] },
+  { topicSlug: "reversed", canonicalLabel: "逆位", indexPolicy: "min_articles", matchPatterns: ["逆位"] },
+  { topicSlug: "fool", canonicalLabel: "愚者", indexPolicy: "min_articles", matchPatterns: ["愚者"] },
+  { topicSlug: "magician", canonicalLabel: "魔術師", indexPolicy: "min_articles", matchPatterns: ["魔術師"] },
+  { topicSlug: "lovers", canonicalLabel: "戀人", indexPolicy: "min_articles", matchPatterns: ["戀人"] },
+  { topicSlug: "death", canonicalLabel: "死神", indexPolicy: "min_articles", matchPatterns: ["死神"] },
+  { topicSlug: "tower", canonicalLabel: "高塔", indexPolicy: "min_articles", matchPatterns: ["高塔"] },
+  { topicSlug: "world", canonicalLabel: "世界", indexPolicy: "min_articles", matchPatterns: ["世界"] },
+];
+
 const publicTagLabelCache = new Map();
 let topicCandidateRecordCache = null;
 
@@ -2248,26 +2284,9 @@ export function expandPublicTagLabels(value = "") {
   const push = (label) => {
     if (label && !labels.includes(label)) labels.push(label);
   };
-  if (/MBTI/i.test(raw)) push("MBTI");
-  if (/16\s*型|人格|INTJ|INFP|INFJ|ENFP|64\s*分支/.test(raw)) push("人格");
-  if (/愚者/.test(raw)) push("愚者");
-  if (/魔術師/.test(raw)) push("魔術師");
-  if (/戀人/.test(raw)) push("戀人");
-  if (/死神/.test(raw)) push("死神");
-  if (/高塔/.test(raw)) push("高塔");
-  if (/世界/.test(raw)) push("世界");
-  if (/正位/.test(raw)) push("正位");
-  if (/逆位/.test(raw)) push("逆位");
-  if (/塔羅|牌義|阿爾克那|牌意思/.test(raw)) push("塔羅");
-  if (/命盤|紫微|八字|命宮|夫妻宮|財帛宮/.test(raw)) push("命盤");
-  if (/紫微/.test(raw)) push("紫微");
-  if (/八字|生辰八字|干支/.test(raw)) push("八字");
-  if (/星盤|星座|上升|月亮|占星/.test(raw)) push("星盤");
-  if (/感情|關係|復合|曖昧|相處/.test(raw)) push("感情");
-  if (/工作|事業|職涯|轉職|創業/.test(raw)) push("工作");
-  if (/人際|溝通|界線/.test(raw)) push("人際");
-  if (/財富|財運|金錢|資源/.test(raw)) push("財富");
-  if (/人生方向|人生迷惘|自我理解|選擇/.test(raw)) push("人生方向");
+  TAG_TAXONOMY_REGISTRY.forEach((rule) => {
+    if (tagRuleMatches(raw, rule)) push(rule.canonicalLabel);
+  });
   return labels.length ? labels : [raw];
 }
 
@@ -2304,21 +2323,56 @@ function findTopicCandidate(slug = "") {
   return TOPIC_REGISTRY.find((topic) => topic.slug === slug) || null;
 }
 
+function findTagTaxonomyRule(topicSlug = "") {
+  return TAG_TAXONOMY_REGISTRY.find((rule) => rule.topicSlug === topicSlug) || null;
+}
+
+function tagRuleMatches(value, rule) {
+  return (rule.matchPatterns || []).some((pattern) => new RegExp(pattern, "i").test(value));
+}
+
 function articleMatchesTopic(article, topic) {
   const labels = listPublicTagLabelsForArticle(article);
-  return labels.includes(topic.label) || labels.some((label) => topic.aliases.includes(label));
+  const taxonomy = findTagTaxonomyRule(topic.slug);
+  const managedLabels = uniqueValues([
+    topic.label,
+    ...(topic.aliases || []),
+    taxonomy?.canonicalLabel,
+  ]);
+  return labels.some((label) => managedLabels.includes(label));
 }
 
 function enrichTopicRecord(topic) {
+  const taxonomy = findTagTaxonomyRule(topic.slug);
   const articles = listArticleRecords().filter((article) => articleMatchesTopic(article, topic));
-  const isGenerated = articles.length >= PUBLIC_TOPIC_MIN_ARTICLES;
+  const indexPolicy = taxonomy?.indexPolicy || TAG_TAXONOMY_POLICY.defaultIndexPolicy;
+  const minArticles = TAG_TAXONOMY_POLICY.publicTopicMinArticles;
+  const isGenerated = indexPolicy === "min_articles" && articles.length >= minArticles;
   return {
     ...topic,
     articleCount: articles.length,
-    minArticles: PUBLIC_TOPIC_MIN_ARTICLES,
+    minArticles,
+    taxonomyStatus: taxonomy ? "managed" : "unmanaged",
+    canonicalLabel: taxonomy?.canonicalLabel || topic.label,
+    indexPolicy,
     isGenerated,
     href: isGenerated ? `/topics/${topic.slug}` : "",
   };
+}
+
+export function listTagTaxonomyRecords() {
+  return TAG_TAXONOMY_REGISTRY.map((rule) => {
+    const topic = findTopicCandidate(rule.topicSlug);
+    const enriched = topic ? enrichTopicRecord(topic) : null;
+    return {
+      ...rule,
+      topicLabel: topic?.label || rule.canonicalLabel,
+      articleCount: enriched?.articleCount || 0,
+      minArticles: TAG_TAXONOMY_POLICY.publicTopicMinArticles,
+      isGenerated: Boolean(enriched?.isGenerated),
+      href: enriched?.href || "",
+    };
+  });
 }
 
 export function listTopicCandidateRecords() {
