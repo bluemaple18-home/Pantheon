@@ -6,7 +6,7 @@ import subprocess
 
 from main import RAW_ARTICLE_META, app
 from scripts.competitor_seo_tool import endpoint_label
-from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, redirect_target
+from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -397,7 +397,8 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
         assert 'id="breadcrumb-jsonld">' in html
         assert 'id="faq-jsonld">' in html
         assert 'id="article-jsonld"></script>' not in html
-    assert redirects.count(" /seo/articles/") == len(PRERENDER_ROUTES)
+    assert redirects.count(" /seo/articles/") == len(PRERENDER_ARTICLES) + len(PRERENDER_HUBS)
+    assert redirects.count(" /seo/topics/") == len(PRERENDER_TOPICS)
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
@@ -426,6 +427,41 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
     assert 'href="/articles/tarot/tarot-0076"' in tarot_html
     astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
     assert 'href="/articles/astrology/astrology-0001"' in astro_html
+
+
+def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
+    redirects = Path("app/web/_redirects").read_text()
+    expected_routes = {
+        "/topics/mbti",
+        "/topics/personality",
+        "/topics/tarot",
+        "/topics/upright",
+        "/topics/fortune",
+        "/topics/love",
+        "/topics/career",
+        "/topics/interpersonal",
+        "/topics/life-direction",
+        "/topics/reversed",
+    }
+
+    assert {topic["route"] for topic in PRERENDER_TOPICS} == expected_routes
+    assert "/topics/fool" not in PRERENDER_ROUTES
+    assert "/topics/fool /seo/topics/fool/ 200" not in redirects
+    for topic in PRERENDER_TOPICS:
+        route = topic["route"]
+        target = PRERENDER_ROUTES[route]
+        assert f"{route} /{redirect_target(target)} 200" in redirects
+        html = (Path("app/web") / target).read_text()
+        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert '"@type":"CollectionPage"' in html
+        assert '"hasPart":[' in html
+        assert 'data-prerender-internal-links' in html
+        assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in html
+
+    tarot_topic_html = Path("app/web/seo/topics/tarot/index.html").read_text()
+    assert 'href="/articles/tarot/tarot-0001"' in tarot_topic_html
+    personality_topic_html = Path("app/web/seo/topics/personality/index.html").read_text()
+    assert 'href="/articles/personality/personality-0001"' in personality_topic_html
 
 
 def test_prerender_article_descriptions_meet_citability_length_gate() -> None:

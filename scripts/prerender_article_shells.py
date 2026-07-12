@@ -58,6 +58,32 @@ console.log(JSON.stringify(records));
     return json.loads(result.stdout)
 
 
+def registry_topics() -> list[dict]:
+    script = """
+import { listTopicRecords, listArticlesForTopic, getArticlePath } from './app/web/static/article-registry.js';
+const records = listTopicRecords().map((topic) => ({
+  route: topic.href,
+  title: `${topic.label} 相關文章`,
+  label: topic.label,
+  slug: topic.slug,
+  articleCount: topic.articleCount,
+  articles: listArticlesForTopic(topic.slug).map((article) => ({
+    path: getArticlePath(article),
+    title: article.title || '',
+  })),
+}));
+console.log(JSON.stringify(records));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
+
 def citability_description(description: str) -> str:
     value = " ".join(str(description or "").split())
     if len(value) >= MIN_CITABILITY_DESCRIPTION_LEN:
@@ -129,6 +155,14 @@ def build_hub_internal_links(hub_route: str, product: str, articles: list[dict[s
     return links[:10]
 
 
+def build_topic_internal_links(topic: dict) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    add_unique_link(links, "/articles", "最新文章", topic["route"])
+    for article in topic["articles"][:12]:
+        add_unique_link(links, article["path"], article["title"], topic["route"])
+    return links[:12]
+
+
 def build_prerender_articles() -> list[dict[str, str]]:
     articles = []
     for record in registry_articles():
@@ -177,9 +211,37 @@ def build_prerender_hubs(articles: list[dict[str, str]]) -> list[dict[str, str]]
     return hubs
 
 
+def build_prerender_topics() -> list[dict[str, str]]:
+    topics = []
+    for topic in registry_topics():
+        route = topic["route"]
+        description = (
+            f"整理 Pantheon 中提到 {topic['label']} 的公開文章，收錄 {topic['articleCount']} 篇可延伸閱讀，"
+            "方便讀者直接找到相關內容與使用限制。"
+        )
+        topics.append(
+            {
+                "route": route,
+                "target": target_for_route(route),
+                "title": topic["title"],
+                "page_title": f"{topic['title']} | Pantheon",
+                "description": citability_description(description),
+                "canonical": f"{SITE_ORIGIN}{route}",
+                "path": route,
+                "product": "topics",
+                "product_label": "主題",
+                "product_hub": "topics",
+                "content_type": "CollectionPage",
+                "internal_links": build_topic_internal_links(topic),
+            }
+        )
+    return topics
+
+
 PRERENDER_ARTICLES = build_prerender_articles()
 PRERENDER_HUBS = build_prerender_hubs(PRERENDER_ARTICLES)
-PRERENDER_PAGES = [*PRERENDER_HUBS, *PRERENDER_ARTICLES]
+PRERENDER_TOPICS = build_prerender_topics()
+PRERENDER_PAGES = [*PRERENDER_HUBS, *PRERENDER_TOPICS, *PRERENDER_ARTICLES]
 PRERENDER_ROUTES = {page["route"]: page["target"] for page in PRERENDER_PAGES}
 
 
@@ -190,7 +252,14 @@ def redirect_target(target: str) -> str:
 def update_redirects() -> None:
     lines = REDIRECTS_PATH.read_text(encoding="utf-8").splitlines()
     generated = [f"{route} /{redirect_target(target)} 200" for route, target in PRERENDER_ROUTES.items()]
-    filtered = [line for line in lines if not line.startswith("/articles/") or " /seo/articles/" not in line]
+    filtered = [
+        line
+        for line in lines
+        if not (
+            (line.startswith("/articles/") and " /seo/articles/" in line)
+            or (line.startswith("/topics/") and " /seo/topics/" in line)
+        )
+    ]
     insert_at = filtered.index("/articles /articles 200")
     next_lines = filtered[:insert_at] + generated + filtered[insert_at:]
     REDIRECTS_PATH.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
