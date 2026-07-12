@@ -20,7 +20,7 @@ PRERENDER_ROUTES = {
 
 
 def redirect_target(target: str) -> str:
-    return target.removesuffix("/index.html")
+    return f"{target.removesuffix('/index.html')}/"
 
 
 def prerender() -> list[Path]:

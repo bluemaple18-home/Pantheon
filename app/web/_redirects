@@ -8,11 +8,11 @@
 /effects-demo.html /articles 302
 /strategy.html /articles 302
 /articles/astro/12-zodiac-signs /articles/astro 302
-/articles/tarot/tarot-0001 /seo/articles/tarot/tarot-0001 200
-/articles/personality/personality-0001 /seo/articles/personality/personality-0001 200
-/articles/fortune/fortune-0001 /seo/articles/fortune/fortune-0001 200
-/articles/interpersonal/interpersonal-0001 /seo/articles/interpersonal/interpersonal-0001 200
-/articles/life-direction /seo/articles/life-direction 200
+/articles/tarot/tarot-0001 /seo/articles/tarot/tarot-0001/ 200
+/articles/personality/personality-0001 /seo/articles/personality/personality-0001/ 200
+/articles/fortune/fortune-0001 /seo/articles/fortune/fortune-0001/ 200
+/articles/interpersonal/interpersonal-0001 /seo/articles/interpersonal/interpersonal-0001/ 200
+/articles/life-direction /seo/articles/life-direction/ 200
 /articles /articles 200
 /robots.txt /robots.txt 200
 /sitemap.xml /sitemap.xml 200
