@@ -377,6 +377,24 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
     assert faq["@type"] == "FAQPage"
 
 
+def test_cloudflare_worker_renders_article_seo_shell_for_static_pages() -> None:
+    worker = Path("app/web/_worker.js").read_text()
+
+    assert "env.ASSETS.fetch(request)" in worker
+    assert "env.ASSETS.fetch(articleRequest)" in worker
+    assert 'assetUrl.pathname = "/article.html"' in worker
+    assert 'pathname.startsWith("/articles/")' in worker
+    assert 'pathname.startsWith("/topics/")' in worker
+    assert '"/articles/tarot/tarot-0001"' in worker
+    assert '"@type": "Article"' in worker
+    assert '"@type": "BreadcrumbList"' in worker
+    assert '"@type": "FAQPage"' in worker
+    assert "article-jsonld" in worker
+    assert "breadcrumb-jsonld" in worker
+    assert "faq-jsonld" in worker
+    assert "STATIC_REDIRECTS" in worker
+
+
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_js = Path("app/web/static/article.js").read_text()
     article_meta_js = Path("app/web/static/article-meta.js").read_text()
