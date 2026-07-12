@@ -11,12 +11,16 @@ from main import render_article_shell  # noqa: E402
 WEB_DIR = Path("app/web")
 
 PRERENDER_ROUTES = {
-    "/articles/tarot/tarot-0001": "seo/articles/tarot/tarot-0001.html",
-    "/articles/personality/personality-0001": "seo/articles/personality/personality-0001.html",
-    "/articles/fortune/fortune-0001": "seo/articles/fortune/fortune-0001.html",
-    "/articles/interpersonal/interpersonal-0001": "seo/articles/interpersonal/interpersonal-0001.html",
-    "/articles/life-direction": "seo/articles/life-direction.html",
+    "/articles/tarot/tarot-0001": "seo/articles/tarot/tarot-0001/index.html",
+    "/articles/personality/personality-0001": "seo/articles/personality/personality-0001/index.html",
+    "/articles/fortune/fortune-0001": "seo/articles/fortune/fortune-0001/index.html",
+    "/articles/interpersonal/interpersonal-0001": "seo/articles/interpersonal/interpersonal-0001/index.html",
+    "/articles/life-direction": "seo/articles/life-direction/index.html",
 }
+
+
+def redirect_target(target: str) -> str:
+    return target.removesuffix("/index.html")
 
 
 def prerender() -> list[Path]:

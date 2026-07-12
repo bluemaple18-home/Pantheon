@@ -6,7 +6,7 @@ import subprocess
 
 from main import app
 from scripts.competitor_seo_tool import endpoint_label
-from scripts.prerender_article_shells import PRERENDER_ROUTES
+from scripts.prerender_article_shells import PRERENDER_ROUTES, redirect_target
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -382,7 +382,7 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
     redirects = Path("app/web/_redirects").read_text()
 
     for route, target in PRERENDER_ROUTES.items():
-        assert f"{route} /{target} 200" in redirects
+        assert f"{route} /{redirect_target(target)} 200" in redirects
         prerendered = Path("app/web") / target
         assert prerendered.exists()
         html = prerendered.read_text()
