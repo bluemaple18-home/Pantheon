@@ -1196,6 +1196,9 @@ def test_foundation_ai_and_feed_endpoints_are_served() -> None:
     ai = client.get("/ai.txt")
     feed = client.get("/feed/")
     feed_xml = client.get("/feed.xml")
+    feed_file = Path("app/web/feed.xml").read_text()
+    feed_links = re.findall(r"<link>(https://mysticpantheon\.com/articles/[^<]+)</link>", feed_file)
+    expected_feed_links = [f"https://mysticpantheon.com{article['route']}" for article in PRERENDER_ARTICLES]
 
     assert llms.status_code == 200
     assert "Pantheon" in llms.text
@@ -1220,7 +1223,13 @@ def test_foundation_ai_and_feed_endpoints_are_served() -> None:
     assert feed_xml.status_code == 200
     assert "<rss version=\"2.0\"" in feed.text
     assert "Pantheon 最新文章" in feed.text
+    assert feed.text == feed_xml.text
     assert "https://mysticpantheon.com/articles/tarot/tarot-0001" in feed.text
+    assert "https://mysticpantheon.com/articles/tarot/tarot-0076" in feed.text
+    assert "https://mysticpantheon.com/articles/life-direction/life-direction-0001" in feed.text
+    assert "<link>https://mysticpantheon.com/articles/life-direction</link>" not in feed.text
+    assert feed_file.count("<item>") == len(PRERENDER_ARTICLES)
+    assert feed_links == expected_feed_links
 
 
 def test_first_30_article_plan_is_registered_for_site() -> None:

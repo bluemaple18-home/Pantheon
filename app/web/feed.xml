@@ -8,20 +8,132 @@
     <lastBuildDate>Sun, 12 Jul 2026 00:00:00 +0800</lastBuildDate>
     <atom:link href="https://mysticpantheon.com/feed/" rel="self" type="application/rss+xml" />
     <item>
-      <title>塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看</title>
-      <link>https://mysticpantheon.com/articles/tarot/tarot-0001</link>
-      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0001</guid>
-      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
-      <category>塔羅</category>
-      <description>整理塔羅牌意思、正位逆位、感情與工作情境，說明可以怎麼用、不能怎麼用，以及公開文章不能取代個人判讀的限制。</description>
-    </item>
-    <item>
       <title>MBTI 是什麼？16 型人格、測驗與自我理解怎麼看</title>
       <link>https://mysticpantheon.com/articles/personality/personality-0001</link>
       <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0001</guid>
       <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
       <category>人格</category>
-      <description>說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境，而不是把類型當成固定答案。</description>
+      <description>MBTI 是人格偏好工具，適合整理自我理解、互動模式與工作偏好；它不能取代心理診斷，也不能直接判定感情或人生結果。</description>
+    </item>
+    <item>
+      <title>16 型人格完整整理：特質、感情、工作與人際怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>16 型人格把 MBTI 四組偏好組合成不同類型，適合用來理解特質、感情、工作與人際；同一型仍會因情境和經驗而不同。</description>
+    </item>
+    <item>
+      <title>MBTI 測驗前先知道：能看什麼、不能代表什麼</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>MBTI 測驗可以輔助自我理解，整理偏好與互動模式；但結果會受狀態、題目理解和情境影響，不應當作診斷。</description>
+    </item>
+    <item>
+      <title>MBTI 準嗎？準確度、限制與自我理解怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>MBTI 會讓人覺得準，常是因為它描述偏好模式；但偏好不等於固定人格，也不等於心理診斷，結果仍要放回情境理解。</description>
+    </item>
+    <item>
+      <title>INTJ 是什麼？感情、事業、人際與長期規劃怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0005</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0005</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>INTJ 常被描述為重視策略、結構與長期目標的人格類型；可用來理解感情、事業和人際偏好，但不能概括一個人的全部樣貌。</description>
+    </item>
+    <item>
+      <title>INFP 是什麼？感情、事業、人際與內在價值怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0006</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0006</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>INFP 常被描述為重視價值感、情緒細節與內在一致的人格類型；適合理解感情和人生方向偏好，但不能被簡化成脆弱。</description>
+    </item>
+    <item>
+      <title>INFJ 是什麼？關係、理想、人際與人生方向怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0007</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0007</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>INFJ 常被描述為重視洞察、理想與深層關係的人格類型；可整理關係和人生方向偏好，但稀有不代表優越。</description>
+    </item>
+    <item>
+      <title>ENFP 是什麼？熱情、關係、人際與人生方向怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0008</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0008</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ENFP 常被描述為重視可能性、連結與探索的人格類型；可用來整理人際和人生方向，但熱情不等於缺乏方向。</description>
+    </item>
+    <item>
+      <title>塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0001</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>塔羅牌意思適合先理解單牌象徵、正逆位語氣與常見情境；但不能取代牌陣、問題問法和個人狀態的整合判讀。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>塔羅牌正位逆位是什麼？好壞、阻塞與提醒怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>塔羅牌正位逆位不是絕對好壞，而是提醒能量表現、阻塞、過度或需要調整的方向；仍要搭配問題和牌陣位置理解。</description>
+    </item>
+    <item>
+      <title>愚者牌意思：正位、逆位、感情與工作情境怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>愚者牌常指向新的開始、探索與未知，也提醒讀者分辨自由、衝動與準備程度；單張牌不能直接決定感情或工作結果。</description>
+    </item>
+    <item>
+      <title>魔術師牌意思：正位、逆位、感情與事業情境怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>魔術師牌常指向資源、行動與創造力，也提醒分辨準備完成、真誠行動、操控、空談或過度自信等不同情境。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>戀人牌意思：正位、逆位、感情與選擇怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0005</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0005</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>戀人牌常和關係、選擇與價值一致有關，但不能直接承諾復合、告白成功或關係結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>死神牌意思：正位、逆位、結束與轉變怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0006</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0006</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>死神牌常代表結束、轉化與舊模式退場，不應被寫成恐嚇式預言或災難承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>高塔牌意思：正位、逆位、關係與工作變動怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0007</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0007</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>高塔牌常指向結構鬆動、突發變化或真相浮現，但不應被用來恐嚇讀者或承諾災難。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>世界牌意思：正位、逆位、完成與下一階段怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0008</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0008</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>世界牌常指向完成、整合與進入下一階段，也提醒讀者分辨收尾、停滯與新的循環。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
     </item>
     <item>
       <title>命盤是什麼？八字、紫微斗數和星盤差在哪</title>
@@ -29,7 +141,95 @@
       <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0001</guid>
       <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
       <category>命盤</category>
-      <description>白話整理命盤、八字、紫微斗數與星盤的差異，說明各自適合觀察的問題與使用邊界，避免把單一工具寫成完整個人結論。</description>
+      <description>命盤是把出生資料轉成不同命理系統的分析語言，適合理解傾向與節奏，不適合當成固定命運。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>八字是什麼？出生年月日時怎麼看人生節奏</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>八字</category>
+      <description>八字用出生年月日時組成命盤語言，適合理解節奏與傾向，不應被當成單一命運答案。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>紫微斗數是什麼？命盤十二宮和主星怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>紫微斗數用十二宮、主星與流年等語言整理人生主題，公開文章只能說明概念，不能替個人下命書結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>命宮是什麼？它在紫微斗數裡代表什麼</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>命宮是紫微斗數的重要觀察點，常用來理解自我感與人生方向，但不能單獨決定一個人的命運。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>夫妻宮是什麼？感情關係可以怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0005</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0005</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>夫妻宮可以幫你觀察感情互動與關係模式，但不能承諾婚姻、復合或特定對象結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>財帛宮是什麼？財富和資源節奏可以怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0006</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0006</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>財帛宮可用來理解資源、金錢觀與財富節奏，但公開文章不提供投資建議，也不承諾財運。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>星盤是什麼？太陽、月亮、上升星座怎麼看</title>
+      <link>https://mysticpantheon.com/articles/astrology/astrology-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/astrology/astrology-0001</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>星座</category>
+      <description>星盤用出生時間與地點整理行星和星座位置，適合理解不同面向，不應只用單一星座下結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>上升星座是什麼？它和太陽星座差在哪</title>
+      <link>https://mysticpantheon.com/articles/astrology/astrology-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/astrology/astrology-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>星座</category>
+      <description>上升星座常被用來理解外在呈現與人際第一印象，但不能單獨代表完整個性或人生方向。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>月亮星座是什麼？情緒與安全感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/astrology/astrology-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/astrology/astrology-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>星座</category>
+      <description>月亮星座常被用來理解情緒、安全感與親密關係需求，但不能直接判定感情結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>星座感情運勢怎麼看？先分清太陽、月亮與上升</title>
+      <link>https://mysticpantheon.com/articles/astrology/astrology-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/astrology/astrology-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>星座</category>
+      <description>星座感情運勢可以輔助關係觀察，但需要分清太陽、月亮、上升與實際相處情境。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>感情塔羅怎麼問？復合、曖昧、關係卡住怎麼看</title>
+      <link>https://mysticpantheon.com/articles/love/love-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/love/love-0001</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>感情</category>
+      <description>感情塔羅適合整理關係問題與提問方式，但不應用來控制他人、承諾復合或替對方下定論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>事業運勢怎麼看？轉職、創業、工作卡住的整理方式</title>
+      <link>https://mysticpantheon.com/articles/career/career-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/career/career-0001</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>事業</category>
+      <description>事業運勢文章適合整理工作問題、時機與選擇脈絡，但不能承諾升遷、轉職或創業結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
     </item>
     <item>
       <title>人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼</title>
@@ -37,15 +237,775 @@
       <guid isPermaLink="true">https://mysticpantheon.com/articles/interpersonal/interpersonal-0001</guid>
       <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
       <category>人際</category>
-      <description>整理人際關係、互動界線與溝通模式，先釐清具體情境、可觀察線索與使用限制，再連到人格、命盤與塔羅脈絡。</description>
+      <description>人際關係文章適合整理互動模式、界線與溝通問題，但不能替他人貼標籤或要求對方改變。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>財富運勢怎麼看？金錢焦慮、資源節奏與風險感</title>
+      <link>https://mysticpantheon.com/articles/wealth/wealth-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/wealth/wealth-0001</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>財富</category>
+      <description>財富運勢文章可以整理資源節奏與金錢焦慮，但不得提供投資建議、報酬承諾或發財承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
     </item>
     <item>
       <title>人生方向迷惘怎麼辦？塔羅、人格與命盤能幫你整理什麼</title>
-      <link>https://mysticpantheon.com/articles/life-direction</link>
-      <guid isPermaLink="true">https://mysticpantheon.com/articles/life-direction</guid>
+      <link>https://mysticpantheon.com/articles/life-direction/life-direction-0001</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/life-direction/life-direction-0001</guid>
       <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
       <category>人生方向</category>
-      <description>人生方向迷惘時，先分清感情、事業、人際、財富或自我節奏哪裡最卡，再選擇適合的整理工具、使用限制與下一步。</description>
+      <description>人生方向文章適合協助讀者拆解迷惘與選擇，不應假裝提供唯一答案或承諾未來。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>女祭司牌意思：正位、逆位與感情直覺怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0009</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0009</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>女祭司牌常出現在看不清、等不到答案或直覺很強的時候；適合整理觀察與不安，但不能把單張牌寫成結果承諾。</description>
+    </item>
+    <item>
+      <title>福德宮是什麼？情緒安全感與內在狀態怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0007</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0007</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>福德宮常被拿來看內在狀態、壓力消化和精神安全感；它是觀察起點，但不能單獨判斷完整人生。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ENTJ 是什麼？感情、事業與控制感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0009</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0009</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ENTJ 常被說成強勢或有企圖心，但這不等於冷酷；這篇整理 ENTJ 在感情、工作與人際裡的常見困擾與限制。</description>
+    </item>
+    <item>
+      <title>曖昧很久沒有進展，該繼續還是停下？</title>
+      <link>https://mysticpantheon.com/articles/love/love-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/love/love-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>感情</category>
+      <description>曖昧很久沒有進展時，問題未必是喜不喜歡，而是期待、界線和未來方向沒有被說清楚；文章不替讀者做決定。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>工作很努力卻沒被看見，問題可能在哪？</title>
+      <link>https://mysticpantheon.com/articles/career/career-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/career/career-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>事業</category>
+      <description>工作很努力卻沒被看見時，未必是能力不夠；這篇從成果、溝通、位置和節奏整理卡點，不承諾升職或轉運。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>月亮牌意思：正位、逆位與感情焦慮怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0010</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0010</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>月亮牌常出現在不安、猜測和看不清真相的時候；適合先整理焦慮來源，不適合急著下結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>田宅宮是什麼？家庭、安全感與居住關係怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0008</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0008</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>田宅宮不只看房子，也常被用來理解家庭、居住安全感和資源安定；這不是單宮命運判定。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ENTP 是什麼？感情、工作與三分鐘熱度怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0010</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0010</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ENTP 常被說成愛辯論或三分鐘熱度，但背後可能是好奇、需要刺激和不喜歡被固定；類型不是逃避承諾的理由。</description>
+    </item>
+    <item>
+      <title>復合前要想清楚什麼？先看三個關係問題</title>
+      <link>https://mysticpantheon.com/articles/love/love-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/love/love-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>感情</category>
+      <description>復合前最重要的不是對方會不會回來，而是分手原因、改變是否真實，以及你想回去的是人還是不甘心。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>現在適合轉職嗎？先分清逃離、成長與方向</title>
+      <link>https://mysticpantheon.com/articles/career/career-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/career/career-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>事業</category>
+      <description>想知道現在適合轉職嗎，先不要只看運勢；這篇從逃離、成長、環境和方向整理判斷角度，不承諾轉職結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>朋友關係變淡，是自然變化還是需要處理？</title>
+      <link>https://mysticpantheon.com/articles/interpersonal/interpersonal-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/interpersonal/interpersonal-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人際</category>
+      <description>朋友關係變淡時，先不要急著怪自己或怪對方；這篇從生活階段、期待落差、界線和社交能量整理判斷角度。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>金錢焦慮從哪裡來？先分清收入、支出與安全感</title>
+      <link>https://mysticpantheon.com/articles/wealth/wealth-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/wealth/wealth-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>財富</category>
+      <description>金錢焦慮未必只是收入問題，也可能和安全感、風險感、家庭經驗或資源節奏有關；本文不提供投資建議。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>該動還是該等？時機問題先看三個條件</title>
+      <link>https://mysticpantheon.com/articles/life-direction/life-direction-0002</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/life-direction/life-direction-0002</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人生方向</category>
+      <description>卡在該動還是該等時，先不要急著找答案；這篇從資訊、資源和承擔能力整理時機問題，不替讀者做人生決定。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>節制牌意思：正位、逆位與關係修復怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0011</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0011</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>節制牌常出現在需要調整節奏、修復關係或重新取得平衡的時候；它講的是協調，不是單方面忍耐。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>事業宮是什麼？工作方向與被看見怎麼看</title>
+      <link>https://mysticpantheon.com/articles/fortune/fortune-0009</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/fortune/fortune-0009</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>紫微</category>
+      <description>事業宮常被用來看工作方式、職涯舞台與被看見的位置；它能提供觀察角度，但不能單獨決定職業。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ISFJ 是什麼？感情、工作與責任感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0011</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0011</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ISFJ 常被形容為照顧型人格，但這不代表只能付出；文章整理 ISFJ 在感情、工作與人際裡的責任感和界線。</description>
+    </item>
+    <item>
+      <title>金星星座是什麼？感情需求與喜歡方式怎麼看</title>
+      <link>https://mysticpantheon.com/articles/astrology/astrology-0005</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/astrology/astrology-0005</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>星座</category>
+      <description>金星星座常被用來看喜歡方式、審美和感情需求，但不能單獨判斷一段關係；星盤語言要回到生活互動。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>感情不安全感從哪裡來？先分清對方和自己</title>
+      <link>https://mysticpantheon.com/articles/love/love-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/love/love-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>感情</category>
+      <description>感情不安全感可能來自對方行為，也可能來自過去經驗和內在焦慮；文章整理判斷角度，不替對方下結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>創業前要想清楚什麼？先看資源、風險與動機</title>
+      <link>https://mysticpantheon.com/articles/career/career-0004</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/career/career-0004</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>事業</category>
+      <description>創業前不要只問適不適合或運勢好不好；這篇從動機、資源、風險和承擔能力整理判斷角度，不承諾創業結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>存不住錢怎麼辦？先看花錢模式與安全感</title>
+      <link>https://mysticpantheon.com/articles/wealth/wealth-0003</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/wealth/wealth-0003</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>財富</category>
+      <description>存不住錢不只是不夠自律，也可能和壓力、補償心理、收入結構和安全感有關；本文不提供投資建議。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>皇后牌意思：正位、逆位與感情安全感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0012</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0012</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>皇后牌常和照顧、吸引力、資源與安全感有關；本文整理正位、逆位、感情與工作情境，也說明不能直接代表結果。</description>
+    </item>
+    <item>
+      <title>皇帝牌意思：正位、逆位與關係控制感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0013</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0013</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>皇帝牌常和規則、責任、掌控與界線有關；本文整理正位、逆位、感情與工作情境，避免把牌義寫成固定結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>教皇牌意思：正位、逆位與承諾壓力怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0014</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0014</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>教皇牌常和承諾、規範、價值觀與關係壓力有關；本文整理正位、逆位、感情與工作情境，也保留限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>戰車牌意思：正位、逆位與行動卡住怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0015</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0015</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>戰車牌常和行動、方向、意志與控制節奏有關；本文整理正位、逆位、感情與工作情境，不把它寫成勝利承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>力量牌意思：正位、逆位與壓力自控怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0016</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0016</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>力量牌常和耐心、自控、溫柔力量與壓力有關；本文整理感情、工作與逆位情境，也說明不能直接代表結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>隱者牌意思：正位、逆位與需要冷靜怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0017</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0017</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>隱者牌常和冷靜、退一步、內在整理與距離有關；本文整理正位、逆位、感情與工作情境，不把沉默寫成結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>命運之輪牌意思：正位、逆位與時機變動怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0018</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0018</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>命運之輪牌常和變動、時機、循環與轉折有關；本文整理感情、工作與逆位情境，也避免把它寫成命運承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>正義牌意思：正位、逆位與關係公平怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0019</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0019</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>正義牌常和公平、責任、選擇與後果有關；本文整理正位、逆位、感情與工作情境，不提供法律或結果判斷。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>吊人牌意思：正位、逆位與暫停等待怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0020</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0020</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>吊人牌常和暫停、等待、換角度與犧牲感有關；本文整理感情與工作情境，避免把等待寫成唯一答案。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>惡魔牌意思：正位、逆位與執著依賴怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0021</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0021</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>惡魔牌常和執著、依賴、慾望與界線有關；本文整理感情、工作與逆位情境，不把牌義寫成恐嚇。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>星星牌意思：正位、逆位與重新有希望怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0022</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0022</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>星星牌常和希望、修復、信任與重新整理有關；本文整理正位、逆位、感情與工作情境，不承諾結果。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>太陽牌意思：正位、逆位與關係變明朗怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0023</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0023</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>太陽牌常和明朗、坦白、活力與看見真相有關；本文整理感情、工作與逆位情境，也保留牌義限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>審判牌意思：正位、逆位與是否重新開始怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0024</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0024</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>審判牌常和回顧、覺醒、重新開始與關係復盤有關；本文整理感情與工作情境，不把它寫成復合承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣國王意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0025</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0025</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣國王常和資源、穩定、承擔與現實安全感有關；本文整理感情、工作與逆位提醒，不提供財務建議。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍七意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0026</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0026</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍七常和隱瞞、策略、逃避與不正面處理有關；本文整理感情與工作情境，不用牌義直接指控任何人。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖三意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0027</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0027</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖三常和等待成果、拓展、遠方合作與下一步佈局有關；本文整理感情與工作情境，不把等待寫成承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖五意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0028</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0028</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖五常和衝突、競爭、摩擦與意見不合有關；本文整理感情與工作情境，幫你分清衝突是否值得處理。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣五意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0029</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0029</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣五常和匱乏、被排除、資源不足與安全感有關；本文整理感情與工作情境，不提供財務建議。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍九意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0030</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0030</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍九常和焦慮、失眠、想太多與心理壓力有關；本文整理感情與工作情境，但不提供健康專業判斷。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍二意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0031</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0031</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍二常和猶豫、僵局、暫時不決定與資訊不足有關；本文整理感情與工作情境，協助縮小問題。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯二意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0032</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0032</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯二常和互相靠近、對等、合作與關係連結有關；本文整理感情與工作情境，但不承諾復合或承諾。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>INTP 是什麼？感情、工作與想太多怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0012</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0012</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>INTP 常被連到分析、好奇、想太多與距離感；本文整理感情、工作與人際情境，也說明人格類型不能當診斷。</description>
+    </item>
+    <item>
+      <title>ISTJ 是什麼？感情、工作與責任壓力怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0013</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0013</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ISTJ 常被連到責任、秩序、務實與穩定；本文整理感情、工作與人際情境，也說明類型不能代表全部。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ISTP 是什麼？感情、工作與保持距離怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0014</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0014</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ISTP 常被連到冷靜、實作、自由感與距離感；本文整理感情、工作與人際情境，也保留人格類型限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ISFP 是什麼？感情、工作與情緒界線怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0015</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0015</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ISFP 常被連到感受、審美、自由與界線；本文整理感情、工作與人際情境，也說明人格類型不能決定人生。</description>
+    </item>
+    <item>
+      <title>ENFJ 是什麼？感情、工作與照顧別人怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0016</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0016</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ENFJ 常被連到照顧、帶領、關係敏銳與他人期待；本文整理感情、工作與人際情境，也保留限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ESTJ 是什麼？感情、工作與控制節奏怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0017</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0017</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ESTJ 常被連到執行、規劃、責任與控制感；本文整理感情、工作與人際情境，也說明類型不能代表全部。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ESFJ 是什麼？感情、工作與被需要感怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0018</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0018</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ESFJ 常被連到照顧、群體、責任與被需要感；本文整理感情、工作與人際情境，也保留人格類型限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ESTP 是什麼？感情、工作與衝動決定怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0019</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0019</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ESTP 常被連到行動力、刺激、臨場反應與衝動決定；本文整理感情、工作與人際情境，也說明限制。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>ESFP 是什麼？感情、工作與當下感受怎麼看</title>
+      <link>https://mysticpantheon.com/articles/personality/personality-0020</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/personality/personality-0020</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>人格</category>
+      <description>ESFP 常被連到表達、社交、當下感受與生活熱度；本文整理感情、工作與人際情境，也說明人格類型限制。</description>
+    </item>
+    <item>
+      <title>權杖一意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0033</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0033</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖一常和新行動、熱情和開始有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖二意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0034</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0034</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖二常和選擇、計劃和等待出手有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖四意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0035</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0035</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖四常和穩定、慶祝和關係落地有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖六意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0036</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0036</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖六常和被看見、肯定和階段成果有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖七意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0037</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0037</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖七常和防守、壓力和堅持立場有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖八意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0038</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0038</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖八常和訊息、推進和節奏加快有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖九意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0039</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0039</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖九常和戒備、疲憊和還要不要撐有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖十意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0040</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0040</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖十常和責任過重、壓力累積和負擔有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖侍者意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0041</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0041</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖侍者常和新興趣、試探和行動訊號有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖騎士意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0042</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0042</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖騎士常和熱情、衝刺和快速變動有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖皇后意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0043</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0043</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖皇后常和自信、吸引力和主導感有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>權杖國王意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0044</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0044</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>權杖國王常和決斷、領導和掌控節奏有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯一意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0045</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0045</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯一常和新感情、情緒流動和敞開有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯三意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0046</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0046</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯三常和朋友、社群和第三方影響有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯四意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0047</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0047</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯四常和冷淡、無感和錯過機會有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯五意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0048</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0048</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯五常和失落、後悔和還沒看見的支持有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯六意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0049</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0049</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯六常和舊人、回憶和熟悉感有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯七意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0050</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0050</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯七常和幻想、選項太多和投射有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯八意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0051</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0051</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯八常和離開、放下和情緒抽離有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯九意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0052</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0052</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯九常和滿足、自我需求和願望感有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯十意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0053</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0053</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯十常和家庭、長期幸福和共同期待有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯侍者意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0054</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0054</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯侍者常和告白、敏感和情緒訊號有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯騎士意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0055</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0055</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯騎士常和浪漫、靠近和承諾是否落地有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯皇后意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0056</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0056</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯皇后常和情緒照顧、共感和界線有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>聖杯國王意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0057</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0057</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>聖杯國王常和成熟情緒、穩定支持和自我控制有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍一意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0058</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0058</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍一常和看清事實、切入重點和說真話有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍三意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0059</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0059</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍三常和受傷、失望和真相刺痛有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍四意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0060</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0060</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍四常和休息、暫停和需要整理有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍五意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0061</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0061</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍五常和爭輸贏、消耗和關係破裂有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍六意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0062</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0062</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍六常和離開困境、過渡期和慢慢恢復有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍八意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0063</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0063</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍八常和被困住、想法限制和害怕行動有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍十意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0064</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0064</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍十常和結束、痛到谷底和重新整理有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍侍者意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0065</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0065</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍侍者常和觀察、試探和訊息敏感有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍騎士意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0066</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0066</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍騎士常和急著說清、衝突溝通和快速行動有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍皇后意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0067</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0067</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍皇后常和界線、清醒和理性防衛有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>寶劍國王意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0068</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0068</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>寶劍國王常和判斷、規則和冷靜決策有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣一意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0069</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0069</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣一常和新的實際機會、落地開始和安全感有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣二意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0070</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0070</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣二常和平衡、分配和忙亂中的選擇有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣三意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0071</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0071</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣三常和合作、技能和被看見有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣四意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0072</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0072</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣四常和保守、控制和害怕失去有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣六意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0073</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0073</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣六常和給予、互惠和權力不對等有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣七意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0074</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0074</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣七常和等待成果、投入是否值得和耐心有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣八意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0075</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0075</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣八常和練習、投入和把事情做實有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
+    </item>
+    <item>
+      <title>錢幣九意思：正位、逆位、感情與工作怎麼看</title>
+      <link>https://mysticpantheon.com/articles/tarot/tarot-0076</link>
+      <guid isPermaLink="true">https://mysticpantheon.com/articles/tarot/tarot-0076</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>
+      <category>塔羅</category>
+      <description>錢幣九常和獨立、安全感和自我價值有關；本文整理正位、逆位、感情與工作情境，不把單牌寫成個人結論。閱讀時仍要搭配具體問題、情境脈絡與使用限制，不能直接當成個人結論。</description>
     </item>
   </channel>
 </rss>
