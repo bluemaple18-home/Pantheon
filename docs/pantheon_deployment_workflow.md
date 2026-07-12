@@ -85,7 +85,7 @@ tag-management-YYYYMMDD-N
 - URL 使用流水號：`/articles/{category}/{category}-{number}`。
 - canonical、breadcrumb、sitemap、上一篇/下一篇都使用正式 URL。
 - 相關文章不顯示流水號。
-- 延伸閱讀最多 5 篇，且不放固定產品入口。
+- 可見延伸閱讀最多 6 條，可包含上一篇 / 下一篇、分類文章入口與推薦文章；推薦文章最多 5 篇。
 - FAQ 不出現內部管理語言。
 - topic 連結只給已達門檻的標籤。
 - 未達 10 篇文章的標籤只能顯示 chip，不能產生公開集結頁。

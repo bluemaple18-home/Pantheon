@@ -589,16 +589,12 @@ a.ui-chip:hover {
 }
 
 .article-related {
-  grid-column: 2;
-  grid-row: 2 / span 4;
-  position: sticky;
-  top: 92px;
+  grid-column: 1 / -1;
   width: 100%;
-  padding: 0 0 0 18px;
-  border: 0;
-  border-left: 1px solid var(--article-line);
-  border-radius: 0;
-  background: transparent;
+  padding: 18px 20px;
+  border: 1px solid rgba(var(--article-accent-rgb), 0.16);
+  border-radius: 8px;
+  background: var(--article-panel-bg);
 }
 
 .article-answer-summary h2,
@@ -661,6 +657,19 @@ a.ui-chip:hover {
   font-size: 12px;
   font-weight: 860;
   white-space: nowrap;
+}
+
+.article-visible-link-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.article-visible-link-list li {
+  align-items: start;
+  min-width: 0;
+}
+
+.article-visible-link-list a {
+  overflow-wrap: anywhere;
 }
 
 .article-sequence {
@@ -5649,12 +5658,14 @@ select:focus {
   }
 
   .article-related {
-    grid-row: auto;
-    position: static;
     padding: 18px 20px;
     border: 1px solid rgba(var(--article-accent-rgb), 0.16);
     border-radius: 8px;
     background: var(--article-panel-bg);
+  }
+
+  .article-visible-link-list {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -532,6 +532,14 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
     assert "content.navigationLinks" in article_js
+    assert "VISIBLE_RELATED_MAX_LINKS = 6" in article_js
+    assert "buildVisibleRelatedLinks(content)" in article_js
+    assert "content.relatedLinks || []" in article_js
+    assert "content.productHref" in article_js
+    assert "回到${content.productThemeLabel || content.productCrumbLabel || \"分類\"}文章" in article_js
+    assert "links.slice(0, VISIBLE_RELATED_MAX_LINKS)" in article_js
+    assert article_js.index("(content.navigationLinks || []).forEach(addLink)") < article_js.index("href: content.productHref")
+    assert article_js.index("href: content.productHref") < article_js.index("(content.relatedLinks || []).forEach(addLink)")
     assert "article-sequence-button-${direction}" in article_js
     assert "\"← 上一篇\"" in article_js
     assert "\"下一篇 →\"" in article_js
@@ -543,6 +551,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "appendInlineTopicLinks(paragraph, text, inlineTopicState)" in article_js
     assert "article-inline-topic-link" in article_js
     assert "data-article-related" in article_html
+    assert "data-visible-related-links" in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -613,9 +622,12 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "[hidden] {\n  display: none !important;" in styles_css
     assert ".article-related" in styles_css
     assert "grid-template-columns: minmax(0, 760px) minmax(240px, 320px)" in styles_css
-    assert "grid-column: 2;" in styles_css
-    assert "position: sticky;" in styles_css
-    assert "border-left: 1px solid var(--article-line)" in styles_css
+    assert ".article-related {\n  grid-column: 1 / -1;" in styles_css
+    assert ".article-visible-link-list" in styles_css
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_css
+    assert "overflow-wrap: anywhere;" in styles_css
+    assert "@media (max-width: 980px)" in styles_css
+    assert ".article-visible-link-list {\n    grid-template-columns: 1fr;" in styles_css
     assert ".article-sequence {\n  display: block;" in styles_css
     assert "background: transparent;" in styles_css
     assert ".article-sequence-actions" in styles_css

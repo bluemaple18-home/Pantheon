@@ -10,6 +10,7 @@
 `FULL-DRAFTS-11-20` 已完成初版：`evidence/next_30/full_drafts_11_20.md`。
 `FULL-DRAFTS-21-30` 已完成初版：`evidence/next_30/full_drafts_21_30.md`。
 `NEXT-30-PUBLISH` 已完成：30 篇已登錄前台 registry/body，sitemap 已同步，前台公開文章總數為 81 篇。
+`CARD-SEO-VISIBLE-LINKS-001` 已完成：文章頁底部新增可見延伸閱讀模組，桌機/手機證據在 `evidence/visible_links_001/`。
 
 本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 

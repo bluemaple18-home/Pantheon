@@ -2,6 +2,7 @@ import { buildArticleContent } from "./article-meta.js?v=article-content-2026071
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
+const VISIBLE_RELATED_MAX_LINKS = 6;
 
 const dom = {
   productCrumb: document.querySelector("[data-product-crumb]"),
@@ -219,19 +220,6 @@ function renderArticleFaq(content) {
 
 function renderArticleNavigation(content) {
   if (!dom.articleNavigation) return;
-  if (content.navigationLinks?.length) {
-    const previous = content.navigationLinks.find((item) => item.kind === "上一篇");
-    const next = content.navigationLinks.find((item) => item.kind === "下一篇");
-    const actions = document.createElement("div");
-    actions.className = "article-sequence-actions";
-    actions.append(
-      renderSequenceButton(previous, "previous"),
-      renderSequenceButton(next, "next"),
-    );
-    dom.articleNavigation.hidden = false;
-    dom.articleNavigation.replaceChildren(actions);
-    return;
-  }
   dom.articleNavigation.hidden = true;
   dom.articleNavigation.replaceChildren();
 }
@@ -256,15 +244,39 @@ function renderSequenceButton(item, direction) {
 
 function renderArticleRelated(content) {
   if (!dom.articleRelated) return;
-  if (content.relatedLinks?.length) {
+  const links = buildVisibleRelatedLinks(content);
+  if (links.length) {
     const heading = document.createElement("h2");
     heading.textContent = "延伸閱讀";
     dom.articleRelated.hidden = false;
-    dom.articleRelated.replaceChildren(heading, renderArticleLinkList(content.relatedLinks, "article-link-list"));
+    dom.articleRelated.replaceChildren(heading, renderArticleLinkList(links, "article-link-list article-visible-link-list"));
     return;
   }
   dom.articleRelated.hidden = true;
   dom.articleRelated.replaceChildren();
+}
+
+function buildVisibleRelatedLinks(content) {
+  const currentPath = content.canonicalPath || window.location.pathname;
+  const links = [];
+  const addLink = (item) => {
+    if (!item?.href || !item?.label || item.href === currentPath) return;
+    if (links.some((link) => link.href === item.href)) return;
+    links.push({
+      href: item.href,
+      label: item.label,
+      kind: item.kind || "延伸閱讀",
+    });
+  };
+
+  (content.navigationLinks || []).forEach(addLink);
+  addLink({
+    href: content.productHref,
+    label: `回到${content.productThemeLabel || content.productCrumbLabel || "分類"}文章`,
+    kind: "分類文章",
+  });
+  (content.relatedLinks || []).forEach(addLink);
+  return links.slice(0, VISIBLE_RELATED_MAX_LINKS);
 }
 
 function renderArticleLinkList(items, className) {
