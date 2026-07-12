@@ -1,0 +1,122 @@
+{
+  "desktop": {
+    "finalUrl": "https://www.mysticpantheon.com/articles/tarot/tarot-0075?codex_public_acceptance=ddf1bba",
+    "title": "錢幣八意思：正位、逆位、感情與工作怎麼看 | Pantheon",
+    "stylesheet": "/static/styles.css?v=article-visible-links-20260713-1",
+    "articleScript": "/static/article.js?v=article-visible-links-20260713-1",
+    "relatedExists": true,
+    "relatedHidden": false,
+    "linkCount": 6,
+    "visibleLinkCount": 6,
+    "links": [
+      {
+        "text": "錢幣七意思：正位、逆位、感情與工作怎麼看",
+        "href": "/articles/tarot/tarot-0074",
+        "visible": true
+      },
+      {
+        "text": "錢幣九意思：正位、逆位、感情與工作怎麼看",
+        "href": "/articles/tarot/tarot-0076",
+        "visible": true
+      },
+      {
+        "text": "回到塔羅文章",
+        "href": "/articles/tarot",
+        "visible": true
+      },
+      {
+        "text": "皇后牌意思：正位、逆位與感情安全感怎麼看",
+        "href": "/articles/tarot/tarot-0012",
+        "visible": true
+      },
+      {
+        "text": "皇帝牌意思：正位、逆位與關係控制感怎麼看",
+        "href": "/articles/tarot/tarot-0013",
+        "visible": true
+      },
+      {
+        "text": "感情塔羅怎麼問？復合、曖昧、關係卡住怎麼看",
+        "href": "/articles/love/love-0001",
+        "visible": true
+      }
+    ],
+    "documentWidth": 1365,
+    "viewportWidth": 1365,
+    "horizontalOverflow": false,
+    "relatedRect": {
+      "width": 1112,
+      "height": 221,
+      "top": 3696,
+      "left": 123
+    },
+    "order": {
+      "articleBeforeRelated": true,
+      "faqBeforeRelated": true,
+      "relatedBeforeFooter": true
+    },
+    "loadedVisibleLinksAssets": [
+      "https://www.mysticpantheon.com/static/article.js?v=article-visible-links-20260713-1",
+      "https://www.mysticpantheon.com/static/styles.css?v=article-visible-links-20260713-1"
+    ]
+  },
+  "mobile": {
+    "finalUrl": "https://www.mysticpantheon.com/articles/tarot/tarot-0075?codex_public_acceptance=ddf1bba",
+    "title": "錢幣八意思：正位、逆位、感情與工作怎麼看 | Pantheon",
+    "stylesheet": "/static/styles.css?v=article-visible-links-20260713-1",
+    "articleScript": "/static/article.js?v=article-visible-links-20260713-1",
+    "relatedExists": true,
+    "relatedHidden": false,
+    "linkCount": 6,
+    "visibleLinkCount": 6,
+    "links": [
+      {
+        "text": "錢幣七意思：正位、逆位、感情與工作怎麼看",
+        "href": "/articles/tarot/tarot-0074",
+        "visible": true
+      },
+      {
+        "text": "錢幣九意思：正位、逆位、感情與工作怎麼看",
+        "href": "/articles/tarot/tarot-0076",
+        "visible": true
+      },
+      {
+        "text": "回到塔羅文章",
+        "href": "/articles/tarot",
+        "visible": true
+      },
+      {
+        "text": "皇后牌意思：正位、逆位與感情安全感怎麼看",
+        "href": "/articles/tarot/tarot-0012",
+        "visible": true
+      },
+      {
+        "text": "皇帝牌意思：正位、逆位與關係控制感怎麼看",
+        "href": "/articles/tarot/tarot-0013",
+        "visible": true
+      },
+      {
+        "text": "感情塔羅怎麼問？復合、曖昧、關係卡住怎麼看",
+        "href": "/articles/love/love-0001",
+        "visible": true
+      }
+    ],
+    "documentWidth": 390,
+    "viewportWidth": 390,
+    "horizontalOverflow": false,
+    "relatedRect": {
+      "width": 358,
+      "height": 493,
+      "top": 5342,
+      "left": 16
+    },
+    "order": {
+      "articleBeforeRelated": true,
+      "faqBeforeRelated": true,
+      "relatedBeforeFooter": true
+    },
+    "loadedVisibleLinksAssets": [
+      "https://www.mysticpantheon.com/static/styles.css?v=article-visible-links-20260713-1",
+      "https://www.mysticpantheon.com/static/article.js?v=article-visible-links-20260713-1"
+    ]
+  }
+}
