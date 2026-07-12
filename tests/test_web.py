@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import subprocess
 
-from main import app
+from main import RAW_ARTICLE_META, app
 from scripts.competitor_seo_tool import endpoint_label
 from scripts.prerender_article_shells import PRERENDER_ROUTES, redirect_target
 
@@ -376,6 +376,11 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
     assert article["dateModified"] == "2026-07-12"
     assert breadcrumb["@type"] == "BreadcrumbList"
     assert faq["@type"] == "FAQPage"
+
+
+def test_raw_article_descriptions_meet_citability_length_gate() -> None:
+    for path, (_title, description) in RAW_ARTICLE_META.items():
+        assert 50 <= len(description) <= 160, path
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
