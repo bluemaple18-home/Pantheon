@@ -160,8 +160,7 @@ def replace_meta_content(markup: str, attr_name: str, attr_value: str, content_v
     return re.sub(pattern, rf"\g<1>{escaped}\3", markup, count=1)
 
 
-def render_article_shell(path: str) -> HTMLResponse:
-    meta = raw_article_meta(path)
+def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     markup = (WEB_DIR / "article.html").read_text(encoding="utf-8")
     page_title = html.escape(meta["page_title"], quote=False)
     description = meta["description"]
@@ -205,6 +204,10 @@ def render_article_shell(path: str) -> HTMLResponse:
         flags=re.S,
     )
     return HTMLResponse(markup)
+
+
+def render_article_shell(path: str) -> HTMLResponse:
+    return render_article_shell_from_meta(raw_article_meta(path))
 
 
 def create_app() -> FastAPI:
