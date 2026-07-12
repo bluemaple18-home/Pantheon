@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -25,6 +25,9 @@ USER_AGENT = (
 DEFAULT_KEYWORD_MATRIX = Path("artifacts/fortune_council/content_seo_matrix/keyword_seed_matrix.md")
 DEFAULT_SOURCE_INTAKE = Path("artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md")
 KEYWORD_STOPWORDS = {"文章", "分支文章", "主型", "牌組", "內容線", "文章型態", "標題", "內部連結", "上下篇", "跨線連結"}
+AI_CRAWLER_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended", "CCBot"]
+CORE_SCHEMA_TYPES = ["Article", "FAQPage", "BreadcrumbList", "Organization", "WebSite"]
+TEXT_ENDPOINT_TYPES = {"text/plain", "text/markdown", "text/x-markdown", "application/markdown"}
 
 
 @dataclass
@@ -56,13 +59,32 @@ class PageAudit:
     og_description: str
     og_image: str
     twitter_card: str
+    visible_text: str
     h1: list[str]
     h2: list[str]
     jsonld_types: list[str]
     internal_link_count: int
+    external_link_count: int
     unique_article_links: int
     unique_category_links: int
+    has_author: bool
+    has_published_time: bool
+    has_modified_time: bool
+    has_about_or_contact_link: bool
+    citability_markers: list[str]
     asset_counts: dict[str, int]
+
+
+@dataclass
+class GeoSignals:
+    llms_txt_status: str
+    ai_txt_status: str
+    ai_bot_policy: dict[str, str]
+    schema_depth_score: int
+    eeat_score: int
+    citability_score: int
+    entity_score: int
+    findings: list[str]
 
 
 def fetch(url: str, timeout: int = 18, retries: int = 2) -> tuple[int, dict[str, str], str]:
@@ -82,6 +104,10 @@ def fetch(url: str, timeout: int = 18, retries: int = 2) -> tuple[int, dict[str,
                 charset = response.headers.get_content_charset() or "utf-8"
                 text = response.read().decode(charset, errors="replace")
                 return response.status, dict(response.headers), text
+        except urllib.error.HTTPError as exc:
+            charset = exc.headers.get_content_charset() or "utf-8"
+            text = exc.read().decode(charset, errors="replace")
+            return exc.code, dict(exc.headers), text
         except (urllib.error.URLError, http.client.RemoteDisconnected) as exc:
             last_error = exc
             time.sleep(0.35 * (attempt + 1))
@@ -113,6 +139,28 @@ def normalize_base(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
 
 
+def is_local_netloc(netloc: str) -> bool:
+    host = netloc.split(":", 1)[0].lower()
+    return host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def remap_feed_item_links_for_audit(base_url: str, items: list[FeedItem]) -> list[FeedItem]:
+    parsed_base = urllib.parse.urlparse(base_url)
+    if not is_local_netloc(parsed_base.netloc):
+        return items
+    remapped: list[FeedItem] = []
+    for item in items:
+        parsed_link = urllib.parse.urlparse(item.link)
+        if parsed_link.scheme in {"http", "https"} and parsed_link.netloc and not is_local_netloc(parsed_link.netloc):
+            local_link = urllib.parse.urlunparse(
+                (parsed_base.scheme, parsed_base.netloc, parsed_link.path, "", parsed_link.query, parsed_link.fragment)
+            )
+            remapped.append(replace(item, link=local_link))
+        else:
+            remapped.append(item)
+    return remapped
+
+
 def host_pattern(base_url: str) -> str:
     host = re.escape(urllib.parse.urlparse(base_url).netloc)
     return rf"https?://{host}"
@@ -126,6 +174,42 @@ def extract_internal_links(markup: str, base_url: str) -> list[str]:
         if urllib.parse.urlparse(url).netloc == parsed.netloc:
             links.append(url.split("#", 1)[0])
     return links
+
+
+def extract_external_links(markup: str, base_url: str) -> list[str]:
+    parsed = urllib.parse.urlparse(base_url)
+    links = []
+    for raw in re.findall(r"(?is)<a\b[^>]+href=[\"']([^\"']+)[\"']", markup):
+        url = urllib.parse.urljoin(base_url + "/", html.unescape(raw))
+        target = urllib.parse.urlparse(url)
+        if target.scheme in {"http", "https"} and target.netloc and target.netloc != parsed.netloc:
+            links.append(url.split("#", 1)[0])
+    return links
+
+
+def has_about_or_contact_link(markup: str, base_url: str) -> bool:
+    patterns = ("about", "contact", "privacy", "editorial", "關於", "聯絡", "隱私", "作者", "編輯")
+    for raw in re.findall(r"(?is)<a\b[^>]+href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", markup):
+        href = urllib.parse.urljoin(base_url + "/", html.unescape(raw[0])).lower()
+        label = strip_tags(raw[1]).lower()
+        if any(pattern in href or pattern in label for pattern in patterns):
+            return True
+    return False
+
+
+def extract_citability_markers(markup: str) -> list[str]:
+    markers = []
+    text = strip_tags(markup)
+    headings = " ".join(text_between("h2", markup) + text_between("h3", markup))
+    if re.search(r"是什麼|如何|怎麼|為什麼|重點|結論|總結|常見問題|FAQ", headings, re.I):
+        markers.append("answer_headings")
+    if re.search(r"(?is)<(ul|ol|table)\b", markup):
+        markers.append("structured_blocks")
+    if re.search(r"(?is)<blockquote\b|來源|參考|資料來源|研究|統計", markup):
+        markers.append("source_or_evidence_language")
+    if 600 <= len(text) <= 8000:
+        markers.append("scannable_length")
+    return markers
 
 
 def extract_category_links(markup: str, base_url: str) -> list[str]:
@@ -193,21 +277,31 @@ def audit_page(url: str, base_url: str) -> PageAudit:
             og_description="",
             og_image="",
             twitter_card="",
+            visible_text="",
             h1=[],
             h2=[],
             jsonld_types=[],
             internal_link_count=0,
+            external_link_count=0,
             unique_article_links=0,
             unique_category_links=0,
+            has_author=False,
+            has_published_time=False,
+            has_modified_time=False,
+            has_about_or_contact_link=False,
+            citability_markers=[],
             asset_counts={},
         )
 
     meta = parse_meta(markup)
+    visible_markup = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", markup)
+    visible_text = strip_tags(visible_markup)[:12000]
     title = strip_tags(attr(markup, r"<title[^>]*>(.*?)</title>"))
     canonical = attr(markup, r"rel=[\"']canonical[\"']\s+href=[\"']([^\"']+)") or attr(
         markup, r"href=[\"']([^\"']+)[\"']\s+rel=[\"']canonical[\"']"
     )
     links = extract_internal_links(markup, base_url)
+    external_links = extract_external_links(markup, base_url)
     return PageAudit(
         url=url,
         status=status,
@@ -223,12 +317,22 @@ def audit_page(url: str, base_url: str) -> PageAudit:
         og_description=meta.get("og:description", ""),
         og_image=meta.get("og:image", ""),
         twitter_card=meta.get("twitter:card", ""),
+        visible_text=visible_text,
         h1=text_between("h1", markup)[:8],
         h2=text_between("h2", markup)[:16],
         jsonld_types=parse_jsonld_types(markup),
         internal_link_count=len(links),
+        external_link_count=len(external_links),
         unique_article_links=len(extract_article_links(markup, base_url)),
         unique_category_links=len(extract_category_links(markup, base_url)),
+        has_author=bool(
+            meta.get("author")
+            or re.search(r"(?is)(rel=[\"']author[\"']|class=[\"'][^\"']*author|property=[\"']article:author[\"'])", markup)
+        ),
+        has_published_time=bool(meta.get("article:published_time") or re.search(r"(?is)<time\b|datePublished", markup)),
+        has_modified_time=bool(meta.get("article:modified_time") or re.search(r"(?is)dateModified|更新日期|最後更新", markup)),
+        has_about_or_contact_link=has_about_or_contact_link(markup, base_url),
+        citability_markers=extract_citability_markers(markup),
         asset_counts={
             "css": len(re.findall(r"<link[^>]+stylesheet", markup, re.I)),
             "script": len(re.findall(r"<script\b", markup, re.I)),
@@ -330,10 +434,10 @@ def load_source_intake(path: Path) -> str:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return ""
-    marker = "## 給競品 SEO 工具的接法"
-    if marker in text:
-        return text.split(marker, 1)[1].strip()
-    return text[:4000].strip()
+    for marker in ("## 給 `competitor_seo_tool.py` 的接法", "## 給競品 SEO 工具的接法"):
+        if marker in text:
+            return text.split(marker, 1)[1].strip()
+    return text[:8000].strip()
 
 
 def keyword_matches(keywords: Iterable[str], items: Iterable[FeedItem], audits: Iterable[PageAudit]) -> list[dict[str, object]]:
@@ -341,7 +445,23 @@ def keyword_matches(keywords: Iterable[str], items: Iterable[FeedItem], audits: 
     for item in items:
         haystacks.append(("feed", item.link, " ".join([item.title, item.description, " ".join(item.categories), " ".join(item.headings)])))
     for audit in audits:
-        haystacks.append(("page", audit.url, " ".join([audit.title, audit.description, audit.og_title, audit.og_description, " ".join(audit.h1), " ".join(audit.h2)])))
+        haystacks.append(
+            (
+                "page",
+                audit.url,
+                " ".join(
+                    [
+                        audit.title,
+                        audit.description,
+                        audit.og_title,
+                        audit.og_description,
+                        " ".join(audit.h1),
+                        " ".join(audit.h2),
+                        audit.visible_text,
+                    ]
+                ),
+            )
+        )
 
     rows = []
     for keyword in keywords:
@@ -391,6 +511,209 @@ def score_technical_gaps(audits: list[PageAudit], endpoints: dict[str, dict[str,
     return gaps
 
 
+def looks_like_html_document(body: str) -> bool:
+    snippet = body[:5000]
+    return bool(
+        re.search(
+            r"(?is)^\s*<!doctype\s+html|^\s*<html\b|<head\b|<body\b|<title\b|<script\b|id=[\"']root[\"']",
+            snippet,
+        )
+    )
+
+
+def looks_like_xml_document(body: str) -> bool:
+    return bool(re.search(r"(?is)^\s*<\?xml\b|<(rss|feed|urlset|sitemapindex)\b", body[:3000]))
+
+
+def is_text_endpoint_type(content_type: str) -> bool:
+    mime = content_type.split(";", 1)[0].strip().lower()
+    return not mime or mime in TEXT_ENDPOINT_TYPES
+
+
+def has_text_endpoint_structure(body: str) -> bool:
+    return bool(
+        re.search(r"https?://|www\.", body)
+        or re.search(r"(?im)^\s{0,3}#{1,3}\s+\S|^\s*[-*]\s+\S", body)
+        or re.search(r"(?im)^(site|title|summary|url|section|pages?|policy|usage|citation):\s*\S", body)
+    )
+
+
+def validate_llms_txt(info: dict[str, object]) -> tuple[str, str]:
+    body = str(info.get("body", "")).strip()
+    content_type = str(info.get("content_type", ""))
+    if looks_like_xml_document(body):
+        return "invalid_content", "body_looks_like_xml"
+    if looks_like_html_document(body):
+        return "fallback_html", "body_looks_like_html"
+    if not is_text_endpoint_type(content_type):
+        return "invalid_content", "non_text_content_type"
+    if len(body) < 40:
+        return "invalid_content", "body_too_short"
+    has_site_context = bool(
+        re.search(r"(?i)\b(llms?|ai|crawler|site|website|summary|about|section|url)\b", body)
+        or re.search(r"網站|站點|摘要|引用|重要頁面|核心頁面|文章|爬蟲", body)
+    )
+    if has_site_context and has_text_endpoint_structure(body):
+        return "present", "valid_llms_txt"
+    return "invalid_content", "missing_llms_txt_context"
+
+
+def validate_ai_txt(info: dict[str, object]) -> tuple[str, str]:
+    body = str(info.get("body", "")).strip()
+    content_type = str(info.get("content_type", ""))
+    if looks_like_xml_document(body):
+        return "invalid_content", "body_looks_like_xml"
+    if looks_like_html_document(body):
+        return "fallback_html", "body_looks_like_html"
+    if not is_text_endpoint_type(content_type):
+        return "invalid_content", "non_text_content_type"
+    if len(body) < 40:
+        return "invalid_content", "body_too_short"
+    has_ai_policy = bool(
+        re.search(
+            r"(?i)\b(ai|llm|model|crawler|citation|cite|usage|policy|training|allowed|disallowed|attribution)\b",
+            body,
+        )
+        or re.search(r"人工智慧|模型|爬蟲|引用|使用|政策|訓練|允許|禁止|授權|署名", body)
+    )
+    if has_ai_policy and has_text_endpoint_structure(body):
+        return "present", "valid_ai_txt"
+    return "invalid_content", "missing_ai_policy_context"
+
+
+def endpoint_validation(info: dict[str, object], endpoint_name: str = "") -> tuple[str, str]:
+    status = info.get("status")
+    if status in {401, 403}:
+        return "blocked", "http_blocked"
+    if status == 404 or "404" in str(info.get("error", "")):
+        return "missing", "http_404"
+    if status != 200:
+        return "blocked" if info.get("error") else "invalid_content", "http_not_200"
+    if endpoint_name == "llms_txt":
+        return validate_llms_txt(info)
+    if endpoint_name == "ai_txt":
+        return validate_ai_txt(info)
+    return "present", "http_200"
+
+
+def endpoint_label(info: dict[str, object], endpoint_name: str = "") -> str:
+    return endpoint_validation(info, endpoint_name)[0]
+
+
+def annotate_endpoint(endpoint_name: str, info: dict[str, object]) -> dict[str, object]:
+    label, validation = endpoint_validation(info, endpoint_name)
+    info["label"] = label
+    info["validation"] = validation
+    return info
+
+
+def parse_ai_bot_policy(robots_text: str) -> dict[str, str]:
+    if not robots_text:
+        return {bot: "unknown" for bot in AI_CRAWLER_BOTS}
+    groups: list[tuple[list[str], list[str]]] = []
+    current_agents: list[str] = []
+    current_rules: list[str] = []
+    for raw_line in robots_text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        key, value = [part.strip() for part in line.split(":", 1)]
+        key = key.lower()
+        if key == "user-agent":
+            if current_agents and current_rules:
+                groups.append((current_agents, current_rules))
+                current_agents, current_rules = [], []
+            current_agents.append(value.lower())
+        elif key in {"allow", "disallow"} and current_agents:
+            current_rules.append(f"{key}:{value}")
+    if current_agents:
+        groups.append((current_agents, current_rules))
+
+    policies: dict[str, str] = {}
+    for bot in AI_CRAWLER_BOTS:
+        bot_key = bot.lower()
+        matched_rules = [rules for agents, rules in groups if bot_key in agents]
+        wildcard_rules = [rules for agents, rules in groups if "*" in agents]
+        rules = matched_rules[0] if matched_rules else wildcard_rules[0] if wildcard_rules else []
+        if any(rule == "disallow:/" for rule in rules):
+            policies[bot] = "blocked"
+        elif rules:
+            policies[bot] = "allowed_or_partial"
+        else:
+            policies[bot] = "not_specified"
+    return policies
+
+
+def percent_score(points: int, total: int) -> int:
+    if total <= 0:
+        return 0
+    return round(max(0, min(points / total, 1)) * 100)
+
+
+def assess_geo_signals(audits: list[PageAudit], endpoints: dict[str, dict[str, object]]) -> GeoSignals:
+    live_audits = [audit for audit in audits if audit.status]
+    all_schema_types = {schema_type for audit in live_audits for schema_type in audit.jsonld_types}
+    schema_score = percent_score(len(all_schema_types.intersection(CORE_SCHEMA_TYPES)), len(CORE_SCHEMA_TYPES))
+
+    eeat_points = 0
+    for audit in live_audits:
+        eeat_points += int(audit.has_author)
+        eeat_points += int(audit.has_published_time)
+        eeat_points += int(audit.has_modified_time)
+        eeat_points += int(audit.has_about_or_contact_link)
+        eeat_points += int(audit.external_link_count > 0)
+    eeat_score = percent_score(eeat_points, max(len(live_audits) * 5, 1))
+
+    citability_points = 0
+    for audit in live_audits:
+        citability_points += int(50 <= audit.description_len <= 160)
+        citability_points += int(len(audit.h2) >= 2)
+        citability_points += int("FAQPage" in audit.jsonld_types)
+        citability_points += int(bool(audit.citability_markers))
+        citability_points += int(audit.internal_link_count >= 5)
+    citability_score = percent_score(citability_points, max(len(live_audits) * 5, 1))
+
+    entity_points = 0
+    for audit in live_audits:
+        entity_points += int(bool(audit.og_title))
+        entity_points += int(bool(audit.og_description))
+        entity_points += int(bool(audit.og_image))
+        entity_points += int(bool(all_schema_types.intersection({"Organization", "WebSite", "Person"})))
+    entity_score = percent_score(entity_points, max(len(live_audits) * 4, 1))
+
+    ai_policy = parse_ai_bot_policy(str(endpoints.get("robots", {}).get("body", "")))
+    llms_status = endpoint_label(endpoints.get("llms_txt", {}), "llms_txt")
+    ai_txt_status = endpoint_label(endpoints.get("ai_txt", {}), "ai_txt")
+
+    findings = []
+    if llms_status != "present":
+        findings.append("缺 `llms.txt`；可新增 AI crawler 友善的網站摘要、重要頁面與引用規則。")
+    if ai_txt_status != "present":
+        findings.append("缺 `ai.txt`；可新增 AI 使用政策、品牌描述與允許引用邊界。")
+    blocked_bots = [bot for bot, policy in ai_policy.items() if policy == "blocked"]
+    if blocked_bots:
+        findings.append(f"robots.txt 封鎖 AI crawler：{', '.join(blocked_bots)}；若目標是 GEO 曝光，需重新評估。")
+    if schema_score < 70:
+        findings.append("Schema depth 偏低；應補 Article、FAQPage、BreadcrumbList、Organization、WebSite 等結構化資料。")
+    if eeat_score < 60:
+        findings.append("E-E-A-T 訊號偏弱；應補作者、更新日期、來源引用、about/contact/editorial policy。")
+    if citability_score < 60:
+        findings.append("Citability 偏弱；應補短答案、FAQ、清楚小標、來源/證據段落，讓 AI 更容易引用。")
+    if entity_score < 60:
+        findings.append("Entity 訊號偏弱；應補品牌/網站/作者 schema 與一致的 OG metadata。")
+
+    return GeoSignals(
+        llms_txt_status=llms_status,
+        ai_txt_status=ai_txt_status,
+        ai_bot_policy=ai_policy,
+        schema_depth_score=schema_score,
+        eeat_score=eeat_score,
+        citability_score=citability_score,
+        entity_score=entity_score,
+        findings=findings,
+    )
+
+
 def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["keyword", "competitor_hit_count", "sample_hits"])
@@ -411,12 +734,14 @@ def write_reports(out_dir: Path, site_name: str, base_url: str, data: dict[str, 
     keyword_rows: list[dict[str, object]] = data["keyword_rows"]  # type: ignore[assignment]
     stats = title_pattern_stats(items)
     endpoints: dict[str, dict[str, object]] = data["endpoints"]  # type: ignore[assignment]
+    geo_signals: GeoSignals = data["geo_signals"]  # type: ignore[assignment]
     gaps = score_technical_gaps(audits, endpoints)
 
     raw = {
         **data,
         "page_audits": [asdict(audit) for audit in audits],
         "feed_items": [asdict(item) for item in items],
+        "geo_signals": asdict(geo_signals),
     }
     (out_dir / "competitor_audit.json").write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
     write_csv(out_dir / "keyword_gap.csv", keyword_rows)
@@ -433,9 +758,31 @@ def write_reports(out_dir: Path, site_name: str, base_url: str, data: dict[str, 
         "",
     ]
     audit_lines.extend(f"- {gap}" for gap in gaps)
+    audit_lines.extend(
+        [
+            "",
+            "## GEO / AEO / AI Visibility 訊號",
+            "",
+            f"- llms.txt：{geo_signals.llms_txt_status}",
+            f"- ai.txt：{geo_signals.ai_txt_status}",
+            f"- Schema depth score：{geo_signals.schema_depth_score}",
+            f"- E-E-A-T score：{geo_signals.eeat_score}",
+            f"- Citability score：{geo_signals.citability_score}",
+            f"- Entity score：{geo_signals.entity_score}",
+            f"- AI bot policy：{geo_signals.ai_bot_policy}",
+            "",
+            "### GEO Findings",
+            "",
+        ]
+    )
+    audit_lines.extend(f"- {finding}" for finding in geo_signals.findings)
     audit_lines.extend(["", "## 端點", ""])
     for name, info in endpoints.items():
-        audit_lines.append(f"- {name}: status={info.get('status', 'ERR')} bytes={info.get('bytes', 0)} {info.get('error', '')}")
+        label = info.get("label") or endpoint_label(info, name)
+        validation = info.get("validation", "")
+        audit_lines.append(
+            f"- {name}: {label} status={info.get('status', 'ERR')} bytes={info.get('bytes', 0)} {validation} {info.get('error', '')}"
+        )
     audit_lines.extend(["", "## 頁面摘要", ""])
     for audit in audits:
         audit_lines.extend(
@@ -447,7 +794,9 @@ def write_reports(out_dir: Path, site_name: str, base_url: str, data: dict[str, 
                 f"- canonical：{audit.canonical or '<missing>'}",
                 f"- JSON-LD：{audit.jsonld_types or []}",
                 f"- H1：{audit.h1 or []}",
-                f"- 內鏈/文章/分類：{audit.internal_link_count}/{audit.unique_article_links}/{audit.unique_category_links}",
+                f"- 內鏈/外鏈/文章/分類：{audit.internal_link_count}/{audit.external_link_count}/{audit.unique_article_links}/{audit.unique_category_links}",
+                f"- E-E-A-T：author={audit.has_author} published={audit.has_published_time} modified={audit.has_modified_time} about_contact={audit.has_about_or_contact_link}",
+                f"- Citability markers：{audit.citability_markers or []}",
                 "",
             ]
         )
@@ -470,7 +819,18 @@ def write_reports(out_dir: Path, site_name: str, base_url: str, data: dict[str, 
         "- 用分類/主題內鏈做內容網，不讓文章孤立。",
         "- 每篇都補競品缺的 Article、FAQPage、Breadcrumb JSON-LD。",
         "",
+        "## GEO / AEO 差距",
+        "",
+        f"- llms.txt：{geo_signals.llms_txt_status}",
+        f"- ai.txt：{geo_signals.ai_txt_status}",
+        f"- Schema depth：{geo_signals.schema_depth_score}",
+        f"- E-E-A-T：{geo_signals.eeat_score}",
+        f"- Citability：{geo_signals.citability_score}",
+        f"- Entity：{geo_signals.entity_score}",
+        "",
     ]
+    playbook.extend(f"- {finding}" for finding in geo_signals.findings)
+    playbook.append("")
     source_intake = str(data.get("source_intake") or "").strip()
     if source_intake:
         playbook.extend(
@@ -517,9 +877,172 @@ def endpoint_status(url: str) -> dict[str, object]:
             "content_type": headers.get("Content-Type", ""),
             "bytes": len(text.encode()),
             "head": strip_tags(text[:800])[:220],
+            "body": text[:12000],
         }
+    except urllib.error.HTTPError as exc:
+        return {"status": exc.code, "error": str(exc)}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+def crawl_site(
+    base_url: str,
+    site_name: str,
+    since: datetime | None,
+    max_feed_pages: int,
+    max_category_pages: int,
+    sample_limit: int,
+    keyword_matrix: Path,
+    source_intake_path: Path,
+) -> dict[str, object]:
+    endpoints = {
+        "robots": endpoint_status(f"{base_url}/robots.txt"),
+        "sitemap": endpoint_status(f"{base_url}/sitemap.xml"),
+        "feed": endpoint_status(f"{base_url}/feed/"),
+        "llms_txt": endpoint_status(f"{base_url}/llms.txt"),
+        "ai_txt": endpoint_status(f"{base_url}/ai.txt"),
+    }
+    for endpoint_name, info in endpoints.items():
+        annotate_endpoint(endpoint_name, info)
+    _status, _headers, home_html = fetch(base_url)
+    category_links = extract_category_links(home_html, base_url)
+    feed_items = remap_feed_item_links_for_audit(base_url, parse_feed(base_url, max_feed_pages, since))
+
+    sample_urls = [base_url]
+    for category_url in category_links[: min(4, len(category_links))]:
+        sample_urls.append(category_url)
+        for page in range(2, max(2, max_category_pages + 1)):
+            sample_urls.append(urllib.parse.urljoin(category_url, f"page/{page}/"))
+    for item in feed_items:
+        if len(sample_urls) >= sample_limit:
+            break
+        if item.link not in sample_urls:
+            sample_urls.append(item.link)
+    sample_urls = list(dict.fromkeys(sample_urls))[:sample_limit]
+    page_audits = [audit_page(url, base_url) for url in sample_urls]
+
+    keywords = load_seed_keywords(keyword_matrix)
+    keyword_rows = keyword_matches(keywords, feed_items, page_audits)
+    keyword_rows.sort(key=lambda row: (int(row["competitor_hit_count"]) == 0, -int(row["competitor_hit_count"]), str(row["keyword"])))
+    geo_signals = assess_geo_signals(page_audits, endpoints)
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "base_url": base_url,
+        "site_name": site_name,
+        "endpoints": endpoints,
+        "category_links": category_links,
+        "feed_items": feed_items,
+        "page_audits": page_audits,
+        "keyword_rows": keyword_rows,
+        "geo_signals": geo_signals,
+        "settings": {
+            "since": since.isoformat() if since else "",
+            "max_feed_pages": max_feed_pages,
+            "max_category_pages": max_category_pages,
+            "sample_limit": sample_limit,
+            "keyword_matrix": str(keyword_matrix),
+            "source_intake": str(source_intake_path),
+        },
+        "source_intake": load_source_intake(source_intake_path),
+    }
+
+
+def keyword_hit_map(data: dict[str, object]) -> dict[str, int]:
+    rows: list[dict[str, object]] = data["keyword_rows"]  # type: ignore[assignment]
+    return {str(row["keyword"]): int(row["competitor_hit_count"]) for row in rows}
+
+
+def write_comparison(out_dir: Path, own_data: dict[str, object], competitor_data: dict[str, object]) -> None:
+    own_geo: GeoSignals = own_data["geo_signals"]  # type: ignore[assignment]
+    competitor_geo: GeoSignals = competitor_data["geo_signals"]  # type: ignore[assignment]
+    own_hits = keyword_hit_map(own_data)
+    competitor_hits = keyword_hit_map(competitor_data)
+    content_gaps = [
+        keyword for keyword, count in competitor_hits.items() if count > 0 and own_hits.get(keyword, 0) == 0
+    ][:60]
+    content_advantages = [
+        keyword for keyword, count in own_hits.items() if count > 0 and competitor_hits.get(keyword, 0) == 0
+    ][:40]
+    score_rows = [
+        ("Schema depth", own_geo.schema_depth_score, competitor_geo.schema_depth_score),
+        ("E-E-A-T", own_geo.eeat_score, competitor_geo.eeat_score),
+        ("Citability", own_geo.citability_score, competitor_geo.citability_score),
+        ("Entity", own_geo.entity_score, competitor_geo.entity_score),
+    ]
+
+    lines = [
+        "# SEO / GEO Competitive Comparison",
+        "",
+        f"- 自己網站：{own_data['base_url']}",
+        f"- 競品網站：{competitor_data['base_url']}",
+        f"- 產出時間：{datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        "",
+        "## Score Delta",
+        "",
+        "| 指標 | 自己 | 競品 | 判讀 |",
+        "|---|---:|---:|---|",
+    ]
+    for label, own_score, competitor_score in score_rows:
+        delta = own_score - competitor_score
+        if delta >= 10:
+            verdict = "我們領先，維持並擴大內容覆蓋。"
+        elif delta <= -10:
+            verdict = "我們落後，列入優先修正。"
+        else:
+            verdict = "接近，靠內容量與內鏈拉開。"
+        lines.append(f"| {label} | {own_score} | {competitor_score} | {verdict} |")
+
+    lines.extend(
+        [
+            "",
+            "## Endpoint / AI Crawler",
+            "",
+            "| 項目 | 自己 | 競品 | 建議 |",
+            "|---|---|---|---|",
+            f"| llms.txt | {own_geo.llms_txt_status} | {competitor_geo.llms_txt_status} | 自己缺就先補；競品缺代表可做 GEO 超車。 |",
+            f"| ai.txt | {own_geo.ai_txt_status} | {competitor_geo.ai_txt_status} | 自己缺就補 AI 使用政策與品牌引用邊界。 |",
+            f"| AI bot policy | {own_geo.ai_bot_policy} | {competitor_geo.ai_bot_policy} | 不要無意間封鎖目標 AI crawler。 |",
+            "",
+            "## 我們的優先修正",
+            "",
+        ]
+    )
+    if own_geo.findings:
+        lines.extend(f"- {finding}" for finding in own_geo.findings)
+    else:
+        lines.append("- P1 GEO/AEO 檢查沒有發現 blocker，下一步看內容量、內鏈與 AI visibility 實測。")
+
+    lines.extend(["", "## 競品弱點可超車", ""])
+    if competitor_geo.findings:
+        lines.extend(f"- {finding}" for finding in competitor_geo.findings)
+    else:
+        lines.append("- 競品 P1 GEO/AEO 訊號完整；需從內容深度、topic cluster 和品牌 citation 切入。")
+
+    lines.extend(["", "## Content Gap", ""])
+    if content_gaps:
+        lines.extend(f"- 競品命中、自己未命中：{keyword}" for keyword in content_gaps)
+    else:
+        lines.append("- 小樣本未發現競品命中但自己缺席的 keyword。")
+
+    lines.extend(["", "## Content Advantage", ""])
+    if content_advantages:
+        lines.extend(f"- 自己命中、競品未命中：{keyword}" for keyword in content_advantages)
+    else:
+        lines.append("- 小樣本未發現自己明顯領先的 keyword。")
+
+    lines.extend(
+        [
+            "",
+            "## 下一步",
+            "",
+            "1. 先修自己網站仍缺或無效的 endpoint、schema、citability、entity blocker；`llms.txt` / `ai.txt` 必須是真文字檔才算完成。",
+            "2. 針對 Content Gap 建文章或 FAQ，不直接複製競品正文。",
+            "3. 補內鏈與 topic 頁，讓每個新頁能回到產品與情境頁。",
+            "4. P3 再接 ChatGPT / Gemini / Perplexity prompt monitor 做 AI visibility 實測。",
+        ]
+    )
+    (out_dir / "comparison.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -528,6 +1051,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--site-url", required=True, help="Competitor root URL, e.g. https://news.click108.com.tw")
     parser.add_argument("--name", default="", help="Human-readable competitor name. Defaults to hostname.")
+    parser.add_argument("--own-site-url", default="", help="Optional owned site root URL for side-by-side comparison.")
+    parser.add_argument("--own-name", default="", help="Human-readable owned site name. Defaults to owned hostname.")
     parser.add_argument("--out-dir", default="", help="Output directory. Defaults to output/competitor_seo/<hostname>.")
     parser.add_argument("--since", default="", help="Only keep RSS items after YYYY-MM-DD when feed dates are available.")
     parser.add_argument("--max-feed-pages", type=int, default=30, help="Maximum RSS pages to crawl. Default: 30.")
@@ -550,54 +1075,51 @@ def main() -> None:
     out_dir = Path(args.out_dir) if args.out_dir else Path("output/competitor_seo") / hostname
     out_dir.mkdir(parents=True, exist_ok=True)
     since = datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc) if args.since else None
+    keyword_matrix = Path(args.keyword_matrix)
+    source_intake_path = Path(args.source_intake)
 
-    endpoints = {
-        "robots": endpoint_status(f"{base_url}/robots.txt"),
-        "sitemap": endpoint_status(f"{base_url}/sitemap.xml"),
-        "feed": endpoint_status(f"{base_url}/feed/"),
-    }
-    _status, _headers, home_html = fetch(base_url)
-    category_links = extract_category_links(home_html, base_url)
-    feed_items = parse_feed(base_url, args.max_feed_pages, since)
-
-    sample_urls = [base_url]
-    for category_url in category_links[: min(4, len(category_links))]:
-        sample_urls.append(category_url)
-        for page in range(2, max(2, args.max_category_pages + 1)):
-            sample_urls.append(urllib.parse.urljoin(category_url, f"page/{page}/"))
-    for item in feed_items:
-        if len(sample_urls) >= args.sample_limit:
-            break
-        if item.link not in sample_urls:
-            sample_urls.append(item.link)
-    sample_urls = list(dict.fromkeys(sample_urls))[: args.sample_limit]
-    page_audits = [audit_page(url, base_url) for url in sample_urls]
-
-    keywords = load_seed_keywords(Path(args.keyword_matrix))
-    source_intake = load_source_intake(Path(args.source_intake))
-    keyword_rows = keyword_matches(keywords, feed_items, page_audits)
-    keyword_rows.sort(key=lambda row: (int(row["competitor_hit_count"]) == 0, -int(row["competitor_hit_count"]), str(row["keyword"])))
-
-    data: dict[str, object] = {
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "base_url": base_url,
-        "site_name": site_name,
-        "endpoints": endpoints,
-        "category_links": category_links,
-        "feed_items": feed_items,
-        "page_audits": page_audits,
-        "keyword_rows": keyword_rows,
-        "settings": {
-            "since": args.since,
-            "max_feed_pages": args.max_feed_pages,
-            "max_category_pages": args.max_category_pages,
-            "sample_limit": args.sample_limit,
-            "keyword_matrix": args.keyword_matrix,
-            "source_intake": args.source_intake,
-        },
-        "source_intake": source_intake,
-    }
+    data = crawl_site(
+        base_url=base_url,
+        site_name=site_name,
+        since=since,
+        max_feed_pages=args.max_feed_pages,
+        max_category_pages=args.max_category_pages,
+        sample_limit=args.sample_limit,
+        keyword_matrix=keyword_matrix,
+        source_intake_path=source_intake_path,
+    )
     write_reports(out_dir, site_name, base_url, data)
+
+    own_reports: list[str] = []
+    if args.own_site_url:
+        own_base_url = normalize_base(args.own_site_url)
+        own_hostname = urllib.parse.urlparse(own_base_url).netloc
+        own_site_name = args.own_name or own_hostname
+        own_data = crawl_site(
+            base_url=own_base_url,
+            site_name=own_site_name,
+            since=since,
+            max_feed_pages=args.max_feed_pages,
+            max_category_pages=args.max_category_pages,
+            sample_limit=args.sample_limit,
+            keyword_matrix=keyword_matrix,
+            source_intake_path=source_intake_path,
+        )
+        own_dir = out_dir / "own_site"
+        own_dir.mkdir(parents=True, exist_ok=True)
+        write_reports(own_dir, own_site_name, own_base_url, own_data)
+        write_comparison(out_dir, own_data, data)
+        own_reports = [
+            "own_site/competitor_audit.json",
+            "own_site/keyword_gap.csv",
+            "own_site/seo_audit.md",
+            "own_site/playbook.md",
+            "comparison.md",
+        ]
+
+    feed_items: list[FeedItem] = data["feed_items"]  # type: ignore[assignment]
+    page_audits: list[PageAudit] = data["page_audits"]  # type: ignore[assignment]
+    keyword_rows: list[dict[str, object]] = data["keyword_rows"]  # type: ignore[assignment]
     print(
         json.dumps(
             {
@@ -605,7 +1127,7 @@ def main() -> None:
                 "feed_items": len(feed_items),
                 "page_audits": len(page_audits),
                 "keyword_rows": len(keyword_rows),
-                "reports": ["competitor_audit.json", "keyword_gap.csv", "seo_audit.md", "playbook.md"],
+                "reports": ["competitor_audit.json", "keyword_gap.csv", "seo_audit.md", "playbook.md", *own_reports],
             },
             ensure_ascii=False,
             indent=2,

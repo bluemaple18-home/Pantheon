@@ -42,6 +42,9 @@ export function buildBreadcrumbJsonLd(content, origin) {
 }
 
 export function buildArticleJsonLd(content, origin) {
+  const organizationRef = { "@id": `${origin}/#organization` };
+  const websiteRef = { "@id": `${origin}/#website` };
+  const image = `${origin}/static/pantheon-orb-alpha-poster.webp`;
   if (content.contentType === "CollectionPage") {
     return {
       "@context": "https://schema.org",
@@ -51,11 +54,9 @@ export function buildArticleJsonLd(content, origin) {
       inLanguage: "zh-Hant-TW",
       url: content.canonicalUrl,
       mainEntityOfPage: content.canonicalUrl,
-      publisher: {
-        "@type": "Organization",
-        name: "Pantheon",
-        url: `${origin}/`,
-      },
+      isPartOf: websiteRef,
+      publisher: organizationRef,
+      image,
       about: (content.displayTags || content.tags || []).map((tag) => ({
         "@type": "Thing",
         name: tag,
@@ -70,17 +71,15 @@ export function buildArticleJsonLd(content, origin) {
     inLanguage: "zh-Hant-TW",
     url: content.canonicalUrl,
     mainEntityOfPage: content.canonicalUrl,
+    image,
     datePublished: content.published,
     dateModified: content.updated,
     author: {
       "@type": "Organization",
       name: content.author,
     },
-    publisher: {
-      "@type": "Organization",
-      name: "Pantheon",
-      url: `${origin}/`,
-    },
+    publisher: organizationRef,
+    isPartOf: websiteRef,
     articleSection: content.productThemeLabel,
     keywords: content.keywords.join(", "),
     about: (content.displayTags || content.tags || []).map((tag) => ({

@@ -1,0 +1,19 @@
+# Pantheon AI Usage Policy
+
+Site: https://mysticpantheon.com
+Policy: AI crawlers and answer engines may crawl, summarize, and cite Pantheon public article pages when attribution and canonical URLs are preserved.
+
+Allowed:
+- Use public article pages for search snippets, AI answers, and citation previews.
+- Quote short excerpts with attribution to Pantheon and the canonical URL.
+- Summarize article-level explanations, limitations, and FAQ answers.
+
+Disallowed:
+- Do not present Pantheon public articles as personal divination, medical, legal, investment, or guaranteed outcome advice.
+- Do not remove attribution when citing Pantheon content.
+- Do not use private user data; public article pages do not contain personal readings.
+
+Attribution:
+- Source name: Pantheon
+- Canonical hub: https://mysticpantheon.com/articles
+- Contact: hello@mysticpantheon.com

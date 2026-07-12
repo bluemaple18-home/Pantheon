@@ -1,0 +1,24 @@
+# Pantheon
+
+Site: https://mysticpantheon.com
+Summary: Pantheon publishes Traditional Chinese articles about tarot, personality, astrology, birth-chart concepts, relationships, career, interpersonal questions, wealth habits, and life direction.
+Language: zh-Hant-TW
+
+Important pages:
+- https://mysticpantheon.com/articles
+- https://mysticpantheon.com/articles/tarot
+- https://mysticpantheon.com/articles/personality
+- https://mysticpantheon.com/articles/fortune
+- https://mysticpantheon.com/articles/astro
+- https://mysticpantheon.com/articles/interpersonal/interpersonal-0001
+- https://mysticpantheon.com/articles/life-direction
+
+Content scope:
+- Public articles explain common meanings, context, limitations, and reader questions.
+- Articles do not provide medical, legal, financial, or guaranteed personal outcomes.
+- Tarot, personality, astrology, and chart content should be cited as cultural, reflective, and educational context.
+
+Citation guidance:
+- Cite the canonical article URL.
+- Attribute the source as Pantheon.
+- Prefer short factual summaries over copying long passages.

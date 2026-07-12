@@ -13,3 +13,7 @@
 /topics/* /article 200
 /robots.txt /robots.txt 200
 /sitemap.xml /sitemap.xml 200
+/llms.txt /llms.txt 200
+/ai.txt /ai.txt 200
+/feed/ /feed.xml 200
+/feed.xml /feed.xml 200

@@ -15,6 +15,9 @@ import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260711-25";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260711-25";
 
+const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
+const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
+
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
   "繁體中文",
@@ -346,7 +349,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       ? `${productThemeRecord.label}文章 | Pantheon`
       : "最新文章 | Pantheon";
   const description = buildDescription(route, article, section, intent, productThemeRecord);
-  const updated = defaults.updated || new Date().toISOString().slice(0, 10);
+  const updated = defaults.updated || DEFAULT_ARTICLE_UPDATED_DATE;
   const author = defaults.author || "Pantheon 編輯部";
   const managedArticle = enforceArticlePolicy({
     id: article?.id,
@@ -391,7 +394,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     serial: managedArticle.serial || "",
     author,
     updated,
-    published: defaults.published || updated,
+    published: defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
     sectionDescription: buildSectionDescription(route, section, intent, productTheme),
     productTheme: isLatestHub ? "latest" : managedArticle.productTheme,
     productThemeLabel: productTheme.label,
@@ -493,7 +496,7 @@ function buildTopicContent(route, topic, origin, defaults = {}) {
     href: `/topics/${route.topic}`,
   };
   const articles = listArticlesForTopic(safeTopic.slug);
-  const updated = defaults.updated || new Date().toISOString().slice(0, 10);
+  const updated = defaults.updated || DEFAULT_ARTICLE_UPDATED_DATE;
   return {
     title: buildTopicTitle(safeTopic.label),
     contentType: "CollectionPage",
@@ -511,7 +514,7 @@ function buildTopicContent(route, topic, origin, defaults = {}) {
     serial: safeTopic.id || "",
     author: defaults.author || "Pantheon 編輯部",
     updated,
-    published: defaults.published || updated,
+    published: defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
     sectionDescription: `整理所有提到「${safeTopic.label}」的公開文章。`,
     productTheme: "latest",
     productThemeLabel: "主題",

@@ -1,9 +1,11 @@
 from fastapi.testclient import TestClient
 import json
 from pathlib import Path
+import re
 import subprocess
 
 from main import app
+from scripts.competitor_seo_tool import endpoint_label
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -205,6 +207,26 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "href=\"/reading\"" not in response.text
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
+    assert "name=\"author\" content=\"Pantheon 編輯部\"" in response.text
+    assert "property=\"article:published_time\" content=\"2026-07-10\"" in response.text
+    assert "property=\"article:modified_time\" content=\"2026-07-12\"" in response.text
+    assert "\"datePublished\": \"2026-07-10\"" in response.text
+    assert "\"dateModified\": \"2026-07-12\"" in response.text
+    assert "\"author\": {" in response.text
+    assert "\"@type\": \"Organization\"" in response.text
+    assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
+    assert "\"@type\": \"WebSite\"" in response.text
+    assert "\"@id\": \"https://mysticpantheon.com/#website\"" in response.text
+    assert "\"@type\": \"FAQPage\"" in response.text
+    assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+    assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+    assert "id=\"about-pantheon\"" in response.text
+    assert "id=\"editorial-policy\"" in response.text
+    assert "關於 Pantheon" in response.text
+    assert "編輯政策" in response.text
+    assert "聯絡 Pantheon" in response.text
+    assert "公開文章不保證感情、工作、財富或人生結果" in response.text
+    assert "href=\"https://schema.org/Article\"" in response.text
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
@@ -288,8 +310,16 @@ def test_article_urls_serve_article_template() -> None:
         assert "href=\"/strategy\"" not in response.text
         assert "name=\"robots\"" in response.text
         assert "name=\"keywords\"" in response.text
+        assert "name=\"author\" content=\"Pantheon 編輯部\"" in response.text
+        assert "property=\"article:published_time\" content=\"2026-07-10\"" in response.text
+        assert "property=\"article:modified_time\" content=\"2026-07-12\"" in response.text
         assert "property=\"og:type\" content=\"article\"" in response.text
         assert "name=\"twitter:card\" content=\"summary_large_image\"" in response.text
+        assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+        assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+        assert "id=\"site-entity-jsonld\"" in response.text
+        assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
+        assert "\"@id\": \"https://mysticpantheon.com/#website\"" in response.text
         assert "id=\"article-jsonld\"" in response.text
         assert "id=\"breadcrumb-jsonld\"" in response.text
         assert "id=\"faq-jsonld\"" in response.text
@@ -310,10 +340,41 @@ def test_article_urls_serve_article_template() -> None:
         assert "data-title-crumb" in response.text
         assert "data-article-footer" in response.text
         assert "aria-label=\"文章頁尾產品\"" in response.text
+        assert "href=\"/articles#about-pantheon\"" in response.text
+        assert "href=\"/articles#editorial-policy\"" in response.text
+        assert "href=\"mailto:hello@mysticpantheon.com\"" in response.text
+        assert "href=\"https://schema.org/Article\"" in response.text
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-product-theme-20260711-motion-logo-1" in response.text
         assert "/static/article.js?v=article-content-20260711-25" in response.text
+
+
+def test_article_raw_html_has_path_specific_seo_shell() -> None:
+    client = TestClient(app)
+    response = client.get("/articles/tarot/tarot-0001")
+
+    assert response.status_code == 200
+    assert "<title>塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 | Pantheon</title>" in response.text
+    assert 'rel="canonical" href="https://mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
+    assert 'property="og:url" content="https://mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
+    assert "整理塔羅牌意思、正位逆位、感情與工作情境" in response.text
+
+    article_json = re.search(r'id="article-jsonld">(.*?)</script>', response.text, re.S)
+    breadcrumb_json = re.search(r'id="breadcrumb-jsonld">(.*?)</script>', response.text, re.S)
+    faq_json = re.search(r'id="faq-jsonld">(.*?)</script>', response.text, re.S)
+    assert article_json
+    assert breadcrumb_json
+    assert faq_json
+
+    article = json.loads(article_json.group(1))
+    breadcrumb = json.loads(breadcrumb_json.group(1))
+    faq = json.loads(faq_json.group(1))
+    assert article["@type"] == "Article"
+    assert article["url"] == "https://mysticpantheon.com/articles/tarot/tarot-0001"
+    assert article["dateModified"] == "2026-07-12"
+    assert breadcrumb["@type"] == "BreadcrumbList"
+    assert faq["@type"] == "FAQPage"
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -332,6 +393,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
     assert "getArticleSectionRecord(route.product)" in article_meta_js
     assert "getArticleRecord(route.product, route.slug)" in article_meta_js
+    assert "DEFAULT_ARTICLE_PUBLISHED_DATE = \"2026-07-10\"" in article_meta_js
+    assert "DEFAULT_ARTICLE_UPDATED_DATE = \"2026-07-12\"" in article_meta_js
+    assert "new Date().toISOString().slice(0, 10)" not in article_meta_js
     assert "getProductThemeRecord(managedArticle.productTheme)" in article_meta_js
     assert "productThemeGlyph" in article_meta_js
     assert "intent" in article_meta_js
@@ -364,6 +428,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-article-related" in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
+    assert "id=\"site-entity-jsonld\"" in article_html
+    assert "\"@type\": \"Organization\"" in article_html
+    assert "\"@type\": \"WebSite\"" in article_html
+    assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
+    assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
     assert article_html.index("data-article-navigation") < article_html.index("data-article-faq")
     assert article_html.index("data-article-faq") < article_html.index("data-article-related")
     assert "bodySections: buildBodySections" in article_meta_js
@@ -439,6 +508,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "document.title = content.pageTitle" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
+    assert "const organizationRef = { \"@id\": `${origin}/#organization` }" in article_seo_js
+    assert "const websiteRef = { \"@id\": `${origin}/#website` }" in article_seo_js
+    assert "publisher: organizationRef" in article_seo_js
+    assert "isPartOf: websiteRef" in article_seo_js
+    assert "image," in article_seo_js
     assert "about: (content.displayTags || content.tags || []).map" in article_seo_js
     assert "\"@type\": \"Article\"" not in article_js
     assert "{ name: \"Pantheon\", item: `${origin}/articles` }" in article_seo_js
@@ -489,6 +563,12 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/articles /articles 200" in redirects
     assert "/articles/* /article 200" in redirects
     assert "/topics/* /article 200" in redirects
+    assert "/robots.txt /robots.txt 200" in redirects
+    assert "/sitemap.xml /sitemap.xml 200" in redirects
+    assert "/llms.txt /llms.txt 200" in redirects
+    assert "/ai.txt /ai.txt 200" in redirects
+    assert "/feed/ /feed.xml 200" in redirects
+    assert "/feed.xml /feed.xml 200" in redirects
     assert "/reading /index.html 200" not in redirects
     assert "/articles /article.html 200" not in redirects
     assert "/personality /personality.html 200" not in redirects
@@ -925,6 +1005,39 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
     assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
+
+
+def test_foundation_ai_and_feed_endpoints_are_served() -> None:
+    client = TestClient(app)
+    llms = client.get("/llms.txt")
+    ai = client.get("/ai.txt")
+    feed = client.get("/feed/")
+    feed_xml = client.get("/feed.xml")
+
+    assert llms.status_code == 200
+    assert "Pantheon" in llms.text
+    assert "https://mysticpantheon.com/articles" in llms.text
+    assert "<!doctype html>" not in llms.text.lower()
+    assert endpoint_label(
+        {"status": llms.status_code, "content_type": llms.headers["content-type"], "bytes": len(llms.content), "body": llms.text},
+        "llms_txt",
+    ) == "present"
+
+    assert ai.status_code == 200
+    assert "AI Usage Policy" in ai.text
+    assert "Allowed:" in ai.text
+    assert "Attribution:" in ai.text
+    assert "<!doctype html>" not in ai.text.lower()
+    assert endpoint_label(
+        {"status": ai.status_code, "content_type": ai.headers["content-type"], "bytes": len(ai.content), "body": ai.text},
+        "ai_txt",
+    ) == "present"
+
+    assert feed.status_code == 200
+    assert feed_xml.status_code == 200
+    assert "<rss version=\"2.0\"" in feed.text
+    assert "Pantheon 最新文章" in feed.text
+    assert "https://mysticpantheon.com/articles/tarot/tarot-0001" in feed.text
 
 
 def test_first_30_article_plan_is_registered_for_site() -> None:
