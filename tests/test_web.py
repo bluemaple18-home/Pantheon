@@ -902,6 +902,49 @@ console.log(JSON.stringify(data));
             assert "什麼時候需要再往下整理？" in record["headings"], record
 
 
+def test_next_30_voice_does_not_reintroduce_batch_templates() -> None:
+    script = """
+import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-next-30.js";
+
+const paragraphs = Object.values(NEXT_30_ARTICLE_BODY_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter(Boolean)) {
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }
+}
+const repeated = [...sentenceCounts.entries()]
+  .filter(([, count]) => count > 3)
+  .map(([sentence, count]) => ({ sentence, count }));
+const forbiddenTemplates = [
+  "這比只問",
+  "尤其要回到",
+  "讀這一節時，可以先把問題寫成一句生活描述",
+  "先定位可觀察行為，再決定要溝通、調整或停下",
+];
+console.log(JSON.stringify({
+  articleCount: Object.keys(NEXT_30_ARTICLE_BODY_LIBRARY).length,
+  emptyParagraphs: paragraphs.filter((paragraph) => !paragraph.trim()).length,
+  repeated,
+  forbiddenTemplates: forbiddenTemplates.filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  minChars: Math.min(...Object.values(NEXT_30_ARTICLE_BODY_LIBRARY).map((sections) => sections.flatMap((section) => section.paragraphs).join("").length)),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["articleCount"] == 30
+    assert data["emptyParagraphs"] == 0
+    assert data["repeated"] == []
+    assert data["forbiddenTemplates"] == []
+    assert data["minChars"] >= 400
+
+
 def test_public_generated_text_does_not_leak_internal_entry_language() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
