@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=article-content-20260711-25";
+import { buildArticleContent } from "./article-meta.js?v=article-voice-20260713-3";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
@@ -22,6 +22,8 @@ const dom = {
   articleTags: document.querySelector("[data-article-tags]"),
   answerText: document.querySelector("[data-answer-text]"),
   articleBody: document.querySelector("[data-article-body]"),
+  hubVisibleLinks: document.querySelector("[data-hub-visible-links]"),
+  topicVisibleLinks: document.querySelector("[data-topic-visible-links]"),
   articleNavigation: document.querySelector("[data-article-navigation]"),
   articleFaq: document.querySelector("[data-article-faq]"),
   articleRelated: document.querySelector("[data-article-related]"),
@@ -88,6 +90,7 @@ function renderArticleChrome(content) {
     return item;
   }));
   renderArticleBody(content, inlineTopicState);
+  renderHubVisibleLinks(content);
   renderArticleNavigation(content);
   renderArticleFaq(content);
   renderArticleRelated(content);
@@ -244,6 +247,11 @@ function renderSequenceButton(item, direction) {
 
 function renderArticleRelated(content) {
   if (!dom.articleRelated) return;
+  if (content.hubVisibleLinks?.links?.length) {
+    dom.articleRelated.hidden = true;
+    dom.articleRelated.replaceChildren();
+    return;
+  }
   const links = buildVisibleRelatedLinks(content);
   if (links.length) {
     const heading = document.createElement("h2");
@@ -277,6 +285,26 @@ function buildVisibleRelatedLinks(content) {
   });
   (content.relatedLinks || []).forEach(addLink);
   return links.slice(0, VISIBLE_RELATED_MAX_LINKS);
+}
+
+function renderHubVisibleLinks(content) {
+  hideHubVisibleLinks();
+  const module = content.hubVisibleLinks;
+  if (!module?.links?.length) return;
+  const target = module.type === "topic" ? dom.topicVisibleLinks : dom.hubVisibleLinks;
+  if (!target) return;
+  const heading = document.createElement("h2");
+  heading.textContent = module.title;
+  target.hidden = false;
+  target.replaceChildren(heading, renderArticleLinkList(module.links, "article-link-list article-visible-link-list"));
+}
+
+function hideHubVisibleLinks() {
+  [dom.hubVisibleLinks, dom.topicVisibleLinks].forEach((section) => {
+    if (!section) return;
+    section.hidden = true;
+    section.replaceChildren();
+  });
 }
 
 function renderArticleLinkList(items, className) {

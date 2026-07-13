@@ -347,8 +347,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "href=\"https://schema.org/Article\"" in response.text
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
-        assert "/static/styles.css?v=article-visible-links-20260713-1" in response.text
-        assert "/static/article.js?v=article-visible-links-20260713-1" in response.text
+        assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
+        assert "/static/article.js?v=article-voice-20260713-3" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -419,10 +419,16 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
         assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
         assert '"hasPart":[' in html
+        assert 'data-hub-visible-links>' in html
+        assert '<h2>分類文章</h2>' in html
         assert 'data-prerender-internal-links' in html
         assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in html
 
     tarot_html = Path("app/web/seo/articles/tarot/index.html").read_text()
+    tarot_visible = re.search(r'<section class="article-hub-visible-links ui-panel" aria-label="分類文章" data-hub-visible-links>(.*?)</section>', tarot_html, re.S)
+    assert tarot_visible
+    assert 6 <= tarot_visible.group(1).count("<li>") <= 12
+    assert 'data-topic-visible-links hidden' in tarot_html
     assert 'href="/articles/tarot/tarot-0001"' in tarot_html
     assert 'href="/articles/tarot/tarot-0076"' in tarot_html
     astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
@@ -455,10 +461,16 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
         assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
         assert '"hasPart":[' in html
+        assert 'data-topic-visible-links>' in html
+        assert '<h2>相關文章</h2>' in html
         assert 'data-prerender-internal-links' in html
         assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in html
 
     tarot_topic_html = Path("app/web/seo/topics/tarot/index.html").read_text()
+    tarot_topic_visible = re.search(r'<section class="article-hub-visible-links ui-panel" aria-label="相關文章" data-topic-visible-links>(.*?)</section>', tarot_topic_html, re.S)
+    assert tarot_topic_visible
+    assert 6 <= tarot_topic_visible.group(1).count("<li>") <= 12
+    assert 'data-hub-visible-links hidden' in tarot_topic_html
     assert 'href="/articles/tarot/tarot-0001"' in tarot_topic_html
     personality_topic_html = Path("app/web/seo/topics/personality/index.html").read_text()
     assert 'href="/articles/personality/personality-0001"' in personality_topic_html
@@ -527,10 +539,12 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "dom.articleTitle.textContent = content.title" in article_js
     assert "dom.titleCrumb.hidden = false" in article_js
     assert "renderArticleBody(content, inlineTopicState)" in article_js
+    assert "renderHubVisibleLinks(content)" in article_js
     assert "renderArticleNavigation(content)" in article_js
     assert "renderArticleFaq(content)" in article_js
     assert "renderArticleRelated(content)" in article_js
     assert "renderArticleCta(content)" in article_js
+    assert "content.hubVisibleLinks?.links?.length" in article_js
     assert "content.navigationLinks" in article_js
     assert "VISIBLE_RELATED_MAX_LINKS = 6" in article_js
     assert "buildVisibleRelatedLinks(content)" in article_js
@@ -552,6 +566,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "article-inline-topic-link" in article_js
     assert "data-article-related" in article_html
     assert "data-visible-related-links" in article_html
+    assert "data-hub-visible-links" in article_html
+    assert "data-topic-visible-links" in article_html
+    assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
+    assert 'href="static/styles.css?v=article-hub-visible-links-20260713-1"' in article_html
+    assert 'src="static/article.js?v=article-voice-20260713-3"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -562,6 +581,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert article_html.index("data-article-navigation") < article_html.index("data-article-faq")
     assert article_html.index("data-article-faq") < article_html.index("data-article-related")
     assert "bodySections: buildBodySections" in article_meta_js
+    assert "HUB_VISIBLE_MAX_LINKS = 12" in article_meta_js
+    assert "hubVisibleLinks: buildHubVisibleLinks(route" in article_meta_js
+    assert "function buildHubVisibleLinks" in article_meta_js
     assert "buildArticleBody(article, productTheme, managedArticle)" in article_meta_js
     assert "ARTICLE_BODY_LIBRARY" in article_meta_js
     assert "buildRelatedLinks(article, managedArticle, productTheme, route)" in article_meta_js
@@ -621,8 +643,10 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert '--article-panel-bg:' in styles_css
     assert "[hidden] {\n  display: none !important;" in styles_css
     assert ".article-related" in styles_css
+    assert ".article-hub-visible-links" in styles_css
     assert "grid-template-columns: minmax(0, 760px) minmax(240px, 320px)" in styles_css
     assert ".article-related {\n  grid-column: 1 / -1;" in styles_css
+    assert ".article-hub-visible-links {\n  grid-column: 1 / -1;" in styles_css
     assert ".article-visible-link-list" in styles_css
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_css
     assert "overflow-wrap: anywhere;" in styles_css
@@ -711,6 +735,81 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/article-admin /article-admin.html 200" not in redirects
 
 
+def test_product_and_topic_hubs_expose_visible_article_links() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+
+const defaults = {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+};
+
+function summarize(path) {
+  const content = buildArticleContent(path, "https://mysticpantheon.com", defaults);
+  const module = content.hubVisibleLinks;
+  const links = module?.links || [];
+  return {
+    path,
+    type: module?.type || "",
+    title: module?.title || "",
+    count: links.length,
+    hrefs: links.map((item) => item.href),
+    labels: links.map((item) => item.label),
+    kinds: links.map((item) => item.kind),
+    duplicateHrefCount: links.length - new Set(links.map((item) => item.href)).size,
+    hasClickHere: links.some((item) => item.label === "點這裡"),
+    hasSerialInLabel: links.some((item) => /[a-z]+-\\d{4}/i.test(item.label)),
+    hasSerialInKind: links.some((item) => /[a-z]+-\\d{4}/i.test(item.kind)),
+  };
+}
+
+console.log(JSON.stringify({
+  tarotHub: summarize("/articles/tarot"),
+  astroHub: summarize("/articles/astro"),
+  tarotTopic: summarize("/topics/tarot"),
+  article: summarize("/articles/tarot/tarot-0001"),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+
+    tarot_hub = data["tarotHub"]
+    assert tarot_hub["type"] == "product"
+    assert tarot_hub["title"] == "分類文章"
+    assert tarot_hub["count"] == 12
+    assert tarot_hub["duplicateHrefCount"] == 0
+    assert all(href.startswith("/articles/") and href != "/articles/tarot" for href in tarot_hub["hrefs"])
+    assert set(tarot_hub["kinds"]) == {"分類文章"}
+    assert not tarot_hub["hasClickHere"]
+    assert not tarot_hub["hasSerialInLabel"]
+    assert not tarot_hub["hasSerialInKind"]
+
+    astro_hub = data["astroHub"]
+    assert astro_hub["type"] == "product"
+    assert astro_hub["title"] == "分類文章"
+    assert astro_hub["count"] == 5
+    assert astro_hub["duplicateHrefCount"] == 0
+
+    tarot_topic = data["tarotTopic"]
+    assert tarot_topic["type"] == "topic"
+    assert tarot_topic["title"] == "相關文章"
+    assert tarot_topic["count"] == 12
+    assert tarot_topic["duplicateHrefCount"] == 0
+    assert all(href.startswith("/articles/") for href in tarot_topic["hrefs"])
+    assert set(tarot_topic["kinds"]) == {"相關文章"}
+    assert not tarot_topic["hasClickHere"]
+    assert not tarot_topic["hasSerialInLabel"]
+    assert not tarot_topic["hasSerialInKind"]
+
+    assert data["article"]["type"] == ""
+    assert data["article"]["count"] == 0
+
+
 def test_public_articles_follow_latest_publication_standard() -> None:
     script = f"""
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
@@ -746,6 +845,14 @@ const data = paths.map((path) => {{
     "先理解 78 張牌",
     "讀塔羅文章時",
   ];
+  const scaleVoicePhrases = [
+    "通常不是想背牌義",
+    "不能替任何人下結論",
+    "正位不等於好消息",
+    "公開文章只能整理通用牌義",
+    "不能替你判定升遷",
+    "如果你正在焦慮",
+  ];
   return {{
     path,
     headings: headingText,
@@ -761,6 +868,7 @@ const data = paths.map((path) => {{
     hasForbidden: forbidden.some((word) => articleText.includes(word) || content.title.includes(word)),
     hasReaderHostilePhrase: forbiddenReaderPhrases.some((word) => articleText.includes(word) || content.faq.some((item) => item.question.includes(word) || item.answer.includes(word))),
     hasTarotCoursePhrase: path.includes("/tarot/") && forbiddenTarotCoursePhrases.some((word) => articleText.includes(word)),
+    hasScaleVoicePhrase: /^\/articles\/tarot\/tarot-00(3[3-9]|[4-6]\d|7[0-6])$/.test(path) && scaleVoicePhrases.some((word) => articleText.includes(word)),
   }};
 }});
 console.log(JSON.stringify(data));
@@ -785,6 +893,8 @@ console.log(JSON.stringify(data));
         assert not record["hasForbidden"], record
         assert not record["hasReaderHostilePhrase"], record
         assert not record["hasTarotCoursePhrase"], record
+        if re.match(r"^/articles/tarot/tarot-00(3[3-9]|[4-6]\d|7[0-6])$", record["path"]):
+            assert not record["hasScaleVoicePhrase"], record
         if "/tarot/" in record["path"]:
             assert "先看你現在卡在哪一種煩惱" in record["headings"], record
             assert "不要只問這張牌好不好" in record["headings"], record

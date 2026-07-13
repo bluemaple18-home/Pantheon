@@ -163,6 +163,24 @@ def build_topic_internal_links(topic: dict) -> list[dict[str, str]]:
     return links[:12]
 
 
+def build_hub_visible_links(product: str, articles: list[dict[str, str]]) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    for article in articles:
+        if article.get("product_hub") != product:
+            continue
+        add_unique_link(links, article["route"], article["title"], f"/articles/{product}")
+        if len(links) >= 12:
+            break
+    return [{**link, "kind": "分類文章"} for link in links]
+
+
+def build_topic_visible_links(topic: dict) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    for article in topic["articles"][:12]:
+        add_unique_link(links, article["path"], article["title"], topic["route"])
+    return [{**link, "kind": "相關文章"} for link in links]
+
+
 def build_prerender_articles() -> list[dict[str, str]]:
     articles = []
     for record in registry_articles():
@@ -206,6 +224,9 @@ def build_prerender_hubs(articles: list[dict[str, str]]) -> list[dict[str, str]]
                 "product_hub": product,
                 "content_type": "CollectionPage",
                 "internal_links": build_hub_internal_links(route, product, articles),
+                "visible_links_type": "product",
+                "visible_links_title": "分類文章",
+                "visible_links": build_hub_visible_links(product, articles),
             }
         )
     return hubs
@@ -233,6 +254,9 @@ def build_prerender_topics() -> list[dict[str, str]]:
                 "product_hub": "topics",
                 "content_type": "CollectionPage",
                 "internal_links": build_topic_internal_links(topic),
+                "visible_links_type": "topic",
+                "visible_links_title": "相關文章",
+                "visible_links": build_topic_visible_links(topic),
             }
         )
     return topics

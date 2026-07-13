@@ -106,6 +106,26 @@ def build_prerender_internal_links(links: list[dict[str, str]]) -> str:
     )
 
 
+def build_prerender_visible_links(meta: dict[str, str]) -> str:
+    links = meta.get("visible_links", [])
+    if not links:
+        return ""
+    title = html.escape(meta.get("visible_links_title", "相關文章"), quote=False)
+    data_hook = "data-topic-visible-links" if meta.get("visible_links_type") == "topic" else "data-hub-visible-links"
+    rows = []
+    for link in links:
+        href = html.escape(link["href"], quote=True)
+        label = html.escape(link["label"], quote=False)
+        kind = html.escape(link.get("kind", meta.get("visible_links_title", "相關文章")), quote=False)
+        rows.append(f'<li><a href="{href}">{label}</a><span>{kind}</span></li>')
+    return (
+        f'<section class="article-hub-visible-links ui-panel" aria-label="{title}" {data_hook}>'
+        f"<h2>{title}</h2>"
+        f'<ul class="article-link-list article-visible-link-list">{"".join(rows)}</ul>'
+        "</section>"
+    )
+
+
 def build_raw_jsonld(meta: dict[str, str]) -> tuple[dict, dict, dict]:
     organization_ref = {"@id": f"{SITE_ORIGIN}/#organization"}
     website_ref = {"@id": f"{SITE_ORIGIN}/#website"}
@@ -189,6 +209,8 @@ def replace_meta_content(markup: str, attr_name: str, attr_value: str, content_v
 
 def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     markup = (WEB_DIR / "article.html").read_text(encoding="utf-8")
+    # Raw shell supports file:// preview; HTTP responses keep site-root asset URLs.
+    markup = markup.replace('href="static/', 'href="/static/').replace('src="static/', 'src="/static/')
     page_title = html.escape(meta["page_title"], quote=False)
     description = meta["description"]
     canonical = html.escape(meta["canonical"], quote=True)
@@ -230,6 +252,12 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
         count=1,
         flags=re.S,
     )
+    visible_links_markup = build_prerender_visible_links(meta)
+    if visible_links_markup:
+        visible_links_type = meta.get("visible_links_type")
+        data_hook = "data-topic-visible-links" if visible_links_type == "topic" else "data-hub-visible-links"
+        pattern = rf'<section class="article-hub-visible-links ui-panel" aria-label="[^"]+" {data_hook} hidden></section>'
+        markup = re.sub(pattern, visible_links_markup, markup, count=1)
     markup = markup.replace("</article>", f"{build_prerender_internal_links(meta.get('internal_links', []))}</article>", 1)
     return HTMLResponse(markup)
 

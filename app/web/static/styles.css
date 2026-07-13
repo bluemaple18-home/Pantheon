@@ -570,6 +570,7 @@ a.ui-chip:hover {
 .article-answer-summary,
 .article-faq,
 .article-related,
+.article-hub-visible-links,
 .article-cta {
   display: grid;
   gap: 12px;
@@ -581,6 +582,7 @@ a.ui-chip:hover {
 
 .article-answer-summary,
 .article-body,
+.article-hub-visible-links,
 .article-sequence,
 .article-faq,
 .article-cta {
@@ -597,9 +599,15 @@ a.ui-chip:hover {
   background: var(--article-panel-bg);
 }
 
+.article-hub-visible-links {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .article-answer-summary h2,
 .article-faq h2,
 .article-related h2,
+.article-hub-visible-links h2,
 .article-cta h2 {
   margin: 0;
   color: var(--article-text);
@@ -5650,6 +5658,7 @@ select:focus {
   .article-page-header,
   .article-answer-summary,
   .article-body,
+  .article-hub-visible-links,
   .article-sequence,
   .article-faq,
   .article-related,

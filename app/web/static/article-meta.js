@@ -17,6 +17,20 @@ import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=ar
 
 const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
 const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
+const HUB_VISIBLE_MAX_LINKS = 12;
+const SCALE_TAROT_IDS = new Set([
+  "TAROT-WANDS-01", "TAROT-WANDS-02", "TAROT-WANDS-04", "TAROT-WANDS-06",
+  "TAROT-WANDS-07", "TAROT-WANDS-08", "TAROT-WANDS-09", "TAROT-WANDS-10",
+  "TAROT-WANDS-PAGE", "TAROT-WANDS-KNIGHT", "TAROT-WANDS-QUEEN", "TAROT-WANDS-KING",
+  "TAROT-CUPS-01", "TAROT-CUPS-03", "TAROT-CUPS-04", "TAROT-CUPS-05",
+  "TAROT-CUPS-06", "TAROT-CUPS-07", "TAROT-CUPS-08", "TAROT-CUPS-09",
+  "TAROT-CUPS-10", "TAROT-CUPS-PAGE", "TAROT-CUPS-KNIGHT", "TAROT-CUPS-QUEEN",
+  "TAROT-CUPS-KING", "TAROT-SWORDS-01", "TAROT-SWORDS-03", "TAROT-SWORDS-04",
+  "TAROT-SWORDS-05", "TAROT-SWORDS-06", "TAROT-SWORDS-08", "TAROT-SWORDS-10",
+  "TAROT-SWORDS-PAGE", "TAROT-SWORDS-KNIGHT", "TAROT-SWORDS-QUEEN", "TAROT-SWORDS-KING",
+  "TAROT-PENTACLES-01", "TAROT-PENTACLES-02", "TAROT-PENTACLES-03", "TAROT-PENTACLES-04",
+  "TAROT-PENTACLES-06", "TAROT-PENTACLES-07", "TAROT-PENTACLES-08", "TAROT-PENTACLES-09",
+]);
 
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
@@ -410,6 +424,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     faq: buildArticleFaq(route, article, productTheme),
     navigationLinks: buildArticleNavigationLinks(article),
     relatedLinks: buildRelatedLinks(article, managedArticle, productTheme, route),
+    hubVisibleLinks: buildHubVisibleLinks(route, null),
     cta: buildArticleCta(article, productTheme, route),
   };
 }
@@ -531,7 +546,9 @@ function buildTopicContent(route, topic, origin, defaults = {}) {
     answer: `這裡整理所有提到「${safeTopic.label}」的公開文章，直接選一篇進去讀。`,
     bodySections: buildTopicBodySections(safeTopic, articles),
     faq: [],
+    navigationLinks: [],
     relatedLinks: [],
+    hubVisibleLinks: buildHubVisibleLinks(route, safeTopic),
     cta: null,
   };
 }
@@ -686,7 +703,7 @@ function buildArticleBody(article, productTheme, managedArticle) {
 }
 
 function enrichArticleBody(article, productTheme, managedArticle, customBody) {
-  const [opening, ...rest] = customBody;
+  const [opening, ...rest] = humanizeTarotScaleBody(article, customBody);
   return [
     opening,
     buildSearchIntentSection(article, productTheme),
@@ -697,6 +714,77 @@ function enrichArticleBody(article, productTheme, managedArticle, customBody) {
     buildReaderDecisionSection(article, productTheme),
     buildNextStepSection(article, productTheme, managedArticle),
   ];
+}
+
+function humanizeTarotScaleBody(article, customBody) {
+  if (!isScaleTarotArticle(article)) return customBody;
+  const card = article.primaryKeyword || article.title;
+  const suit = article.id.split("-")[1];
+  const angle = extractTarotAngle(article, card);
+  const voice = buildTarotVoice(suit, card, angle);
+  return customBody.map((section) => ({
+    ...section,
+    paragraphs: section.paragraphs.map((text) => rewriteTarotScaleParagraph(text, voice)),
+  }));
+}
+
+function extractTarotAngle(article, card) {
+  return String(article.answer || "")
+    .replace(`${card}提醒`, "")
+    .split("，逆位")[0]
+    .replace(/[。；].*$/u, "")
+    .trim() || "這張牌的核心語氣";
+}
+
+function isScaleTarotArticle(article) {
+  return SCALE_TAROT_IDS.has(article?.id || "");
+}
+
+function buildTarotVoice(suit, card, angle) {
+  const openingBySuit = {
+    WANDS: `會查${card}意思，常常是因為你已經有一個想推進的念頭，卻還不確定該先出手、先談，還是再等等。${card}談的是${angle}，先拿來對照眼前的行動和條件。`,
+    CUPS: `查${card}意思時，心裡常掛著的是感情有沒有回應、彼此是不是站在同一邊。${card}談的是${angle}，但真正要看的，還是互動裡有沒有來回。`,
+    SWORDS: `搜尋${card}意思的人，很多時候不是沒有想法，而是腦中同時有太多版本，分不出哪個是事實。${card}談的是${angle}，先把說過的話、做過的事和自己的猜測分開。`,
+    PENTACLES: `會查${card}意思，常常是因為你已經投入了一段時間，卻還不知道成果到底有沒有累積。${card}談的是${angle}，重點在投入能不能落到現實。`,
+  };
+  const boundaryBySuit = {
+    WANDS: `先別把${card}當成催你衝刺的通知。它可以幫你看見行動的力道和阻力，卻不能替你決定要不要追、要不要離職，或對方會不會回應。`,
+    CUPS: `先別把${card}當成對方心意的證明。它可以幫你整理關係裡的靠近與疏離，卻不能替你確認對方會不會留下。`,
+    SWORDS: `先別把${card}當成真相揭露。它可以提醒你檢查資訊和溝通，卻不能替你判定誰在說謊，或事情最後會往哪裡走。`,
+    PENTACLES: `先別把${card}當成成果通知。它可以幫你看投入、資源和穩定度，卻不能替你承諾收入、升遷或最後回報。`,
+  };
+  const workBySuit = {
+    WANDS: `放到工作裡，${card}比較適合用來看專案是不是有起點、方向和能承接的資源。想推進之前，先確認誰負責、時程怎麼排，別只靠熱情撐住整件事。`,
+    CUPS: `放到工作裡，${card}會把焦點帶到合作感、投入感和團隊氣氛。效率固然重要，但如果大家都不願意回應或承擔，表面順利也撐不久。`,
+    SWORDS: `放到工作裡，${card}適合拿來檢查資訊、決策和溝通是否對得上。先把責任、證據和截止時間寫清楚，通常比繼續猜主管或同事在想什麼更有用。`,
+    PENTACLES: `放到工作裡，${card}會靠近練習、品質、資源和實際回報。你可以看成果是否累積、方法是否有效，也要承認有些環境並不會因為多努力就立刻給出回饋。`,
+  };
+  const closeBySuit = {
+    WANDS: `如果讀完${card}還是很想立刻做決定，先把衝動縮成一個今天能驗證的小步驟：問清楚、試做一次，或把時程排出來。`,
+    CUPS: `如果讀完${card}又把注意力全放到對方身上，先回頭看一件事：這段互動最近有沒有實際回應，而不是只有你在替它找理由。`,
+    SWORDS: `如果讀完${card}反而更焦慮，先把事實和猜測各列一欄。等兩欄分開後，你通常會比較知道下一個要問的是什麼。`,
+    PENTACLES: `如果你想把${card}直接套成收入或成果，先回到可量化的條件：投入了多久、缺哪項資源、什麼結果才算真的有進展。`,
+  };
+  return {
+    opening: openingBySuit[suit] || openingBySuit.PENTACLES,
+    boundary: boundaryBySuit[suit] || boundaryBySuit.PENTACLES,
+    upright: `${card}正位未必等於順利。它比較值得看的地方，是${angle}有沒有在現實裡找到出口：有行動、有回應，或有足夠條件承接。`,
+    work: workBySuit[suit] || workBySuit.PENTACLES,
+    workLimit: `這張牌可以幫你看工作裡的卡點，但不會幫你決定升遷、離職或收入結果；那些仍要回到合約、能力、時程和主管回饋。`,
+    limit: `${card}不能替你宣布命運，也不能把一個人或一段關係定型。它最多提供一個觀察角度，最後仍要回到實際行為、問題問法和當下限制。`,
+    close: closeBySuit[suit] || closeBySuit.PENTACLES,
+  };
+}
+
+function rewriteTarotScaleParagraph(text, voice) {
+  if (text.includes("通常不是想背牌義")) return voice.opening;
+  if (text.includes("不能替任何人下結論") && text.includes("事情正在開始")) return voice.boundary;
+  if (text.includes("正位不等於好消息")) return voice.upright;
+  if (text.startsWith("工作問題裡") && text.includes("公開文章只能整理通用牌義")) return voice.work;
+  if (text.startsWith("但它不能替你判定升遷")) return voice.workLimit;
+  if (text.includes("不能代表命運已定")) return voice.limit;
+  if (text.startsWith("如果你正在焦慮")) return voice.close;
+  return text;
 }
 
 function buildExpansionSections(article) {
@@ -801,6 +889,17 @@ function buildFallbackAngleSection(article, productTheme, primary, related) {
 function buildSearchIntentSection(article, productTheme) {
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
+  if (isScaleTarotArticle(article)) {
+    const voice = buildTarotVoice(article.id.split("-")[1], primary, extractTarotAngle(article, primary));
+    return {
+      heading: buildSearchIntentHeading(article, primary),
+      paragraphs: [
+        `讀到${primary}時，先把${extractTarotAngle(article, primary)}和眼前的問題放在一起看：你是在等回應、找方向、拆猜測，還是確認投入有沒有落地？`,
+        `如果你是為了感情、工作或選擇來查${primary}，先挑一個最接近眼前的問題。牌義可以幫你命名卡點，但不必急著把它翻成好消息或壞消息。`,
+        `先記住${primary}最有用的讀法：把它和一個具體行為放在一起看。你要等的是回應、資源、證據，還是自己終於願意做出的那個選擇？`,
+      ],
+    };
+  }
   return {
     heading: buildSearchIntentHeading(article, primary),
     paragraphs: [
@@ -833,6 +932,25 @@ function buildScenarioSection(article, productTheme) {
     };
   }
   if (article.product === "tarot") {
+    if (isScaleTarotArticle(article)) {
+      const card = article.primaryKeyword || article.title;
+      const suit = article.id.split("-")[1];
+      const angle = extractTarotAngle(article, card);
+      const prompts = {
+        WANDS: `感情裡可以看靠近的速度和主動程度；工作裡則看方向、資源和誰願意一起推進。`,
+        CUPS: `感情裡可以看回應與投入是否對等；工作裡則看合作氣氛和大家是否真的願意承擔。`,
+        SWORDS: `感情裡可以看話有沒有說清楚、資訊是否完整；工作裡則看決策、證據和責任有沒有對上。`,
+        PENTACLES: `感情裡可以看穩定出現和實際安排；工作裡則看投入、成果與資源是否真的累積。`,
+      };
+      return {
+        heading: "先看你現在卡在哪一種煩惱",
+        paragraphs: [
+          `${card}的重點是${angle}。放進不同問題裡，看的不是同一件事。${prompts[suit] || prompts.PENTACLES}`,
+          "如果你只想知道牌面好不好，答案通常不夠用。把問題改成一個能觀察的動作，例如對方是否回應、工作是否有資源、自己是否真的準備好。",
+          `但${card}也可能不適用：如果你缺的是合約、醫療、法律或財務資料，先補現實資訊，不要用牌義替代它。`,
+        ],
+      };
+    }
     return {
       heading: "先看你現在卡在哪一種煩惱",
       paragraphs: [
@@ -873,6 +991,24 @@ function buildScenarioSection(article, productTheme) {
 
 function buildNextStepSection(article, productTheme, managedArticle) {
   if (article.product === "tarot") {
+    if (isScaleTarotArticle(article)) {
+      const card = article.primaryKeyword || article.title;
+      const suit = article.id.split("-")[1];
+      const nextQuestion = {
+        WANDS: "這張牌要你加速，還是先把方向說清楚？",
+        CUPS: "這段互動是真的互相，還是只有你在維持溫度？",
+        SWORDS: "你手上的證據夠不夠，還是只是把猜測想得很完整？",
+        PENTACLES: "你正在累積實力，還是在一個不會回饋你的地方消耗？",
+      };
+      return {
+        heading: "什麼時候需要再往下整理？",
+        paragraphs: [
+          `如果你只是想知道${card}大概在提醒什麼，讀到這裡可以停。真正需要再往下整理，是你已經有一個具體煩惱，而且想看清楚自己能做什麼。`,
+          `你可以先問：${nextQuestion[suit] || nextQuestion.PENTACLES}`,
+          "把牌面提醒翻成一個今天能觀察的行動，再決定要繼續讀、開口問，還是先補資料。",
+        ],
+      };
+    }
     return {
       heading: "什麼時候需要再往下整理？",
       paragraphs: [
@@ -945,6 +1081,26 @@ function buildReaderDecisionSection(article, productTheme) {
     };
   }
   if (article.product === "tarot") {
+    if (isScaleTarotArticle(article)) {
+      const card = article.primaryKeyword || article.title;
+      const suit = article.id.split("-")[1];
+      const nextQuestion = {
+        WANDS: "這張牌要你加速，還是先把方向說清楚？",
+        CUPS: "這段互動是真的互相，還是只有你在維持溫度？",
+        SWORDS: "你手上的證據夠不夠，還是只是把猜測想得很完整？",
+        PENTACLES: "你正在累積實力，還是在一個不會回饋你的地方消耗？",
+      };
+      return {
+        heading: "把問題改成現在能處理的事",
+        paragraphs: [
+          `${card}不只一種讀法。先把「會不會發生」改成一個能觀察的問題：${nextQuestion[suit] || nextQuestion.PENTACLES}`,
+          "如果你在感情裡反覆不安，先看對方有沒有實際行動；如果你在工作或選擇上卡住，先找出最不穩的條件。這些線索比一句抽象牌義更能幫你往前走。",
+          "讀到任何提醒，都要落回現實。今天能問清楚、試做一次、補一份資料，或替自己設一個停損點，都是比繼續猜更小也更有用的下一步。",
+          `如果${card}讓你只想再找一個更確定的答案，先停一下，寫下目前知道的事、還沒確認的事，以及你願意承擔的範圍。這三行通常比反覆重抽更接近問題本身。`,
+          "你不需要一次把整段人生想完；先處理下一個能確認的條件，文章才真正回到你的生活。先不要急著替它下結論。",
+        ],
+      };
+    }
     return {
       heading: "把問題改成現在能處理的事",
       paragraphs: [
@@ -999,6 +1155,23 @@ function buildRelatedReadingSection(article, productTheme) {
     };
   }
   if (article.product === "tarot") {
+    if (isScaleTarotArticle(article)) {
+      const card = article.primaryKeyword || article.title;
+      const suit = article.id.split("-")[1];
+      const nextQuestion = {
+        WANDS: "這張牌要你加速，還是先把方向說清楚？",
+        CUPS: "這段互動是真的互相，還是只有你在維持溫度？",
+        SWORDS: "你手上的證據夠不夠，還是只是把猜測想得很完整？",
+        PENTACLES: "你正在累積實力，還是在一個不會回饋你的地方消耗？",
+      };
+      return {
+        heading: "不要只問這張牌好不好",
+        paragraphs: [
+          `${card}不只一種讀法。它可以提醒你${nextQuestion[suit] || nextQuestion.PENTACLES}`,
+          "先讀牌義，再回頭看現實裡的行為和條件。這樣做不是把塔羅讀得更複雜，而是避免用一個關鍵字替整段關係或工作下結論。",
+        ],
+      };
+    }
     return {
       heading: "不要只問這張牌好不好",
       paragraphs: [
@@ -1149,6 +1322,32 @@ function buildRelatedLinks(article, managedArticle, productTheme, route = {}) {
   }
   if (!article) return [];
   return buildArticleRecommendationLinks(article);
+}
+
+function buildHubVisibleLinks(route = {}, topic = null) {
+  if (route.topic && topic) {
+    const links = listArticlesForTopic(topic.slug)
+      .map((article) => ({
+        label: article.title,
+        href: getArticlePath(article),
+        kind: "相關文章",
+      }));
+    return {
+      type: "topic",
+      title: "相關文章",
+      links: uniqueLinks(links).slice(0, HUB_VISIBLE_MAX_LINKS),
+    };
+  }
+  if (!route.product || route.slug || route.intent) return null;
+  const links = getRelatedArticleLinks(route.product).map((item) => ({
+    ...item,
+    kind: "分類文章",
+  }));
+  return {
+    type: "product",
+    title: "分類文章",
+    links: uniqueLinks(links).slice(0, HUB_VISIBLE_MAX_LINKS),
+  };
 }
 
 function getRelatedArticleLinks(product) {
