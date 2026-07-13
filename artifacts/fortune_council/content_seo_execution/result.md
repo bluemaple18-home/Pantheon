@@ -12,6 +12,7 @@
 `NEXT-30-PUBLISH` 已完成：30 篇已登錄前台 registry/body，sitemap 已同步，前台公開文章總數為 81 篇。
 `CARD-SEO-VISIBLE-LINKS-001` 已完成：文章頁底部新增可見延伸閱讀模組，桌機/手機證據在 `evidence/visible_links_001/`。
 `CARD-SEO-VISIBLE-LINKS-001` 正式站驗收已完成：公開頁載入 `article-visible-links-20260713-1`，桌機/手機各 6 條可見內鏈且無水平 overflow，SEO/GEO live audit 維持 Schema / E-E-A-T / Citability / Entity 100；證據在 `evidence/visible_links_001/live/`。
+`CARD-SEO-HUB-VISIBLE-LINKS-001` 已開卡：下一步在 product hub / topic hub 補低調可見文章導流，不改首頁、hero 或文章正文。
 
 本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 
