@@ -313,7 +313,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "name=\"keywords\"" in response.text
         assert "name=\"author\" content=\"Pantheon 編輯部\"" in response.text
         assert "property=\"article:published_time\" content=\"2026-07-10\"" in response.text
-        assert "property=\"article:modified_time\" content=\"2026-07-12\"" in response.text
+        expected_modified = ARTICLE_CONTENT_REFRESH_DATE if path in UPDATED_ARTICLE_PATHS else ARTICLE_UPDATED_DATE
+        assert f'property="article:modified_time" content="{expected_modified}"' in response.text
         assert "property=\"og:type\" content=\"article\"" in response.text
         assert "name=\"twitter:card\" content=\"summary_large_image\"" in response.text
         assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
@@ -349,7 +350,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "ui-brand-mark" in response.text
         assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
         assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
-        assert "/static/article.js?v=article-voice-20260714-2" in response.text
+        assert "/static/article.js?v=article-voice-20260714-4" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -374,7 +375,7 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
     faq = json.loads(faq_json.group(1))
     assert article["@type"] == "Article"
     assert article["url"] == "https://mysticpantheon.com/articles/tarot/tarot-0001"
-    assert article["dateModified"] == "2026-07-12"
+    assert article["dateModified"] == ARTICLE_CONTENT_REFRESH_DATE
     assert breadcrumb["@type"] == "BreadcrumbList"
     assert faq["@type"] == "FAQPage"
 
@@ -386,7 +387,7 @@ def test_raw_article_descriptions_meet_citability_length_gate() -> None:
 
 def test_content_refresh_articles_expose_current_update_date() -> None:
     client = TestClient(app)
-    assert len(UPDATED_ARTICLE_PATHS) == 94
+    assert len(UPDATED_ARTICLE_PATHS) == 125
     for path in UPDATED_ARTICLE_PATHS:
         response = client.get(path)
         assert response.status_code == 200, path
@@ -394,9 +395,9 @@ def test_content_refresh_articles_expose_current_update_date() -> None:
         assert f'"dateModified":"{ARTICLE_CONTENT_REFRESH_DATE}"' in response.text, path
         assert f'<time datetime="{ARTICLE_CONTENT_REFRESH_DATE}" data-article-updated>{ARTICLE_CONTENT_REFRESH_DATE}</time>' in response.text, path
 
-    unchanged = client.get("/articles/tarot/tarot-0001")
+    unchanged = client.get("/articles")
     assert f'property="article:modified_time" content="{ARTICLE_UPDATED_DATE}"' in unchanged.text
-    assert f'"dateModified":"{ARTICLE_UPDATED_DATE}"' in unchanged.text
+    assert f'"dateModified": "{ARTICLE_UPDATED_DATE}"' in unchanged.text
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
@@ -449,6 +450,36 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
     assert 'href="/articles/tarot/tarot-0076"' in tarot_html
     astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
     assert 'href="/articles/astrology/astrology-0001"' in astro_html
+
+
+def test_tarot_hub_reading_guide_is_scanable() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+
+const content = buildArticleContent("/articles/tarot", "https://mysticpantheon.com", {});
+const guide = content.bodySections.find((section) => section.heading === "這裡先讀哪幾篇塔羅文章？");
+console.log(JSON.stringify({
+  paragraphCount: guide?.paragraphs.length || 0,
+  maxParagraphChars: Math.max(...(guide?.paragraphs || []).map((paragraph) => [...paragraph].length)),
+  hasCount: guide?.paragraphs[0]?.includes("目前收錄 80 篇塔羅文章"),
+  hasDefinitionPath: guide?.paragraphs.some((paragraph) => paragraph.includes("塔羅牌意思總覽") && paragraph.includes("塔羅牌正位逆位")),
+  hasLovePath: guide?.paragraphs.some((paragraph) => paragraph.includes("感情塔羅怎麼問") && paragraph.includes("曖昧")),
+  hasFullTitleDump: (guide?.paragraphs.join("") || "").length > 1400,
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["paragraphCount"] == 4
+    assert data["maxParagraphChars"] < 260
+    assert data["hasCount"]
+    assert data["hasDefinitionPath"]
+    assert data["hasLovePath"]
+    assert not data["hasFullTitleDump"]
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
@@ -586,7 +617,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
     assert 'href="static/styles.css?v=article-hub-visible-links-20260713-1"' in article_html
-    assert 'src="static/article.js?v=article-voice-20260714-2"' in article_html
+    assert 'src="static/article.js?v=article-voice-20260714-4"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -1005,6 +1036,71 @@ console.log(JSON.stringify({
     assert data["repeated"] == []
     assert data["forbiddenTemplates"] == []
     assert data["minChars"] >= 700
+
+
+def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { INITIAL_31_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-initial-31.js";
+import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+
+const records = listArticleRecords().filter((article) =>
+  /^personality-000[1-8]$/.test(article.urlSlug)
+  || /^tarot-000[1-8]$/.test(article.urlSlug)
+  || /^fortune-000[1-6]$/.test(article.urlSlug)
+  || /^astrology-000[1-4]$/.test(article.urlSlug)
+  || /^(love|career|interpersonal|wealth|life-direction)-0001$/.test(article.urlSlug)
+);
+const paragraphs = Object.values(INITIAL_31_ARTICLE_BODY_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }
+}
+const repeated = [...sentenceCounts.entries()]
+  .filter(([, count]) => count > 3)
+  .map(([sentence, count]) => ({ sentence, count }));
+const forbiddenTemplates = [
+  "通常不是想背牌義",
+  "不能替任何人下結論",
+  "正位不等於好消息",
+  "全面解析",
+  "深度解析",
+];
+const coverage = records.map((article) => {
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com", {});
+  return {
+    slug: article.slug,
+    hasLibrary: Boolean(INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]),
+    openingMatches: content.bodySections[0]?.heading === INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]?.[0]?.heading,
+  };
+});
+console.log(JSON.stringify({
+  recordCount: records.length,
+  libraryCount: Object.keys(INITIAL_31_ARTICLE_BODY_LIBRARY).length,
+  emptyParagraphs: paragraphs.filter((paragraph) => !paragraph.trim()).length,
+  repeated,
+  forbiddenTemplates: forbiddenTemplates.filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  missing: coverage.filter((item) => !item.hasLibrary || !item.openingMatches),
+  minChars: Math.min(...Object.values(INITIAL_31_ARTICLE_BODY_LIBRARY).map((sections) => sections.flatMap((section) => section.paragraphs).join("").length)),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["recordCount"] == 31
+    assert data["libraryCount"] == 31
+    assert data["emptyParagraphs"] == 0
+    assert data["repeated"] == []
+    assert data["forbiddenTemplates"] == []
+    assert data["missing"] == []
+    assert data["minChars"] >= 300
 
 
 def test_public_generated_text_does_not_leak_internal_entry_language() -> None:

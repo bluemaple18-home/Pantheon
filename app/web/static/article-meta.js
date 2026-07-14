@@ -14,6 +14,7 @@ import {
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
+import { INITIAL_31_ARTICLE_BODY_LIBRARY } from "./article-bodies-initial-31.js?v=article-content-20260714-1";
 
 const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
 const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
@@ -323,6 +324,7 @@ const ARTICLE_BODY_LIBRARY = {
       ],
     },
   ],
+  ...INITIAL_31_ARTICLE_BODY_LIBRARY,
 };
 
 export function buildArticleContent(pathname, origin, defaults = {}) {
@@ -629,7 +631,6 @@ function buildBodySections(route, article, section, intent, productTheme, manage
 
 function buildProductHubSections(route, section, productTheme) {
   const articles = getRelatedArticleLinks(route.product);
-  const articleNames = articles.map((item) => item.label).join("、");
   return [
     {
       heading: `${productTheme.label}文章會先整理什麼？`,
@@ -641,13 +642,7 @@ function buildProductHubSections(route, section, productTheme) {
     },
     {
       heading: `這裡先讀哪幾篇${productTheme.label}文章？`,
-      paragraphs: [
-        articleNames
-          ? `目前收錄：${articleNames}。每篇都會先回答搜尋問題，再說明適用情境、常見誤解和不能代表什麼。`
-          : `目前會收錄${productTheme.label}基礎概念、常見問題與延伸閱讀。`,
-        `如果你只是想查定義，先讀第一篇基礎文就好；如果你已經卡在感情、事業、人際、財富或人生方向，就選最接近當下煩惱的主題文章。`,
-        "不要從列表直接跳到個人結論。這裡的價值，是讓你知道有哪些文章、每篇負責哪一層問題，以及下一篇該怎麼選。",
-      ],
+      paragraphs: buildProductHubReadingGuide(productTheme.label, articles.length),
     },
     {
       heading: `${productTheme.label}文章和個人判讀的邊界`,
@@ -665,6 +660,29 @@ function buildProductHubSections(route, section, productTheme) {
         "如果你看到文章標籤，也可以直接點進主題列表。主題列表會把跨分類文章串起來，例如 MBTI 可以連到人格、人際和自我理解；塔羅也可以連到牌義、正逆位和感情提問。",
       ],
     },
+  ];
+}
+
+function buildProductHubReadingGuide(label, articleCount) {
+  if (label === "塔羅") {
+    return [
+      `目前收錄 ${articleCount} 篇塔羅文章，不需要從頭讀到尾。先按你要處理的問題選路徑，讀一篇就知道下一篇該補哪一層。`,
+      "只查牌義：先讀「塔羅牌意思總覽」，再讀「塔羅牌正位逆位」。想查單張牌，就直接從牌名文章開始，不必先讀完整牌組。",
+      "卡在感情：先讀「感情塔羅怎麼問」，再依情境看曖昧、復合或不安全感。這條路徑會先處理問題怎麼問，不把牌面直接當成對方的答案。",
+      "想看工作或人生方向：先讀總覽，再挑一張最接近你目前卡點的牌。文章會整理牌義、生活情境與限制，最後仍要回到實際行動和條件。",
+    ];
+  }
+  if (label === "人格") {
+    return [
+      `目前收錄 ${articleCount} 篇人格文章，先按你想理解的問題選，不需要從 MBTI 名詞一路讀完整個分類。`,
+      "只查基礎：先讀「MBTI 是什麼」或「16 型人格完整整理」；想確認測驗結果，再讀測驗與準確度文章。",
+      "想理解自己或他人：直接選最接近的類型文章，再把描述放回感情、工作或人際中的具體互動。人格文章不替你貼死標籤。",
+    ];
+  }
+  return [
+    `目前收錄 ${articleCount} 篇${label}文章，先按搜尋目的選一篇，不需要把整個分類一次讀完。`,
+    `只查定義，先從「${label}」的基礎文章開始；已經卡在感情、事業、人際、財富或人生方向，就直接選最接近當下情境的文章。`,
+    "每篇會先回答搜尋問題，再補充適用情境、常見誤解和限制。讀完若還缺背景，再回到同分類延伸閱讀，不要從文章清單直接跳到個人結論。",
   ];
 }
 

@@ -16,6 +16,15 @@ ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
 ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
 UPDATED_ARTICLE_PATHS = {
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(1, 9)),
+    *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(1, 9)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(1, 7)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(1, 5)),
+    "/articles/love/love-0001",
+    "/articles/career/career-0001",
+    "/articles/interpersonal/interpersonal-0001",
+    "/articles/wealth/wealth-0001",
+    "/articles/life-direction/life-direction-0001",
     *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(9, 77)),
     *(f"/articles/personality/personality-{serial:04d}" for serial in range(9, 21)),
     *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(7, 10)),

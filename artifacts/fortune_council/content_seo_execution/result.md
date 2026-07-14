@@ -20,6 +20,8 @@
 `ARTICLE-UPDATE-DATE-20260714` 已完成本機同步：94 篇實際改稿文章的 SSR、prerender shell、JSON-LD、`article:modified_time` 與可見更新時間已壓至 `2026-07-14`；未改稿文章維持 `2026-07-12`。證據在 `evidence/article_update_date_20260714.md`。
 `ENGINE-TEST-DEPENDENCY-20260714` 已完成：補記 `pnpm install --frozen-lockfile` 為 Node bridge 測試前置條件；安裝 `iztro@2.5.8` 後完整測試恢復為 80 passed。
 `BROWSER-ACCEPTANCE-ARTICLE-20260714` 已完成：文章頁桌機/手機無水平溢出，console 0 error，所有文章資產與 favicon 200，更新時間與新 cache query 實際出現在 runtime DOM；證據在 `evidence/browser_acceptance_article_20260714.md`。
+`CARD-SEO-VOICE-INITIAL-31` 已完成：初始 31 篇改用逐篇正文內容庫，補上生活場景、可觀察行為、限制與自然收束；未改版面、URL、FAQ、Schema、內鏈或 SEO 契約。31 / 31 覆蓋、渲染後最短正文 1,644 字、同批完整句型重複 0；並將 125 篇公開文章的 SSR、prerender shell、JSON-LD、`article:modified_time` 與可見更新時間同步到 `2026-07-14`。證據在 `evidence/initial_31_voice_rewrite_001/voice_rewrite_checks.md`。
+`CARD-SEO-HUB-READING-GUIDE-001` 已完成：修正分類 hub 把 80 篇塔羅標題串成一個段落的問題，改成 4 段閱讀導讀；桌機／手機保留 12 條分類連結且無水平溢位，證據在 `evidence/hub_reading_guide_001.md`。
 
 本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 
