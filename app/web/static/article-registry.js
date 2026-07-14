@@ -386,7 +386,7 @@ export const ARTICLE_SECTION_REGISTRY = {
     product: "fortune",
     intent: "wealth",
     label: "財富",
-    description: "整理財富、資源節奏與金錢觀相關文章，不提供投資建議或財務承諾。",
+    description: "整理財富、資源節奏與金錢觀相關文章，不提供投資判斷或財務承諾。",
     seoDescription: "Pantheon 財富文章主頁，整理財富運勢、資源節奏與金錢觀內容。",
     primaryKeyword: "財富運勢",
     requiredTags: ["財富", "資源", "金錢觀"],
@@ -410,8 +410,8 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "MBTI 是什麼",
     secondaryKeywords: ["16 型人格", "MBTI 測驗", "MBTI 人格"],
     title: "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看",
-    description: "MBTI 是人格偏好工具，適合整理自我理解、互動模式與工作偏好；它不能取代心理診斷，也不能直接判定感情或人生結果。",
-    answer: "MBTI 是描述人格偏好的工具，可整理互動與決策傾向，但不能取代診斷。",
+    description: "MBTI 是人格偏好工具，適合整理自我理解、互動模式與工作偏好；它不能取代專業評估，也不能直接判定感情或人生結果。",
+    answer: "MBTI 是描述人格偏好的工具，可整理互動與決策傾向，但不能取代專業評估。",
     tags: ["人格測驗", "自我理解"],
     faq: [
       {
@@ -446,8 +446,8 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "MBTI 測驗",
     secondaryKeywords: ["免費 MBTI 測驗", "16 型人格測驗", "人格測驗"],
     title: "MBTI 測驗前先知道：能看什麼、不能代表什麼",
-    description: "MBTI 測驗可以輔助自我理解，整理偏好與互動模式；但結果會受狀態、題目理解和情境影響，不應當作診斷。",
-    answer: "MBTI 測驗可整理人格偏好，但不能代表診斷或人生結果。",
+    description: "MBTI 測驗可以輔助自我理解，整理偏好與互動模式；但結果會受狀態、題目理解和情境影響，不應當作專業評估。",
+    answer: "MBTI 測驗可整理人格偏好，但不能代表專業評估或人生結果。",
     tags: ["人格測驗", "16 型人格", "自我理解"],
   },
   {
@@ -457,7 +457,7 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "MBTI 準嗎",
     secondaryKeywords: ["MBTI 準確度", "MBTI 不準", "MBTI 科學嗎"],
     title: "MBTI 準嗎？準確度、限制與自我理解怎麼看",
-    description: "MBTI 會讓人覺得準，常是因為它描述偏好模式；但偏好不等於固定人格，也不等於心理診斷，結果仍要放回情境理解。",
+    description: "MBTI 會讓人覺得準，常是因為它描述偏好模式；但偏好不等於固定人格，也不等於專業評估，結果仍要放回情境理解。",
     answer: "MBTI 可作為理解偏好的語言，但不適合當成絕對人格判定。",
     tags: ["人格測驗", "準確度", "公開文章邊界"],
   },
@@ -655,8 +655,8 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "財帛宮是什麼",
     secondaryKeywords: ["紫微財帛宮", "財帛宮財運", "財帛宮代表什麼"],
     title: "財帛宮是什麼？財富和資源節奏可以怎麼看",
-    description: "財帛宮可用來理解資源、金錢觀與財富節奏，但公開文章不提供投資建議，也不承諾財運。",
-    answer: "財帛宮常被用來看資源與金錢傾向；它不是投資建議，也不能承諾某個人會賺錢。",
+    description: "財帛宮可用來理解資源、金錢觀與財富節奏，但不提供投資判斷，也不承諾財運。",
+    answer: "財帛宮常被用來看資源與金錢傾向；它不是投資判斷，也不能承諾某個人會賺錢。",
     tags: ["紫微斗數", "財帛宮", "財富"],
   },
   {
@@ -743,8 +743,8 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "財富運勢",
     secondaryKeywords: ["財運", "金錢運勢", "財富命盤", "財富塔羅"],
     title: "財富運勢怎麼看？金錢焦慮、資源節奏與風險感",
-    description: "財富運勢文章可以整理資源節奏與金錢焦慮，但不得提供投資建議、報酬承諾或發財承諾。",
-    answer: "財富運勢適合用來理解金錢觀、資源節奏和風險感；它不是投資建議，也不能承諾財富結果。",
+    description: "財富運勢文章可以整理資源節奏與金錢焦慮，但不得提供投資判斷、報酬承諾或發財承諾。",
+    answer: "財富運勢適合用來理解金錢觀、資源節奏和風險感；它不是投資判斷，也不能承諾財富結果。",
     tags: ["財富", "財運", "金錢觀", "風險"],
   },
   {
@@ -941,7 +941,7 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "金錢焦慮",
     secondaryKeywords: ["財富運勢", "存不住錢", "財富安全感", "金錢觀"],
     title: "金錢焦慮從哪裡來？先分清收入、支出與安全感",
-    description: "金錢焦慮未必只是收入問題，也可能和安全感、風險感、家庭經驗或資源節奏有關；本文不提供投資建議。",
+    description: "金錢焦慮未必只是收入問題，也可能和安全感、風險感、家庭經驗或資源節奏有關；本文不提供投資判斷。",
     answer: "金錢焦慮要分成收入壓力、支出失控、風險感太高，以及把安全感全放在錢上。",
     tags: ["財富", "金錢焦慮", "財富運勢", "安全感", "命盤"],
     faq: [
@@ -1069,7 +1069,7 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "存不住錢",
     secondaryKeywords: ["金錢焦慮", "花錢模式", "財富安全感", "財富運勢"],
     title: "存不住錢怎麼辦？先看花錢模式與安全感",
-    description: "存不住錢不只是不夠自律，也可能和壓力、補償心理、收入結構和安全感有關；本文不提供投資建議。",
+    description: "存不住錢不只是不夠自律，也可能和壓力、補償心理、收入結構和安全感有關；本文不提供投資判斷。",
     answer: "存不住錢要分清楚收入不足、支出結構、情緒消費和安全感需求，不要只怪自己。",
     tags: ["財富", "存錢", "金錢焦慮", "花錢模式", "人格"],
     faq: [
@@ -1421,7 +1421,7 @@ export const ARTICLE_REGISTRY = [
     primaryKeyword: "INTP 是什麼",
     secondaryKeywords: ["INTP 感情", "INTP 工作", "INTP 人際"],
     title: "INTP 是什麼？感情、工作與想太多怎麼看",
-    description: "INTP 常被連到分析、好奇、想太多與距離感；本文整理感情、工作與人際情境，也說明人格類型不能當診斷。",
+    description: "INTP 常被連到分析、好奇、想太多與距離感；本文整理感情、工作與人際情境，也說明人格類型不能當專業評估。",
     answer: "INTP 重視理解和邏輯，但不代表沒有感受，只是需要時間整理想法，也要回到實際情境。",
     tags: ["INTP", "16 型人格", "感情", "工作", "人際"],
     faq: [
