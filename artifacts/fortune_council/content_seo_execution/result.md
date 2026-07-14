@@ -19,6 +19,7 @@
 `VOICE-REPAIR-SCALE-44` 已完成本機修復驗證：44 篇塔羅正文移除跨文章共用完整句型，正文保留牌面核心、感情/工作情境與限制；完整句型重複門檻為 0，證據在 `evidence/legacy_voice_scale_44_repair_001/`。
 `ARTICLE-UPDATE-DATE-20260714` 已完成本機同步：94 篇實際改稿文章的 SSR、prerender shell、JSON-LD、`article:modified_time` 與可見更新時間已壓至 `2026-07-14`；未改稿文章維持 `2026-07-12`。證據在 `evidence/article_update_date_20260714.md`。
 `ENGINE-TEST-DEPENDENCY-20260714` 已完成：補記 `pnpm install --frozen-lockfile` 為 Node bridge 測試前置條件；安裝 `iztro@2.5.8` 後完整測試恢復為 80 passed。
+`BROWSER-ACCEPTANCE-ARTICLE-20260714` 已完成：文章頁桌機/手機無水平溢出，console 0 error，所有文章資產與 favicon 200，更新時間與新 cache query 實際出現在 runtime DOM；證據在 `evidence/browser_acceptance_article_20260714.md`。
 
 本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 

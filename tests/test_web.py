@@ -347,6 +347,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "href=\"https://schema.org/Article\"" in response.text
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
+        assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
         assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
         assert "/static/article.js?v=article-voice-20260714-2" in response.text
 
