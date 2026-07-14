@@ -14,6 +14,19 @@ WEB_DIR = Path(__file__).parent / "app" / "web"
 SITE_ORIGIN = "https://mysticpantheon.com"
 ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
+ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
+UPDATED_ARTICLE_PATHS = {
+    *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(9, 77)),
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(9, 21)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(7, 10)),
+    *(f"/articles/love/love-{serial:04d}" for serial in range(2, 5)),
+    *(f"/articles/career/career-{serial:04d}" for serial in range(2, 5)),
+    "/articles/astrology/astrology-0005",
+    "/articles/interpersonal/interpersonal-0002",
+    "/articles/wealth/wealth-0002",
+    "/articles/wealth/wealth-0003",
+    "/articles/life-direction/life-direction-0002",
+}
 
 PRODUCT_META = {
     "fortune": ("命盤文章", "Pantheon 命盤文章，整理八字、紫微斗數、命宮、財帛宮與人生節奏主題。"),
@@ -56,6 +69,10 @@ def product_label(product: str) -> str:
     return PRODUCT_META.get(product, ("最新文章", ""))[0]
 
 
+def article_updated_date(path: str) -> str:
+    return ARTICLE_CONTENT_REFRESH_DATE if path in UPDATED_ARTICLE_PATHS else ARTICLE_UPDATED_DATE
+
+
 def raw_article_meta(path: str) -> dict[str, str]:
     if path in RAW_ARTICLE_META:
         title, description = RAW_ARTICLE_META[path]
@@ -83,6 +100,8 @@ def raw_article_meta(path: str) -> dict[str, str]:
         "product": product,
         "product_label": product_label(product),
         "content_type": content_type,
+        "published": ARTICLE_PUBLISHED_DATE,
+        "updated": article_updated_date(path),
     }
 
 
@@ -164,8 +183,8 @@ def build_raw_jsonld(meta: dict[str, str]) -> tuple[dict, dict, dict]:
             "url": meta["canonical"],
             "mainEntityOfPage": meta["canonical"],
             "image": f"{SITE_ORIGIN}/static/pantheon-orb-alpha-poster.webp",
-            "datePublished": ARTICLE_PUBLISHED_DATE,
-            "dateModified": ARTICLE_UPDATED_DATE,
+            "datePublished": meta.get("published", ARTICLE_PUBLISHED_DATE),
+            "dateModified": meta.get("updated", ARTICLE_UPDATED_DATE),
             "author": {"@type": "Organization", "name": "Pantheon 編輯部"},
             "publisher": organization_ref,
             "isPartOf": website_ref,
@@ -214,12 +233,14 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     page_title = html.escape(meta["page_title"], quote=False)
     description = meta["description"]
     canonical = html.escape(meta["canonical"], quote=True)
+    updated = meta.get("updated", ARTICLE_UPDATED_DATE)
     main_jsonld, breadcrumb_jsonld, faq_jsonld = build_raw_jsonld(meta)
     markup = re.sub(r"<title>.*?</title>", f"<title>{page_title}</title>", markup, count=1)
     markup = replace_meta_content(markup, "name", "description", description)
     markup = replace_meta_content(markup, "property", "og:title", meta["page_title"])
     markup = replace_meta_content(markup, "property", "og:description", description)
     markup = replace_meta_content(markup, "property", "og:url", meta["canonical"])
+    markup = replace_meta_content(markup, "property", "article:modified_time", updated)
     markup = replace_meta_content(markup, "name", "twitter:title", meta["page_title"])
     markup = replace_meta_content(markup, "name", "twitter:description", description)
     markup = re.sub(r'(<link rel="canonical" href=")[^"]+(")', rf"\g<1>{canonical}\2", markup, count=1)
@@ -245,6 +266,12 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
         flags=re.S,
     )
     markup = re.sub(r"(<h1 data-article-title>).*?(</h1>)", rf"\g<1>{page_title.replace(' | Pantheon', '')}\2", markup, count=1, flags=re.S)
+    markup = re.sub(
+        r'(<time datetime=")[^"]+(" data-article-updated>)[^<]*(</time>)',
+        rf"\g<1>{html.escape(updated, quote=True)}\g<2>{html.escape(updated, quote=False)}\g<3>",
+        markup,
+        count=1,
+    )
     markup = re.sub(
         r"(<p class=\"article-section-description\" data-section-description>).*?(</p>)",
         rf"\g<1>{html.escape(description, quote=False)}\2",

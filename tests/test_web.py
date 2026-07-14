@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import subprocess
 
-from main import RAW_ARTICLE_META, app
+from main import ARTICLE_CONTENT_REFRESH_DATE, ARTICLE_UPDATED_DATE, RAW_ARTICLE_META, UPDATED_ARTICLE_PATHS, app
 from scripts.competitor_seo_tool import endpoint_label
 from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
 
@@ -348,7 +348,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
-        assert "/static/article.js?v=article-voice-20260713-3" in response.text
+        assert "/static/article.js?v=article-voice-20260714-1" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -381,6 +381,21 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
 def test_raw_article_descriptions_meet_citability_length_gate() -> None:
     for path, (_title, description) in RAW_ARTICLE_META.items():
         assert 50 <= len(description) <= 160, path
+
+
+def test_content_refresh_articles_expose_current_update_date() -> None:
+    client = TestClient(app)
+    assert len(UPDATED_ARTICLE_PATHS) == 94
+    for path in UPDATED_ARTICLE_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_CONTENT_REFRESH_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_CONTENT_REFRESH_DATE}"' in response.text, path
+        assert f'<time datetime="{ARTICLE_CONTENT_REFRESH_DATE}" data-article-updated>{ARTICLE_CONTENT_REFRESH_DATE}</time>' in response.text, path
+
+    unchanged = client.get("/articles/tarot/tarot-0001")
+    assert f'property="article:modified_time" content="{ARTICLE_UPDATED_DATE}"' in unchanged.text
+    assert f'"dateModified":"{ARTICLE_UPDATED_DATE}"' in unchanged.text
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
@@ -570,7 +585,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
     assert 'href="static/styles.css?v=article-hub-visible-links-20260713-1"' in article_html
-    assert 'src="static/article.js?v=article-voice-20260713-3"' in article_html
+    assert 'src="static/article.js?v=article-voice-20260714-1"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html

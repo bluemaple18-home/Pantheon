@@ -7,7 +7,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, render_article_shell_from_meta  # noqa: E402
+from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, article_updated_date, render_article_shell_from_meta  # noqa: E402
 
 
 WEB_DIR = Path("app/web")
@@ -199,6 +199,8 @@ def build_prerender_articles() -> list[dict[str, str]]:
                 "product_label": record["productLabel"],
                 "product_hub": record["productHub"],
                 "content_type": record["contentType"],
+                "published": ARTICLE_PUBLISHED_DATE,
+                "updated": article_updated_date(route),
             }
         )
     for article in articles:

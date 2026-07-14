@@ -11,9 +11,9 @@ import {
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
 } from "./article-registry.js?v=article-content-20260711-25";
-import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260711-25";
-import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260711-25";
-import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260711-25";
+import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
+import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
+import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-1";
 
 const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
 const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
