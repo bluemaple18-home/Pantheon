@@ -7,6 +7,7 @@
 ```bash
 uv venv
 uv pip install -e ".[dev]"
+pnpm install --frozen-lockfile
 uvicorn main:app --host 0.0.0.0 --port 8877 --reload
 ```
 
@@ -15,6 +16,8 @@ uvicorn main:app --host 0.0.0.0 --port 8877 --reload
 ```bash
 uv run pytest
 ```
+
+紫微正式 provider `iztro` 由 Node bridge 提供；第一次建立 worktree 或清除 `node_modules` 後，必須先執行 `pnpm install --frozen-lockfile`，否則程式會按設計退回 Python fallback，provider 測試不會通過。
 
 ## 部署 Workflow
 

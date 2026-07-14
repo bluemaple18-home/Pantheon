@@ -16,7 +16,9 @@
 `VOICE-RESEARCH-V2` 已完成：重新分析既有 Click108 近兩年爬蟲資料，確認 Pantheon 生硬主因是固定句型與抽象動詞過密；新規範與證據在 `evidence/click108_voice_research_v2.md`。
 `VOICE-PILOT-TAROT-44` 已完成本機驗證：44 篇塔羅小牌輸出依牌組加入生活場景與具體動詞，未改版面；文章腳本快取升至 `article-voice-20260713-3`。
 `VOICE-REPAIR-NEXT-30` 已完成本機修復驗證：移除候選版本批量固定句型，30 篇正文通過同批句型頻率、空段落與 web 回歸測試；證據在 `evidence/legacy_voice_next_30_repair_001/`。
+`VOICE-REPAIR-SCALE-44` 已完成本機修復驗證：44 篇塔羅正文移除跨文章共用完整句型，正文保留牌面核心、感情/工作情境與限制；完整句型重複門檻為 0，證據在 `evidence/legacy_voice_scale_44_repair_001/`。
 `ARTICLE-UPDATE-DATE-20260714` 已完成本機同步：94 篇實際改稿文章的 SSR、prerender shell、JSON-LD、`article:modified_time` 與可見更新時間已壓至 `2026-07-14`；未改稿文章維持 `2026-07-12`。證據在 `evidence/article_update_date_20260714.md`。
+`ENGINE-TEST-DEPENDENCY-20260714` 已完成：補記 `pnpm install --frozen-lockfile` 為 Node bridge 測試前置條件；安裝 `iztro@2.5.8` 後完整測試恢復為 80 passed。
 
 本檔承接撰文計劃與內容規格；截至 `NEXT-30-PUBLISH`，新 30 篇已進前台文章資料與 sitemap，但不代表已部署到正式環境。
 

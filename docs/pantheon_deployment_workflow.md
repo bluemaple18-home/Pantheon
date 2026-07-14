@@ -105,6 +105,14 @@ PUBLIC_TOPIC_MIN_ARTICLES = 10
 
 ## 6. 必跑測試
 
+若本次涉及 API、算力或 `services/` Node bridge，先安裝 lockfile 指定的 Node 依賴：
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+`services/ziwei/iztro_chart.mjs` 需要 `iztro`；缺少依賴時會依設計回退到 `pantheon_ziwei`，這不算正式 provider 驗收通過。
+
 一般部署：
 
 ```bash

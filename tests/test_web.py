@@ -348,7 +348,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
-        assert "/static/article.js?v=article-voice-20260714-1" in response.text
+        assert "/static/article.js?v=article-voice-20260714-2" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -585,7 +585,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
     assert 'href="static/styles.css?v=article-hub-visible-links-20260713-1"' in article_html
-    assert 'src="static/article.js?v=article-voice-20260714-1"' in article_html
+    assert 'src="static/article.js?v=article-voice-20260714-2"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -958,6 +958,52 @@ console.log(JSON.stringify({
     assert data["repeated"] == []
     assert data["forbiddenTemplates"] == []
     assert data["minChars"] >= 400
+
+
+def test_scale_44_voice_does_not_share_full_sentence_templates() -> None:
+    script = """
+import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-scale-44.js";
+
+const paragraphs = Object.values(SCALE_44_ARTICLE_BODY_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }
+}
+const repeated = [...sentenceCounts.entries()]
+  .filter(([, count]) => count > 3)
+  .map(([sentence, count]) => ({ sentence, count }));
+const forbiddenTemplates = [
+  "它比較像把當下狀態照亮",
+  "正位不等於好消息",
+  "它不只是反過來變壞",
+  "如果逆位讓你覺得不安",
+  "比較實際的讀法，是把牌義拆成三個問題",
+  "公開文章只能整理通用牌義",
+  "如果你正在焦慮，先把牌義當成整理問題的工具",
+];
+console.log(JSON.stringify({
+  articleCount: Object.keys(SCALE_44_ARTICLE_BODY_LIBRARY).length,
+  emptyParagraphs: paragraphs.filter((paragraph) => !paragraph.trim()).length,
+  repeated,
+  forbiddenTemplates: forbiddenTemplates.filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  minChars: Math.min(...Object.values(SCALE_44_ARTICLE_BODY_LIBRARY).map((sections) => sections.flatMap((section) => section.paragraphs).join("").length)),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["articleCount"] == 44
+    assert data["emptyParagraphs"] == 0
+    assert data["repeated"] == []
+    assert data["forbiddenTemplates"] == []
+    assert data["minChars"] >= 700
 
 
 def test_public_generated_text_does_not_leak_internal_entry_language() -> None:
