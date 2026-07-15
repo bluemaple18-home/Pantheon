@@ -79,6 +79,10 @@ function renderArticleChrome(content) {
 
   dom.sectionDescription.textContent = content.sectionDescription;
   dom.answerText.textContent = content.answer;
+  if (dom.articleUpdated && content.updated) {
+    dom.articleUpdated.dateTime = content.updated;
+    dom.articleUpdated.textContent = content.updated;
+  }
   dom.productThemeLabel.textContent = content.productThemeLabel;
   dom.productThemeGlyph.textContent = content.productThemeGlyph;
   dom.productThemeDescription.textContent = content.productThemeDescription;
