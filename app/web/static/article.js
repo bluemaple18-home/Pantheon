@@ -43,7 +43,6 @@ const dom = {
 
 const content = buildArticleContent(window.location.pathname, window.location.origin, {
   author: dom.articleAuthor?.textContent?.trim(),
-  updated: dom.articleUpdated?.dateTime,
 });
 
 if (content.redirectTo) {
