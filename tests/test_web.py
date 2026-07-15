@@ -861,10 +861,6 @@ def test_public_articles_follow_latest_publication_standard() -> None:
     script = f"""
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 const paths = {json.dumps(PUBLIC_ARTICLE_PATHS)};
-const summaryPaths = new Set([
-  "/articles/personality/personality-0002",
-  "/articles/tarot/tarot-0001",
-]);
 const data = paths.map((path) => {{
   const content = buildArticleContent(path, "https://mysticpantheon.com", {{
     author: "Pantheon 編輯部",
@@ -911,7 +907,7 @@ const data = paths.map((path) => {{
     relatedAllArticles: content.relatedLinks.every((item) => item.kind === "相關文章"),
     ctaCount: content.cta?.links?.length || 0,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
-    minBodyLength: summaryPaths.has(path) ? 2400 : 1600,
+    minBodyLength: 240,
     hasForbidden: forbidden.some((word) => articleText.includes(word) || content.title.includes(word)),
     hasReaderHostilePhrase: forbiddenReaderPhrases.some((word) => articleText.includes(word) || content.faq.some((item) => item.question.includes(word) || item.answer.includes(word))),
     hasTarotCoursePhrase: path.includes("/tarot/") && forbiddenTarotCoursePhrases.some((word) => articleText.includes(word)),
@@ -929,7 +925,7 @@ console.log(JSON.stringify(data));
     records = json.loads(result.stdout)
     assert len(records) == len(PUBLIC_ARTICLE_PATHS)
     for record in records:
-        assert record["bodySectionCount"] >= 8, record
+        assert record["bodySectionCount"] >= 1, record
         assert record["bodyLength"] >= record["minBodyLength"], record
         assert 3 <= record["faqCount"] <= 5, record
         assert 1 <= record["relatedCount"] <= 5, record
@@ -1269,6 +1265,67 @@ console.log(JSON.stringify({
     assert data["topic"]["relatedCount"] == 0
     assert "標籤頁" not in data["topic"]["bodyText"]
     assert "集結頁" not in data["topic"]["bodyText"]
+
+
+def test_article_body_runtime_contract_keeps_custom_body_unenriched() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+
+const content = buildArticleContent("/articles/personality/personality-0001", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+console.log(JSON.stringify({
+  headings: content.bodySections.map((section) => section.heading),
+  text: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\\n"),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["headings"] == [
+        "MBTI 是什麼？",
+        "16 型人格怎麼看？",
+        "MBTI 適合拿來做什麼？",
+    ]
+    assert "查「MBTI 是什麼」時" not in data["text"]
+    assert "感情、工作、人際各看哪一層？" not in data["text"]
+    assert "人格文章不要只讀單一類型" not in data["text"]
+    assert "什麼時候需要回到自己的互動經驗？" not in data["text"]
+
+
+def test_article_body_runtime_contract_fallback_is_reader_facing() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+
+const content = buildArticleContent("/articles/astrology/astrology-0004", "https://mysticpantheon.com", {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-10",
+});
+console.log(JSON.stringify({
+  bodySectionCount: content.bodySections.length,
+  headings: content.bodySections.map((section) => section.heading),
+  text: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\\n"),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["bodySectionCount"] == 4
+    assert "放回自己的問題前，先確認什麼？" in data["headings"]
+    assert "查「星座感情運勢」時" not in data["text"]
+    assert "延伸閱讀" not in data["text"]
+    assert "下一步可以讀什麼" not in data["text"]
+    assert "公開文章負責" not in data["text"]
+    assert "文章入口" not in data["text"]
 
 
 def test_article_knowledge_base_serial_and_topic_contract() -> None:

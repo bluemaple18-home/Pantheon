@@ -829,11 +829,10 @@ function buildProductHubReadingGuide(label, articleCount) {
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const customBody = ARTICLE_BODY_LIBRARY[article.slug];
-  if (customBody) return enrichArticleBody(article, productTheme, managedArticle, customBody);
+  if (customBody) return customBody;
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
-  const tagText = (article.originalTags?.length ? article.originalTags : managedArticle.tags).slice(0, 4).join("、");
-  return enrichArticleBody(article, productTheme, managedArticle, [
+  return [
     {
       heading: buildDefinitionHeading(primary),
       paragraphs: [
@@ -846,19 +845,17 @@ function buildArticleBody(article, productTheme, managedArticle) {
       heading: "常見誤解",
       paragraphs: [
         buildMisunderstandingParagraph(article, productTheme),
-        "公開文章可以幫你釐清語言與邏輯，但不應把單一名詞、牌義、宮位、星座或人格類型直接變成個人結論。",
+        "比較穩的讀法，是先看這個概念能整理哪一層問題，再確認它不能代表什麼。不要把單一名詞、牌義、宮位、星座或人格類型直接變成個人結論。",
       ],
     },
     {
-      heading: "下一步可以讀什麼？",
+      heading: "放回自己的問題前，先確認什麼？",
       paragraphs: [
-        tagText
-          ? `你可以沿著 ${tagText} 這幾個主題繼續閱讀，先把相關概念串起來。`
-          : `你可以沿著 ${productTheme.label} 的其他文章繼續閱讀，先把相關概念串起來。`,
-        "如果你要的是個人化判斷，文章只能當作背景知識；真正套用到個人情境時，仍需要明確問題、資料與限制。",
+        `如果你想把 ${primary} 放回自己的狀況，先把問題縮小成一句具體描述：你在問感情互動、工作選擇、人際界線、金錢壓力，還是人生方向？`,
+        "問題越清楚，這個概念越容易變成整理角度；問題太大時，它只會變成模糊標籤，無法替你判斷實際結果。",
       ],
     },
-  ]);
+  ];
 }
 
 function enrichArticleBody(article, productTheme, managedArticle, customBody) {
