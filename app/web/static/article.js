@@ -298,8 +298,22 @@ function renderArticleFaq(content) {
 
 function renderArticleNavigation(content) {
   if (!dom.articleNavigation) return;
-  dom.articleNavigation.hidden = true;
-  dom.articleNavigation.replaceChildren();
+  const navigationLinks = content.navigationLinks || [];
+  if (!navigationLinks.length) {
+    dom.articleNavigation.hidden = true;
+    dom.articleNavigation.replaceChildren();
+    return;
+  }
+  const previous = navigationLinks.find((item) => item.kind === "上一篇");
+  const next = navigationLinks.find((item) => item.kind === "下一篇");
+  const actions = document.createElement("div");
+  actions.className = "article-sequence-actions";
+  actions.append(
+    renderSequenceButton(previous, "previous"),
+    renderSequenceButton(next, "next"),
+  );
+  dom.articleNavigation.hidden = false;
+  dom.articleNavigation.replaceChildren(actions);
 }
 
 function renderSequenceButton(item, direction) {
@@ -352,7 +366,6 @@ function buildVisibleRelatedLinks(content) {
     });
   };
 
-  (content.navigationLinks || []).forEach(addLink);
   addLink({
     href: content.productHref,
     label: `回到${content.productThemeLabel || content.productCrumbLabel || "分類"}文章`,

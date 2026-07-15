@@ -658,7 +658,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "content.productHref" in article_js
     assert "回到${content.productThemeLabel || content.productCrumbLabel || \"分類\"}文章" in article_js
     assert "links.slice(0, VISIBLE_RELATED_MAX_LINKS)" in article_js
-    assert article_js.index("(content.navigationLinks || []).forEach(addLink)") < article_js.index("href: content.productHref")
+    assert "const navigationLinks = content.navigationLinks || [];" in article_js
+    assert "(content.navigationLinks || []).forEach(addLink)" not in article_js
     assert article_js.index("href: content.productHref") < article_js.index("(content.relatedLinks || []).forEach(addLink)")
     assert "article-sequence-button-${direction}" in article_js
     assert "\"← 上一篇\"" in article_js
