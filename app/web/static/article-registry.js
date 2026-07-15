@@ -159,22 +159,22 @@ export const PRODUCT_THEME_REGISTRY = {
   fortune: {
     label: "命盤",
     glyph: "命",
-    description: "承接命書、八字、紫微與人生深題的暗金高信任視覺。",
+    description: "整理八字、紫微與命盤概念，說明觀察層次與資料限制。",
   },
   personality: {
     label: "人格",
-    glyph: "64",
-    description: "承接 64 分支人格的矩陣、進度與身份標籤視覺。",
+    glyph: "人",
+    description: "整理 MBTI 與人格偏好，說明互動模式與不能代表什麼。",
   },
   tarot: {
     label: "塔羅",
     glyph: "XVII",
-    description: "承接塔羅日常儀式、牌陣與光門視覺。",
+    description: "整理塔羅牌義、正逆位與情境提醒，保留提問限制。",
   },
   astro: {
     label: "星座",
     glyph: "星",
-    description: "承接星場、軌道與星盤關聯視覺。",
+    description: "整理星盤、太陽、月亮與上升星座，避免單點定論。",
   },
 };
 
@@ -318,8 +318,8 @@ export const ARTICLE_SECTION_REGISTRY = {
     product: "personality",
     intent: "",
     label: "人格",
-    description: "整理 MBTI、16 型人格與 Pantheon 64 分支人格文章，說明能看什麼與不能代表什麼。",
-    seoDescription: "Pantheon 人格文章主頁，整理 MBTI 是什麼、16 型人格與 64 分支人格解析。",
+    description: "整理 MBTI 與 16 型人格文章，說明互動偏好、適用情境與不能代表什麼。",
+    seoDescription: "Pantheon 人格文章主頁，整理 MBTI 是什麼、16 型人格與人格偏好解析。",
     primaryKeyword: "MBTI 人格",
     requiredTags: ["MBTI", "16 型人格", "64 分支人格"],
   },
