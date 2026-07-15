@@ -1319,8 +1319,9 @@ console.log(JSON.stringify({
         text=True,
     )
     data = json.loads(result.stdout)
-    assert data["bodySectionCount"] == 4
-    assert "放回自己的問題前，先確認什麼？" in data["headings"]
+    assert data["bodySectionCount"] == 5
+    assert "星座感情運勢怎麼看？先看你正在卡在哪裡" in data["headings"]
+    assert "曖昧、復合、穩定關係要問不同問題" in data["headings"]
     assert "查「星座感情運勢」時" not in data["text"]
     assert "延伸閱讀" not in data["text"]
     assert "下一步可以讀什麼" not in data["text"]
