@@ -231,7 +231,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
-    assert "/static/styles.css?v=articles-hub-20260711-mobile-motion-1" in response.text
+    assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
     assert "/static/articles.js?v=articles-hub-20260711-content-3" in response.text
     assert "id=\"birth-form\"" not in response.text
 
@@ -349,7 +349,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
-        assert "/static/styles.css?v=article-hub-visible-links-20260713-1" in response.text
+        assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
         assert "/static/article.js?v=article-voice-20260714-4" in response.text
 
 
@@ -616,7 +616,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-hub-visible-links" in article_html
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
-    assert 'href="static/styles.css?v=article-hub-visible-links-20260713-1"' in article_html
+    assert 'href="static/styles.css?v=product-gradients-20260715-2"' in article_html
     assert 'src="static/article.js?v=article-voice-20260714-4"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html

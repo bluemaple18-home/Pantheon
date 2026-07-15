@@ -229,6 +229,9 @@ a.ui-chip:hover {
   --article-accent: var(--jade);
   --article-accent-soft: var(--jade-faint);
   --article-accent-rgb: 18, 107, 96;
+  --article-gradient-primary-rgb: var(--article-accent-rgb);
+  --article-gradient-secondary-rgb: 185, 134, 36;
+  --article-gradient-tertiary-rgb: 18, 107, 96;
   --article-visual-bg: rgba(255, 255, 255, 0.58);
   --article-page-bg: #f8f6ef;
   --article-text: var(--ink);
@@ -245,6 +248,9 @@ a.ui-chip:hover {
   --article-accent: var(--cinnabar);
   --article-accent-soft: rgba(174, 70, 53, 0.15);
   --article-accent-rgb: 174, 70, 53;
+  --article-gradient-primary-rgb: 174, 70, 53;
+  --article-gradient-secondary-rgb: 185, 134, 36;
+  --article-gradient-tertiary-rgb: 49, 57, 102;
   --article-page-bg:
     linear-gradient(90deg, rgba(174, 70, 53, 0.1) 1px, transparent 1px) 0 0 / 40px 100%,
     linear-gradient(180deg, rgba(174, 70, 53, 0.11), transparent 42%),
@@ -265,6 +271,9 @@ a.ui-chip:hover {
   --article-accent: #b98624;
   --article-accent-soft: rgba(185, 134, 36, 0.14);
   --article-accent-rgb: 185, 134, 36;
+  --article-gradient-primary-rgb: 185, 134, 36;
+  --article-gradient-secondary-rgb: 18, 107, 96;
+  --article-gradient-tertiary-rgb: 61, 74, 112;
   --article-page-bg:
     radial-gradient(circle at 18% 8%, rgba(185, 134, 36, 0.18), transparent 30%),
     linear-gradient(180deg, #121722 0%, #0d111c 78%, #0a0d15 100%);
@@ -284,6 +293,9 @@ a.ui-chip:hover {
   --article-accent: #8066b0;
   --article-accent-soft: rgba(128, 102, 176, 0.16);
   --article-accent-rgb: 128, 102, 176;
+  --article-gradient-primary-rgb: 128, 102, 176;
+  --article-gradient-secondary-rgb: 174, 70, 53;
+  --article-gradient-tertiary-rgb: 185, 134, 36;
   --article-page-bg:
     repeating-linear-gradient(135deg, rgba(128, 102, 176, 0.1) 0 1px, transparent 1px 18px),
     linear-gradient(180deg, rgba(128, 102, 176, 0.12), transparent 48%),
@@ -304,6 +316,9 @@ a.ui-chip:hover {
   --article-accent: #126b60;
   --article-accent-soft: rgba(18, 107, 96, 0.16);
   --article-accent-rgb: 18, 107, 96;
+  --article-gradient-primary-rgb: 18, 107, 96;
+  --article-gradient-secondary-rgb: 55, 91, 145;
+  --article-gradient-tertiary-rgb: 185, 134, 36;
   --article-page-bg:
     radial-gradient(circle at 22% 16%, rgba(18, 107, 96, 0.2) 0 2px, transparent 3px),
     radial-gradient(circle at 72% 28%, rgba(185, 134, 36, 0.16) 0 2px, transparent 3px),
@@ -431,12 +446,30 @@ a.ui-chip:hover {
 }
 
 .article-page-header {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 760px) minmax(240px, 320px);
   gap: 32px;
   align-items: stretch;
   max-width: 100%;
+}
+
+.article-page-header::before {
+  position: absolute;
+  inset: -20px;
+  z-index: -1;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 18% 26%, rgba(var(--article-gradient-primary-rgb), 0.34), transparent 38%),
+    radial-gradient(circle at 76% 18%, rgba(var(--article-gradient-secondary-rgb), 0.24), transparent 34%),
+    radial-gradient(circle at 58% 88%, rgba(var(--article-gradient-tertiary-rgb), 0.2), transparent 38%);
+  content: "";
+  pointer-events: none;
+  transform: translate3d(-1.5%, -1%, 0) scale(1.02);
+  animation: articleHeroGradientDrift 18s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 .article-page-header h1 {
@@ -515,13 +548,41 @@ a.ui-chip:hover {
 
 .article-theme-visual i {
   position: absolute;
-  inset: 50%;
-  width: 180px;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  border: 1px solid rgba(var(--article-accent-rgb), 0.16);
-  border-radius: 50%;
+  inset: -42%;
+  border-radius: 42%;
+  background:
+    radial-gradient(circle at 24% 28%, rgba(var(--article-gradient-primary-rgb), 0.68), transparent 34%),
+    radial-gradient(circle at 74% 34%, rgba(var(--article-gradient-secondary-rgb), 0.52), transparent 31%),
+    radial-gradient(circle at 52% 78%, rgba(var(--article-gradient-tertiary-rgb), 0.48), transparent 36%);
+  opacity: 0.88;
   pointer-events: none;
+  transform: translate3d(-2%, -1%, 0) rotate(-7deg) scale(1.02);
+  animation: articleProductGradientDrift 16s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes articleHeroGradientDrift {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(1.5%, 1%, 0) scale(1.06);
+  }
+}
+
+@keyframes articleProductGradientDrift {
+  0% {
+    transform: translate3d(-3%, -2%, 0) rotate(-7deg) scale(1.02);
+  }
+
+  52% {
+    transform: translate3d(3%, 1%, 0) rotate(3deg) scale(1.08);
+  }
+
+  100% {
+    transform: translate3d(-1%, 4%, 0) rotate(8deg) scale(1.04);
+  }
 }
 
 .article-meta {
@@ -4597,6 +4658,8 @@ select:focus {
 .content-hub-grid a {
   --home-theme-accent: #ae4635;
   --home-theme-rgb: 174, 70, 53;
+  --home-gradient-secondary-rgb: 185, 134, 36;
+  --home-gradient-tertiary-rgb: 49, 57, 102;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -4614,6 +4677,8 @@ select:focus {
 }
 
 .content-hub-grid a em {
+  position: relative;
+  z-index: 1;
   grid-row: span 2;
   display: inline-grid;
   width: 38px;
@@ -4633,13 +4698,67 @@ select:focus {
 }
 
 .content-hub-grid a span {
+  position: relative;
+  z-index: 1;
   color: var(--home-theme-accent);
 }
 
 .content-hub-grid strong {
+  position: relative;
+  z-index: 1;
   color: #fff3cf;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.content-hub-grid a::after {
+  position: absolute;
+  inset: -65%;
+  border-radius: 42%;
+  background:
+    radial-gradient(circle at 22% 30%, rgba(var(--home-theme-rgb), 0.62), transparent 32%),
+    radial-gradient(circle at 76% 36%, rgba(var(--home-gradient-secondary-rgb), 0.44), transparent 30%),
+    radial-gradient(circle at 48% 76%, rgba(var(--home-gradient-tertiary-rgb), 0.4), transparent 34%);
+  content: "";
+  opacity: 0.72;
+  pointer-events: none;
+  transform: translate3d(-2%, -1%, 0) rotate(-5deg) scale(1.02);
+  animation: productHubGradientDrift 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.content-hub-grid a[data-product-theme="personality"] {
+  --home-gradient-secondary-rgb: 18, 107, 96;
+  --home-gradient-tertiary-rgb: 61, 74, 112;
+}
+
+.content-hub-grid a[data-product-theme="tarot"] {
+  --home-gradient-secondary-rgb: 174, 70, 53;
+  --home-gradient-tertiary-rgb: 185, 134, 36;
+}
+
+.content-hub-grid a[data-product-theme="astro"] {
+  --home-gradient-secondary-rgb: 55, 91, 145;
+  --home-gradient-tertiary-rgb: 185, 134, 36;
+}
+
+@keyframes productHubGradientDrift {
+  0% {
+    transform: translate3d(-3%, -2%, 0) rotate(-5deg) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(4%, 3%, 0) rotate(7deg) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-page-header::before,
+  .article-theme-visual i,
+  .content-hub-grid a::after {
+    animation: none;
+    transform: none;
+  }
 }
 
 .product-drawer {
