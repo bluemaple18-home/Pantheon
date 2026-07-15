@@ -1,0 +1,1348 @@
+{
+  "generated_at": "2026-07-12T05:40:57+00:00",
+  "base_url": "http://127.0.0.1:8799",
+  "site_name": "PantheonLocal",
+  "endpoints": {
+    "robots": {
+      "status": 200,
+      "content_type": "",
+      "bytes": 72,
+      "head": "User-agent: *\nAllow: /\nSitemap: https://mysticpantheon.com/sitemap.xml",
+      "body": "User-agent: *\nAllow: /\n\nSitemap: https://mysticpantheon.com/sitemap.xml\n",
+      "label": "present",
+      "validation": "http_200"
+    },
+    "sitemap": {
+      "status": 200,
+      "content_type": "",
+      "bytes": 12246,
+      "head": "https://mysticpantheon.com/articles \nhttps://mysticpantheon.com/articles/fortune \nhttps://mysticpantheon.com/articles/personality \nhttps://mysticpantheon.com/articles/tarot \nhttps://mysticpantheon.com/articles/astro \nhtt",
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url>\n    <loc>https://mysticpantheon.com/articles</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astro</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0005</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0006</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0007</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0008</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0005</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0006</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0007</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0008</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0009</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0010</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0011</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0005</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0006</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0007</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0008</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/fortune/fortune-0009</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astrology/astrology-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astrology/astrology-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astrology/astrology-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astrology/astrology-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/astrology/astrology-0005</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0009</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0010</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0011</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/love/love-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/love/love-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/love/love-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/love/love-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/career/career-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/career/career-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/career/career-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/career/career-0004</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/interpersonal/interpersonal-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/interpersonal/interpersonal-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/wealth/wealth-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/wealth/wealth-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/wealth/wealth-0003</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/life-direction/life-direction-0001</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/life-direction/life-direction-0002</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0012</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0013</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0014</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0015</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0016</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0017</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0018</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0019</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0020</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0021</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0022</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0023</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0024</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0025</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0026</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0027</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0028</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0029</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0030</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0031</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0032</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0012</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0013</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0014</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0015</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0016</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0017</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0018</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0019</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/personality/personality-0020</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0033</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0034</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0035</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0036</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0037</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0038</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0039</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0040</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0041</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0042</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0043</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0044</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0045</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0046</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0047</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0048</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0049</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0050</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0051</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0052</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0053</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0054</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0055</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0056</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0057</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0058</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0059</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0060</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0061</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0062</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0063</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0064</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0065</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0066</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0067</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0068</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0069</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0070</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0071</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0072</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0073</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0074</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0075</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/articles/tarot/tarot-0076</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/mbti</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/personality</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/tarot</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/upright</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/fortune</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/love</loc>\n  </url>\n  <url>\n    <loc>https://mysticpantheon.com/topics/career</loc>\n  </url>\n",
+      "label": "present",
+      "validation": "http_200"
+    },
+    "feed": {
+      "status": 200,
+      "content_type": "",
+      "bytes": 3186,
+      "head": "Pantheon 最新文章 \nhttps://mysticpantheon.com/articles \nPantheon 以繁體中文整理塔羅、人格、命盤、星座與人生方向文章。 \nzh-TW \nSun, 12 Jul 2026 00:00:00 +0800 \n塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 \nhttps://mysticpantheon.com/articles/tarot/tarot-0001 \nhttps://mys",
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n  <channel>\n    <title>Pantheon 最新文章</title>\n    <link>https://mysticpantheon.com/articles</link>\n    <description>Pantheon 以繁體中文整理塔羅、人格、命盤、星座與人生方向文章。</description>\n    <language>zh-TW</language>\n    <lastBuildDate>Sun, 12 Jul 2026 00:00:00 +0800</lastBuildDate>\n    <atom:link href=\"https://mysticpantheon.com/feed/\" rel=\"self\" type=\"application/rss+xml\" />\n    <item>\n      <title>塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看</title>\n      <link>https://mysticpantheon.com/articles/tarot/tarot-0001</link>\n      <guid isPermaLink=\"true\">https://mysticpantheon.com/articles/tarot/tarot-0001</guid>\n      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>\n      <category>塔羅</category>\n      <description>整理塔羅牌意思、正位逆位、感情與工作情境，並保留公開文章不能取代個人判讀的限制。</description>\n    </item>\n    <item>\n      <title>MBTI 是什麼？16 型人格、測驗與自我理解怎麼看</title>\n      <link>https://mysticpantheon.com/articles/personality/personality-0001</link>\n      <guid isPermaLink=\"true\">https://mysticpantheon.com/articles/personality/personality-0001</guid>\n      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>\n      <category>人格</category>\n      <description>說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境。</description>\n    </item>\n    <item>\n      <title>命盤是什麼？八字、紫微斗數和星盤差在哪</title>\n      <link>https://mysticpantheon.com/articles/fortune/fortune-0001</link>\n      <guid isPermaLink=\"true\">https://mysticpantheon.com/articles/fortune/fortune-0001</guid>\n      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>\n      <category>命盤</category>\n      <description>白話整理命盤、八字、紫微斗數與星盤的差異，避免把單一工具寫成完整個人結論。</description>\n    </item>\n    <item>\n      <title>人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼</title>\n      <link>https://mysticpantheon.com/articles/interpersonal/interpersonal-0001</link>\n      <guid isPermaLink=\"true\">https://mysticpantheon.com/articles/interpersonal/interpersonal-0001</guid>\n      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>\n      <category>人際</category>\n      <description>整理人際關係、互動界線與溝通模式，先釐清情境，再連到人格、命盤與塔羅脈絡。</description>\n    </item>\n    <item>\n      <title>人生方向迷惘怎麼辦？塔羅、人格與命盤能幫你整理什麼</title>\n      <link>https://mysticpantheon.com/articles/life-direction</link>\n      <guid isPermaLink=\"true\">https://mysticpantheon.com/articles/life-direction</guid>\n      <pubDate>Fri, 10 Jul 2026 00:00:00 +0800</pubDate>\n      <category>人生方向</category>\n      <description>人生方向迷惘時，先分清感情、事業、人際、財富或自我節奏哪裡最卡，再選擇適合的整理工具。</description>\n    </item>\n  </channel>\n</rss>\n",
+      "label": "present",
+      "validation": "http_200"
+    },
+    "llms_txt": {
+      "status": 200,
+      "content_type": "",
+      "bytes": 1086,
+      "head": "# Pantheon\nSite: https://mysticpantheon.com\nSummary: Pantheon publishes Traditional Chinese articles about tarot, personality, astrology, birth-chart concepts, relationships, career, interpersonal questions, wealth habit",
+      "body": "# Pantheon\n\nSite: https://mysticpantheon.com\nSummary: Pantheon publishes Traditional Chinese articles about tarot, personality, astrology, birth-chart concepts, relationships, career, interpersonal questions, wealth habits, and life direction.\nLanguage: zh-Hant-TW\n\nImportant pages:\n- https://mysticpantheon.com/articles\n- https://mysticpantheon.com/articles/tarot\n- https://mysticpantheon.com/articles/personality\n- https://mysticpantheon.com/articles/fortune\n- https://mysticpantheon.com/articles/astro\n- https://mysticpantheon.com/articles/interpersonal/interpersonal-0001\n- https://mysticpantheon.com/articles/life-direction\n\nContent scope:\n- Public articles explain common meanings, context, limitations, and reader questions.\n- Articles do not provide medical, legal, financial, or guaranteed personal outcomes.\n- Tarot, personality, astrology, and chart content should be cited as cultural, reflective, and educational context.\n\nCitation guidance:\n- Cite the canonical article URL.\n- Attribute the source as Pantheon.\n- Prefer short factual summaries over copying long passages.\n",
+      "label": "present",
+      "validation": "valid_llms_txt"
+    },
+    "ai_txt": {
+      "status": 200,
+      "content_type": "",
+      "bytes": 859,
+      "head": "# Pantheon AI Usage Policy\nSite: https://mysticpantheon.com\nPolicy: AI crawlers and answer engines may crawl, summarize, and cite Pantheon public article pages when attribution and canonical URLs are preserved.\nAllowed:\n",
+      "body": "# Pantheon AI Usage Policy\n\nSite: https://mysticpantheon.com\nPolicy: AI crawlers and answer engines may crawl, summarize, and cite Pantheon public article pages when attribution and canonical URLs are preserved.\n\nAllowed:\n- Use public article pages for search snippets, AI answers, and citation previews.\n- Quote short excerpts with attribution to Pantheon and the canonical URL.\n- Summarize article-level explanations, limitations, and FAQ answers.\n\nDisallowed:\n- Do not present Pantheon public articles as personal divination, medical, legal, investment, or guaranteed outcome advice.\n- Do not remove attribution when citing Pantheon content.\n- Do not use private user data; public article pages do not contain personal readings.\n\nAttribution:\n- Source name: Pantheon\n- Canonical hub: https://mysticpantheon.com/articles\n- Contact: hello@mysticpantheon.com\n",
+      "label": "present",
+      "validation": "valid_ai_txt"
+    }
+  },
+  "category_links": [],
+  "feed_items": [
+    {
+      "title": "塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看",
+      "link": "http://127.0.0.1:8799/articles/tarot/tarot-0001",
+      "pub_date": "Fri, 10 Jul 2026 00:00:00 +0800",
+      "categories": [
+        "塔羅"
+      ],
+      "description": "整理塔羅牌意思、正位逆位、感情與工作情境，並保留公開文章不能取代個人判讀的限制。",
+      "content_text": "",
+      "headings": [],
+      "paragraph_count": 0,
+      "char_count": 0
+    },
+    {
+      "title": "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看",
+      "link": "http://127.0.0.1:8799/articles/personality/personality-0001",
+      "pub_date": "Fri, 10 Jul 2026 00:00:00 +0800",
+      "categories": [
+        "人格"
+      ],
+      "description": "說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境。",
+      "content_text": "",
+      "headings": [],
+      "paragraph_count": 0,
+      "char_count": 0
+    },
+    {
+      "title": "命盤是什麼？八字、紫微斗數和星盤差在哪",
+      "link": "http://127.0.0.1:8799/articles/fortune/fortune-0001",
+      "pub_date": "Fri, 10 Jul 2026 00:00:00 +0800",
+      "categories": [
+        "命盤"
+      ],
+      "description": "白話整理命盤、八字、紫微斗數與星盤的差異，避免把單一工具寫成完整個人結論。",
+      "content_text": "",
+      "headings": [],
+      "paragraph_count": 0,
+      "char_count": 0
+    },
+    {
+      "title": "人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼",
+      "link": "http://127.0.0.1:8799/articles/interpersonal/interpersonal-0001",
+      "pub_date": "Fri, 10 Jul 2026 00:00:00 +0800",
+      "categories": [
+        "人際"
+      ],
+      "description": "整理人際關係、互動界線與溝通模式，先釐清情境，再連到人格、命盤與塔羅脈絡。",
+      "content_text": "",
+      "headings": [],
+      "paragraph_count": 0,
+      "char_count": 0
+    },
+    {
+      "title": "人生方向迷惘怎麼辦？塔羅、人格與命盤能幫你整理什麼",
+      "link": "http://127.0.0.1:8799/articles/life-direction",
+      "pub_date": "Fri, 10 Jul 2026 00:00:00 +0800",
+      "categories": [
+        "人生方向"
+      ],
+      "description": "人生方向迷惘時，先分清感情、事業、人際、財富或自我節奏哪裡最卡，再選擇適合的整理工具。",
+      "content_text": "",
+      "headings": [],
+      "paragraph_count": 0,
+      "char_count": 0
+    }
+  ],
+  "page_audits": [
+    {
+      "url": "http://127.0.0.1:8799",
+      "status": 200,
+      "error": "",
+      "title": "最新文章 | Pantheon",
+      "title_len": 15,
+      "description": "Pantheon 最新文章，白話整理 MBTI、16 型人格、塔羅牌意思、命盤、八字、紫微斗數、星盤與人生方向問題。",
+      "description_len": 58,
+      "canonical": "https://mysticpantheon.com/articles",
+      "viewport": "width=device-width, initial-scale=1",
+      "meta_robots": "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1",
+      "og_title": "最新文章 | Pantheon",
+      "og_description": "Pantheon 最新文章，整理命盤、人格、塔羅、星座與人生方向主題。",
+      "og_image": "https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp",
+      "twitter_card": "summary_large_image",
+      "visible_text": "最新文章 | Pantheon \nPantheon\n最新文章\n命盤 \n人格 \n塔羅 \n星座 \nPantheon \n/ \n最新文章 \n熱門問題\n感情、工作、人際卡住 \n先從你的問題開始 \n如果你正在想感情怎麼辦、工作要不要換、人際為什麼卡住，可以先用問題找文章。MBTI 是什麼、塔羅牌意思、命盤是什麼也會放回真實情境裡說清楚。\n曖昧沒進展 \n適合轉職嗎 \n存不住錢 \n先看哪個問題 \n復合前想清楚什麼 \n努力沒被看見 \n朋友關係變淡 \n感情不安全感 \n每篇先整理困擾、可檢查的線索與不能直接下結論的地方，不把工具名詞當成答案。\nLatest\n最新文章\n命 \n命盤 \n工作、財富與安全感卡住時怎麼整理 \n64 \n人格 \n相處很累、溝通不順與自我懷疑 \nXVII \n塔羅 \n曖昧、復合、等待與下一步怎麼辦 \n星 \n星座 \n情緒安全感、喜歡方式與關係需求 \n塔羅與人際補強 \n下一批讀者常查的牌義與人際題\n這一區整理 Click108 小樣本命中的塔羅與人際關係缺口，優先補到塔羅牌意思、人生方向與人際關係內鏈。\n人際關係 \n寶劍七 \n寶劍二 \n寶劍侍者 \n寶劍十 \n寶劍騎士 \n權杖三 \n權杖五 \n權杖八 \n權杖四 \n聖杯七 \n聖杯九 \n聖杯二 \n聖杯十 \n聖杯國王 \n錢幣五 \n錢幣八 \n錢幣十 \n錢幣國王 \n內容信任資訊 \n關於 Pantheon 文章\n作者：Pantheon 編輯部。發布日期：\n2026-07-10 ；最後更新：\n2026-07-12 。\n編輯政策：每篇文章先說明可檢查的情境線索、使用限制與不能直接下結論的地方；公開文章不保證感情、工作、財富或人生結果。\n關於 Pantheon \n編輯政策 \n聯絡 Pantheon \nSchema.org Article 參考",
+      "h1": [
+        "最新文章"
+      ],
+      "h2": [
+        "感情、工作、人際卡住 \n先從你的問題開始",
+        "最新文章",
+        "下一批讀者常查的牌義與人際題",
+        "關於 Pantheon 文章"
+      ],
+      "jsonld_types": [
+        "BreadcrumbList",
+        "Organization",
+        "WebSite",
+        "CollectionPage",
+        "FAQPage"
+      ],
+      "internal_link_count": 38,
+      "external_link_count": 1,
+      "unique_article_links": 29,
+      "unique_category_links": 0,
+      "has_author": true,
+      "has_published_time": true,
+      "has_modified_time": true,
+      "has_about_or_contact_link": true,
+      "citability_markers": [
+        "source_or_evidence_language",
+        "scannable_length"
+      ],
+      "asset_counts": {
+        "css": 1,
+        "script": 5,
+        "img": 1
+      }
+    },
+    {
+      "url": "http://127.0.0.1:8799/articles/tarot/tarot-0001",
+      "status": 200,
+      "error": "",
+      "title": "塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 | Pantheon",
+      "title_len": 35,
+      "description": "整理塔羅牌意思、正位逆位、感情與工作情境，並保留公開文章不能取代個人判讀的限制。",
+      "description_len": 40,
+      "canonical": "https://mysticpantheon.com/articles/tarot/tarot-0001",
+      "viewport": "width=device-width, initial-scale=1",
+      "meta_robots": "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1",
+      "og_title": "塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 | Pantheon",
+      "og_description": "整理塔羅牌意思、正位逆位、感情與工作情境，並保留公開文章不能取代個人判讀的限制。",
+      "og_image": "https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp",
+      "twitter_card": "summary_large_image",
+      "visible_text": "塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 | Pantheon \nPantheon \n最新文章 \n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \nPantheon \n/ \n最新文章 \n/ \n產品 \n/ \n文章 \n最新文章\n塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看\n整理塔羅牌意思、正位逆位、感情與工作情境，並保留公開文章不能取代個人判讀的限制。\n編號： \n作者： Pantheon 編輯部 \n更新： 2026-07-10 \n最新文章 \n文 \n整理命盤、人格、塔羅、星座與人生方向主題。\n重點答案\n最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。\n文章內容\n這篇文章會先回答核心問題，再補充怎麼看、常見誤解、使用限制與延伸閱讀。\n常見問題\n這篇文章適合誰閱讀？ \n適合正在查一個概念、想先知道它能看什麼與不能看什麼的人。\n文章內容可以取代個人判讀嗎？ \n不可以。公開文章只整理共通知識；個人判讀要回到你的資料、問題與當下情境。\n延伸閱讀\nPantheon 文章 \n用清楚、可引用的方式整理命理、人格與人生決策主題。\n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \n關於 Pantheon \n編輯政策 \n聯絡 Pantheon \nSchema.org Article 參考 \nCopyright © Pantheon. 文章內容作為文化與自我探索用途。",
+      "h1": [
+        "塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看"
+      ],
+      "h2": [
+        "重點答案",
+        "文章內容",
+        "常見問題",
+        "延伸閱讀"
+      ],
+      "jsonld_types": [
+        "Organization",
+        "WebSite",
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "internal_link_count": 16,
+      "external_link_count": 1,
+      "unique_article_links": 4,
+      "unique_category_links": 0,
+      "has_author": true,
+      "has_published_time": true,
+      "has_modified_time": true,
+      "has_about_or_contact_link": true,
+      "citability_markers": [
+        "answer_headings",
+        "source_or_evidence_language"
+      ],
+      "asset_counts": {
+        "css": 1,
+        "script": 5,
+        "img": 1
+      }
+    },
+    {
+      "url": "http://127.0.0.1:8799/articles/personality/personality-0001",
+      "status": 200,
+      "error": "",
+      "title": "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看 | Pantheon",
+      "title_len": 37,
+      "description": "說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境。",
+      "description_len": 44,
+      "canonical": "https://mysticpantheon.com/articles/personality/personality-0001",
+      "viewport": "width=device-width, initial-scale=1",
+      "meta_robots": "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1",
+      "og_title": "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看 | Pantheon",
+      "og_description": "說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境。",
+      "og_image": "https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp",
+      "twitter_card": "summary_large_image",
+      "visible_text": "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看 | Pantheon \nPantheon \n最新文章 \n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \nPantheon \n/ \n最新文章 \n/ \n產品 \n/ \n文章 \n最新文章\nMBTI 是什麼？16 型人格、測驗與自我理解怎麼看\n說明 MBTI、16 型人格與測驗使用邊界，協助讀者把人格偏好放回感情、工作與人際情境。\n編號： \n作者： Pantheon 編輯部 \n更新： 2026-07-10 \n最新文章 \n文 \n整理命盤、人格、塔羅、星座與人生方向主題。\n重點答案\n最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。\n文章內容\n這篇文章會先回答核心問題，再補充怎麼看、常見誤解、使用限制與延伸閱讀。\n常見問題\n這篇文章適合誰閱讀？ \n適合正在查一個概念、想先知道它能看什麼與不能看什麼的人。\n文章內容可以取代個人判讀嗎？ \n不可以。公開文章只整理共通知識；個人判讀要回到你的資料、問題與當下情境。\n延伸閱讀\nPantheon 文章 \n用清楚、可引用的方式整理命理、人格與人生決策主題。\n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \n關於 Pantheon \n編輯政策 \n聯絡 Pantheon \nSchema.org Article 參考 \nCopyright © Pantheon. 文章內容作為文化與自我探索用途。",
+      "h1": [
+        "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看"
+      ],
+      "h2": [
+        "重點答案",
+        "文章內容",
+        "常見問題",
+        "延伸閱讀"
+      ],
+      "jsonld_types": [
+        "Organization",
+        "WebSite",
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "internal_link_count": 16,
+      "external_link_count": 1,
+      "unique_article_links": 4,
+      "unique_category_links": 0,
+      "has_author": true,
+      "has_published_time": true,
+      "has_modified_time": true,
+      "has_about_or_contact_link": true,
+      "citability_markers": [
+        "answer_headings",
+        "source_or_evidence_language",
+        "scannable_length"
+      ],
+      "asset_counts": {
+        "css": 1,
+        "script": 5,
+        "img": 1
+      }
+    },
+    {
+      "url": "http://127.0.0.1:8799/articles/fortune/fortune-0001",
+      "status": 200,
+      "error": "",
+      "title": "命盤是什麼？八字、紫微斗數和星盤差在哪 | Pantheon",
+      "title_len": 30,
+      "description": "白話整理命盤、八字、紫微斗數與星盤的差異，避免把單一工具寫成完整個人結論。",
+      "description_len": 37,
+      "canonical": "https://mysticpantheon.com/articles/fortune/fortune-0001",
+      "viewport": "width=device-width, initial-scale=1",
+      "meta_robots": "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1",
+      "og_title": "命盤是什麼？八字、紫微斗數和星盤差在哪 | Pantheon",
+      "og_description": "白話整理命盤、八字、紫微斗數與星盤的差異，避免把單一工具寫成完整個人結論。",
+      "og_image": "https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp",
+      "twitter_card": "summary_large_image",
+      "visible_text": "命盤是什麼？八字、紫微斗數和星盤差在哪 | Pantheon \nPantheon \n最新文章 \n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \nPantheon \n/ \n最新文章 \n/ \n產品 \n/ \n文章 \n最新文章\n命盤是什麼？八字、紫微斗數和星盤差在哪\n白話整理命盤、八字、紫微斗數與星盤的差異，避免把單一工具寫成完整個人結論。\n編號： \n作者： Pantheon 編輯部 \n更新： 2026-07-10 \n最新文章 \n文 \n整理命盤、人格、塔羅、星座與人生方向主題。\n重點答案\n最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。\n文章內容\n這篇文章會先回答核心問題，再補充怎麼看、常見誤解、使用限制與延伸閱讀。\n常見問題\n這篇文章適合誰閱讀？ \n適合正在查一個概念、想先知道它能看什麼與不能看什麼的人。\n文章內容可以取代個人判讀嗎？ \n不可以。公開文章只整理共通知識；個人判讀要回到你的資料、問題與當下情境。\n延伸閱讀\nPantheon 文章 \n用清楚、可引用的方式整理命理、人格與人生決策主題。\n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \n關於 Pantheon \n編輯政策 \n聯絡 Pantheon \nSchema.org Article 參考 \nCopyright © Pantheon. 文章內容作為文化與自我探索用途。",
+      "h1": [
+        "命盤是什麼？八字、紫微斗數和星盤差在哪"
+      ],
+      "h2": [
+        "重點答案",
+        "文章內容",
+        "常見問題",
+        "延伸閱讀"
+      ],
+      "jsonld_types": [
+        "Organization",
+        "WebSite",
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "internal_link_count": 16,
+      "external_link_count": 1,
+      "unique_article_links": 4,
+      "unique_category_links": 0,
+      "has_author": true,
+      "has_published_time": true,
+      "has_modified_time": true,
+      "has_about_or_contact_link": true,
+      "citability_markers": [
+        "answer_headings",
+        "source_or_evidence_language"
+      ],
+      "asset_counts": {
+        "css": 1,
+        "script": 5,
+        "img": 1
+      }
+    },
+    {
+      "url": "http://127.0.0.1:8799/articles/interpersonal/interpersonal-0001",
+      "status": 200,
+      "error": "",
+      "title": "人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼 | Pantheon",
+      "title_len": 34,
+      "description": "整理人際關係、互動界線與溝通模式，先釐清情境，再連到人格、命盤與塔羅脈絡。",
+      "description_len": 37,
+      "canonical": "https://mysticpantheon.com/articles/interpersonal/interpersonal-0001",
+      "viewport": "width=device-width, initial-scale=1",
+      "meta_robots": "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1",
+      "og_title": "人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼 | Pantheon",
+      "og_description": "整理人際關係、互動界線與溝通模式，先釐清情境，再連到人格、命盤與塔羅脈絡。",
+      "og_image": "https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp",
+      "twitter_card": "summary_large_image",
+      "visible_text": "人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼 | Pantheon \nPantheon \n最新文章 \n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \nPantheon \n/ \n最新文章 \n/ \n產品 \n/ \n文章 \n最新文章\n人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼\n整理人際關係、互動界線與溝通模式，先釐清情境，再連到人格、命盤與塔羅脈絡。\n編號： \n作者： Pantheon 編輯部 \n更新： 2026-07-10 \n最新文章 \n文 \n整理命盤、人格、塔羅、星座與人生方向主題。\n重點答案\n最新文章會把命盤、人格、塔羅、星座與人生方向主題整理成可搜尋、可引用、可延伸的內容。\n文章內容\n這篇文章會先回答核心問題，再補充怎麼看、常見誤解、使用限制與延伸閱讀。\n常見問題\n這篇文章適合誰閱讀？ \n適合正在查一個概念、想先知道它能看什麼與不能看什麼的人。\n文章內容可以取代個人判讀嗎？ \n不可以。公開文章只整理共通知識；個人判讀要回到你的資料、問題與當下情境。\n延伸閱讀\nPantheon 文章 \n用清楚、可引用的方式整理命理、人格與人生決策主題。\n命盤 \n人格 \n塔羅 \n星座 \n熱門文章 \n關於 Pantheon \n編輯政策 \n聯絡 Pantheon \nSchema.org Article 參考 \nCopyright © Pantheon. 文章內容作為文化與自我探索用途。",
+      "h1": [
+        "人際關係卡住怎麼辦？人格、塔羅與命盤可以看什麼"
+      ],
+      "h2": [
+        "重點答案",
+        "文章內容",
+        "常見問題",
+        "延伸閱讀"
+      ],
+      "jsonld_types": [
+        "Organization",
+        "WebSite",
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "internal_link_count": 16,
+      "external_link_count": 1,
+      "unique_article_links": 4,
+      "unique_category_links": 0,
+      "has_author": true,
+      "has_published_time": true,
+      "has_modified_time": true,
+      "has_about_or_contact_link": true,
+      "citability_markers": [
+        "answer_headings",
+        "source_or_evidence_language"
+      ],
+      "asset_counts": {
+        "css": 1,
+        "script": 5,
+        "img": 1
+      }
+    }
+  ],
+  "keyword_rows": [
+    {
+      "keyword": "人生方向",
+      "competitor_hit_count": 6,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/life-direction"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/tarot/tarot-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/personality/personality-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/fortune/fortune-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "16 型人格",
+      "competitor_hit_count": 3,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/personality/personality-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/personality/personality-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "MBTI 是什麼",
+      "competitor_hit_count": 3,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/personality/personality-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/personality/personality-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "人際關係",
+      "competitor_hit_count": 3,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/interpersonal/interpersonal-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/interpersonal/interpersonal-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "命盤是什麼",
+      "competitor_hit_count": 3,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/fortune/fortune-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/fortune/fortune-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "塔羅牌意思",
+      "competitor_hit_count": 3,
+      "sample_hits": [
+        {
+          "source": "feed",
+          "url": "http://127.0.0.1:8799/articles/tarot/tarot-0001"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        },
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799/articles/tarot/tarot-0001"
+        }
+      ]
+    },
+    {
+      "keyword": "寶劍七",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "寶劍二",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "寶劍侍者",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "寶劍十",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "寶劍騎士",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "權杖三",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "權杖五",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "權杖八",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "權杖四",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "聖杯七",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "聖杯九",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "聖杯二",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "聖杯十",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "聖杯國王",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "錢幣五",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "錢幣八",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "錢幣十",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "錢幣國王",
+      "competitor_hit_count": 1,
+      "sample_hits": [
+        {
+          "source": "page",
+          "url": "http://127.0.0.1:8799"
+        }
+      ]
+    },
+    {
+      "keyword": "16 型人格完整解析",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ENFJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ENFP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ENTJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ENTP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ESFJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ESFP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ESTJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ESTP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "INFJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "INFP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "INTJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "INTJ 是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "INTP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ISFJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ISFP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ISTJ",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "ISTP",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 人格",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 代表什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 工作",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 感情",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 測驗",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "MBTI 準嗎",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "七殺星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升天秤",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升天蠍",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升射手",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升巨蟹",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升摩羯",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升水瓶",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升牡羊",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升獅子",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升處女",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升金牛",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升雙子",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "上升雙魚",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "世界牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "事業運勢",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "八字是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "力量牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "吊人牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "命宮是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "命運之輪牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "塔羅牌正位逆位",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "大限是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "天同星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "天府星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "天梁星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "天機星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "天相星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "太陰星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "太陽星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "太陽星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "太陽牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "夫妻宮是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "女祭司牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "官祿宮是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "審判牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍一",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍三",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍九",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍五",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍八",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍六",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍四",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍國王",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "寶劍皇后",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "巨門星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "廉貞星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "惡魔牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "愚者牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "感情塔羅",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "戀人牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "戰車牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "教皇牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "星星牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "星盤是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "月亮星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "月亮牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖一",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖七",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖九",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖二",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖侍者",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖六",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖十",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖國王",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖皇后",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "權杖騎士",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "正義牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "武曲星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "死神牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "水星星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "流年是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "火星星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "皇后牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "皇帝牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "破軍星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "節制牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "紫微斗數是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "紫微星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯一",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯三",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯五",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯侍者",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯八",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯六",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯四",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯皇后",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "聖杯騎士",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "財富運勢",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "財帛宮是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "貪狼星",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "遷移宮是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "金星星座是什麼",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣一",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣七",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣三",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣九",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣二",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣侍者",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣六",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣四",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣皇后",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "錢幣騎士",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "隱者牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "高塔牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    },
+    {
+      "keyword": "魔術師牌意思",
+      "competitor_hit_count": 0,
+      "sample_hits": []
+    }
+  ],
+  "geo_signals": {
+    "llms_txt_status": "present",
+    "ai_txt_status": "present",
+    "ai_bot_policy": {
+      "GPTBot": "allowed_or_partial",
+      "OAI-SearchBot": "allowed_or_partial",
+      "ChatGPT-User": "allowed_or_partial",
+      "ClaudeBot": "allowed_or_partial",
+      "PerplexityBot": "allowed_or_partial",
+      "Google-Extended": "allowed_or_partial",
+      "CCBot": "allowed_or_partial"
+    },
+    "schema_depth_score": 100,
+    "eeat_score": 100,
+    "citability_score": 84,
+    "entity_score": 100,
+    "findings": []
+  },
+  "settings": {
+    "since": "2024-07-10T00:00:00+00:00",
+    "max_feed_pages": 2,
+    "max_category_pages": 1,
+    "sample_limit": 5,
+    "keyword_matrix": "artifacts/fortune_council/content_seo_matrix/keyword_seed_matrix.md",
+    "source_intake": "artifacts/fortune_council/seo_geo_repo_intake/source_manifest.md"
+  },
+  "source_intake": "- 這份 manifest 是工具預設 `--source-intake`。\n- 先讓 playbook 引用這份 repo intake，確保另一個對話框知道我們要吸收的是 SEO/GEO 專案，不是命理題材 repo。\n- 下一版工具優先補 `llms.txt`、`ai.txt`、AI bot robots、E-E-A-T、citability、entity/schema score。"
+}

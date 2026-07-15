@@ -38,6 +38,14 @@ class PersonalityInput(BaseModel):
     personality_answers: list[PersonalityAnswer] = Field(default_factory=list)
 
 
+class SeoAuditInput(BaseModel):
+    competitor_url: str = Field(min_length=4, max_length=500)
+    competitor_name: str = Field(default="", max_length=80)
+    own_site_url: str = Field(default="", max_length=500)
+    own_site_name: str = Field(default="", max_length=80)
+    sample_limit: int = Field(default=6, ge=2, le=10)
+
+
 class PredictionResponse(BaseModel):
     input: BirthInput
     charts: dict[str, Any]

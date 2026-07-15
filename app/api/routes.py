@@ -1,13 +1,27 @@
-from fastapi import APIRouter
+import ipaddress
+import socket
+import urllib.parse
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
 
 from app.ai.agent import generate_interpretation
 from app.ai.personality import generate_personality_interpretation
 from app.ai.report import build_unified_report
-from app.api.schemas import BirthInput, PersonalityInput, PersonalityResponse, PredictionResponse
+from app.api.schemas import BirthInput, PersonalityInput, PersonalityResponse, PredictionResponse, SeoAuditInput
 from app.core.registry import registry
+from scripts.competitor_seo_tool import (
+    DEFAULT_KEYWORD_MATRIX,
+    DEFAULT_SOURCE_INTAKE,
+    build_web_summary,
+    crawl_site,
+    normalize_base,
+)
 
 
 router = APIRouter()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 @router.get("/health")
@@ -59,6 +73,64 @@ def personality(payload: PersonalityInput) -> PersonalityResponse:
             "scope": "personality_only",
         },
     )
+
+
+def _public_base_url(value: str) -> str:
+    base_url = normalize_base(value.strip())
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(status_code=422, detail="請輸入有效的公開 http(s) 網站網址。")
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="網址連接埠格式不正確。") from exc
+    if port not in {80, 443}:
+        raise HTTPException(status_code=422, detail="內部工具只允許公開網站的 80 或 443 連接埠。")
+
+    host = parsed.hostname.rstrip(".").lower()
+    if host == "localhost" or host.endswith(".localhost"):
+        raise HTTPException(status_code=422, detail="不允許稽核本機或內部網路位址。")
+    try:
+        addresses = {ipaddress.ip_address(host)}
+    except ValueError:
+        try:
+            addresses = {
+                ipaddress.ip_address(result[4][0])
+                for result in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            }
+        except (socket.gaierror, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="無法解析這個網站網址。") from exc
+    if not addresses or any(not address.is_global for address in addresses):
+        raise HTTPException(status_code=422, detail="不允許稽核本機或內部網路位址。")
+    return base_url
+
+
+@router.post("/seo/audit")
+def seo_audit(payload: SeoAuditInput) -> dict[str, Any]:
+    competitor_url = _public_base_url(payload.competitor_url)
+    own_site_url = _public_base_url(payload.own_site_url) if payload.own_site_url.strip() else ""
+    keyword_matrix = PROJECT_ROOT / DEFAULT_KEYWORD_MATRIX
+    source_intake = PROJECT_ROOT / DEFAULT_SOURCE_INTAKE
+
+    def run_site(base_url: str, name: str) -> dict[str, object]:
+        hostname = urllib.parse.urlparse(base_url).netloc
+        return crawl_site(
+            base_url=base_url,
+            site_name=name.strip() or hostname,
+            since=None,
+            max_feed_pages=3,
+            max_category_pages=1,
+            sample_limit=payload.sample_limit,
+            keyword_matrix=keyword_matrix,
+            source_intake_path=source_intake,
+        )
+
+    try:
+        competitor_data = run_site(competitor_url, payload.competitor_name)
+        own_data = run_site(own_site_url, payload.own_site_name) if own_site_url else None
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"網站稽核失敗：{str(exc)[:180]}") from exc
+    return build_web_summary(competitor_data, own_data)
 
 
 def _engine_status(charts: dict[str, dict]) -> dict[str, dict[str, object]]:

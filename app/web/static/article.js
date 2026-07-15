@@ -50,6 +50,78 @@ if (content.redirectTo) {
 } else {
   renderArticleChrome(content);
   applyArticleSeo(content, dom, window.location.origin);
+  initArticlePointerEffects();
+}
+
+function initArticlePointerEffects() {
+  const root = document.body;
+  const visual = document.querySelector(".article-theme-visual");
+  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (!finePointer.matches || reducedMotion.matches) return;
+
+  let pointerFrame = 0;
+  let tailFadeTimer = 0;
+  let previousPointer = null;
+  root.dataset.pointerEffects = "enabled";
+
+  const updateBackground = (event) => {
+    const pointer = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pageX: event.pageX,
+      pageY: event.pageY,
+    };
+    const deltaX = previousPointer ? pointer.clientX - previousPointer.clientX : 0;
+    const deltaY = previousPointer ? pointer.clientY - previousPointer.clientY : 0;
+    const distance = Math.hypot(deltaX, deltaY);
+    previousPointer = pointer;
+    cancelAnimationFrame(pointerFrame);
+    pointerFrame = requestAnimationFrame(() => {
+      root.style.setProperty("--article-pointer-x", `${pointer.pageX}px`);
+      root.style.setProperty("--article-pointer-y", `${pointer.pageY}px`);
+      root.style.setProperty("--article-pointer-client-x", `${pointer.clientX}px`);
+      root.style.setProperty("--article-pointer-client-y", `${pointer.clientY}px`);
+      if (distance > 1) {
+        const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+        const stretch = Math.min(1.2, Math.max(0.7, distance / 16));
+        const opacity = Math.min(0.82, Math.max(0.36, distance / 30));
+        root.style.setProperty("--article-tail-angle", `${angle.toFixed(2)}deg`);
+        root.style.setProperty("--article-tail-scale", stretch.toFixed(2));
+        root.style.setProperty("--article-tail-opacity", opacity.toFixed(2));
+        clearTimeout(tailFadeTimer);
+        tailFadeTimer = window.setTimeout(() => {
+          root.style.setProperty("--article-tail-opacity", "0");
+        }, 220);
+      }
+    });
+  };
+
+  const updateVisual = (event) => {
+    if (!visual) return;
+    const bounds = visual.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+    visual.style.setProperty("--article-tilt-x", `${(-y * 3.5).toFixed(2)}deg`);
+    visual.style.setProperty("--article-tilt-y", `${(x * 4.5).toFixed(2)}deg`);
+    visual.style.setProperty("--article-orbit-x", `${(x * 10).toFixed(2)}px`);
+    visual.style.setProperty("--article-orbit-y", `${(y * 10).toFixed(2)}px`);
+  };
+
+  const resetVisual = () => {
+    visual?.style.setProperty("--article-tilt-x", "0deg");
+    visual?.style.setProperty("--article-tilt-y", "0deg");
+    visual?.style.setProperty("--article-orbit-x", "0px");
+    visual?.style.setProperty("--article-orbit-y", "0px");
+  };
+
+  root.addEventListener("pointermove", updateBackground, { passive: true });
+  visual?.addEventListener("pointermove", updateVisual, { passive: true });
+  visual?.addEventListener("pointerleave", resetVisual);
+  window.addEventListener("pagehide", () => {
+    cancelAnimationFrame(pointerFrame);
+    clearTimeout(tailFadeTimer);
+  }, { once: true });
 }
 
 function renderArticleChrome(content) {

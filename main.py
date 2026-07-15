@@ -365,6 +365,11 @@ def create_app() -> FastAPI:
     def article_admin_page() -> FileResponse:
         return FileResponse(WEB_DIR / "article-admin.html")
 
+    @app.get("/seo-intel", include_in_schema=False)
+    @app.get("/seo-intel.html", include_in_schema=False)
+    def seo_intel_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "seo-intel.html")
+
     @app.get("/robots.txt", include_in_schema=False)
     def robots_txt() -> FileResponse:
         return FileResponse(WEB_DIR / "robots.txt")

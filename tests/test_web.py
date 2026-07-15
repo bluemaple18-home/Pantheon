@@ -200,6 +200,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "相處很累、溝通不順與自我懷疑" in response.text
     assert "曖昧、復合、等待與下一步怎麼辦" in response.text
     assert "情緒安全感、喜歡方式與關係需求" in response.text
+    assert "id=\"tarot-gap-cluster\"" not in response.text
+    assert "下一批讀者常查的牌義與人際題" not in response.text
     assert "八字、紫微、命宮與財帛宮" not in response.text
     assert "MBTI、16 型人格與人際模式" not in response.text
     assert "牌義、正逆位與感情提問" not in response.text
@@ -551,6 +553,63 @@ def test_prerender_articles_have_non_visible_internal_link_clusters() -> None:
     assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in sample_html
     assert 'href="/articles/tarot"' in sample_html
     assert 'href="/articles/tarot/tarot-0074"' in sample_html
+
+
+def test_seo_intel_page_exposes_internal_audit_workspace() -> None:
+    client = TestClient(app)
+    response = client.get("/seo-intel")
+    redirects = Path("app/web/_redirects").read_text()
+    script = Path("app/web/static/seo-intel.js").read_text()
+
+    assert response.status_code == 200
+    assert "SEO 情蒐台" in response.text
+    assert "data-audit-form" in response.text
+    assert "data-score-grid" in response.text
+    assert "name=\"robots\" content=\"noindex,nofollow\"" in response.text
+    assert "/static/seo-intel.js?v=20260713-1" in response.text
+    assert "/seo-intel /seo-intel.html 200" in redirects
+    assert 'https://api.mysticpantheon.com' in script
+
+
+def test_seo_audit_api_rejects_local_network_target() -> None:
+    client = TestClient(app)
+    response = client.post("/api/v1/seo/audit", json={"competitor_url": "http://127.0.0.1"})
+
+    assert response.status_code == 422
+    assert "內部網路" in response.json()["detail"]
+
+
+def test_seo_audit_api_uses_bounded_crawl_settings(monkeypatch) -> None:
+    calls = []
+
+    def fake_crawl_site(**kwargs):
+        calls.append(kwargs)
+        return {"base_url": kwargs["base_url"], "site_name": kwargs["site_name"]}
+
+    monkeypatch.setattr("app.api.routes._public_base_url", lambda value: value.rstrip("/"))
+    monkeypatch.setattr("app.api.routes.crawl_site", fake_crawl_site)
+    monkeypatch.setattr(
+        "app.api.routes.build_web_summary",
+        lambda competitor, own: {"competitor": competitor, "own_site": own},
+    )
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/seo/audit",
+        json={
+            "competitor_url": "https://competitor.example/",
+            "competitor_name": "Competitor",
+            "own_site_url": "https://own.example/",
+            "own_site_name": "Own",
+            "sample_limit": 8,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["competitor"]["site_name"] == "Competitor"
+    assert len(calls) == 2
+    assert calls[0]["max_feed_pages"] == 3
+    assert calls[0]["max_category_pages"] == 1
+    assert calls[0]["sample_limit"] == 8
 
 
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
@@ -938,11 +997,6 @@ console.log(JSON.stringify(data));
         assert not record["hasTarotCoursePhrase"], record
         if re.match(r"^/articles/tarot/tarot-00(3[3-9]|[4-6]\d|7[0-6])$", record["path"]):
             assert not record["hasScaleVoicePhrase"], record
-        if "/tarot/" in record["path"]:
-            assert "先看你現在卡在哪一種煩惱" in record["headings"], record
-            assert "不要只問這張牌好不好" in record["headings"], record
-            assert "把問題改成現在能處理的事" in record["headings"], record
-            assert "什麼時候需要再往下整理？" in record["headings"], record
 
 
 def test_next_30_voice_does_not_reintroduce_batch_templates() -> None:
@@ -1288,9 +1342,9 @@ console.log(JSON.stringify({
     )
     data = json.loads(result.stdout)
     assert data["headings"] == [
-        "MBTI 是什麼？",
-        "16 型人格怎麼看？",
-        "MBTI 適合拿來做什麼？",
+        "MBTI 先用來描述偏好，不是替人分類",
+        "把四組偏好放回生活裡看",
+        "MBTI 不能替你決定什麼",
     ]
     assert "查「MBTI 是什麼」時" not in data["text"]
     assert "感情、工作、人際各看哪一層？" not in data["text"]
@@ -1319,9 +1373,12 @@ console.log(JSON.stringify({
         text=True,
     )
     data = json.loads(result.stdout)
-    assert data["bodySectionCount"] == 5
-    assert "星座感情運勢怎麼看？先看你正在卡在哪裡" in data["headings"]
-    assert "曖昧、復合、穩定關係要問不同問題" in data["headings"]
+    assert data["bodySectionCount"] == 3
+    assert data["headings"] == [
+        "星座感情運勢先看互動節奏，不急著問結果",
+        "運勢內容要和當下事件對照",
+        "星座感情運勢不是對方心意通知",
+    ]
     assert "查「星座感情運勢」時" not in data["text"]
     assert "延伸閱讀" not in data["text"]
     assert "下一步可以讀什麼" not in data["text"]

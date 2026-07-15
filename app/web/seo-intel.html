@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEO 情蒐台 | Pantheon Internal</title>
+    <meta name="description" content="Pantheon 內部競品 SEO 與 GEO 快速稽核工具。" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%2318201c'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='%23b9ff68'%3EP%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/static/seo-intel.css?v=20260713-1" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/seo-intel" aria-label="SEO 情蒐台首頁">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span>
+          <strong>Pantheon</strong>
+          <small>Internal Research</small>
+        </span>
+      </a>
+      <span class="environment"><i aria-hidden="true"></i> 內部工具</span>
+    </header>
+
+    <main>
+      <section class="workspace" aria-labelledby="page-title">
+        <div class="workspace-copy">
+          <p class="eyebrow">SEO intelligence console</p>
+          <h1 id="page-title">快速看懂競品的<br />SEO 與 GEO 佈局</h1>
+          <p class="lede">輸入公開網站網址，系統會抽樣檢查技術 SEO、AI crawler、Schema、E-E-A-T 與內容缺口。</p>
+          <dl class="scope-list" aria-label="本工具檢查範圍">
+            <div><dt>01</dt><dd>技術端點與頁面結構</dd></div>
+            <div><dt>02</dt><dd>AI 搜尋與引用訊號</dd></div>
+            <div><dt>03</dt><dd>自家／競品分數差距</dd></div>
+          </dl>
+        </div>
+
+        <form class="audit-form" data-audit-form>
+          <div class="form-heading">
+            <div>
+              <p class="step-label">New scan</p>
+              <h2>建立網站稽核</h2>
+            </div>
+            <span>約 30–60 秒</span>
+          </div>
+
+          <div class="field-group primary-fields">
+            <label for="competitor-url">競品網站網址 <b aria-hidden="true">*</b></label>
+            <input id="competitor-url" name="competitor_url" type="text" inputmode="url" autocomplete="url" placeholder="https://example.com" required />
+            <label class="secondary-label" for="competitor-name">競品名稱 <span>選填</span></label>
+            <input id="competitor-name" name="competitor_name" type="text" maxlength="80" placeholder="例如：品牌或媒體名稱" />
+          </div>
+
+          <details class="comparison-options" open>
+            <summary>
+              <span>加入自家網站比較</span>
+              <small>建議填寫，可直接看到差距</small>
+            </summary>
+            <div class="field-grid">
+              <div class="field-group">
+                <label for="own-site-url">自家網站網址</label>
+                <input id="own-site-url" name="own_site_url" type="text" inputmode="url" autocomplete="url" value="https://mysticpantheon.com" />
+              </div>
+              <div class="field-group">
+                <label for="own-site-name">自家網站名稱</label>
+                <input id="own-site-name" name="own_site_name" type="text" maxlength="80" value="Pantheon" />
+              </div>
+            </div>
+          </details>
+
+          <div class="form-actions">
+            <label class="sample-control" for="sample-limit">
+              抽樣頁數
+              <select id="sample-limit" name="sample_limit">
+                <option value="4">4 頁</option>
+                <option value="6" selected>6 頁</option>
+                <option value="8">8 頁</option>
+                <option value="10">10 頁</option>
+              </select>
+            </label>
+            <button class="primary-action" type="submit" data-submit-button>
+              <span>開始分析</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4" /></svg>
+            </button>
+          </div>
+          <p class="form-note">只會讀取公開頁面，不會登入網站或修改任何內容。</p>
+        </form>
+      </section>
+
+      <section class="status-region" aria-live="polite" aria-atomic="true">
+        <div class="loading-state" data-loading-state hidden>
+          <div class="loading-orbit" aria-hidden="true"><span></span></div>
+          <div>
+            <p class="step-label">Scanning</p>
+            <h2 data-loading-title>正在建立網站輪廓</h2>
+            <p data-loading-detail>檢查公開端點、頁面結構與 AI crawler 訊號…</p>
+          </div>
+          <strong data-loading-time>00:00</strong>
+        </div>
+        <div class="error-state" data-error-state role="alert" hidden>
+          <span aria-hidden="true">!</span>
+          <div><strong>這次分析沒有完成</strong><p data-error-message></p></div>
+        </div>
+      </section>
+
+      <section class="results" data-results hidden aria-labelledby="results-title">
+        <header class="results-header">
+          <div>
+            <p class="eyebrow">Audit complete</p>
+            <h2 id="results-title">網站情報摘要</h2>
+            <p data-result-meta></p>
+          </div>
+          <a class="text-action" data-site-link href="#" target="_blank" rel="noreferrer">開啟競品網站 ↗</a>
+        </header>
+
+        <section class="score-section" aria-labelledby="score-title">
+          <div class="section-heading">
+            <div><span>01</span><h3 id="score-title">核心訊號</h3></div>
+            <p>分數代表本次抽樣頁面的訊號完整度，不等同搜尋排名。</p>
+          </div>
+          <div class="score-grid" data-score-grid></div>
+        </section>
+
+        <section class="comparison-section" data-comparison-section aria-labelledby="comparison-title" hidden>
+          <div class="section-heading">
+            <div><span>02</span><h3 id="comparison-title">自家與競品差距</h3></div>
+            <p>正數代表自家領先；負數代表應優先補強。</p>
+          </div>
+          <div class="comparison-table-wrap">
+            <table class="comparison-table">
+              <thead><tr><th>指標</th><th>自家</th><th>競品</th><th>差距</th><th>判讀</th></tr></thead>
+              <tbody data-comparison-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="insight-grid">
+          <section class="finding-section" aria-labelledby="findings-title">
+            <div class="section-heading compact">
+              <div><span>03</span><h3 id="findings-title">優先觀察</h3></div>
+            </div>
+            <ol class="finding-list" data-finding-list></ol>
+          </section>
+          <section class="stats-section" aria-labelledby="stats-title">
+            <div class="section-heading compact">
+              <div><span>04</span><h3 id="stats-title">本次覆蓋</h3></div>
+            </div>
+            <dl class="stat-grid" data-stat-grid></dl>
+          </section>
+        </div>
+
+        <section class="endpoint-section" aria-labelledby="endpoint-title">
+          <div class="section-heading">
+            <div><span>05</span><h3 id="endpoint-title">技術端點</h3></div>
+            <p>辨識 robots、sitemap、RSS 與 AI 友善端點是否有效。</p>
+          </div>
+          <div class="endpoint-grid" data-endpoint-grid></div>
+        </section>
+
+        <section class="keyword-section" data-keyword-section aria-labelledby="keyword-title">
+          <div class="section-heading">
+            <div><span>06</span><h3 id="keyword-title">內容機會</h3></div>
+            <p data-keyword-summary>競品有命中、自家抽樣未命中的詞。</p>
+          </div>
+          <div class="keyword-list" data-keyword-list></div>
+        </section>
+
+        <details class="page-details">
+          <summary><span>查看抽樣頁面明細</span><small data-page-count></small></summary>
+          <div class="page-table-wrap">
+            <table class="page-table">
+              <thead><tr><th>頁面</th><th>狀態</th><th>Schema</th><th>內鏈</th><th>描述字數</th></tr></thead>
+              <tbody data-page-body></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <footer>
+      <span>Pantheon SEO Intelligence</span>
+      <span>僅供內部研究使用 · 資料來自公開網站抽樣</span>
+    </footer>
+
+    <script type="module" src="/static/seo-intel.js?v=20260713-1"></script>
+  </body>
+</html>

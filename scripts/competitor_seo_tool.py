@@ -953,6 +953,128 @@ def keyword_hit_map(data: dict[str, object]) -> dict[str, int]:
     return {str(row["keyword"]): int(row["competitor_hit_count"]) for row in rows}
 
 
+def build_web_site_summary(data: dict[str, object]) -> dict[str, object]:
+    """將完整稽核結果縮成內部網站需要的安全摘要。"""
+    geo: GeoSignals = data["geo_signals"]  # type: ignore[assignment]
+    endpoints: dict[str, dict[str, object]] = data["endpoints"]  # type: ignore[assignment]
+    page_audits: list[PageAudit] = data["page_audits"]  # type: ignore[assignment]
+    feed_items: list[FeedItem] = data["feed_items"]  # type: ignore[assignment]
+    category_links: list[str] = data["category_links"]  # type: ignore[assignment]
+    keyword_rows: list[dict[str, object]] = data["keyword_rows"]  # type: ignore[assignment]
+
+    endpoint_summary = {
+        name: {
+            "status": info.get("status"),
+            "label": info.get("label") or endpoint_label(info, name),
+            "validation": info.get("validation", ""),
+        }
+        for name, info in endpoints.items()
+    }
+    page_summary = [
+        {
+            "url": audit.url,
+            "status": audit.status,
+            "error": audit.error,
+            "title": audit.title,
+            "description_len": audit.description_len,
+            "h1": audit.h1[:2],
+            "jsonld_types": audit.jsonld_types,
+            "internal_link_count": audit.internal_link_count,
+            "external_link_count": audit.external_link_count,
+        }
+        for audit in page_audits
+    ]
+    keyword_hits = [
+        {
+            "keyword": str(row["keyword"]),
+            "hit_count": int(row["competitor_hit_count"]),
+        }
+        for row in keyword_rows
+        if int(row["competitor_hit_count"]) > 0
+    ][:24]
+
+    return {
+        "base_url": data["base_url"],
+        "site_name": data["site_name"],
+        "generated_at": data["generated_at"],
+        "scores": {
+            "schema": geo.schema_depth_score,
+            "eeat": geo.eeat_score,
+            "citability": geo.citability_score,
+            "entity": geo.entity_score,
+        },
+        "endpoints": endpoint_summary,
+        "ai_bot_policy": geo.ai_bot_policy,
+        "findings": geo.findings,
+        "pages": page_summary,
+        "keyword_hits": keyword_hits,
+        "stats": {
+            "audited_pages": len(page_audits),
+            "live_pages": sum(1 for audit in page_audits if audit.status == 200),
+            "feed_items": len(feed_items),
+            "category_links": len(category_links),
+        },
+    }
+
+
+def build_web_summary(
+    competitor_data: dict[str, object],
+    own_data: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """建立內部 SEO 情蒐頁使用的 JSON-safe 比較結果。"""
+    competitor = build_web_site_summary(competitor_data)
+    own_site = build_web_site_summary(own_data) if own_data else None
+    comparisons: list[dict[str, object]] = []
+    content_gaps: list[str] = []
+    content_advantages: list[str] = []
+
+    if own_data and own_site:
+        score_labels = {
+            "schema": "Schema depth",
+            "eeat": "E-E-A-T",
+            "citability": "Citability",
+            "entity": "Entity",
+        }
+        own_scores: dict[str, int] = own_site["scores"]  # type: ignore[assignment]
+        competitor_scores: dict[str, int] = competitor["scores"]  # type: ignore[assignment]
+        for key, label in score_labels.items():
+            own_score = own_scores[key]
+            competitor_score = competitor_scores[key]
+            delta = own_score - competitor_score
+            comparisons.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "own": own_score,
+                    "competitor": competitor_score,
+                    "delta": delta,
+                    "verdict": "領先" if delta >= 10 else "落後" if delta <= -10 else "接近",
+                }
+            )
+
+        own_hits = keyword_hit_map(own_data)
+        competitor_hits = keyword_hit_map(competitor_data)
+        content_gaps = [
+            keyword
+            for keyword, count in competitor_hits.items()
+            if count > 0 and own_hits.get(keyword, 0) == 0
+        ][:40]
+        content_advantages = [
+            keyword
+            for keyword, count in own_hits.items()
+            if count > 0 and competitor_hits.get(keyword, 0) == 0
+        ][:30]
+
+    return {
+        "generated_at": competitor_data["generated_at"],
+        "competitor": competitor,
+        "own_site": own_site,
+        "comparison": comparisons,
+        "content_gaps": content_gaps,
+        "content_advantages": content_advantages,
+    }
+
+
 def write_comparison(out_dir: Path, own_data: dict[str, object], competitor_data: dict[str, object]) -> None:
     own_geo: GeoSignals = own_data["geo_signals"]  # type: ignore[assignment]
     competitor_geo: GeoSignals = competitor_data["geo_signals"]  # type: ignore[assignment]

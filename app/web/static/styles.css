@@ -226,6 +226,13 @@ a.ui-chip:hover {
 
 .article-screen {
   min-height: 100vh;
+  --article-pointer-x: -30vw;
+  --article-pointer-y: -30vh;
+  --article-pointer-client-x: -200px;
+  --article-pointer-client-y: -200px;
+  --article-tail-angle: 0deg;
+  --article-tail-opacity: 0;
+  --article-tail-scale: 0.7;
   --article-accent: var(--jade);
   --article-accent-soft: var(--jade-faint);
   --article-accent-rgb: 18, 107, 96;
@@ -240,8 +247,75 @@ a.ui-chip:hover {
   --article-panel-bg: rgba(255, 255, 255, 0.58);
   --article-header-bg: rgba(248, 246, 239, 0.96);
   --article-footer-bg: #f0ede3;
+  position: relative;
+  isolation: isolate;
   background: var(--article-page-bg);
   color: var(--article-text);
+}
+
+.article-screen[data-pointer-effects="enabled"] {
+  background:
+    radial-gradient(
+      circle 4.5rem at var(--article-pointer-x) var(--article-pointer-y),
+      rgba(var(--article-accent-rgb), 0.28),
+      rgba(var(--article-accent-rgb), 0.13) 42%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle 12rem at var(--article-pointer-x) var(--article-pointer-y),
+      rgba(var(--article-accent-rgb), 0.08),
+      transparent 70%
+    ),
+    var(--article-page-bg);
+}
+
+.article-screen[data-pointer-effects="enabled"]::before {
+  content: "";
+  position: fixed;
+  top: -13px;
+  left: -190px;
+  z-index: 0;
+  width: 190px;
+  height: 26px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 4%,
+      rgba(var(--article-accent-rgb), 0.08) 24%,
+      rgba(var(--article-accent-rgb), 0.34) 68%,
+      rgba(var(--article-accent-rgb), 0.72)
+    ) center / 100% 5px no-repeat,
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--article-accent-rgb), 0.1) 20%,
+      rgba(var(--article-accent-rgb), 0.28) 64%,
+      rgba(var(--article-accent-rgb), 0.52)
+    );
+  filter: blur(2px);
+  opacity: var(--article-tail-opacity);
+  pointer-events: none;
+  transform-origin: 100% 50%;
+  transform:
+    translate3d(var(--article-pointer-client-x), var(--article-pointer-client-y), 0)
+    rotate(var(--article-tail-angle))
+    scaleX(var(--article-tail-scale));
+  transition: opacity 220ms ease-out;
+  will-change: transform, opacity;
+}
+
+.article-screen > .article-site-header,
+.article-screen > .article-shell,
+.article-screen > .article-site-footer {
+  position: relative;
+  z-index: 1;
+}
+
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .article-screen[data-pointer-effects="enabled"]::before {
+    display: none;
+  }
 }
 
 .article-screen[data-product-theme="fortune"] {
@@ -487,12 +561,27 @@ a.ui-chip:hover {
 }
 
 .article-theme-visual {
+  --article-tilt-x: 0deg;
+  --article-tilt-y: 0deg;
+  --article-orbit-x: 0px;
+  --article-orbit-y: 0px;
   position: relative;
   min-height: 244px;
   align-content: space-between;
   padding: 18px;
   overflow: hidden;
   background: var(--article-visual-bg);
+}
+
+.article-screen[data-pointer-effects="enabled"] .article-theme-visual {
+  transform: perspective(900px) rotateX(var(--article-tilt-x)) rotateY(var(--article-tilt-y));
+  transform-style: preserve-3d;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms ease;
+  will-change: transform;
+}
+
+.article-screen[data-pointer-effects="enabled"] .article-theme-visual:hover {
+  box-shadow: 0 20px 46px rgba(var(--article-accent-rgb), 0.16);
 }
 
 .article-theme-visual::before {
@@ -535,6 +624,8 @@ a.ui-chip:hover {
   background: rgba(var(--article-accent-rgb), 0.1);
   font-size: 38px;
   line-height: 1;
+  transform: translate3d(calc(var(--article-orbit-x) * 0.32), calc(var(--article-orbit-y) * 0.32), 18px);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .article-theme-visual p {
@@ -719,6 +810,12 @@ a.ui-chip:hover {
   color: var(--article-text);
   font-weight: 820;
   line-height: 1.45;
+  transition: color 140ms ease, transform 140ms ease;
+}
+
+.article-link-list a:hover {
+  color: var(--article-accent);
+  transform: translateX(3px);
 }
 
 .article-link-list span {
@@ -4439,6 +4536,12 @@ select:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .article-theme-visual i,
+  .content-hub-grid a::after {
+    animation: none;
+    transform: none;
+  }
+
   .aura,
   .outerOrbit,
   .middleOrbit,

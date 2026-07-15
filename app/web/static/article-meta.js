@@ -33,9 +33,6 @@ const SCALE_TAROT_IDS = new Set([
   "TAROT-PENTACLES-06", "TAROT-PENTACLES-07", "TAROT-PENTACLES-08", "TAROT-PENTACLES-09",
 ]);
 
-const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
-const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
-
 const INTERNAL_DISPLAY_TAGS = new Set([
   "Pantheon",
   "繁體中文",
@@ -829,7 +826,7 @@ function buildProductHubReadingGuide(label, articleCount) {
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const customBody = ARTICLE_BODY_LIBRARY[article.slug];
-  if (customBody) return customBody;
+  if (customBody) return isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   return [
