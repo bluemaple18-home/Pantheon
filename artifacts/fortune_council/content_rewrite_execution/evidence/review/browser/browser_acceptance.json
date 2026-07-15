@@ -1,0 +1,223 @@
+{
+  "baseUrl": "http://127.0.0.1:8891",
+  "chromiumExecutable": "/Users/mattkuo/ai-core/.tools/cache/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+  "results": [
+    {
+      "target": "TAROT-CUPS-KING",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:8891/articles/tarot/tarot-0057",
+      "title": "聖杯國王意思：正位、逆位、感情與工作怎麼看",
+      "answer": "聖杯國王提醒成熟情緒與穩定支持，逆位可看壓抑感受，但不能單牌定結果。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/tarot/tarot-0057",
+      "bodyHeadings": 6,
+      "bodyParagraphs": 12,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 19,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/TAROT-CUPS-KING-desktop.png",
+      "consoleErrors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        }
+      ],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "MBTI-BASE-04",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:8891/articles/personality/personality-0004",
+      "title": "MBTI 準嗎？準確度、限制與自我理解怎麼看",
+      "answer": "MBTI 可作為理解偏好的語言，但不適合當成絕對人格判定。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/personality/personality-0004",
+      "bodyHeadings": 3,
+      "bodyParagraphs": 6,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 14,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/MBTI-BASE-04-desktop.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "THEME-LOVE-03",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:8891/articles/love/love-0003",
+      "title": "復合前要想清楚什麼？先看三個關係問題",
+      "answer": "復合前先看分手原因、改變是否具體、你想回去的是關係本身，還是不甘心和習慣。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/love/love-0003",
+      "bodyHeadings": 3,
+      "bodyParagraphs": 6,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 16,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/THEME-LOVE-03-desktop.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "ASTRO-BASE-01",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:8891/articles/astrology/astrology-0001",
+      "title": "星盤是什麼？太陽、月亮、上升星座怎麼看",
+      "answer": "星盤是占星用來整理出生時天空配置的圖；太陽、月亮、上升各看不同面向，不能只用一個點代表完整人格。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/astrology/astrology-0001",
+      "bodyHeadings": 5,
+      "bodyParagraphs": 10,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 1,
+      "mainInternalLinks": 10,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/ASTRO-BASE-01-desktop.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "TAROT-CUPS-KING",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:8891/articles/tarot/tarot-0057",
+      "title": "聖杯國王意思：正位、逆位、感情與工作怎麼看",
+      "answer": "聖杯國王提醒成熟情緒與穩定支持，逆位可看壓抑感受，但不能單牌定結果。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/tarot/tarot-0057",
+      "bodyHeadings": 6,
+      "bodyParagraphs": 12,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 19,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/TAROT-CUPS-KING-mobile.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "MBTI-BASE-04",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:8891/articles/personality/personality-0004",
+      "title": "MBTI 準嗎？準確度、限制與自我理解怎麼看",
+      "answer": "MBTI 可作為理解偏好的語言，但不適合當成絕對人格判定。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/personality/personality-0004",
+      "bodyHeadings": 3,
+      "bodyParagraphs": 6,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 14,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/MBTI-BASE-04-mobile.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "THEME-LOVE-03",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:8891/articles/love/love-0003",
+      "title": "復合前要想清楚什麼？先看三個關係問題",
+      "answer": "復合前先看分手原因、改變是否具體、你想回去的是關係本身，還是不甘心和習慣。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/love/love-0003",
+      "bodyHeadings": 3,
+      "bodyParagraphs": 6,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 2,
+      "mainInternalLinks": 16,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/THEME-LOVE-03-mobile.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    },
+    {
+      "target": "ASTRO-BASE-01",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:8891/articles/astrology/astrology-0001",
+      "title": "星盤是什麼？太陽、月亮、上升星座怎麼看",
+      "answer": "星盤是占星用來整理出生時天空配置的圖；太陽、月亮、上升各看不同面向，不能只用一個點代表完整人格。",
+      "updated": "2026-07-10",
+      "canonical": "http://127.0.0.1:8891/articles/astrology/astrology-0001",
+      "bodyHeadings": 5,
+      "bodyParagraphs": 10,
+      "faqItems": 5,
+      "relatedLinks": 5,
+      "navigationLinks": 1,
+      "mainInternalLinks": 10,
+      "jsonLdTypes": [
+        "Article",
+        "BreadcrumbList",
+        "FAQPage"
+      ],
+      "screenshot": "artifacts/fortune_council/content_rewrite_execution/evidence/review/browser/ASTRO-BASE-01-mobile.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": [],
+      "httpErrors": [],
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "pass": 8,
+    "fail": 0
+  }
+}
