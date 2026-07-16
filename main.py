@@ -16,6 +16,11 @@ ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
 ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
 ARTICLE_TAROT_COMPLETION_DATE = "2026-07-16"
+ARTICLES_HUB_UPDATED_DATE = max(
+    ARTICLE_UPDATED_DATE,
+    ARTICLE_CONTENT_REFRESH_DATE,
+    ARTICLE_TAROT_COMPLETION_DATE,
+)
 TAROT_COMPLETION_PATHS = {
     *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(77, 81)),
 }
@@ -146,6 +151,13 @@ def raw_article_meta(path: str) -> dict[str, str]:
 
 def json_script(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+
+def render_articles_hub() -> HTMLResponse:
+    markup = (WEB_DIR / "articles.html").read_text(encoding="utf-8")
+    markup = markup.replace("{{ARTICLE_PUBLISHED_DATE}}", ARTICLE_PUBLISHED_DATE)
+    markup = markup.replace("{{ARTICLES_HUB_UPDATED_DATE}}", ARTICLES_HUB_UPDATED_DATE)
+    return HTMLResponse(markup)
 
 
 def build_prerender_internal_links(links: list[dict[str, str]]) -> str:
@@ -372,8 +384,8 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/articles", include_in_schema=False)
-    def articles_page() -> FileResponse:
-        return FileResponse(WEB_DIR / "articles.html")
+    def articles_page() -> HTMLResponse:
+        return render_articles_hub()
 
     @app.get("/articles/intents/{intent}", include_in_schema=False)
     def article_intent_page(intent: str) -> HTMLResponse:

@@ -6,8 +6,10 @@ import subprocess
 
 from main import (
     ARTICLE_CONTENT_REFRESH_DATE,
+    ARTICLE_PUBLISHED_DATE,
     ARTICLE_TAROT_COMPLETION_DATE,
     ARTICLE_UPDATED_DATE,
+    ARTICLES_HUB_UPDATED_DATE,
     EXPANSION_50_PATHS,
     EXPANSION_50C_PATHS,
     EXPANSION_50D_PATHS,
@@ -256,10 +258,14 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "個人化解讀" not in response.text
     assert "\"@type\": \"CollectionPage\"" in response.text
     assert "name=\"author\" content=\"Pantheon 編輯部\"" in response.text
-    assert "property=\"article:published_time\" content=\"2026-07-10\"" in response.text
-    assert "property=\"article:modified_time\" content=\"2026-07-12\"" in response.text
-    assert "\"datePublished\": \"2026-07-10\"" in response.text
-    assert "\"dateModified\": \"2026-07-12\"" in response.text
+    assert f'property="article:published_time" content="{ARTICLE_PUBLISHED_DATE}"' in response.text
+    assert f'property="article:modified_time" content="{ARTICLES_HUB_UPDATED_DATE}"' in response.text
+    assert f'"datePublished": "{ARTICLE_PUBLISHED_DATE}"' in response.text
+    assert f'"dateModified": "{ARTICLES_HUB_UPDATED_DATE}"' in response.text
+    assert f'<time datetime="{ARTICLE_PUBLISHED_DATE}" data-articles-published>{ARTICLE_PUBLISHED_DATE}</time>' in response.text
+    assert f'<time datetime="{ARTICLES_HUB_UPDATED_DATE}" data-articles-updated>{ARTICLES_HUB_UPDATED_DATE}</time>' in response.text
+    assert "{{ARTICLE_PUBLISHED_DATE}}" not in response.text
+    assert "{{ARTICLES_HUB_UPDATED_DATE}}" not in response.text
     assert "\"author\": {" in response.text
     assert "\"@type\": \"Organization\"" in response.text
     assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
@@ -444,8 +450,8 @@ def test_content_refresh_articles_expose_current_update_date() -> None:
         assert f'<time datetime="{expected_date}" data-article-updated>{expected_date}</time>' in response.text, path
 
     unchanged = client.get("/articles")
-    assert f'property="article:modified_time" content="{ARTICLE_UPDATED_DATE}"' in unchanged.text
-    assert f'"dateModified": "{ARTICLE_UPDATED_DATE}"' in unchanged.text
+    assert f'property="article:modified_time" content="{ARTICLES_HUB_UPDATED_DATE}"' in unchanged.text
+    assert f'"dateModified": "{ARTICLES_HUB_UPDATED_DATE}"' in unchanged.text
 
 
 def test_tarot_completion_articles_expose_publish_date() -> None:
