@@ -153,13 +153,6 @@ def json_script(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
-def render_articles_hub() -> HTMLResponse:
-    markup = (WEB_DIR / "articles.html").read_text(encoding="utf-8")
-    markup = markup.replace("{{ARTICLE_PUBLISHED_DATE}}", ARTICLE_PUBLISHED_DATE)
-    markup = markup.replace("{{ARTICLES_HUB_UPDATED_DATE}}", ARTICLES_HUB_UPDATED_DATE)
-    return HTMLResponse(markup)
-
-
 def build_prerender_internal_links(links: list[dict[str, str]]) -> str:
     if not links:
         return ""
@@ -384,8 +377,8 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/articles", status_code=302)
 
     @app.get("/articles", include_in_schema=False)
-    def articles_page() -> HTMLResponse:
-        return render_articles_hub()
+    def articles_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "articles.html")
 
     @app.get("/articles/intents/{intent}", include_in_schema=False)
     def article_intent_page(intent: str) -> HTMLResponse:

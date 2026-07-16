@@ -22,6 +22,7 @@ from main import (
 )
 from scripts.competitor_seo_tool import endpoint_label
 from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
+from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
@@ -264,8 +265,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert f'"dateModified": "{ARTICLES_HUB_UPDATED_DATE}"' in response.text
     assert f'<time datetime="{ARTICLE_PUBLISHED_DATE}" data-articles-published>{ARTICLE_PUBLISHED_DATE}</time>' in response.text
     assert f'<time datetime="{ARTICLES_HUB_UPDATED_DATE}" data-articles-updated>{ARTICLES_HUB_UPDATED_DATE}</time>' in response.text
-    assert "{{ARTICLE_PUBLISHED_DATE}}" not in response.text
-    assert "{{ARTICLES_HUB_UPDATED_DATE}}" not in response.text
+    assert render_articles_hub_dates(response.text) == response.text
     assert "\"author\": {" in response.text
     assert "\"@type\": \"Organization\"" in response.text
     assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
