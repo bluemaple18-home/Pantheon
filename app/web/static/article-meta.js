@@ -10,11 +10,20 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=article-content-20260711-25";
+} from "./article-registry.js?v=article-expansion-50d-20260716-1";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
 import { INITIAL_31_ARTICLE_BODY_LIBRARY } from "./article-bodies-initial-31.js?v=article-content-20260714-1";
+import { TAROT_COMPLETION_4_ARTICLE_BODY_LIBRARY } from "./article-bodies-tarot-completion-4.js?v=article-content-20260716-1";
+import { TAROT_CARD_FACE_50_LIBRARY } from "./article-card-face-50.js?v=tarot-card-face-20260716-1";
+import { EXPANSION_50_ARTICLE_BODY_LIBRARY } from "./article-expansion-50.js?v=article-expansion-20260716-1";
+import { EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY } from "./article-expansion-50c-mbti.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50C_ASTRO_ARTICLE_BODY_LIBRARY } from "./article-expansion-50c-astro.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY } from "./article-expansion-50c-fortune.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-mbti.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-astro.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-fortune.js?v=article-expansion-50d-20260716-1";
 
 const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
 const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
@@ -48,6 +57,14 @@ const ARTICLE_BODY_LIBRARY = {
   ...SECOND_BATCH_ARTICLE_BODY_LIBRARY,
   ...NEXT_30_ARTICLE_BODY_LIBRARY,
   ...SCALE_44_ARTICLE_BODY_LIBRARY,
+  ...TAROT_COMPLETION_4_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50C_ASTRO_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY,
   "mbti-meaning": [
     {
       heading: "MBTI 是什麼？",
@@ -503,7 +520,10 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       ? `${productThemeRecord.label}文章 | Pantheon`
       : "最新文章 | Pantheon";
   const description = buildDescription(route, article, section, intent, productThemeRecord);
-  const updated = defaults.updated || DEFAULT_ARTICLE_UPDATED_DATE;
+  const updated = article?.updated
+    || (TAROT_CARD_FACE_50_LIBRARY[article?.slug] ? "2026-07-16" : "")
+    || defaults.updated
+    || DEFAULT_ARTICLE_UPDATED_DATE;
   const author = defaults.author || "Pantheon 編輯部";
   const managedArticle = enforceArticlePolicy({
     id: article?.id,
@@ -548,7 +568,7 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     serial: managedArticle.serial || "",
     author,
     updated,
-    published: defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
+    published: article?.published || defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
     sectionDescription: buildSectionDescription(route, section, intent, productTheme),
     productTheme: isLatestHub ? "latest" : managedArticle.productTheme,
     productThemeLabel: productTheme.label,
@@ -825,11 +845,16 @@ function buildProductHubReadingGuide(label, articleCount) {
 }
 
 function buildArticleBody(article, productTheme, managedArticle) {
+  const cardFaceSections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
   const customBody = ARTICLE_BODY_LIBRARY[article.slug];
-  if (customBody) return isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
+  if (customBody) {
+    const body = isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
+    return [...cardFaceSections, ...body];
+  }
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   return [
+    ...cardFaceSections,
     {
       heading: buildDefinitionHeading(primary),
       paragraphs: [
@@ -1492,7 +1517,14 @@ function buildHubVisibleLinks(route = {}, topic = null) {
     };
   }
   if (!route.product || route.slug || route.intent) return null;
-  const links = getRelatedArticleLinks(route.product).map((item) => ({
+  const articles = listArticleRecords()
+    .filter((item) => item.product === route.product || item.articleCategory === route.product)
+    .sort(compareArticleSerial);
+  const links = selectBalancedHubArticles(articles).map((item) => ({
+    label: item.title,
+    href: getArticlePath(item),
+    kind: "同分類",
+  })).map((item) => ({
     ...item,
     kind: "分類文章",
   }));
@@ -1501,6 +1533,29 @@ function buildHubVisibleLinks(route = {}, topic = null) {
     title: "分類文章",
     links: uniqueLinks(links).slice(0, HUB_VISIBLE_MAX_LINKS),
   };
+}
+
+function selectBalancedHubArticles(articles = []) {
+  const groups = new Map();
+  articles.forEach((article) => {
+    const category = article.articleCategory || article.product;
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(article);
+  });
+  const quota = Math.max(1, Math.floor(HUB_VISIBLE_MAX_LINKS / Math.max(groups.size, 1)));
+  const selected = [];
+  const add = (article) => {
+    if (article && !selected.includes(article)) selected.push(article);
+  };
+  groups.forEach((items) => {
+    const headCount = Math.ceil(quota / 2);
+    items.slice(0, headCount).forEach(add);
+    items.slice(-Math.floor(quota / 2)).forEach(add);
+  });
+  articles.forEach((article) => {
+    if (selected.length < HUB_VISIBLE_MAX_LINKS) add(article);
+  });
+  return selected.slice(0, HUB_VISIBLE_MAX_LINKS);
 }
 
 function getRelatedArticleLinks(product) {

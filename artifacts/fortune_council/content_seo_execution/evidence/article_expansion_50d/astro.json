@@ -1,0 +1,46 @@
+{
+  "date": "2026-07-16",
+  "module": "app/web/static/article-expansion-50d-astro.js",
+  "exports": [
+    "EXPANSION_50D_ASTRO_ARTICLE_RECORDS",
+    "EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY"
+  ],
+  "scope": {
+    "moonSigns": 12,
+    "houses": ["第一宮", "第四宮", "第七宮", "第十宮", "第十二宮"]
+  },
+  "articleCount": 17,
+  "serialRange": ["astrology-0028", "astrology-0044"],
+  "checks": {
+    "nodeCheck": "passed",
+    "serialUnique": true,
+    "idUnique": true,
+    "slugUnique": true,
+    "titleUnique": true,
+    "allFourSections": true,
+    "allFaq3to5": true,
+    "allBodyAtLeast650Chinese": true,
+    "allTwoDedicatedScenes": true,
+    "bannedTermsZero": true,
+    "repeatedFullSentencesOver3Zero": true
+  },
+  "records": [
+    {"serial":"astrology-0028","slug":"moon-牡羊-sign-meaning","title":"月亮牡羊星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":771,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0029","slug":"moon-金牛-sign-meaning","title":"月亮金牛星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":788,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0030","slug":"moon-雙子-sign-meaning","title":"月亮雙子星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":781,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0031","slug":"moon-巨蟹-sign-meaning","title":"月亮巨蟹星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":790,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0032","slug":"moon-獅子-sign-meaning","title":"月亮獅子星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":788,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0033","slug":"moon-處女-sign-meaning","title":"月亮處女星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":781,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0034","slug":"moon-天秤-sign-meaning","title":"月亮天秤星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":786,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0035","slug":"moon-天蠍-sign-meaning","title":"月亮天蠍星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":788,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0036","slug":"moon-射手-sign-meaning","title":"月亮射手星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":789,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0037","slug":"moon-摩羯-sign-meaning","title":"月亮摩羯星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":789,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0038","slug":"moon-水瓶-sign-meaning","title":"月亮水瓶星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":799,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0039","slug":"moon-雙魚-sign-meaning","title":"月亮雙魚星座是什麼？情緒、安全感與互動節奏怎麼看","bodyChineseChars":795,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0040","slug":"first-house-astrology-meaning","title":"第一宮是什麼？自我呈現、身體感和開始一件事的方式怎麼看","bodyChineseChars":755,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0041","slug":"fourth-house-astrology-meaning","title":"第四宮是什麼？家庭根基、私領域和內在歸屬怎麼看","bodyChineseChars":746,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0042","slug":"seventh-house-astrology-meaning","title":"第七宮是什麼？一對一關係、合作契約和互相投射怎麼看","bodyChineseChars":745,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0043","slug":"tenth-house-astrology-meaning","title":"第十宮是什麼？公開角色、方向、責任和社會可見度怎麼看","bodyChineseChars":748,"sections":4,"faq":4,"scenes":2},
+    {"serial":"astrology-0044","slug":"twelfth-house-astrology-meaning","title":"第十二宮是什麼？退隱、內在消化、休息和不易被看見的經驗怎麼看","bodyChineseChars":766,"sections":4,"faq":4,"scenes":2}
+  ]
+}

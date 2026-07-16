@@ -1,0 +1,34 @@
+{
+  "batch": "EXPANSION_50D_MBTI",
+  "date": "2026-07-16",
+  "scope": "ENTJ、ENTP、ISFJ、ENFJ 的 AH/AC/OH/OC 64 分支文章",
+  "recordsExport": "EXPANSION_50D_MBTI_ARTICLE_RECORDS",
+  "bodyLibraryExport": "EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY",
+  "count": 16,
+  "serials": [
+    "personality-0037", "personality-0038", "personality-0039", "personality-0040",
+    "personality-0041", "personality-0042", "personality-0043", "personality-0044",
+    "personality-0045", "personality-0046", "personality-0047", "personality-0048",
+    "personality-0049", "personality-0050", "personality-0051", "personality-0052"
+  ],
+  "branches": ["ENTJ-AH", "ENTJ-AC", "ENTJ-OH", "ENTJ-OC", "ENTP-AH", "ENTP-AC", "ENTP-OH", "ENTP-OC", "ISFJ-AH", "ISFJ-AC", "ISFJ-OH", "ISFJ-OC", "ENFJ-AH", "ENFJ-AC", "ENFJ-OH", "ENFJ-OC"],
+  "contract": {
+    "bodySectionsPerArticle": 4,
+    "faqMin": 3,
+    "faqMax": 5,
+    "minChineseCharactersPerBody": 650,
+    "minExclusiveLifeScenesPerArticle": 2,
+    "nonDiagnosticBoundary": true,
+    "nonAbilityRankingBoundary": true,
+    "nonFateJudgementBoundary": true
+  },
+  "verification": {
+    "nodeCheck": "passed",
+    "bodyLengthCheck": {"passed": true, "minChineseCharacters": 927},
+    "faqCountCheck": {"passed": true, "range": [4, 4]},
+    "uniqueIdSerialSlugTitleCheck": {"passed": true, "id": 16, "serial": 16, "slug": 16, "title": 16},
+    "bannedPhraseCheck": {"passed": true, "matches": 0},
+    "repeatedCompleteSentenceOverThreeCheck": {"passed": true, "matches": 0},
+    "onlyRequestedFilesChanged": {"passed": true, "files": 2}
+  }
+}

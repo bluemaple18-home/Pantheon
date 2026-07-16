@@ -1,0 +1,53 @@
+[
+  {
+    "name": "major_fool",
+    "path": "/articles/tarot/tarot-0003",
+    "status": 200,
+    "title": "愚者牌意思：正位、逆位、感情與工作情境怎麼看",
+    "section_count": 5,
+    "card_face_heading_count": 1,
+    "body_length": 953,
+    "updated": "2026-07-16",
+    "script_src": "/static/article.js?v=tarot-card-face-20260716-1",
+    "console_errors": [],
+    "page_errors": [],
+    "request_failures": [],
+    "bad_responses": [],
+    "traceback_count": 0,
+    "screenshot": "artifacts/fortune_council/content_seo_execution/evidence/tarot_card_face_50/major_fool.png"
+  },
+  {
+    "name": "wands_three",
+    "path": "/articles/tarot/tarot-0033",
+    "status": 200,
+    "title": "權杖一意思：正位、逆位、感情與工作怎麼看",
+    "section_count": 8,
+    "card_face_heading_count": 1,
+    "body_length": 1410,
+    "updated": "2026-07-16",
+    "script_src": "/static/article.js?v=tarot-card-face-20260716-1",
+    "console_errors": [],
+    "page_errors": [],
+    "request_failures": [],
+    "bad_responses": [],
+    "traceback_count": 0,
+    "screenshot": "artifacts/fortune_council/content_seo_execution/evidence/tarot_card_face_50/wands_three.png"
+  },
+  {
+    "name": "cups_ace",
+    "path": "/articles/tarot/tarot-0045",
+    "status": 200,
+    "title": "聖杯一意思：正位、逆位、感情與工作怎麼看",
+    "section_count": 8,
+    "card_face_heading_count": 1,
+    "body_length": 1464,
+    "updated": "2026-07-16",
+    "script_src": "/static/article.js?v=tarot-card-face-20260716-1",
+    "console_errors": [],
+    "page_errors": [],
+    "request_failures": [],
+    "bad_responses": [],
+    "traceback_count": 0,
+    "screenshot": "artifacts/fortune_council/content_seo_execution/evidence/tarot_card_face_50/cups_ace.png"
+  }
+]

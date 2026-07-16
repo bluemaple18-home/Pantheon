@@ -1,0 +1,35 @@
+{
+  "batch": "article_expansion_50d_fortune",
+  "date": "2026-07-16",
+  "module": "app/web/static/article-expansion-50d-fortune.js",
+  "exports": [
+    "EXPANSION_50D_FORTUNE_ARTICLE_RECORDS",
+    "EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY"
+  ],
+  "articleCount": 17,
+  "serialRange": ["fortune-0027", "fortune-0043"],
+  "groups": {
+    "ziwei": ["太陰", "貪狼", "巨門", "天相", "天梁", "七殺", "破軍"],
+    "bazi": ["天干", "地支", "四柱", "月令", "藏干", "用神", "喜忌", "合沖刑害", "格局", "納音"]
+  },
+  "checks": {
+    "nodeCheck": "pass",
+    "fourBodySectionsEach": true,
+    "faqCountRange": [4, 4],
+    "minimumBodyChineseCharacters": 650,
+    "minimumObservedScenesEach": 2,
+    "uniqueIdsSerialsSlugsTitles": true,
+    "bannedTerms": [],
+    "repeatedFullSentencesOverThree": [],
+    "boundaryNoticeEach": true
+  },
+  "scope": {
+    "registryModified": false,
+    "metaModified": false,
+    "htmlModified": false,
+    "pythonModified": false,
+    "testsModified": false,
+    "sitemapFeedRedirectsModified": false,
+    "commitPushDeploy": false
+  }
+}

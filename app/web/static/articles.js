@@ -1,4 +1,4 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=articles-hub-20260711-content-3";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=article-expansion-50d-20260716-1";
 import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-balanced-1";
 import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-mobile-motion-1";
 
@@ -74,6 +74,7 @@ export function pickBalancedArticles(articles, limit = ARTICLE_HUB_DISPLAY_LIMIT
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(article);
   });
+  buckets.forEach((bucket) => bucket.sort(compareNewestArticles));
 
   const selected = [];
   while (selected.length < limit && [...buckets.values()].some((bucket) => bucket.length)) {
@@ -82,4 +83,11 @@ export function pickBalancedArticles(articles, limit = ARTICLE_HUB_DISPLAY_LIMIT
     });
   }
   return selected;
+}
+
+export function compareNewestArticles(a, b) {
+  const aDate = String(a.updated || a.published || a.date || "");
+  const bDate = String(b.updated || b.published || b.date || "");
+  return bDate.localeCompare(aDate)
+    || String(b.serial || "").localeCompare(String(a.serial || ""), "zh-Hant", { numeric: true });
 }

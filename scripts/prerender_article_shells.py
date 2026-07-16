@@ -12,6 +12,7 @@ from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, arti
 
 WEB_DIR = Path("app/web")
 REDIRECTS_PATH = WEB_DIR / "_redirects"
+SITEMAP_PATH = WEB_DIR / "sitemap.xml"
 PRODUCT_HUBS = {
     "fortune": {
         "title": "命盤文章",
@@ -45,6 +46,8 @@ const records = listArticleRecords().map((article) => ({
   productHub: getArticleSectionRecord(article.section)?.product || article.product || article.articleCategory || 'fortune',
   articleCategory: article.articleCategory || article.product || '',
   contentType: 'Article',
+  published: article.published || '',
+  updated: article.updated || '',
 }));
 console.log(JSON.stringify(records));
 """
@@ -165,12 +168,23 @@ def build_topic_internal_links(topic: dict) -> list[dict[str, str]]:
 
 def build_hub_visible_links(product: str, articles: list[dict[str, str]]) -> list[dict[str, str]]:
     links: list[dict[str, str]] = []
-    for article in articles:
-        if article.get("product_hub") != product:
-            continue
+    product_articles = [article for article in articles if article.get("product_hub") == product]
+    groups: dict[str, list[dict[str, str]]] = {}
+    for article in product_articles:
+        groups.setdefault(article_category(article["route"]), []).append(article)
+    quota = max(1, 12 // max(len(groups), 1))
+    selected: list[dict[str, str]] = []
+    for items in groups.values():
+        head_count = (quota + 1) // 2
+        tail_items = items[-(quota // 2):] if quota // 2 else []
+        for article in [*items[:head_count], *tail_items]:
+            if article not in selected:
+                selected.append(article)
+    for article in product_articles:
+        if article not in selected and len(selected) < 12:
+            selected.append(article)
+    for article in selected[:12]:
         add_unique_link(links, article["route"], article["title"], f"/articles/{product}")
-        if len(links) >= 12:
-            break
     return [{**link, "kind": "分類文章"} for link in links]
 
 
@@ -199,8 +213,8 @@ def build_prerender_articles() -> list[dict[str, str]]:
                 "product_label": record["productLabel"],
                 "product_hub": record["productHub"],
                 "content_type": record["contentType"],
-                "published": ARTICLE_PUBLISHED_DATE,
-                "updated": article_updated_date(route),
+                "published": record["published"] or ARTICLE_PUBLISHED_DATE,
+                "updated": record["updated"] or article_updated_date(route),
             }
         )
     for article in articles:
@@ -291,6 +305,21 @@ def update_redirects() -> None:
     REDIRECTS_PATH.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
 
 
+def update_sitemap() -> None:
+    routes = [
+        "/articles",
+        *(page["route"] for page in PRERENDER_HUBS),
+        *(page["route"] for page in PRERENDER_ARTICLES),
+        *(page["route"] for page in PRERENDER_TOPICS),
+    ]
+    unique_routes = list(dict.fromkeys(routes))
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for route in unique_routes:
+        lines.extend(["  <url>", f"    <loc>{SITE_ORIGIN}{route}</loc>", "  </url>"])
+    lines.append("</urlset>")
+    SITEMAP_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def prerender() -> list[Path]:
     written: list[Path] = []
     for page in PRERENDER_PAGES:
@@ -301,6 +330,7 @@ def prerender() -> list[Path]:
         output_path.write_text(response.body.decode("utf-8"), encoding="utf-8")
         written.append(output_path)
     update_redirects()
+    update_sitemap()
     return written
 
 

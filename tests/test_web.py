@@ -4,7 +4,20 @@ from pathlib import Path
 import re
 import subprocess
 
-from main import ARTICLE_CONTENT_REFRESH_DATE, ARTICLE_UPDATED_DATE, RAW_ARTICLE_META, UPDATED_ARTICLE_PATHS, app
+from main import (
+    ARTICLE_CONTENT_REFRESH_DATE,
+    ARTICLE_TAROT_COMPLETION_DATE,
+    ARTICLE_UPDATED_DATE,
+    EXPANSION_50_PATHS,
+    EXPANSION_50C_PATHS,
+    EXPANSION_50D_PATHS,
+    RAW_ARTICLE_META,
+    TAROT_COMPLETION_PATHS,
+    TAROT_CARD_FACE_REFRESH_PATHS,
+    UPDATED_ARTICLE_PATHS,
+    app,
+    article_updated_date,
+)
 from scripts.competitor_seo_tool import endpoint_label
 from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
 
@@ -149,12 +162,44 @@ SCALE_TO_125_PUBLIC_ARTICLE_PATHS = [
     "/articles/tarot/tarot-0076",
 ]
 
+TAROT_COMPLETION_PUBLIC_ARTICLE_PATHS = [
+    "/articles/tarot/tarot-0077",
+    "/articles/tarot/tarot-0078",
+    "/articles/tarot/tarot-0079",
+    "/articles/tarot/tarot-0080",
+]
+
+EXPANSION_50_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/love/love-{serial:04d}" for serial in range(5, 13)),
+    *(f"/articles/career/career-{serial:04d}" for serial in range(5, 13)),
+    *(f"/articles/interpersonal/interpersonal-{serial:04d}" for serial in range(3, 13)),
+    *(f"/articles/wealth/wealth-{serial:04d}" for serial in range(4, 13)),
+    *(f"/articles/life-direction/life-direction-{serial:04d}" for serial in range(3, 13)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(6, 11)),
+]
+
+EXPANSION_50C_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(21, 37)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(11, 28)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(10, 27)),
+]
+
+EXPANSION_50D_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(37, 53)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(28, 45)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(27, 44)),
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
     *SECOND_BATCH_PUBLIC_ARTICLE_PATHS,
     *NEXT_30_PUBLIC_ARTICLE_PATHS,
     *SCALE_TO_125_PUBLIC_ARTICLE_PATHS,
+    *TAROT_COMPLETION_PUBLIC_ARTICLE_PATHS,
+    *EXPANSION_50_PUBLIC_ARTICLE_PATHS,
+    *EXPANSION_50C_PUBLIC_ARTICLE_PATHS,
+    *EXPANSION_50D_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -234,7 +279,7 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
     assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
-    assert "/static/articles.js?v=articles-hub-20260711-content-3" in response.text
+    assert "/static/articles.js?v=article-expansion-50d-20260716-1" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -277,18 +322,18 @@ console.log(JSON.stringify({
         "fortune",
     ]
     assert [record["path"] for record in data["records"]] == [
-        "/articles/personality/personality-0001",
-        "/articles/tarot/tarot-0001",
-        "/articles/fortune/fortune-0001",
-        "/articles/astrology/astrology-0001",
-        "/articles/love/love-0001",
-        "/articles/career/career-0001",
-        "/articles/interpersonal/interpersonal-0001",
-        "/articles/wealth/wealth-0001",
-        "/articles/life-direction/life-direction-0001",
-        "/articles/personality/personality-0002",
-        "/articles/tarot/tarot-0002",
-        "/articles/fortune/fortune-0002",
+        "/articles/personality/personality-0052",
+        "/articles/tarot/tarot-0080",
+        "/articles/fortune/fortune-0043",
+        "/articles/astrology/astrology-0044",
+        "/articles/love/love-0012",
+        "/articles/career/career-0012",
+        "/articles/interpersonal/interpersonal-0012",
+        "/articles/wealth/wealth-0012",
+        "/articles/life-direction/life-direction-0012",
+        "/articles/personality/personality-0051",
+        "/articles/tarot/tarot-0079",
+        "/articles/fortune/fortune-0042",
     ]
     assert data["adjacentSameCategory"] is False
 
@@ -315,7 +360,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "name=\"keywords\"" in response.text
         assert "name=\"author\" content=\"Pantheon 編輯部\"" in response.text
         assert "property=\"article:published_time\" content=\"2026-07-10\"" in response.text
-        expected_modified = ARTICLE_CONTENT_REFRESH_DATE if path in UPDATED_ARTICLE_PATHS else ARTICLE_UPDATED_DATE
+        expected_modified = article_updated_date(path)
         assert f'property="article:modified_time" content="{expected_modified}"' in response.text
         assert "property=\"og:type\" content=\"article\"" in response.text
         assert "name=\"twitter:card\" content=\"summary_large_image\"" in response.text
@@ -352,7 +397,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "ui-brand-mark" in response.text
         assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
         assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
-        assert "/static/article.js?v=article-voice-20260714-4" in response.text
+        assert "/static/article.js?v=article-expansion-50d-20260716-1" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -392,20 +437,75 @@ def test_content_refresh_articles_expose_current_update_date() -> None:
     assert len(UPDATED_ARTICLE_PATHS) == 125
     for path in UPDATED_ARTICLE_PATHS:
         response = client.get(path)
+        expected_date = article_updated_date(path)
         assert response.status_code == 200, path
-        assert f'property="article:modified_time" content="{ARTICLE_CONTENT_REFRESH_DATE}"' in response.text, path
-        assert f'"dateModified":"{ARTICLE_CONTENT_REFRESH_DATE}"' in response.text, path
-        assert f'<time datetime="{ARTICLE_CONTENT_REFRESH_DATE}" data-article-updated>{ARTICLE_CONTENT_REFRESH_DATE}</time>' in response.text, path
+        assert f'property="article:modified_time" content="{expected_date}"' in response.text, path
+        assert f'"dateModified":"{expected_date}"' in response.text, path
+        assert f'<time datetime="{expected_date}" data-article-updated>{expected_date}</time>' in response.text, path
 
     unchanged = client.get("/articles")
     assert f'property="article:modified_time" content="{ARTICLE_UPDATED_DATE}"' in unchanged.text
     assert f'"dateModified": "{ARTICLE_UPDATED_DATE}"' in unchanged.text
 
 
+def test_tarot_completion_articles_expose_publish_date() -> None:
+    client = TestClient(app)
+    assert TAROT_COMPLETION_PATHS == set(TAROT_COMPLETION_PUBLIC_ARTICLE_PATHS)
+    for path in TAROT_COMPLETION_PUBLIC_ARTICLE_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'<time datetime="{ARTICLE_TAROT_COMPLETION_DATE}" data-article-updated>{ARTICLE_TAROT_COMPLETION_DATE}</time>' in response.text, path
+
+
+def test_tarot_card_face_batch_exposes_current_update_date() -> None:
+    client = TestClient(app)
+    assert len(TAROT_CARD_FACE_REFRESH_PATHS) == 50
+    for path in TAROT_CARD_FACE_REFRESH_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+
+
+def test_expansion_50_articles_expose_current_publish_date() -> None:
+    client = TestClient(app)
+    assert EXPANSION_50_PATHS == set(EXPANSION_50_PUBLIC_ARTICLE_PATHS)
+    for path in EXPANSION_50_PUBLIC_ARTICLE_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'<time datetime="{ARTICLE_TAROT_COMPLETION_DATE}" data-article-updated>{ARTICLE_TAROT_COMPLETION_DATE}</time>' in response.text, path
+
+
+def test_expansion_50c_articles_expose_current_publish_date() -> None:
+    client = TestClient(app)
+    assert EXPANSION_50C_PATHS == set(EXPANSION_50C_PUBLIC_ARTICLE_PATHS)
+    for path in EXPANSION_50C_PUBLIC_ARTICLE_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'<time datetime="{ARTICLE_TAROT_COMPLETION_DATE}" data-article-updated>{ARTICLE_TAROT_COMPLETION_DATE}</time>' in response.text, path
+
+
+def test_expansion_50d_articles_expose_current_publish_date() -> None:
+    client = TestClient(app)
+    assert EXPANSION_50D_PATHS == set(EXPANSION_50D_PUBLIC_ARTICLE_PATHS)
+    for path in EXPANSION_50D_PUBLIC_ARTICLE_PATHS:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert f'property="article:modified_time" content="{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'"dateModified":"{ARTICLE_TAROT_COMPLETION_DATE}"' in response.text, path
+        assert f'<time datetime="{ARTICLE_TAROT_COMPLETION_DATE}" data-article-updated>{ARTICLE_TAROT_COMPLETION_DATE}</time>' in response.text, path
+
+
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
     redirects = Path("app/web/_redirects").read_text()
 
-    assert len(PRERENDER_ARTICLES) == 125
+    assert len(PRERENDER_ARTICLES) == 279
     for route, target in PRERENDER_ROUTES.items():
         assert f"{route} /{redirect_target(target)} 200" in redirects
         prerendered = Path("app/web") / target
@@ -449,7 +549,8 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
     assert 6 <= tarot_visible.group(1).count("<li>") <= 12
     assert 'data-topic-visible-links hidden' in tarot_html
     assert 'href="/articles/tarot/tarot-0001"' in tarot_html
-    assert 'href="/articles/tarot/tarot-0076"' in tarot_html
+    assert 'href="/articles/tarot/tarot-0080"' in tarot_html
+    assert 'href="/articles/love/love-0012"' in tarot_html
     astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
     assert 'href="/articles/astrology/astrology-0001"' in astro_html
 
@@ -463,7 +564,7 @@ const guide = content.bodySections.find((section) => section.heading === "這裡
 console.log(JSON.stringify({
   paragraphCount: guide?.paragraphs.length || 0,
   maxParagraphChars: Math.max(...(guide?.paragraphs || []).map((paragraph) => [...paragraph].length)),
-  hasCount: guide?.paragraphs[0]?.includes("目前收錄 80 篇塔羅文章"),
+  hasCount: guide?.paragraphs[0]?.includes("目前收錄 92 篇塔羅文章"),
   hasDefinitionPath: guide?.paragraphs.some((paragraph) => paragraph.includes("塔羅牌意思總覽") && paragraph.includes("塔羅牌正位逆位")),
   hasLovePath: guide?.paragraphs.some((paragraph) => paragraph.includes("感情塔羅怎麼問") && paragraph.includes("曖昧")),
   hasFullTitleDump: (guide?.paragraphs.join("") || "").length > 1400,
@@ -491,10 +592,14 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
         "/topics/personality",
         "/topics/tarot",
         "/topics/upright",
-        "/topics/fortune",
+            "/topics/fortune",
+            "/topics/bazi",
+            "/topics/ziwei",
+        "/topics/astrology",
         "/topics/love",
         "/topics/career",
         "/topics/interpersonal",
+        "/topics/wealth",
         "/topics/life-direction",
         "/topics/reversed",
     }
@@ -677,7 +782,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
     assert 'href="static/styles.css?v=product-gradients-20260715-2"' in article_html
-    assert 'src="static/article.js?v=article-voice-20260714-4"' in article_html
+    assert 'src="static/article.js?v=article-expansion-50d-20260716-1"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -899,7 +1004,7 @@ console.log(JSON.stringify({
     astro_hub = data["astroHub"]
     assert astro_hub["type"] == "product"
     assert astro_hub["title"] == "分類文章"
-    assert astro_hub["count"] == 5
+    assert astro_hub["count"] == 12
     assert astro_hub["duplicateHrefCount"] == 0
 
     tarot_topic = data["tarotTopic"]
@@ -1089,6 +1194,365 @@ console.log(JSON.stringify({
     assert data["minChars"] >= 700
 
 
+def test_tarot_completion_covers_all_78_cards_with_custom_bodies() -> None:
+    script = """
+import {
+  auditArticleVoice,
+  getArticlePath,
+  listArticleRecords,
+} from "./app/web/static/article-registry.js";
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { TAROT_COMPLETION_4_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-tarot-completion-4.js";
+
+const tarotCards = listArticleRecords().filter((article) => article.id.startsWith("TAROT-") && !article.id.startsWith("TAROT-BASE-"));
+const completionCards = tarotCards.filter((article) => [
+  "TAROT-PENTACLES-10",
+  "TAROT-PENTACLES-PAGE",
+  "TAROT-PENTACLES-KNIGHT",
+  "TAROT-PENTACLES-QUEEN",
+].includes(article.id));
+const paragraphs = Object.values(TAROT_COMPLETION_4_ARTICLE_BODY_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }
+}
+const rendered = completionCards.map((article) => {
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  return {
+    id: article.id,
+    path: getArticlePath(article),
+    bodyLength: [...bodyText].length,
+    firstHeading: content.bodySections[0]?.heading || "",
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+    voice: auditArticleVoice(article).status,
+  };
+});
+console.log(JSON.stringify({
+  tarotCardCount: tarotCards.length,
+  customBodyCount: Object.keys(TAROT_COMPLETION_4_ARTICLE_BODY_LIBRARY).length,
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "通常不是想背牌義"]
+    .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  rendered,
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["tarotCardCount"] == 78
+    assert data["customBodyCount"] == 4
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    assert len(data["rendered"]) == 4
+    for article in data["rendered"]:
+        assert article["path"].startswith("/articles/tarot/tarot-00")
+        assert article["bodyLength"] >= 1300, article
+        assert "牌面" in article["firstHeading"], article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["voice"] == "pass", article
+
+
+def test_tarot_card_face_batch_covers_major_wands_and_cups_without_templates() -> None:
+    script = """
+import { TAROT_CARD_FACE_50_LIBRARY } from "./app/web/static/article-card-face-50.js";
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+
+const targetArticles = listArticleRecords().filter((article) =>
+  article.id.startsWith("TAROT-M")
+  || article.id.startsWith("TAROT-WANDS-")
+  || article.id.startsWith("TAROT-CUPS-")
+);
+const paragraphs = Object.values(TAROT_CARD_FACE_50_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }
+}
+const records = targetArticles.map((article) => {
+  const sections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
+  const addonText = sections.flatMap((section) => section.paragraphs).join("");
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  return {
+    id: article.id,
+    slug: article.slug,
+    sectionCount: sections.length,
+    addonLength: [...addonText].length,
+    hasCardFaceHeading: sections.some((section) => section.heading.includes("牌面")),
+    renderedCardFaceHeading: content.bodySections.some((section) => section.heading.includes("牌面")),
+  };
+});
+console.log(JSON.stringify({
+  targetCount: targetArticles.length,
+  libraryCount: Object.keys(TAROT_CARD_FACE_50_LIBRARY).length,
+  emptyParagraphCount: paragraphs.filter((paragraph) => !paragraph.trim()).length,
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: [
+    "全面解析", "深度解析", "總而言之", "值得注意的是", "通常不是想背牌義",
+    "牌面不是要你", "這張牌不是在說", "如果你看到這張牌",
+  ].filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  records,
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["targetCount"] == 50
+    assert data["libraryCount"] == 50
+    assert data["emptyParagraphCount"] == 0
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    for record in data["records"]:
+        assert record["sectionCount"] == 2, record
+        assert record["addonLength"] >= 500, record
+        assert record["hasCardFaceHeading"], record
+        assert record["renderedCardFaceHeading"], record
+
+
+def test_expansion_50_adds_unique_publishable_articles() -> None:
+    script = f"""
+import {{ EXPANSION_50_ARTICLE_BODY_LIBRARY, EXPANSION_50_ARTICLE_RECORDS }} from "./app/web/static/article-expansion-50.js";
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(EXPANSION_50_PUBLIC_ARTICLE_PATHS)});
+const allArticles = listArticleRecords();
+const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
+const paragraphs = Object.values(EXPANSION_50_ARTICLE_BODY_LIBRARY)
+  .flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {{
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {{
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }}
+}}
+const rendered = expansion.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  return {{
+    path: getArticlePath(article),
+    bodyLength: [...bodyText].length,
+    sectionCount: content.bodySections.length,
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+    voice: article.description.length >= 50 && /不|不能|無法/.test(`${{article.description}}${{article.answer}}`),
+  }};
+}});
+console.log(JSON.stringify({{
+  totalCount: allArticles.length,
+  recordCount: EXPANSION_50_ARTICLE_RECORDS.length,
+  bodyCount: Object.keys(EXPANSION_50_ARTICLE_BODY_LIBRARY).length,
+  expansionCount: expansion.length,
+  uniquePaths: new Set(expansion.map(getArticlePath)).size,
+  uniqueTitles: new Set(expansion.map((article) => article.title)).size,
+  missingPaths: [...expectedPaths].filter((path) => !expansion.some((article) => getArticlePath(article) === path)),
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "不可或缺", "賦能", "保證", "注定"]
+    .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  rendered,
+}}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert len(EXPANSION_50_PUBLIC_ARTICLE_PATHS) == 50
+    assert data["totalCount"] >= 179
+    assert data["recordCount"] == 50
+    assert data["bodyCount"] == 50
+    assert data["expansionCount"] == 50
+    assert data["uniquePaths"] == 50
+    assert data["uniqueTitles"] == 50
+    assert data["missingPaths"] == []
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    for article in data["rendered"]:
+        assert article["bodyLength"] >= 650, article
+        assert article["sectionCount"] == 4, article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["voice"], article
+
+
+def test_expansion_50c_adds_parallel_card_articles() -> None:
+    script = f"""
+import {{ EXPANSION_50C_MBTI_ARTICLE_RECORDS, EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-mbti.js";
+import {{ EXPANSION_50C_ASTRO_ARTICLE_RECORDS, EXPANSION_50C_ASTRO_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-astro.js";
+import {{ EXPANSION_50C_FORTUNE_ARTICLE_RECORDS, EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-fortune.js";
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(EXPANSION_50C_PUBLIC_ARTICLE_PATHS)});
+const records = [
+  ...EXPANSION_50C_MBTI_ARTICLE_RECORDS,
+  ...EXPANSION_50C_ASTRO_ARTICLE_RECORDS,
+  ...EXPANSION_50C_FORTUNE_ARTICLE_RECORDS,
+];
+const libraries = [
+  EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY,
+  EXPANSION_50C_ASTRO_ARTICLE_BODY_LIBRARY,
+  EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY,
+];
+const bodies = Object.assign({{}}, ...libraries);
+const paragraphs = Object.values(bodies).flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {{
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {{
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }}
+}}
+const allArticles = listArticleRecords();
+const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
+const rendered = expansion.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  return {{
+    path: getArticlePath(article),
+    bodyLength: [...bodyText].length,
+    sectionCount: content.bodySections.length,
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+    hasBoundary: /不|不能|無法/.test(`${{article.description}}${{article.answer}}${{bodyText}}`),
+  }};
+}});
+console.log(JSON.stringify({{
+  totalCount: allArticles.length,
+  recordCount: records.length,
+  bodyCount: Object.keys(bodies).length,
+  expansionCount: expansion.length,
+  uniqueSerials: new Set(records.map((record) => record.serial)).size,
+  uniqueSlugs: new Set(records.map((record) => record.slug)).size,
+  uniqueTitles: new Set(records.map((record) => record.title)).size,
+  missingPaths: [...expectedPaths].filter((path) => !expansion.some((article) => getArticlePath(article) === path)),
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "不可或缺", "賦能", "必看", "一定", "保證", "注定", "入口"]
+    .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  rendered,
+}}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert len(EXPANSION_50C_PUBLIC_ARTICLE_PATHS) == 50
+    assert data["totalCount"] == 279
+    assert data["recordCount"] == 50
+    assert data["bodyCount"] == 50
+    assert data["expansionCount"] == 50
+    assert data["uniqueSerials"] == 50
+    assert data["uniqueSlugs"] == 50
+    assert data["uniqueTitles"] == 50
+    assert data["missingPaths"] == []
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    for article in data["rendered"]:
+        assert article["bodyLength"] >= 650, article
+        assert article["sectionCount"] == 4, article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["hasBoundary"], article
+
+
+def test_expansion_50d_adds_reviewed_articles() -> None:
+    script = f"""
+import {{ EXPANSION_50D_MBTI_ARTICLE_RECORDS, EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50d-mbti.js";
+import {{ EXPANSION_50D_ASTRO_ARTICLE_RECORDS, EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50d-astro.js";
+import {{ EXPANSION_50D_FORTUNE_ARTICLE_RECORDS, EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50d-fortune.js";
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(EXPANSION_50D_PUBLIC_ARTICLE_PATHS)});
+const records = [
+  ...EXPANSION_50D_MBTI_ARTICLE_RECORDS,
+  ...EXPANSION_50D_ASTRO_ARTICLE_RECORDS,
+  ...EXPANSION_50D_FORTUNE_ARTICLE_RECORDS,
+];
+const bodies = Object.assign({{}},
+  EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY,
+  EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY,
+  EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY,
+);
+const paragraphs = Object.values(bodies).flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {{
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {{
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }}
+}}
+const allArticles = listArticleRecords();
+const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
+const rendered = expansion.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  return {{
+    path: getArticlePath(article),
+    bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
+    sectionCount: content.bodySections.length,
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+  }};
+}});
+console.log(JSON.stringify({{
+  totalCount: allArticles.length,
+  recordCount: records.length,
+  bodyCount: Object.keys(bodies).length,
+  expansionCount: expansion.length,
+  uniqueIds: new Set(records.map((record) => record.id)).size,
+  uniqueSerials: new Set(records.map((record) => record.serial)).size,
+  uniqueSlugs: new Set(records.map((record) => record.slug)).size,
+  uniqueTitles: new Set(records.map((record) => record.title)).size,
+  missingPaths: [...expectedPaths].filter((path) => !expansion.some((article) => getArticlePath(article) === path)),
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "不可或缺", "賦能", "必看", "一定", "保證", "注定"]
+    .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  rendered,
+}}));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
+    data = json.loads(result.stdout)
+    assert len(EXPANSION_50D_PUBLIC_ARTICLE_PATHS) == 50
+    assert data["totalCount"] == 279
+    assert data["recordCount"] == data["bodyCount"] == data["expansionCount"] == 50
+    assert data["uniqueIds"] == data["uniqueSerials"] == data["uniqueSlugs"] == data["uniqueTitles"] == 50
+    assert data["missingPaths"] == []
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    for article in data["rendered"]:
+        assert article["bodyLength"] >= 650, article
+        assert article["sectionCount"] == 4, article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+
+
 def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
@@ -1125,7 +1589,9 @@ const coverage = records.map((article) => {
   return {
     slug: article.slug,
     hasLibrary: Boolean(INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]),
-    openingMatches: content.bodySections[0]?.heading === INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]?.[0]?.heading,
+    bodyPreserved: content.bodySections.some(
+      (section) => section.heading === INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]?.[0]?.heading
+    ),
   };
 });
 console.log(JSON.stringify({
@@ -1134,7 +1600,7 @@ console.log(JSON.stringify({
   emptyParagraphs: paragraphs.filter((paragraph) => !paragraph.trim()).length,
   repeated,
   forbiddenTemplates: forbiddenTemplates.filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
-  missing: coverage.filter((item) => !item.hasLibrary || !item.openingMatches),
+  missing: coverage.filter((item) => !item.hasLibrary || !item.bodyPreserved),
   minChars: Math.min(...Object.values(INITIAL_31_ARTICLE_BODY_LIBRARY).map((sections) => sections.flatMap((section) => section.paragraphs).join("").length)),
 }));
 """
@@ -1513,7 +1979,7 @@ console.log(JSON.stringify({{
     assert "/articles/personality/personality-0001" in data["personalityPaths"]
     assert "/articles/fortune/fortune-0001" in data["fortunePaths"]
     assert "/articles/interpersonal/interpersonal-0001" in data["interpersonalPaths"]
-    assert set(data["generatedTopicLabels"]) == {"MBTI", "人格", "塔羅", "正位", "命盤", "感情", "工作", "人際", "人生方向", "逆位"}
+    assert set(data["generatedTopicLabels"]) == {"MBTI", "人格", "塔羅", "正位", "命盤", "八字", "紫微", "星盤", "感情", "工作", "人際", "財富", "人生方向", "逆位"}
     taxonomy = {item["topicSlug"]: item for item in data["taxonomy"]}
     assert set(taxonomy) == {
         "mbti",
@@ -1664,7 +2130,7 @@ def test_foundation_ai_and_feed_endpoints_are_served() -> None:
     assert "Pantheon 最新文章" in feed.text
     assert feed.text == feed_xml.text
     assert "https://mysticpantheon.com/articles/tarot/tarot-0001" in feed.text
-    assert "https://mysticpantheon.com/articles/tarot/tarot-0076" in feed.text
+    assert "https://mysticpantheon.com/articles/tarot/tarot-0080" in feed.text
     assert "https://mysticpantheon.com/articles/life-direction/life-direction-0001" in feed.text
     assert "<link>https://mysticpantheon.com/articles/life-direction</link>" not in feed.text
     assert feed_file.count("<item>") == len(PRERENDER_ARTICLES)

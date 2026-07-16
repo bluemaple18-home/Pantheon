@@ -1,5 +1,5 @@
 import { buildPredictionPayload, fetchPrediction } from "./api.js";
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=article-content-20260710-10";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=article-expansion-50d-20260716-1";
 import { renderDashboard } from "./dashboard.js";
 import { renderFortunePaper } from "./paper.js";
 

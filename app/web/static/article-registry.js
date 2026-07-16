@@ -1,3 +1,11 @@
+import { EXPANSION_50_ARTICLE_RECORDS } from "./article-expansion-50.js?v=article-expansion-20260716-1";
+import { EXPANSION_50C_MBTI_ARTICLE_RECORDS } from "./article-expansion-50c-mbti.js?v=article-expansion-50c-20260716-1";
+import { EXPANSION_50C_ASTRO_ARTICLE_RECORDS } from "./article-expansion-50c-astro.js?v=article-expansion-50c-20260716-1";
+import { EXPANSION_50C_FORTUNE_ARTICLE_RECORDS } from "./article-expansion-50c-fortune.js?v=article-expansion-50c-20260716-1";
+import { EXPANSION_50D_MBTI_ARTICLE_RECORDS } from "./article-expansion-50d-mbti.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50D_ASTRO_ARTICLE_RECORDS } from "./article-expansion-50d-astro.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50D_FORTUNE_ARTICLE_RECORDS } from "./article-expansion-50d-fortune.js?v=article-expansion-50d-20260716-1";
+
 export const GLOBAL_ARTICLE_POLICY = {
   requiredTags: ["Pantheon", "繁體中文", "公開文章", "通用知識"],
   requiredKeywordTags: ["SEO", "AEO", "GEO"],
@@ -158,6 +166,10 @@ export const ARTICLE_SERIAL_REGISTRY = {
   "TAROT-PENTACLES-07": "tarot-0074",
   "TAROT-PENTACLES-08": "tarot-0075",
   "TAROT-PENTACLES-09": "tarot-0076",
+  "TAROT-PENTACLES-10": "tarot-0077",
+  "TAROT-PENTACLES-PAGE": "tarot-0078",
+  "TAROT-PENTACLES-KNIGHT": "tarot-0079",
+  "TAROT-PENTACLES-QUEEN": "tarot-0080",
 };
 
 export const PRODUCT_THEME_REGISTRY = {
@@ -2262,8 +2274,91 @@ export const ARTICLE_REGISTRY = [
       { question: "錢幣九工作怎麼看？", answer: "可放在個人成果、專業身價與穩定節奏裡理解，但不等於工作結果已定。" },
     ],
   },
-
+  {
+    id: "TAROT-PENTACLES-10",
+    section: "tarot",
+    slug: "ten-of-pentacles-meaning",
+    primaryKeyword: "錢幣十",
+    secondaryKeywords: ["錢幣十感情", "錢幣十工作", "錢幣十逆位", "錢幣十牌面"],
+    title: "錢幣十意思：牌面、正位、逆位、感情與工作怎麼看",
+    description: "錢幣十牌面呈現家族、居所與跨世代累積，適合整理長期穩定和共同基礎；它無法確認婚姻、繼承或財務結果。",
+    answer: "錢幣十關注長期累積、家族與共同基礎；正位偏向穩定成形，逆位則提醒制度、資源或家庭期待出現裂縫。",
+    tags: ["錢幣十", "塔羅", "牌面", "正位", "逆位", "感情", "工作"],
+    published: "2026-07-16",
+    updated: "2026-07-16",
+    faq: [
+      { question: "錢幣十牌面有哪些重要象徵？", answer: "老人、伴侶、孩子、犬隻與城鎮拱門把焦點放在跨世代關係、歸屬和長期累積；象徵仍須配合提問解讀。" },
+      { question: "錢幣十感情代表結婚嗎？", answer: "它可以帶出家庭整合、共同生活和長期承諾，但不能只靠單張牌判定會結婚。" },
+      { question: "錢幣十逆位怎麼看？", answer: "可檢查家庭期待、共同資源或長期安排是否失衡，不宜直接解成破產或關係失敗。" },
+    ],
+  },
+  {
+    id: "TAROT-PENTACLES-PAGE",
+    section: "tarot",
+    slug: "page-of-pentacles-meaning",
+    primaryKeyword: "錢幣侍者",
+    secondaryKeywords: ["錢幣侍者感情", "錢幣侍者工作", "錢幣侍者逆位", "錢幣侍者牌面"],
+    title: "錢幣侍者意思：牌面、正位、逆位、感情與工作怎麼看",
+    description: "錢幣侍者牌面把注意力放在手中的錢幣與尚待耕作的土地，適合整理學習、提案和落地起點；它不代表成果已經到手。",
+    answer: "錢幣侍者關注願意學、仔細看和開始實作；正位偏向務實起步，逆位則提醒分心、準備不足或計畫停在想像。",
+    tags: ["錢幣侍者", "塔羅", "牌面", "正位", "逆位", "感情", "工作"],
+    published: "2026-07-16",
+    updated: "2026-07-16",
+    faq: [
+      { question: "錢幣侍者牌面在看什麼？", answer: "人物凝視手中錢幣，周圍是田地與遠山，常用來整理專注學習、評估資源和把想法帶到現實的起點。" },
+      { question: "錢幣侍者感情代表新對象嗎？", answer: "可能對應謹慎認識或用小行動建立信任，但不能單靠這張牌確認新關係會發生。" },
+      { question: "錢幣侍者逆位怎麼看？", answer: "可檢查是否只有想法、缺少練習，或承諾與實際投入不一致，而不是直接把人貼成不可靠。" },
+    ],
+  },
+  {
+    id: "TAROT-PENTACLES-KNIGHT",
+    section: "tarot",
+    slug: "knight-of-pentacles-meaning",
+    primaryKeyword: "錢幣騎士",
+    secondaryKeywords: ["錢幣騎士感情", "錢幣騎士工作", "錢幣騎士逆位", "錢幣騎士牌面"],
+    title: "錢幣騎士意思：牌面、正位、逆位、感情與工作怎麼看",
+    description: "錢幣騎士牌面中的黑馬停在田野前，騎士穩穩托住錢幣，適合整理責任、節奏與持續執行；它不能把等待直接換算成回報。",
+    answer: "錢幣騎士關注穩定執行、責任與可持續節奏；正位偏向按部就班，逆位則提醒僵化、拖延或只剩例行公事。",
+    tags: ["錢幣騎士", "塔羅", "牌面", "正位", "逆位", "感情", "工作"],
+    published: "2026-07-16",
+    updated: "2026-07-16",
+    faq: [
+      { question: "錢幣騎士的馬為什麼停著？", answer: "靜止的黑馬讓重點落在評估、耐心和穩定推進，不是沒有行動；仍要看現實中是否真的持續投入。" },
+      { question: "錢幣騎士感情代表進展很慢嗎？", answer: "它常對應慢而穩的互動，但慢不等於承諾；要觀察回應、安排與責任是否持續。" },
+      { question: "錢幣騎士逆位怎麼看？", answer: "可檢查穩定是否變成僵化、拖延或敷衍，也可能是過度工作讓關係與生活失去彈性。" },
+    ],
+  },
+  {
+    id: "TAROT-PENTACLES-QUEEN",
+    section: "tarot",
+    slug: "queen-of-pentacles-meaning",
+    primaryKeyword: "錢幣皇后",
+    secondaryKeywords: ["錢幣皇后感情", "錢幣皇后工作", "錢幣皇后逆位", "錢幣皇后牌面"],
+    title: "錢幣皇后意思：牌面、正位、逆位、感情與工作怎麼看",
+    description: "錢幣皇后牌面把照顧、資源和現實生活放在同一幅景象裡，適合整理支持與安全感；它不代表女性角色或財富結果已定。",
+    answer: "錢幣皇后關注有能力照顧，也保有自己的生活基礎；正位偏向務實支持，逆位則提醒耗竭、控制或忽略自身需求。",
+    tags: ["錢幣皇后", "塔羅", "牌面", "正位", "逆位", "感情", "工作"],
+    published: "2026-07-16",
+    updated: "2026-07-16",
+    faq: [
+      { question: "錢幣皇后牌面的兔子代表什麼？", answer: "兔子和繁茂植物常把視線帶向生命力、日常照料與感官世界；它是閱讀線索，不能據此判定懷孕或財富結果。" },
+      { question: "錢幣皇后感情代表對方會照顧我嗎？", answer: "它可以提示務實支持與生活照料，但要看對方是否真的付出、尊重界線並共同承擔。" },
+      { question: "錢幣皇后逆位怎麼看？", answer: "可檢查照顧是否變成過度付出、控制或耗竭，也要確認自己是否把所有人的需要都放在前面。" },
+    ],
+  },
+  ...EXPANSION_50_ARTICLE_RECORDS,
+  ...EXPANSION_50C_MBTI_ARTICLE_RECORDS,
+  ...EXPANSION_50C_ASTRO_ARTICLE_RECORDS,
+  ...EXPANSION_50C_FORTUNE_ARTICLE_RECORDS,
+  ...EXPANSION_50D_MBTI_ARTICLE_RECORDS.map(withExpansion50DDate),
+  ...EXPANSION_50D_ASTRO_ARTICLE_RECORDS.map(withExpansion50DDate),
+  ...EXPANSION_50D_FORTUNE_ARTICLE_RECORDS.map(withExpansion50DDate),
 ];
+
+function withExpansion50DDate(article) {
+  const date = article.updated || article.published || article.date || "2026-07-16";
+  return { ...article, published: date, updated: date };
+}
 
 export function listArticleSectionRecords() {
   return Object.entries(ARTICLE_SECTION_REGISTRY).map(([slug, section]) => ({ slug, ...section }));

@@ -15,6 +15,34 @@ SITE_ORIGIN = "https://mysticpantheon.com"
 ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
 ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
+ARTICLE_TAROT_COMPLETION_DATE = "2026-07-16"
+TAROT_COMPLETION_PATHS = {
+    *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(77, 81)),
+}
+TAROT_CARD_FACE_REFRESH_PATHS = {
+    *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(3, 25)),
+    "/articles/tarot/tarot-0027",
+    "/articles/tarot/tarot-0028",
+    *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(32, 58)),
+}
+EXPANSION_50_PATHS = {
+    *(f"/articles/love/love-{serial:04d}" for serial in range(5, 13)),
+    *(f"/articles/career/career-{serial:04d}" for serial in range(5, 13)),
+    *(f"/articles/interpersonal/interpersonal-{serial:04d}" for serial in range(3, 13)),
+    *(f"/articles/wealth/wealth-{serial:04d}" for serial in range(4, 13)),
+    *(f"/articles/life-direction/life-direction-{serial:04d}" for serial in range(3, 13)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(6, 11)),
+}
+EXPANSION_50C_PATHS = {
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(21, 37)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(11, 28)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(10, 27)),
+}
+EXPANSION_50D_PATHS = {
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(37, 53)),
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(28, 45)),
+    *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(27, 44)),
+}
 UPDATED_ARTICLE_PATHS = {
     *(f"/articles/personality/personality-{serial:04d}" for serial in range(1, 9)),
     *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(1, 9)),
@@ -79,6 +107,8 @@ def product_label(product: str) -> str:
 
 
 def article_updated_date(path: str) -> str:
+    if path in TAROT_COMPLETION_PATHS or path in TAROT_CARD_FACE_REFRESH_PATHS or path in EXPANSION_50_PATHS or path in EXPANSION_50C_PATHS or path in EXPANSION_50D_PATHS:
+        return ARTICLE_TAROT_COMPLETION_DATE
     return ARTICLE_CONTENT_REFRESH_DATE if path in UPDATED_ARTICLE_PATHS else ARTICLE_UPDATED_DATE
 
 

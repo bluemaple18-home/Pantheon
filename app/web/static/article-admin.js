@@ -6,7 +6,7 @@ import {
   listArticleRecords,
   listArticleSectionRecords,
   listTagManagementRecords,
-} from "./article-registry.js?v=tag-management-20260711-2";
+} from "./article-registry.js?v=article-expansion-50d-20260716-1";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
