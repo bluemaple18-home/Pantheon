@@ -1163,6 +1163,7 @@ def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> No
 
     summary = pipeline._write_rewrite_050_summary(tmp_path)
 
+    assert summary["status"] == "CANDIDATES_050_READY"
     assert summary["candidate_count"] == 50
     assert summary["unique_candidate_count"] == 50
     assert summary["formal_apply"] is False

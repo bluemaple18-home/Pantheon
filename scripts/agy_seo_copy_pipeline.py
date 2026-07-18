@@ -1142,8 +1142,25 @@ def prepare_rewrite_batch(
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
     ).stdout.strip()
-    if head != source_commit:
-        raise ValueError(f"rewrite source commit mismatch: expected {source_commit}, got {head}")
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", source_commit, head],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    article_diff = ""
+    if ancestor.returncode == 0:
+        article_diff = subprocess.run(
+            ["git", "diff", "--name-only", f"{source_commit}..{head}", "--", "app"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    if ancestor.returncode != 0 or article_diff:
+        raise ValueError(
+            f"rewrite source commit mismatch: expected unchanged app/** since {source_commit}, got {head}"
+        )
     queue = _rewrite_batch_payload(queue_path.read_text(encoding="utf-8"), batch_number)
     if batch_number >= 2:
         _validate_rewrite_queue(queue, batch_number)
@@ -2315,6 +2332,7 @@ def _write_rewrite_050_summary(evidence_root: Path) -> dict[str, Any]:
     summary = {
         "schema_version": SCHEMA_VERSION,
         "chain_id": "CONTENT-GEMINI-REWRITE-TO-050",
+        "status": "CANDIDATES_050_READY",
         "candidate_count": len(all_ids),
         "unique_candidate_count": len(set(all_ids)),
         "article_ids": all_ids,
