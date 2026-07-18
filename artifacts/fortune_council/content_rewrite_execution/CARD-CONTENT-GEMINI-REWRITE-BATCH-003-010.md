@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REWRITE-BATCH-003-010
-status: CARD_DRAFTED
+status: CANDIDATES_050_READY
 chain_id: CONTENT-GEMINI-REWRITE-TO-050
 thickness: strict
 risk: high
@@ -28,9 +28,9 @@ forbidden_scope:
   - app/**
   - 正式正文、registry、metadata、approval、apply、prerender、sitemap、feed、redirects、部署與發布
 evidence_path: artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_to_050/
-worktree_path: pending
-thread_id: pending
-thread_status: CARD_DRAFTED
+worktree_path: <codex-worktree>/Pantheon
+thread_id: 019f758a-b677-7390-82df-8fa74401bf4a
+thread_status: INTEGRATED
 ---
 
 # CARD-CONTENT-GEMINI-REWRITE-BATCH-003-010｜累計改寫至 50 篇
@@ -71,3 +71,15 @@ thread_status: CARD_DRAFTED
 - 總結 evidence 必須列 50 個 ID、每批 verdict 數、findings 數、candidate SHA、Writer/Reviewer process 數與 formal apply=false。
 - 執行 `.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py`、`git diff --check`、allowlist、identity/current-body SHA 與 50-ID uniqueness gate。
 - 建立完整 candidate commit；只能回報 `CANDIDATES_050_READY` 或 `BLOCKED`。`CANDIDATES_050_READY` 只代表 50 篇候選/evidence 齊備，不代表內容全數 APPROVE 或已套用。
+
+## Provisioning Receipt
+
+- 前兩次 `create_thread` 逾時；延遲稽核未取得正式 thread receipt，產生的 orphan worktree 不視為任務已建立，也未在其中執行內容生成。
+- 第三次改用正式 worktree fork 成功：thread `019f758a-b677-7390-82df-8fa74401bf4a`，title 含本卡 ID，cwd 為獨立 worktree，HEAD `97610d004ff46be884d67659d571bd32275111a8`，turn 狀態 `active/inProgress`。
+
+## Delivery Receipt
+
+- Candidate commits：`fa59ab03141059df7f9d0751ec6073ca9bcb6527`、`74e40e1`。
+- Mainline commits：`02f6496`、`a58f6dc`。
+- 候選：50 個唯一 article ID；Reviewer APPROVE 9 篇，其餘 41 篇保留候選與 findings，不建立 approval、不套用。
+- 驗證：47/47 pipeline tests、`git diff --check`、8 批 candidate SHA、`app/**` 零變更、formal_apply=false。

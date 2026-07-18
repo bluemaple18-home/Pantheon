@@ -1858,19 +1858,22 @@ def _generate_with_receipt(
     schema: dict[str, Any],
     receipt_path: Path,
 ) -> dict[str, Any]:
+    transport_name = getattr(getattr(client, "transport", None), "__name__", type(client).__name__)
     if receipt_path.exists():
         prior = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if prior.get("status") != "error":
+        if prior.get("status") in {"pending", "success"} and transport_name == "_outbox_transport":
+            pass
+        elif prior.get("status") != "error":
             raise RuntimeError(f"operation receipt already exists and is not retryable: {receipt_path.name}")
-        retry_number = 1
-        while True:
-            retry_path = receipt_path.with_name(f"{receipt_path.stem}-runtime-retry-{retry_number:02d}.json")
-            if not retry_path.exists():
-                receipt_path = retry_path
-                break
-            retry_number += 1
+        else:
+            retry_number = 1
+            while True:
+                retry_path = receipt_path.with_name(f"{receipt_path.stem}-runtime-retry-{retry_number:02d}.json")
+                if not retry_path.exists():
+                    receipt_path = retry_path
+                    break
+                retry_number += 1
     model = getattr(client, "writer_model" if role == "writer" else "reviewer_model", "test-double")
-    transport_name = getattr(getattr(client, "transport", None), "__name__", type(client).__name__)
     started = datetime.now().astimezone()
     receipt = {
         "role": role,
