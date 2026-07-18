@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -12,16 +13,19 @@ from scripts.agy_seo_copy_pipeline import (
     GeminiClient,
     apply_approved_candidates,
     article_sha256,
+    body_sha256,
     build_approval,
     build_matrix_backlog,
     invalid_review_payload,
     prepare_matrix_runs,
+    prepare_rewrite_batch,
     render_review_markdown,
     review_schema,
     validate_apply_gate,
     validate_candidate,
     validate_new_brief,
     validate_optimize_brief,
+    validate_rewrite_brief,
     validate_review,
 )
 from scripts.gsc_opportunity_brief import (
@@ -106,6 +110,72 @@ def make_article(article_id: str = "TEST-001") -> dict[str, object]:
                     "可以把文章留下的問題改成今天能確認的資料、對話或界線。",
                 ],
             },
+        ],
+    }
+
+
+def make_rewrite_sections(keyword: str = "測試關鍵字", variant: str = "甲") -> list[dict[str, object]]:
+    paragraphs: list[str] = []
+    seeds = [
+        f"{keyword}先回答讀者眼前的疑問：它是一個整理資訊與選擇的角度，不能代替個人判斷。{variant}在會議收到臨時任務時，先記錄期限與責任，再確認自己缺少哪些資料。",
+        f"{variant}下班回家看到帳單與課程通知同時出現時，可以列出本月支出、比較時間成本，並詢問承辦人退出條件；這個場景讓抽象概念回到可核對的生活細節。",
+        f"另一個例外是資料不足卻急著定案；此時應暫停推測、寫下已知事實，再安排一次短對話。這不代表所有人都要採取相同步驟，仍要觀察情境與後果。",
+    ]
+    for index in range(15):
+        text = f"{seeds[index % len(seeds)]}第{index + 1}段只處理一個具體問題。"
+        while len(text) < 96:
+            text += "再核對一項可觀察資料。"
+        paragraphs.append(text[:118])
+    return [
+        {"heading": f"{variant}的具體判讀角度 {section + 1}", "paragraphs": paragraphs[section * 3 : section * 3 + 3]}
+        for section in range(5)
+    ]
+
+
+def make_rewrite_brief(article_id: str = "REWRITE-001") -> dict[str, object]:
+    current = [{"heading": "舊小標", "paragraphs": ["舊正文第一段。", "舊正文第二段。"]}]
+    identity = {
+        "id": article_id,
+        "product": "personality",
+        "category": "personality",
+        "serial": "personality-0001",
+        "slug": "personality-0001",
+        "primaryKeyword": "測試關鍵字",
+        "title": "測試關鍵字的既有標題",
+    }
+    immutable = {
+        "id": article_id,
+        "product": "personality",
+        "slug": "personality-0001",
+        "serial": "personality-0001",
+        "title": "測試關鍵字的既有標題",
+        "description": "既有描述",
+        "answer": "既有答案",
+        "faq": [{"question": "既有問題", "answer": "既有回答"}],
+        "tags": ["既有標籤"],
+        "published": "2026-07-01",
+        "updated": "2026-07-02",
+        "urlSlug": "personality-0001",
+        "primaryKeyword": "測試關鍵字",
+    }
+    return {
+        "schema_version": 1,
+        "run_id": "private-rewrite-run",
+        "mode": "rewrite_existing_body",
+        "source_commit": "0" * 40,
+        "sort_contract": "fixed",
+        "articles": [
+            {
+                "slot": "article-01",
+                "article_id": article_id,
+                "identity": identity,
+                "immutable_fields": immutable,
+                "current_body": current,
+                "current_body_sha256": body_sha256(current),
+                "rewrite_brief": ["先回答搜尋問題", "加入生活場景"],
+                "source_file": "app/private-registry.js",
+                "body_source": "app/private-body.js",
+            }
         ],
     }
 
@@ -359,6 +429,98 @@ def test_external_gsc_brief_drops_metrics_paths_and_internal_ids() -> None:
         assert secret not in encoded
 
 
+def test_rewrite_public_brief_keeps_content_contract_but_drops_private_paths_and_run() -> None:
+    brief = make_rewrite_brief()
+
+    validate_rewrite_brief(brief)
+    public = pipeline.public_model_brief(brief)
+    encoded = json.dumps(public, ensure_ascii=False)
+
+    assert public["mode"] == "rewrite_existing_body"
+    assert public["articles"][0]["identity"]["id"] == "REWRITE-001"
+    assert public["articles"][0]["currentBody"] == brief["articles"][0]["current_body"]
+    assert public["articles"][0]["rewriteBrief"] == ["先回答搜尋問題", "加入生活場景"]
+    assert "immutableFields" in public
+    for private in ["private-rewrite-run", "private-registry.js", "private-body.js", "source_commit", "app/"]:
+        assert private not in encoded
+
+
+def test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity() -> None:
+    brief = make_rewrite_brief()
+    body = make_rewrite_sections()
+    external = {"articles": [{"slot": "article-01", "bodySections": body}]}
+
+    schema_fields = set(pipeline.external_candidate_schema("rewrite_existing_body")["properties"]["articles"]["items"]["properties"])
+    candidate = pipeline.hydrate_candidate(brief, external)
+
+    assert schema_fields == {"slot", "bodySections"}
+    assert candidate["mode"] == "rewrite_existing_body"
+    assert candidate["articles"][0]["identity"] == brief["articles"][0]["identity"]
+    assert candidate["articles"][0]["current_body_sha256"] == brief["articles"][0]["current_body_sha256"]
+    assert candidate["articles"][0]["bodySections"] == body
+    with pytest.raises(CandidateValidationError, match="slot and bodySections"):
+        pipeline.hydrate_candidate(
+            brief,
+            {"articles": [{"slot": "article-01", "bodySections": body, "title": "企圖改標題"}]},
+        )
+
+
+def test_rewrite_deterministic_gate_enforces_shape_intent_scenarios_actions_and_uniqueness() -> None:
+    first_brief = make_rewrite_brief("REWRITE-001")
+    second_brief = make_rewrite_brief("REWRITE-002")
+    second_item = second_brief["articles"][0]
+    second_item["slot"] = "article-02"
+    second_item["identity"]["serial"] = "personality-0002"
+    second_item["identity"]["slug"] = "personality-0002"
+    second_item["immutable_fields"]["serial"] = "personality-0002"
+    second_item["immutable_fields"]["slug"] = "personality-0002"
+    second_item["immutable_fields"]["urlSlug"] = "personality-0002"
+    brief = first_brief
+    brief["articles"].append(second_item)
+    first_body = make_rewrite_sections(variant="甲")
+    second_body = make_rewrite_sections(variant="乙")
+    second_body[0]["paragraphs"][0] = first_body[0]["paragraphs"][0]
+    candidates = [
+        {
+            "article_id": "REWRITE-001",
+            "identity": brief["articles"][0]["identity"],
+            "current_body_sha256": brief["articles"][0]["current_body_sha256"],
+            "bodySections": first_body,
+        },
+        {
+            "article_id": "REWRITE-002",
+            "identity": second_item["identity"],
+            "current_body_sha256": second_item["current_body_sha256"],
+            "bodySections": second_body,
+        },
+    ]
+
+    findings = pipeline.rewrite_quality_findings(brief, candidates)
+    codes = {item["code"] for item in findings}
+
+    assert "cross_article_sentence" in codes
+    assert "opening_keyword" not in {item["code"] for item in findings if item["article_id"] == "REWRITE-001"}
+    assert "concrete_verbs" not in codes
+    assert "scenario_density" not in codes
+
+
+def test_rewrite_apply_is_disabled_even_with_approval() -> None:
+    brief = make_rewrite_brief()
+    article = pipeline.hydrate_candidate(
+        brief,
+        {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections()}]},
+    )["articles"][0]
+    review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [{"article_id": article["article_id"], "candidate_sha256": article_sha256(article), "verdict": "APPROVE", "findings": []}],
+    }
+    approval = build_approval(str(brief["run_id"]), [article], review, {str(article["article_id"]): "APPROVE"}, "user")
+
+    with pytest.raises(ValueError, match="apply is disabled"):
+        apply_approved_candidates(Path.cwd(), str(brief["run_id"]), [article], review, approval)
+
+
 def test_external_content_is_hydrated_and_hashed_only_after_return() -> None:
     complete = make_article("PRIVATE-ID")
     target_fields = {
@@ -579,6 +741,34 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
     assert len(remaining) == 22
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
+
+
+def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    queue = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/gemini_queue.md"
+
+    brief_path = prepare_rewrite_batch(repo_root, queue, 1, tmp_path, source_commit)
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    public = json.loads((tmp_path / "public-brief.json").read_text(encoding="utf-8"))
+
+    assert [item["article_id"] for item in brief["articles"]] == [
+        "MBTI-BASE-01",
+        "THEME-LIFE-03",
+        "THEME-INTERPERSONAL-03",
+        "THEME-LIFE-04",
+        "THEME-WEALTH-04",
+    ]
+    assert all(item["current_body"] for item in brief["articles"])
+    assert all(item["current_body_sha256"] == body_sha256(item["current_body"]) for item in brief["articles"])
+    encoded_public = json.dumps(public, ensure_ascii=False)
+    assert "app/" not in encoded_public
+    assert source_commit not in encoded_public
+
+    with pytest.raises(ValueError, match="source commit mismatch"):
+        prepare_rewrite_batch(repo_root, queue, 1, tmp_path / "wrong", "f" * 40)
 
 
 def test_integrated_matrix_backlog_is_empty() -> None:

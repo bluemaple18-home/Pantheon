@@ -55,6 +55,74 @@ ARTICLE_FIELDS = {
 }
 REQUIRED_ARTICLE_FIELDS = ARTICLE_FIELDS
 OPTIMIZE_FIELDS = {"title", "description", "answer"}
+REWRITE_IMMUTABLE_FIELDS = {
+    "id",
+    "product",
+    "slug",
+    "serial",
+    "title",
+    "description",
+    "answer",
+    "faq",
+    "tags",
+    "published",
+    "updated",
+    "urlSlug",
+    "primaryKeyword",
+}
+REWRITE_ARTICLE_FIELDS = {"article_id", "identity", "current_body_sha256", "bodySections"}
+REWRITE_IDENTITY_FIELDS = {"id", "product", "category", "serial", "slug", "primaryKeyword", "title"}
+REWRITE_ACTION_VERBS = {
+    "安排",
+    "列出",
+    "寫下",
+    "比較",
+    "記錄",
+    "詢問",
+    "確認",
+    "核對",
+    "拆開",
+    "設定",
+    "觀察",
+    "回顧",
+    "蒐集",
+    "盤點",
+    "試做",
+    "計算",
+    "暫停",
+    "標記",
+}
+REWRITE_SCENE_MARKERS = {
+    "會議",
+    "聚會",
+    "伴侶",
+    "朋友",
+    "同事",
+    "主管",
+    "家人",
+    "工作",
+    "面試",
+    "轉職",
+    "進修",
+    "搬家",
+    "帳單",
+    "收入",
+    "支出",
+    "訊息",
+    "對話",
+    "週末",
+    "下班",
+    "回家",
+    "期限",
+    "合約",
+    "課程",
+}
+REWRITE_TEMPLATE_HEADINGS = {
+    "真正要整理的是什麼",
+    "有哪些可觀察線索",
+    "變成下一步",
+    "不能代表什麼",
+}
 BANNED_PHRASES = {
     "全面解析",
     "深度解析",
@@ -118,6 +186,10 @@ def article_sha256(article: dict[str, Any]) -> str:
     return hashlib.sha256(compact_json_bytes(article)).hexdigest()
 
 
+def body_sha256(body_sections: list[dict[str, Any]]) -> str:
+    return hashlib.sha256(compact_json_bytes(body_sections)).hexdigest()
+
+
 def _ensure_string(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CandidateValidationError(f"{name} must be a non-empty string")
@@ -161,6 +233,76 @@ def validate_optimize_brief(brief: dict[str, Any]) -> None:
             raise ValueError("GSC current copy must contain only title, description, answer")
 
 
+def validate_rewrite_brief(brief: dict[str, Any]) -> None:
+    if brief.get("mode") != "rewrite_existing_body":
+        raise ValueError("rewrite brief mode must be rewrite_existing_body")
+    _ensure_string(brief.get("run_id"), "run_id")
+    articles = brief.get("articles")
+    if not isinstance(articles, list) or not articles or len(articles) > MAX_RUN_ARTICLES:
+        raise ValueError("rewrite brief must contain 1 to 5 articles")
+    expected_slots = [_slot(index) for index in range(len(articles))]
+    actual_slots = [str(item.get("slot")) for item in articles if isinstance(item, dict)]
+    if actual_slots != expected_slots:
+        raise ValueError("rewrite brief article slots must preserve exact order")
+    article_ids: list[str] = []
+    for item in articles:
+        required = {
+            "slot",
+            "article_id",
+            "identity",
+            "immutable_fields",
+            "current_body",
+            "current_body_sha256",
+            "rewrite_brief",
+            "source_file",
+            "body_source",
+        }
+        if set(item) != required:
+            raise ValueError("rewrite brief article fields are strict")
+        article_id = _ensure_string(item.get("article_id"), "article_id")
+        article_ids.append(article_id)
+        identity = item.get("identity")
+        immutable = item.get("immutable_fields")
+        if not isinstance(identity, dict) or set(identity) != REWRITE_IDENTITY_FIELDS:
+            raise ValueError("rewrite identity fields are strict")
+        if identity.get("id") != article_id:
+            raise ValueError("rewrite identity id differs from article_id")
+        if not isinstance(immutable, dict) or not REWRITE_IMMUTABLE_FIELDS <= set(immutable):
+            raise ValueError("rewrite immutable fields are incomplete")
+        if immutable.get("id") != article_id:
+            raise ValueError("rewrite immutable id differs from article_id")
+        current_body = item.get("current_body")
+        _validate_body_sections(current_body, exact_shape=False)
+        if item.get("current_body_sha256") != body_sha256(current_body):
+            raise ValueError(f"rewrite current body hash mismatch for {article_id}")
+        if not isinstance(item.get("rewrite_brief"), list) or not item["rewrite_brief"]:
+            raise ValueError("rewrite_brief must be a non-empty list")
+        for line in item["rewrite_brief"]:
+            _ensure_string(line, "rewrite_brief item")
+        _ensure_string(item.get("source_file"), "source_file")
+        _ensure_string(item.get("body_source"), "body_source")
+    if len(article_ids) != len(set(article_ids)):
+        raise ValueError("rewrite brief contains duplicate article ids")
+
+
+def _validate_body_sections(value: object, *, exact_shape: bool) -> None:
+    if not isinstance(value, list) or not value:
+        raise CandidateValidationError("bodySections must be a non-empty list")
+    if exact_shape and len(value) != 5:
+        raise CandidateValidationError("rewrite bodySections must contain exactly 5 sections")
+    for section in value:
+        if not isinstance(section, dict) or set(section) != {"heading", "paragraphs"}:
+            raise CandidateValidationError("body sections require only heading and paragraphs")
+        _ensure_string(section.get("heading"), "bodySections.heading")
+        paragraphs = section.get("paragraphs")
+        if not isinstance(paragraphs, list) or not paragraphs:
+            raise CandidateValidationError("body section paragraphs must be non-empty")
+        if exact_shape and len(paragraphs) != 3:
+            raise CandidateValidationError("rewrite body section must contain exactly 3 paragraphs")
+        for paragraph in paragraphs:
+            _ensure_string(paragraph, "bodySections.paragraph")
+
+
 def _validate_create_article(article: dict[str, Any]) -> None:
     unexpected = set(article) - ARTICLE_FIELDS
     missing = REQUIRED_ARTICLE_FIELDS - set(article)
@@ -180,14 +322,7 @@ def _validate_create_article(article: dict[str, Any]) -> None:
             raise CandidateValidationError("faq items require only question and answer")
         _ensure_string(item.get("question"), "faq.question")
         _ensure_string(item.get("answer"), "faq.answer")
-    for section in article["bodySections"]:
-        if not isinstance(section, dict) or set(section) != {"heading", "paragraphs"}:
-            raise CandidateValidationError("body sections require only heading and paragraphs")
-        _ensure_string(section.get("heading"), "bodySections.heading")
-        if not isinstance(section.get("paragraphs"), list) or not section["paragraphs"]:
-            raise CandidateValidationError("body section paragraphs must be non-empty")
-        for paragraph in section["paragraphs"]:
-            _ensure_string(paragraph, "bodySections.paragraph")
+    _validate_body_sections(article["bodySections"], exact_shape=False)
 
 
 def _validate_optimize_article(article: dict[str, Any]) -> None:
@@ -204,13 +339,27 @@ def _validate_optimize_article(article: dict[str, Any]) -> None:
             _ensure_string(value.get(key), f"{field}.{key}")
 
 
+def _validate_rewrite_article(article: dict[str, Any]) -> None:
+    if set(article) != REWRITE_ARTICLE_FIELDS:
+        raise CandidateValidationError(f"rewrite article fields must be {sorted(REWRITE_ARTICLE_FIELDS)}")
+    article_id = _ensure_string(article.get("article_id"), "article_id")
+    identity = article.get("identity")
+    if not isinstance(identity, dict) or set(identity) != REWRITE_IDENTITY_FIELDS:
+        raise CandidateValidationError("rewrite identity fields are strict")
+    if identity.get("id") != article_id:
+        raise CandidateValidationError("rewrite identity id differs from article_id")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(article.get("current_body_sha256") or "")):
+        raise CandidateValidationError("rewrite current body SHA-256 is invalid")
+    _validate_body_sections(article.get("bodySections"), exact_shape=True)
+
+
 def validate_candidate(candidate: dict[str, Any]) -> None:
     if candidate.get("schema_version") != SCHEMA_VERSION:
         raise CandidateValidationError("unsupported candidate schema version")
     _ensure_string(candidate.get("run_id"), "run_id")
     mode = candidate.get("mode")
-    if mode not in {"create", "optimize"}:
-        raise CandidateValidationError("candidate mode must be create or optimize")
+    if mode not in {"create", "optimize", "rewrite_existing_body"}:
+        raise CandidateValidationError("candidate mode must be create, optimize, or rewrite_existing_body")
     if set(candidate) != {"schema_version", "run_id", "mode", "articles"}:
         raise CandidateValidationError("candidate top-level fields are strict")
     articles = candidate.get("articles")
@@ -223,8 +372,11 @@ def validate_candidate(candidate: dict[str, Any]) -> None:
         if mode == "create":
             _validate_create_article(article)
             article_id = str(article["id"])
-        else:
+        elif mode == "optimize":
             _validate_optimize_article(article)
+            article_id = str(article["article_id"])
+        else:
+            _validate_rewrite_article(article)
             article_id = str(article["article_id"])
         if article_id in ids:
             raise CandidateValidationError(f"duplicate article id: {article_id}")
@@ -312,6 +464,68 @@ def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
     return findings
 
 
+def rewrite_quality_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """本卡正文改寫的 deterministic gate；不以 Reviewer 主觀判斷取代。"""
+    findings: list[dict[str, str]] = []
+    expected_ids = [str(item["article_id"]) for item in brief["articles"]]
+    actual_ids = [str(item.get("article_id") or "") for item in articles]
+    if actual_ids != expected_ids:
+        return [{"article_id": article_id, "code": "article_order", "message": "文章集合或順序與 rewrite brief 不一致"} for article_id in expected_ids]
+    sentence_owners: dict[str, set[str]] = {}
+    for source, article in zip(brief["articles"], articles, strict=True):
+        article_id = str(article["article_id"])
+        sections = article.get("bodySections") if isinstance(article.get("bodySections"), list) else []
+        paragraphs = [str(paragraph) for section in sections for paragraph in section.get("paragraphs", [])]
+        text = "".join(paragraphs)
+        if len(sections) != 5:
+            findings.append({"article_id": article_id, "code": "section_count", "message": "正文必須恰好 5 節"})
+        for section_index, section in enumerate(sections, start=1):
+            section_paragraphs = section.get("paragraphs", [])
+            if len(section_paragraphs) != 3:
+                findings.append({"article_id": article_id, "code": "paragraph_count", "message": f"第 {section_index} 節必須恰好 3 段"})
+            heading = str(section.get("heading") or "")
+            if any(template in heading for template in REWRITE_TEMPLATE_HEADINGS):
+                findings.append({"article_id": article_id, "code": "template_heading", "message": f"不得沿用批次模板小標：{heading}"})
+            for paragraph_index, paragraph in enumerate(section_paragraphs, start=1):
+                length = len(str(paragraph))
+                if not 90 <= length <= 130:
+                    findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段為 {length} 字；必須 90 到 130 字"})
+        if not 1300 <= len(text) <= 2000:
+            findings.append({"article_id": article_id, "code": "body_length", "message": f"正文為 {len(text)} 字；必須 1300 到 2000 字"})
+        keyword = _normalize_keyword(str(source["identity"]["primaryKeyword"]))
+        opening = _normalize_keyword(text[:80])
+        if keyword and keyword not in opening:
+            findings.append({"article_id": article_id, "code": "opening_keyword", "message": "正文前 80 字未自然回答 primary keyword"})
+        scene_sentences = {
+            sentence.strip()
+            for sentence in re.split(r"[。！？]", text)
+            if any(marker in sentence for marker in REWRITE_SCENE_MARKERS)
+        }
+        if len(scene_sentences) < 2:
+            findings.append({"article_id": article_id, "code": "scenario_density", "message": "至少需要兩個可辨識的專屬生活場景"})
+        verbs = sorted(verb for verb in REWRITE_ACTION_VERBS if verb in text)
+        if len(verbs) < 3:
+            findings.append({"article_id": article_id, "code": "concrete_verbs", "message": "至少需要 3 個不同的具體行動動詞"})
+        if not re.search(r"反例|例外|不適用|不代表|不能|未必|然而|但", text):
+            findings.append({"article_id": article_id, "code": "missing_counterexample_or_limit", "message": "缺少反例或明確限制"})
+        for phrase in sorted(BANNED_PHRASES):
+            if _contains_banned_phrase(text, phrase):
+                findings.append({"article_id": article_id, "code": "banned_phrase", "message": f"命中禁詞：{phrase}"})
+        for phrase in sorted(GENERIC_AI_PHRASES):
+            if phrase in text:
+                findings.append({"article_id": article_id, "code": "generic_ai_phrase", "message": f"命中模板或假場景詞：{phrase}"})
+        for paragraph in paragraphs:
+            for sentence in re.split(r"[。！？]", paragraph):
+                normalized = sentence.strip()
+                if len(normalized) >= 18:
+                    sentence_owners.setdefault(normalized, set()).add(article_id)
+    for sentence, owners in sentence_owners.items():
+        if len(owners) >= 2:
+            for article_id in sorted(owners):
+                findings.append({"article_id": article_id, "code": "cross_article_sentence", "message": f"不得跨篇共用完整句：{sentence}"})
+    return findings
+
+
 def invalid_review_payload(run_id: str, articles: list[dict[str, Any]], reason: str, hard_failure: bool = True) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -370,7 +584,19 @@ def render_review_markdown(review: dict[str, Any], candidates: list[dict[str, An
         lines.append("")
         candidate = candidate_by_id.get(str(item["article_id"]))
         if candidate is not None:
-            if "bodySections" in candidate:
+            if "identity" in candidate and "bodySections" in candidate:
+                lines.extend([
+                    "### Candidate",
+                    "",
+                    f"- Title：{candidate['identity']['title']}",
+                    f"- Current body SHA-256：`{candidate['current_body_sha256']}`",
+                    "",
+                ])
+                for section in candidate["bodySections"]:
+                    lines.extend([f"#### {section['heading']}", ""])
+                    for paragraph in section["paragraphs"]:
+                        lines.extend([paragraph, ""])
+            elif "bodySections" in candidate:
                 lines.extend([
                     "### Candidate",
                     "",
@@ -604,6 +830,124 @@ def prepare_matrix_runs(
     return paths
 
 
+def _rewrite_batch_payload(queue_text: str, batch_number: int) -> dict[str, Any]:
+    match = re.search(
+        rf"^## Batch {batch_number} .*?^```json\s*$\n(.*?)^```\s*$",
+        queue_text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if match is None:
+        raise ValueError(f"rewrite queue batch {batch_number} JSON not found")
+    payload = json.loads(match.group(1))
+    if payload.get("mode") != "rewrite_existing_body":
+        raise ValueError("queue batch is not rewrite_existing_body")
+    return payload
+
+
+def _existing_rewrite_inventory(repo_root: Path) -> dict[str, dict[str, Any]]:
+    script = """
+import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
+import { buildArticleContent } from './app/web/static/article-meta.js';
+const origin = 'https://mysticpantheon.com';
+console.log(JSON.stringify(listArticleRecords().map((record) => {
+  const canonicalPath = getArticlePath(record);
+  const content = buildArticleContent(canonicalPath, origin);
+  return { id: record.id, record, canonicalPath, currentBody: content.bodySections,
+    published: content.published, updated: content.updated };
+})));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return {str(item["id"]): item for item in json.loads(result.stdout)}
+
+
+def prepare_rewrite_batch(
+    repo_root: Path,
+    queue_path: Path,
+    batch_number: int,
+    run_dir: Path,
+    source_commit: str,
+) -> Path:
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    if head != source_commit:
+        raise ValueError(f"rewrite source commit mismatch: expected {source_commit}, got {head}")
+    queue = _rewrite_batch_payload(queue_path.read_text(encoding="utf-8"), batch_number)
+    inventory = _existing_rewrite_inventory(repo_root)
+    articles: list[dict[str, Any]] = []
+    for index, queued in enumerate(queue.get("articles") or []):
+        article_id = str(queued.get("article_id") or "")
+        existing = inventory.get(article_id)
+        if existing is None:
+            raise ValueError(f"rewrite source article not found: {article_id}")
+        record = existing["record"]
+        expected = {
+            "product": queued["product"],
+            "serial": queued["serial"],
+            "primaryKeyword": queued["primaryKeyword"],
+            "title": queued["title"],
+        }
+        actual = {field: record.get(field) for field in expected}
+        if actual != expected or record.get("urlSlug") != queued["slug"]:
+            raise ValueError(f"rewrite source identity drift for {article_id}")
+        identity = {
+            "id": article_id,
+            "product": queued["product"],
+            "category": queued["category"],
+            "serial": queued["serial"],
+            "slug": queued["slug"],
+            "primaryKeyword": queued["primaryKeyword"],
+            "title": queued["title"],
+        }
+        immutable = {
+            "id": article_id,
+            "product": record["product"],
+            "slug": queued["slug"],
+            "serial": record["serial"],
+            "title": record["title"],
+            "description": record["description"],
+            "answer": record["answer"],
+            "faq": record["faq"],
+            "tags": record["tags"],
+            "published": existing["published"],
+            "updated": existing["updated"],
+            "urlSlug": record["urlSlug"],
+            "primaryKeyword": record["primaryKeyword"],
+        }
+        current_body = existing["currentBody"]
+        articles.append(
+            {
+                "slot": _slot(index),
+                "article_id": article_id,
+                "identity": identity,
+                "immutable_fields": immutable,
+                "current_body": current_body,
+                "current_body_sha256": body_sha256(current_body),
+                "rewrite_brief": queued["brief"],
+                "source_file": queued["source_file"],
+                "body_source": queued["body_source"],
+            }
+        )
+    brief = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": queue["run_id"],
+        "mode": "rewrite_existing_body",
+        "source_commit": source_commit,
+        "sort_contract": queue["sort_contract"],
+        "articles": articles,
+    }
+    validate_rewrite_brief(brief)
+    write_json(run_dir / "brief.json", brief)
+    write_json(run_dir / "public-brief.json", public_model_brief(brief))
+    return run_dir / "brief.json"
+
+
 class GeminiClient:
     """Stateless Gemini JSON client；每次呼叫只傳單次 contents。"""
 
@@ -800,6 +1144,26 @@ def candidate_schema(mode: str = "create") -> dict[str, Any]:
             "required": ["article_id", "canonical_path", "source_file", "current", "proposed"],
         }
         return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "mode": {"type": "string", "enum": ["optimize"]}, "articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "mode", "articles"]}
+    if mode == "rewrite_existing_body":
+        section = _article_json_schema()["properties"]["bodySections"]
+        identity = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {field: {"type": "string"} for field in sorted(REWRITE_IDENTITY_FIELDS)},
+            "required": sorted(REWRITE_IDENTITY_FIELDS),
+        }
+        article = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "article_id": {"type": "string"},
+                "identity": identity,
+                "current_body_sha256": {"type": "string"},
+                "bodySections": section,
+            },
+            "required": sorted(REWRITE_ARTICLE_FIELDS),
+        }
+        return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "mode": {"type": "string", "enum": ["rewrite_existing_body"]}, "articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "mode", "articles"]}
     return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "mode": {"type": "string", "enum": ["create"]}, "articles": {"type": "array", "items": _article_json_schema(), "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "mode", "articles"]}
 
 
@@ -817,6 +1181,11 @@ EXTERNAL_CREATE_FIELDS = PUBLIC_CREATE_FIELDS | {"primaryKeyword"}
 
 def _slot(index: int) -> str:
     return f"article-{index + 1:02d}"
+
+
+def _public_rewrite_line(value: object) -> str:
+    text = str(value)
+    return re.sub(r"(?:(?:app|artifacts|\.work)/[^\s，。；]+)(?:::[^\s，。；]+)?", "[本機來源]", text)
 
 
 def public_model_brief(brief: dict[str, Any]) -> dict[str, Any]:
@@ -850,7 +1219,30 @@ def public_model_brief(brief: dict[str, Any]) -> dict[str, Any]:
                 for index, item in enumerate(brief["articles"])
             ],
         }
-    raise ValueError("brief mode must be create or optimize")
+    if mode == "rewrite_existing_body":
+        return {
+            "mode": "rewrite_existing_body",
+            "writingPolicy": {
+                "language": "一般繁體中文讀者；白話、具體、先回答問題",
+                "bodyShape": "恰好 5 節；每節恰好 3 段；每段 90 到 130 字；正文 1300 到 2000 字",
+                "opening": "前 80 字自然回答 primaryKeyword",
+                "content": "至少兩個專屬生活場景、3 個具體動詞、反例或限制",
+                "boundaries": "不得把 MBTI、塔羅或命盤寫成診斷、固定人格、保證預測、投資建議或命運結論",
+                "uniqueness": "不得使用批次模板小標，不得跨篇共用完整句型",
+                "bannedPhrases": sorted(BANNED_PHRASES | GENERIC_AI_PHRASES),
+            },
+            "immutableFields": sorted(REWRITE_IMMUTABLE_FIELDS),
+            "articles": [
+                {
+                    "slot": item["slot"],
+                    "identity": item["identity"],
+                    "currentBody": item["current_body"],
+                    "rewriteBrief": [_public_rewrite_line(line) for line in item["rewrite_brief"]],
+                }
+                for item in brief["articles"]
+            ],
+        }
+    raise ValueError("brief mode must be create, optimize, or rewrite_existing_body")
 
 
 def external_candidate_schema(mode: str) -> dict[str, Any]:
@@ -866,6 +1258,16 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
             "additionalProperties": False,
             "properties": {"slot": {"type": "string"}, "proposed": proposed},
             "required": ["slot", "proposed"],
+        }
+    elif mode == "rewrite_existing_body":
+        article = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "slot": {"type": "string"},
+                "bodySections": _article_json_schema()["properties"]["bodySections"],
+            },
+            "required": ["slot", "bodySections"],
         }
     else:
         full = _article_json_schema()
@@ -902,7 +1304,7 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
             if generated["primaryKeyword"] != source["target"]["primaryKeyword"]:
                 raise CandidateValidationError("external primaryKeyword differs from public brief")
             articles.append({**source["target"], **{field: generated[field] for field in PUBLIC_CREATE_FIELDS}})
-        else:
+        elif mode == "optimize":
             if set(generated) != {"slot", "proposed"}:
                 raise CandidateValidationError("external optimize fields are strict")
             articles.append(
@@ -911,6 +1313,17 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
                     for key in ["article_id", "canonical_path", "source_file", "current"]
                 }
                 | {"proposed": generated["proposed"]}
+            )
+        else:
+            if set(generated) != {"slot", "bodySections"}:
+                raise CandidateValidationError("external rewrite fields must contain only slot and bodySections")
+            articles.append(
+                {
+                    "article_id": source["article_id"],
+                    "identity": source["identity"],
+                    "current_body_sha256": source["current_body_sha256"],
+                    "bodySections": generated["bodySections"],
+                }
             )
     candidate = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "mode": mode, "articles": articles}
     validate_candidate(candidate)
@@ -926,12 +1339,20 @@ def public_model_candidate(brief: dict[str, Any], candidate: dict[str, Any]) -> 
                 {"slot": _slot(index), "primaryKeyword": article["primaryKeyword"]}
                 | {field: article[field] for field in PUBLIC_CREATE_FIELDS}
             )
-        else:
+        elif mode == "optimize":
             public_articles.append(
                 {
                     "slot": _slot(index),
                     "current": article["current"],
                     "proposed": article["proposed"],
+                }
+            )
+        else:
+            public_articles.append(
+                {
+                    "slot": _slot(index),
+                    "identity": article["identity"],
+                    "bodySections": article["bodySections"],
                 }
             )
     return {"mode": mode, "articles": public_articles}
@@ -991,6 +1412,8 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"
+    elif brief.get("mode") == "rewrite_existing_body":
+        instruction = "只輸出各 slot 的完整 bodySections；不得輸出或改動任何 identity、metadata、FAQ、tag、日期或 URL 欄位。"
     if prior is not None:
         instruction = "請只修正 findings 指出的問題，保留候選稿中正確且具體的內容；仍須輸出完整 candidate。"
     return "\n".join([
@@ -1015,29 +1438,86 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
     ])
 
 
+def _generate_with_receipt(
+    client: Any,
+    role: str,
+    prompt: str,
+    schema: dict[str, Any],
+    receipt_path: Path,
+) -> dict[str, Any]:
+    model = getattr(client, "writer_model" if role == "writer" else "reviewer_model", "test-double")
+    transport_name = getattr(getattr(client, "transport", None), "__name__", type(client).__name__)
+    started = datetime.now().astimezone()
+    receipt = {
+        "role": role,
+        "model": model,
+        "thinking_level": "LOW",
+        "started_at": started.isoformat(timespec="seconds"),
+        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "schema_sha256": hashlib.sha256(compact_json_bytes(schema)).hexdigest(),
+        "transport": transport_name,
+        "fresh_headless_process": transport_name == "_cli_transport",
+        "status": "started",
+    }
+    try:
+        result = client.generate_json(role, prompt, schema)
+    except Exception as error:
+        receipt["status"] = "error"
+        receipt["error_type"] = type(error).__name__
+        receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        write_json(receipt_path, receipt)
+        raise
+    receipt["status"] = "success"
+    receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+    write_json(receipt_path, receipt)
+    return result
+
+
 def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 2) -> tuple[dict[str, Any], dict[str, Any]]:
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     mode = str(brief.get("mode"))
     if mode == "create":
         validate_new_brief(brief)
-    else:
+    elif mode == "optimize":
         validate_optimize_brief(brief)
+    else:
+        validate_rewrite_brief(brief)
+        if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("rewrite_existing_body requires fresh headless CLI processes")
+        if isinstance(client, GeminiClient) and client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("rewrite_existing_body reviewer must use Gemini 3.1 Pro Low")
     candidate: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
+    completed_attempts = 0
     for attempt in range(max_repairs + 1):
         attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
+        completed_attempts = attempt + 1
         findings = [] if review is None else [
             {"article_id": item["article_id"], **finding}
             for item in review["articles"]
             for finding in item.get("findings", [])
         ]
-        external_candidate = client.generate_json(
-            "writer",
-            _writer_prompt(brief, candidate, findings),
-            external_candidate_schema(mode),
-        )
-        write_json(attempt_dir / "external-candidate.json", external_candidate)
-        candidate = hydrate_candidate(brief, external_candidate)
+        writer_prompt = _writer_prompt(brief, candidate, findings)
+        writer_schema = external_candidate_schema(mode)
+        write_json(attempt_dir / "public-brief.json", public_model_brief(brief))
+        try:
+            external_candidate = _generate_with_receipt(
+                client,
+                "writer",
+                writer_prompt,
+                writer_schema,
+                attempt_dir / "writer-operation.json",
+            )
+            write_json(attempt_dir / "external-candidate.json", external_candidate)
+            candidate = hydrate_candidate(brief, external_candidate)
+        except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
+            write_json(
+                attempt_dir / "writer-schema-rejection.json",
+                {"verdict": "REJECT", "hard_failure": True, "code": "invalid_writer_schema", "error_type": type(error).__name__},
+            )
+            if attempt < max_repairs:
+                continue
+            raise CandidateValidationError("writer schema remained invalid after two repairs") from error
         if candidate["run_id"] != brief["run_id"]:
             raise CandidateValidationError("candidate run_id differs from brief")
         if mode == "create":
@@ -1048,7 +1528,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                 target = expected_targets[_candidate_id(article)]
                 if any(article.get(field) != value for field, value in target.items()):
                     raise CandidateValidationError(f"candidate identity differs from brief for {article['id']}")
-        else:
+        elif mode == "optimize":
             expected = {item["article_id"]: item for item in brief["articles"]}
             if {_candidate_id(article) for article in candidate["articles"]} != set(expected):
                 raise CandidateValidationError("candidate article set differs from GSC brief")
@@ -1057,14 +1537,28 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                 for field in ["article_id", "canonical_path", "source_file", "current"]:
                     if article.get(field) != source.get(field):
                         raise CandidateValidationError(f"candidate changed immutable GSC field {field}")
-        deterministic = quality_findings(candidate["articles"])
+        else:
+            expected = {item["article_id"]: item for item in brief["articles"]}
+            if [_candidate_id(article) for article in candidate["articles"]] != list(expected):
+                raise CandidateValidationError("candidate article set or order differs from rewrite brief")
+            for article in candidate["articles"]:
+                source = expected[_candidate_id(article)]
+                if article["identity"] != source["identity"]:
+                    raise CandidateValidationError(f"candidate changed immutable identity for {article['article_id']}")
+                if article["current_body_sha256"] != source["current_body_sha256"]:
+                    raise CandidateValidationError(f"candidate changed current body hash for {article['article_id']}")
+        deterministic = rewrite_quality_findings(brief, candidate["articles"]) if mode == "rewrite_existing_body" else quality_findings(candidate["articles"])
+        write_json(attempt_dir / "deterministic-findings.json", deterministic)
         invalid_reviewer = False
         try:
-            external_review = client.generate_json(
+            external_review = _generate_with_receipt(
+                client,
                 "reviewer",
                 _reviewer_prompt(brief, candidate, deterministic),
                 external_review_schema(),
+                attempt_dir / "reviewer-operation.json",
             )
+            write_json(attempt_dir / "external-review.json", external_review)
             review = hydrate_review(brief, candidate, external_review)
             for item in review["articles"]:
                 item["hard_failure"] = False
@@ -1090,6 +1584,22 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     write_json(run_dir / "candidate.json", candidate)
     write_json(run_dir / "review.json", review)
     (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    write_json(
+        run_dir / "run-evidence.json",
+        {
+            "run_id": brief["run_id"],
+            "mode": mode,
+            "source_commit": brief.get("source_commit"),
+            "attempts": completed_attempts,
+            "writer_model": getattr(client, "writer_model", "test-double"),
+            "reviewer_model": getattr(client, "reviewer_model", "test-double"),
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "article_sha256": {_candidate_id(article): article_sha256(article) for article in candidate["articles"]},
+            "approval_created": False,
+            "apply_executed": False,
+        },
+    )
     return candidate, review
 
 
@@ -1099,13 +1609,30 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
     validate_candidate(candidate)
     if candidate["run_id"] != brief["run_id"] or candidate["mode"] != brief["mode"]:
         raise CandidateValidationError("existing candidate differs from brief")
-    deterministic = quality_findings(candidate["articles"])
+    if brief.get("mode") == "rewrite_existing_body":
+        validate_rewrite_brief(brief)
+        if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("rewrite_existing_body requires a fresh headless reviewer process")
+        if isinstance(client, GeminiClient) and client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("rewrite_existing_body reviewer must use Gemini 3.1 Pro Low")
+        expected = brief["articles"]
+        if [article["article_id"] for article in candidate["articles"]] != [item["article_id"] for item in expected]:
+            raise CandidateValidationError("existing rewrite candidate set or order differs from brief")
+        for article, source in zip(candidate["articles"], expected, strict=True):
+            if article["identity"] != source["identity"] or article["current_body_sha256"] != source["current_body_sha256"]:
+                raise CandidateValidationError(f"existing rewrite candidate changed immutable fields for {article['article_id']}")
+        deterministic = rewrite_quality_findings(brief, candidate["articles"])
+    else:
+        deterministic = quality_findings(candidate["articles"])
     try:
-        external_review = client.generate_json(
+        external_review = _generate_with_receipt(
+            client,
             "reviewer",
             _reviewer_prompt(brief, candidate, deterministic),
             external_review_schema(),
+            run_dir / "review-existing-operation.json",
         )
+        write_json(run_dir / "external-review-existing.json", external_review)
         review = hydrate_review(brief, candidate, external_review)
         for item in review["articles"]:
             item["hard_failure"] = False
@@ -1223,6 +1750,8 @@ def apply_approved_candidates(repo_root: Path, run_id: str, candidates: list[dic
     approved = validate_apply_gate(candidates, review, approval)
     if not approved:
         return []
+    if "identity" in approved[0] and "current_body_sha256" in approved[0]:
+        raise ValueError("rewrite_existing_body apply is disabled; candidate and review only")
     if "bodySections" not in approved[0]:
         return _apply_optimize_candidates(repo_root, run_id, approved)
     slug, identifier = _safe_identifier(run_id)
@@ -1293,6 +1822,11 @@ def parse_args() -> argparse.Namespace:
     prepare.add_argument("--run-prefix", required=True)
     prepare.add_argument("--limit", type=int)
     prepare.add_argument("--exclude", action="append", default=[])
+    rewrite = subparsers.add_parser("prepare-rewrite")
+    rewrite.add_argument("--queue", type=Path, required=True)
+    rewrite.add_argument("--batch", type=int, required=True)
+    rewrite.add_argument("--run-dir", type=Path, required=True)
+    rewrite.add_argument("--source-commit", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -1314,6 +1848,16 @@ def main() -> int:
     if args.command == "prepare-matrix":
         paths = prepare_matrix_runs(repo_root, args.run_prefix, limit=args.limit, exclude_ids=set(args.exclude))
         print(json.dumps({"backlog": sum(len(json.loads(path.read_text())["articles"]) for path in paths), "runs": [str(path.parent) for path in paths]}, ensure_ascii=False))
+        return 0
+    if args.command == "prepare-rewrite":
+        path = prepare_rewrite_batch(
+            repo_root,
+            (repo_root / args.queue).resolve() if not args.queue.is_absolute() else args.queue,
+            args.batch,
+            (repo_root / args.run_dir).resolve() if not args.run_dir.is_absolute() else args.run_dir,
+            args.source_commit,
+        )
+        print(json.dumps({"brief": str(path), "mode": "rewrite_existing_body"}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":
