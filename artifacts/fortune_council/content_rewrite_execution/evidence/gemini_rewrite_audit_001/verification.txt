@@ -1,0 +1,17 @@
+registry_raw_count=287
+inventory_unique_count=287
+verdict_sum=287
+duplicates=0
+duplicate_keys=none
+missing_body=0
+missing_body_keys=none
+gemini_rewrite_count=51
+gemini_batch_count=11
+gemini_batch_size=5
+gemini_batch_1_first=MBTI-BASE-01|personality-0001
+gemini_queue_sort=priority_then_serial_suffix_number_ascending_then_product_category_then_id
+gemini_rewrite_with_two_reasons=51
+coverage_ok=true
+verdict_sum_ok=true
+gemini_reason_ok=true
+reproduce=node artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/audit_runtime_articles.mjs
