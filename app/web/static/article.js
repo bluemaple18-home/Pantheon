@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=agy-asc-batch-02-mechanical-repair-01";
+import { buildArticleContent } from "./article-meta.js?v=agy-asc-venus-batch-03-bounded-02";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;

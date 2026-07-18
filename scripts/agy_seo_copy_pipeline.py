@@ -137,6 +137,8 @@ def validate_new_brief(brief: dict[str, Any]) -> None:
         size = len(compact_json_bytes(article))
         if size > MAX_ARTICLE_BRIEF_BYTES:
             raise ValueError(f"article brief {index} is {size} bytes; limit is 8192")
+    if len(compact_json_bytes(brief)) + 1 > MAX_ARTICLE_BRIEF_BYTES:
+        raise ValueError("whole brief exceeds 8192 bytes")
 
 
 def validate_optimize_brief(brief: dict[str, Any]) -> None:
@@ -570,10 +572,30 @@ def prepare_matrix_runs(
             raise ValueError("limit must be positive")
         backlog = backlog[:limit]
     output_root = output_root or repo_root / RUN_ROOT
+    article_briefs = [{"matrix": row, "target": targets[row["id"]], "policy": compact_publication_policy()} for row in backlog]
+    batches: list[list[dict[str, Any]]] = []
+    current_batch: list[dict[str, Any]] = []
+    for article in article_briefs:
+        candidate_batch = [*current_batch, article]
+        run_id = f"{run_prefix}-{len(batches) + 1:02d}"
+        candidate = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": run_id,
+            "mode": "create",
+            "source": {"type": "matrix", "path": MATRIX_PLAN.as_posix()},
+            "articles": candidate_batch,
+        }
+        if current_batch and (len(candidate_batch) > MAX_RUN_ARTICLES or len(compact_json_bytes(candidate)) + 1 > MAX_ARTICLE_BRIEF_BYTES):
+            batches.append(current_batch)
+            current_batch = [article]
+        else:
+            current_batch = candidate_batch
+    if current_batch:
+        batches.append(current_batch)
+
     paths = []
-    for offset in range(0, len(backlog), MAX_RUN_ARTICLES):
-        run_id = f"{run_prefix}-{offset // MAX_RUN_ARTICLES + 1:02d}"
-        articles = [{"matrix": row, "target": targets[row["id"]], "policy": compact_publication_policy()} for row in backlog[offset : offset + MAX_RUN_ARTICLES]]
+    for index, articles in enumerate(batches, start=1):
+        run_id = f"{run_prefix}-{index:02d}"
         brief = {"schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": "create", "source": {"type": "matrix", "path": MATRIX_PLAN.as_posix()}, "articles": articles}
         validate_new_brief(brief)
         path = output_root / run_id / "brief.json"

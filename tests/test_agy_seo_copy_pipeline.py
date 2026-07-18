@@ -51,7 +51,15 @@ AGY_ASC_BATCH_02_IDS = {
     "ASC-SCORPIO",
 }
 
-AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS
+AGY_ASC_VENUS_BATCH_03_IDS = {
+    "ASC-SAGITTARIUS",
+    "ASC-CAPRICORN",
+    "ASC-AQUARIUS",
+    "ASC-PISCES",
+    "VENUS-ARIES",
+}
+
+AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS | AGY_ASC_VENUS_BATCH_03_IDS
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
@@ -143,6 +151,10 @@ def test_new_brief_limits_each_article_and_batch_size() -> None:
         validate_new_brief({"mode": "create", "run_id": "run", "articles": [article] * 6})
     with pytest.raises(ValueError, match="8192"):
         validate_new_brief({"mode": "create", "run_id": "run", "articles": [{"matrix": {"id": "A"}, "policy": "字" * 3000}]})
+
+    individually_valid = {"matrix": {"id": "A"}, "policy": "字" * 650}
+    with pytest.raises(ValueError, match="whole brief exceeds 8192"):
+        validate_new_brief({"mode": "create", "run_id": "run", "articles": [individually_valid] * 5})
 
 
 def test_gsc_optimize_brief_is_whole_run_bounded() -> None:
@@ -542,11 +554,12 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     items = [item for brief in briefs for item in brief["articles"]]
     serials = [item["target"]["serial"] for item in items]
 
-    assert len(items) == 13
+    assert len(items) == 18
     assert len(serials) == len(set(serials))
     assert all(item["target"]["published"] == date.today().isoformat() for item in items)
     assert all(item["target"]["primaryKeyword"] == item["matrix"]["primaryKeyword"] for item in items)
     assert all(len(json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")) <= 8192 for item in items)
+    assert all(path.stat().st_size <= 8192 for path in paths)
 
     remaining_paths = prepare_matrix_runs(
         repo_root,
@@ -556,7 +569,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     )
     remaining = [item for path in remaining_paths for item in json.loads(path.read_text(encoding="utf-8"))["articles"]]
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
-    assert len(remaining) == 12
+    assert len(remaining) == 17
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
 
 

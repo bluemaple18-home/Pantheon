@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-asc-batch-02-mechanical-repair-01";
+} from "./article-registry.js?v=agy-asc-venus-batch-03-bounded-02";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -63,7 +63,13 @@ import { AGY_ASC_BATCH_02_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-ag
 
 import { AGY_ASC_BATCH_02_MECHANICAL_REPAIR_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-asc-batch-02-mechanical-repair-01.js?v=agy-asc-batch-02-mechanical-repair-01";
 
+import { AGY_ASC_VENUS_BATCH_03_BOUNDED_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-asc-venus-batch-03-bounded-01.js?v=agy-asc-venus-batch-03-bounded-01";
+
+import { AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-asc-venus-batch-03-bounded-02.js?v=agy-asc-venus-batch-03-bounded-02";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_BODY_LIBRARY,
+  ...AGY_ASC_VENUS_BATCH_03_BOUNDED_01_ARTICLE_BODY_LIBRARY,
   ...AGY_ASC_BATCH_02_MECHANICAL_REPAIR_01_ARTICLE_BODY_LIBRARY,
   ...AGY_ASC_BATCH_02_01_ARTICLE_BODY_LIBRARY,
   ...AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_BODY_LIBRARY,
