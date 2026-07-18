@@ -1087,6 +1087,88 @@ def test_prepare_rewrite_batch_002_locks_audit_identity_order_and_variation_cont
     assert contract["max_internal_repairs"] == 1
 
 
+@pytest.mark.parametrize("batch_number", range(3, 11))
+def test_prepare_rewrite_batches_003_010_lock_card_order_and_unique_shapes(tmp_path: Path, batch_number: int) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    queue = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/gemini_queue.md"
+
+    prepare_rewrite_batch(repo_root, queue, batch_number, tmp_path, source_commit)
+    brief = json.loads((tmp_path / "brief.json").read_text(encoding="utf-8"))
+    contract = json.loads((tmp_path / "batch-contract.json").read_text(encoding="utf-8"))
+
+    expected = [item[0] for item in pipeline.REWRITE_BATCH_003_010_IDS[batch_number]]
+    assert [item["article_id"] for item in brief["articles"]] == expected
+    assert contract["batch_number"] == batch_number
+    assert contract["article_order"] == expected
+    assert len({item["argumentOrder"] for item in contract["variation_contracts"].values()}) == 5
+    assert contract["max_internal_repairs"] == 1
+
+
+def test_rewrite_range_fails_closed_on_partial_batch(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    partial = tmp_path / "gemini_rewrite_batch_003"
+    partial.mkdir()
+    (partial / "brief.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="partial and cannot resume"):
+        pipeline.run_rewrite_range(
+            repo_root,
+            repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/gemini_queue.md",
+            tmp_path,
+            subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True).stdout.strip(),
+            object(),
+        )
+
+
+def test_runtime_retry_preserves_failed_operation_receipt(tmp_path: Path) -> None:
+    class FlakyClient:
+        writer_model = "test-writer"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate_json(self, role: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("sandbox unavailable")
+            return {"value": "ok"}
+
+    client = FlakyClient()
+    receipt = tmp_path / "writer-operation.json"
+    with pytest.raises(RuntimeError, match="sandbox unavailable"):
+        pipeline._generate_with_receipt(client, "writer", "prompt", {"type": "object"}, receipt)
+    original = receipt.read_bytes()
+
+    result = pipeline._generate_with_receipt(client, "writer", "prompt", {"type": "object"}, receipt)
+
+    assert result == {"value": "ok"}
+    assert receipt.read_bytes() == original
+    retry = json.loads((tmp_path / "writer-operation-runtime-retry-01.json").read_text(encoding="utf-8"))
+    assert retry["status"] == "success"
+
+
+def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> None:
+    sources = ["gemini_rewrite_batch_001_repair_001", "gemini_rewrite_batch_002", *[f"gemini_rewrite_batch_{batch:03d}" for batch in range(3, 11)]]
+    for batch_index, name in enumerate(sources, start=1):
+        run_dir = tmp_path / name
+        articles = [{"article_id": f"ARTICLE-{batch_index:02d}-{index:02d}"} for index in range(1, 6)]
+        pipeline.write_json(run_dir / "candidate.json", {"articles": articles})
+        pipeline.write_json(run_dir / "review.json", {"articles": [{"verdict": "APPROVE"} for _ in articles]})
+        pipeline.write_json(run_dir / "run-evidence.json", {"candidate_sha256": str(batch_index), "writer_processes": 5, "reviewer_processes": 1})
+        pipeline.write_json(run_dir / "deterministic-quality-findings.json", [])
+        pipeline.write_json(run_dir / "uniqueness-findings.json", [])
+
+    summary = pipeline._write_rewrite_050_summary(tmp_path)
+
+    assert summary["candidate_count"] == 50
+    assert summary["unique_candidate_count"] == 50
+    assert summary["formal_apply"] is False
+    assert (tmp_path / "gemini_rewrite_to_050" / "summary.md").is_file()
+
+
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     assert {item["id"] for item in build_matrix_backlog(repo_root)} == {"VENUS-GEMINI", "VENUS-CANCER"}

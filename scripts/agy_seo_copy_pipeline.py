@@ -174,6 +174,16 @@ REWRITE_BATCH_002_ARTICLES = (
     ("article-04", "THEME-WEALTH-05", "fortune", "wealth", "wealth-0005", "wealth-0005", "創業財務問題", "創業談財富，不能只問會不會賺錢"),
     ("article-05", "THEME-INTERPERSONAL-05", "personality", "interpersonal", "interpersonal-0005", "interpersonal-0005", "渴望被看見", "渴望被看見怎麼影響人際？觀察你用什麼交換認可"),
 )
+REWRITE_BATCH_003_010_IDS = {
+    3: (("THEME-LOVE-05", "love-0005"), ("ASTRO-MERCURY-01", "astrology-0006"), ("THEME-CAREER-06", "career-0006"), ("THEME-LIFE-06", "life-direction-0006"), ("THEME-WEALTH-06", "wealth-0006")),
+    4: (("THEME-INTERPERSONAL-06", "interpersonal-0006"), ("THEME-LOVE-06", "love-0006"), ("ASTRO-MARS-01", "astrology-0007"), ("THEME-CAREER-07", "career-0007"), ("THEME-LIFE-07", "life-direction-0007")),
+    5: (("THEME-WEALTH-07", "wealth-0007"), ("THEME-INTERPERSONAL-07", "interpersonal-0007"), ("THEME-LOVE-07", "love-0007"), ("ASTRO-JUPITER-01", "astrology-0008"), ("THEME-CAREER-08", "career-0008")),
+    6: (("THEME-LIFE-08", "life-direction-0008"), ("THEME-WEALTH-08", "wealth-0008"), ("THEME-INTERPERSONAL-08", "interpersonal-0008"), ("THEME-LOVE-08", "love-0008"), ("ASTRO-SATURN-01", "astrology-0009")),
+    7: (("THEME-CAREER-09", "career-0009"), ("THEME-LIFE-09", "life-direction-0009"), ("THEME-WEALTH-09", "wealth-0009"), ("THEME-INTERPERSONAL-09", "interpersonal-0009"), ("THEME-LOVE-09", "love-0009")),
+    8: (("ASTRO-HOUSES-01", "astrology-0010"), ("THEME-CAREER-10", "career-0010"), ("THEME-LIFE-10", "life-direction-0010"), ("THEME-WEALTH-10", "wealth-0010"), ("THEME-INTERPERSONAL-10", "interpersonal-0010")),
+    9: (("THEME-LOVE-10", "love-0010"), ("THEME-CAREER-11", "career-0011"), ("THEME-LIFE-11", "life-direction-0011"), ("THEME-WEALTH-11", "wealth-0011"), ("THEME-INTERPERSONAL-11", "interpersonal-0011")),
+    10: (("THEME-LOVE-11", "love-0011"), ("THEME-CAREER-12", "career-0012"), ("THEME-LIFE-12", "life-direction-0012"), ("THEME-WEALTH-12", "wealth-0012"), ("THEME-INTERPERSONAL-12", "interpersonal-0012")),
+}
 REWRITE_BATCH_002_STYLE_CONTRACTS = {
     "THEME-INTERPERSONAL-04": {
         "opening": "從同事在下班後追問感情近況的訊息切入，先回答職場私人界線是依角色與責任決定揭露範圍",
@@ -1051,20 +1061,53 @@ def _rewrite_batch_payload(queue_text: str, batch_number: int) -> dict[str, Any]
     return payload
 
 
-def _validate_batch_002_queue(queue: dict[str, Any]) -> None:
-    """鎖定 audit Batch 2 的文章集合、欄位與順序。"""
-    if queue.get("schema_version") != SCHEMA_VERSION or queue.get("run_id") != "gemini_rewrite_audit_001_batch_02":
-        raise ValueError("Batch 2 audit identity differs from contract")
+def _validate_rewrite_queue(queue: dict[str, Any], batch_number: int) -> None:
+    """鎖定 audit batch 的文章集合、欄位與順序。"""
+    if queue.get("schema_version") != SCHEMA_VERSION or queue.get("run_id") != f"gemini_rewrite_audit_001_batch_{batch_number:02d}":
+        raise ValueError(f"Batch {batch_number} audit identity differs from contract")
     articles = queue.get("articles")
-    if not isinstance(articles, list) or len(articles) != len(REWRITE_BATCH_002_ARTICLES):
-        raise ValueError("Batch 2 audit article count differs from contract")
-    fields = ("slot", "article_id", "product", "category", "serial", "slug", "primaryKeyword", "title")
-    actual = [tuple(str(item.get(field) or "") for field in fields) for item in articles]
-    if actual != list(REWRITE_BATCH_002_ARTICLES):
-        raise ValueError("Batch 2 audit ids, slots, order, identity, title, or keyword differ from contract")
+    if not isinstance(articles, list) or len(articles) != MAX_RUN_ARTICLES:
+        raise ValueError(f"Batch {batch_number} audit article count differs from contract")
+    if batch_number == 2:
+        fields = ("slot", "article_id", "product", "category", "serial", "slug", "primaryKeyword", "title")
+        actual = [tuple(str(item.get(field) or "") for field in fields) for item in articles]
+        if actual != list(REWRITE_BATCH_002_ARTICLES):
+            raise ValueError("Batch 2 audit ids, slots, order, identity, title, or keyword differ from contract")
+    elif batch_number in REWRITE_BATCH_003_010_IDS:
+        actual_ids = tuple((str(item.get("article_id") or ""), str(item.get("serial") or "")) for item in articles)
+        if actual_ids != REWRITE_BATCH_003_010_IDS[batch_number]:
+            raise ValueError(f"Batch {batch_number} audit ids, serials, or order differ from contract")
+        if [str(item.get("slot") or "") for item in articles] != [_slot(index) for index in range(MAX_RUN_ARTICLES)]:
+            raise ValueError(f"Batch {batch_number} audit slots differ from contract")
+    else:
+        raise ValueError("isolated rewrite batch must be between 2 and 10")
     for item in articles:
         if item.get("verdict") != "GEMINI_REWRITE" or item.get("issue_codes") != ["TEMPLATE_STRUCTURE", "REPEATED_BATCH_COPY"]:
-            raise ValueError("Batch 2 audit contains KEEP or unexpected issue codes")
+            raise ValueError(f"Batch {batch_number} audit contains KEEP or unexpected issue codes")
+
+
+def _batch_variation_contracts(queue: dict[str, Any], batch_number: int) -> dict[str, dict[str, str]]:
+    """同批五篇採用互異的開場、論證、反例位置與收尾。"""
+    shapes = (
+        ("從具體對話或訊息現場切入", "現場→角色→選項→反例→回覆", "第 4 節開頭", "寫下一句可直接使用的回覆"),
+        ("從兩個相反選項的比較桌面切入", "選項→證據→試做→限制→比較表", "第 3 節結尾", "完成一個低成本比較動作"),
+        ("從一段可核對的時間軸切入", "時間軸→轉折→重複線索→例外→紀錄", "第 4 節中段", "記錄三個可回查的變化"),
+        ("從數字、帳目或資源落差切入", "數字→拆解→承擔→反例→核對", "第 2 節結尾", "核對一組具體數字與期限"),
+        ("從一個衝動後的停頓動作切入", "動作→需求→代價→誤讀→實驗", "第 4 節開頭", "下一次先暫停並寫下觀察"),
+    )
+    contracts: dict[str, dict[str, str]] = {}
+    for index, item in enumerate(queue["articles"]):
+        opening, order, counterexample, ending = shapes[index]
+        keyword = str(item["primaryKeyword"])
+        contracts[str(item["article_id"])] = {
+            "opening": f"{opening}，前 80 字直接回答「{keyword}」",
+            "headings": f"五個小標依照「{order}」分工，不重複 audit 舊小標",
+            "argumentOrder": order,
+            "counterexample": f"反例固定放在{counterexample}，說清楚「{keyword}」不能代表什麼",
+            "ending": ending,
+            "batch": str(batch_number),
+        }
+    return contracts
 
 
 def _existing_rewrite_inventory(repo_root: Path) -> dict[str, dict[str, Any]]:
@@ -1102,8 +1145,8 @@ def prepare_rewrite_batch(
     if head != source_commit:
         raise ValueError(f"rewrite source commit mismatch: expected {source_commit}, got {head}")
     queue = _rewrite_batch_payload(queue_path.read_text(encoding="utf-8"), batch_number)
-    if batch_number == 2:
-        _validate_batch_002_queue(queue)
+    if batch_number >= 2:
+        _validate_rewrite_queue(queue, batch_number)
     inventory = _existing_rewrite_inventory(repo_root)
     articles: list[dict[str, Any]] = []
     for index, queued in enumerate(queue.get("articles") or []):
@@ -1170,12 +1213,14 @@ def prepare_rewrite_batch(
     validate_rewrite_brief(brief)
     write_json(run_dir / "brief.json", brief)
     write_json(run_dir / "public-brief.json", public_model_brief(brief))
-    if batch_number == 2:
+    if batch_number >= 2:
+        variation_contracts = REWRITE_BATCH_002_STYLE_CONTRACTS if batch_number == 2 else _batch_variation_contracts(queue, batch_number)
         write_json(
             run_dir / "batch-contract.json",
             {
-                "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-002",
-                "article_order": [item[1] for item in REWRITE_BATCH_002_ARTICLES],
+                "chain_id": f"CONTENT-GEMINI-REWRITE-BATCH-{batch_number:03d}",
+                "batch_number": batch_number,
+                "article_order": [str(item["article_id"]) for item in queue["articles"]],
                 "exact_findings": [
                     {
                         "article_id": str(item["article_id"]),
@@ -1186,7 +1231,7 @@ def prepare_rewrite_batch(
                     }
                     for item in queue["articles"]
                 ],
-                "variation_contracts": REWRITE_BATCH_002_STYLE_CONTRACTS,
+                "variation_contracts": variation_contracts,
                 "max_internal_repairs": 1,
             },
         )
@@ -1796,6 +1841,17 @@ def _generate_with_receipt(
     schema: dict[str, Any],
     receipt_path: Path,
 ) -> dict[str, Any]:
+    if receipt_path.exists():
+        prior = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if prior.get("status") != "error":
+            raise RuntimeError(f"operation receipt already exists and is not retryable: {receipt_path.name}")
+        retry_number = 1
+        while True:
+            retry_path = receipt_path.with_name(f"{receipt_path.stem}-runtime-retry-{retry_number:02d}.json")
+            if not retry_path.exists():
+                receipt_path = retry_path
+                break
+            retry_number += 1
     model = getattr(client, "writer_model" if role == "writer" else "reviewer_model", "test-double")
     transport_name = getattr(getattr(client, "transport", None), "__name__", type(client).__name__)
     started = datetime.now().astimezone()
@@ -1980,14 +2036,34 @@ def run_rewrite_repair(
         operation_label = "Repair 1"
         repair_generation = 1
     else:
-        if tuple(article_ids) != tuple(item[1] for item in REWRITE_BATCH_002_ARTICLES):
-            raise ValueError("isolated rewrite Batch 2 order differs from contract")
+        batch_number = execution_contract.get("batch_number", 2)
+        if not isinstance(batch_number, int) or batch_number < 2 or batch_number > 10:
+            raise ValueError("isolated rewrite batch number differs from contract")
+        expected_ids = (
+            tuple(item[1] for item in REWRITE_BATCH_002_ARTICLES)
+            if batch_number == 2
+            else tuple(item[0] for item in REWRITE_BATCH_003_010_IDS[batch_number])
+        )
+        if tuple(article_ids) != expected_ids:
+            raise ValueError(f"isolated rewrite Batch {batch_number} order differs from contract")
         if execution_contract.get("max_internal_repairs") != 1:
             raise ValueError("isolated rewrite repair allowance differs from contract")
         style_contracts = execution_contract.get("variation_contracts")
-        if style_contracts != REWRITE_BATCH_002_STYLE_CONTRACTS:
-            raise ValueError("isolated rewrite variation contracts differ from locked Batch 2 contract")
-        operation_label = "Batch 2 initial rewrite"
+        expected_styles = REWRITE_BATCH_002_STYLE_CONTRACTS if batch_number == 2 else _batch_variation_contracts(
+            {
+                "articles": [
+                    {
+                        "article_id": item["article_id"],
+                        "primaryKeyword": item["identity"]["primaryKeyword"],
+                    }
+                    for item in brief["articles"]
+                ]
+            },
+            batch_number,
+        )
+        if style_contracts != expected_styles:
+            raise ValueError(f"isolated rewrite variation contracts differ from locked Batch {batch_number} contract")
+        operation_label = f"Batch {batch_number} initial rewrite"
         repair_generation = 0
     if isinstance(client, GeminiClient):
         if getattr(client.transport, "__name__", "") != "_cli_transport":
@@ -2030,15 +2106,19 @@ def run_rewrite_repair(
                 operation_label,
             )
             try:
-                external = _generate_with_receipt(
-                    client,
-                    "writer",
-                    prompt,
-                    external_candidate_schema("rewrite_existing_body"),
-                    writer_dir / "writer-operation.json",
-                )
-                writer_calls += 1
-                write_json(writer_dir / "external-candidate.json", external)
+                external_path = writer_dir / "external-candidate.json"
+                if external_path.exists():
+                    external = json.loads(external_path.read_text(encoding="utf-8"))
+                else:
+                    external = _generate_with_receipt(
+                        client,
+                        "writer",
+                        prompt,
+                        external_candidate_schema("rewrite_existing_body"),
+                        writer_dir / "writer-operation.json",
+                    )
+                    writer_calls += 1
+                    write_json(external_path, external)
                 hydrated = hydrate_candidate(single_brief, external)["articles"][0]
                 candidate_articles[article_id] = hydrated
             except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
@@ -2076,15 +2156,19 @@ def run_rewrite_repair(
         write_json(attempt_dir / "deterministic-quality-findings.json", quality)
         write_json(attempt_dir / "uniqueness-findings.json", uniqueness)
         try:
-            external_review = _generate_with_receipt(
-                client,
-                "reviewer",
-                _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
-                external_review_schema(),
-                attempt_dir / "reviewer-operation.json",
-            )
-            reviewer_calls += 1
-            write_json(attempt_dir / "external-review.json", external_review)
+            external_review_path = attempt_dir / "external-review.json"
+            if external_review_path.exists():
+                external_review = json.loads(external_review_path.read_text(encoding="utf-8"))
+            else:
+                external_review = _generate_with_receipt(
+                    client,
+                    "reviewer",
+                    _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
+                    external_review_schema(),
+                    attempt_dir / "reviewer-operation.json",
+                )
+                reviewer_calls += 1
+                write_json(external_review_path, external_review)
             review = hydrate_review(brief, candidate, external_review)
             for item in review["articles"]:
                 item["hard_failure"] = False
@@ -2139,6 +2223,155 @@ def run_rewrite_repair(
         },
     )
     return candidate, review
+
+
+def _write_batch_delivery_summary(run_dir: Path, batch_number: int) -> None:
+    candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+    quality = json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8"))
+    uniqueness = json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8"))
+    approved = sum(item["verdict"] == "APPROVE" for item in review["articles"])
+    status = "READY_FOR_REVIEW" if approved == len(review["articles"]) and not quality and not uniqueness else "BLOCKED"
+    lines = [
+        f"# Gemini Rewrite Batch {batch_number:03d}",
+        "",
+        f"- status：`{status}`",
+        f"- article IDs：{', '.join(str(item['article_id']) for item in candidate['articles'])}",
+        f"- candidate SHA-256：`{evidence['candidate_sha256']}`",
+        f"- Reviewer：{approved}/{len(review['articles'])} APPROVE",
+        f"- deterministic quality findings：{len(quality)}",
+        f"- uniqueness findings：{len(uniqueness)}",
+        f"- Writer / Reviewer processes：{evidence['writer_processes']} / {evidence['reviewer_processes']}",
+        f"- internal repair：{evidence['internal_repairs_used']} / 1",
+        "- approval_created：false",
+        "- formal_apply：false",
+        "",
+    ]
+    (run_dir / "delivery-summary.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _load_completed_rewrite_batch(run_dir: Path, expected_ids: tuple[str, ...]) -> tuple[dict[str, Any], dict[str, Any]]:
+    required = {
+        "brief.json", "candidate.json", "review.json", "review.md", "run-evidence.json",
+        "deterministic-quality-findings.json", "uniqueness-findings.json", "delivery-summary.md",
+    }
+    if not run_dir.is_dir() or not required <= {path.name for path in run_dir.iterdir() if path.is_file()}:
+        raise RuntimeError(f"rewrite batch is partial and cannot resume: {run_dir.name}")
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    validate_review(review, candidate["articles"])
+    if tuple(str(item["article_id"]) for item in candidate["articles"]) != expected_ids:
+        raise ValueError(f"completed rewrite batch identity differs from contract: {run_dir.name}")
+    return candidate, review
+
+
+def _runtime_batch_can_resume(run_dir: Path) -> bool:
+    if not all((run_dir / name).is_file() for name in ("brief.json", "public-brief.json", "batch-contract.json")):
+        return False
+    if any((run_dir / name).exists() for name in ("candidate.json", "review.json", "run-evidence.json")):
+        return False
+    receipts = list((run_dir / "attempts").glob("**/*-operation*.json"))
+    if not receipts:
+        return False
+    return all(json.loads(path.read_text(encoding="utf-8")).get("status") in {"success", "error"} for path in receipts)
+
+
+def _write_rewrite_050_summary(evidence_root: Path) -> dict[str, Any]:
+    sources = [
+        (1, evidence_root / "gemini_rewrite_batch_001_repair_001"),
+        (2, evidence_root / "gemini_rewrite_batch_002"),
+        *((batch, evidence_root / f"gemini_rewrite_batch_{batch:03d}") for batch in range(3, 11)),
+    ]
+    batches: list[dict[str, Any]] = []
+    all_ids: list[str] = []
+    for batch_number, run_dir in sources:
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+        quality = json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8"))
+        uniqueness = json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8"))
+        ids = [str(item["article_id"]) for item in candidate["articles"]]
+        if len(ids) != MAX_RUN_ARTICLES:
+            raise ValueError(f"Batch {batch_number} candidate count differs from contract")
+        all_ids.extend(ids)
+        batches.append(
+            {
+                "batch": batch_number,
+                "article_ids": ids,
+                "candidate_sha256": evidence["candidate_sha256"],
+                "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+                "quality_findings": len(quality),
+                "uniqueness_findings": len(uniqueness),
+                "writer_processes": evidence["writer_processes"],
+                "reviewer_processes": evidence["reviewer_processes"],
+            }
+        )
+    if len(all_ids) != 50 or len(set(all_ids)) != 50:
+        raise ValueError("rewrite candidate total must be exactly 50 unique article IDs")
+    summary = {
+        "schema_version": SCHEMA_VERSION,
+        "chain_id": "CONTENT-GEMINI-REWRITE-TO-050",
+        "candidate_count": len(all_ids),
+        "unique_candidate_count": len(set(all_ids)),
+        "article_ids": all_ids,
+        "batches": batches,
+        "approval_created": False,
+        "formal_apply": False,
+    }
+    summary_dir = evidence_root / "gemini_rewrite_to_050"
+    write_json(summary_dir / "summary.json", summary)
+    lines = [
+        "# Gemini Rewrite Candidates 050",
+        "",
+        "- status：`CANDIDATES_050_READY`",
+        "- candidates：50",
+        "- unique article IDs：50",
+        "- approval_created：false",
+        "- formal_apply：false",
+        "",
+        "| Batch | APPROVE | Quality | Uniqueness | Candidate SHA-256 |",
+        "|---:|---:|---:|---:|---|",
+    ]
+    lines.extend(
+        f"| {item['batch']} | {item['reviewer_approved']}/5 | {item['quality_findings']} | {item['uniqueness_findings']} | `{item['candidate_sha256']}` |"
+        for item in batches
+    )
+    (summary_dir / "summary.md").write_text("\n".join([*lines, ""]), encoding="utf-8")
+    return summary
+
+
+def run_rewrite_range(
+    repo_root: Path,
+    queue_path: Path,
+    evidence_root: Path,
+    source_commit: str,
+    client: GeminiClient,
+    start_batch: int = 3,
+    end_batch: int = 10,
+) -> dict[str, Any]:
+    """依 audit 順序產出多批候選；完成批次可續跑，半成品 fail closed。"""
+    if (start_batch, end_batch) != (3, 10):
+        raise ValueError("rewrite-to-050 runner requires batches 3 through 10")
+    for batch_number in range(start_batch, end_batch + 1):
+        run_dir = evidence_root / f"gemini_rewrite_batch_{batch_number:03d}"
+        expected_ids = tuple(item[0] for item in REWRITE_BATCH_003_010_IDS[batch_number])
+        if run_dir.exists():
+            try:
+                _load_completed_rewrite_batch(run_dir, expected_ids)
+                continue
+            except RuntimeError:
+                if not _runtime_batch_can_resume(run_dir):
+                    raise
+        else:
+            prepare_rewrite_batch(repo_root, queue_path, batch_number, run_dir, source_commit)
+        run_rewrite_repair(run_dir, client)
+        _write_batch_delivery_summary(run_dir, batch_number)
+        _load_completed_rewrite_batch(run_dir, expected_ids)
+    return _write_rewrite_050_summary(evidence_root)
 
 
 def run_rewrite_repair_closure(
@@ -2494,6 +2727,12 @@ def parse_args() -> argparse.Namespace:
     repair_run.add_argument("run_dir", type=Path)
     isolated_run = subparsers.add_parser("run-isolated-rewrite")
     isolated_run.add_argument("run_dir", type=Path)
+    rewrite_range = subparsers.add_parser("run-rewrite-range")
+    rewrite_range.add_argument("--queue", type=Path, required=True)
+    rewrite_range.add_argument("--evidence-root", type=Path, required=True)
+    rewrite_range.add_argument("--source-commit", required=True)
+    rewrite_range.add_argument("--start-batch", type=int, default=3)
+    rewrite_range.add_argument("--end-batch", type=int, default=10)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -2537,6 +2776,18 @@ def main() -> int:
             args.repair_generation,
         )
         print(json.dumps({"brief": str(path), "repair_generation": args.repair_generation}, ensure_ascii=False))
+        return 0
+    if args.command == "run-rewrite-range":
+        summary = run_rewrite_range(
+            repo_root,
+            (repo_root / args.queue).resolve() if not args.queue.is_absolute() else args.queue,
+            (repo_root / args.evidence_root).resolve() if not args.evidence_root.is_absolute() else args.evidence_root,
+            args.source_commit,
+            GeminiClient.from_environment(),
+            args.start_batch,
+            args.end_batch,
+        )
+        print(json.dumps({"status": "CANDIDATES_050_READY", "candidate_count": summary["candidate_count"]}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":
