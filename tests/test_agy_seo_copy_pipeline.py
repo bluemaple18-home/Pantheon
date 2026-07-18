@@ -202,6 +202,22 @@ def make_repair_brief() -> dict[str, object]:
     return brief
 
 
+def make_batch_002_brief() -> dict[str, object]:
+    brief = make_rewrite_brief(pipeline.REWRITE_BATCH_002_ARTICLES[0][1])
+    articles = []
+    for index, contract in enumerate(pipeline.REWRITE_BATCH_002_ARTICLES, start=1):
+        slot, article_id, product, category, serial, slug, keyword, title = contract
+        item = json.loads(json.dumps(brief["articles"][0], ensure_ascii=False))
+        item["slot"] = slot
+        item["article_id"] = article_id
+        item["identity"].update({"id": article_id, "product": product, "category": category, "serial": serial, "slug": slug, "primaryKeyword": keyword, "title": title})
+        item["immutable_fields"].update({"id": article_id, "product": product, "serial": serial, "slug": slug, "urlSlug": slug, "primaryKeyword": keyword, "title": title})
+        articles.append(item)
+    brief["run_id"] = "gemini_rewrite_audit_001_batch_02"
+    brief["articles"] = articles
+    return brief
+
+
 def test_gsc_selects_at_most_five_rank_4_to_20_low_ctr_pages() -> None:
     rows = []
     for index in range(8):
@@ -551,6 +567,21 @@ def test_rewrite_uniqueness_gate_checks_shared_h2_long_ngram_and_paragraph_openi
     assert {"shared_h2", "long_ngram", "repeated_paragraph_opening"} <= codes
 
 
+def test_rewrite_uniqueness_gate_checks_abstract_patterns_and_paragraph_skeletons() -> None:
+    brief = make_repair_brief()
+    articles = []
+    for index, source in enumerate(brief["articles"]):
+        body = make_rewrite_sections(str(source["identity"]["primaryKeyword"]), variant=chr(0x7532 + index))
+        articles.append({"article_id": source["article_id"], "identity": source["identity"], "current_body_sha256": source["current_body_sha256"], "bodySections": body})
+    articles[0]["bodySections"][0]["paragraphs"][0] = "當你在會議卡住時，這個主題可以幫你拆題。你可以列出問題並確認資料。這不代表答案已經確定。"
+    articles[1]["bodySections"][0]["paragraphs"][0] = "當你在工作猶豫時，另一個主題能幫你整理。你可以寫下選項並核對數字。這不代表結果已經注定。"
+
+    codes = {item["code"] for item in pipeline.rewrite_uniqueness_findings(brief, articles)}
+
+    assert "shared_abstract_pattern" in codes
+    assert "shared_paragraph_skeleton" in codes
+
+
 def test_prepare_rewrite_repair_locks_source_finding_and_fixed_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     source_commit = subprocess.run(
@@ -655,6 +686,47 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
     assert evidence["internal_repairs_used"] == 1
     assert evidence["writer_processes"] == 6
     assert evidence["reviewer_processes"] == 2
+
+
+def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    brief = make_batch_002_brief()
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(
+        tmp_path / "batch-contract.json",
+        {
+            "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-002",
+            "article_order": [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES],
+            "exact_findings": [
+                {"article_id": item[1], "findings": [{"code": "TEMPLATE_STRUCTURE", "message": "audit finding"}]}
+                for item in pipeline.REWRITE_BATCH_002_ARTICLES
+            ],
+            "variation_contracts": pipeline.REWRITE_BATCH_002_STYLE_CONTRACTS,
+            "max_internal_repairs": 1,
+        },
+    )
+    monkeypatch.setattr(pipeline, "rewrite_aggregate_findings", lambda *_: ([], []))
+
+    class RecordingClient:
+        writer_model = "test-writer"
+        reviewer_model = "test-reviewer"
+
+        def __init__(self) -> None:
+            self.writer_prompts: list[str] = []
+
+        def generate_json(self, role: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            if role == "writer":
+                self.writer_prompts.append(prompt)
+                keyword = pipeline.REWRITE_BATCH_002_ARTICLES[len(self.writer_prompts) - 1][6]
+                return {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections(keyword, f"稿{len(self.writer_prompts)}")}]}
+            return {"articles": [{"slot": f"article-{index:02d}", "verdict": "APPROVE", "findings": []} for index in range(1, 6)]}
+
+    client = RecordingClient()
+    candidate, review = pipeline.run_rewrite_repair(tmp_path, client)
+
+    assert len(client.writer_prompts) == 5
+    assert all(prompt.count('"currentBody"') == 1 for prompt in client.writer_prompts)
+    assert [article["article_id"] for article in candidate["articles"]] == [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES]
+    assert all(item["verdict"] == "APPROVE" for item in review["articles"])
 
 
 def test_rewrite_repair_closure_changes_only_two_authorized_paragraphs_and_never_calls_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -996,6 +1068,23 @@ def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_pa
 
     with pytest.raises(ValueError, match="source commit mismatch"):
         prepare_rewrite_batch(repo_root, queue, 1, tmp_path / "wrong", "f" * 40)
+
+
+def test_prepare_rewrite_batch_002_locks_audit_identity_order_and_variation_contracts(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    queue = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/gemini_queue.md"
+
+    brief_path = prepare_rewrite_batch(repo_root, queue, 2, tmp_path, source_commit)
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    contract = json.loads((tmp_path / "batch-contract.json").read_text(encoding="utf-8"))
+
+    assert [item["article_id"] for item in brief["articles"]] == [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES]
+    assert contract["article_order"] == [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES]
+    assert contract["variation_contracts"] == pipeline.REWRITE_BATCH_002_STYLE_CONTRACTS
+    assert contract["max_internal_repairs"] == 1
 
 
 def test_integrated_matrix_backlog_is_empty() -> None:

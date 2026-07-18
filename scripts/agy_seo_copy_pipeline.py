@@ -167,6 +167,50 @@ REWRITE_REPAIR_STYLE_CONTRACTS = {
         "ending": "以核對三個月固定支出與可承擔額收尾",
     },
 }
+REWRITE_BATCH_002_ARTICLES = (
+    ("article-01", "THEME-INTERPERSONAL-04", "personality", "interpersonal", "interpersonal-0004", "interpersonal-0004", "職場私人界線", "職場人際和私人關係怎麼劃界線？先看角色與責任"),
+    ("article-02", "THEME-CAREER-05", "fortune", "career", "career-0005", "career-0005", "工作卡住塔羅", "工作卡住時，塔羅適合幫你整理什麼？"),
+    ("article-03", "THEME-LIFE-05", "fortune", "life-direction", "life-direction-0005", "life-direction-0005", "命盤人生階段", "命盤怎麼看人生階段？用週期回顧，不把時間寫成事件"),
+    ("article-04", "THEME-WEALTH-05", "fortune", "wealth", "wealth-0005", "wealth-0005", "創業財務問題", "創業談財富，不能只問會不會賺錢"),
+    ("article-05", "THEME-INTERPERSONAL-05", "personality", "interpersonal", "interpersonal-0005", "interpersonal-0005", "渴望被看見", "渴望被看見怎麼影響人際？觀察你用什麼交換認可"),
+)
+REWRITE_BATCH_002_STYLE_CONTRACTS = {
+    "THEME-INTERPERSONAL-04": {
+        "opening": "從同事在下班後追問感情近況的訊息切入，先回答職場私人界線是依角色與責任決定揭露範圍",
+        "headings": "依序聚焦下班訊息、角色責任、兩種回應界線、善意越界反例、下次回覆腳本",
+        "argumentOrder": "越界場景→責任判準→回應選項→善意反例→話術演練",
+        "counterexample": "放在第 4 節，以關心未必惡意但仍可拒答為反例",
+        "ending": "寫下一句能在下次被追問時直接使用的回覆",
+    },
+    "THEME-CAREER-05": {
+        "opening": "從簡報被退回三次、游標停在空白頁的工作現場切入，直接界定塔羅只能協助拆開卡點",
+        "headings": "依序聚焦停滯現場、可問的工作問題、牌面轉成假設、資訊不足反例、二十四小時試做",
+        "argumentOrder": "工作現場→問題改寫→假設驗證→資訊限制→小型試做",
+        "counterexample": "放在第 4 節開頭，以缺少主管標準卻反覆抽牌為反例",
+        "ending": "選一項二十四小時內能向主管確認或試做的動作",
+    },
+    "THEME-LIFE-05": {
+        "opening": "從整理十年前履歷與搬家紀錄的桌面切入，說明命盤人生階段用於回顧週期而非指定事件日期",
+        "headings": "依序聚焦時間軸、重複課題、轉折前後比較、事件預言限制、季度回顧表",
+        "argumentOrder": "資料回顧→週期辨識→前後對照→預言反例→建立紀錄",
+        "counterexample": "放在第 4 節中段，以同一時期兩人經歷不同說明週期不是事件清單",
+        "ending": "在季度表記下三個可核對的生活變化",
+    },
+    "THEME-WEALTH-05": {
+        "opening": "從訂單增加但月底仍付不出薪資的創業帳戶切入，先把創業財務問題拆成現金流、成本與風險",
+        "headings": "依序聚焦帳戶落差、收入品質、固定與變動成本、獲利假象反例、十三週現金表",
+        "argumentOrder": "帳戶警訊→收入拆解→成本承擔→獲利反例→數字追蹤",
+        "counterexample": "放在第 4 節結尾，以帳面獲利但現金不足說明不能只問賺不賺錢",
+        "ending": "核對未來十三週的入帳日、付款日與最低現金水位",
+    },
+    "THEME-INTERPERSONAL-05": {
+        "opening": "從群組提案沒人回覆後立刻加碼承諾的動作切入，回答渴望被看見會讓人用付出交換認可",
+        "headings": "依序聚焦加碼動作、交換方式、關係代價、沉默誤讀反例、不加碼觀察",
+        "argumentOrder": "行為瞬間→交換模式→兩段關係代價→誤讀反例→暫停實驗",
+        "counterexample": "放在第 4 節開頭，說明對方沉默未必是否定或忽視",
+        "ending": "下一次想加碼付出時先暫停並記錄真正想得到的回應",
+    },
+}
 REWRITE_CLOSURE_EDITS = {
     ("MBTI-BASE-01", 5, 2): (
         "解讀這些偏好時，應避免將其視為終身不變的判決。它提供的是一個理解自己與他人溝通落差的切入點，讓你在面對人際摩擦時，能多一個客觀的視角去分析原因，而不是把所有問題都歸咎於性格不合。",
@@ -586,6 +630,34 @@ def _canonical_rewrite_text(text: str, keyword: str) -> str:
     return re.sub(r"[^0-9A-Za-z\u3400-\u9fff]", "", value).lower()
 
 
+REWRITE_ABSTRACT_PATTERNS = {
+    "when_topic_can_help": re.compile(r"當你.{0,16}(?:時|之際).{0,20}(?:能|可以|適合).{0,12}(?:幫你|協助你)"),
+    "attention_is": re.compile(r"(?:必須|需要|值得|要)(?:先)?(?:注意|明確|說清楚)(?:的是|：)"),
+    "not_but_frame": re.compile(r"(?:這|它|重點|關鍵).{0,10}(?:不是|不能|不代表).{0,18}(?:而是|只是)"),
+}
+
+
+def _paragraph_role_skeleton(paragraph: str) -> str:
+    roles: list[str] = []
+    for sentence in (item.strip() for item in re.split(r"[。！？]", paragraph) if item.strip()):
+        if any(marker in sentence for marker in REWRITE_SCENE_MARKERS):
+            role = "scene"
+        elif re.search(r"反例|例外|然而|未必|不代表|不能|不適用", sentence):
+            role = "limit"
+        elif any(verb in sentence for verb in REWRITE_ACTION_VERBS):
+            role = "action"
+        elif re.search(r"為什麼|是否|哪一|什麼|如何|怎麼", sentence):
+            role = "question"
+        elif re.search(r"表示|意味|說明|反映|顯示", sentence):
+            role = "interpret"
+        else:
+            role = "other"
+        roles.append(role)
+    if len(roles) < 3 or "other" in roles or len(set(roles)) < 2:
+        return ""
+    return ">".join(roles)
+
+
 def rewrite_uniqueness_findings(
     brief: dict[str, Any],
     articles: list[dict[str, Any]],
@@ -599,6 +671,8 @@ def rewrite_uniqueness_findings(
     findings: list[dict[str, str]] = []
     headings: dict[str, set[str]] = {}
     openings: dict[str, set[str]] = {}
+    abstract_patterns: dict[str, set[str]] = {}
+    paragraph_skeletons: dict[str, set[str]] = {}
     article_ngrams: dict[str, set[str]] = {}
     for source, article in zip(brief["articles"], articles, strict=True):
         article_id = str(article["article_id"])
@@ -609,11 +683,18 @@ def rewrite_uniqueness_findings(
             if heading:
                 headings.setdefault(heading, set()).add(article_id)
             for paragraph in section["paragraphs"]:
+                paragraph_text = str(paragraph)
                 canonical = _canonical_rewrite_text(str(paragraph), keyword)
                 if len(canonical) >= opening_size:
                     openings.setdefault(canonical[:opening_size], set()).add(article_id)
                 if len(canonical) >= ngram_size:
                     ngrams.update(canonical[index : index + ngram_size] for index in range(len(canonical) - ngram_size + 1))
+                for pattern_name, pattern in REWRITE_ABSTRACT_PATTERNS.items():
+                    if pattern.search(paragraph_text):
+                        abstract_patterns.setdefault(pattern_name, set()).add(article_id)
+                skeleton = _paragraph_role_skeleton(paragraph_text)
+                if skeleton:
+                    paragraph_skeletons.setdefault(skeleton, set()).add(article_id)
         article_ngrams[article_id] = ngrams
     for heading, owners in sorted(headings.items()):
         if len(owners) >= 2:
@@ -623,6 +704,14 @@ def rewrite_uniqueness_findings(
         if len(owners) >= 2:
             for article_id in sorted(owners):
                 findings.append({"article_id": article_id, "code": "repeated_paragraph_opening", "message": f"跨篇段落開頭重複：{opening}"})
+    for pattern_name, owners in sorted(abstract_patterns.items()):
+        if len(owners) >= 2:
+            for article_id in sorted(owners):
+                findings.append({"article_id": article_id, "code": "shared_abstract_pattern", "message": f"跨篇共用抽象句型：{pattern_name}"})
+    for skeleton, owners in sorted(paragraph_skeletons.items()):
+        if len(owners) >= 2:
+            for article_id in sorted(owners):
+                findings.append({"article_id": article_id, "code": "shared_paragraph_skeleton", "message": f"跨篇共用段落骨架：{skeleton}"})
     article_ids = [str(article["article_id"]) for article in articles]
     reported_pairs: set[tuple[str, str]] = set()
     for left_index, left_id in enumerate(article_ids):
@@ -962,6 +1051,22 @@ def _rewrite_batch_payload(queue_text: str, batch_number: int) -> dict[str, Any]
     return payload
 
 
+def _validate_batch_002_queue(queue: dict[str, Any]) -> None:
+    """鎖定 audit Batch 2 的文章集合、欄位與順序。"""
+    if queue.get("schema_version") != SCHEMA_VERSION or queue.get("run_id") != "gemini_rewrite_audit_001_batch_02":
+        raise ValueError("Batch 2 audit identity differs from contract")
+    articles = queue.get("articles")
+    if not isinstance(articles, list) or len(articles) != len(REWRITE_BATCH_002_ARTICLES):
+        raise ValueError("Batch 2 audit article count differs from contract")
+    fields = ("slot", "article_id", "product", "category", "serial", "slug", "primaryKeyword", "title")
+    actual = [tuple(str(item.get(field) or "") for field in fields) for item in articles]
+    if actual != list(REWRITE_BATCH_002_ARTICLES):
+        raise ValueError("Batch 2 audit ids, slots, order, identity, title, or keyword differ from contract")
+    for item in articles:
+        if item.get("verdict") != "GEMINI_REWRITE" or item.get("issue_codes") != ["TEMPLATE_STRUCTURE", "REPEATED_BATCH_COPY"]:
+            raise ValueError("Batch 2 audit contains KEEP or unexpected issue codes")
+
+
 def _existing_rewrite_inventory(repo_root: Path) -> dict[str, dict[str, Any]]:
     script = """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
@@ -997,6 +1102,8 @@ def prepare_rewrite_batch(
     if head != source_commit:
         raise ValueError(f"rewrite source commit mismatch: expected {source_commit}, got {head}")
     queue = _rewrite_batch_payload(queue_path.read_text(encoding="utf-8"), batch_number)
+    if batch_number == 2:
+        _validate_batch_002_queue(queue)
     inventory = _existing_rewrite_inventory(repo_root)
     articles: list[dict[str, Any]] = []
     for index, queued in enumerate(queue.get("articles") or []):
@@ -1063,6 +1170,26 @@ def prepare_rewrite_batch(
     validate_rewrite_brief(brief)
     write_json(run_dir / "brief.json", brief)
     write_json(run_dir / "public-brief.json", public_model_brief(brief))
+    if batch_number == 2:
+        write_json(
+            run_dir / "batch-contract.json",
+            {
+                "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-002",
+                "article_order": [item[1] for item in REWRITE_BATCH_002_ARTICLES],
+                "exact_findings": [
+                    {
+                        "article_id": str(item["article_id"]),
+                        "findings": [
+                            {"code": str(code), "message": "audit Batch 2 rewrite finding"}
+                            for code in item["issue_codes"]
+                        ],
+                    }
+                    for item in queue["articles"]
+                ],
+                "variation_contracts": REWRITE_BATCH_002_STYLE_CONTRACTS,
+                "max_internal_repairs": 1,
+            },
+        )
     return run_dir / "brief.json"
 
 
@@ -1628,14 +1755,15 @@ def _repair_writer_prompt(
     single_brief: dict[str, Any],
     source_findings: list[dict[str, Any]],
     current_findings: list[dict[str, Any]],
+    style_contract: dict[str, Any],
+    operation_label: str,
 ) -> str:
-    article_id = str(single_brief["articles"][0]["article_id"])
     return "\n".join([
-        "這是 Repair 1。只修跨篇句型與結構相似 finding，輸出單篇完整 bodySections；slot 必須逐字複製。",
+        f"這是 {operation_label}。輸出單篇完整 bodySections；slot 必須逐字複製。",
         "不得改寫或輸出 identity、metadata、URL、title、FAQ、tags、日期或 current-body SHA。",
         "不要沿用其他文章常見的定義、實驗回顧、專業協助或邊界呼籲句型。",
         "public brief（本次唯一文章素材）:", json.dumps(public_model_brief(single_brief), ensure_ascii=False),
-        "variation contract:", json.dumps(REWRITE_REPAIR_STYLE_CONTRACTS[article_id], ensure_ascii=False),
+        "variation contract:", json.dumps(style_contract, ensure_ascii=False),
         "source public finding:", json.dumps(source_findings, ensure_ascii=False),
         "current public findings:", json.dumps(current_findings, ensure_ascii=False),
     ])
@@ -1645,7 +1773,9 @@ def _repair_reviewer_prompt(
     brief: dict[str, Any],
     candidate: dict[str, Any],
     deterministic_findings: list[dict[str, str]],
+    style_contracts: dict[str, Any] | None = None,
 ) -> str:
+    contracts = style_contracts or REWRITE_REPAIR_STYLE_CONTRACTS
     return "\n".join([
         "你是新的獨立 Gemini Pro Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
         "本卡只審 Repair 1：確認跨篇完整句、共用 H2、長片段、段落開頭與抽象句型／論證結構不再相似。",
@@ -1653,7 +1783,7 @@ def _repair_reviewer_prompt(
         "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
-        "variation contracts:", json.dumps(REWRITE_REPAIR_STYLE_CONTRACTS, ensure_ascii=False),
+        "variation contracts:", json.dumps(contracts, ensure_ascii=False),
         "public candidate:", json.dumps(public_model_candidate(brief, candidate), ensure_ascii=False),
         "public deterministic findings:", json.dumps(public_model_findings(brief, deterministic_findings), ensure_ascii=False),
     ])
@@ -1829,17 +1959,36 @@ def run_rewrite_repair(
     client: GeminiClient,
     max_repairs: int = 1,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """以單篇隔離 Writer 產生五篇 repair，再聚合交由獨立 Reviewer。"""
+    """以單篇隔離 Writer 產生五篇 rewrite，再聚合交由獨立 Reviewer。"""
     if max_repairs != 1:
         raise ValueError("rewrite repair internal repair allowance must be exactly one")
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
-    repair_source = json.loads((run_dir / "repair-source.json").read_text(encoding="utf-8"))
     validate_rewrite_brief(brief)
     article_ids = [str(item["article_id"]) for item in brief["articles"]]
-    if tuple(article_ids) != REWRITE_REPAIR_ARTICLE_IDS:
-        raise ValueError("rewrite repair article set or fixed order differs from contract")
-    if repair_source.get("repair_generation") != 1:
-        raise ValueError("rewrite repair generation differs from contract")
+    repair_path = run_dir / "repair-source.json"
+    batch_path = run_dir / "batch-contract.json"
+    if repair_path.exists() == batch_path.exists():
+        raise ValueError("rewrite run requires exactly one repair-source or batch-contract")
+    execution_contract = json.loads((repair_path if repair_path.exists() else batch_path).read_text(encoding="utf-8"))
+    default_order = list(REWRITE_REPAIR_ARTICLE_IDS) if repair_path.exists() else []
+    if article_ids != [str(value) for value in execution_contract.get("article_order", default_order)]:
+        raise ValueError("rewrite article set or fixed order differs from contract")
+    if repair_path.exists():
+        if tuple(article_ids) != REWRITE_REPAIR_ARTICLE_IDS or execution_contract.get("repair_generation") != 1:
+            raise ValueError("rewrite repair generation or article order differs from contract")
+        style_contracts = REWRITE_REPAIR_STYLE_CONTRACTS
+        operation_label = "Repair 1"
+        repair_generation = 1
+    else:
+        if tuple(article_ids) != tuple(item[1] for item in REWRITE_BATCH_002_ARTICLES):
+            raise ValueError("isolated rewrite Batch 2 order differs from contract")
+        if execution_contract.get("max_internal_repairs") != 1:
+            raise ValueError("isolated rewrite repair allowance differs from contract")
+        style_contracts = execution_contract.get("variation_contracts")
+        if style_contracts != REWRITE_BATCH_002_STYLE_CONTRACTS:
+            raise ValueError("isolated rewrite variation contracts differ from locked Batch 2 contract")
+        operation_label = "Batch 2 initial rewrite"
+        repair_generation = 0
     if isinstance(client, GeminiClient):
         if getattr(client.transport, "__name__", "") != "_cli_transport":
             raise RuntimeError("rewrite repair requires fresh sandboxed headless CLI processes")
@@ -1847,7 +1996,7 @@ def run_rewrite_repair(
             raise RuntimeError("rewrite repair requires the fixed Gemini Writer and Pro Reviewer Low models")
     source_findings = {
         str(item["article_id"]): list(item["findings"])
-        for item in repair_source.get("exact_findings", [])
+        for item in execution_contract.get("exact_findings", [])
     }
     if set(source_findings) != set(article_ids):
         raise ValueError("rewrite repair exact source findings are incomplete")
@@ -1877,6 +2026,8 @@ def run_rewrite_repair(
                 single_brief,
                 source_findings[article_id],
                 public_model_findings(single_brief, current_findings.get(article_id, [])),
+                style_contracts[article_id],
+                operation_label,
             )
             try:
                 external = _generate_with_receipt(
@@ -1928,7 +2079,7 @@ def run_rewrite_repair(
             external_review = _generate_with_receipt(
                 client,
                 "reviewer",
-                _repair_reviewer_prompt(brief, candidate, deterministic),
+                _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
                 external_review_schema(),
                 attempt_dir / "reviewer-operation.json",
             )
@@ -1968,8 +2119,8 @@ def run_rewrite_repair(
         run_dir / "run-evidence.json",
         {
             "run_id": brief["run_id"],
-            "chain_id": repair_source["chain_id"],
-            "repair_generation": 1,
+            "chain_id": execution_contract["chain_id"],
+            "repair_generation": repair_generation,
             "source_commit": brief.get("source_commit"),
             "attempts": completed_attempts,
             "internal_repairs_used": max(0, completed_attempts - 1),
@@ -2341,6 +2492,8 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("run_dir", type=Path)
     repair_run = subparsers.add_parser("run-rewrite-repair")
     repair_run.add_argument("run_dir", type=Path)
+    isolated_run = subparsers.add_parser("run-isolated-rewrite")
+    isolated_run.add_argument("run_dir", type=Path)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -2390,7 +2543,7 @@ def main() -> int:
         candidate, review = run_writer_reviewer(run_dir, GeminiClient.from_environment())
         print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
         return 0
-    if args.command == "run-rewrite-repair":
+    if args.command in {"run-rewrite-repair", "run-isolated-rewrite"}:
         candidate, review = run_rewrite_repair(run_dir, GeminiClient.from_environment())
         print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
         return 0
