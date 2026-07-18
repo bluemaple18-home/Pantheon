@@ -1203,23 +1203,40 @@ def _apply_optimize_candidates(repo_root: Path, run_id: str, approved: list[dict
     return [registry_path, *_bump_article_cache_queries(repo_root, f"agy-{slug_identifier.lower().replace('_', '-')}")]
 
 
+def _owned_create_identities(module: Path) -> tuple[set[str], set[str]]:
+    """讀取同一 run 既有 module 的 ID/path，供安全重放時排除自身占用。"""
+    if not module.exists():
+        return set(), set()
+    match = re.search(r"_ARTICLE_RECORDS = (\[.*?\]);\n\nexport const", module.read_text(encoding="utf-8"), re.DOTALL)
+    if match is None:
+        raise ValueError(f"existing run module is not parseable: {module.name}")
+    records = json.loads(match.group(1))
+    ids = {str(record["id"]) for record in records}
+    paths = {
+        f"/articles/{str(record['serial']).rsplit('-', 1)[0]}/{record['urlSlug']}"
+        for record in records
+    }
+    return ids, paths
+
+
 def apply_approved_candidates(repo_root: Path, run_id: str, candidates: list[dict[str, Any]], review: dict[str, Any], approval: dict[str, Any]) -> list[Path]:
     approved = validate_apply_gate(candidates, review, approval)
     if not approved:
         return []
     if "bodySections" not in approved[0]:
         return _apply_optimize_candidates(repo_root, run_id, approved)
+    slug, identifier = _safe_identifier(run_id)
+    static = repo_root / "app/web/static"
+    module = static / f"article-expansion-agy-{slug}.js"
+    owned_ids, owned_paths = _owned_create_identities(module)
     inventory = _registry_inventory(repo_root) if "function listArticleRecords" in (repo_root / "app/web/static/article-registry.js").read_text(encoding="utf-8") else []
-    occupied_ids = {str(item.get("id")) for item in inventory}
-    occupied_paths = {str(item.get("path")) for item in inventory}
+    occupied_ids = {str(item.get("id")) for item in inventory} - owned_ids
+    occupied_paths = {str(item.get("path")) for item in inventory} - owned_paths
     for article in approved:
         category = str(article["serial"]).rsplit("-", 1)[0]
         path = f"/articles/{category}/{article['urlSlug']}"
         if str(article["id"]) in occupied_ids or path in occupied_paths:
             raise ValueError(f"create source identity already exists: {article['id']}")
-    slug, identifier = _safe_identifier(run_id)
-    static = repo_root / "app/web/static"
-    module = static / f"article-expansion-agy-{slug}.js"
     records = [{key: value for key, value in article.items() if key != "bodySections"} for article in approved]
     bodies = {str(article["slug"]): article["bodySections"] for article in approved}
     module.write_text(

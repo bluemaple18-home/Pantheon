@@ -59,7 +59,15 @@ AGY_ASC_VENUS_BATCH_03_IDS = {
     "VENUS-ARIES",
 }
 
-AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS | AGY_ASC_VENUS_BATCH_03_IDS
+AGY_VENUS_BATCH_04_IDS = {
+    "VENUS-TAURUS",
+    "VENUS-GEMINI",
+    "VENUS-CANCER",
+    "VENUS-LEO",
+    "VENUS-VIRGO",
+}
+
+AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS | AGY_ASC_VENUS_BATCH_03_IDS | AGY_VENUS_BATCH_04_IDS
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
@@ -554,7 +562,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     items = [item for brief in briefs for item in brief["articles"]]
     serials = [item["target"]["serial"] for item in items]
 
-    assert len(items) == 18
+    assert len(items) == 23
     assert len(serials) == len(set(serials))
     assert all(item["target"]["published"] == date.today().isoformat() for item in items)
     assert all(item["target"]["primaryKeyword"] == item["matrix"]["primaryKeyword"] for item in items)
@@ -569,20 +577,20 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     )
     remaining = [item for path in remaining_paths for item in json.loads(path.read_text(encoding="utf-8"))["articles"]]
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
-    assert len(remaining) == 17
+    assert len(remaining) == 22
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
 
 
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    assert build_matrix_backlog(repo_root) == []
+    assert {item["id"] for item in build_matrix_backlog(repo_root)} == {"VENUS-GEMINI", "VENUS-CANCER"}
 
 
-def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path) -> None:
+def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     static = tmp_path / "app" / "web" / "static"
     static.mkdir(parents=True)
     (static / "article-registry.js").write_text(
-        'export const ARTICLE_REGISTRY = [\n  ...EXISTING_RECORDS,\n];\n',
+        'export const ARTICLE_REGISTRY = [\n  ...EXISTING_RECORDS,\n];\nfunction listArticleRecords() { return []; }\n',
         encoding="utf-8",
     )
     (static / "article-meta.js").write_text(
@@ -590,6 +598,7 @@ def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path)
         encoding="utf-8",
     )
     article = make_article()
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: [])
     review = {
         "schema_version": 1,
         "run_id": "run-one",
@@ -607,6 +616,30 @@ def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path)
     assert "article-expansion-agy-run-one.js" in (static / "article-registry.js").read_text(encoding="utf-8")
     assert "article-expansion-agy-run-one.js" in (static / "article-meta.js").read_text(encoding="utf-8")
     assert not (tmp_path / ".git").exists()
+
+    article["title"] = "測試關鍵字是什麼？同一批修稿後可安全重放"
+    review = {
+        "schema_version": 1,
+        "run_id": "run-one",
+        "articles": [
+            {"article_id": article["id"], "candidate_sha256": article_sha256(article), "verdict": "APPROVE", "findings": []}
+        ],
+    }
+    approval = build_approval("run-one", [article], review, {str(article["id"]): "APPROVE"}, "user")
+    monkeypatch.setattr(
+        pipeline,
+        "_registry_inventory",
+        lambda _: [{"id": article["id"], "path": "/articles/personality/personality-9999"}],
+    )
+
+    changed = apply_approved_candidates(tmp_path, "run-one", [article], review, approval)
+    assert module in changed
+    assert str(article["title"]) in module.read_text(encoding="utf-8")
+
+    other_review = {**review, "run_id": "run-two"}
+    other_approval = build_approval("run-two", [article], other_review, {str(article["id"]): "APPROVE"}, "user")
+    with pytest.raises(ValueError, match="identity already exists"):
+        apply_approved_candidates(tmp_path, "run-two", [article], other_review, other_approval)
 
 
 def test_optimize_apply_uses_three_field_override_and_rejects_source_drift(tmp_path: Path) -> None:

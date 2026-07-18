@@ -428,6 +428,10 @@ import { AGY_ASC_VENUS_BATCH_03_BOUNDED_01_ARTICLE_RECORDS } from "./article-exp
 
 import { AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_RECORDS } from "./article-expansion-agy-asc-venus-batch-03-bounded-02.js?v=agy-asc-venus-batch-03-bounded-02";
 
+import { AGY_VENUS_BATCH_04_01_ARTICLE_RECORDS } from "./article-expansion-agy-venus-batch-04-01.js?v=agy-venus-batch-04-01";
+
+import { AGY_VENUS_BATCH_04_02_ARTICLE_RECORDS } from "./article-expansion-agy-venus-batch-04-02.js?v=agy-venus-batch-04-02";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2374,6 +2378,8 @@ export const ARTICLE_REGISTRY = [
   ...AGY_ASC_BATCH_02_MECHANICAL_REPAIR_01_ARTICLE_RECORDS,
   ...AGY_ASC_VENUS_BATCH_03_BOUNDED_01_ARTICLE_RECORDS,
   ...AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_RECORDS,
+  ...AGY_VENUS_BATCH_04_01_ARTICLE_RECORDS,
+  ...AGY_VENUS_BATCH_04_02_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {
