@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS,
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-venus-batch-04-02"
+ARTICLE_CACHE_TOKEN = "agy-agy-venus-gemini-single-20260718-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -213,6 +213,8 @@ AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS = [
     "/articles/astrology/astrology-0058",
     "/articles/astrology/astrology-0061",
     "/articles/astrology/astrology-0062",
+    "/articles/astrology/astrology-0063",
+    "/articles/astrology/astrology-0064",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
@@ -357,7 +359,7 @@ console.log(JSON.stringify({
         "/articles/personality/personality-0056",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0062",
+        "/articles/astrology/astrology-0064",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
@@ -1733,10 +1735,10 @@ console.log(JSON.stringify(rendered));
     result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
     rendered = json.loads(result.stdout)
 
-    assert len(AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS) == 3
-    assert len(rendered) == 3
+    assert len(AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS) == 5
+    assert len(rendered) == 5
     assert {article["path"] for article in rendered} == set(AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS)
-    assert len({article["id"] for article in rendered}) == 3
+    assert len({article["id"] for article in rendered}) == 5
     for article in rendered:
         assert 1300 <= article["bodyLength"] <= 2000, article
         assert article["sectionCount"] == 5, article

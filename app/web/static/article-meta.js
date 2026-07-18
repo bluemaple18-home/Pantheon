@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-venus-batch-04-02";
+} from "./article-registry.js?v=agy-agy-venus-gemini-single-20260718-01";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -71,7 +71,13 @@ import { AGY_VENUS_BATCH_04_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-
 
 import { AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-venus-batch-04-02.js?v=agy-venus-batch-04-02";
 
+import { AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-agy-venus-cancer-single-20260718-01.js?v=agy-agy-venus-cancer-single-20260718-01";
+
+import { AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-agy-venus-gemini-single-20260718-01.js?v=agy-agy-venus-gemini-single-20260718-01";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY,
+  ...AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY,
   ...AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY,
   ...AGY_VENUS_BATCH_04_01_ARTICLE_BODY_LIBRARY,
   ...AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_BODY_LIBRARY,
