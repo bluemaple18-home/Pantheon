@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS,
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-venus-batch-04-02"
+ARTICLE_CACHE_TOKEN = "rewrite-release-001"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -1373,6 +1373,7 @@ def test_expansion_50_adds_unique_publishable_articles() -> None:
 import {{ EXPANSION_50_ARTICLE_BODY_LIBRARY, EXPANSION_50_ARTICLE_RECORDS }} from "./app/web/static/article-expansion-50.js";
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+import {{ REWRITE_RELEASE_001_BODY_OVERRIDES }} from "./app/web/static/article-rewrite-release-001.js";
 
 const expectedPaths = new Set({json.dumps(EXPANSION_50_PUBLIC_ARTICLE_PATHS)});
 const allArticles = listArticleRecords();
@@ -1388,10 +1389,13 @@ for (const paragraph of paragraphs) {{
 const rendered = expansion.map((article) => {{
   const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  const rewrite = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug];
   return {{
     path: getArticlePath(article),
     bodyLength: [...bodyText].length,
     sectionCount: content.bodySections.length,
+    expectedSectionCount: rewrite?.length || 4,
+    bodyMatchesRewrite: !rewrite || JSON.stringify(content.bodySections) === JSON.stringify(rewrite),
     faqCount: content.faq.length,
     published: content.published,
     updated: content.updated,
@@ -1431,7 +1435,8 @@ console.log(JSON.stringify({{
     assert data["forbiddenTemplates"] == []
     for article in data["rendered"]:
         assert article["bodyLength"] >= 650, article
-        assert article["sectionCount"] == 4, article
+        assert article["sectionCount"] == article["expectedSectionCount"], article
+        assert article["bodyMatchesRewrite"], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
         assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
@@ -1751,6 +1756,7 @@ def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() 
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 import { INITIAL_31_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-initial-31.js";
 import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./app/web/static/article-rewrite-release-001.js";
 
 const records = listArticleRecords().filter((article) =>
   /^personality-000[1-8]$/.test(article.urlSlug)
@@ -1779,11 +1785,12 @@ const forbiddenTemplates = [
 ];
 const coverage = records.map((article) => {
   const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com", {});
+  const expectedBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug];
   return {
     slug: article.slug,
     hasLibrary: Boolean(INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]),
-    bodyPreserved: content.bodySections.some(
-      (section) => section.heading === INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]?.[0]?.heading
+    bodyPreserved: expectedBody.every((expectedSection) =>
+      content.bodySections.some((actualSection) => JSON.stringify(actualSection) === JSON.stringify(expectedSection))
     ),
   };
 });
@@ -1984,6 +1991,7 @@ console.log(JSON.stringify({
 def test_article_body_runtime_contract_keeps_custom_body_unenriched() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./app/web/static/article-rewrite-release-001.js";
 
 const content = buildArticleContent("/articles/personality/personality-0001", "https://mysticpantheon.com", {
   author: "Pantheon 編輯部",
@@ -1991,6 +1999,7 @@ const content = buildArticleContent("/articles/personality/personality-0001", "h
 });
 console.log(JSON.stringify({
   headings: content.bodySections.map((section) => section.heading),
+  bodyMatchesRewrite: JSON.stringify(content.bodySections) === JSON.stringify(REWRITE_RELEASE_001_BODY_OVERRIDES["mbti-meaning"]),
   text: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\\n"),
 }));
 """
@@ -2001,11 +2010,8 @@ console.log(JSON.stringify({
         text=True,
     )
     data = json.loads(result.stdout)
-    assert data["headings"] == [
-        "MBTI 先用來描述偏好，不是替人分類",
-        "把四組偏好放回生活裡看",
-        "MBTI 不能替你決定什麼",
-    ]
+    assert len(data["headings"]) == 5
+    assert data["bodyMatchesRewrite"]
     assert "查「MBTI 是什麼」時" not in data["text"]
     assert "感情、工作、人際各看哪一層？" not in data["text"]
     assert "人格文章不要只讀單一類型" not in data["text"]

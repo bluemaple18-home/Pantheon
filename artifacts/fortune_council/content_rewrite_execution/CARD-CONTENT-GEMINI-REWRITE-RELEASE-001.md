@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REWRITE-RELEASE-001
-status: RUNNING
+status: READY_TO_DEPLOY
 chain_id: CONTENT-GEMINI-REWRITE-RELEASE-001
 risk: high
 source_commit: dd46ffe614be602b4f30795c203ddbe0d752ac4a
@@ -36,6 +36,7 @@ deploy_authorized: false
 
 - `scripts/agy_seo_copy_pipeline.py`
 - `tests/test_agy_seo_copy_pipeline.py`
+- `tests/test_web.py`
 - `artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/**`
 - 正式文章 body library 的唯一必要檔案
 - 本卡狀態與驗收紀錄
@@ -45,3 +46,20 @@ deploy_authorized: false
 - registry identity、URL、metadata、日期、FAQ、tags、sitemap、feed、redirects
 - deploy、publish、遠端控制面、秘密與憑證
 - 使用者既有未追蹤 `.ai/`、`AGENTS.md` 與 PNG artifacts
+
+## 驗收結果
+
+- 正式正文套用：50/50，正文 SHA 逐篇等於核准候選。
+- Immutable metadata：50/50 無漂移；registry、URL、日期、FAQ、tags 均未變更。
+- 審核來源：Gemini Reviewer 30 篇；Gemini 配額耗盡後由 `codex_release_fallback` 依相同 deterministic、uniqueness 與安全邊界審核 20 篇，未宣稱為 Gemini 核准。
+- 品質 gate：deterministic findings 0；uniqueness findings 0。
+- 自動測試：166 passed。
+- 瀏覽器驗收：5/5 代表頁 PASS；HTTP 200，無 traceback、console error、pageerror、request failure 或 4xx/5xx。
+- 最終狀態：`READY_TO_DEPLOY`；`deploy_executed: false`。
+
+## 證據
+
+- `artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/summary.json`
+- `artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/approval.json`
+- `artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/apply-verification.json`
+- `artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/browser/browser-acceptance.json`

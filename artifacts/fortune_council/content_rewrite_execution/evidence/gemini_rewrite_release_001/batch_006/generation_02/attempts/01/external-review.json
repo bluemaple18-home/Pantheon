@@ -1,0 +1,1 @@
+{"articles":[{"findings":[],"slot":"article-01","verdict":"APPROVE"},{"findings":[],"slot":"article-02","verdict":"APPROVE"},{"findings":[],"slot":"article-03","verdict":"APPROVE"},{"findings":[{"code":"paragraph_length","message":"第 1 節第 3 段為 89 字；必須 90 到 130 字"}],"slot":"article-04","verdict":"REJECT"},{"findings":[],"slot":"article-05","verdict":"APPROVE"}]}

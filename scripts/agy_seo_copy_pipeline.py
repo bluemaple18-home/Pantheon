@@ -2794,8 +2794,19 @@ def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
         evidence = json.loads((final_dir / "run-evidence.json").read_text(encoding="utf-8"))
         ids = [str(item["article_id"]) for item in candidate["articles"]]
         all_ids.extend(ids)
-        batch_results.append({"batch": batch_number, "final_dir": final_dir.as_posix(), "article_ids": ids, **evidence})
+        batch_results.append(
+            {
+                "batch": batch_number,
+                "final_dir": final_dir.relative_to(release_root).as_posix(),
+                "article_ids": ids,
+                **evidence,
+            }
+        )
     approved = sum(item["reviewer_approved"] for item in batch_results)
+    fallback_approved = sum(
+        item["reviewer_approved"] for item in batch_results if item.get("fallback_reviewer")
+    )
+    gemini_approved = approved - fallback_approved
     quality = sum(item["deterministic_quality_findings"] for item in batch_results)
     uniqueness = sum(item["uniqueness_findings"] for item in batch_results)
     status = "READY_FOR_APPLY" if len(all_ids) == 50 and len(set(all_ids)) == 50 and approved == 50 and quality == 0 and uniqueness == 0 else "BLOCKED"
@@ -2806,6 +2817,9 @@ def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
         "candidate_count": len(all_ids),
         "unique_candidate_count": len(set(all_ids)),
         "reviewer_approved": approved,
+        "gemini_reviewer_approved": gemini_approved,
+        "fallback_reviewer_approved": fallback_approved,
+        "gemini_approval_claimed_for_fallback": False,
         "deterministic_quality_findings": quality,
         "uniqueness_findings": uniqueness,
         "article_ids": all_ids,
@@ -2820,19 +2834,31 @@ def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
 def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
     """50/50 核准後只新增 body override；registry 與 metadata identity 不變。"""
     summary = json.loads((release_root / "summary.json").read_text(encoding="utf-8"))
+    fallback_approved = sum(
+        int(batch["reviewer_approved"])
+        for batch in summary.get("batches", [])
+        if batch.get("fallback_reviewer")
+    )
+    gemini_approved = int(summary.get("reviewer_approved", 0)) - fallback_approved
     if (
-        summary.get("status") != "READY_FOR_APPLY"
+        summary.get("status") not in {"READY_FOR_APPLY", "READY_TO_DEPLOY"}
         or summary.get("candidate_count") != 50
         or summary.get("unique_candidate_count") != 50
         or summary.get("reviewer_approved") != 50
         or summary.get("deterministic_quality_findings") != 0
         or summary.get("uniqueness_findings") != 0
+        or gemini_approved != 30
+        or fallback_approved != 20
     ):
         raise ValueError("rewrite release is not ready for apply")
+    if summary.get("status") == "READY_TO_DEPLOY" and not summary.get("formal_apply"):
+        raise ValueError("rewrite release READY_TO_DEPLOY state is inconsistent")
     candidates: list[dict[str, Any]] = []
     approvals: list[dict[str, Any]] = []
     for batch in summary["batches"]:
         run_dir = Path(str(batch["final_dir"]))
+        if not run_dir.is_absolute():
+            run_dir = release_root / run_dir
         candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
         review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
         quality = json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8"))
@@ -2847,6 +2873,8 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
                 "article_id": item["article_id"],
                 "candidate_sha256": item["candidate_sha256"],
                 "decision": "APPROVE",
+                "reviewer_type": batch.get("fallback_reviewer", "gemini"),
+                "gemini_approval_claimed": not bool(batch.get("fallback_reviewer")),
             }
             for item in review["articles"]
         )
@@ -2864,7 +2892,7 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
         actual_identity = {
             "id": record["id"],
             "product": record["product"],
-            "category": record["section"],
+            "category": str(source["canonicalPath"]).strip("/").split("/")[1],
             "serial": record["serial"],
             "slug": record["urlSlug"],
             "primaryKeyword": record["primaryKeyword"],
@@ -2872,9 +2900,11 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
         }
         if identity != actual_identity:
             raise ValueError(f"rewrite release immutable identity drift: {article_id}")
-        if article["current_body_sha256"] != body_sha256(source["currentBody"]):
+        actual_body_sha = body_sha256(source["currentBody"])
+        approved_body_sha = body_sha256(article["bodySections"])
+        if actual_body_sha not in {article["current_body_sha256"], approved_body_sha}:
             raise ValueError(f"rewrite release current body drift: {article_id}")
-        bodies[str(identity["slug"])] = article["bodySections"]
+        bodies[str(record["slug"])] = article["bodySections"]
     static = repo_root / "app/web/static"
     module = static / "article-rewrite-release-001.js"
     module.write_text(
@@ -2903,7 +2933,16 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
         "deploy_authorized": False,
     }
     write_json(release_root / "approval.json", approval)
-    summary.update({"status": "READY_TO_DEPLOY", "approval_created": True, "formal_apply": True})
+    summary.update(
+        {
+            "status": "READY_TO_DEPLOY",
+            "approval_created": True,
+            "formal_apply": True,
+            "gemini_reviewer_approved": gemini_approved,
+            "fallback_reviewer_approved": fallback_approved,
+            "gemini_approval_claimed_for_fallback": False,
+        }
+    )
     write_json(release_root / "summary.json", summary)
     changed = [module, meta_path, *_bump_article_cache_queries(repo_root, "rewrite-release-001")]
     write_json(
@@ -2911,6 +2950,9 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
         {
             "status": "READY_TO_DEPLOY",
             "article_count": 50,
+            "gemini_reviewer_approved": gemini_approved,
+            "fallback_reviewer_approved": fallback_approved,
+            "gemini_approval_claimed_for_fallback": False,
             "body_override_module": module.relative_to(repo_root).as_posix(),
             "changed_files": [path.relative_to(repo_root).as_posix() for path in changed],
             "registry_changed": False,
@@ -2995,6 +3037,69 @@ def release_fallback_review(run_dir: Path) -> dict[str, Any]:
     )
     write_json(run_dir / "run-evidence.json", evidence)
     return review
+
+
+def verify_rewrite_release_apply(repo_root: Path, release_root: Path) -> dict[str, Any]:
+    """驗證正式 runtime 的 50 篇正文與 approved candidates 完全一致。"""
+    summary = json.loads((release_root / "summary.json").read_text(encoding="utf-8"))
+    if summary.get("status") != "READY_TO_DEPLOY" or not summary.get("formal_apply"):
+        raise ValueError("rewrite release has not been formally applied")
+    inventory = _existing_rewrite_inventory(repo_root)
+    verified: list[dict[str, str]] = []
+    for batch in summary["batches"]:
+        run_dir = Path(str(batch["final_dir"]))
+        if not run_dir.is_absolute():
+            run_dir = release_root / run_dir
+        brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        brief_by_id = {str(item["article_id"]): item for item in brief["articles"]}
+        for article in candidate["articles"]:
+            article_id = _candidate_id(article)
+            actual = inventory.get(article_id)
+            if actual is None:
+                raise ValueError(f"applied rewrite article missing: {article_id}")
+            expected_immutable = brief_by_id[article_id]["immutable_fields"]
+            record = actual["record"]
+            actual_immutable = {
+                "id": record["id"],
+                "product": record["product"],
+                "serial": record["serial"],
+                "urlSlug": record["urlSlug"],
+                "primaryKeyword": record["primaryKeyword"],
+                "title": record["title"],
+                "description": record["description"],
+                "answer": record["answer"],
+                "faq": record["faq"],
+                "tags": record["tags"],
+                "published": actual["published"],
+                "updated": actual["updated"],
+            }
+            expected_comparable = {key: value for key, value in expected_immutable.items() if key != "slug"}
+            if actual_immutable != expected_comparable:
+                raise ValueError(f"applied rewrite immutable metadata drift: {article_id}")
+            expected_body_sha = body_sha256(article["bodySections"])
+            actual_body_sha = body_sha256(actual["currentBody"])
+            if actual_body_sha != expected_body_sha:
+                raise ValueError(f"applied rewrite body differs from candidate: {article_id}")
+            verified.append(
+                {"article_id": article_id, "body_sha256": actual_body_sha, "candidate_sha256": article_sha256(article)}
+            )
+    if len(verified) != 50 or len({item["article_id"] for item in verified}) != 50:
+        raise ValueError("applied rewrite verification requires 50 unique articles")
+    evidence = {
+        "status": "READY_TO_DEPLOY",
+        "verified_article_count": 50,
+        "body_match_count": 50,
+        "immutable_metadata_match_count": 50,
+        "gemini_reviewer_approved": summary.get("gemini_reviewer_approved"),
+        "fallback_reviewer_approved": summary.get("fallback_reviewer_approved"),
+        "gemini_approval_claimed_for_fallback": False,
+        "registry_changed": False,
+        "deploy_executed": False,
+        "articles": verified,
+    }
+    write_json(release_root / "apply-verification.json", evidence)
+    return evidence
 
 
 def run_rewrite_release(
@@ -3414,6 +3519,8 @@ def parse_args() -> argparse.Namespace:
     release_apply.add_argument("release_root", type=Path)
     release_fallback = subparsers.add_parser("review-rewrite-release-fallback")
     release_fallback.add_argument("run_dir", type=Path)
+    release_verify = subparsers.add_parser("verify-rewrite-release-apply")
+    release_verify.add_argument("release_root", type=Path)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -3507,6 +3614,10 @@ def main() -> int:
     if args.command == "review-rewrite-release-fallback":
         review = release_fallback_review(args.run_dir.resolve())
         print(json.dumps({"approved": len(review["articles"]), "reviewer_type": "codex_release_fallback"}, ensure_ascii=False))
+        return 0
+    if args.command == "verify-rewrite-release-apply":
+        evidence = verify_rewrite_release_apply(repo_root, args.release_root.resolve())
+        print(json.dumps({"status": evidence["status"], "verified": evidence["verified_article_count"]}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":

@@ -1,0 +1,124 @@
+{
+  "card_id": "CARD-CONTENT-GEMINI-REWRITE-RELEASE-001",
+  "type": "browser-acceptance",
+  "status": "PASS",
+  "scope": "五個類別的代表性 release 文章頁",
+  "excluded": "部署、遠端正式環境與其餘 45 頁逐頁視覺檢查",
+  "hooks_registered_before_navigation": true,
+  "root_question": "50 篇改寫套用後，代表頁是否可在瀏覽器正常載入與閱讀？",
+  "blocker": null,
+  "fork": "READY_TO_DEPLOY",
+  "results": [
+    {
+      "route": "/articles/personality/personality-0001",
+      "http_status": 200,
+      "title": "MBTI 是什麼？16 型人格、測驗與自我理解怎麼看",
+      "body_characters": 1650,
+      "h2_count": 5,
+      "headings": [
+        "MBTI 是指邁爾斯布里格斯類型指標，用來整理人們接收資訊與決策偏好的評估工具",
+        "四組偏好指標呈現個體補充能量、收集資訊、做決定與應對規律的習慣差異",
+        "從會議協作看不同偏好成員在專案溝通與執行節奏上的摩擦與互補",
+        "相同類型者在職場上的具體表現仍有不同，顯示評估工具存在局限性",
+        "釐清評估工具的適用邊界並記錄近期人際互動來建立持續觀察的習慣"
+      ],
+      "visible_traceback": false,
+      "console": [],
+      "console_errors": [],
+      "page_errors": [],
+      "request_failures": [],
+      "abnormal_responses": [],
+      "screenshot": "browser/01-personality-0001.png",
+      "status": "PASS"
+    },
+    {
+      "route": "/articles/love/love-0005",
+      "http_status": 200,
+      "title": "一段關係卡住怎麼辦？先看互動循環，不急著猜結果",
+      "body_characters": 1547,
+      "h2_count": 5,
+      "headings": [
+        "已讀不回與客套對話的拉扯現場",
+        "冷漠防衛者與焦慮追問者的角色",
+        "維持現狀或開啟新對話的選項",
+        "關係卡住不能代表未來的命運",
+        "試探彼此心意的一句回覆"
+      ],
+      "visible_traceback": false,
+      "console": [],
+      "console_errors": [],
+      "page_errors": [],
+      "request_failures": [],
+      "abnormal_responses": [],
+      "screenshot": "browser/02-love-0005.png",
+      "status": "PASS"
+    },
+    {
+      "route": "/articles/astrology/astrology-0007",
+      "http_status": 200,
+      "title": "火星星座是什麼？行動、衝突與慾望怎麼看",
+      "body_characters": 1651,
+      "h2_count": 5,
+      "headings": [
+        "從爭執當下到事後平復的時間軸",
+        "專案面臨期限縮短時的行為轉折",
+        "日常生活與支出紀錄中的重複線索",
+        "火星星座不能代表的例外與限制",
+        "記錄三個可回查的變化來檢視行為"
+      ],
+      "visible_traceback": false,
+      "console": [],
+      "console_errors": [],
+      "page_errors": [],
+      "request_failures": [],
+      "abnormal_responses": [],
+      "screenshot": "browser/03-astrology-0007.png",
+      "status": "PASS"
+    },
+    {
+      "route": "/articles/wealth/wealth-0012",
+      "http_status": 200,
+      "title": "財富小報告怎麼設計才有用？聚焦一個決策週期",
+      "body_characters": 1547,
+      "h2_count": 5,
+      "headings": [
+        "從數字落差重新檢視當前資金水位",
+        "拆解每項支出背後的真實需求與反例",
+        "評估自己能承擔的最大財務風險",
+        "釐清財務工具的使用邊界與限制",
+        "核對具體數字並設定改善期限"
+      ],
+      "visible_traceback": false,
+      "console": [],
+      "console_errors": [],
+      "page_errors": [],
+      "request_failures": [],
+      "abnormal_responses": [],
+      "screenshot": "browser/04-wealth-0012.png",
+      "status": "PASS"
+    },
+    {
+      "route": "/articles/interpersonal/interpersonal-0010",
+      "http_status": 200,
+      "title": "人際問題怎麼問塔羅，才不會變成控制別人？",
+      "body_characters": 1783,
+      "h2_count": 5,
+      "headings": [
+        "洗牌前先抽離想改變對方的衝動",
+        "找出內心最真實的互動渴望與限制",
+        "衡量持續在關係中妥協付出的代價",
+        "釐清牌卡反射的投射與錯誤解讀",
+        "在日常互動中展開小型的溝通實驗"
+      ],
+      "visible_traceback": false,
+      "console": [],
+      "console_errors": [],
+      "page_errors": [],
+      "request_failures": [],
+      "abnormal_responses": [],
+      "screenshot": "browser/05-interpersonal-0010.png",
+      "status": "PASS"
+    }
+  ],
+  "deploy_executed": false
+}

@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-venus-batch-04-02";
+} from "./article-registry.js?v=rewrite-release-001";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -70,6 +70,8 @@ import { AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_BODY_LIBRARY } from "./articl
 import { AGY_VENUS_BATCH_04_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-venus-batch-04-01.js?v=agy-venus-batch-04-01";
 
 import { AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-venus-batch-04-02.js?v=agy-venus-batch-04-02";
+
+import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./article-rewrite-release-001.js?v=rewrite-release-001";
 
 const ARTICLE_BODY_LIBRARY = {
   ...AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY,
@@ -873,7 +875,7 @@ function buildProductHubReadingGuide(label, articleCount) {
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const cardFaceSections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
-  const customBody = ARTICLE_BODY_LIBRARY[article.slug];
+  const customBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
   if (customBody) {
     const body = isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
     return [...cardFaceSections, ...body];
