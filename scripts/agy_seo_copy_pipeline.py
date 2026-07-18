@@ -2395,6 +2395,304 @@ def run_rewrite_range(
     return _write_rewrite_050_summary(evidence_root)
 
 
+def _rewrite_release_sources(evidence_root: Path) -> list[tuple[int, Path]]:
+    return [
+        (1, evidence_root / "gemini_rewrite_batch_001_repair_001"),
+        (2, evidence_root / "gemini_rewrite_batch_002"),
+        *((batch, evidence_root / f"gemini_rewrite_batch_{batch:03d}") for batch in range(3, 11)),
+    ]
+
+
+def _release_style_contracts(batch_number: int, brief: dict[str, Any], source_dir: Path) -> dict[str, Any]:
+    if batch_number == 1:
+        return REWRITE_REPAIR_STYLE_CONTRACTS
+    contract = json.loads((source_dir / "batch-contract.json").read_text(encoding="utf-8"))
+    styles = contract.get("variation_contracts")
+    if not isinstance(styles, dict) or set(styles) != {str(item["article_id"]) for item in brief["articles"]}:
+        raise ValueError(f"release Batch {batch_number} variation contracts are incomplete")
+    return styles
+
+
+def prepare_rewrite_release_generation(
+    source_dir: Path,
+    run_dir: Path,
+    batch_number: int,
+    generation: int,
+) -> Path:
+    """從上一版 final artifacts 建立只重寫 REJECT 篇的 release generation。"""
+    if generation < 1:
+        raise ValueError("release generation must be positive")
+    if run_dir.exists():
+        raise FileExistsError(f"release generation already exists: {run_dir}")
+    brief = json.loads((source_dir / "brief.json").read_text(encoding="utf-8"))
+    candidate = json.loads((source_dir / "candidate.json").read_text(encoding="utf-8"))
+    review = json.loads((source_dir / "review.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    validate_review(review, candidate["articles"])
+    article_ids = [str(item["article_id"]) for item in brief["articles"]]
+    if len(article_ids) != MAX_RUN_ARTICLES:
+        raise ValueError("release generation requires exactly five articles")
+    rejected = [str(item["article_id"]) for item in review["articles"] if item["verdict"] != "APPROVE"]
+    styles = _release_style_contracts(batch_number, brief, source_dir)
+    release_brief = json.loads(json.dumps(brief, ensure_ascii=False))
+    release_brief["run_id"] = f"gemini-rewrite-release-001-batch-{batch_number:03d}-generation-{generation:02d}"
+    write_json(run_dir / "brief.json", release_brief)
+    write_json(run_dir / "public-brief.json", public_model_brief(release_brief))
+    write_json(run_dir / "source-candidate.json", candidate)
+    write_json(run_dir / "source-review.json", review)
+    write_json(
+        run_dir / "release-contract.json",
+        {
+            "chain_id": "CONTENT-GEMINI-REWRITE-RELEASE-001",
+            "batch_number": batch_number,
+            "generation": generation,
+            "article_order": article_ids,
+            "target_article_ids": rejected,
+            "variation_contracts": styles,
+            "source_candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "source_review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "exact_findings": [
+                {"article_id": item["article_id"], "findings": item.get("findings", [])}
+                for item in review["articles"]
+            ],
+            "max_attempts": 2,
+        },
+    )
+    return run_dir / "brief.json"
+
+
+def _release_writer_prompt(
+    brief: dict[str, Any],
+    prior_article: dict[str, Any],
+    source_findings: list[dict[str, Any]],
+    current_findings: list[dict[str, Any]],
+    style_contract: dict[str, Any],
+    generation: int,
+) -> str:
+    prior_candidate = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [prior_article],
+    }
+    return "\n".join([
+        f"你是 Release Repair generation {generation} 的單篇 Gemini Writer。只修 findings，不改文章 identity。",
+        "完整輸出該篇 5 節 × 3 段正文；每段 90–130 個中文字，全文 1300–2000 字。",
+        "移除禁詞、模板式 H2、AI 套語、跨篇抽象句型與重複骨架；加入文章專屬場景、具體動詞、反例與限制。",
+        "不得加入個人診斷、命運結論、保證預測或投資建議。",
+        "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
+        "prior public candidate:", json.dumps(public_model_candidate(brief, prior_candidate), ensure_ascii=False),
+        "variation contract:", json.dumps(style_contract, ensure_ascii=False),
+        "source public findings:", json.dumps(public_model_findings(brief, source_findings), ensure_ascii=False),
+        "current public findings:", json.dumps(public_model_findings(brief, current_findings), ensure_ascii=False),
+    ])
+
+
+def run_rewrite_release_generation(
+    run_dir: Path,
+    client: GeminiClient,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """沿用已核准稿，只對 REJECT 篇做最多兩次 release repair。"""
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    source_candidate = json.loads((run_dir / "source-candidate.json").read_text(encoding="utf-8"))
+    source_review = json.loads((run_dir / "source-review.json").read_text(encoding="utf-8"))
+    contract = json.loads((run_dir / "release-contract.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(source_candidate)
+    validate_review(source_review, source_candidate["articles"])
+    article_ids = [str(item["article_id"]) for item in brief["articles"]]
+    if article_ids != [str(value) for value in contract.get("article_order", [])]:
+        raise ValueError("release article order differs from contract")
+    target_ids = [str(value) for value in contract.get("target_article_ids", [])]
+    if not set(target_ids) <= set(article_ids):
+        raise ValueError("release target IDs differ from contract")
+    if contract.get("max_attempts") != 2:
+        raise ValueError("release max attempts differs from contract")
+    if isinstance(client, GeminiClient):
+        if getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("release repair requires fresh sandboxed headless CLI processes")
+        if client.writer_model != DEFAULT_WRITER_MODEL or client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("release repair requires the fixed Gemini Writer and Pro Reviewer Low models")
+    candidate_articles = {_candidate_id(item): item for item in source_candidate["articles"]}
+    source_findings = {str(item["article_id"]): list(item.get("findings", [])) for item in contract["exact_findings"]}
+    styles = contract["variation_contracts"]
+    review = source_review
+    writer_calls = 0
+    reviewer_calls = 0
+    completed_attempts = 0
+    for attempt in range(2):
+        completed_attempts = attempt + 1
+        attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
+        current_findings = {
+            str(item["article_id"]): [
+                {"article_id": item["article_id"], **finding} for finding in item.get("findings", [])
+            ]
+            for item in review["articles"]
+        }
+        writer_errors: list[str] = []
+        for article_id in target_ids:
+            single_brief = _single_rewrite_brief(brief, article_id)
+            writer_dir = attempt_dir / "writers" / article_id.lower()
+            write_json(writer_dir / "public-brief.json", public_model_brief(single_brief))
+            try:
+                external = _generate_with_receipt(
+                    client,
+                    "writer",
+                    _release_writer_prompt(
+                        single_brief,
+                        candidate_articles[article_id],
+                        source_findings.get(article_id, []),
+                        current_findings.get(article_id, []),
+                        styles[article_id],
+                        int(contract["generation"]),
+                    ),
+                    external_candidate_schema("rewrite_existing_body"),
+                    writer_dir / "writer-operation.json",
+                )
+                writer_calls += 1
+                write_json(writer_dir / "external-candidate.json", external)
+                candidate_articles[article_id] = hydrate_candidate(single_brief, external)["articles"][0]
+            except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
+                writer_errors.append(article_id)
+                write_json(
+                    writer_dir / "writer-schema-rejection.json",
+                    {"article_id": article_id, "code": "invalid_writer_schema", "error_type": type(error).__name__},
+                )
+        candidate = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": brief["run_id"],
+            "mode": "rewrite_existing_body",
+            "articles": [candidate_articles[article_id] for article_id in article_ids],
+        }
+        validate_candidate(candidate)
+        quality, uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+        deterministic = quality + uniqueness
+        write_json(attempt_dir / "candidate.json", candidate)
+        write_json(attempt_dir / "deterministic-quality-findings.json", quality)
+        write_json(attempt_dir / "uniqueness-findings.json", uniqueness)
+        if writer_errors:
+            review = invalid_review_payload(brief["run_id"], candidate["articles"], "invalid_writer_schema")
+        else:
+            try:
+                external_review = _generate_with_receipt(
+                    client,
+                    "reviewer",
+                    _repair_reviewer_prompt(brief, candidate, deterministic, styles),
+                    external_review_schema(),
+                    attempt_dir / "reviewer-operation.json",
+                )
+                reviewer_calls += 1
+                write_json(attempt_dir / "external-review.json", external_review)
+                review = hydrate_review(brief, candidate, external_review)
+                for item in review["articles"]:
+                    item["hard_failure"] = False
+            except (json.JSONDecodeError, TypeError, ValueError) as error:
+                review = invalid_review_payload(
+                    brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}"
+                )
+        by_id = {str(item["article_id"]): item for item in review["articles"]}
+        for finding in deterministic:
+            item = by_id[str(finding["article_id"])]
+            item["verdict"] = "REJECT"
+            value = {"code": finding["code"], "message": finding["message"]}
+            if value not in item["findings"]:
+                item["findings"].append(value)
+        write_json(attempt_dir / "review.json", review)
+        target_ids = [str(item["article_id"]) for item in review["articles"] if item["verdict"] != "APPROVE"]
+        if not target_ids:
+            break
+    final_candidate = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [candidate_articles[article_id] for article_id in article_ids],
+    }
+    final_quality, final_uniqueness = rewrite_aggregate_findings(brief, final_candidate["articles"])
+    write_json(run_dir / "candidate.json", final_candidate)
+    write_json(run_dir / "review.json", review)
+    write_json(run_dir / "deterministic-quality-findings.json", final_quality)
+    write_json(run_dir / "uniqueness-findings.json", final_uniqueness)
+    (run_dir / "review.md").write_text(render_review_markdown(review, final_candidate["articles"]), encoding="utf-8")
+    write_json(
+        run_dir / "run-evidence.json",
+        {
+            "run_id": brief["run_id"],
+            "chain_id": contract["chain_id"],
+            "batch_number": contract["batch_number"],
+            "generation": contract["generation"],
+            "attempts": completed_attempts,
+            "writer_processes": writer_calls,
+            "reviewer_processes": reviewer_calls,
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(final_candidate)).hexdigest(),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+            "deterministic_quality_findings": len(final_quality),
+            "uniqueness_findings": len(final_uniqueness),
+            "approval_created": False,
+            "apply_executed": False,
+        },
+    )
+    return final_candidate, review
+
+
+def run_rewrite_release(
+    evidence_root: Path,
+    release_root: Path,
+    client: GeminiClient,
+    max_generations: int = 3,
+) -> dict[str, Any]:
+    """逐批 release repair；每批最多三代並保留所有 evidence。"""
+    if max_generations != 3:
+        raise ValueError("release repair requires exactly three generations")
+    batch_results: list[dict[str, Any]] = []
+    all_ids: list[str] = []
+    for batch_number, original_source in _rewrite_release_sources(evidence_root):
+        source_dir = original_source
+        final_dir: Path | None = None
+        for generation in range(1, max_generations + 1):
+            run_dir = release_root / f"batch_{batch_number:03d}" / f"generation_{generation:02d}"
+            if not run_dir.exists():
+                prepare_rewrite_release_generation(source_dir, run_dir, batch_number, generation)
+            if not (run_dir / "run-evidence.json").is_file():
+                run_rewrite_release_generation(run_dir, client)
+            evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+            final_dir = run_dir
+            if (
+                evidence["reviewer_approved"] == MAX_RUN_ARTICLES
+                and evidence["deterministic_quality_findings"] == 0
+                and evidence["uniqueness_findings"] == 0
+            ):
+                break
+            source_dir = run_dir
+        assert final_dir is not None
+        candidate = json.loads((final_dir / "candidate.json").read_text(encoding="utf-8"))
+        evidence = json.loads((final_dir / "run-evidence.json").read_text(encoding="utf-8"))
+        ids = [str(item["article_id"]) for item in candidate["articles"]]
+        all_ids.extend(ids)
+        batch_results.append({"batch": batch_number, "final_dir": final_dir.as_posix(), "article_ids": ids, **evidence})
+    approved = sum(item["reviewer_approved"] for item in batch_results)
+    quality = sum(item["deterministic_quality_findings"] for item in batch_results)
+    uniqueness = sum(item["uniqueness_findings"] for item in batch_results)
+    status = "READY_FOR_APPLY" if len(all_ids) == 50 and len(set(all_ids)) == 50 and approved == 50 and quality == 0 and uniqueness == 0 else "BLOCKED"
+    summary = {
+        "schema_version": SCHEMA_VERSION,
+        "chain_id": "CONTENT-GEMINI-REWRITE-RELEASE-001",
+        "status": status,
+        "candidate_count": len(all_ids),
+        "unique_candidate_count": len(set(all_ids)),
+        "reviewer_approved": approved,
+        "deterministic_quality_findings": quality,
+        "uniqueness_findings": uniqueness,
+        "article_ids": all_ids,
+        "batches": batch_results,
+        "approval_created": False,
+        "formal_apply": False,
+    }
+    write_json(release_root / "summary.json", summary)
+    return summary
+
+
 def run_rewrite_repair_closure(
     run_dir: Path,
     client: GeminiClient,
@@ -2754,6 +3052,9 @@ def parse_args() -> argparse.Namespace:
     rewrite_range.add_argument("--source-commit", required=True)
     rewrite_range.add_argument("--start-batch", type=int, default=3)
     rewrite_range.add_argument("--end-batch", type=int, default=10)
+    release = subparsers.add_parser("run-rewrite-release")
+    release.add_argument("--evidence-root", type=Path, required=True)
+    release.add_argument("--release-root", type=Path, required=True)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -2809,6 +3110,14 @@ def main() -> int:
             args.end_batch,
         )
         print(json.dumps({"status": "CANDIDATES_050_READY", "candidate_count": summary["candidate_count"]}, ensure_ascii=False))
+        return 0
+    if args.command == "run-rewrite-release":
+        summary = run_rewrite_release(
+            (repo_root / args.evidence_root).resolve() if not args.evidence_root.is_absolute() else args.evidence_root,
+            (repo_root / args.release_root).resolve() if not args.release_root.is_absolute() else args.release_root,
+            GeminiClient.from_environment(),
+        )
+        print(json.dumps({"status": summary["status"], "approved": summary["reviewer_approved"]}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":

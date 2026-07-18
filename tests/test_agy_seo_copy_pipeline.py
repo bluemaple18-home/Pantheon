@@ -1170,6 +1170,23 @@ def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> No
     assert (tmp_path / "gemini_rewrite_to_050" / "summary.md").is_file()
 
 
+def test_prepare_rewrite_release_targets_only_rejected_articles(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_dir = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_batch_002"
+    run_dir = tmp_path / "batch_002" / "generation_01"
+
+    path = pipeline.prepare_rewrite_release_generation(source_dir, run_dir, 2, 1)
+
+    assert path == run_dir / "brief.json"
+    contract = json.loads((run_dir / "release-contract.json").read_text(encoding="utf-8"))
+    source_candidate = json.loads((source_dir / "candidate.json").read_text(encoding="utf-8"))
+    copied_candidate = json.loads((run_dir / "source-candidate.json").read_text(encoding="utf-8"))
+    assert contract["target_article_ids"] == ["THEME-CAREER-05", "THEME-WEALTH-05", "THEME-INTERPERSONAL-05"]
+    assert contract["max_attempts"] == 2
+    assert copied_candidate == source_candidate
+    assert set(contract["variation_contracts"]) == set(contract["article_order"])
+
+
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     assert {item["id"] for item in build_matrix_backlog(repo_root)} == {"VENUS-GEMINI", "VENUS-CANCER"}
