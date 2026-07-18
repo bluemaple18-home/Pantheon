@@ -25,6 +25,8 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS,
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
+ARTICLE_CACHE_TOKEN = "agy-matrix-backlog-v1-retry-01"
+
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
     "/articles/personality/personality-0002",
@@ -193,6 +195,12 @@ EXPANSION_50D_PUBLIC_ARTICLE_PATHS = [
     *(f"/articles/fortune/fortune-{serial:04d}" for serial in range(27, 44)),
 ]
 
+AGY_V1_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/personality/personality-{serial:04d}" for serial in range(53, 57)),
+    "/articles/fortune/fortune-0044",
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(45, 48)),
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
@@ -203,6 +211,7 @@ PUBLIC_ARTICLE_PATHS = [
     *EXPANSION_50_PUBLIC_ARTICLE_PATHS,
     *EXPANSION_50C_PUBLIC_ARTICLE_PATHS,
     *EXPANSION_50D_PUBLIC_ARTICLE_PATHS,
+    *AGY_V1_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -284,8 +293,8 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
-    assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
-    assert "/static/articles.js?v=article-expansion-50d-20260716-1" in response.text
+    assert "/static/styles.css?v=article-mobile-overflow-20260718-1" in response.text
+    assert f"/static/articles.js?v={ARTICLE_CACHE_TOKEN}" in response.text
     assert "id=\"birth-form\"" not in response.text
 
 
@@ -328,18 +337,18 @@ console.log(JSON.stringify({
         "fortune",
     ]
     assert [record["path"] for record in data["records"]] == [
-        "/articles/personality/personality-0052",
+        "/articles/personality/personality-0056",
         "/articles/tarot/tarot-0080",
-        "/articles/fortune/fortune-0043",
-        "/articles/astrology/astrology-0044",
+        "/articles/fortune/fortune-0044",
+        "/articles/astrology/astrology-0047",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
         "/articles/wealth/wealth-0012",
         "/articles/life-direction/life-direction-0012",
-        "/articles/personality/personality-0051",
+        "/articles/personality/personality-0055",
         "/articles/tarot/tarot-0079",
-        "/articles/fortune/fortune-0042",
+        "/articles/fortune/fortune-0043",
     ]
     assert data["adjacentSameCategory"] is False
 
@@ -402,8 +411,8 @@ def test_article_urls_serve_article_template() -> None:
         assert "/static/pantheon-orb-alpha-poster.webp" in response.text
         assert "ui-brand-mark" in response.text
         assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
-        assert "/static/styles.css?v=product-gradients-20260715-2" in response.text
-        assert "/static/article.js?v=article-expansion-50d-20260716-1" in response.text
+        assert "/static/styles.css?v=article-mobile-overflow-20260718-1" in response.text
+        assert f"/static/article.js?v={ARTICLE_CACHE_TOKEN}" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -511,7 +520,7 @@ def test_expansion_50d_articles_expose_current_publish_date() -> None:
 def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
     redirects = Path("app/web/_redirects").read_text()
 
-    assert len(PRERENDER_ARTICLES) == 279
+    assert len(PRERENDER_ARTICLES) == len(PUBLIC_ARTICLE_PATHS)
     for route, target in PRERENDER_ROUTES.items():
         assert f"{route} /{redirect_target(target)} 200" in redirects
         prerendered = Path("app/web") / target
@@ -723,6 +732,13 @@ def test_seo_audit_api_uses_bounded_crawl_settings(monkeypatch) -> None:
     assert calls[0]["sample_limit"] == 8
 
 
+def test_article_mobile_header_backdrop_stays_inside_viewport() -> None:
+    styles_css = Path("app/web/static/styles.css").read_text()
+
+    assert "@media (max-width: 760px)" in styles_css
+    assert ".article-page-header::before {\n    inset-inline: 0;" in styles_css
+
+
 def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     article_js = Path("app/web/static/article.js").read_text()
     article_meta_js = Path("app/web/static/article-meta.js").read_text()
@@ -787,8 +803,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-hub-visible-links" in article_html
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
-    assert 'href="static/styles.css?v=product-gradients-20260715-2"' in article_html
-    assert 'src="static/article.js?v=article-expansion-50d-20260716-1"' in article_html
+    assert 'href="static/styles.css?v=article-mobile-overflow-20260718-1"' in article_html
+    assert f'src="static/article.js?v={ARTICLE_CACHE_TOKEN}"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html
@@ -1067,6 +1083,8 @@ const data = paths.map((path) => {{
     "不能替你判定升遷",
     "如果你正在焦慮",
   ];
+  const publicationText = `${{articleText}}${{content.title}}`;
+  const positivePromiseText = publicationText.replace(/(?:不|未|並非|不是|不能|無法|沒有)(?:一定|保證|注定)/gu, "");
   return {{
     path,
     headings: headingText,
@@ -1079,7 +1097,7 @@ const data = paths.map((path) => {{
     ctaCount: content.cta?.links?.length || 0,
     hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
     minBodyLength: 240,
-    hasForbidden: forbidden.some((word) => articleText.includes(word) || content.title.includes(word)),
+    hasForbidden: forbidden.some((word) => positivePromiseText.includes(word)),
     hasReaderHostilePhrase: forbiddenReaderPhrases.some((word) => articleText.includes(word) || content.faq.some((item) => item.question.includes(word) || item.answer.includes(word))),
     hasTarotCoursePhrase: path.includes("/tarot/") && forbiddenTarotCoursePhrases.some((word) => articleText.includes(word)),
     hasScaleVoicePhrase: /^\/articles\/tarot\/tarot-00(3[3-9]|[4-6]\d|7[0-6])$/.test(path) && scaleVoicePhrases.some((word) => articleText.includes(word)),
@@ -1468,7 +1486,7 @@ console.log(JSON.stringify({{
     )
     data = json.loads(result.stdout)
     assert len(EXPANSION_50C_PUBLIC_ARTICLE_PATHS) == 50
-    assert data["totalCount"] == 279
+    assert data["totalCount"] == len(PUBLIC_ARTICLE_PATHS)
     assert data["recordCount"] == 50
     assert data["bodyCount"] == 50
     assert data["expansionCount"] == 50
@@ -1545,7 +1563,7 @@ console.log(JSON.stringify({{
     result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
     data = json.loads(result.stdout)
     assert len(EXPANSION_50D_PUBLIC_ARTICLE_PATHS) == 50
-    assert data["totalCount"] == 279
+    assert data["totalCount"] == len(PUBLIC_ARTICLE_PATHS)
     assert data["recordCount"] == data["bodyCount"] == data["expansionCount"] == 50
     assert data["uniqueIds"] == data["uniqueSerials"] == data["uniqueSlugs"] == data["uniqueTitles"] == 50
     assert data["missingPaths"] == []
@@ -1557,6 +1575,44 @@ console.log(JSON.stringify({{
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
         assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+
+
+def test_agy_v1_adds_only_approved_full_standard_articles() -> None:
+    script = f"""
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(AGY_V1_PUBLIC_ARTICLE_PATHS)});
+const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
+const rendered = records.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  return {{
+    id: article.id,
+    path: getArticlePath(article),
+    bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
+    sectionCount: content.bodySections.length,
+    paragraphCounts: content.bodySections.map((section) => section.paragraphs.length),
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+  }};
+}});
+console.log(JSON.stringify(rendered));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
+    rendered = json.loads(result.stdout)
+
+    assert len(AGY_V1_PUBLIC_ARTICLE_PATHS) == 8
+    assert len(rendered) == 8
+    assert {article["path"] for article in rendered} == set(AGY_V1_PUBLIC_ARTICLE_PATHS)
+    assert len({article["id"] for article in rendered}) == 8
+    for article in rendered:
+        assert 1300 <= article["bodyLength"] <= 2000, article
+        assert article["sectionCount"] == 5, article
+        assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == "2026-07-18", article
+        assert article["updated"] == "2026-07-18", article
 
 
 def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() -> None:

@@ -414,6 +414,12 @@ export const ARTICLE_SECTION_REGISTRY = {
   },
 };
 
+import { AGY_PROTOTYPE_V1_01_ARTICLE_RECORDS } from "./article-expansion-agy-prototype-v1-01.js?v=agy-prototype-v1-01";
+
+import { AGY_MATRIX_BACKLOG_V1_01_ARTICLE_RECORDS } from "./article-expansion-agy-matrix-backlog-v1-01.js?v=agy-matrix-backlog-v1-01";
+
+import { AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_RECORDS } from "./article-expansion-agy-matrix-backlog-v1-retry-01.js?v=agy-matrix-backlog-v1-retry-01";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2353,6 +2359,9 @@ export const ARTICLE_REGISTRY = [
   ...EXPANSION_50D_MBTI_ARTICLE_RECORDS.map(withExpansion50DDate),
   ...EXPANSION_50D_ASTRO_ARTICLE_RECORDS.map(withExpansion50DDate),
   ...EXPANSION_50D_FORTUNE_ARTICLE_RECORDS.map(withExpansion50DDate),
+  ...AGY_PROTOTYPE_V1_01_ARTICLE_RECORDS,
+  ...AGY_MATRIX_BACKLOG_V1_01_ARTICLE_RECORDS,
+  ...AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {

@@ -5950,6 +5950,10 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .article-page-header::before {
+    inset-inline: 0;
+  }
+
   .article-theme-visual {
     min-height: 178px;
   }

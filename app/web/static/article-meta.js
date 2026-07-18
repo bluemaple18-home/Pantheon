@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=article-expansion-50d-20260716-1";
+} from "./article-registry.js?v=agy-matrix-backlog-v1-retry-01";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -53,7 +53,16 @@ const INTERNAL_DISPLAY_TAGS = new Set([
   "公開文章邊界",
 ]);
 
+import { AGY_PROTOTYPE_V1_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-prototype-v1-01.js?v=agy-prototype-v1-01";
+
+import { AGY_MATRIX_BACKLOG_V1_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-matrix-backlog-v1-01.js?v=agy-matrix-backlog-v1-01";
+
+import { AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-matrix-backlog-v1-retry-01.js?v=agy-matrix-backlog-v1-retry-01";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_BODY_LIBRARY,
+  ...AGY_MATRIX_BACKLOG_V1_01_ARTICLE_BODY_LIBRARY,
+  ...AGY_PROTOTYPE_V1_01_ARTICLE_BODY_LIBRARY,
   ...SECOND_BATCH_ARTICLE_BODY_LIBRARY,
   ...NEXT_30_ARTICLE_BODY_LIBRARY,
   ...SCALE_44_ARTICLE_BODY_LIBRARY,
