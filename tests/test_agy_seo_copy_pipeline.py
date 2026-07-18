@@ -657,6 +657,80 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
     assert evidence["reviewer_processes"] == 2
 
 
+def test_rewrite_repair_closure_changes_only_two_authorized_paragraphs_and_never_calls_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    brief = make_repair_brief()
+    candidate_articles = []
+    for index, source in enumerate(brief["articles"]):
+        candidate_articles.append(
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": make_rewrite_sections(str(source["identity"]["primaryKeyword"]), f"稿{index}"),
+            }
+        )
+    candidate_articles[0]["bodySections"][4]["paragraphs"][1] = pipeline.REWRITE_CLOSURE_EDITS[("MBTI-BASE-01", 5, 2)][0]
+    candidate_articles[1]["bodySections"][3]["paragraphs"][0] = pipeline.REWRITE_CLOSURE_EDITS[("THEME-LIFE-03", 4, 1)][0]
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": candidate_articles,
+    }
+    prior_review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "REJECT" if index < 2 else "APPROVE",
+                "findings": (
+                    [{"code": "paragraph_length", "message": "89 字"}]
+                    if index == 0
+                    else [{"code": "banned_phrase", "message": "保證"}]
+                    if index == 1
+                    else []
+                ),
+            }
+            for index, article in enumerate(candidate_articles)
+        ],
+    }
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(tmp_path / "candidate.json", candidate)
+    pipeline.write_json(tmp_path / "review.json", prior_review)
+    pipeline.write_json(tmp_path / "run-evidence.json", {"reviewer_processes": 2})
+    monkeypatch.setattr(pipeline, "rewrite_aggregate_findings", lambda *_: ([], []))
+
+    class ReviewerOnly:
+        reviewer_model = "test-reviewer"
+
+        def generate_json(self, role: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            assert role == "reviewer"
+            assert prompt.count('"currentBody"') == 5
+            return {
+                "articles": [
+                    {"slot": f"article-{index:02d}", "verdict": "APPROVE", "findings": []}
+                    for index in range(1, 6)
+                ]
+            }
+
+    before_hashes = [article_sha256(article) for article in candidate_articles]
+    closed, review = pipeline.run_rewrite_repair_closure(tmp_path, ReviewerOnly())
+
+    after_hashes = [article_sha256(article) for article in closed["articles"]]
+    assert before_hashes[2:] == after_hashes[2:]
+    assert before_hashes[:2] != after_hashes[:2]
+    assert len(closed["articles"][0]["bodySections"][4]["paragraphs"][1]) == 91
+    assert "保證" not in closed["articles"][1]["bodySections"][3]["paragraphs"][0]
+    assert all(item["verdict"] == "APPROVE" for item in review["articles"])
+    closure = json.loads((tmp_path / "closure-01" / "closure-evidence.json").read_text(encoding="utf-8"))
+    assert closure["writer_processes"] == 0
+    assert closure["unchanged_paragraphs"] == 73
+    with pytest.raises(RuntimeError, match="already been used"):
+        pipeline.run_rewrite_repair_closure(tmp_path, ReviewerOnly())
+
+
 def test_rewrite_apply_is_disabled_even_with_approval() -> None:
     brief = make_rewrite_brief()
     article = pipeline.hydrate_candidate(

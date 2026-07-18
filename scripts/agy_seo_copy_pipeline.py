@@ -167,6 +167,16 @@ REWRITE_REPAIR_STYLE_CONTRACTS = {
         "ending": "以核對三個月固定支出與可承擔額收尾",
     },
 }
+REWRITE_CLOSURE_EDITS = {
+    ("MBTI-BASE-01", 5, 2): (
+        "解讀這些偏好時，應避免將其視為終身不變的判決。它提供的是一個理解自己與他人溝通落差的切入點，讓你在面對人際摩擦時，能多一個客觀的視角去分析原因，而不是把所有問題都歸咎於性格不合。",
+        "解讀這些偏好時，應避免將其視為終身不變的判決。它提供的是一個理解自己與他人溝通落差的切入點，讓你在面對人際摩擦時，能多一個客觀的視角去分析原因，而不是把所有問題都歸咎於性格不合所致。",
+    ),
+    ("THEME-LIFE-03", 4, 1): (
+        "在沒有收集任何現實資訊的情況下就急著抽牌，是無法為人生指明道路的反例。人生方向塔羅絕對不能當作保證預測未來的工具，它更無法為你的人生決定做任何承諾。過度依賴牌面只會讓你失去在現實中做決策的主動權。",
+        "在沒有收集任何現實資訊的情況下就急著抽牌，是無法為人生指明道路的反例。人生方向塔羅絕對不能當作準確預測未來的工具，它更無法為你的人生決定做任何承諾。過度依賴牌面只會讓你失去在現實中做決策的主動權。",
+    ),
+}
 BANNED_PHRASES = {
     "全面解析",
     "深度解析",
@@ -1980,6 +1990,124 @@ def run_rewrite_repair(
     return candidate, review
 
 
+def run_rewrite_repair_closure(
+    run_dir: Path,
+    client: GeminiClient,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """最後一次 deterministic closure；只改兩個已知位置且不呼叫 Writer。"""
+    closure_dir = run_dir / "closure-01"
+    if closure_dir.exists():
+        raise RuntimeError("rewrite repair closure pass has already been used")
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    prior_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    validate_review(prior_review, candidate["articles"])
+    if tuple(str(item["article_id"]) for item in candidate["articles"]) != REWRITE_REPAIR_ARTICLE_IDS:
+        raise ValueError("rewrite closure article set or fixed order differs from contract")
+    remaining = {
+        (str(item["article_id"]), str(finding["code"]))
+        for item in prior_review["articles"]
+        for finding in item.get("findings", [])
+    }
+    if remaining != {("MBTI-BASE-01", "paragraph_length"), ("THEME-LIFE-03", "banned_phrase")}:
+        raise ValueError("rewrite closure prior findings differ from the two authorized findings")
+    if isinstance(client, GeminiClient):
+        if getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("rewrite closure requires a fresh sandboxed headless reviewer process")
+        if client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("rewrite closure reviewer must use Gemini 3.1 Pro Low")
+    before_articles = json.loads(json.dumps(candidate["articles"], ensure_ascii=False))
+    by_id = {str(article["article_id"]): article for article in candidate["articles"]}
+    changed_locations: list[dict[str, Any]] = []
+    for (article_id, section_number, paragraph_number), (expected, replacement) in REWRITE_CLOSURE_EDITS.items():
+        paragraphs = by_id[article_id]["bodySections"][section_number - 1]["paragraphs"]
+        if paragraphs[paragraph_number - 1] != expected:
+            raise ValueError(f"rewrite closure source text drift at {article_id} S{section_number}P{paragraph_number}")
+        paragraphs[paragraph_number - 1] = replacement
+        changed_locations.append(
+            {
+                "article_id": article_id,
+                "section": section_number,
+                "paragraph": paragraph_number,
+                "before_length": len(expected),
+                "after_length": len(replacement),
+            }
+        )
+    before_paragraphs = {
+        (str(article["article_id"]), section_index, paragraph_index): paragraph
+        for article in before_articles
+        for section_index, section in enumerate(article["bodySections"], start=1)
+        for paragraph_index, paragraph in enumerate(section["paragraphs"], start=1)
+    }
+    after_paragraphs = {
+        (str(article["article_id"]), section_index, paragraph_index): paragraph
+        for article in candidate["articles"]
+        for section_index, section in enumerate(article["bodySections"], start=1)
+        for paragraph_index, paragraph in enumerate(section["paragraphs"], start=1)
+    }
+    changed_keys = {key for key in before_paragraphs if before_paragraphs[key] != after_paragraphs[key]}
+    if changed_keys != set(REWRITE_CLOSURE_EDITS):
+        raise ValueError("rewrite closure changed paragraphs outside the authorized two locations")
+    validate_candidate(candidate)
+    quality, uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+    write_json(closure_dir / "candidate.json", candidate)
+    write_json(closure_dir / "deterministic-quality-findings.json", quality)
+    write_json(closure_dir / "uniqueness-findings.json", uniqueness)
+    write_json(
+        closure_dir / "closure-evidence.json",
+        {
+            "closure_pass": 1,
+            "writer_processes": 0,
+            "changed_locations": changed_locations,
+            "unchanged_paragraphs": len(after_paragraphs) - len(changed_keys),
+            "before_article_sha256": {
+                _candidate_id(article): article_sha256(article) for article in before_articles
+            },
+            "after_article_sha256": {
+                _candidate_id(article): article_sha256(article) for article in candidate["articles"]
+            },
+        },
+    )
+    if quality or uniqueness:
+        raise CandidateValidationError("rewrite closure deterministic gates did not reach zero findings")
+    external_review = _generate_with_receipt(
+        client,
+        "reviewer",
+        _repair_reviewer_prompt(brief, candidate, []),
+        external_review_schema(),
+        closure_dir / "reviewer-operation.json",
+    )
+    write_json(closure_dir / "external-review.json", external_review)
+    review = hydrate_review(brief, candidate, external_review)
+    for item in review["articles"]:
+        item["hard_failure"] = False
+    write_json(closure_dir / "review.json", review)
+    write_json(run_dir / "candidate.json", candidate)
+    write_json(run_dir / "review.json", review)
+    (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    write_json(run_dir / "deterministic-quality-findings.json", quality)
+    write_json(run_dir / "uniqueness-findings.json", uniqueness)
+    evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+    evidence.update(
+        {
+            "deterministic_closure_passes": 1,
+            "closure_writer_processes": 0,
+            "closure_reviewer_processes": 1,
+            "reviewer_processes": int(evidence.get("reviewer_processes", 0)) + 1,
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "article_sha256": {_candidate_id(article): article_sha256(article) for article in candidate["articles"]},
+            "deterministic_quality_findings": 0,
+            "uniqueness_findings": 0,
+            "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+        }
+    )
+    write_json(run_dir / "run-evidence.json", evidence)
+    return candidate, review
+
+
 def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, Any]:
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
@@ -2213,6 +2341,8 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("run_dir", type=Path)
     repair_run = subparsers.add_parser("run-rewrite-repair")
     repair_run.add_argument("run_dir", type=Path)
+    repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
+    repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
     review_parser.add_argument("run_dir", type=Path)
     approve = subparsers.add_parser("approve")
@@ -2262,6 +2392,10 @@ def main() -> int:
         return 0
     if args.command == "run-rewrite-repair":
         candidate, review = run_rewrite_repair(run_dir, GeminiClient.from_environment())
+        print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
+        return 0
+    if args.command == "run-rewrite-repair-closure":
+        candidate, review = run_rewrite_repair_closure(run_dir, GeminiClient.from_environment())
         print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
         return 0
     if args.command == "review-existing":
