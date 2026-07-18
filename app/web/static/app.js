@@ -1,5 +1,5 @@
 import { buildPredictionPayload, fetchPrediction } from "./api.js";
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-matrix-backlog-v1-retry-01";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-asc-batch-02-mechanical-repair-01";
 import { renderDashboard } from "./dashboard.js";
 import { renderFortunePaper } from "./paper.js";
 

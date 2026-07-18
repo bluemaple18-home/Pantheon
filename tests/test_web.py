@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS,
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-matrix-backlog-v1-retry-01"
+ARTICLE_CACHE_TOKEN = "agy-asc-batch-02-mechanical-repair-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -201,6 +201,10 @@ AGY_V1_PUBLIC_ARTICLE_PATHS = [
     *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(45, 48)),
 ]
 
+AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(48, 53)),
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
@@ -212,6 +216,7 @@ PUBLIC_ARTICLE_PATHS = [
     *EXPANSION_50C_PUBLIC_ARTICLE_PATHS,
     *EXPANSION_50D_PUBLIC_ARTICLE_PATHS,
     *AGY_V1_PUBLIC_ARTICLE_PATHS,
+    *AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -340,7 +345,7 @@ console.log(JSON.stringify({
         "/articles/personality/personality-0056",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0047",
+        "/articles/astrology/astrology-0052",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
@@ -1606,6 +1611,44 @@ console.log(JSON.stringify(rendered));
     assert len(rendered) == 8
     assert {article["path"] for article in rendered} == set(AGY_V1_PUBLIC_ARTICLE_PATHS)
     assert len({article["id"] for article in rendered}) == 8
+    for article in rendered:
+        assert 1300 <= article["bodyLength"] <= 2000, article
+        assert article["sectionCount"] == 5, article
+        assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
+        assert 3 <= article["faqCount"] <= 5, article
+        assert article["published"] == "2026-07-18", article
+        assert article["updated"] == "2026-07-18", article
+
+
+def test_agy_asc_batch_02_adds_only_approved_full_standard_articles() -> None:
+    script = f"""
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS)});
+const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
+const rendered = records.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  return {{
+    id: article.id,
+    path: getArticlePath(article),
+    bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
+    sectionCount: content.bodySections.length,
+    paragraphCounts: content.bodySections.map((section) => section.paragraphs.length),
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+  }};
+}});
+console.log(JSON.stringify(rendered));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
+    rendered = json.loads(result.stdout)
+
+    assert len(AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS) == 5
+    assert len(rendered) == 5
+    assert {article["path"] for article in rendered} == set(AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS)
+    assert len({article["id"] for article in rendered}) == 5
     for article in rendered:
         assert 1300 <= article["bodyLength"] <= 2000, article
         assert article["sectionCount"] == 5, article

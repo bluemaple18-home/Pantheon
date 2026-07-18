@@ -1,4 +1,4 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-matrix-backlog-v1-retry-01";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-asc-batch-02-mechanical-repair-01";
 import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-balanced-1";
 import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-mobile-motion-1";
 

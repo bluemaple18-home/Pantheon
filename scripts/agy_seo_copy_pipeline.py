@@ -233,6 +233,10 @@ def _candidate_id(article: dict[str, Any]) -> str:
     return str(article.get("id") or article.get("article_id") or "")
 
 
+def _has_boundary_statement(text: str) -> bool:
+    return bool(re.search(r"不能|不代表|不適合|不是|無法|並非|不得|僅供|只供|只提供", text))
+
+
 def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     sentence_owners: dict[str, set[str]] = {}
@@ -246,6 +250,8 @@ def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
             text = f"{article['title']}{article['description']}{article['answer']}{''.join(paragraphs)}"
             if not 70 <= len(str(article["description"])) <= 95:
                 findings.append({"article_id": article_id, "code": "description_length", "message": "meta description 必須為 70 到 95 字"})
+            if not _has_boundary_statement(str(article["description"])):
+                findings.append({"article_id": article_id, "code": "description_boundary", "message": "meta description 本身必須包含明確限制"})
             if len(str(article["answer"])) > 50:
                 findings.append({"article_id": article_id, "code": "answer_length", "message": "answer 必須在 50 字內"})
             body_length = len("".join(paragraphs))
@@ -265,7 +271,7 @@ def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
             missing_tags = sorted(REQUIRED_PUBLIC_TAGS - set(str(tag) for tag in article["tags"]))
             if missing_tags:
                 findings.append({"article_id": article_id, "code": "required_tags", "message": f"缺少固定 tags：{', '.join(missing_tags)}"})
-            if not re.search(r"不能|不代表|不適合|不是", text):
+            if not _has_boundary_statement(text):
                 findings.append({"article_id": article_id, "code": "missing_boundary", "message": "文章缺少明確限制"})
             keyword = _normalize_keyword(str(article["primaryKeyword"]))
             if keyword and keyword not in _normalize_keyword(str(article["title"])):
@@ -282,6 +288,8 @@ def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
         if proposed is not None:
             if not 70 <= len(str(proposed["description"])) <= 95:
                 findings.append({"article_id": article_id, "code": "description_length", "message": "meta description 必須為 70 到 95 字"})
+            if not _has_boundary_statement(str(proposed["description"])):
+                findings.append({"article_id": article_id, "code": "description_boundary", "message": "meta description 本身必須包含明確限制"})
             if len(str(proposed["answer"])) > 50:
                 findings.append({"article_id": article_id, "code": "answer_length", "message": "answer 必須在 50 字內"})
         for phrase in sorted(BANNED_PHRASES):
@@ -499,7 +507,7 @@ def compact_publication_policy() -> dict[str, Any]:
     return {
         "language": "繁體中文",
         "voice": "白話、具體、先回答讀者問題；冷靜但不替讀者下判決",
-        "title": "優先 28 到 36 個中文字，含主關鍵字",
+        "title": "20 到 45 字為硬性安全邊界；28 到 36 個中文字為偏好，且須含主關鍵字",
         "description": "70 到 95 字，包含適用情境與限制",
         "answer": "50 字內",
         "faq": "3 到 5 題真實問答",
@@ -975,7 +983,8 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
 def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], deterministic_findings: list[dict[str, str]]) -> str:
     return "\n".join([
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
-        "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、禁詞、模板句、醫療/法律/財務邊界。",
+        "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
+        "20 到 45 字才是標題硬性安全邊界；28 到 36 字只是偏好，不得只因未落在偏好區間而退件。",
         "禁詞必須依語境判斷；不一定、不能保證、不是注定等否定邊界句不得當成承諾禁詞。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),

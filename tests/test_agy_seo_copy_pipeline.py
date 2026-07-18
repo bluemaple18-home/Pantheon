@@ -32,7 +32,7 @@ from scripts.gsc_opportunity_brief import (
 )
 
 
-AGY_MATRIX_IDS = {
+AGY_V1_MATRIX_IDS = {
     "MBTI-INTP-AH",
     "MBTI-INTP-AC",
     "MBTI-INTP-OH",
@@ -42,6 +42,16 @@ AGY_MATRIX_IDS = {
     "ASC-TAURUS",
     "ASC-GEMINI",
 }
+
+AGY_ASC_BATCH_02_IDS = {
+    "ASC-CANCER",
+    "ASC-LEO",
+    "ASC-VIRGO",
+    "ASC-LIBRA",
+    "ASC-SCORPIO",
+}
+
+AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
@@ -392,6 +402,43 @@ def test_publication_quality_gate_uses_full_standard_and_humanizer_rules() -> No
     assert (paragraphs["minItems"], paragraphs["maxItems"]) == (3, 3)
 
 
+def test_reviewer_prompt_distinguishes_hard_boundaries_from_preferences() -> None:
+    article = make_article("ASC-LEO")
+    article["title"] = "上升獅子是什麼？外在氣質、表達方式與被看見需求怎麼看"
+    brief = {
+        "schema_version": 1,
+        "run_id": "private-run",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {"id": "ASC-LEO", "primaryKeyword": article["primaryKeyword"]},
+                "target": {
+                    field: article[field]
+                    for field in ["id", "section", "product", "slug", "serial", "urlSlug", "primaryKeyword", "published", "updated"]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    candidate = {"schema_version": 1, "run_id": "private-run", "mode": "create", "articles": [article]}
+
+    prompt = pipeline._reviewer_prompt(brief, candidate, [])
+
+    assert "20 到 45 字才是標題硬性安全邊界" in prompt
+    assert "28 到 36 字只是偏好" in prompt
+    assert "不得只因未落在偏好區間而退件" in prompt
+    assert "英文殘字與錯別字" in prompt
+
+
+def test_description_requires_its_own_boundary_statement() -> None:
+    article = make_article("ASC-CANCER")
+    article["description"] = "本文整理上升巨蟹的第一印象、安全感與關係互動，適合想理解社交防衛與慢熱節奏的讀者，並提供日常可觀察的行動線索與溝通方向。"
+
+    findings = pipeline.quality_findings([article])
+
+    assert any(finding["code"] == "description_boundary" for finding in findings)
+
+
 def test_review_existing_reuses_candidate_without_writer_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     article = make_article("EXISTING-001")
     brief = {
@@ -495,7 +542,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     items = [item for brief in briefs for item in brief["articles"]]
     serials = [item["target"]["serial"] for item in items]
 
-    assert len(items) == 8
+    assert len(items) == 13
     assert len(serials) == len(set(serials))
     assert all(item["target"]["published"] == date.today().isoformat() for item in items)
     assert all(item["target"]["primaryKeyword"] == item["matrix"]["primaryKeyword"] for item in items)
@@ -509,7 +556,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     )
     remaining = [item for path in remaining_paths for item in json.loads(path.read_text(encoding="utf-8"))["articles"]]
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
-    assert len(remaining) == 7
+    assert len(remaining) == 12
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
 
 
