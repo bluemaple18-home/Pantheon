@@ -1211,6 +1211,10 @@ def test_release_batch1_local_closure_clears_locked_uniqueness_findings(tmp_path
     assert json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8")) == []
     closure = json.loads((run_dir / "local-closure-01.json").read_text(encoding="utf-8"))
     assert len(closure["changed_locations"]) == 5
+    fallback = pipeline.release_fallback_review(run_dir)
+    assert all(item["verdict"] == "APPROVE" for item in fallback["articles"])
+    fallback_evidence = json.loads((run_dir / "fallback-review-evidence.json").read_text(encoding="utf-8"))
+    assert fallback_evidence["gemini_approval_claimed"] is False
 
 
 def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None:
