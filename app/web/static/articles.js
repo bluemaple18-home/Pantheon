@@ -1,4 +1,4 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-agy-venus-gemini-single-20260718-01";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=article-expansion-50e-20260719-1";
 import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-balanced-1";
 import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-mobile-motion-1";
 

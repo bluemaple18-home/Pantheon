@@ -1,0 +1,94 @@
+{
+  "baseUrl": "http://127.0.0.1:8879",
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://127.0.0.1:8879/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "pageErrors": [],
+  "requestFailures": [],
+  "httpErrors": [],
+  "tracebacks": [],
+  "latest": [
+    "/articles/personality/personality-0056",
+    "/articles/tarot/tarot-0080",
+    "/articles/fortune/fortune-0044",
+    "/articles/astrology/astrology-0114",
+    "/articles/love/love-0012",
+    "/articles/career/career-0012",
+    "/articles/interpersonal/interpersonal-0012",
+    "/articles/wealth/wealth-0012",
+    "/articles/life-direction/life-direction-0012",
+    "/articles/personality/personality-0055",
+    "/articles/tarot/tarot-0079",
+    "/articles/fortune/fortune-0043"
+  ],
+  "articles": [
+    {
+      "path": "/articles/astrology/astrology-0065",
+      "title": "金星天秤是什麼？喜歡方式、價值選擇與關係中的交換怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    },
+    {
+      "path": "/articles/astrology/astrology-0070",
+      "title": "金星雙魚是什麼？喜歡方式、價值選擇與關係中的交換怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    },
+    {
+      "path": "/articles/astrology/astrology-0071",
+      "title": "水星牡羊是什麼？資訊處理、表達順序與學習溝通偏好怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    },
+    {
+      "path": "/articles/astrology/astrology-0082",
+      "title": "水星雙魚是什麼？資訊處理、表達順序與學習溝通偏好怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    },
+    {
+      "path": "/articles/astrology/astrology-0083",
+      "title": "火星牡羊是什麼？行動動機、競爭方式與衝突升高的節點怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    },
+    {
+      "path": "/articles/astrology/astrology-0114",
+      "title": "土星天蠍是什麼？責任壓力、限制感與需要時間建立的能力怎麼看",
+      "updated": "2026-07-19",
+      "sectionCount": 4,
+      "faqCount": 5
+    }
+  ],
+  "mobile": {
+    "latestCount": 12,
+    "scrollWidth": 390,
+    "clientWidth": 390
+  },
+  "checks": {
+    "latestFirstFour": true,
+    "articlesValid": true,
+    "mobileNoHorizontalOverflow": true,
+    "noTraceback": true,
+    "noRelevantConsoleErrors": true,
+    "noPageErrors": true,
+    "noRequestFailures": true,
+    "noHttpErrors": true
+  },
+  "go": true
+}

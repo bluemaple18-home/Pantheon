@@ -1,5 +1,5 @@
 import { buildPredictionPayload, fetchPrediction } from "./api.js";
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-agy-venus-gemini-single-20260718-01";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=article-expansion-50e-20260719-1";
 import { renderDashboard } from "./dashboard.js";
 import { renderFortunePaper } from "./paper.js";
 

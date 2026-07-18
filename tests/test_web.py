@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS,
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-agy-venus-gemini-single-20260718-01"
+ARTICLE_CACHE_TOKEN = "article-expansion-50e-20260719-1"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -217,6 +217,10 @@ AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS = [
     "/articles/astrology/astrology-0064",
 ]
 
+EXPANSION_50E_PUBLIC_ARTICLE_PATHS = [
+    *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(65, 115)),
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
@@ -231,6 +235,7 @@ PUBLIC_ARTICLE_PATHS = [
     *AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS,
     *AGY_ASC_VENUS_BATCH_03_PUBLIC_ARTICLE_PATHS,
     *AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS,
+    *EXPANSION_50E_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -359,7 +364,7 @@ console.log(JSON.stringify({
         "/articles/personality/personality-0056",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0064",
+        "/articles/astrology/astrology-0114",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
@@ -1594,6 +1599,72 @@ console.log(JSON.stringify({{
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
         assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+
+
+def test_expansion_50e_adds_fifty_unique_full_articles() -> None:
+    script = f"""
+import {{ EXPANSION_50E_ASTRO_ARTICLE_RECORDS as records, EXPANSION_50E_ASTRO_ARTICLE_BODY_LIBRARY as bodies }} from "./app/web/static/article-expansion-50e-astro.js";
+import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
+
+const expectedPaths = new Set({json.dumps(EXPANSION_50E_PUBLIC_ARTICLE_PATHS)});
+const allArticles = listArticleRecords();
+const batch = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
+const paragraphs = Object.values(bodies).flatMap((sections) => sections.flatMap((section) => section.paragraphs));
+const sentenceCounts = new Map();
+for (const paragraph of paragraphs) {{
+  for (const sentence of paragraph.split(/[。！？]/u).map((item) => item.trim()).filter((item) => item.length >= 18)) {{
+    sentenceCounts.set(sentence, (sentenceCounts.get(sentence) || 0) + 1);
+  }}
+}}
+const rendered = batch.map((article) => {{
+  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  return {{
+    path: getArticlePath(article),
+    bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
+    sectionCount: content.bodySections.length,
+    faqCount: content.faq.length,
+    published: content.published,
+    updated: content.updated,
+  }};
+}});
+console.log(JSON.stringify({{
+  totalCount: allArticles.length,
+  recordCount: records.length,
+  bodyCount: Object.keys(bodies).length,
+  batchCount: batch.length,
+  uniqueIds: new Set(records.map((record) => record.id)).size,
+  uniqueSerials: new Set(records.map((record) => record.serial)).size,
+  uniqueSlugs: new Set(records.map((record) => record.slug)).size,
+  uniqueTitles: new Set(records.map((record) => record.title)).size,
+  missingPaths: [...expectedPaths].filter((path) => !batch.some((article) => getArticlePath(article) === path)),
+  repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "不可或缺", "賦能", "必看", "注定"]
+    .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
+  rendered,
+}}));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], check=True, capture_output=True, text=True)
+    data = json.loads(result.stdout)
+
+    assert len(EXPANSION_50E_PUBLIC_ARTICLE_PATHS) == 50
+    assert data["totalCount"] == 352
+    assert data["recordCount"] == 50
+    assert data["bodyCount"] == 50
+    assert data["batchCount"] == 50
+    assert data["uniqueIds"] == 50
+    assert data["uniqueSerials"] == 50
+    assert data["uniqueSlugs"] == 50
+    assert data["uniqueTitles"] == 50
+    assert data["missingPaths"] == []
+    assert data["repeatedSentences"] == []
+    assert data["forbiddenTemplates"] == []
+    for article in data["rendered"]:
+        assert 800 <= article["bodyLength"] <= 1400, article
+        assert article["sectionCount"] == 4, article
+        assert 4 <= article["faqCount"] <= 5, article
+        assert article["published"] == "2026-07-19", article
+        assert article["updated"] == "2026-07-19", article
 
 
 def test_agy_v1_adds_only_approved_full_standard_articles() -> None:

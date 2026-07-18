@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-agy-venus-gemini-single-20260718-01";
+} from "./article-registry.js?v=article-expansion-50e-20260719-1";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -24,6 +24,7 @@ import { EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY } from "./article-expansion-
 import { EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-mbti.js?v=article-expansion-50d-20260716-1";
 import { EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-astro.js?v=article-expansion-50d-20260716-1";
 import { EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY } from "./article-expansion-50d-fortune.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50E_ASTRO_ARTICLE_BODY_LIBRARY } from "./article-expansion-50e-astro.js?v=article-expansion-50e-20260719-1";
 
 const DEFAULT_ARTICLE_PUBLISHED_DATE = "2026-07-10";
 const DEFAULT_ARTICLE_UPDATED_DATE = "2026-07-12";
@@ -98,6 +99,7 @@ const ARTICLE_BODY_LIBRARY = {
   ...EXPANSION_50D_MBTI_ARTICLE_BODY_LIBRARY,
   ...EXPANSION_50D_ASTRO_ARTICLE_BODY_LIBRARY,
   ...EXPANSION_50D_FORTUNE_ARTICLE_BODY_LIBRARY,
+  ...EXPANSION_50E_ASTRO_ARTICLE_BODY_LIBRARY,
   "mbti-meaning": [
     {
       heading: "MBTI 是什麼？",

@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=agy-agy-venus-gemini-single-20260718-01";
+import { buildArticleContent } from "./article-meta.js?v=article-expansion-50e-20260719-1";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;

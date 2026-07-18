@@ -6,7 +6,7 @@ import {
   listArticleRecords,
   listArticleSectionRecords,
   listTagManagementRecords,
-} from "./article-registry.js?v=agy-agy-venus-gemini-single-20260718-01";
+} from "./article-registry.js?v=article-expansion-50e-20260719-1";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
