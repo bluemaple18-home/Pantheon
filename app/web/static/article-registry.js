@@ -5,6 +5,7 @@ import { EXPANSION_50C_FORTUNE_ARTICLE_RECORDS } from "./article-expansion-50c-f
 import { EXPANSION_50D_MBTI_ARTICLE_RECORDS } from "./article-expansion-50d-mbti.js?v=article-expansion-50d-20260716-1";
 import { EXPANSION_50D_ASTRO_ARTICLE_RECORDS } from "./article-expansion-50d-astro.js?v=article-expansion-50d-20260716-1";
 import { EXPANSION_50D_FORTUNE_ARTICLE_RECORDS } from "./article-expansion-50d-fortune.js?v=article-expansion-50d-20260716-1";
+import { EXPANSION_50E_ASTRO_ARTICLE_RECORDS } from "./article-expansion-50e-astro.js?v=article-expansion-50e-20260719-1";
 
 export const GLOBAL_ARTICLE_POLICY = {
   requiredTags: ["Pantheon", "繁體中文", "公開文章", "通用知識"],
@@ -2375,6 +2376,7 @@ export const ARTICLE_REGISTRY = [
   ...EXPANSION_50D_MBTI_ARTICLE_RECORDS.map(withExpansion50DDate),
   ...EXPANSION_50D_ASTRO_ARTICLE_RECORDS.map(withExpansion50DDate),
   ...EXPANSION_50D_FORTUNE_ARTICLE_RECORDS.map(withExpansion50DDate),
+  ...EXPANSION_50E_ASTRO_ARTICLE_RECORDS,
   ...AGY_PROTOTYPE_V1_01_ARTICLE_RECORDS,
   ...AGY_MATRIX_BACKLOG_V1_01_ARTICLE_RECORDS,
   ...AGY_MATRIX_BACKLOG_V1_RETRY_01_ARTICLE_RECORDS,
