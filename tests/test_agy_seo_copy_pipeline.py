@@ -1186,6 +1186,16 @@ def test_prepare_rewrite_release_targets_only_rejected_articles(tmp_path: Path) 
     assert copied_candidate == source_candidate
     assert set(contract["variation_contracts"]) == set(contract["article_order"])
 
+    second_run_dir = tmp_path / "batch_002" / "generation_02"
+    pipeline.write_json(run_dir / "candidate.json", source_candidate)
+    pipeline.write_json(
+        run_dir / "review.json",
+        json.loads((source_dir / "review.json").read_text(encoding="utf-8")),
+    )
+    pipeline.prepare_rewrite_release_generation(run_dir, second_run_dir, 2, 2)
+    second_contract = json.loads((second_run_dir / "release-contract.json").read_text(encoding="utf-8"))
+    assert second_contract["variation_contracts"] == contract["variation_contracts"]
+
 
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]

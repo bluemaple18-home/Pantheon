@@ -2406,7 +2406,10 @@ def _rewrite_release_sources(evidence_root: Path) -> list[tuple[int, Path]]:
 def _release_style_contracts(batch_number: int, brief: dict[str, Any], source_dir: Path) -> dict[str, Any]:
     if batch_number == 1:
         return REWRITE_REPAIR_STYLE_CONTRACTS
-    contract = json.loads((source_dir / "batch-contract.json").read_text(encoding="utf-8"))
+    contract_path = source_dir / "release-contract.json"
+    if not contract_path.is_file():
+        contract_path = source_dir / "batch-contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
     styles = contract.get("variation_contracts")
     if not isinstance(styles, dict) or set(styles) != {str(item["article_id"]) for item in brief["articles"]}:
         raise ValueError(f"release Batch {batch_number} variation contracts are incomplete")
