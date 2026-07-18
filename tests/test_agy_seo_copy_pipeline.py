@@ -180,6 +180,28 @@ def make_rewrite_brief(article_id: str = "REWRITE-001") -> dict[str, object]:
     }
 
 
+def make_repair_brief() -> dict[str, object]:
+    brief = make_rewrite_brief(pipeline.REWRITE_REPAIR_ARTICLE_IDS[0])
+    articles = []
+    for index, article_id in enumerate(pipeline.REWRITE_REPAIR_ARTICLE_IDS, start=1):
+        item = json.loads(json.dumps(brief["articles"][0], ensure_ascii=False))
+        item["slot"] = f"article-{index:02d}"
+        item["article_id"] = article_id
+        item["identity"]["id"] = article_id
+        item["identity"]["serial"] = f"personality-{index:04d}"
+        item["identity"]["slug"] = f"personality-{index:04d}"
+        item["identity"]["primaryKeyword"] = f"測試關鍵字{index}"
+        item["immutable_fields"]["id"] = article_id
+        item["immutable_fields"]["serial"] = f"personality-{index:04d}"
+        item["immutable_fields"]["slug"] = f"personality-{index:04d}"
+        item["immutable_fields"]["urlSlug"] = f"personality-{index:04d}"
+        item["immutable_fields"]["primaryKeyword"] = f"測試關鍵字{index}"
+        articles.append(item)
+    brief["run_id"] = "gemini_rewrite_batch_001_repair_001"
+    brief["articles"] = articles
+    return brief
+
+
 def test_gsc_selects_at_most_five_rank_4_to_20_low_ctr_pages() -> None:
     rows = []
     for index in range(8):
@@ -502,6 +524,137 @@ def test_rewrite_deterministic_gate_enforces_shape_intent_scenarios_actions_and_
     assert "opening_keyword" not in {item["code"] for item in findings if item["article_id"] == "REWRITE-001"}
     assert "concrete_verbs" not in codes
     assert "scenario_density" not in codes
+
+
+def test_rewrite_uniqueness_gate_checks_shared_h2_long_ngram_and_paragraph_opening() -> None:
+    brief = make_repair_brief()
+    articles = []
+    for index, source in enumerate(brief["articles"]):
+        body = make_rewrite_sections(str(source["identity"]["primaryKeyword"]), variant=chr(0x7532 + index))
+        articles.append(
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": body,
+            }
+        )
+    shared = "這段開頭完全相同而且後面保留一段足夠長的共同文字用來檢查跨篇片段，接著才放入各自內容。"
+    articles[0]["bodySections"][0]["heading"] = "測試關鍵字1共同判讀步驟"
+    articles[1]["bodySections"][0]["heading"] = "測試關鍵字2共同判讀步驟"
+    articles[0]["bodySections"][0]["paragraphs"][0] = shared
+    articles[1]["bodySections"][0]["paragraphs"][0] = shared
+
+    findings = pipeline.rewrite_uniqueness_findings(brief, articles)
+    codes = {finding["code"] for finding in findings}
+
+    assert {"shared_h2", "long_ngram", "repeated_paragraph_opening"} <= codes
+
+
+def test_prepare_rewrite_repair_locks_source_finding_and_fixed_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    source_dir = tmp_path / "source"
+    target_dir = tmp_path / "target"
+    brief = make_repair_brief()
+    brief["run_id"] = "previous-run"
+    candidate_articles = []
+    for index, source in enumerate(brief["articles"]):
+        candidate_articles.append(
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": make_rewrite_sections(str(source["identity"]["primaryKeyword"]), chr(0x7532 + index)),
+            }
+        )
+    candidate = {"schema_version": 1, "run_id": "previous-run", "mode": "rewrite_existing_body", "articles": candidate_articles}
+    review = {
+        "schema_version": 1,
+        "run_id": "previous-run",
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "REJECT",
+                "findings": [{"code": "TEMPLATE_USAGE", "message": "跨篇句型相似"}],
+            }
+            for article in candidate_articles
+        ],
+    }
+    pipeline.write_json(source_dir / "brief.json", brief)
+    pipeline.write_json(source_dir / "candidate.json", candidate)
+    pipeline.write_json(source_dir / "review.json", review)
+    monkeypatch.setattr(pipeline, "rewrite_quality_findings", lambda *_: [])
+
+    path = pipeline.prepare_rewrite_repair(repo_root, source_dir, target_dir, source_commit)
+
+    prepared = json.loads(path.read_text(encoding="utf-8"))
+    repair_source = json.loads((target_dir / "repair-source.json").read_text(encoding="utf-8"))
+    assert prepared["run_id"] == "gemini_rewrite_batch_001_repair_001"
+    assert [item["article_id"] for item in prepared["articles"]] == list(pipeline.REWRITE_REPAIR_ARTICLE_IDS)
+    assert repair_source["repair_generation"] == 1
+    review["articles"][0]["findings"][0]["code"] = "OTHER"
+    pipeline.write_json(source_dir / "review.json", review)
+    with pytest.raises(ValueError, match="outside TEMPLATE_USAGE"):
+        pipeline.prepare_rewrite_repair(repo_root, source_dir, tmp_path / "invalid", source_commit)
+
+
+def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    brief = make_repair_brief()
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(
+        tmp_path / "repair-source.json",
+        {
+            "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-001",
+            "repair_generation": 1,
+            "exact_findings": [
+                {"article_id": article_id, "findings": [{"code": "TEMPLATE_USAGE", "message": "跨篇相似"}]}
+                for article_id in pipeline.REWRITE_REPAIR_ARTICLE_IDS
+            ],
+        },
+    )
+    monkeypatch.setattr(pipeline, "rewrite_aggregate_findings", lambda *_: ([], []))
+
+    class RecordingClient:
+        writer_model = "test-writer"
+        reviewer_model = "test-reviewer"
+
+        def __init__(self) -> None:
+            self.writer_prompts: list[str] = []
+            self.reviewer_calls = 0
+
+        def generate_json(self, role: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            if role == "writer":
+                self.writer_prompts.append(prompt)
+                index = len(self.writer_prompts)
+                return {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections(f"測試關鍵字{min(index, 5)}", f"稿{index}")}]}
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": f"article-{index:02d}",
+                        "verdict": "REJECT" if self.reviewer_calls == 1 and index == 1 else "APPROVE",
+                        "findings": [{"code": "TEMPLATE_USAGE", "message": "仍相似"}] if self.reviewer_calls == 1 and index == 1 else [],
+                    }
+                    for index in range(1, 6)
+                ]
+            }
+
+    client = RecordingClient()
+    candidate, review = pipeline.run_rewrite_repair(tmp_path, client)
+
+    assert len(client.writer_prompts) == 6
+    assert all(prompt.count('"currentBody"') == 1 for prompt in client.writer_prompts)
+    assert client.reviewer_calls == 2
+    assert [article["article_id"] for article in candidate["articles"]] == list(pipeline.REWRITE_REPAIR_ARTICLE_IDS)
+    assert all(item["verdict"] == "APPROVE" for item in review["articles"])
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text(encoding="utf-8"))
+    assert evidence["internal_repairs_used"] == 1
+    assert evidence["writer_processes"] == 6
+    assert evidence["reviewer_processes"] == 2
 
 
 def test_rewrite_apply_is_disabled_even_with_approval() -> None:

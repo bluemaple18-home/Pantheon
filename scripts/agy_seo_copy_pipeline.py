@@ -123,6 +123,50 @@ REWRITE_TEMPLATE_HEADINGS = {
     "變成下一步",
     "不能代表什麼",
 }
+REWRITE_REPAIR_ARTICLE_IDS = (
+    "MBTI-BASE-01",
+    "THEME-LIFE-03",
+    "THEME-INTERPERSONAL-03",
+    "THEME-LIFE-04",
+    "THEME-WEALTH-04",
+)
+REWRITE_REPAIR_STYLE_CONTRACTS = {
+    "MBTI-BASE-01": {
+        "opening": "先用一句直接定義回答，再落到會議中的資訊處理差異",
+        "headings": "五個小標依序聚焦定義、四組偏好、工作協作、反例、使用邊界",
+        "argumentOrder": "定義→比較軸→工作場景→反例→自我觀察",
+        "counterexample": "放在第 4 節，以同型者行為不同為反例",
+        "ending": "用一個可記錄的近期互動問題收尾",
+    },
+    "THEME-LIFE-03": {
+        "opening": "從搬家與進修同時卡住的岔路場景切入，再回答塔羅的用途",
+        "headings": "五個小標依序聚焦岔路、問題拆分、牌面翻譯、限制、下一步",
+        "argumentOrder": "場景→拆題→解讀方法→限制→行動",
+        "counterexample": "放在第 4 節開頭，以資訊不足卻急著抽牌為反例",
+        "ending": "以今天能完成的一項資料蒐集動作收尾",
+    },
+    "THEME-INTERPERSONAL-03": {
+        "opening": "從聚會散場後仍坐在玄關的身體疲憊畫面切入",
+        "headings": "五個小標依序聚焦耗能來源、場合差異、界線設計、例外警訊、恢復安排",
+        "argumentOrder": "感受畫面→來源分類→兩個人際場景→例外→恢復設計",
+        "counterexample": "放在第 4 節中段，說明獨處也累時不能只歸因社交",
+        "ending": "以安排下一次聚會前後空白時段收尾",
+    },
+    "THEME-LIFE-04": {
+        "opening": "先對比兩份工作邀請的決策桌面，再說明人格偏好的角色",
+        "headings": "五個小標依序聚焦選項、資訊偏好、試做、壓力偏差、保留選擇",
+        "argumentOrder": "選項對照→偏好線索→低成本試做→壓力反例→決策紀錄",
+        "counterexample": "放在第 4 節結尾，以壓力下反常選擇說明偏好會變動",
+        "ending": "以寫下一項仍可撤回的決定收尾",
+    },
+    "THEME-WEALTH-04": {
+        "opening": "從薪資入帳卻被房租與學費切走的帳務畫面切入",
+        "headings": "五個小標依序聚焦現金流、時間尺度、轉職成本、命理解讀限制、帳目核對",
+        "argumentOrder": "帳目場景→短長期區分→轉職情境→限制→數字核對",
+        "counterexample": "放在第 2 節，以收入增加但餘裕下降為反例",
+        "ending": "以核對三個月固定支出與可承擔額收尾",
+    },
+}
 BANNED_PHRASES = {
     "全面解析",
     "深度解析",
@@ -524,6 +568,70 @@ def rewrite_quality_findings(brief: dict[str, Any], articles: list[dict[str, Any
             for article_id in sorted(owners):
                 findings.append({"article_id": article_id, "code": "cross_article_sentence", "message": f"不得跨篇共用完整句：{sentence}"})
     return findings
+
+
+def _canonical_rewrite_text(text: str, keyword: str) -> str:
+    value = text.replace(keyword, "主題") if keyword else text
+    value = re.sub(r"\d+", "數字", value)
+    return re.sub(r"[^0-9A-Za-z\u3400-\u9fff]", "", value).lower()
+
+
+def rewrite_uniqueness_findings(
+    brief: dict[str, Any],
+    articles: list[dict[str, Any]],
+    *,
+    ngram_size: int = 24,
+    opening_size: int = 10,
+) -> list[dict[str, str]]:
+    """聚合檢查共用 H2、長 n-gram 與段落開頭；完整句由 quality gate 檢查。"""
+    if ngram_size < 12 or opening_size < 6:
+        raise ValueError("rewrite uniqueness thresholds are too small")
+    findings: list[dict[str, str]] = []
+    headings: dict[str, set[str]] = {}
+    openings: dict[str, set[str]] = {}
+    article_ngrams: dict[str, set[str]] = {}
+    for source, article in zip(brief["articles"], articles, strict=True):
+        article_id = str(article["article_id"])
+        keyword = str(source["identity"]["primaryKeyword"])
+        ngrams: set[str] = set()
+        for section in article["bodySections"]:
+            heading = _canonical_rewrite_text(str(section["heading"]), keyword)
+            if heading:
+                headings.setdefault(heading, set()).add(article_id)
+            for paragraph in section["paragraphs"]:
+                canonical = _canonical_rewrite_text(str(paragraph), keyword)
+                if len(canonical) >= opening_size:
+                    openings.setdefault(canonical[:opening_size], set()).add(article_id)
+                if len(canonical) >= ngram_size:
+                    ngrams.update(canonical[index : index + ngram_size] for index in range(len(canonical) - ngram_size + 1))
+        article_ngrams[article_id] = ngrams
+    for heading, owners in sorted(headings.items()):
+        if len(owners) >= 2:
+            for article_id in sorted(owners):
+                findings.append({"article_id": article_id, "code": "shared_h2", "message": f"跨篇共用 H2 結構：{heading}"})
+    for opening, owners in sorted(openings.items()):
+        if len(owners) >= 2:
+            for article_id in sorted(owners):
+                findings.append({"article_id": article_id, "code": "repeated_paragraph_opening", "message": f"跨篇段落開頭重複：{opening}"})
+    article_ids = [str(article["article_id"]) for article in articles]
+    reported_pairs: set[tuple[str, str]] = set()
+    for left_index, left_id in enumerate(article_ids):
+        for right_id in article_ids[left_index + 1 :]:
+            shared = article_ngrams[left_id] & article_ngrams[right_id]
+            if not shared:
+                continue
+            pair = (left_id, right_id)
+            if pair in reported_pairs:
+                continue
+            reported_pairs.add(pair)
+            fragment = sorted(shared)[0]
+            for article_id in pair:
+                findings.append({"article_id": article_id, "code": "long_ngram", "message": f"與 {right_id if article_id == left_id else left_id} 共用長片段：{fragment}"})
+    return findings
+
+
+def rewrite_aggregate_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    return rewrite_quality_findings(brief, articles), rewrite_uniqueness_findings(brief, articles)
 
 
 def invalid_review_payload(run_id: str, articles: list[dict[str, Any]], reason: str, hard_failure: bool = True) -> dict[str, Any]:
@@ -945,6 +1053,63 @@ def prepare_rewrite_batch(
     validate_rewrite_brief(brief)
     write_json(run_dir / "brief.json", brief)
     write_json(run_dir / "public-brief.json", public_model_brief(brief))
+    return run_dir / "brief.json"
+
+
+def prepare_rewrite_repair(
+    repo_root: Path,
+    source_run_dir: Path,
+    run_dir: Path,
+    source_commit: str,
+    repair_generation: int = 1,
+) -> Path:
+    """由前卡唯一 finding 建立隔離 repair brief，不重新讀取正式正文。"""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    if head != source_commit:
+        raise ValueError(f"rewrite repair source commit mismatch: expected {source_commit}, got {head}")
+    if repair_generation != 1:
+        raise ValueError("this repair runner accepts repair_generation=1 only")
+    source_brief = json.loads((source_run_dir / "brief.json").read_text(encoding="utf-8"))
+    source_candidate = json.loads((source_run_dir / "candidate.json").read_text(encoding="utf-8"))
+    source_review = json.loads((source_run_dir / "review.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(source_brief)
+    validate_candidate(source_candidate)
+    validate_review(source_review, source_candidate["articles"])
+    article_ids = tuple(str(item["article_id"]) for item in source_brief["articles"])
+    if article_ids != REWRITE_REPAIR_ARTICLE_IDS:
+        raise ValueError("rewrite repair article set or fixed order differs from contract")
+    if [str(item["article_id"]) for item in source_candidate["articles"]] != list(article_ids):
+        raise ValueError("rewrite repair source candidate order differs from brief")
+    exact_findings: list[dict[str, Any]] = []
+    for item in source_review["articles"]:
+        findings = item.get("findings") or []
+        if item.get("verdict") != "REJECT" or not findings:
+            raise ValueError("rewrite repair source review must reject every article with a finding")
+        if any(finding.get("code") != "TEMPLATE_USAGE" for finding in findings):
+            raise ValueError("rewrite repair source review contains a finding outside TEMPLATE_USAGE")
+        exact_findings.append({"article_id": item["article_id"], "findings": findings})
+    if rewrite_quality_findings(source_brief, source_candidate["articles"]):
+        raise ValueError("rewrite repair source candidate has deterministic findings")
+    repaired_brief = json.loads(json.dumps(source_brief, ensure_ascii=False))
+    repaired_brief["run_id"] = "gemini_rewrite_batch_001_repair_001"
+    repaired_brief["source_commit"] = source_commit
+    validate_rewrite_brief(repaired_brief)
+    write_json(run_dir / "brief.json", repaired_brief)
+    write_json(run_dir / "public-brief.json", public_model_brief(repaired_brief))
+    write_json(
+        run_dir / "repair-source.json",
+        {
+            "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-001",
+            "repair_generation": repair_generation,
+            "source_commit": source_commit,
+            "article_order": list(article_ids),
+            "exact_findings": exact_findings,
+            "source_candidate_sha256": hashlib.sha256(compact_json_bytes(source_candidate)).hexdigest(),
+            "source_review_sha256": hashlib.sha256(compact_json_bytes(source_review)).hexdigest(),
+        },
+    )
     return run_dir / "brief.json"
 
 
@@ -1438,6 +1603,52 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
     ])
 
 
+def _single_rewrite_brief(brief: dict[str, Any], article_id: str) -> dict[str, Any]:
+    item = next((value for value in brief["articles"] if value["article_id"] == article_id), None)
+    if item is None:
+        raise ValueError(f"rewrite repair article not found: {article_id}")
+    single = json.loads(json.dumps(brief, ensure_ascii=False))
+    single["articles"] = [json.loads(json.dumps(item, ensure_ascii=False))]
+    single["articles"][0]["slot"] = "article-01"
+    validate_rewrite_brief(single)
+    return single
+
+
+def _repair_writer_prompt(
+    single_brief: dict[str, Any],
+    source_findings: list[dict[str, Any]],
+    current_findings: list[dict[str, Any]],
+) -> str:
+    article_id = str(single_brief["articles"][0]["article_id"])
+    return "\n".join([
+        "這是 Repair 1。只修跨篇句型與結構相似 finding，輸出單篇完整 bodySections；slot 必須逐字複製。",
+        "不得改寫或輸出 identity、metadata、URL、title、FAQ、tags、日期或 current-body SHA。",
+        "不要沿用其他文章常見的定義、實驗回顧、專業協助或邊界呼籲句型。",
+        "public brief（本次唯一文章素材）:", json.dumps(public_model_brief(single_brief), ensure_ascii=False),
+        "variation contract:", json.dumps(REWRITE_REPAIR_STYLE_CONTRACTS[article_id], ensure_ascii=False),
+        "source public finding:", json.dumps(source_findings, ensure_ascii=False),
+        "current public findings:", json.dumps(current_findings, ensure_ascii=False),
+    ])
+
+
+def _repair_reviewer_prompt(
+    brief: dict[str, Any],
+    candidate: dict[str, Any],
+    deterministic_findings: list[dict[str, str]],
+) -> str:
+    return "\n".join([
+        "你是新的獨立 Gemini Pro Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
+        "本卡只審 Repair 1：確認跨篇完整句、共用 H2、長片段、段落開頭與抽象句型／論證結構不再相似。",
+        "同時確認 5 節、每節 3 段、段長、總字數、前 80 字、專屬場景、具體動詞、反例與安全限制沒有回歸。",
+        "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
+        "deterministic findings 必須保留為 REJECT，不得自行忽略。",
+        "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
+        "variation contracts:", json.dumps(REWRITE_REPAIR_STYLE_CONTRACTS, ensure_ascii=False),
+        "public candidate:", json.dumps(public_model_candidate(brief, candidate), ensure_ascii=False),
+        "public deterministic findings:", json.dumps(public_model_findings(brief, deterministic_findings), ensure_ascii=False),
+    ])
+
+
 def _generate_with_receipt(
     client: Any,
     role: str,
@@ -1596,6 +1807,172 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
             "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
             "article_sha256": {_candidate_id(article): article_sha256(article) for article in candidate["articles"]},
+            "approval_created": False,
+            "apply_executed": False,
+        },
+    )
+    return candidate, review
+
+
+def run_rewrite_repair(
+    run_dir: Path,
+    client: GeminiClient,
+    max_repairs: int = 1,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """以單篇隔離 Writer 產生五篇 repair，再聚合交由獨立 Reviewer。"""
+    if max_repairs != 1:
+        raise ValueError("rewrite repair internal repair allowance must be exactly one")
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    repair_source = json.loads((run_dir / "repair-source.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    article_ids = [str(item["article_id"]) for item in brief["articles"]]
+    if tuple(article_ids) != REWRITE_REPAIR_ARTICLE_IDS:
+        raise ValueError("rewrite repair article set or fixed order differs from contract")
+    if repair_source.get("repair_generation") != 1:
+        raise ValueError("rewrite repair generation differs from contract")
+    if isinstance(client, GeminiClient):
+        if getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("rewrite repair requires fresh sandboxed headless CLI processes")
+        if client.writer_model != DEFAULT_WRITER_MODEL or client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("rewrite repair requires the fixed Gemini Writer and Pro Reviewer Low models")
+    source_findings = {
+        str(item["article_id"]): list(item["findings"])
+        for item in repair_source.get("exact_findings", [])
+    }
+    if set(source_findings) != set(article_ids):
+        raise ValueError("rewrite repair exact source findings are incomplete")
+    candidate_articles: dict[str, dict[str, Any]] = {}
+    review: dict[str, Any] | None = None
+    target_ids = list(article_ids)
+    writer_calls = 0
+    reviewer_calls = 0
+    completed_attempts = 0
+    for attempt in range(max_repairs + 1):
+        attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
+        completed_attempts = attempt + 1
+        current_findings = {} if review is None else {
+            str(item["article_id"]): [
+                {"article_id": item["article_id"], **finding}
+                for finding in item.get("findings", [])
+            ]
+            for item in review["articles"]
+        }
+        writer_errors: list[str] = []
+        for article_id in target_ids:
+            single_brief = _single_rewrite_brief(brief, article_id)
+            writer_dir = attempt_dir / "writers" / article_id.lower()
+            public_brief = public_model_brief(single_brief)
+            write_json(writer_dir / "public-brief.json", public_brief)
+            prompt = _repair_writer_prompt(
+                single_brief,
+                source_findings[article_id],
+                public_model_findings(single_brief, current_findings.get(article_id, [])),
+            )
+            try:
+                external = _generate_with_receipt(
+                    client,
+                    "writer",
+                    prompt,
+                    external_candidate_schema("rewrite_existing_body"),
+                    writer_dir / "writer-operation.json",
+                )
+                writer_calls += 1
+                write_json(writer_dir / "external-candidate.json", external)
+                hydrated = hydrate_candidate(single_brief, external)["articles"][0]
+                candidate_articles[article_id] = hydrated
+            except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
+                writer_errors.append(article_id)
+                write_json(
+                    writer_dir / "writer-schema-rejection.json",
+                    {"article_id": article_id, "code": "invalid_writer_schema", "error_type": type(error).__name__},
+                )
+        if writer_errors:
+            if attempt < max_repairs:
+                target_ids = writer_errors
+                continue
+            if set(candidate_articles) != set(article_ids):
+                raise CandidateValidationError("repair writer schema remained invalid after one internal repair")
+            candidate = {
+                "schema_version": SCHEMA_VERSION,
+                "run_id": brief["run_id"],
+                "mode": "rewrite_existing_body",
+                "articles": [candidate_articles[article_id] for article_id in article_ids],
+            }
+            review = invalid_review_payload(brief["run_id"], candidate["articles"], "invalid_writer_schema")
+            write_json(attempt_dir / "candidate.json", candidate)
+            write_json(attempt_dir / "review.json", review)
+            break
+        candidate = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": brief["run_id"],
+            "mode": "rewrite_existing_body",
+            "articles": [candidate_articles[article_id] for article_id in article_ids],
+        }
+        validate_candidate(candidate)
+        quality, uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+        deterministic = quality + uniqueness
+        write_json(attempt_dir / "candidate.json", candidate)
+        write_json(attempt_dir / "deterministic-quality-findings.json", quality)
+        write_json(attempt_dir / "uniqueness-findings.json", uniqueness)
+        try:
+            external_review = _generate_with_receipt(
+                client,
+                "reviewer",
+                _repair_reviewer_prompt(brief, candidate, deterministic),
+                external_review_schema(),
+                attempt_dir / "reviewer-operation.json",
+            )
+            reviewer_calls += 1
+            write_json(attempt_dir / "external-review.json", external_review)
+            review = hydrate_review(brief, candidate, external_review)
+            for item in review["articles"]:
+                item["hard_failure"] = False
+        except (json.JSONDecodeError, TypeError, ValueError) as error:
+            review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
+        by_id = {str(item["article_id"]): item for item in review["articles"]}
+        for finding in deterministic:
+            item = by_id[str(finding["article_id"])]
+            item["verdict"] = "REJECT"
+            value = {"code": finding["code"], "message": finding["message"]}
+            if value not in item["findings"]:
+                item["findings"].append(value)
+        write_json(attempt_dir / "review.json", review)
+        if all(item["verdict"] == "APPROVE" for item in review["articles"]):
+            break
+        target_ids = [str(item["article_id"]) for item in review["articles"] if item["verdict"] == "REJECT"]
+    if review is None or set(candidate_articles) != set(article_ids):
+        raise CandidateValidationError("rewrite repair did not produce a complete reviewed candidate")
+    candidate = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [candidate_articles[article_id] for article_id in article_ids],
+    }
+    write_json(run_dir / "candidate.json", candidate)
+    write_json(run_dir / "review.json", review)
+    (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    final_quality, final_uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+    write_json(run_dir / "deterministic-quality-findings.json", final_quality)
+    write_json(run_dir / "uniqueness-findings.json", final_uniqueness)
+    write_json(
+        run_dir / "run-evidence.json",
+        {
+            "run_id": brief["run_id"],
+            "chain_id": repair_source["chain_id"],
+            "repair_generation": 1,
+            "source_commit": brief.get("source_commit"),
+            "attempts": completed_attempts,
+            "internal_repairs_used": max(0, completed_attempts - 1),
+            "writer_processes": writer_calls,
+            "reviewer_processes": reviewer_calls,
+            "writer_model": getattr(client, "writer_model", "test-double"),
+            "reviewer_model": getattr(client, "reviewer_model", "test-double"),
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "article_sha256": {_candidate_id(article): article_sha256(article) for article in candidate["articles"]},
+            "deterministic_quality_findings": len(final_quality),
+            "uniqueness_findings": len(final_uniqueness),
+            "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
             "approval_created": False,
             "apply_executed": False,
         },
@@ -1827,8 +2204,15 @@ def parse_args() -> argparse.Namespace:
     rewrite.add_argument("--batch", type=int, required=True)
     rewrite.add_argument("--run-dir", type=Path, required=True)
     rewrite.add_argument("--source-commit", required=True)
+    prepare_repair = subparsers.add_parser("prepare-rewrite-repair")
+    prepare_repair.add_argument("--source-run-dir", type=Path, required=True)
+    prepare_repair.add_argument("--run-dir", type=Path, required=True)
+    prepare_repair.add_argument("--source-commit", required=True)
+    prepare_repair.add_argument("--repair-generation", type=int, default=1)
     run = subparsers.add_parser("run")
     run.add_argument("run_dir", type=Path)
+    repair_run = subparsers.add_parser("run-rewrite-repair")
+    repair_run.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
     review_parser.add_argument("run_dir", type=Path)
     approve = subparsers.add_parser("approve")
@@ -1859,9 +2243,25 @@ def main() -> int:
         )
         print(json.dumps({"brief": str(path), "mode": "rewrite_existing_body"}, ensure_ascii=False))
         return 0
+    if args.command == "prepare-rewrite-repair":
+        source_run_dir = (repo_root / args.source_run_dir).resolve() if not args.source_run_dir.is_absolute() else args.source_run_dir
+        target_run_dir = (repo_root / args.run_dir).resolve() if not args.run_dir.is_absolute() else args.run_dir
+        path = prepare_rewrite_repair(
+            repo_root,
+            source_run_dir,
+            target_run_dir,
+            args.source_commit,
+            args.repair_generation,
+        )
+        print(json.dumps({"brief": str(path), "repair_generation": args.repair_generation}, ensure_ascii=False))
+        return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":
         candidate, review = run_writer_reviewer(run_dir, GeminiClient.from_environment())
+        print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
+        return 0
+    if args.command == "run-rewrite-repair":
+        candidate, review = run_rewrite_repair(run_dir, GeminiClient.from_environment())
         print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
         return 0
     if args.command == "review-existing":
