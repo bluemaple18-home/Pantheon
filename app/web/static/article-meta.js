@@ -72,8 +72,13 @@ import { AGY_VENUS_BATCH_04_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-
 import { AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-venus-batch-04-02.js?v=agy-venus-batch-04-02";
 
 import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./article-rewrite-release-001.js?v=rewrite-release-001";
+import { AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-agy-venus-cancer-single-20260718-01.js?v=agy-agy-venus-cancer-single-20260718-01";
+
+import { AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-agy-venus-gemini-single-20260718-01.js?v=agy-agy-venus-gemini-single-20260718-01";
 
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY,
+  ...AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY,
   ...AGY_VENUS_BATCH_04_02_ARTICLE_BODY_LIBRARY,
   ...AGY_VENUS_BATCH_04_01_ARTICLE_BODY_LIBRARY,
   ...AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_BODY_LIBRARY,

@@ -432,6 +432,10 @@ import { AGY_VENUS_BATCH_04_01_ARTICLE_RECORDS } from "./article-expansion-agy-v
 
 import { AGY_VENUS_BATCH_04_02_ARTICLE_RECORDS } from "./article-expansion-agy-venus-batch-04-02.js?v=agy-venus-batch-04-02";
 
+import { AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_RECORDS } from "./article-expansion-agy-agy-venus-cancer-single-20260718-01.js?v=agy-agy-venus-cancer-single-20260718-01";
+
+import { AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_RECORDS } from "./article-expansion-agy-agy-venus-gemini-single-20260718-01.js?v=agy-agy-venus-gemini-single-20260718-01";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2380,6 +2384,8 @@ export const ARTICLE_REGISTRY = [
   ...AGY_ASC_VENUS_BATCH_03_BOUNDED_02_ARTICLE_RECORDS,
   ...AGY_VENUS_BATCH_04_01_ARTICLE_RECORDS,
   ...AGY_VENUS_BATCH_04_02_ARTICLE_RECORDS,
+  ...AGY_AGY_VENUS_CANCER_SINGLE_20260718_01_ARTICLE_RECORDS,
+  ...AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {

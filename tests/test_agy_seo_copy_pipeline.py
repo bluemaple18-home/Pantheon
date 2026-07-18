@@ -1328,7 +1328,7 @@ def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None
 
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    assert {item["id"] for item in build_matrix_backlog(repo_root)} == {"VENUS-GEMINI", "VENUS-CANCER"}
+    assert {item["id"] for item in build_matrix_backlog(repo_root)} == set()
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
