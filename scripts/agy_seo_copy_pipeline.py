@@ -1807,13 +1807,13 @@ def _generate_with_receipt(
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         "schema_sha256": hashlib.sha256(compact_json_bytes(schema)).hexdigest(),
         "transport": transport_name,
-        "fresh_headless_process": transport_name == "_cli_transport",
+        "fresh_headless_process": transport_name in {"_cli_transport", "_outbox_transport"},
         "status": "started",
     }
     try:
         result = client.generate_json(role, prompt, schema)
     except Exception as error:
-        receipt["status"] = "error"
+        receipt["status"] = "pending" if type(error).__name__ == "ExternalJobPending" else "error"
         receipt["error_type"] = type(error).__name__
         receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         write_json(receipt_path, receipt)
