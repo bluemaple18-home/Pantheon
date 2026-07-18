@@ -2700,6 +2700,87 @@ def review_rewrite_release_final(
     return review
 
 
+RELEASE_BATCH1_CLOSURE_REPLACEMENTS = {
+    "THEME-LIFE-04": {
+        "這場試做的目的不是強迫自己改變天性，而是擴展解決問題的應變方式。":
+            "這場試做用來擴展解決問題的應變方式，無須強迫自己改變天性。",
+        "這種反常的控制欲並不是個性永久改變，而是焦慮感過高時，大腦做出的暫時性補償反應。":
+            "這種反常的控制欲源自焦慮感過高時大腦做出的暫時性補償反應，不代表個性永久改變。",
+        "給自己留下撤回決策的空間並不意味著軟弱，而是理解在現實世界中，沒有任何測驗結果能夠限制你一生的發展。":
+            "給自己留下撤回決策的空間，代表你理解現實世界沒有任何測驗結果能限制一生發展，這與軟弱無關。",
+    },
+    "THEME-WEALTH-04": {
+        "我們該關注的是如何編列合理的預算，而不是去尋求神秘學的預測。":
+            "我們該把注意力放在合理預算；尋求神秘學預測無法代替帳目核對。",
+        "這不是一次性的整理，而是需要定期檢視的功課。":
+            "這項整理需要定期檢視，單次清點不足以掌握長期變化。",
+    },
+}
+
+
+def run_release_batch1_local_closure(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """只移除 Batch 1 已定位的 not-but 抽象句型，不新增事實。"""
+    contract = json.loads((run_dir / "release-contract.json").read_text(encoding="utf-8"))
+    if contract.get("batch_number") != 1 or contract.get("generation") != 4:
+        raise ValueError("local closure is locked to release Batch 1 generation 4")
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    candidate = json.loads((run_dir / "source-candidate.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    candidate["run_id"] = brief["run_id"]
+    changed: list[dict[str, Any]] = []
+    for article in candidate["articles"]:
+        article_id = str(article["article_id"])
+        replacements = RELEASE_BATCH1_CLOSURE_REPLACEMENTS.get(article_id, {})
+        for section_index, section in enumerate(article["bodySections"], start=1):
+            for paragraph_index, paragraph in enumerate(section["paragraphs"], start=1):
+                updated = paragraph
+                for source, replacement in replacements.items():
+                    updated = updated.replace(source, replacement)
+                if updated != paragraph:
+                    section["paragraphs"][paragraph_index - 1] = updated
+                    changed.append({"article_id": article_id, "section": section_index, "paragraph": paragraph_index})
+    if len(changed) != 5:
+        raise ValueError("release Batch 1 local closure exact replacement count differs from contract")
+    quality, uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+    if quality or uniqueness:
+        raise CandidateValidationError("release Batch 1 local closure did not clear deterministic findings")
+    review = invalid_review_payload(brief["run_id"], candidate["articles"], "reviewer_required")
+    write_json(run_dir / "candidate.json", candidate)
+    write_json(run_dir / "review.json", review)
+    write_json(run_dir / "deterministic-quality-findings.json", quality)
+    write_json(run_dir / "uniqueness-findings.json", uniqueness)
+    write_json(
+        run_dir / "local-closure-01.json",
+        {
+            "changed_locations": changed,
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "reviewer_required": True,
+        },
+    )
+    write_json(
+        run_dir / "run-evidence.json",
+        {
+            "run_id": brief["run_id"],
+            "chain_id": contract["chain_id"],
+            "batch_number": 1,
+            "generation": 4,
+            "attempts": 0,
+            "writer_processes": 0,
+            "reviewer_processes": 0,
+            "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+            "deterministic_quality_findings": 0,
+            "uniqueness_findings": 0,
+            "approval_created": False,
+            "apply_executed": False,
+            "reviewer_required": True,
+        },
+    )
+    return candidate, review
+
+
 def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
     """只讀每批最新 generation，重建 release 總結。"""
     batch_results: list[dict[str, Any]] = []
@@ -2734,6 +2815,110 @@ def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
     }
     write_json(release_root / "summary.json", summary)
     return summary
+
+
+def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
+    """50/50 核准後只新增 body override；registry 與 metadata identity 不變。"""
+    summary = json.loads((release_root / "summary.json").read_text(encoding="utf-8"))
+    if (
+        summary.get("status") != "READY_FOR_APPLY"
+        or summary.get("candidate_count") != 50
+        or summary.get("unique_candidate_count") != 50
+        or summary.get("reviewer_approved") != 50
+        or summary.get("deterministic_quality_findings") != 0
+        or summary.get("uniqueness_findings") != 0
+    ):
+        raise ValueError("rewrite release is not ready for apply")
+    candidates: list[dict[str, Any]] = []
+    approvals: list[dict[str, Any]] = []
+    for batch in summary["batches"]:
+        run_dir = Path(str(batch["final_dir"]))
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        quality = json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8"))
+        uniqueness = json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8"))
+        validate_candidate(candidate)
+        validate_review(review, candidate["articles"])
+        if quality or uniqueness or any(item["verdict"] != "APPROVE" for item in review["articles"]):
+            raise ValueError(f"rewrite release Batch {batch['batch']} is not fully approved")
+        candidates.extend(candidate["articles"])
+        approvals.extend(
+            {
+                "article_id": item["article_id"],
+                "candidate_sha256": item["candidate_sha256"],
+                "decision": "APPROVE",
+            }
+            for item in review["articles"]
+        )
+    if len(candidates) != 50 or len({_candidate_id(item) for item in candidates}) != 50:
+        raise ValueError("rewrite release apply requires 50 unique candidates")
+    inventory = _existing_rewrite_inventory(repo_root)
+    bodies: dict[str, Any] = {}
+    for article in candidates:
+        article_id = _candidate_id(article)
+        source = inventory.get(article_id)
+        if source is None:
+            raise ValueError(f"rewrite release source article missing: {article_id}")
+        record = source["record"]
+        identity = article["identity"]
+        actual_identity = {
+            "id": record["id"],
+            "product": record["product"],
+            "category": record["section"],
+            "serial": record["serial"],
+            "slug": record["urlSlug"],
+            "primaryKeyword": record["primaryKeyword"],
+            "title": record["title"],
+        }
+        if identity != actual_identity:
+            raise ValueError(f"rewrite release immutable identity drift: {article_id}")
+        if article["current_body_sha256"] != body_sha256(source["currentBody"]):
+            raise ValueError(f"rewrite release current body drift: {article_id}")
+        bodies[str(identity["slug"])] = article["bodySections"]
+    static = repo_root / "app/web/static"
+    module = static / "article-rewrite-release-001.js"
+    module.write_text(
+        "// 50 篇核准改寫正文；由 release gate 產生，僅覆寫 bodySections。\n\n"
+        f"export const REWRITE_RELEASE_001_BODY_OVERRIDES = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n",
+        encoding="utf-8",
+    )
+    meta_path = static / "article-meta.js"
+    meta = meta_path.read_text(encoding="utf-8")
+    import_line = 'import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./article-rewrite-release-001.js?v=rewrite-release-001";\n'
+    meta = _insert_once(meta, "const ARTICLE_BODY_LIBRARY = {", import_line + "\n")
+    old = "  const customBody = ARTICLE_BODY_LIBRARY[article.slug];"
+    new = "  const customBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];"
+    if old in meta:
+        meta = meta.replace(old, new, 1)
+    elif new not in meta:
+        raise ValueError("article body override marker not found")
+    meta_path.write_text(meta, encoding="utf-8")
+    approval = {
+        "schema_version": SCHEMA_VERSION,
+        "chain_id": "CONTENT-GEMINI-REWRITE-RELEASE-001",
+        "approved_by": "user-requested-release-repair",
+        "article_count": 50,
+        "articles": approvals,
+        "formal_apply": True,
+        "deploy_authorized": False,
+    }
+    write_json(release_root / "approval.json", approval)
+    summary.update({"status": "READY_TO_DEPLOY", "approval_created": True, "formal_apply": True})
+    write_json(release_root / "summary.json", summary)
+    changed = [module, meta_path, *_bump_article_cache_queries(repo_root, "rewrite-release-001")]
+    write_json(
+        release_root / "apply-evidence.json",
+        {
+            "status": "READY_TO_DEPLOY",
+            "article_count": 50,
+            "body_override_module": module.relative_to(repo_root).as_posix(),
+            "changed_files": [path.relative_to(repo_root).as_posix() for path in changed],
+            "registry_changed": False,
+            "metadata_changed": False,
+            "deploy_executed": False,
+        },
+    )
+    return changed
 
 
 def run_rewrite_release(
@@ -3143,10 +3328,14 @@ def parse_args() -> argparse.Namespace:
     release_prepare.add_argument("--generation", type=int, required=True)
     release_generation = subparsers.add_parser("run-rewrite-release-generation")
     release_generation.add_argument("run_dir", type=Path)
+    release_local_closure = subparsers.add_parser("run-rewrite-release-local-closure")
+    release_local_closure.add_argument("run_dir", type=Path)
     release_review = subparsers.add_parser("review-rewrite-release")
     release_review.add_argument("run_dir", type=Path)
     release_summary = subparsers.add_parser("summarize-rewrite-release")
     release_summary.add_argument("release_root", type=Path)
+    release_apply = subparsers.add_parser("apply-rewrite-release")
+    release_apply.add_argument("release_root", type=Path)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -3221,6 +3410,10 @@ def main() -> int:
         candidate, review = run_rewrite_release_generation(args.run_dir.resolve(), GeminiClient.from_environment())
         print(json.dumps({"run_id": candidate["run_id"], "approved": sum(item["verdict"] == "APPROVE" for item in review["articles"])}, ensure_ascii=False))
         return 0
+    if args.command == "run-rewrite-release-local-closure":
+        candidate, review = run_release_batch1_local_closure(args.run_dir.resolve())
+        print(json.dumps({"run_id": candidate["run_id"], "approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "reviewer_required": True}, ensure_ascii=False))
+        return 0
     if args.command == "review-rewrite-release":
         review = review_rewrite_release_final(args.run_dir.resolve(), GeminiClient.from_environment())
         print(json.dumps({"approved": sum(item["verdict"] == "APPROVE" for item in review["articles"])}, ensure_ascii=False))
@@ -3228,6 +3421,10 @@ def main() -> int:
     if args.command == "summarize-rewrite-release":
         summary = write_rewrite_release_summary(args.release_root.resolve())
         print(json.dumps({"status": summary["status"], "approved": summary["reviewer_approved"]}, ensure_ascii=False))
+        return 0
+    if args.command == "apply-rewrite-release":
+        changed = apply_rewrite_release(repo_root, args.release_root.resolve())
+        print(json.dumps({"status": "READY_TO_DEPLOY", "changed": [str(path) for path in changed]}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":

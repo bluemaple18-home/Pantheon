@@ -1197,6 +1197,30 @@ def test_prepare_rewrite_release_targets_only_rejected_articles(tmp_path: Path) 
     assert second_contract["variation_contracts"] == contract["variation_contracts"]
 
 
+def test_release_batch1_local_closure_clears_locked_uniqueness_findings(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source_dir = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/batch_001/generation_03"
+    run_dir = tmp_path / "batch_001" / "generation_04"
+    pipeline.prepare_rewrite_release_generation(source_dir, run_dir, 1, 4)
+
+    candidate, review = pipeline.run_release_batch1_local_closure(run_dir)
+
+    assert candidate["run_id"].endswith("generation-04")
+    assert all(item["verdict"] == "REJECT" for item in review["articles"])
+    assert json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8")) == []
+    assert json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8")) == []
+    closure = json.loads((run_dir / "local-closure-01.json").read_text(encoding="utf-8"))
+    assert len(closure["changed_locations"]) == 5
+
+
+def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None:
+    release_root = tmp_path / "release"
+    pipeline.write_json(release_root / "summary.json", {"status": "BLOCKED"})
+
+    with pytest.raises(ValueError, match="not ready for apply"):
+        pipeline.apply_rewrite_release(tmp_path, release_root)
+
+
 def test_integrated_matrix_backlog_is_empty() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     assert {item["id"] for item in build_matrix_backlog(repo_root)} == {"VENUS-GEMINI", "VENUS-CANCER"}
