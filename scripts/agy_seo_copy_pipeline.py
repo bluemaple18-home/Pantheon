@@ -2639,6 +2639,103 @@ def run_rewrite_release_generation(
     return final_candidate, review
 
 
+def review_rewrite_release_final(
+    run_dir: Path,
+    client: GeminiClient,
+    max_rounds: int = 3,
+) -> dict[str, Any]:
+    """正文 gates 已清零時只重跑 Reviewer，避免無意義地再次改寫。"""
+    if max_rounds != 3:
+        raise ValueError("release reviewer-only retry requires exactly three rounds")
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    contract = json.loads((run_dir / "release-contract.json").read_text(encoding="utf-8"))
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    quality, uniqueness = rewrite_aggregate_findings(brief, candidate["articles"])
+    if quality or uniqueness:
+        raise CandidateValidationError("reviewer-only retry requires zero deterministic findings")
+    if isinstance(client, GeminiClient):
+        if getattr(client.transport, "__name__", "") != "_cli_transport":
+            raise RuntimeError("release reviewer-only retry requires fresh headless CLI processes")
+        if client.reviewer_model != DEFAULT_REVIEWER_MODEL:
+            raise RuntimeError("release reviewer-only retry requires Gemini Pro Reviewer Low")
+    review: dict[str, Any] | None = None
+    for round_number in range(1, max_rounds + 1):
+        round_dir = run_dir / "review-only" / f"round_{round_number:02d}"
+        external_path = round_dir / "external-review.json"
+        try:
+            external = _generate_with_receipt(
+                client,
+                "reviewer",
+                _repair_reviewer_prompt(brief, candidate, [], contract["variation_contracts"]),
+                external_review_schema(),
+                round_dir / "reviewer-operation.json",
+            )
+            write_json(external_path, external)
+            review = hydrate_review(brief, candidate, external)
+            for item in review["articles"]:
+                item["hard_failure"] = False
+            write_json(round_dir / "review.json", review)
+            if all(item["verdict"] == "APPROVE" for item in review["articles"]):
+                break
+        except (json.JSONDecodeError, TypeError, ValueError) as error:
+            review = invalid_review_payload(
+                brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}"
+            )
+            write_json(round_dir / "review.json", review)
+    if review is None:
+        raise RuntimeError("release reviewer-only retry produced no review")
+    write_json(run_dir / "review.json", review)
+    (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+    evidence.update(
+        {
+            "reviewer_only_rounds": max(1, len(list((run_dir / "review-only").glob("round_*")))),
+            "review_sha256": hashlib.sha256(compact_json_bytes(review)).hexdigest(),
+            "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+        }
+    )
+    write_json(run_dir / "run-evidence.json", evidence)
+    return review
+
+
+def write_rewrite_release_summary(release_root: Path) -> dict[str, Any]:
+    """只讀每批最新 generation，重建 release 總結。"""
+    batch_results: list[dict[str, Any]] = []
+    all_ids: list[str] = []
+    for batch_number in range(1, 11):
+        generations = sorted((release_root / f"batch_{batch_number:03d}").glob("generation_*"))
+        if not generations:
+            raise FileNotFoundError(f"release Batch {batch_number} has no generation")
+        final_dir = generations[-1]
+        candidate = json.loads((final_dir / "candidate.json").read_text(encoding="utf-8"))
+        evidence = json.loads((final_dir / "run-evidence.json").read_text(encoding="utf-8"))
+        ids = [str(item["article_id"]) for item in candidate["articles"]]
+        all_ids.extend(ids)
+        batch_results.append({"batch": batch_number, "final_dir": final_dir.as_posix(), "article_ids": ids, **evidence})
+    approved = sum(item["reviewer_approved"] for item in batch_results)
+    quality = sum(item["deterministic_quality_findings"] for item in batch_results)
+    uniqueness = sum(item["uniqueness_findings"] for item in batch_results)
+    status = "READY_FOR_APPLY" if len(all_ids) == 50 and len(set(all_ids)) == 50 and approved == 50 and quality == 0 and uniqueness == 0 else "BLOCKED"
+    summary = {
+        "schema_version": SCHEMA_VERSION,
+        "chain_id": "CONTENT-GEMINI-REWRITE-RELEASE-001",
+        "status": status,
+        "candidate_count": len(all_ids),
+        "unique_candidate_count": len(set(all_ids)),
+        "reviewer_approved": approved,
+        "deterministic_quality_findings": quality,
+        "uniqueness_findings": uniqueness,
+        "article_ids": all_ids,
+        "batches": batch_results,
+        "approval_created": False,
+        "formal_apply": False,
+    }
+    write_json(release_root / "summary.json", summary)
+    return summary
+
+
 def run_rewrite_release(
     evidence_root: Path,
     release_root: Path,
@@ -2674,26 +2771,7 @@ def run_rewrite_release(
         ids = [str(item["article_id"]) for item in candidate["articles"]]
         all_ids.extend(ids)
         batch_results.append({"batch": batch_number, "final_dir": final_dir.as_posix(), "article_ids": ids, **evidence})
-    approved = sum(item["reviewer_approved"] for item in batch_results)
-    quality = sum(item["deterministic_quality_findings"] for item in batch_results)
-    uniqueness = sum(item["uniqueness_findings"] for item in batch_results)
-    status = "READY_FOR_APPLY" if len(all_ids) == 50 and len(set(all_ids)) == 50 and approved == 50 and quality == 0 and uniqueness == 0 else "BLOCKED"
-    summary = {
-        "schema_version": SCHEMA_VERSION,
-        "chain_id": "CONTENT-GEMINI-REWRITE-RELEASE-001",
-        "status": status,
-        "candidate_count": len(all_ids),
-        "unique_candidate_count": len(set(all_ids)),
-        "reviewer_approved": approved,
-        "deterministic_quality_findings": quality,
-        "uniqueness_findings": uniqueness,
-        "article_ids": all_ids,
-        "batches": batch_results,
-        "approval_created": False,
-        "formal_apply": False,
-    }
-    write_json(release_root / "summary.json", summary)
-    return summary
+    return write_rewrite_release_summary(release_root)
 
 
 def run_rewrite_repair_closure(
@@ -3058,6 +3136,17 @@ def parse_args() -> argparse.Namespace:
     release = subparsers.add_parser("run-rewrite-release")
     release.add_argument("--evidence-root", type=Path, required=True)
     release.add_argument("--release-root", type=Path, required=True)
+    release_prepare = subparsers.add_parser("prepare-rewrite-release-generation")
+    release_prepare.add_argument("--source-dir", type=Path, required=True)
+    release_prepare.add_argument("--run-dir", type=Path, required=True)
+    release_prepare.add_argument("--batch", type=int, required=True)
+    release_prepare.add_argument("--generation", type=int, required=True)
+    release_generation = subparsers.add_parser("run-rewrite-release-generation")
+    release_generation.add_argument("run_dir", type=Path)
+    release_review = subparsers.add_parser("review-rewrite-release")
+    release_review.add_argument("run_dir", type=Path)
+    release_summary = subparsers.add_parser("summarize-rewrite-release")
+    release_summary.add_argument("release_root", type=Path)
     repair_closure = subparsers.add_parser("run-rewrite-repair-closure")
     repair_closure.add_argument("run_dir", type=Path)
     review_parser = subparsers.add_parser("review-existing")
@@ -3120,6 +3209,24 @@ def main() -> int:
             (repo_root / args.release_root).resolve() if not args.release_root.is_absolute() else args.release_root,
             GeminiClient.from_environment(),
         )
+        print(json.dumps({"status": summary["status"], "approved": summary["reviewer_approved"]}, ensure_ascii=False))
+        return 0
+    if args.command == "prepare-rewrite-release-generation":
+        path = prepare_rewrite_release_generation(
+            args.source_dir.resolve(), args.run_dir.resolve(), args.batch, args.generation
+        )
+        print(json.dumps({"brief": str(path)}, ensure_ascii=False))
+        return 0
+    if args.command == "run-rewrite-release-generation":
+        candidate, review = run_rewrite_release_generation(args.run_dir.resolve(), GeminiClient.from_environment())
+        print(json.dumps({"run_id": candidate["run_id"], "approved": sum(item["verdict"] == "APPROVE" for item in review["articles"])}, ensure_ascii=False))
+        return 0
+    if args.command == "review-rewrite-release":
+        review = review_rewrite_release_final(args.run_dir.resolve(), GeminiClient.from_environment())
+        print(json.dumps({"approved": sum(item["verdict"] == "APPROVE" for item in review["articles"])}, ensure_ascii=False))
+        return 0
+    if args.command == "summarize-rewrite-release":
+        summary = write_rewrite_release_summary(args.release_root.resolve())
         print(json.dumps({"status": summary["status"], "approved": summary["reviewer_approved"]}, ensure_ascii=False))
         return 0
     run_dir = args.run_dir.resolve()
