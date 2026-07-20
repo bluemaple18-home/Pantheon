@@ -1197,6 +1197,57 @@ def test_runtime_retry_preserves_failed_operation_receipt(tmp_path: Path) -> Non
     assert retry["status"] == "success"
 
 
+def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Path) -> None:
+    run_dir = tmp_path / "schema-budget"
+    run_dir.mkdir()
+    brief = {
+        "schema_version": 1,
+        "run_id": "schema-budget-run",
+        "mode": "optimize",
+        "allowed_fields": ["title", "description", "answer"],
+        "articles": [
+            {
+                "article_id": "PUBLIC-001",
+                "canonical_path": "/articles/astrology/astrology-0001",
+                "source_file": "app/web/static/article-registry.js",
+                "current": {"title": "舊標題", "description": "舊描述", "answer": "舊答案"},
+                "queries": [{"query": "公開搜尋詞"}],
+            }
+        ],
+    }
+    (run_dir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False), encoding="utf-8")
+    proposed = {
+        "title": "公開搜尋詞怎麼看？整理使用情境與限制",
+        "description": "公開搜尋詞適合用來整理讀者真正想確認的情境、可觀察資訊與下一步選擇；本文只提供一般說明，不能替個人判斷，也不承諾任何特定結果，仍須回到實際資料與互動再決定。",
+        "answer": "先確認具體情境與資料；這項說明不能替個人下結論。",
+    }
+    writer_results = [
+        {"articles": [{"slot": "article-01", "proposed": proposed}]},
+        {"articles": [{"slot": "article-01"}]},
+        {"articles": [{"slot": "article-01", "proposed": proposed}]},
+    ]
+    reviewer_results = [
+        {"articles": [{"slot": "article-01", "verdict": "REJECT", "findings": [{"code": "copy", "message": "請再具體"}]}]},
+        {"articles": [{"slot": "article-01", "verdict": "APPROVE", "findings": []}]},
+    ]
+
+    class SequenceClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(self, role: str, _prompt: str, _schema: dict[str, object]) -> dict[str, object]:
+            return (writer_results if role == "writer" else reviewer_results).pop(0)
+
+    candidate, review = pipeline.run_writer_reviewer(run_dir, SequenceClient(), max_repairs=1)
+    evidence = json.loads((run_dir / "run-evidence.json").read_text())
+
+    assert candidate["articles"][0]["proposed"] == proposed
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert evidence["content_repairs_used"] == 1
+    assert evidence["schema_repairs_used"] == 1
+    assert evidence["attempts"] == 3
+
+
 def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> None:
     sources = ["gemini_rewrite_batch_001_repair_001", "gemini_rewrite_batch_002", *[f"gemini_rewrite_batch_{batch:03d}" for batch in range(3, 11)]]
     for batch_index, name in enumerate(sources, start=1):

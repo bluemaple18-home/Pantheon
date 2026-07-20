@@ -26,6 +26,7 @@ MAX_RUN_ARTICLES = 5
 MAX_ARTICLE_BRIEF_BYTES = 8192
 DEFAULT_WRITER_MODEL = "gemini-3.5-flash"
 DEFAULT_REVIEWER_MODEL = "gemini-3.1-pro-preview"
+MAX_WRITER_SCHEMA_REPAIRS = 2
 ANTIGRAVITY_MODEL_LABELS = {
     DEFAULT_WRITER_MODEL: "Gemini 3.5 Flash (Low)",
     DEFAULT_REVIEWER_MODEL: "Gemini 3.1 Pro (Low)",
@@ -1916,20 +1917,26 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     candidate: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
     completed_attempts = 0
-    writer_schema_repairs = 0
-    for attempt in range(max_repairs + 1):
+    content_repairs_used = 0
+    schema_repairs_used = 0
+    current_schema_repair = 0
+    attempt = 0
+    while True:
+        if review is not None and content_repairs_used >= max_repairs:
+            break
         attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
         completed_attempts = attempt + 1
+        repairing_reviewed_candidate = review is not None
         findings = [] if review is None else [
             {"article_id": item["article_id"], **finding}
             for item in review["articles"]
             for finding in item.get("findings", [])
         ]
         writer_prompt = _writer_prompt(brief, candidate, findings)
-        if writer_schema_repairs:
+        if current_schema_repair:
             writer_prompt = "\n".join(
                 [
-                    f"schema repair {writer_schema_repairs}: 前次 Writer JSON 格式無效。",
+                    f"schema repair {current_schema_repair}: 前次 Writer JSON 格式無效。",
                     "必須輸出完整 schema，且每篇都不得漏掉任何 required field。",
                     writer_prompt,
                 ]
@@ -1947,14 +1954,19 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             write_json(attempt_dir / "external-candidate.json", external_candidate)
             candidate = hydrate_candidate(brief, external_candidate)
         except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
-            writer_schema_repairs += 1
+            schema_repairs_used += 1
+            current_schema_repair += 1
             write_json(
                 attempt_dir / "writer-schema-rejection.json",
                 {"verdict": "REJECT", "hard_failure": True, "code": "invalid_writer_schema", "error_type": type(error).__name__},
             )
-            if attempt < max_repairs:
+            if schema_repairs_used <= MAX_WRITER_SCHEMA_REPAIRS:
+                attempt += 1
                 continue
-            raise CandidateValidationError("writer schema remained invalid after two repairs") from error
+            raise CandidateValidationError("writer schema remained invalid after bounded schema repairs") from error
+        current_schema_repair = 0
+        if repairing_reviewed_candidate:
+            content_repairs_used += 1
         if candidate["run_id"] != brief["run_id"]:
             raise CandidateValidationError("candidate run_id differs from brief")
         if mode == "create":
@@ -2017,6 +2029,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             break
         if all(item["verdict"] == "APPROVE" for item in review["articles"]):
             break
+        attempt += 1
     assert candidate is not None and review is not None
     write_json(run_dir / "candidate.json", candidate)
     write_json(run_dir / "review.json", review)
@@ -2028,6 +2041,8 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             "mode": mode,
             "source_commit": brief.get("source_commit"),
             "attempts": completed_attempts,
+            "content_repairs_used": content_repairs_used,
+            "schema_repairs_used": schema_repairs_used,
             "writer_model": getattr(client, "writer_model", "test-double"),
             "reviewer_model": getattr(client, "reviewer_model", "test-double"),
             "candidate_sha256": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
