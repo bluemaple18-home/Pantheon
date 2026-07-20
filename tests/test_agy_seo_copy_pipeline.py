@@ -955,6 +955,9 @@ def test_reviewer_prompt_distinguishes_hard_boundaries_from_preferences() -> Non
     assert "20 到 45 字才是標題硬性安全邊界" in prompt
     assert "28 到 36 字只是偏好" in prompt
     assert "不得只因未落在偏好區間而退件" in prompt
+    assert "1300 到 2000 字才是正文硬性邊界" in prompt
+    assert "1500 到 1800 字只是生成目標" in prompt
+    assert "不得只因正文未落在生成目標區間而退件" in prompt
     assert "英文殘字與錯別字" in prompt
 
 

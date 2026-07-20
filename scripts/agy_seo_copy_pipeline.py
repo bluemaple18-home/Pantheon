@@ -1795,6 +1795,7 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
         "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
         "20 到 45 字才是標題硬性安全邊界；28 到 36 字只是偏好，不得只因未落在偏好區間而退件。",
+        "1300 到 2000 字才是正文硬性邊界；1500 到 1800 字只是生成目標，不得只因正文未落在生成目標區間而退件。",
         "禁詞必須依語境判斷；不一定、不能保證、不是注定等否定邊界句不得當成承諾禁詞。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
