@@ -21,7 +21,7 @@ from main import (
     article_updated_date,
 )
 from scripts.competitor_seo_tool import endpoint_label
-from scripts.prerender_article_shells import PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
+from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
@@ -557,6 +557,20 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
         assert 'id="article-jsonld"></script>' not in html
     assert redirects.count(" /seo/articles/") == len(PRERENDER_ARTICLES) + len(PRERENDER_HUBS)
     assert redirects.count(" /seo/topics/") == len(PRERENDER_TOPICS)
+
+
+def test_legacy_article_slugs_use_permanent_server_redirects() -> None:
+    redirects = Path("app/web/_redirects").read_text()
+
+    assert len(LEGACY_REDIRECTS) == 30
+    assert LEGACY_REDIRECTS["/articles/personality/infp-meaning"] == "/articles/personality/personality-0006"
+    assert LEGACY_REDIRECTS["/articles/astro/birth-chart-astrology"] == "/articles/astrology/astrology-0001"
+    for source, target in LEGACY_REDIRECTS.items():
+        assert f"{source} {target} 301" in redirects
+
+    first_legacy = redirects.index("# BEGIN GENERATED LEGACY ARTICLE REDIRECTS")
+    first_rewrite = redirects.index("/articles/personality/personality-0001 /seo/articles/personality/personality-0001/ 200")
+    assert first_legacy < first_rewrite
 
 
 def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
@@ -2365,6 +2379,12 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
     assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
     assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
+
+    sitemap_lastmods = re.findall(r"<lastmod>([^<]+)</lastmod>", sitemap.text)
+    assert len(sitemap_lastmods) == len(PRERENDER_ARTICLES)
+    for article in PRERENDER_ARTICLES:
+        entry = f"<loc>https://mysticpantheon.com{article['route']}</loc>\n    <lastmod>{article['updated']}</lastmod>"
+        assert entry in sitemap.text
 
 
 def test_foundation_ai_and_feed_endpoints_are_served() -> None:

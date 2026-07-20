@@ -40,6 +40,10 @@ def registry_articles() -> list[dict[str, str]]:
 import { listArticleRecords, getArticlePath, getArticleSectionRecord } from './app/web/static/article-registry.js';
 const records = listArticleRecords().map((article) => ({
   path: getArticlePath(article),
+  legacyPaths: [...new Set([
+    `/articles/${article.articleCategory || article.product}/${article.slug}`,
+    `/articles/${article.product}/${article.slug}`,
+  ])],
   title: article.title || '',
   description: article.description || '',
   productLabel: getArticleSectionRecord(article.section)?.label || article.articleCategory || article.product || '文章',
@@ -203,6 +207,7 @@ def build_prerender_articles() -> list[dict[str, str]]:
         articles.append(
             {
                 "route": route,
+                "legacy_routes": [legacy for legacy in record["legacyPaths"] if legacy != route],
                 "target": target_for_route(route),
                 "title": record["title"],
                 "page_title": f"{record['title']} | Pantheon",
@@ -283,6 +288,46 @@ PRERENDER_HUBS = build_prerender_hubs(PRERENDER_ARTICLES)
 PRERENDER_TOPICS = build_prerender_topics()
 PRERENDER_PAGES = [*PRERENDER_HUBS, *PRERENDER_TOPICS, *PRERENDER_ARTICLES]
 PRERENDER_ROUTES = {page["route"]: page["target"] for page in PRERENDER_PAGES}
+LEGACY_REDIRECTS_START = "# BEGIN GENERATED LEGACY ARTICLE REDIRECTS"
+LEGACY_REDIRECTS_END = "# END GENERATED LEGACY ARTICLE REDIRECTS"
+HISTORICAL_LEGACY_ROUTES = {
+    "/articles/astro/ascendant-sign-meaning",
+    "/articles/astro/birth-chart-astrology",
+    "/articles/astro/moon-sign-meaning",
+    "/articles/fortune/bazi-meaning",
+    "/articles/fortune/birth-chart-meaning",
+    "/articles/fortune/career-fortune",
+    "/articles/fortune/life-direction",
+    "/articles/fortune/ming-gong-meaning",
+    "/articles/fortune/spouse-palace-meaning",
+    "/articles/fortune/wealth-fortune",
+    "/articles/fortune/wealth-palace-meaning",
+    "/articles/fortune/ziwei-doushu-meaning",
+    "/articles/personality/16-personalities",
+    "/articles/personality/enfp-meaning",
+    "/articles/personality/infj-meaning",
+    "/articles/personality/infp-meaning",
+    "/articles/personality/intj-meaning",
+    "/articles/personality/mbti-accuracy",
+    "/articles/personality/mbti-meaning",
+    "/articles/personality/mbti-test",
+    "/articles/personality/relationships-stuck",
+    "/articles/tarot/death-card-meaning",
+    "/articles/tarot/fool-card-meaning",
+    "/articles/tarot/love-tarot-questions",
+    "/articles/tarot/lovers-card-meaning",
+    "/articles/tarot/magician-card-meaning",
+    "/articles/tarot/tarot-card-meanings",
+    "/articles/tarot/tower-card-meaning",
+    "/articles/tarot/upright-reversed",
+    "/articles/tarot/world-card-meaning",
+}
+LEGACY_REDIRECTS = {
+    legacy_route: article["route"]
+    for article in PRERENDER_ARTICLES
+    for legacy_route in article["legacy_routes"]
+    if legacy_route in HISTORICAL_LEGACY_ROUTES
+}
 
 
 def redirect_target(target: str) -> str:
@@ -291,16 +336,35 @@ def redirect_target(target: str) -> str:
 
 def update_redirects() -> None:
     lines = REDIRECTS_PATH.read_text(encoding="utf-8").splitlines()
-    generated = [f"{route} /{redirect_target(target)} 200" for route, target in PRERENDER_ROUTES.items()]
+    without_legacy_block: list[str] = []
+    in_legacy_block = False
+    for line in lines:
+        if line == LEGACY_REDIRECTS_START:
+            in_legacy_block = True
+            continue
+        if line == LEGACY_REDIRECTS_END:
+            in_legacy_block = False
+            continue
+        if not in_legacy_block:
+            without_legacy_block.append(line)
+
+    generated_rewrites = [f"{route} /{redirect_target(target)} 200" for route, target in PRERENDER_ROUTES.items()]
+    generated_legacy_redirects = [f"{source} {target} 301" for source, target in LEGACY_REDIRECTS.items()]
     filtered = [
         line
-        for line in lines
+        for line in without_legacy_block
         if not (
             (line.startswith("/articles/") and " /seo/articles/" in line)
             or (line.startswith("/topics/") and " /seo/topics/" in line)
         )
     ]
     insert_at = filtered.index("/articles /articles 200")
+    generated = [
+        LEGACY_REDIRECTS_START,
+        *generated_legacy_redirects,
+        LEGACY_REDIRECTS_END,
+        *generated_rewrites,
+    ]
     next_lines = filtered[:insert_at] + generated + filtered[insert_at:]
     REDIRECTS_PATH.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
 
@@ -313,9 +377,13 @@ def update_sitemap() -> None:
         *(page["route"] for page in PRERENDER_TOPICS),
     ]
     unique_routes = list(dict.fromkeys(routes))
+    article_lastmods = {article["route"]: article["updated"] for article in PRERENDER_ARTICLES}
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for route in unique_routes:
-        lines.extend(["  <url>", f"    <loc>{SITE_ORIGIN}{route}</loc>", "  </url>"])
+        lines.extend(["  <url>", f"    <loc>{SITE_ORIGIN}{route}</loc>"])
+        if lastmod := article_lastmods.get(route):
+            lines.append(f"    <lastmod>{lastmod}</lastmod>")
+        lines.append("  </url>")
     lines.append("</urlset>")
     SITEMAP_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
