@@ -16,6 +16,7 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 
 SCHEMA_VERSION = 1
+OUTBOX_MAX_REPAIRS = 3
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -245,7 +246,7 @@ def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     run_id = str(brief["run_id"])
     namespace = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     client = OutboxGeminiClient(queue_root, namespace=namespace)
-    candidate, review = pipeline.run_writer_reviewer(run_dir, client)
+    candidate, review = pipeline.run_writer_reviewer(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)
     return {
         "status": "complete",
         "run_id": run_id,

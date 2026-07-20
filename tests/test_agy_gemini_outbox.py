@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import scripts.agy_gemini_outbox as outbox
 
 from scripts.agy_gemini_outbox import (
     ExternalJobPending,
@@ -205,6 +206,26 @@ def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Pa
 
 def test_runner_returns_idle_for_empty_outbox(tmp_path: Path) -> None:
     assert process_once(tmp_path, generate_json=lambda *_args: {"ok": True}) == {"status": "idle"}
+
+
+def test_pipeline_tick_reserves_one_bounded_final_content_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "brief.json").write_text(json.dumps({"run_id": "bounded-repair-run"}), encoding="utf-8")
+    observed: list[int] = []
+
+    def fake_run_writer_reviewer(_run_dir: Path, _client: object, max_repairs: int = 2):
+        observed.append(max_repairs)
+        return {"articles": []}, {"articles": []}
+
+    monkeypatch.setattr(outbox.pipeline, "run_writer_reviewer", fake_run_writer_reviewer)
+
+    result = run_pipeline_tick(run_dir, tmp_path / "queue")
+
+    assert result["status"] == "complete"
+    assert observed == [3]
 
 
 def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Path) -> None:
