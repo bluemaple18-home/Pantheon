@@ -1667,7 +1667,7 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
                 raise CandidateValidationError("external create fields are strict")
             if generated["primaryKeyword"] != source["target"]["primaryKeyword"]:
                 raise CandidateValidationError("external primaryKeyword differs from public brief")
-            articles.append({**source["target"], **{field: generated[field] for field in PUBLIC_CREATE_FIELDS}})
+            articles.append({**source["target"], **{field: generated[field] for field in sorted(PUBLIC_CREATE_FIELDS)}})
         elif mode == "optimize":
             if set(generated) != {"slot", "proposed"}:
                 raise CandidateValidationError("external optimize fields are strict")
@@ -1701,7 +1701,7 @@ def public_model_candidate(brief: dict[str, Any], candidate: dict[str, Any]) -> 
         if mode == "create":
             public_articles.append(
                 {"slot": _slot(index), "primaryKeyword": article["primaryKeyword"]}
-                | {field: article[field] for field in PUBLIC_CREATE_FIELDS}
+                | {field: article[field] for field in sorted(PUBLIC_CREATE_FIELDS)}
             )
         elif mode == "optimize":
             public_articles.append(

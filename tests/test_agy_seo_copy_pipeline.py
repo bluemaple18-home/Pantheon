@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -112,6 +114,51 @@ def make_article(article_id: str = "TEST-001") -> dict[str, object]:
             },
         ],
     }
+
+
+def test_create_candidate_serialization_is_stable_across_python_hash_seeds() -> None:
+    target = make_article()
+    brief = {
+        "schema_version": 1,
+        "run_id": "stable-create-run",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {"id": target["id"], "title": target["title"], "intent": "公開搜尋意圖"},
+                "target": target,
+            }
+        ],
+    }
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "primaryKeyword": target["primaryKeyword"],
+                **{field: target[field] for field in pipeline.PUBLIC_CREATE_FIELDS},
+            }
+        ]
+    }
+    code = (
+        "import json,sys; "
+        "from scripts.agy_seo_copy_pipeline import hydrate_candidate,public_model_candidate; "
+        "brief=json.loads(sys.argv[1]); external=json.loads(sys.argv[2]); "
+        "candidate=hydrate_candidate(brief,external); "
+        "print(json.dumps(public_model_candidate(brief,candidate),ensure_ascii=False,separators=(',',':')))"
+    )
+
+    outputs = []
+    for seed in ("1", "2"):
+        completed = subprocess.run(
+            [sys.executable, "-c", code, json.dumps(brief, ensure_ascii=False), json.dumps(external, ensure_ascii=False)],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        outputs.append(completed.stdout)
+
+    assert outputs[0] == outputs[1]
 
 
 def make_rewrite_sections(keyword: str = "測試關鍵字", variant: str = "甲") -> list[dict[str, object]]:
