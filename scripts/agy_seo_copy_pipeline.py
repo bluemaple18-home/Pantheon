@@ -1916,6 +1916,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     candidate: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
     completed_attempts = 0
+    writer_schema_repairs = 0
     for attempt in range(max_repairs + 1):
         attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
         completed_attempts = attempt + 1
@@ -1925,6 +1926,14 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             for finding in item.get("findings", [])
         ]
         writer_prompt = _writer_prompt(brief, candidate, findings)
+        if writer_schema_repairs:
+            writer_prompt = "\n".join(
+                [
+                    f"schema repair {writer_schema_repairs}: 前次 Writer JSON 格式無效。",
+                    "必須輸出完整 schema，且每篇都不得漏掉任何 required field。",
+                    writer_prompt,
+                ]
+            )
         writer_schema = external_candidate_schema(mode)
         write_json(attempt_dir / "public-brief.json", public_model_brief(brief))
         try:
@@ -1938,6 +1947,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             write_json(attempt_dir / "external-candidate.json", external_candidate)
             candidate = hydrate_candidate(brief, external_candidate)
         except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
+            writer_schema_repairs += 1
             write_json(
                 attempt_dir / "writer-schema-rejection.json",
                 {"verdict": "REJECT", "hard_failure": True, "code": "invalid_writer_schema", "error_type": type(error).__name__},

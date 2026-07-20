@@ -263,6 +263,39 @@ def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Pat
     assert review["articles"][0]["verdict"] == "APPROVE"
 
 
+def test_invalid_writer_schema_enqueues_a_distinct_retry_job(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "optimize-writer-schema-retry"
+    queue_root = tmp_path / "queue"
+    run_dir.mkdir(parents=True)
+    brief = {
+        "schema_version": 1,
+        "run_id": "private-writer-schema-retry",
+        "mode": "optimize",
+        "allowed_fields": ["title", "description", "answer"],
+        "articles": [
+            {
+                "article_id": "PUBLIC-RETRY-001",
+                "canonical_path": "/articles/astrology/astrology-0001",
+                "source_file": "app/web/static/article-registry.js",
+                "current": {"title": "舊標題", "description": "舊描述", "answer": "舊答案"},
+                "queries": [{"query": "公開搜尋詞"}],
+            }
+        ],
+    }
+    (run_dir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ExternalJobPending) as first_pending:
+        run_pipeline_tick(run_dir, queue_root)
+    process_once(queue_root, generate_json=lambda *_args: {"articles": [{"slot": "article-01"}]})
+
+    with pytest.raises(ExternalJobPending) as retry_pending:
+        run_pipeline_tick(run_dir, queue_root)
+
+    assert retry_pending.value.job_id != first_pending.value.job_id
+    retry = json.loads((queue_root / "outbox" / f"{retry_pending.value.job_id}.json").read_text())
+    assert "schema repair 1" in retry["prompt"]
+
+
 def test_invalid_reviewer_json_becomes_hard_rejection(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "optimize-invalid-review"
     queue_root = tmp_path / "queue"
