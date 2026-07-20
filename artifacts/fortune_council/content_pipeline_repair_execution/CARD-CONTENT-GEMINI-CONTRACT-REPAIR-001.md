@@ -29,16 +29,18 @@ verification:
   - four-article Gemini canary
   - focused/full pytest、git diff --check、allowlist
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_contract_repair_001/
-worktree_path: <codex-worktree>/a3f8187f-be55-42df-9446-5e6cae55a043/Pantheon
-cwd: <codex-worktree>/a3f8187f-be55-42df-9446-5e6cae55a043/Pantheon
+worktree_path: <codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon
+cwd: <codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon
 main_cwd: <repo-root>
 worktree_exists: true
 source_branch: main
 source_sha: 569b46e010cf8d2ffccfab55496077d5efbac9d4
 source_clean: true
 index_lock: absent
-thread_id: 019f7faf-6973-7633-ab36-1a66ff6a9aa3
+thread_id: 019f7fb1-60b5-7183-bd55-99eaeb503107
 thread_status: RUNNING
+previous_thread_id: 019f7faf-6973-7633-ab36-1a66ff6a9aa3
+previous_thread_status: BLOCKED_PROVISIONING_PREFLIGHT
 ---
 
 # CARD-CONTENT-GEMINI-CONTRACT-REPAIR-001｜Gemini 產文契約與容錯修復
@@ -146,5 +148,6 @@ thread_status: RUNNING
 ## Gate 狀態
 
 - Gate 1：實體卡已建立並提交於來源 commit `569b46e010cf8d2ffccfab55496077d5efbac9d4`。
-- Gate 2：正式 thread `019f7faf-6973-7633-ab36-1a66ff6a9aa3` 可查，標題為「Gemini 產文契約與容錯修復」，cwd 為獨立 worktree `<codex-worktree>/a3f8187f-be55-42df-9446-5e6cae55a043/Pantheon`，首回合狀態 `inProgress`。
+- Gate 2：正式 thread `019f7fb1-60b5-7183-bd55-99eaeb503107` 可查，標題為「Gemini 產文契約修復｜正確來源」，cwd 為獨立 worktree `<codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon`，HEAD 精確為 `5ee072be12ea430daeb2a9c4ee1e7dcb5214b7a5`、卡片可讀、worktree clean，首回合狀態 `inProgress`。
+- Previous provisioning：thread `019f7faf-6973-7633-ab36-1a66ff6a9aa3` 從過舊 `ddcb4ef` 建立且缺卡，已要求停止並標記 `BLOCKED / PROVISIONING_PREFLIGHT`；不得收取其任何成果。
 - Gate 3–5：尚未開始，禁止預填通過。
