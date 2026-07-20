@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-CONTRACT-REPAIR-001
 chain_id: CONTENT-GEMINI-CONTRACT-REPAIR-001
-status: RUNNING
+status: BLOCKED
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -38,7 +38,9 @@ source_sha: 569b46e010cf8d2ffccfab55496077d5efbac9d4
 source_clean: true
 index_lock: absent
 thread_id: 019f7fb1-60b5-7183-bd55-99eaeb503107
-thread_status: RUNNING
+thread_status: BLOCKED_CANARY
+candidate_branch: codex/gemini-contract-repair-candidate
+candidate_sha: fa64029acae36f6559b576112b8932238ff16dad
 previous_thread_id: 019f7faf-6973-7633-ab36-1a66ff6a9aa3
 previous_thread_status: BLOCKED_PROVISIONING_PREFLIGHT
 ---
@@ -150,4 +152,6 @@ previous_thread_status: BLOCKED_PROVISIONING_PREFLIGHT
 - Gate 1：實體卡已建立並提交於來源 commit `569b46e010cf8d2ffccfab55496077d5efbac9d4`。
 - Gate 2：正式 thread `019f7fb1-60b5-7183-bd55-99eaeb503107` 可查，標題為「Gemini 產文契約修復｜正確來源」，cwd 為獨立 worktree `<codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon`，HEAD 精確為 `5ee072be12ea430daeb2a9c4ee1e7dcb5214b7a5`、卡片可讀、worktree clean，首回合狀態 `inProgress`。
 - Previous provisioning：thread `019f7faf-6973-7633-ab36-1a66ff6a9aa3` 從過舊 `ddcb4ef` 建立且缺卡，已要求停止並標記 `BLOCKED / PROVISIONING_PREFLIGHT`；不得收取其任何成果。
-- Gate 3–5：尚未開始，禁止預填通過。
+- Gate 3：程式與 public-behavior tests 已交付候選 commit `fa64029acae36f6559b576112b8932238ff16dad`；focused suite `73 passed`，prompt/gate parity、單篇 Writer、partial/resume 與 approved-only aggregate 均通過。
+- Gate 4：4 篇 canary 未通過。Tarot `run-02` Writer strict JSON 成功並 hydrate，但 fresh Gemini 3.1 Pro Low Reviewer 回傳 `JSONDecodeError`；依本卡立即停止外部 canary，Personality 停在 Writer response、Fortune 與 Astrology 未送出。
+- Gate 5：終態 `BLOCKED`，候選未整合、未 apply、未 publish、未 deploy。完整證據位於候選 branch 的 `artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_contract_repair_001/`。
