@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASC-CANCER",
+    "MBTI-64-ISFJ-OC",
+    "TAROT-CUPS-05",
+    "ASC-LEO",
+    "MBTI-64-ENFJ-AH"
+  ],
+  "batch": 50,
+  "job_id": "c20d1d3c4ee484956b7af5ff069ffdabb0c6ccbf",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "cd673e83191f7ea4dd7fb3117c195fd309598d3189d91ba06fd1c2de4b5274f9",
+  "request_sha256": "c20d1d3c4ee484956b7af5ff069ffdabb0c6ccbf6b42e4535e0ad1d27373cd1b",
+  "response_sha256": "809da00ea002736f90baba6bae09558102122770dde22c76f4c7b9ad06ba2f12",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

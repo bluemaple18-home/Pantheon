@@ -1,0 +1,145 @@
+{
+  "created": [
+    {
+      "job_id": "37989b5d9a7f0c17b80a499f3f50c6f691349fd5",
+      "namespace": "ufit001_writer_003_retry01",
+      "request_sha256": "37989b5d9a7f0c17b80a499f3f50c6f691349fd5cd4a8318a375f92a8fa707c9",
+      "source_job_id": "100d5c212ee14b12c92c9a625ee79f1e8b770190",
+      "source_namespace": "ufit001_writer_003"
+    },
+    {
+      "job_id": "74e039a83110d321f3e43b48c0f12d0734f4214d",
+      "namespace": "ufit001_writer_001_retry01",
+      "request_sha256": "74e039a83110d321f3e43b48c0f12d0734f4214d350919c4a5ce479e28697eb1",
+      "source_job_id": "22adade7966989f12b94f9df784ff7449c090493",
+      "source_namespace": "ufit001_writer_001"
+    },
+    {
+      "job_id": "dce91197c95289605c9fd13f145f317e4c578593",
+      "namespace": "ufit001_writer_007_retry01",
+      "request_sha256": "dce91197c95289605c9fd13f145f317e4c578593e82912dbec7a58eccce78dd1",
+      "source_job_id": "22d2c9867fcd2025368c8662900f4c5b83c28344",
+      "source_namespace": "ufit001_writer_007"
+    },
+    {
+      "job_id": "0c58b6a7db8c98ba63bd3e973a8588bf1aefa6b3",
+      "namespace": "ufit001_writer_023_retry01",
+      "request_sha256": "0c58b6a7db8c98ba63bd3e973a8588bf1aefa6b34307069af1447f5406de6121",
+      "source_job_id": "2b49f96ce876051b9959c7d56f8dfbc9b00490d5",
+      "source_namespace": "ufit001_writer_023"
+    },
+    {
+      "job_id": "ee8fef183bc25458a6d05c584267d7970e8a39d2",
+      "namespace": "ufit001_writer_021_retry01",
+      "request_sha256": "ee8fef183bc25458a6d05c584267d7970e8a39d236ae1f04c62dbf3ad9daa56f",
+      "source_job_id": "346d90ce7e9d60a357c4d7a16e17785196c780dd",
+      "source_namespace": "ufit001_writer_021"
+    },
+    {
+      "job_id": "326e3458ec01ebd9c394c50ab8ff21b6fc306303",
+      "namespace": "ufit001_writer_004_retry01",
+      "request_sha256": "326e3458ec01ebd9c394c50ab8ff21b6fc30630322343cfa99d9837924c5968e",
+      "source_job_id": "4df9de70ac900f78ccfdbf3f0c4d5652f89de8b3",
+      "source_namespace": "ufit001_writer_004"
+    },
+    {
+      "job_id": "2050379d8bdb0739c9bc46b76c61a46c2096914b",
+      "namespace": "ufit001_writer_050_retry01",
+      "request_sha256": "2050379d8bdb0739c9bc46b76c61a46c2096914b2ae621de808cde3c882672be",
+      "source_job_id": "6e46337889676b38f1915710bfd2b351c473193f",
+      "source_namespace": "ufit001_writer_050"
+    },
+    {
+      "job_id": "151413d2ca9ab8e73d6941cf06f7ea217a3768ec",
+      "namespace": "ufit001_writer_034_retry01",
+      "request_sha256": "151413d2ca9ab8e73d6941cf06f7ea217a3768ecdaad60276fa546f29c5334b1",
+      "source_job_id": "7bac4a857f8777cd45efa7877d9263ea8a3669b3",
+      "source_namespace": "ufit001_writer_034"
+    },
+    {
+      "job_id": "52006627d6fd6b10f44a4da5e474855853eb6386",
+      "namespace": "ufit001_writer_041_retry01",
+      "request_sha256": "52006627d6fd6b10f44a4da5e474855853eb6386e2db295627f2a108ab0aedcb",
+      "source_job_id": "99a74eda7551349429b5dd74f53e1d8fa08841a8",
+      "source_namespace": "ufit001_writer_041"
+    },
+    {
+      "job_id": "e87f6f9ba9cfe694b54e4d2a6782b4c6f08f7b05",
+      "namespace": "ufit001_writer_002_retry01",
+      "request_sha256": "e87f6f9ba9cfe694b54e4d2a6782b4c6f08f7b0599302951bb3f639931157f47",
+      "source_job_id": "9d38cb254a4ff6507aa3e30a932c5731e2fa7def",
+      "source_namespace": "ufit001_writer_002"
+    },
+    {
+      "job_id": "225bc08c3aa86f6c5510f2cd64861839f9f32e99",
+      "namespace": "ufit001_writer_045_retry01",
+      "request_sha256": "225bc08c3aa86f6c5510f2cd64861839f9f32e99a5e098995113ef3a7d263ada",
+      "source_job_id": "9e468a6aa61d893214d17a0f1c9f72334c40f50d",
+      "source_namespace": "ufit001_writer_045"
+    },
+    {
+      "job_id": "84042fd6bff182a7ebd6c451db7e1d14f7212424",
+      "namespace": "ufit001_writer_005_retry01",
+      "request_sha256": "84042fd6bff182a7ebd6c451db7e1d14f7212424e9b3b6dd4fe4439be6ff2202",
+      "source_job_id": "a894f91eb8bf9fe750faa1f3b1f9e710652052d7",
+      "source_namespace": "ufit001_writer_005"
+    },
+    {
+      "job_id": "dc7b1f0dccc5ee15491a3ba86763c6d8a81e510d",
+      "namespace": "ufit001_writer_009_retry01",
+      "request_sha256": "dc7b1f0dccc5ee15491a3ba86763c6d8a81e510d522365ed6e069475657c0e70",
+      "source_job_id": "a9153c4b999ebe2482e7fc9e89008a39117a542a",
+      "source_namespace": "ufit001_writer_009"
+    },
+    {
+      "job_id": "7371cc70d44d0148fe5b571214c4065edf75cf0f",
+      "namespace": "ufit001_writer_027_retry01",
+      "request_sha256": "7371cc70d44d0148fe5b571214c4065edf75cf0fafdb626d9cafbda1741694a3",
+      "source_job_id": "b6722f9349acad77d86aedd6d6cfc5b77338518c",
+      "source_namespace": "ufit001_writer_027"
+    },
+    {
+      "job_id": "4204af8bd63bf9998403f5a45b4c5ce22054537d",
+      "namespace": "ufit001_writer_024_retry01",
+      "request_sha256": "4204af8bd63bf9998403f5a45b4c5ce22054537d90c2dd453847f304fd593c15",
+      "source_job_id": "bec6d2d094c4aef69daa8f9cb112d51bc285910c",
+      "source_namespace": "ufit001_writer_024"
+    },
+    {
+      "job_id": "6204f3e8a16aca2605f48a4bbdb09d8e73cb87e2",
+      "namespace": "ufit001_writer_029_retry01",
+      "request_sha256": "6204f3e8a16aca2605f48a4bbdb09d8e73cb87e27d7691f1b3add33f32340020",
+      "source_job_id": "dc3bec5753358104aa83e11eaf6bba207c8b21a3",
+      "source_namespace": "ufit001_writer_029"
+    },
+    {
+      "job_id": "98b90343c845ca97faa5ef3bc3e691b49a50faea",
+      "namespace": "ufit001_writer_031_retry01",
+      "request_sha256": "98b90343c845ca97faa5ef3bc3e691b49a50faea0b360058c8bdb88e5193fff6",
+      "source_job_id": "f13a92a0a9b1f8a2640ca0a0d95e0363f951b0bd",
+      "source_namespace": "ufit001_writer_031"
+    },
+    {
+      "job_id": "69b732fc8f668b8ed6635f5e25967bfcfda74d2e",
+      "namespace": "ufit001_writer_040_retry01",
+      "request_sha256": "69b732fc8f668b8ed6635f5e25967bfcfda74d2e9101aa7df5b8a29f96d125c2",
+      "source_job_id": "f40e579ac2ca03ecf469229232205010d65665ea",
+      "source_namespace": "ufit001_writer_040"
+    },
+    {
+      "job_id": "938a882b03f5a7e6034c47ef947a5edfaea36cc7",
+      "namespace": "ufit001_writer_022_retry01",
+      "request_sha256": "938a882b03f5a7e6034c47ef947a5edfaea36cc71be6e08a9d7dc12647a138ae",
+      "source_job_id": "f7775ca6929a42d4c9dd607f9971e8031b661f50",
+      "source_namespace": "ufit001_writer_022"
+    },
+    {
+      "job_id": "1939180cdf6a2b57f78da58f21f8add3751352d7",
+      "namespace": "ufit001_writer_055_retry01",
+      "request_sha256": "1939180cdf6a2b57f78da58f21f8add3751352d731d31213142473618af8f7eb",
+      "source_job_id": "feb8679447aceffd12ad531d6224d9dac1a433db",
+      "source_namespace": "ufit001_writer_055"
+    }
+  ],
+  "retry_round": 1
+}

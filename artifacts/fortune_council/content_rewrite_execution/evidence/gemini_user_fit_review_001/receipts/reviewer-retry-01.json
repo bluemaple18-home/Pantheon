@@ -1,0 +1,29 @@
+{
+  "created": [
+    {
+      "job_id": "d830f02ad1ebec248d5c96ab920f6f51e2a3ff27",
+      "namespace": "ufit001_review_002_retry01",
+      "request_sha256": "d830f02ad1ebec248d5c96ab920f6f51e2a3ff27474baf2ab58a7513b12e8904",
+      "source_job_id": "61ab9e75edba1de4283133d99792c1d910ad2b27"
+    },
+    {
+      "job_id": "fa3344993fdbe6d8c1b58ef11b9d7e6d97e6cf24",
+      "namespace": "ufit001_review_047_retry01",
+      "request_sha256": "fa3344993fdbe6d8c1b58ef11b9d7e6d97e6cf240abb637ead3dd8552ba753ab",
+      "source_job_id": "8cbbe3d0efe7588541f30ac8a40f42b04fef068d"
+    },
+    {
+      "job_id": "19dfe1c2528c56108b84f1e1c8194ca6721c1658",
+      "namespace": "ufit001_review_011_retry01",
+      "request_sha256": "19dfe1c2528c56108b84f1e1c8194ca6721c1658f1535ee585c987d971d61474",
+      "source_job_id": "bc2d766f44141f33710b2874c7dc9f96e9b5b57e"
+    },
+    {
+      "job_id": "084090917a2ba707a4f805e4c2d9ffb5ae54009b",
+      "namespace": "ufit001_review_040_retry01",
+      "request_sha256": "084090917a2ba707a4f805e4c2d9ffb5ae54009b55954a6f019c2b3c70634192",
+      "source_job_id": "bd85e7d15cebc02b49bb217e6120a86e559b2f7f"
+    }
+  ],
+  "retry_round": 1
+}

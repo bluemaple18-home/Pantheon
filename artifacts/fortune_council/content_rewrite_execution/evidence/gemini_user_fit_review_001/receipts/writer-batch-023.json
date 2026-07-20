@@ -1,0 +1,18 @@
+{
+  "article_ids": [
+    "MBTI-BRANCH-INTJ-OC",
+    "TAROT-M20",
+    "ASTRO-ASPECT-OPPOSITION-01",
+    "MBTI-BRANCH-INFP-AH",
+    "TAROT-PENTACLES-KING"
+  ],
+  "batch": 23,
+  "job_id": "2b49f96ce876051b9959c7d56f8dfbc9b00490d5",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "996a6ad6ad1ed0d4ebdbc6014d6e5d8ca0bdd4faa011761a6efc299ebd4d9777",
+  "request_sha256": "2b49f96ce876051b9959c7d56f8dfbc9b00490d5ef13276cc7c0ff0cc0b670cd",
+  "response_sha256": null,
+  "role": "writer",
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "pending_external_runner"
+}

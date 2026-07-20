@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "CHART-BASE-02",
+    "THEME-CAREER-02",
+    "THEME-LIFE-02",
+    "THEME-WEALTH-02",
+    "MBTI-BASE-02"
+  ],
+  "batch": 3,
+  "job_id": "b49e42b94866e6d7fb11e592f1a5c39ae84b09aa",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "5da187b9c2194424695a8fe5b61fb8ff46e7aad2195292da08a80730b4ecef56",
+  "request_sha256": "b49e42b94866e6d7fb11e592f1a5c39ae84b09aa51bdd576ec3a114f69c74533",
+  "response_sha256": "fe9a99b73ab5250a4a18f0ff8e7dbc31ae3ac1e19396641125e989c05d167bb8",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

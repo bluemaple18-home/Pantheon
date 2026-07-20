@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-INTERPERSONAL-09",
+    "ASTRO-HOUSES-01",
+    "THEME-LIFE-10",
+    "MBTI-TYPE-ENTP",
+    "THEME-LOVE-10"
+  ],
+  "batch": 13,
+  "job_id": "322f1962380c9aa6c997fcf2681ae0a60c651c9c",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "95aa122c5cc3fea54422365a131c8039e35136ac84ef5d692c5d94fd3d5804ca",
+  "request_sha256": "322f1962380c9aa6c997fcf2681ae0a60c651c9c5c6f6922ad0a1272d6624583",
+  "response_sha256": "5e25e8d551d3a7472584b76ee4260cfba20e1c673ca9339383bc5df93078cb1a",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

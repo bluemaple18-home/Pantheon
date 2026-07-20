@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-CAREER-04",
+    "THEME-LIFE-04",
+    "THEME-WEALTH-04",
+    "THEME-INTERPERSONAL-04",
+    "THEME-CAREER-05"
+  ],
+  "batch": 6,
+  "job_id": "f8a28334e98c3c6cac9e78c23ea90e7fb8f134bf",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "6680a2e43bece014dd3ae56901451736c478c5799b84f9d2538a05cc0bb90864",
+  "request_sha256": "f8a28334e98c3c6cac9e78c23ea90e7fb8f134bf0df3f1754c68605a2d2728e5",
+  "response_sha256": "67380e794fda755ff76410148ec346543d7f7949b1c1afd57eb721a693a51a99",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

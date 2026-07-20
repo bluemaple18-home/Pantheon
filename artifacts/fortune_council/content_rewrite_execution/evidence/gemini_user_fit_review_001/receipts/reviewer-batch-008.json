@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-LOVE-04",
+    "ASTRO-VENUS-01",
+    "CHART-ZIWEI-03",
+    "THEME-CAREER-05",
+    "THEME-LIFE-05"
+  ],
+  "batch": 8,
+  "job_id": "dc5f62e424c2267e20ab604f24e42519f7f138a0",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "e409cf5346cfdd46c42e2bc2fe3e06f893d46ec943361e64e565eb1391fe7ee3",
+  "request_sha256": "dc5f62e424c2267e20ab604f24e42519f7f138a0bc8e92a7e550ec8bb5ff0473",
+  "response_sha256": "1bf242bafb4a3dc0728c797c46d2bee624aeb83e77c8629b238d1fd913c5e79e",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

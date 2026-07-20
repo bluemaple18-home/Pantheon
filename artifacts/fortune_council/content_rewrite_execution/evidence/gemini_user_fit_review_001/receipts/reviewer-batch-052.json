@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-64-ENFJ-OH",
+    "TAROT-CUPS-08",
+    "ASC-SCORPIO",
+    "MBTI-64-ENFJ-OC",
+    "TAROT-CUPS-09"
+  ],
+  "batch": 52,
+  "job_id": "99ccaa962e24e2cae9e810e1962bac251d68461c",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "ebcb6dcfbfb5f9d02af1c49150fb21b7f50e60140b6a534674ffb436ef9180f7",
+  "request_sha256": "99ccaa962e24e2cae9e810e1962bac251d68461cb384395df7104113e1bcf9d9",
+  "response_sha256": "4e4d9aab288fe3b3a3c38018a80e57ed080ae38d7fb51c6bed67159a3868ba0c",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

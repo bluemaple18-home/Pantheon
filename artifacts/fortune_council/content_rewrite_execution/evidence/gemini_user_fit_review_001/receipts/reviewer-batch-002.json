@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-BASE-01",
+    "THEME-INTERPERSONAL-01",
+    "TAROT-BASE-01",
+    "THEME-LOVE-01",
+    "ASTRO-BASE-02"
+  ],
+  "batch": 2,
+  "job_id": "d830f02ad1ebec248d5c96ab920f6f51e2a3ff27",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "c8833773c9ff3276bf3985bec7a081651e33550cb4a88ce02f258622656de70d",
+  "request_sha256": "d830f02ad1ebec248d5c96ab920f6f51e2a3ff27474baf2ab58a7513b12e8904",
+  "response_sha256": "12c7ab2848b99d18ca4e2ea9d847c695505542f25cbe66613c0231490d91aab1",
+  "retry_round": 1,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

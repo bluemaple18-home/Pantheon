@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-LOVE-09",
+    "ASTRO-HOUSES-01",
+    "CHART-ZIWEI-08",
+    "THEME-CAREER-10",
+    "THEME-LIFE-10"
+  ],
+  "batch": 17,
+  "job_id": "8946eb520950a9f87f98f92ca547f57cd4874bbb",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "3ea554904be7cee5003768ca9efad3891544f2d116de6681bb91450d72846423",
+  "request_sha256": "8946eb520950a9f87f98f92ca547f57cd4874bbb58ff45d0c3c3393e5d88e326",
+  "response_sha256": "fdb5ce4afefe0faf5f1c62087cbe2349e83762c6205389ff4a9a12876fef2256",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

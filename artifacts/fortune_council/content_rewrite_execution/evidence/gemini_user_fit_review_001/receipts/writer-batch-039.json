@@ -1,0 +1,23 @@
+{
+  "article_ids": [
+    "TAROT-CUPS-08",
+    "ASC-SCORPIO",
+    "MBTI-64-ENFJ-OC",
+    "TAROT-CUPS-09",
+    "ASC-SAGITTARIUS"
+  ],
+  "batch": 39,
+  "job_id": "3fb5a1ab3edeb53a86a83dc69dcf01013331a95f",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "6444a61e70e8818182dfcb97a82e35fc2aa959ffbe7d826dc75f119fc842343b",
+  "request_sha256": "3fb5a1ab3edeb53a86a83dc69dcf01013331a95f1812210cc40d298dddf73bb5",
+  "response_sha256": "c8c7139ae8f230ef9adf81a97e36cf56f54e9386e07200fbcd2dd960d32bd21c",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "body_sections_count_3"
+  ],
+  "schema_basic_ok": false,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

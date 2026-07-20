@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-CUPS-06",
+    "ASC-VIRGO",
+    "MBTI-64-ENFJ-AC",
+    "TAROT-CUPS-07",
+    "ASC-LIBRA"
+  ],
+  "batch": 51,
+  "job_id": "7942f45b15935ccb9e7fcfc9862f751a6075005f",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "adc77aedabbb192ea9597ccb250bd7ff4d2535cd9d4aec15112fc19c86339996",
+  "request_sha256": "7942f45b15935ccb9e7fcfc9862f751a6075005fa58a97e4c3b6355efbfd5195",
+  "response_sha256": "a5300e3bd06a00d1b4b36547240fb486ad0aa206791331e0a3ea1f94d88698ca",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

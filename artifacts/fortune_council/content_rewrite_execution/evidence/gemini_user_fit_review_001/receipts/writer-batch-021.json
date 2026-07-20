@@ -1,0 +1,18 @@
+{
+  "article_ids": [
+    "TAROT-M12",
+    "ASTRO-SUN-AQUARIUS-01",
+    "CHART-ZIWEI-STAR-07",
+    "MBTI-BRANCH-INTJ-AH",
+    "TAROT-M15"
+  ],
+  "batch": 21,
+  "job_id": "346d90ce7e9d60a357c4d7a16e17785196c780dd",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "e671fd5a217cf1fc802acc6db3486276e64d6522c47630dd3dc24c504484f81a",
+  "request_sha256": "346d90ce7e9d60a357c4d7a16e17785196c780dd45f8a60700b8146a5e5a049a",
+  "response_sha256": null,
+  "role": "writer",
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "pending_external_runner"
+}

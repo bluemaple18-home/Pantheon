@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-PENTACLES-07",
+    "ASTRO-EXPANSION-50E-0075",
+    "TAROT-PENTACLES-08",
+    "ASTRO-EXPANSION-50E-0076",
+    "TAROT-PENTACLES-09"
+  ],
+  "batch": 62,
+  "job_id": "dcbc3f13e8e3a725235940a33dc200da1d39a2a6",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "d503517e6ae5391fa53f5dc4463e93c91c09fd7ac441c68a2b62f0692d7d14f0",
+  "request_sha256": "dcbc3f13e8e3a725235940a33dc200da1d39a2a6f46e43e225b8eb9f42cbd154",
+  "response_sha256": "bba26b8c2d57fbc8bf2ce4b6d89f0799e53bc83b658b27fa9e6b00e77448ba02",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

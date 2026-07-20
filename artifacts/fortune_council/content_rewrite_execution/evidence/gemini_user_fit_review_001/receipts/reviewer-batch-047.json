@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-64-ENTP-OH",
+    "TAROT-WANDS-QUEEN",
+    "ASTRO-EXPANSION-50D-0044",
+    "CHART-CYCLE-DECADE",
+    "MBTI-64-ENTP-OC"
+  ],
+  "batch": 47,
+  "job_id": "fa3344993fdbe6d8c1b58ef11b9d7e6d97e6cf24",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "bc81a17be5d8f07fe284070e5f60b23d24ec406b874b180d22b8aac3d96ea3d1",
+  "request_sha256": "fa3344993fdbe6d8c1b58ef11b9d7e6d97e6cf240abb637ead3dd8552ba753ab",
+  "response_sha256": "d23f616f02ef8e95fbafb9633cd5533baf9f6e164d2b481de4d28a9061d045aa",
+  "retry_round": 1,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

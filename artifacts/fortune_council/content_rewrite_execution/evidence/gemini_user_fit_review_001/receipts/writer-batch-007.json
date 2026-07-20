@@ -1,0 +1,24 @@
+{
+  "article_ids": [
+    "THEME-LIFE-05",
+    "THEME-WEALTH-05",
+    "THEME-INTERPERSONAL-05",
+    "THEME-LOVE-05",
+    "ASTRO-MERCURY-01"
+  ],
+  "batch": 7,
+  "job_id": "dce91197c95289605c9fd13f145f317e4c578593",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "bf8290fad8ce2e11e73b6cd661016f5e37178a56f2a2c3646ff2337570ecc96e",
+  "request_sha256": "dce91197c95289605c9fd13f145f317e4c578593e82912dbec7a58eccce78dd1",
+  "response_sha256": "eab0e6d21d9ee76df9890042d309ba99c6c5a14fe48f28d63dd65b4c2c3604ba",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [
+    "slot_mismatch_5",
+    "paragraph_len_5_3_3"
+  ],
+  "schema_basic_ok": false,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

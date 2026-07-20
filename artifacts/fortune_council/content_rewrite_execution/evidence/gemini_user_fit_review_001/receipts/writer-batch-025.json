@@ -1,0 +1,26 @@
+{
+  "article_ids": [
+    "MBTI-BRANCH-INFP-OC",
+    "ASTRO-EXPANSION-50D-0029",
+    "EXPANSION-50D-FORTUNE-0029",
+    "MBTI-BRANCH-INFJ-AH",
+    "TAROT-PENTACLES-05"
+  ],
+  "batch": 25,
+  "job_id": "ca6573a7c8874026e6a02274cc11705841066317",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "1561c3ce01031e7050dd6d193922e18aa02d569e1f20b1e92a0734b676b32ac6",
+  "request_sha256": "ca6573a7c8874026e6a02274cc11705841066317e75bbb97c79629e3bfe7f3ae",
+  "response_sha256": "cf3082b9382956aac21ee6b9074ac5406adfc84a97963d450c4306a66042c033",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_1_1",
+    "paragraph_len_4_1_1",
+    "paragraph_len_4_2_1",
+    "paragraph_len_4_2_2"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

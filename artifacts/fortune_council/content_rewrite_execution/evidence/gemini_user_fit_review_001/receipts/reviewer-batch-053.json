@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASC-SAGITTARIUS",
+    "MBTI-INTP-AH",
+    "TAROT-CUPS-10",
+    "ASC-CAPRICORN",
+    "MBTI-INTP-AC"
+  ],
+  "batch": 53,
+  "job_id": "095f36cb8291ec880fbfebea30cde9e5a5fc19fd",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "a377d2ce28efc462f06806cb244276ddddcfe483e39e4149a0dc43c5fe6ec6ef",
+  "request_sha256": "095f36cb8291ec880fbfebea30cde9e5a5fc19fd3be18d4fdea2c0d64f51380f",
+  "response_sha256": "0d1531f5fc1214f670e8151c45c6a01c8550ac51fb3f5031b65731f50ee68292",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

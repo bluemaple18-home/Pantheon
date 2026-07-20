@@ -1,0 +1,38 @@
+{
+  "article_ids": [
+    "ASTRO-EXPANSION-50D-0035",
+    "EXPANSION-50D-FORTUNE-0035",
+    "TAROT-WANDS-04",
+    "ASTRO-EXPANSION-50D-0036",
+    "EXPANSION-50D-FORTUNE-0036"
+  ],
+  "batch": 29,
+  "job_id": "6204f3e8a16aca2605f48a4bbdb09d8e73cb87e2",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "91282b5d1e32c014dcc35caa888d0c16be32b4f92542aa6b7777cefb5bc7ecf2",
+  "request_sha256": "6204f3e8a16aca2605f48a4bbdb09d8e73cb87e27d7691f1b3add33f32340020",
+  "response_sha256": "16f06d9bd783405fb08137824aa15d24f412db43f9bec2541e358c2b8c1dc518",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_1_1",
+    "paragraph_len_4_1_1",
+    "paragraph_len_4_2_1",
+    "paragraph_len_4_5_2",
+    "paragraph_len_5_1_1",
+    "paragraph_len_5_2_1",
+    "paragraph_len_5_2_2",
+    "paragraph_len_5_2_3",
+    "paragraph_len_5_3_1",
+    "paragraph_len_5_3_2",
+    "paragraph_len_5_3_3",
+    "paragraph_len_5_4_1",
+    "paragraph_len_5_4_2",
+    "paragraph_len_5_5_1",
+    "paragraph_len_5_5_2",
+    "paragraph_len_5_5_3"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

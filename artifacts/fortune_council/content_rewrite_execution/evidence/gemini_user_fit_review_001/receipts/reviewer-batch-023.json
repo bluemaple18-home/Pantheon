@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-TYPE-ISTJ",
+    "TAROT-M04",
+    "ASTRO-SUN-CANCER-01",
+    "CHART-ZIWEI-12",
+    "MBTI-TYPE-ISTP"
+  ],
+  "batch": 23,
+  "job_id": "4161f800af133a8e43650dd57cc7cab7fba53730",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "f930a2878aa5e9ca20c7c863f8c22eac072da11566ba282f8ba0aeeab3c27f50",
+  "request_sha256": "4161f800af133a8e43650dd57cc7cab7fba5373063d3ad891c459d2a45193e7b",
+  "response_sha256": "910e358d644d7206b0b0ddd0be60101d88012af409d48ba6c6b6c0b343465b03",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

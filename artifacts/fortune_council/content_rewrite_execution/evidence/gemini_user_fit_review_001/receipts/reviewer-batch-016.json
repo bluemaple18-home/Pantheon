@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-LIFE-09",
+    "THEME-WEALTH-09",
+    "MBTI-TYPE-ENTJ",
+    "THEME-INTERPERSONAL-09",
+    "TAROT-M02"
+  ],
+  "batch": 16,
+  "job_id": "48a4fe1bde75659b2c9a42106c315f693c6e01c9",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "732c424c978f6ac5ceb70a8b4767dcbf2108c9920edc791c80f14bf84898a18e",
+  "request_sha256": "48a4fe1bde75659b2c9a42106c315f693c6e01c996a8b748f5bfa6ce459267bb",
+  "response_sha256": "122f304eb7501e9edd6c6918cc99192ea94664299afc1cf0e7f57bcde36678ca",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

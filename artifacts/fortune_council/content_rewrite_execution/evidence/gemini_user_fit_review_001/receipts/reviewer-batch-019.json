@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-SUN-ARIES-01",
+    "CHART-ZIWEI-09",
+    "THEME-CAREER-11",
+    "THEME-LIFE-11",
+    "THEME-WEALTH-11"
+  ],
+  "batch": 19,
+  "job_id": "2827a4b0b6f7791a3f2a15ce070c0c3be4934de9",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "f24a14349120d31b42938539960a1720c03b482c4484300cc0ce6d66473272c1",
+  "request_sha256": "2827a4b0b6f7791a3f2a15ce070c0c3be4934de90fb3f749955df8d36f343544",
+  "response_sha256": "48ee0f86e99334a8fc5f1eac7c10e0154b1ddafb60c7dbb7bedfc84d3e547919",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

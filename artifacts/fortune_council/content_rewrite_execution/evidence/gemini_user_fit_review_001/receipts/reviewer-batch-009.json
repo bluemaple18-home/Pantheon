@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-WEALTH-05",
+    "MBTI-TYPE-INTJ",
+    "THEME-INTERPERSONAL-05",
+    "TAROT-M06",
+    "THEME-LOVE-05"
+  ],
+  "batch": 9,
+  "job_id": "fd410de13dd002a9ff0a1dd92d39625600f8c509",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "b879823ce1b7b74a6b96427db48a8e1e64b6a80dd7fd467e9e5ddd525abfb42f",
+  "request_sha256": "fd410de13dd002a9ff0a1dd92d39625600f8c509a17f8d02358132fe51062c14",
+  "response_sha256": "bac43ae1c06c1912515e420ceafa95787f60d0ecdfcc8956cc10b52af8402843",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

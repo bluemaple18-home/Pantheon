@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-TYPE-INFP",
+    "THEME-INTERPERSONAL-06",
+    "TAROT-M13",
+    "THEME-LOVE-06",
+    "ASTRO-MARS-01"
+  ],
+  "batch": 11,
+  "job_id": "19dfe1c2528c56108b84f1e1c8194ca6721c1658",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "f26f40dd3e36d191a96de2665808a53616f77283330d34685f53e4396617e0c2",
+  "request_sha256": "19dfe1c2528c56108b84f1e1c8194ca6721c1658f1535ee585c987d971d61474",
+  "response_sha256": "f18a597a5787bc1de0dffd6fc11b11aa72054ff3f2907180d7fe2468d10603aa",
+  "retry_round": 1,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

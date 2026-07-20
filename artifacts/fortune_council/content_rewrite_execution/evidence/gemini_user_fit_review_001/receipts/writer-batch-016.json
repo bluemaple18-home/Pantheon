@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-WEALTH-12",
+    "MBTI-TYPE-INTP",
+    "THEME-LOVE-12",
+    "ASTRO-SUN-GEMINI-01",
+    "CHART-ZIWEI-11"
+  ],
+  "batch": 16,
+  "job_id": "3a15868e8e29450d52c58e7138f1a2dd4cf65606",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "a7f4a15d75fbd51941989d97db68d3d7b2dbffcb804a7deccf6799c6db11087e",
+  "request_sha256": "3a15868e8e29450d52c58e7138f1a2dd4cf656064af545592d4626e310f36aac",
+  "response_sha256": "870dd7bb5c88f751738c1c2527ed6a4a504dfa2b06bdaa5da6f9dbcedb1481fc",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

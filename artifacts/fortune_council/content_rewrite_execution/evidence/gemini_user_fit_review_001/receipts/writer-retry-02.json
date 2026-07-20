@@ -1,0 +1,59 @@
+{
+  "created": [
+    {
+      "job_id": "33c69bdc8a416c73623a4ce6b5cb2d8db47f3000",
+      "namespace": "ufit001_writer_002_retry02",
+      "request_sha256": "33c69bdc8a416c73623a4ce6b5cb2d8db47f30000313f6e15c4fdd63f0850aa0",
+      "source_namespace": "ufit001_writer_002"
+    },
+    {
+      "job_id": "09fd51259eebd04a631be3b454a9bd7419eb21ba",
+      "namespace": "ufit001_writer_009_retry02",
+      "request_sha256": "09fd51259eebd04a631be3b454a9bd7419eb21ba5f3a93750628f7eae9fbfb6c",
+      "source_namespace": "ufit001_writer_009"
+    },
+    {
+      "job_id": "99dd448fefe1424a198e3d8febdaed7a79c83ce5",
+      "namespace": "ufit001_writer_021_retry02",
+      "request_sha256": "99dd448fefe1424a198e3d8febdaed7a79c83ce54db703fa7c0abf860ee0182f",
+      "source_namespace": "ufit001_writer_021"
+    },
+    {
+      "job_id": "43eed07551d2149fff9b2a0bf5670be292b21250",
+      "namespace": "ufit001_writer_022_retry02",
+      "request_sha256": "43eed07551d2149fff9b2a0bf5670be292b2125081599be1fb14273916324c3a",
+      "source_namespace": "ufit001_writer_022"
+    },
+    {
+      "job_id": "f6deb41c91c9836a6d245aa4722fb80d3bf917e1",
+      "namespace": "ufit001_writer_023_retry02",
+      "request_sha256": "f6deb41c91c9836a6d245aa4722fb80d3bf917e13edd8b93ed85edf2a6a998d8",
+      "source_namespace": "ufit001_writer_023"
+    },
+    {
+      "job_id": "432c2bd52ce876ee4b24ff380a3877b8162864d3",
+      "namespace": "ufit001_writer_024_retry02",
+      "request_sha256": "432c2bd52ce876ee4b24ff380a3877b8162864d34f9c8f83b9a141a72af05244",
+      "source_namespace": "ufit001_writer_024"
+    },
+    {
+      "job_id": "4b3bd17db4b6fa1504a01b3a623f377358fdd87a",
+      "namespace": "ufit001_writer_027_retry02",
+      "request_sha256": "4b3bd17db4b6fa1504a01b3a623f377358fdd87aefc9a632dda2e36d5f93a4ee",
+      "source_namespace": "ufit001_writer_027"
+    },
+    {
+      "job_id": "3406b9824f733c43c9f6ced123e6e0223617ecfd",
+      "namespace": "ufit001_writer_034_retry02",
+      "request_sha256": "3406b9824f733c43c9f6ced123e6e0223617ecfdc573a89550cbdd35861be996",
+      "source_namespace": "ufit001_writer_034"
+    },
+    {
+      "job_id": "8752aef4d5f207f8373876370ea1e83304a1efee",
+      "namespace": "ufit001_writer_055_retry02",
+      "request_sha256": "8752aef4d5f207f8373876370ea1e83304a1efee81760018d549fe45fed949fc",
+      "source_namespace": "ufit001_writer_055"
+    }
+  ],
+  "retry_round": 2
+}

@@ -1,0 +1,29 @@
+{
+  "article_ids": [
+    "ASC-CAPRICORN",
+    "MBTI-INTP-AC",
+    "TAROT-CUPS-PAGE",
+    "ASC-AQUARIUS",
+    "MBTI-INTP-OH"
+  ],
+  "batch": 40,
+  "job_id": "69b732fc8f668b8ed6635f5e25967bfcfda74d2e",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "539a5acda045464509639951017e6932ec82c6ef70dc4f6e681d147a46dae283",
+  "request_sha256": "69b732fc8f668b8ed6635f5e25967bfcfda74d2e9101aa7df5b8a29f96d125c2",
+  "response_sha256": "ee34bb785c6417ffe30f7fd07372036d1fe72abacf7ec3c7d5af5d562d6cb0e0",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_2_1_1",
+    "paragraph_len_2_5_3",
+    "body_sections_count_3",
+    "slot_mismatch_5",
+    "paragraph_len_5_2_3",
+    "paragraph_len_5_3_3",
+    "paragraph_len_5_5_3"
+  ],
+  "schema_basic_ok": false,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

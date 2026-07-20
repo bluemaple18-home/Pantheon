@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-PENTACLES-KNIGHT",
+    "ASTRO-EXPANSION-50E-0080",
+    "TAROT-PENTACLES-QUEEN",
+    "ASTRO-EXPANSION-50E-0081",
+    "ASTRO-EXPANSION-50E-0082"
+  ],
+  "batch": 64,
+  "job_id": "ea2b8e2688d769e0d52b5f897a0efa26096eeb00",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "97674b8d8f4ebcbdc1368eec1c1dffc9f56096c8ce125803b550af4eef9a20ca",
+  "request_sha256": "ea2b8e2688d769e0d52b5f897a0efa26096eeb0089c1e2bddf0629e46e8faa27",
+  "response_sha256": "fe19aed3ffc59084db8443490a28e4361e7150f8626bd58d396b7fe17a87467d",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

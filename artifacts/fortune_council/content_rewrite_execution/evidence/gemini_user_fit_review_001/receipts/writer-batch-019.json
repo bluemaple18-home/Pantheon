@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "ASTRO-SUN-LIBRA-01",
+    "CHART-ZIWEI-STAR-03",
+    "MBTI-TYPE-ESTJ",
+    "ASTRO-SUN-SCORPIO-01",
+    "MBTI-TYPE-ESFJ"
+  ],
+  "batch": 19,
+  "job_id": "ac80a14570716b3653d3d0a535644bba41c75f92",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "792d980575e950dee9d82e13789f00b08a29022297a54782e1ac0c884213a932",
+  "request_sha256": "ac80a14570716b3653d3d0a535644bba41c75f924484933f6092444f5ead4429",
+  "response_sha256": "00bdbabc33db3fd1c288d4cb0e14b0869cb8dfd95df2081b2dc1cd3daab881d2",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

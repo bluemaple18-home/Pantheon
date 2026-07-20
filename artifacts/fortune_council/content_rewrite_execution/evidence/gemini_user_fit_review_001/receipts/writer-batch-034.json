@@ -1,0 +1,35 @@
+{
+  "article_ids": [
+    "TAROT-WANDS-KNIGHT",
+    "EXPANSION-50D-FORTUNE-0043",
+    "MBTI-64-ENTP-OH",
+    "TAROT-WANDS-QUEEN",
+    "ASTRO-EXPANSION-50D-0044"
+  ],
+  "batch": 34,
+  "job_id": "3406b9824f733c43c9f6ced123e6e0223617ecfd",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "aa545f79a08bd71e029899902326697bce7fb41b3359484a9e70675431928f03",
+  "request_sha256": "3406b9824f733c43c9f6ced123e6e0223617ecfdc573a89550cbdd35861be996",
+  "response_sha256": "e8783b904c3d74b3550e012286a1d9077ab9360b6e8779d25494929ca01b0c78",
+  "retry_round": 2,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_3_1_1",
+    "paragraph_len_3_1_2",
+    "paragraph_len_3_1_3",
+    "paragraph_len_3_2_2",
+    "paragraph_len_3_2_3",
+    "paragraph_len_3_3_1",
+    "paragraph_len_3_3_2",
+    "paragraph_len_3_3_3",
+    "paragraph_len_3_4_1",
+    "paragraph_len_3_4_2",
+    "paragraph_len_3_5_2",
+    "paragraph_len_3_5_3",
+    "paragraph_len_4_1_1"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

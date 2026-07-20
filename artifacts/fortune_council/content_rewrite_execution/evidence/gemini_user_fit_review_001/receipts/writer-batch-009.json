@@ -1,0 +1,18 @@
+{
+  "article_ids": [
+    "CHART-ZIWEI-05",
+    "THEME-CAREER-07",
+    "THEME-LIFE-07",
+    "THEME-WEALTH-07",
+    "MBTI-TYPE-INFJ"
+  ],
+  "batch": 9,
+  "job_id": "a9153c4b999ebe2482e7fc9e89008a39117a542a",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "03f00ae5fc521e771cdcdf30ca50bfa41fb1b539d7cedb4dbe784fdef283d47b",
+  "request_sha256": "a9153c4b999ebe2482e7fc9e89008a39117a542a5dcea5867d270348bf038905",
+  "response_sha256": null,
+  "role": "writer",
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "pending_external_runner"
+}

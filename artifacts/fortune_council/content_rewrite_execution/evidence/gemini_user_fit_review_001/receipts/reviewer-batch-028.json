@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-M11",
+    "ASTRO-SUN-CAPRICORN-01",
+    "CHART-ZIWEI-STAR-06",
+    "MBTI-TYPE-ESFP",
+    "TAROT-M12"
+  ],
+  "batch": 28,
+  "job_id": "68ec709920825dee4f9a3f80691a51381932ca37",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "b576f10ee2e3e2cdec3389571f2c20837a3966801af987be4700202503dc542f",
+  "request_sha256": "68ec709920825dee4f9a3f80691a51381932ca372f960fdf37b1529c565aadaa",
+  "response_sha256": "aada1a8cf9b6e85c541e1096b387e4487640d7a905dc4bcb3672b146bca3301e",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

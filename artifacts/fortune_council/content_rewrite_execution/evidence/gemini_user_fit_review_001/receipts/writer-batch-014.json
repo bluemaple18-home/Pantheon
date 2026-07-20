@@ -1,0 +1,23 @@
+{
+  "article_ids": [
+    "CHART-ZIWEI-09",
+    "THEME-CAREER-11",
+    "THEME-LIFE-11",
+    "THEME-WEALTH-11",
+    "MBTI-TYPE-ISFJ"
+  ],
+  "batch": 14,
+  "job_id": "eb3ff6a80743af11342216b7c83b159de9bd6338",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "0c8a90062b563a7357892971b301ec8f02fd4168cf4a5b61adba823e4ce72625",
+  "request_sha256": "eb3ff6a80743af11342216b7c83b159de9bd633828b03a13277cd8895f63cb8c",
+  "response_sha256": "82c440cdf8177e7e4d981fdfbedf3e18cd5f6f6b4206bee71680e05d09997fd5",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_3_1_1"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

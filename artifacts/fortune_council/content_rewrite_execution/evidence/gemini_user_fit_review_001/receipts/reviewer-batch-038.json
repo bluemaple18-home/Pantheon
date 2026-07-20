@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "EXPANSION-50D-FORTUNE-0032",
+    "MBTI-BRANCH-INFJ-OC",
+    "TAROT-CUPS-02",
+    "ASTRO-EXPANSION-50D-0033",
+    "EXPANSION-50D-FORTUNE-0033"
+  ],
+  "batch": 38,
+  "job_id": "e57900717255e71ebed9033c1bd391351e577571",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "46fb92e67baaae41f9617058d1726065fa36529ab7d9bce061e565f506768e64",
+  "request_sha256": "e57900717255e71ebed9033c1bd391351e57757106c7798962504d49386f7d60",
+  "response_sha256": "6bc5730f931ad926549e206460f2d737ea374827c64ac17f9585c6c537f1d092",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

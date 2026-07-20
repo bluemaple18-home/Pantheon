@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "EXPANSION-50D-FORTUNE-0042",
+    "MBTI-64-ENTP-AC",
+    "TAROT-WANDS-KNIGHT",
+    "ASTRO-EXPANSION-50D-0043",
+    "EXPANSION-50D-FORTUNE-0043"
+  ],
+  "batch": 46,
+  "job_id": "b78d7e82594a8e20013c517d7ada0974c1ff9c88",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "d89eac4a831e2c9e3bf15cc17459255f67650111457338d59538b05692d3b433",
+  "request_sha256": "b78d7e82594a8e20013c517d7ada0974c1ff9c88dc20bd1ac2206c931b97ea66",
+  "response_sha256": "13318ac63dc9128bb81a176eebc20d884ffbecff8168d1f1270514330e331871",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

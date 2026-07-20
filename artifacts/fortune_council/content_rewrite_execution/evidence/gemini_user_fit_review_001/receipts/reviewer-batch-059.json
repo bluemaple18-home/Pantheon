@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-EXPANSION-50E-0067",
+    "TAROT-SWORDS-QUEEN",
+    "ASTRO-EXPANSION-50E-0068",
+    "TAROT-SWORDS-KING",
+    "ASTRO-EXPANSION-50E-0069"
+  ],
+  "batch": 59,
+  "job_id": "012ca49f5b531936aeed90e88ee1f9483449614f",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "970e4eb2b145aa93e74ea7cf370c9cdc2d36029ca963c8f89400dbfd4efb28c3",
+  "request_sha256": "012ca49f5b531936aeed90e88ee1f9483449614f8772a2fd65415508479c035d",
+  "response_sha256": "654c527c4491318b662e8a550e1ac5de8b0ccb3bc559eb26ab015d4f8e823bd2",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

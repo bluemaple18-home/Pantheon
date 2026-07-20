@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-INTERPERSONAL-02",
+    "TAROT-BASE-02",
+    "THEME-LOVE-02",
+    "ASTRO-BASE-03",
+    "CHART-ZIWEI-01"
+  ],
+  "batch": 4,
+  "job_id": "199ef2a536f427167863d29676eab34f392f563a",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "cee589635c9100341fd8a4cd8dd2ed0d174e6cc8bafa4b50810c5048c10d08f0",
+  "request_sha256": "199ef2a536f427167863d29676eab34f392f563a294c74d7b3f04ccb1142d5b3",
+  "response_sha256": "80b18afb2315c74d221f83334713f3c1ee70549d6a59d8838ce5e29376fdc47c",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

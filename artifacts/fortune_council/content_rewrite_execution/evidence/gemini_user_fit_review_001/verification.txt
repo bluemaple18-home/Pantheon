@@ -1,0 +1,16 @@
+status=BLOCKED_WRITER_JSON_DECODE_STOPPED_AT_RETRY_LIMIT
+inventory_rows=352
+unique_id_product_slug=352
+reviewer_success_batches=71
+writer_success_batches=50
+writer_candidate_articles_partial=250
+writer_blocked_articles=25
+reviewer_approval_after_writer=0
+applied_bodies=0
+metadata_drift=0
+deterministic_findings=not_run_incomplete_writer_candidates
+uniqueness_findings=not_run_incomplete_writer_candidates
+browser=not_run_no_apply
+git_diff_check=PASS
+affected_pytest=N/A_no_app_or_test_source_changed
+changed_file_allowlist=PASS evidence/gemini_user_fit_review_001 only

@@ -1,0 +1,25 @@
+{
+  "article_ids": [
+    "TAROT-SWORDS-KING",
+    "ASTRO-EXPANSION-50E-0069",
+    "TAROT-PENTACLES-01",
+    "ASTRO-EXPANSION-50E-0070",
+    "TAROT-PENTACLES-02"
+  ],
+  "batch": 45,
+  "job_id": "225bc08c3aa86f6c5510f2cd64861839f9f32e99",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "9851ea310d4245ee435554ec7e7d03b73851fe319fbcd7450512de5ac76383fa",
+  "request_sha256": "225bc08c3aa86f6c5510f2cd64861839f9f32e99a5e098995113ef3a7d263ada",
+  "response_sha256": "ff667c2fe2fcfc71624c5c819d0d176a08c7b6e0b14132009999d6c6ba1cff4e",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_4_3",
+    "body_sections_count_2",
+    "body_sections_count_4"
+  ],
+  "schema_basic_ok": false,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

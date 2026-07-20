@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-LOVE-02",
+    "ASTRO-BASE-03",
+    "CHART-ZIWEI-01",
+    "THEME-CAREER-03",
+    "THEME-LIFE-03"
+  ],
+  "batch": 4,
+  "job_id": "326e3458ec01ebd9c394c50ab8ff21b6fc306303",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "d2ddc973775e3410bca56f459899de02b318aecf405fed85893ccdcdd6983bfd",
+  "request_sha256": "326e3458ec01ebd9c394c50ab8ff21b6fc30630322343cfa99d9837924c5968e",
+  "response_sha256": "d90eb8903cdddc98a08ef11757e2381d508ff835a289a220fad34823e9760173",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

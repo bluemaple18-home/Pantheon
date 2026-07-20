@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "CHART-ZIWEI-10",
+    "THEME-CAREER-12",
+    "THEME-LIFE-12",
+    "THEME-WEALTH-12",
+    "MBTI-TYPE-INTP"
+  ],
+  "batch": 21,
+  "job_id": "264f1bb1045e1f9dc220d26eba3923858beaf2b9",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "4ba5fa4eac679cdbccd5b1a1e820307bcc670520c8b0e6155d44c063cff2499d",
+  "request_sha256": "264f1bb1045e1f9dc220d26eba3923858beaf2b93ad05db94d3d2bf0e078270d",
+  "response_sha256": "1f028a983d5d375810328e9358fcf026072bda22af18a94423ad875b94196ad0",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

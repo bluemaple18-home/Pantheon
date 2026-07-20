@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-CAREER-08",
+    "THEME-LIFE-08",
+    "THEME-WEALTH-08",
+    "MBTI-TYPE-ENFP",
+    "THEME-INTERPERSONAL-08"
+  ],
+  "batch": 14,
+  "job_id": "08f49286fe795b585548af1caf926a725782bbfc",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "8da83f8e92daaa52d76d1ce3693ad80647845281c4dc6bdfad0420572009990c",
+  "request_sha256": "08f49286fe795b585548af1caf926a725782bbfc0424773692015e946721de21",
+  "response_sha256": "4ebf0a43dd0e7ff0c1f19ed542839ee020711e4b6b7be16de68dde7efeab7af3",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

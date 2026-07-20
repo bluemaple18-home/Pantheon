@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-CAREER-06",
+    "THEME-LIFE-06",
+    "THEME-WEALTH-06",
+    "THEME-INTERPERSONAL-06",
+    "ASTRO-MARS-01"
+  ],
+  "batch": 8,
+  "job_id": "fa06067f9387737912a57ed305d4c685533e909a",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "8bf01cd5fc44fc50a995192dcb3666e2393de17a5cca53fa30dca177a1f26c1e",
+  "request_sha256": "fa06067f9387737912a57ed305d4c685533e909a0c42e5ce591e585efe97e8cc",
+  "response_sha256": "724a0bc5b6a9096f0f1cd131b66bf51be246a4b296142930dbc28598951071d2",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

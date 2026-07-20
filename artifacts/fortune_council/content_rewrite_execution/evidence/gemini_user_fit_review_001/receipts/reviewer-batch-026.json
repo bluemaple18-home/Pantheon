@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "CHART-ZIWEI-STAR-03",
+    "MBTI-TYPE-ESTJ",
+    "TAROT-M09",
+    "ASTRO-SUN-SCORPIO-01",
+    "CHART-ZIWEI-STAR-04"
+  ],
+  "batch": 26,
+  "job_id": "7302989f664dccebeb727ec2770e039b345151fc",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "fac885e40d5bf62bfdaed02777fd828968b87cdc67c580d81ad35dbb07f8fadd",
+  "request_sha256": "7302989f664dccebeb727ec2770e039b345151fc4bfc2b008f5fa0581681fe36",
+  "response_sha256": "ecc50828ed9308e69b4697956b6ad64a8937c5e671fa49a72f8673bb2a83cc4d",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

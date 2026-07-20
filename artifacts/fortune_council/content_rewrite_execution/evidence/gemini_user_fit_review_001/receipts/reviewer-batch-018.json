@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-WEALTH-10",
+    "MBTI-TYPE-ENTP",
+    "THEME-INTERPERSONAL-10",
+    "TAROT-M18",
+    "THEME-LOVE-10"
+  ],
+  "batch": 18,
+  "job_id": "e335e6a662897cfbbfd6b0d45b74a2b09ac829e9",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "fda059c39fb69ed940f864031ff35b06fb3f11c3a2573d5773217d12d5b7900a",
+  "request_sha256": "e335e6a662897cfbbfd6b0d45b74a2b09ac829e931d97e0bdec352b27df3d541",
+  "response_sha256": "8ff4435bfc2f784b33d5a9e914a300104b6965428c8fb2bc3dced13167b464ac",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

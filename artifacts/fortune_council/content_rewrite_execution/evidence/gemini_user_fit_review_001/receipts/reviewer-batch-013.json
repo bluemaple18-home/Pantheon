@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-INTERPERSONAL-07",
+    "TAROT-M16",
+    "THEME-LOVE-07",
+    "ASTRO-JUPITER-01",
+    "CHART-ZIWEI-06"
+  ],
+  "batch": 13,
+  "job_id": "e4d0ebfddb18cad278b93bc9a1bad08505ff694b",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "28ca8ff718f60b98c6e84685939062383ce3e8028e7c44500b13bd6f7d36632e",
+  "request_sha256": "e4d0ebfddb18cad278b93bc9a1bad08505ff694bdc9b63a7b2ee1def1456d2f8",
+  "response_sha256": "5f6342ef3bc6a8ed511cf3371218284197adccd62b851c24eaefc61afd96dedd",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

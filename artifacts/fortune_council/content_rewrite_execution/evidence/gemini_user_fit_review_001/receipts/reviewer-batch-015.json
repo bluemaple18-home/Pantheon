@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-M21",
+    "THEME-LOVE-08",
+    "ASTRO-SATURN-01",
+    "CHART-ZIWEI-07",
+    "THEME-CAREER-09"
+  ],
+  "batch": 15,
+  "job_id": "ac66c74486d70b656c007419dfc1c5e0f8568869",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "9537dd2464b4279e2fa30a9400eaef635e4ab1e84cc1409272d1273f1c5b83f1",
+  "request_sha256": "ac66c74486d70b656c007419dfc1c5e0f8568869cf955cfef963fc390a3fa8b5",
+  "response_sha256": "587f4f8b0d8485dc754e64fd2f7b5f1e5be8e90d3830bd53d9cf6ce8ea15f4ee",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

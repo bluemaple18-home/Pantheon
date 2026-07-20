@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-64-ISFJ-AC",
+    "TAROT-CUPS-03",
+    "ASC-GEMINI",
+    "MBTI-64-ISFJ-OH",
+    "TAROT-CUPS-04"
+  ],
+  "batch": 49,
+  "job_id": "945313eb07c97a911b15b5333113c7a0eb354306",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "74e1df168556a1db849fa050bf7c6f47a60c1e8f792269100d875acb008d547f",
+  "request_sha256": "945313eb07c97a911b15b5333113c7a0eb354306812bae6f014aeb1d13eb2024",
+  "response_sha256": "79a49423640b3b388a24419ee815d95e23cc790daf75b7898c83efa1f735ed17",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

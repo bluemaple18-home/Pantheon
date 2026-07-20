@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-SWORDS-01",
+    "TAROT-SWORDS-03",
+    "TAROT-SWORDS-04",
+    "VENUS-LEO",
+    "TAROT-SWORDS-05"
+  ],
+  "batch": 56,
+  "job_id": "4e4f65a60d5d1f795f2ece818589ed3d5e85bff1",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "441a5b8e07735024c4b57c18f2e51b8ce8baa880ec044daa219e40448c8843f5",
+  "request_sha256": "4e4f65a60d5d1f795f2ece818589ed3d5e85bff17cf16f8a5b8f18761309902d",
+  "response_sha256": "da21a0eacb3de244176ddf3169cfb5b7223fc5a84b6abfa79d9af3f2c6107a5e",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

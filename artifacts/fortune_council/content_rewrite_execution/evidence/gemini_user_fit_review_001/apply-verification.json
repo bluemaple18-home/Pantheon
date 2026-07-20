@@ -1,0 +1,3531 @@
+{
+  "applied_count": 0,
+  "article_count": 352,
+  "articles": [
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0dd0d03f88e71f5420800e8987239da864f340508a82548b8cc899efbeb89bd0",
+      "id": "ASTRO-BASE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "0dd0d03f88e71f5420800e8987239da864f340508a82548b8cc899efbeb89bd0",
+      "product": "astro",
+      "slug": "astrology-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c782e360bb0dd44e5f7aebbd37f8da2ff35ad4c1aede98a1e0194ea2b9a0a264",
+      "id": "CHART-BASE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "c782e360bb0dd44e5f7aebbd37f8da2ff35ad4c1aede98a1e0194ea2b9a0a264",
+      "product": "fortune",
+      "slug": "fortune-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d90464f5af785b724c5a8566c9641e882aac8225f15ad81f714eb38f0ce77329",
+      "id": "THEME-CAREER-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "d90464f5af785b724c5a8566c9641e882aac8225f15ad81f714eb38f0ce77329",
+      "product": "fortune",
+      "slug": "career-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f8af887a7d5820f3ff2f8f65c9b77881198ffc11545f5727fb7c00758bfc4e08",
+      "id": "THEME-LIFE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "f8af887a7d5820f3ff2f8f65c9b77881198ffc11545f5727fb7c00758bfc4e08",
+      "product": "fortune",
+      "slug": "life-direction-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "827847dc59927d2daa5030aa9ba57dd74a555f0cb395353236a4cf00c6e23b52",
+      "id": "THEME-WEALTH-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "827847dc59927d2daa5030aa9ba57dd74a555f0cb395353236a4cf00c6e23b52",
+      "product": "fortune",
+      "slug": "wealth-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "28f2d2147b457703619fee42224629dd3c2fc596eb2ad2eb3eefff626a51ffb0",
+      "id": "MBTI-BASE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "28f2d2147b457703619fee42224629dd3c2fc596eb2ad2eb3eefff626a51ffb0",
+      "product": "personality",
+      "slug": "personality-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "de04eda120d304e49aa236d4d6be8579f9220c0a33b4eed69475e308a48369a5",
+      "id": "THEME-INTERPERSONAL-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "de04eda120d304e49aa236d4d6be8579f9220c0a33b4eed69475e308a48369a5",
+      "product": "personality",
+      "slug": "interpersonal-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3fbd957537789a0d4084384c0772328fb0a1d3debf760a76dc41d25955ca9431",
+      "id": "TAROT-BASE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "3fbd957537789a0d4084384c0772328fb0a1d3debf760a76dc41d25955ca9431",
+      "product": "tarot",
+      "slug": "tarot-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d980c8c7481ec1e88350e98010f249fe6d24d27dc6975abb215aa6717d074d7b",
+      "id": "THEME-LOVE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "d980c8c7481ec1e88350e98010f249fe6d24d27dc6975abb215aa6717d074d7b",
+      "product": "tarot",
+      "slug": "love-0001"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449",
+      "id": "ASTRO-BASE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449",
+      "product": "astro",
+      "slug": "astrology-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "93735e08fc8cce7f5ae5286ed2cde69b9497dac9dd5446297b2733df4783808d",
+      "id": "CHART-BASE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "93735e08fc8cce7f5ae5286ed2cde69b9497dac9dd5446297b2733df4783808d",
+      "product": "fortune",
+      "slug": "fortune-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9fe319b785aeb4963e86ce83bfe13f88dc85aa3904749e1b00dcd47ae4f706ae",
+      "id": "THEME-CAREER-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "9fe319b785aeb4963e86ce83bfe13f88dc85aa3904749e1b00dcd47ae4f706ae",
+      "product": "fortune",
+      "slug": "career-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6814a9aec8b56b7795d1af99e442c6d00fb7e58e65ad267621fead3ab5f26a4d",
+      "id": "THEME-LIFE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "6814a9aec8b56b7795d1af99e442c6d00fb7e58e65ad267621fead3ab5f26a4d",
+      "product": "fortune",
+      "slug": "life-direction-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f25b631990e2d75410c3c18904e70739fb12da263dc57c8ef2e4e9b876d7896a",
+      "id": "THEME-WEALTH-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "f25b631990e2d75410c3c18904e70739fb12da263dc57c8ef2e4e9b876d7896a",
+      "product": "fortune",
+      "slug": "wealth-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0135eebd5080970648ebdaf80580ef0470316fb9a2c0506efcb0096b70cde959",
+      "id": "MBTI-BASE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "0135eebd5080970648ebdaf80580ef0470316fb9a2c0506efcb0096b70cde959",
+      "product": "personality",
+      "slug": "personality-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f0831d50620c5aebb4d08e45e1e7332a39ca0ea19ee9b85f2bf3b3b07130ed34",
+      "id": "THEME-INTERPERSONAL-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "f0831d50620c5aebb4d08e45e1e7332a39ca0ea19ee9b85f2bf3b3b07130ed34",
+      "product": "personality",
+      "slug": "interpersonal-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9511756e76d246b3576c589464cbff340cbe3cd67feb6f650a073e02ebdb8773",
+      "id": "TAROT-BASE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "9511756e76d246b3576c589464cbff340cbe3cd67feb6f650a073e02ebdb8773",
+      "product": "tarot",
+      "slug": "tarot-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "718dee3d1b3ced031a7428a4d476f4850ff56f9e58397fda52877d1396ca6a90",
+      "id": "THEME-LOVE-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "718dee3d1b3ced031a7428a4d476f4850ff56f9e58397fda52877d1396ca6a90",
+      "product": "tarot",
+      "slug": "love-0002"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "883e9709871eeb073d6cf094c8c37471e71181407e5a76df944ef3ba7bc6dfdb",
+      "id": "ASTRO-BASE-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "883e9709871eeb073d6cf094c8c37471e71181407e5a76df944ef3ba7bc6dfdb",
+      "product": "astro",
+      "slug": "astrology-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a686a3a45a31805ee1e5b0bae3d6d4583d66739f885286de7a12115b193e8d47",
+      "id": "CHART-ZIWEI-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "a686a3a45a31805ee1e5b0bae3d6d4583d66739f885286de7a12115b193e8d47",
+      "product": "fortune",
+      "slug": "fortune-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e8065a0f60e9ced94c2dc8b18b421efa3fe6eccccef98c278552a3976fe3f0a0",
+      "id": "THEME-CAREER-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "e8065a0f60e9ced94c2dc8b18b421efa3fe6eccccef98c278552a3976fe3f0a0",
+      "product": "fortune",
+      "slug": "career-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9b28fecb2f85aa880eb14b19fd76fc269c13add71d6dcf00c9be22111f4e8742",
+      "id": "THEME-LIFE-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "9b28fecb2f85aa880eb14b19fd76fc269c13add71d6dcf00c9be22111f4e8742",
+      "product": "fortune",
+      "slug": "life-direction-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "de730c0988f0fba5da0b42c9d3b8dae7ff641467451a883ca3ae05157d397c67",
+      "id": "THEME-WEALTH-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "de730c0988f0fba5da0b42c9d3b8dae7ff641467451a883ca3ae05157d397c67",
+      "product": "fortune",
+      "slug": "wealth-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f595a5c67c8c42885dad072a7529cf1a0a177032d1fece32020a9c26ca512ebb",
+      "id": "MBTI-BASE-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "f595a5c67c8c42885dad072a7529cf1a0a177032d1fece32020a9c26ca512ebb",
+      "product": "personality",
+      "slug": "personality-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9650da6b7d632977afb61c082c5bf7ca2f938443fa8ae8c5358dc14010e08f13",
+      "id": "THEME-INTERPERSONAL-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "9650da6b7d632977afb61c082c5bf7ca2f938443fa8ae8c5358dc14010e08f13",
+      "product": "personality",
+      "slug": "interpersonal-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2fd7a908a3e84d160e05e7ade61b16f777687fae3c00b4ff0a3cd27c0b50b6f8",
+      "id": "TAROT-M00",
+      "metadata_invariant": true,
+      "original_body_sha256": "2fd7a908a3e84d160e05e7ade61b16f777687fae3c00b4ff0a3cd27c0b50b6f8",
+      "product": "tarot",
+      "slug": "tarot-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "cec6f38d4f600f81b30cfa83e68dd9886eb8ca4aa4403dd5e85e6372ce25d2e5",
+      "id": "THEME-LOVE-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "cec6f38d4f600f81b30cfa83e68dd9886eb8ca4aa4403dd5e85e6372ce25d2e5",
+      "product": "tarot",
+      "slug": "love-0003"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "42df027d5557bf81d574b4e42ffd319144924b8da08ea4d822b3023e520cad34",
+      "id": "ASTRO-LOVE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "42df027d5557bf81d574b4e42ffd319144924b8da08ea4d822b3023e520cad34",
+      "product": "astro",
+      "slug": "astrology-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0e9889bc731d621abd2ba7f0d375ea93149e84a922e8720ff3853e873ba6900a",
+      "id": "CHART-ZIWEI-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "0e9889bc731d621abd2ba7f0d375ea93149e84a922e8720ff3853e873ba6900a",
+      "product": "fortune",
+      "slug": "fortune-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2cdfdbbb77292199929da6f3569171939215498700163692eb90ed9b7ffff9bf",
+      "id": "THEME-CAREER-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "2cdfdbbb77292199929da6f3569171939215498700163692eb90ed9b7ffff9bf",
+      "product": "fortune",
+      "slug": "career-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8e9b98e48a2f7b41f41ad1f77a64ecd5ee611230f15770b7bb70d02ab42fd69e",
+      "id": "THEME-LIFE-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "8e9b98e48a2f7b41f41ad1f77a64ecd5ee611230f15770b7bb70d02ab42fd69e",
+      "product": "fortune",
+      "slug": "life-direction-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "bf8ba20958c32f5c7d062cd3dcfe48ace7341e6c9a0384982e0c982ae573b4a9",
+      "id": "THEME-WEALTH-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "bf8ba20958c32f5c7d062cd3dcfe48ace7341e6c9a0384982e0c982ae573b4a9",
+      "product": "fortune",
+      "slug": "wealth-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0b72bc8b6b5f48891013e9ee73e617e99c17511b4b7e258b651b25aa2f215e40",
+      "id": "MBTI-BASE-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "0b72bc8b6b5f48891013e9ee73e617e99c17511b4b7e258b651b25aa2f215e40",
+      "product": "personality",
+      "slug": "personality-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5d90287a9dd0cb40a4919ab463523fc0ceb6bb5ae904853584f42960b10231e6",
+      "id": "THEME-INTERPERSONAL-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "5d90287a9dd0cb40a4919ab463523fc0ceb6bb5ae904853584f42960b10231e6",
+      "product": "personality",
+      "slug": "interpersonal-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "307550ea78b38cf4e81f6a8506a13a6fa086bc32ddc101474293b00e00e0cf8e",
+      "id": "TAROT-M01",
+      "metadata_invariant": true,
+      "original_body_sha256": "307550ea78b38cf4e81f6a8506a13a6fa086bc32ddc101474293b00e00e0cf8e",
+      "product": "tarot",
+      "slug": "tarot-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6c176e3d8c032837bb6667dea146c9cdf7228089f7f23b7467e93a2edb3c2ddd",
+      "id": "THEME-LOVE-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "6c176e3d8c032837bb6667dea146c9cdf7228089f7f23b7467e93a2edb3c2ddd",
+      "product": "tarot",
+      "slug": "love-0004"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "330e515836b1f9cf119473c17f697c94c6087dd43651f219eb5fe3d2978f9585",
+      "id": "ASTRO-VENUS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "330e515836b1f9cf119473c17f697c94c6087dd43651f219eb5fe3d2978f9585",
+      "product": "astro",
+      "slug": "astrology-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9cf211a85c853c2e19c4805fa53e5cf829d3be889bbb8a106f06f29a17c643a1",
+      "id": "CHART-ZIWEI-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "9cf211a85c853c2e19c4805fa53e5cf829d3be889bbb8a106f06f29a17c643a1",
+      "product": "fortune",
+      "slug": "fortune-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f9b2d032b79ff0deaccd20a4364a289906f771fe04c320c34d50dfb317372d01",
+      "id": "THEME-CAREER-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "f9b2d032b79ff0deaccd20a4364a289906f771fe04c320c34d50dfb317372d01",
+      "product": "fortune",
+      "slug": "career-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "feed923cc58cfa14f2e9a56b9e4123203f08bf7046b7e76ea5dec88ce4c65efe",
+      "id": "THEME-LIFE-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "feed923cc58cfa14f2e9a56b9e4123203f08bf7046b7e76ea5dec88ce4c65efe",
+      "product": "fortune",
+      "slug": "life-direction-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3709dd7542491a3790c2e57986970b348e38e2361d67daa35f8a1f6deb3885d0",
+      "id": "THEME-WEALTH-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "3709dd7542491a3790c2e57986970b348e38e2361d67daa35f8a1f6deb3885d0",
+      "product": "fortune",
+      "slug": "wealth-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e30926f016e6909b31d08732fb31587927c5b422967c9239a0c17874ce64f80d",
+      "id": "MBTI-TYPE-INTJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "e30926f016e6909b31d08732fb31587927c5b422967c9239a0c17874ce64f80d",
+      "product": "personality",
+      "slug": "personality-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "426c23cb0d1ab084c350f3ee43f5238419ec4dda14f0674230d7fe9029481d67",
+      "id": "THEME-INTERPERSONAL-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "426c23cb0d1ab084c350f3ee43f5238419ec4dda14f0674230d7fe9029481d67",
+      "product": "personality",
+      "slug": "interpersonal-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c5abe731ddcd12e6b084fbd6940995d9d0c70564367dd4c7c84ab47c5a89a851",
+      "id": "TAROT-M06",
+      "metadata_invariant": true,
+      "original_body_sha256": "c5abe731ddcd12e6b084fbd6940995d9d0c70564367dd4c7c84ab47c5a89a851",
+      "product": "tarot",
+      "slug": "tarot-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "20bd9c8c5e93cbe0afea57090a4c559f0908ee8ac5256c9a38d0da438f7174a9",
+      "id": "THEME-LOVE-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "20bd9c8c5e93cbe0afea57090a4c559f0908ee8ac5256c9a38d0da438f7174a9",
+      "product": "tarot",
+      "slug": "love-0005"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d88e9277078106188fe35510325bc63a8758f9cbc76791454264223f0eae767a",
+      "id": "ASTRO-MERCURY-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "d88e9277078106188fe35510325bc63a8758f9cbc76791454264223f0eae767a",
+      "product": "astro",
+      "slug": "astrology-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "817f06a2f1d041fea445b0537ef6ead61aabe852bdcfe63aabbb159ee30875e5",
+      "id": "CHART-ZIWEI-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "817f06a2f1d041fea445b0537ef6ead61aabe852bdcfe63aabbb159ee30875e5",
+      "product": "fortune",
+      "slug": "fortune-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2d88f6b6ac48e3e70edf7a8c579c457b5748bd9daf7561c6d3749fe27732c525",
+      "id": "THEME-CAREER-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "2d88f6b6ac48e3e70edf7a8c579c457b5748bd9daf7561c6d3749fe27732c525",
+      "product": "fortune",
+      "slug": "career-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f8767cac3ab22788f6a678cf3a85bccf881c182759a22d090cdf81f453b0e2f5",
+      "id": "THEME-LIFE-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "f8767cac3ab22788f6a678cf3a85bccf881c182759a22d090cdf81f453b0e2f5",
+      "product": "fortune",
+      "slug": "life-direction-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0328a5d0ed1d4ef5cce59d693cc3123bbc0e257723a0ab56df1859ebdf8fe108",
+      "id": "THEME-WEALTH-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "0328a5d0ed1d4ef5cce59d693cc3123bbc0e257723a0ab56df1859ebdf8fe108",
+      "product": "fortune",
+      "slug": "wealth-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4734f321f0b3f6bbe61541447a784dde06c9f3a377d84acfc3be0b5507310efe",
+      "id": "MBTI-TYPE-INFP",
+      "metadata_invariant": true,
+      "original_body_sha256": "4734f321f0b3f6bbe61541447a784dde06c9f3a377d84acfc3be0b5507310efe",
+      "product": "personality",
+      "slug": "personality-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "cfa1d3f61f36f6be50074907d793a4c51c29a593abbf627f1fc3b1760436aa2c",
+      "id": "THEME-INTERPERSONAL-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "cfa1d3f61f36f6be50074907d793a4c51c29a593abbf627f1fc3b1760436aa2c",
+      "product": "personality",
+      "slug": "interpersonal-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0b8c977c0a596c69ec3e6068ba0999e3b6502a703052944f7bb2cf8c05d8d198",
+      "id": "TAROT-M13",
+      "metadata_invariant": true,
+      "original_body_sha256": "0b8c977c0a596c69ec3e6068ba0999e3b6502a703052944f7bb2cf8c05d8d198",
+      "product": "tarot",
+      "slug": "tarot-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f858a25fadc7cc7a2db909d251e76801b203869f3f8ec53a2f34bb8f66a7b7d6",
+      "id": "THEME-LOVE-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "f858a25fadc7cc7a2db909d251e76801b203869f3f8ec53a2f34bb8f66a7b7d6",
+      "product": "tarot",
+      "slug": "love-0006"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a1646448a8a6f641578c2f5088de7f1ebee7d005302ce884acd1768069642d67",
+      "id": "ASTRO-MARS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "a1646448a8a6f641578c2f5088de7f1ebee7d005302ce884acd1768069642d67",
+      "product": "astro",
+      "slug": "astrology-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0f5721e8722449efe0d41ca21cf17459112dda29e794da563a8d95ee05b3609c",
+      "id": "CHART-ZIWEI-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "0f5721e8722449efe0d41ca21cf17459112dda29e794da563a8d95ee05b3609c",
+      "product": "fortune",
+      "slug": "fortune-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0c7152b27e396ab9bb6a1da2c3d32ffbe8f4f72a32bfd10a3e800f3d2bc2ab94",
+      "id": "THEME-CAREER-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "0c7152b27e396ab9bb6a1da2c3d32ffbe8f4f72a32bfd10a3e800f3d2bc2ab94",
+      "product": "fortune",
+      "slug": "career-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "266394d5cd1549baeb763499f94b811294be88c0f8262dfffe1e31acb0aeae07",
+      "id": "THEME-LIFE-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "266394d5cd1549baeb763499f94b811294be88c0f8262dfffe1e31acb0aeae07",
+      "product": "fortune",
+      "slug": "life-direction-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "44a9c2256327df69770f7ca90cd69931de94d36a71f45d718075d94f2ba1a5fd",
+      "id": "THEME-WEALTH-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "44a9c2256327df69770f7ca90cd69931de94d36a71f45d718075d94f2ba1a5fd",
+      "product": "fortune",
+      "slug": "wealth-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "aea36c027666270f1f0c5963689729698a688a2ee0a19807981df8804754f982",
+      "id": "MBTI-TYPE-INFJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "aea36c027666270f1f0c5963689729698a688a2ee0a19807981df8804754f982",
+      "product": "personality",
+      "slug": "personality-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "333386a922e0262569d6b03754261d7b113ef2770dca74e6f2b167f882b26bbf",
+      "id": "THEME-INTERPERSONAL-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "333386a922e0262569d6b03754261d7b113ef2770dca74e6f2b167f882b26bbf",
+      "product": "personality",
+      "slug": "interpersonal-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "936f53187bc9768e4b34e0b89520af54ba28cca40bb670f8db6aa2f76be7b2ba",
+      "id": "TAROT-M16",
+      "metadata_invariant": true,
+      "original_body_sha256": "936f53187bc9768e4b34e0b89520af54ba28cca40bb670f8db6aa2f76be7b2ba",
+      "product": "tarot",
+      "slug": "tarot-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b4f83b94a4944dd510fccfd4000e3688277416802fc8e8ea2af2e679a645d661",
+      "id": "THEME-LOVE-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "b4f83b94a4944dd510fccfd4000e3688277416802fc8e8ea2af2e679a645d661",
+      "product": "tarot",
+      "slug": "love-0007"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "048d350eb3163c6fc167d87a83f52b2c2bf2984fa66e73d86e9638d2217bdcd1",
+      "id": "ASTRO-JUPITER-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "048d350eb3163c6fc167d87a83f52b2c2bf2984fa66e73d86e9638d2217bdcd1",
+      "product": "astro",
+      "slug": "astrology-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d01cdf240bd0005faf38401ca150c543f45f9dd66c064fed590feedf70e1dcf5",
+      "id": "CHART-ZIWEI-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "d01cdf240bd0005faf38401ca150c543f45f9dd66c064fed590feedf70e1dcf5",
+      "product": "fortune",
+      "slug": "fortune-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b59fc3bb7b0fc8111e94ed74bfd69dedb486dcf1411d764622ac11183abd4218",
+      "id": "THEME-CAREER-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "b59fc3bb7b0fc8111e94ed74bfd69dedb486dcf1411d764622ac11183abd4218",
+      "product": "fortune",
+      "slug": "career-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c90ab6aa5494da8e214e6879d94c6e5ed507b82c6990f2c69e9bc5d8a54245d1",
+      "id": "THEME-LIFE-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "c90ab6aa5494da8e214e6879d94c6e5ed507b82c6990f2c69e9bc5d8a54245d1",
+      "product": "fortune",
+      "slug": "life-direction-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a1cd7713031dd0b3d8bb0ae5e4acc3fb9347192ab40b18257259cbf0cc9f71d3",
+      "id": "THEME-WEALTH-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "a1cd7713031dd0b3d8bb0ae5e4acc3fb9347192ab40b18257259cbf0cc9f71d3",
+      "product": "fortune",
+      "slug": "wealth-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e4bfe223c65d2279dd1af3debf293777695594844b24de50a83c7c2491d3ff46",
+      "id": "MBTI-TYPE-ENFP",
+      "metadata_invariant": true,
+      "original_body_sha256": "e4bfe223c65d2279dd1af3debf293777695594844b24de50a83c7c2491d3ff46",
+      "product": "personality",
+      "slug": "personality-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "34cf560a9b6b0780edf0fd1e47440f8a9ef7f0331a1df4fcf0732a07bdc42d13",
+      "id": "THEME-INTERPERSONAL-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "34cf560a9b6b0780edf0fd1e47440f8a9ef7f0331a1df4fcf0732a07bdc42d13",
+      "product": "personality",
+      "slug": "interpersonal-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f7f15b0e837b7f0046132b92f32063cbe7b2d1b5ddb812ee30e949a643d45453",
+      "id": "TAROT-M21",
+      "metadata_invariant": true,
+      "original_body_sha256": "f7f15b0e837b7f0046132b92f32063cbe7b2d1b5ddb812ee30e949a643d45453",
+      "product": "tarot",
+      "slug": "tarot-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4e9d41219db5234bfa6815b9078c56afcd2014a5a9db1e415118fe652f8b2640",
+      "id": "THEME-LOVE-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "4e9d41219db5234bfa6815b9078c56afcd2014a5a9db1e415118fe652f8b2640",
+      "product": "tarot",
+      "slug": "love-0008"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e39715ba77017b6b28af8fe8e38c1c4bfdc5c1bbbeab19ec4f6c666147004654",
+      "id": "ASTRO-SATURN-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "e39715ba77017b6b28af8fe8e38c1c4bfdc5c1bbbeab19ec4f6c666147004654",
+      "product": "astro",
+      "slug": "astrology-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "13c53a4a0ab2c06b4bc8344fc0d92033cd9720a94c6b6d8d4b9f5e45e0fcccb0",
+      "id": "CHART-ZIWEI-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "13c53a4a0ab2c06b4bc8344fc0d92033cd9720a94c6b6d8d4b9f5e45e0fcccb0",
+      "product": "fortune",
+      "slug": "fortune-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6da61187f616536d1882226b1fedb59fcca5888851fbfc817ed2a08f4b99e16b",
+      "id": "THEME-CAREER-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "6da61187f616536d1882226b1fedb59fcca5888851fbfc817ed2a08f4b99e16b",
+      "product": "fortune",
+      "slug": "career-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c4a0d54214b079ecb7a01d30e0436e3df5eb0182fedcf8079c4910a5966e72c3",
+      "id": "THEME-LIFE-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "c4a0d54214b079ecb7a01d30e0436e3df5eb0182fedcf8079c4910a5966e72c3",
+      "product": "fortune",
+      "slug": "life-direction-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "28a6248ba05bdbc150777bbd2c5113dc9a25246fa02f1356678a5fb65d697c71",
+      "id": "THEME-WEALTH-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "28a6248ba05bdbc150777bbd2c5113dc9a25246fa02f1356678a5fb65d697c71",
+      "product": "fortune",
+      "slug": "wealth-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9d1b22d948385a3b7dabdd4ee7708b587e1b859c0303deeccad25e9bfbc113fc",
+      "id": "MBTI-TYPE-ENTJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "9d1b22d948385a3b7dabdd4ee7708b587e1b859c0303deeccad25e9bfbc113fc",
+      "product": "personality",
+      "slug": "personality-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1d4f6c5dbbf4475ff46e06290cd5839d803342604d855fe8b0aa2c830c540523",
+      "id": "THEME-INTERPERSONAL-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "1d4f6c5dbbf4475ff46e06290cd5839d803342604d855fe8b0aa2c830c540523",
+      "product": "personality",
+      "slug": "interpersonal-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "912d3ec65e8099ce9b7d315ed9daba5ed2fd46989c233f532be8f08665780cf1",
+      "id": "TAROT-M02",
+      "metadata_invariant": true,
+      "original_body_sha256": "912d3ec65e8099ce9b7d315ed9daba5ed2fd46989c233f532be8f08665780cf1",
+      "product": "tarot",
+      "slug": "tarot-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7162aa704c6a84ac16e75f245bc26822ba896fe8e96e884a265fbd46163f37c4",
+      "id": "THEME-LOVE-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "7162aa704c6a84ac16e75f245bc26822ba896fe8e96e884a265fbd46163f37c4",
+      "product": "tarot",
+      "slug": "love-0009"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2fc3b30a1737d5e55ffeffee81f6653df93833402a84292a46f69a0550df73f9",
+      "id": "ASTRO-HOUSES-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "2fc3b30a1737d5e55ffeffee81f6653df93833402a84292a46f69a0550df73f9",
+      "product": "astro",
+      "slug": "astrology-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d7e5ae87f6f179fd1de4251936c802391413320199054a6fbe6e5558cb73680b",
+      "id": "CHART-ZIWEI-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "d7e5ae87f6f179fd1de4251936c802391413320199054a6fbe6e5558cb73680b",
+      "product": "fortune",
+      "slug": "fortune-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "baabceda188736ea1ff79922a4cf16dc4a7291ea466ae31077a4b12ec0c328f7",
+      "id": "THEME-CAREER-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "baabceda188736ea1ff79922a4cf16dc4a7291ea466ae31077a4b12ec0c328f7",
+      "product": "fortune",
+      "slug": "career-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "fd4fe4f93a2de056ec034c84d3034f3ff0b65338c46570e7deae7584f560d03d",
+      "id": "THEME-LIFE-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "fd4fe4f93a2de056ec034c84d3034f3ff0b65338c46570e7deae7584f560d03d",
+      "product": "fortune",
+      "slug": "life-direction-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "cd9014815a818de60c5487e81c575f43a048a2491fa495e7437c869c2bc9dfb3",
+      "id": "THEME-WEALTH-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "cd9014815a818de60c5487e81c575f43a048a2491fa495e7437c869c2bc9dfb3",
+      "product": "fortune",
+      "slug": "wealth-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5b6c45f146c94517b1e4353ea25c35cf0c9b73799d4b1a063d0c1f23f249c10b",
+      "id": "MBTI-TYPE-ENTP",
+      "metadata_invariant": true,
+      "original_body_sha256": "5b6c45f146c94517b1e4353ea25c35cf0c9b73799d4b1a063d0c1f23f249c10b",
+      "product": "personality",
+      "slug": "personality-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f28f722fcc47264f5e23fee9c9ee3b82e2b32a6e9896460d80c3f6d29a4567fe",
+      "id": "THEME-INTERPERSONAL-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "f28f722fcc47264f5e23fee9c9ee3b82e2b32a6e9896460d80c3f6d29a4567fe",
+      "product": "personality",
+      "slug": "interpersonal-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "450f8b1b0f1baffcc6cf389f3b4e6414a930d958c985c1222f40729d8667ae90",
+      "id": "TAROT-M18",
+      "metadata_invariant": true,
+      "original_body_sha256": "450f8b1b0f1baffcc6cf389f3b4e6414a930d958c985c1222f40729d8667ae90",
+      "product": "tarot",
+      "slug": "tarot-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "42c4885856584108d7bf7553a6ee0b121524af408439aaace695619538f0b659",
+      "id": "THEME-LOVE-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "42c4885856584108d7bf7553a6ee0b121524af408439aaace695619538f0b659",
+      "product": "tarot",
+      "slug": "love-0010"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3945e0ff60d6ec4d7a931703c9523813910a1375006268acb9cf11f26da1c383",
+      "id": "ASTRO-SUN-ARIES-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "3945e0ff60d6ec4d7a931703c9523813910a1375006268acb9cf11f26da1c383",
+      "product": "astro",
+      "slug": "astrology-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a978750b8187f9430b1bfdd3d0059c9aafd6c367e0bf66db19e30b08e602d2d4",
+      "id": "CHART-ZIWEI-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "a978750b8187f9430b1bfdd3d0059c9aafd6c367e0bf66db19e30b08e602d2d4",
+      "product": "fortune",
+      "slug": "fortune-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "dd4969d291a7ae2b185c705b7e72a7b87f52d570123ff4f96b8e5f4394fb59a6",
+      "id": "THEME-CAREER-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "dd4969d291a7ae2b185c705b7e72a7b87f52d570123ff4f96b8e5f4394fb59a6",
+      "product": "fortune",
+      "slug": "career-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c8b6b1fa5da3048a842495fd248cf155197829e09f42735f8c4facbdaab9cd2e",
+      "id": "THEME-LIFE-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "c8b6b1fa5da3048a842495fd248cf155197829e09f42735f8c4facbdaab9cd2e",
+      "product": "fortune",
+      "slug": "life-direction-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "54c1057d61b3c978181db586ed573a4a96076a73c1ffa6b31a820639a7aa5d10",
+      "id": "THEME-WEALTH-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "54c1057d61b3c978181db586ed573a4a96076a73c1ffa6b31a820639a7aa5d10",
+      "product": "fortune",
+      "slug": "wealth-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "dcb3b2e8c631f504ed57b8d06586f64b04ec92368f8dee714a24b4fdbe45bebb",
+      "id": "MBTI-TYPE-ISFJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "dcb3b2e8c631f504ed57b8d06586f64b04ec92368f8dee714a24b4fdbe45bebb",
+      "product": "personality",
+      "slug": "personality-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "fc732533b7eeab2c01b181c2158395f35507f856497ceaed4514011fb3d0d7c5",
+      "id": "THEME-INTERPERSONAL-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "fc732533b7eeab2c01b181c2158395f35507f856497ceaed4514011fb3d0d7c5",
+      "product": "personality",
+      "slug": "interpersonal-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b34639ad999ee3619a7ca47201853622dbf713648a39ec1f85714c550fdbd313",
+      "id": "TAROT-M14",
+      "metadata_invariant": true,
+      "original_body_sha256": "b34639ad999ee3619a7ca47201853622dbf713648a39ec1f85714c550fdbd313",
+      "product": "tarot",
+      "slug": "tarot-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a3832dc5083643aaf6e6567804515eb9b934fbef1dbacf83f0ae2ec463a71989",
+      "id": "THEME-LOVE-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "a3832dc5083643aaf6e6567804515eb9b934fbef1dbacf83f0ae2ec463a71989",
+      "product": "tarot",
+      "slug": "love-0011"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "84d930545464d02b27f1802d401a1be9cefda8a94b3c0144daaf0e8b17c3a053",
+      "id": "ASTRO-SUN-TAURUS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "84d930545464d02b27f1802d401a1be9cefda8a94b3c0144daaf0e8b17c3a053",
+      "product": "astro",
+      "slug": "astrology-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5fec81b390437f1164531401b589f7eaa16af9f47190db729696a410f04bd8a8",
+      "id": "CHART-ZIWEI-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "5fec81b390437f1164531401b589f7eaa16af9f47190db729696a410f04bd8a8",
+      "product": "fortune",
+      "slug": "fortune-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9913f3fb09e5487ac55b4b2863308daa9e9cf3f66cfe32a5ee03555af61a9aa0",
+      "id": "THEME-CAREER-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "9913f3fb09e5487ac55b4b2863308daa9e9cf3f66cfe32a5ee03555af61a9aa0",
+      "product": "fortune",
+      "slug": "career-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a808d07fd71058d032248dccc29ee7f11cea141ff242a727248caf98d6590e4a",
+      "id": "THEME-LIFE-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "a808d07fd71058d032248dccc29ee7f11cea141ff242a727248caf98d6590e4a",
+      "product": "fortune",
+      "slug": "life-direction-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c77a4448c182912e57def52752db239e90bbe38ace75db347699e8fa7931bb58",
+      "id": "THEME-WEALTH-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "c77a4448c182912e57def52752db239e90bbe38ace75db347699e8fa7931bb58",
+      "product": "fortune",
+      "slug": "wealth-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "98b0322bc0ba889f98d276779179a2538636641c480b9e7623a00fd7c3d7640f",
+      "id": "MBTI-TYPE-INTP",
+      "metadata_invariant": true,
+      "original_body_sha256": "98b0322bc0ba889f98d276779179a2538636641c480b9e7623a00fd7c3d7640f",
+      "product": "personality",
+      "slug": "personality-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "439c60b484ed01adebdef3fb4fdf968e5c7fb563e4f501796a84f18465f30b77",
+      "id": "THEME-INTERPERSONAL-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "439c60b484ed01adebdef3fb4fdf968e5c7fb563e4f501796a84f18465f30b77",
+      "product": "personality",
+      "slug": "interpersonal-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2c84eb8529e6f4e3afa63cdc12c0576977b5de578451bc8fca2426fa40cbe2d6",
+      "id": "TAROT-M03",
+      "metadata_invariant": true,
+      "original_body_sha256": "2c84eb8529e6f4e3afa63cdc12c0576977b5de578451bc8fca2426fa40cbe2d6",
+      "product": "tarot",
+      "slug": "tarot-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c452eabe7b283c3a97e2ae08fa0ea848e62ab258d4606b5b0827c3af1a4d4584",
+      "id": "THEME-LOVE-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "c452eabe7b283c3a97e2ae08fa0ea848e62ab258d4606b5b0827c3af1a4d4584",
+      "product": "tarot",
+      "slug": "love-0012"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ff9f5b5b03f6bf47b205d8589410831ba6b6e4bf4fed0253ed8e5419cdca6032",
+      "id": "ASTRO-SUN-GEMINI-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "ff9f5b5b03f6bf47b205d8589410831ba6b6e4bf4fed0253ed8e5419cdca6032",
+      "product": "astro",
+      "slug": "astrology-0013"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2bb4d65541c381789653d3d6e25337c8e5ed9e941cf443ad17da9b797c545151",
+      "id": "CHART-ZIWEI-11",
+      "metadata_invariant": true,
+      "original_body_sha256": "2bb4d65541c381789653d3d6e25337c8e5ed9e941cf443ad17da9b797c545151",
+      "product": "fortune",
+      "slug": "fortune-0013"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8f50a400220f2708d1bdca39f0451609df2cf14d4199ac5218c26ab4e7abc6d3",
+      "id": "MBTI-TYPE-ISTJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "8f50a400220f2708d1bdca39f0451609df2cf14d4199ac5218c26ab4e7abc6d3",
+      "product": "personality",
+      "slug": "personality-0013"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "da09a777dd442a2987404051abda20e3bfe829f9641c0876e5c26bf9161fe482",
+      "id": "TAROT-M04",
+      "metadata_invariant": true,
+      "original_body_sha256": "da09a777dd442a2987404051abda20e3bfe829f9641c0876e5c26bf9161fe482",
+      "product": "tarot",
+      "slug": "tarot-0013"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c6e86ce48afc58729bc77cac06dd7d17ea6d199e93a6e68b3fec22c86c0bed99",
+      "id": "ASTRO-SUN-CANCER-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "c6e86ce48afc58729bc77cac06dd7d17ea6d199e93a6e68b3fec22c86c0bed99",
+      "product": "astro",
+      "slug": "astrology-0014"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a3f81defdd0ebc413e684ea833398a46a9f6b1de27acc999bcf127e3bad58cba",
+      "id": "CHART-ZIWEI-12",
+      "metadata_invariant": true,
+      "original_body_sha256": "a3f81defdd0ebc413e684ea833398a46a9f6b1de27acc999bcf127e3bad58cba",
+      "product": "fortune",
+      "slug": "fortune-0014"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9c054e12456260631887ed45ab43b543d89bd8d6230d85f12c9a2040352d3bfa",
+      "id": "MBTI-TYPE-ISTP",
+      "metadata_invariant": true,
+      "original_body_sha256": "9c054e12456260631887ed45ab43b543d89bd8d6230d85f12c9a2040352d3bfa",
+      "product": "personality",
+      "slug": "personality-0014"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e6cb5e66aef60dc4dd0f7aa0f760ccc91ea2f99eedc1240d57b63d7536c24423",
+      "id": "TAROT-M05",
+      "metadata_invariant": true,
+      "original_body_sha256": "e6cb5e66aef60dc4dd0f7aa0f760ccc91ea2f99eedc1240d57b63d7536c24423",
+      "product": "tarot",
+      "slug": "tarot-0014"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ce2c92f3542e98ba58f183ce47f3090ffd835e8873103e246cd5c51579bbce51",
+      "id": "ASTRO-SUN-LEO-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "ce2c92f3542e98ba58f183ce47f3090ffd835e8873103e246cd5c51579bbce51",
+      "product": "astro",
+      "slug": "astrology-0015"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3005f3792b21cccb15ad6c395c6912720626051904b9448f752a9ceaf047ff80",
+      "id": "CHART-ZIWEI-STAR-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "3005f3792b21cccb15ad6c395c6912720626051904b9448f752a9ceaf047ff80",
+      "product": "fortune",
+      "slug": "fortune-0015"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "052c33a273c6bae3beb6c1594bed28f21f48b7b18e6cd7ce4539b26caeace605",
+      "id": "MBTI-TYPE-ISFP",
+      "metadata_invariant": true,
+      "original_body_sha256": "052c33a273c6bae3beb6c1594bed28f21f48b7b18e6cd7ce4539b26caeace605",
+      "product": "personality",
+      "slug": "personality-0015"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ab244bf4c1f9c3c8d6559b6a058d0c27b4b45eb42bdb66f48310e4286d54aacc",
+      "id": "TAROT-M07",
+      "metadata_invariant": true,
+      "original_body_sha256": "ab244bf4c1f9c3c8d6559b6a058d0c27b4b45eb42bdb66f48310e4286d54aacc",
+      "product": "tarot",
+      "slug": "tarot-0015"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "71271c6ecf163a3760caaa9bf705d75f06ec37fb258ffda1c26aa09eb69ef99c",
+      "id": "ASTRO-SUN-VIRGO-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "71271c6ecf163a3760caaa9bf705d75f06ec37fb258ffda1c26aa09eb69ef99c",
+      "product": "astro",
+      "slug": "astrology-0016"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "babe8788bac7a87d846facf46fa967f7870800b69873a50d692975bc6ed68cff",
+      "id": "CHART-ZIWEI-STAR-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "babe8788bac7a87d846facf46fa967f7870800b69873a50d692975bc6ed68cff",
+      "product": "fortune",
+      "slug": "fortune-0016"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f3226a1768990c74308ad8ae7549e8e42b058f773c2e8501a3e7e4e33f5a0a0f",
+      "id": "MBTI-TYPE-ENFJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "f3226a1768990c74308ad8ae7549e8e42b058f773c2e8501a3e7e4e33f5a0a0f",
+      "product": "personality",
+      "slug": "personality-0016"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "479ae063f4f5d58cac4c41dbcc9b364aa0a5692180e19f55a8098c6a93e97e5e",
+      "id": "TAROT-M08",
+      "metadata_invariant": true,
+      "original_body_sha256": "479ae063f4f5d58cac4c41dbcc9b364aa0a5692180e19f55a8098c6a93e97e5e",
+      "product": "tarot",
+      "slug": "tarot-0016"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "77511bf4671d85d4a8ec36b90e56f7018e722af16b7e086ca22fa9d7ba5dfa35",
+      "id": "ASTRO-SUN-LIBRA-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "77511bf4671d85d4a8ec36b90e56f7018e722af16b7e086ca22fa9d7ba5dfa35",
+      "product": "astro",
+      "slug": "astrology-0017"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9de12427dbe6dafe2ec73dc604dc8b8fb02f7f1b5a0abe9b989ec388268034a5",
+      "id": "CHART-ZIWEI-STAR-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "9de12427dbe6dafe2ec73dc604dc8b8fb02f7f1b5a0abe9b989ec388268034a5",
+      "product": "fortune",
+      "slug": "fortune-0017"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "922839c760bc07b9bb136d9219dea18d521c90e1c0b0b642754cdd3a578ccb63",
+      "id": "MBTI-TYPE-ESTJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "922839c760bc07b9bb136d9219dea18d521c90e1c0b0b642754cdd3a578ccb63",
+      "product": "personality",
+      "slug": "personality-0017"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "27bb9fe672194bdb54f51e06250271a75971903535348b10d55e8bcd95a1a4ca",
+      "id": "TAROT-M09",
+      "metadata_invariant": true,
+      "original_body_sha256": "27bb9fe672194bdb54f51e06250271a75971903535348b10d55e8bcd95a1a4ca",
+      "product": "tarot",
+      "slug": "tarot-0017"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6cfd9840c4d3e1e95d52c1ba3c51d141b4d4b14151043d3f731f3b0dde08ed33",
+      "id": "ASTRO-SUN-SCORPIO-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "6cfd9840c4d3e1e95d52c1ba3c51d141b4d4b14151043d3f731f3b0dde08ed33",
+      "product": "astro",
+      "slug": "astrology-0018"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "facb4d142b07a3ad581ab279850bbf385a59d4c9cdfeccf6e26bd8d16d343102",
+      "id": "CHART-ZIWEI-STAR-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "facb4d142b07a3ad581ab279850bbf385a59d4c9cdfeccf6e26bd8d16d343102",
+      "product": "fortune",
+      "slug": "fortune-0018"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9bb3974c0ce8c94be3ddd048a7675e2e5a53fbac40898875417e12eaebcdf3e8",
+      "id": "MBTI-TYPE-ESFJ",
+      "metadata_invariant": true,
+      "original_body_sha256": "9bb3974c0ce8c94be3ddd048a7675e2e5a53fbac40898875417e12eaebcdf3e8",
+      "product": "personality",
+      "slug": "personality-0018"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a52ef4db22f44cf59958a55216b7be1b56f9342b29e20c81332987b2cc9076b6",
+      "id": "TAROT-M10",
+      "metadata_invariant": true,
+      "original_body_sha256": "a52ef4db22f44cf59958a55216b7be1b56f9342b29e20c81332987b2cc9076b6",
+      "product": "tarot",
+      "slug": "tarot-0018"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5be6adc0affa809b60bde8e441d37f64d9e2e80b25178a36e0021d81a0b73bd5",
+      "id": "ASTRO-SUN-SAGITTARIUS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "5be6adc0affa809b60bde8e441d37f64d9e2e80b25178a36e0021d81a0b73bd5",
+      "product": "astro",
+      "slug": "astrology-0019"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "42639f654fc27ef18cf697fe5f48f319aaa3e0ffeaa745086f1c75b1ac65600b",
+      "id": "CHART-ZIWEI-STAR-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "42639f654fc27ef18cf697fe5f48f319aaa3e0ffeaa745086f1c75b1ac65600b",
+      "product": "fortune",
+      "slug": "fortune-0019"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6c1177560db4c4351d462d9123926e12f5530576c242312cda61be7a80c2c46a",
+      "id": "MBTI-TYPE-ESTP",
+      "metadata_invariant": true,
+      "original_body_sha256": "6c1177560db4c4351d462d9123926e12f5530576c242312cda61be7a80c2c46a",
+      "product": "personality",
+      "slug": "personality-0019"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f906f03f0998b6cbd318c93309dcff093575e07179e9e2342867cabef7e32513",
+      "id": "TAROT-M11",
+      "metadata_invariant": true,
+      "original_body_sha256": "f906f03f0998b6cbd318c93309dcff093575e07179e9e2342867cabef7e32513",
+      "product": "tarot",
+      "slug": "tarot-0019"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "03aea14ae47d734b1f455465f9b362afbedc4294c6d4250719fe5221e85b4b9f",
+      "id": "ASTRO-SUN-CAPRICORN-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "03aea14ae47d734b1f455465f9b362afbedc4294c6d4250719fe5221e85b4b9f",
+      "product": "astro",
+      "slug": "astrology-0020"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "31c0b7ae63b6815e37bfc9ad441530441375e7c36e27b2f5494731b07fa6dd57",
+      "id": "CHART-ZIWEI-STAR-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "31c0b7ae63b6815e37bfc9ad441530441375e7c36e27b2f5494731b07fa6dd57",
+      "product": "fortune",
+      "slug": "fortune-0020"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "041abbe4c8f8d760d717f7899b93534ebdc472dadb39b1548492a55ad3af0ec2",
+      "id": "MBTI-TYPE-ESFP",
+      "metadata_invariant": true,
+      "original_body_sha256": "041abbe4c8f8d760d717f7899b93534ebdc472dadb39b1548492a55ad3af0ec2",
+      "product": "personality",
+      "slug": "personality-0020"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5d2ff8269e8eaa7c75eaeea4d1a0daff7dd8fa8a5712effd73565ac8f4687506",
+      "id": "TAROT-M12",
+      "metadata_invariant": true,
+      "original_body_sha256": "5d2ff8269e8eaa7c75eaeea4d1a0daff7dd8fa8a5712effd73565ac8f4687506",
+      "product": "tarot",
+      "slug": "tarot-0020"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b652e0c7c6915851ea91f0904eb3d8a43018e48387c631309845b8619756ef7e",
+      "id": "ASTRO-SUN-AQUARIUS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "b652e0c7c6915851ea91f0904eb3d8a43018e48387c631309845b8619756ef7e",
+      "product": "astro",
+      "slug": "astrology-0021"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6495cec328d1cba60190d440ea53a46b8710b5e048de7a3769b2911155937b50",
+      "id": "CHART-ZIWEI-STAR-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "6495cec328d1cba60190d440ea53a46b8710b5e048de7a3769b2911155937b50",
+      "product": "fortune",
+      "slug": "fortune-0021"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d97579aecf8d87a866dedbdca7b6086701146d3b451002da5f4e8b2b74cc7cbc",
+      "id": "MBTI-BRANCH-INTJ-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "d97579aecf8d87a866dedbdca7b6086701146d3b451002da5f4e8b2b74cc7cbc",
+      "product": "fortune",
+      "slug": "personality-0021"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c554424fc4d77ea13f4bf1c4e3126814f66a01564d603f5e8739be169a0d454f",
+      "id": "TAROT-M15",
+      "metadata_invariant": true,
+      "original_body_sha256": "c554424fc4d77ea13f4bf1c4e3126814f66a01564d603f5e8739be169a0d454f",
+      "product": "tarot",
+      "slug": "tarot-0021"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "aff8f9a0dbca71243f5c321e576b0c9afecc5205791fdb2c99a2dbc35bebba1d",
+      "id": "ASTRO-SUN-PISCES-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "aff8f9a0dbca71243f5c321e576b0c9afecc5205791fdb2c99a2dbc35bebba1d",
+      "product": "astro",
+      "slug": "astrology-0022"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c697481b7c333faceba178e0e4069c0772367125739b695c13f447087cafc53b",
+      "id": "CHART-BAZI-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "c697481b7c333faceba178e0e4069c0772367125739b695c13f447087cafc53b",
+      "product": "fortune",
+      "slug": "fortune-0022"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "629ca4f29a9257c4d544833ad6e0f8238f3acd47ab873e1564416305bd001bc0",
+      "id": "MBTI-BRANCH-INTJ-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "629ca4f29a9257c4d544833ad6e0f8238f3acd47ab873e1564416305bd001bc0",
+      "product": "fortune",
+      "slug": "personality-0022"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "51e6038fb888d336de6445a8ffd24ffe4830d4af013841a88023fac7e7c72cd7",
+      "id": "TAROT-M17",
+      "metadata_invariant": true,
+      "original_body_sha256": "51e6038fb888d336de6445a8ffd24ffe4830d4af013841a88023fac7e7c72cd7",
+      "product": "tarot",
+      "slug": "tarot-0022"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "188c642f0b6bc8330adfba3918b62cd881e7e6a79e7ad7bb41a28dca3e32c989",
+      "id": "ASTRO-ASPECTS-BASE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "188c642f0b6bc8330adfba3918b62cd881e7e6a79e7ad7bb41a28dca3e32c989",
+      "product": "astro",
+      "slug": "astrology-0023"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "83039974b396f1fc642fc6d8794d02d5ff91e83c3122e304db4ef0058f9b8315",
+      "id": "CHART-BAZI-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "83039974b396f1fc642fc6d8794d02d5ff91e83c3122e304db4ef0058f9b8315",
+      "product": "fortune",
+      "slug": "fortune-0023"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0521aa56aa5d38a9b45ce18db76f7a25320a49883d1fe8ab11276787308aaa28",
+      "id": "MBTI-BRANCH-INTJ-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "0521aa56aa5d38a9b45ce18db76f7a25320a49883d1fe8ab11276787308aaa28",
+      "product": "fortune",
+      "slug": "personality-0023"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b2c3417a675482c13e02844dcc486d208ff61229ca3f5e64037d2ee66664a973",
+      "id": "TAROT-M19",
+      "metadata_invariant": true,
+      "original_body_sha256": "b2c3417a675482c13e02844dcc486d208ff61229ca3f5e64037d2ee66664a973",
+      "product": "tarot",
+      "slug": "tarot-0023"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9895c8454dd82d8b6a4fcc173eedd2e3eb7ff8650d17471235753cff2ca103de",
+      "id": "ASTRO-ASPECT-CONJUNCTION-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "9895c8454dd82d8b6a4fcc173eedd2e3eb7ff8650d17471235753cff2ca103de",
+      "product": "astro",
+      "slug": "astrology-0024"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "63792d323972ff6b6790bb0ec367747f4ce21cc6b127607af8f94d4e9173cfef",
+      "id": "CHART-BAZI-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "63792d323972ff6b6790bb0ec367747f4ce21cc6b127607af8f94d4e9173cfef",
+      "product": "fortune",
+      "slug": "fortune-0024"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2eb074a1705506431df2a6528c4bbc9cfa6bb28ae86ce7997b1a2866abee1d7c",
+      "id": "MBTI-BRANCH-INTJ-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "2eb074a1705506431df2a6528c4bbc9cfa6bb28ae86ce7997b1a2866abee1d7c",
+      "product": "fortune",
+      "slug": "personality-0024"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0d95ad2c857dbf755ce67c4a099491b2844f0d96b8b2a39f1192aa2a2bac761e",
+      "id": "TAROT-M20",
+      "metadata_invariant": true,
+      "original_body_sha256": "0d95ad2c857dbf755ce67c4a099491b2844f0d96b8b2a39f1192aa2a2bac761e",
+      "product": "tarot",
+      "slug": "tarot-0024"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2daafe805f8ce9f6f38cd5ef72e7f7080ae94425a8af6d6ce1e757fd95d21553",
+      "id": "ASTRO-ASPECT-OPPOSITION-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "2daafe805f8ce9f6f38cd5ef72e7f7080ae94425a8af6d6ce1e757fd95d21553",
+      "product": "astro",
+      "slug": "astrology-0025"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "126fdf0bbb18cfc279f071ce6ff57d00bac73656805518b8561dee6445d38737",
+      "id": "CHART-BAZI-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "126fdf0bbb18cfc279f071ce6ff57d00bac73656805518b8561dee6445d38737",
+      "product": "fortune",
+      "slug": "fortune-0025"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "dc13a32ae7c59e4e9fee8dcd8edfbbb09174164501e8d2fdf88a3fb3071fc328",
+      "id": "MBTI-BRANCH-INFP-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "dc13a32ae7c59e4e9fee8dcd8edfbbb09174164501e8d2fdf88a3fb3071fc328",
+      "product": "fortune",
+      "slug": "personality-0025"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2619598065455ede4de5ad9d28c2b5618099b353cf10b8238c77937d4233ddfc",
+      "id": "TAROT-PENTACLES-KING",
+      "metadata_invariant": true,
+      "original_body_sha256": "2619598065455ede4de5ad9d28c2b5618099b353cf10b8238c77937d4233ddfc",
+      "product": "tarot",
+      "slug": "tarot-0025"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "25c484f84b0f3daa7c912c2ab75889653a8f339ad9c13a756576e559cfc6d2ab",
+      "id": "ASTRO-ASPECT-TRINE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "25c484f84b0f3daa7c912c2ab75889653a8f339ad9c13a756576e559cfc6d2ab",
+      "product": "astro",
+      "slug": "astrology-0026"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "03e8870f663575c351cbf5dfedb91c7d4a17e1542d8b1ae57603e56adc106728",
+      "id": "CHART-BAZI-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "03e8870f663575c351cbf5dfedb91c7d4a17e1542d8b1ae57603e56adc106728",
+      "product": "fortune",
+      "slug": "fortune-0026"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6e66418168a4b3085a2378e4ba7446fa6b9bded37f100669bd621c2db1058662",
+      "id": "MBTI-BRANCH-INFP-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "6e66418168a4b3085a2378e4ba7446fa6b9bded37f100669bd621c2db1058662",
+      "product": "fortune",
+      "slug": "personality-0026"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d3840115ae36c3ac36d39003935657f2ac4b33c6d7d48978890bf6fda15614bb",
+      "id": "TAROT-SWORDS-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "d3840115ae36c3ac36d39003935657f2ac4b33c6d7d48978890bf6fda15614bb",
+      "product": "tarot",
+      "slug": "tarot-0026"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c8aa2dd0fc448a730c7da3f504adb219d4dafa2f4cdedaafc031b95acde91709",
+      "id": "ASTRO-ASPECT-SQUARE-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "c8aa2dd0fc448a730c7da3f504adb219d4dafa2f4cdedaafc031b95acde91709",
+      "product": "astro",
+      "slug": "astrology-0027"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b50fd740a7ca47dbf9807d1b40e1258156195aa27eb69553c8f330bf5553c087",
+      "id": "EXPANSION-50D-FORTUNE-0027",
+      "metadata_invariant": true,
+      "original_body_sha256": "b50fd740a7ca47dbf9807d1b40e1258156195aa27eb69553c8f330bf5553c087",
+      "product": "fortune",
+      "slug": "fortune-0027"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a94f31133ec959dc1f2c7f3c86d3ad7614698bec1c18878a468bc960e1eecc24",
+      "id": "MBTI-BRANCH-INFP-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "a94f31133ec959dc1f2c7f3c86d3ad7614698bec1c18878a468bc960e1eecc24",
+      "product": "fortune",
+      "slug": "personality-0027"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e5aff0156afecb28c10f2cbd135f44415e32619a42346b93103065999ea36013",
+      "id": "TAROT-WANDS-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "e5aff0156afecb28c10f2cbd135f44415e32619a42346b93103065999ea36013",
+      "product": "tarot",
+      "slug": "tarot-0027"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "816b1b5bbb4700a7494bce1c2555519c2880b0a5a27745c3e7fe608de2850caf",
+      "id": "ASTRO-EXPANSION-50D-0028",
+      "metadata_invariant": true,
+      "original_body_sha256": "816b1b5bbb4700a7494bce1c2555519c2880b0a5a27745c3e7fe608de2850caf",
+      "product": "astro",
+      "slug": "astrology-0028"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1c7079586b95192814ee93ff85b8c6deee03675ce6a61a3e87b75547c269ae58",
+      "id": "EXPANSION-50D-FORTUNE-0028",
+      "metadata_invariant": true,
+      "original_body_sha256": "1c7079586b95192814ee93ff85b8c6deee03675ce6a61a3e87b75547c269ae58",
+      "product": "fortune",
+      "slug": "fortune-0028"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2b6c0ae99a79ddaa169cc3d34982ac64faff58a6e3ea23b6c11b79df53d76d7f",
+      "id": "MBTI-BRANCH-INFP-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "2b6c0ae99a79ddaa169cc3d34982ac64faff58a6e3ea23b6c11b79df53d76d7f",
+      "product": "fortune",
+      "slug": "personality-0028"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a1551738029db0a66a731f3aeb87a3b192ff23b6437729ad7ac9b07ddbd3bb01",
+      "id": "TAROT-WANDS-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "a1551738029db0a66a731f3aeb87a3b192ff23b6437729ad7ac9b07ddbd3bb01",
+      "product": "tarot",
+      "slug": "tarot-0028"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f84d04a439efc37569d6551312b8eef03c7989dc3079e24ebaf5ffade965205f",
+      "id": "ASTRO-EXPANSION-50D-0029",
+      "metadata_invariant": true,
+      "original_body_sha256": "f84d04a439efc37569d6551312b8eef03c7989dc3079e24ebaf5ffade965205f",
+      "product": "astro",
+      "slug": "astrology-0029"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4cda27c0337f1fcae65c93c295d7e8744a60ba45b5c1dc2c1b00f5dbf5cbf733",
+      "id": "EXPANSION-50D-FORTUNE-0029",
+      "metadata_invariant": true,
+      "original_body_sha256": "4cda27c0337f1fcae65c93c295d7e8744a60ba45b5c1dc2c1b00f5dbf5cbf733",
+      "product": "fortune",
+      "slug": "fortune-0029"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "30f43c66d4b7571a008bc7d7f717d9f2b6defb1b8ef125d51a9d7269a0db2dd0",
+      "id": "MBTI-BRANCH-INFJ-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "30f43c66d4b7571a008bc7d7f717d9f2b6defb1b8ef125d51a9d7269a0db2dd0",
+      "product": "fortune",
+      "slug": "personality-0029"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1b3c72390297c01f17e7eec73ad292aa0e1590e50d4608c6f1b5e019d4cc95da",
+      "id": "TAROT-PENTACLES-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "1b3c72390297c01f17e7eec73ad292aa0e1590e50d4608c6f1b5e019d4cc95da",
+      "product": "tarot",
+      "slug": "tarot-0029"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f3e5ae7848f24ba86f0f970a954199ff58260bb0983b844fb699cb529a42991b",
+      "id": "ASTRO-EXPANSION-50D-0030",
+      "metadata_invariant": true,
+      "original_body_sha256": "f3e5ae7848f24ba86f0f970a954199ff58260bb0983b844fb699cb529a42991b",
+      "product": "astro",
+      "slug": "astrology-0030"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "11806f079a4c78bf8a410e3fa2a280be403aa1b90d7aa08b25f39f70fb130c73",
+      "id": "EXPANSION-50D-FORTUNE-0030",
+      "metadata_invariant": true,
+      "original_body_sha256": "11806f079a4c78bf8a410e3fa2a280be403aa1b90d7aa08b25f39f70fb130c73",
+      "product": "fortune",
+      "slug": "fortune-0030"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "fa1cfdfd131458385ce5c133aa9ac831a69a13000d4a50a6d9c2f98c1ddaa3b1",
+      "id": "MBTI-BRANCH-INFJ-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "fa1cfdfd131458385ce5c133aa9ac831a69a13000d4a50a6d9c2f98c1ddaa3b1",
+      "product": "fortune",
+      "slug": "personality-0030"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6a758da9cc8596084da92fdb42914f416d8a136b3f99040d750d38f94a54f289",
+      "id": "TAROT-SWORDS-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "6a758da9cc8596084da92fdb42914f416d8a136b3f99040d750d38f94a54f289",
+      "product": "tarot",
+      "slug": "tarot-0030"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "fb365df5cecca3c94649f3278c03096b2df7b9cc342217548ca8d491c1ff9849",
+      "id": "ASTRO-EXPANSION-50D-0031",
+      "metadata_invariant": true,
+      "original_body_sha256": "fb365df5cecca3c94649f3278c03096b2df7b9cc342217548ca8d491c1ff9849",
+      "product": "astro",
+      "slug": "astrology-0031"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3bb8d59cf17a0ea2d5e9197d2d774c661133f7ce8961de6420133af629c3b5f3",
+      "id": "EXPANSION-50D-FORTUNE-0031",
+      "metadata_invariant": true,
+      "original_body_sha256": "3bb8d59cf17a0ea2d5e9197d2d774c661133f7ce8961de6420133af629c3b5f3",
+      "product": "fortune",
+      "slug": "fortune-0031"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "69dea64c82fefe759120b7287108f7984f4f340af376ddaa5297fc81bac70ac3",
+      "id": "MBTI-BRANCH-INFJ-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "69dea64c82fefe759120b7287108f7984f4f340af376ddaa5297fc81bac70ac3",
+      "product": "fortune",
+      "slug": "personality-0031"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8338b6f04b5cfc0f57fdd1312446e744fbe4395e0499fee36b707e32aa15c6c8",
+      "id": "TAROT-SWORDS-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "8338b6f04b5cfc0f57fdd1312446e744fbe4395e0499fee36b707e32aa15c6c8",
+      "product": "tarot",
+      "slug": "tarot-0031"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "52e367173596c68eea92bc1d1e6fa8532deabaf36d8392fd54a61df3a4df4c13",
+      "id": "ASTRO-EXPANSION-50D-0032",
+      "metadata_invariant": true,
+      "original_body_sha256": "52e367173596c68eea92bc1d1e6fa8532deabaf36d8392fd54a61df3a4df4c13",
+      "product": "astro",
+      "slug": "astrology-0032"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4ea08e2acc5bd10488566a31f0a2514ab75962153f7eb99b2bb9c0302c6abaf0",
+      "id": "EXPANSION-50D-FORTUNE-0032",
+      "metadata_invariant": true,
+      "original_body_sha256": "4ea08e2acc5bd10488566a31f0a2514ab75962153f7eb99b2bb9c0302c6abaf0",
+      "product": "fortune",
+      "slug": "fortune-0032"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c5398a78221ca0ce6200c6e50615082ba97169f62bef6e0cd5844f8606bd4385",
+      "id": "MBTI-BRANCH-INFJ-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "c5398a78221ca0ce6200c6e50615082ba97169f62bef6e0cd5844f8606bd4385",
+      "product": "fortune",
+      "slug": "personality-0032"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "77e4f155aa79d5885abd2846de91cc3c3eaf2c38fc002cc4b2cfdeae6ce71920",
+      "id": "TAROT-CUPS-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "77e4f155aa79d5885abd2846de91cc3c3eaf2c38fc002cc4b2cfdeae6ce71920",
+      "product": "tarot",
+      "slug": "tarot-0032"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0db749dc2c2ec48584ae452dc2a8b703b59465cb6bd688a405ed1f3c5e0a9152",
+      "id": "ASTRO-EXPANSION-50D-0033",
+      "metadata_invariant": true,
+      "original_body_sha256": "0db749dc2c2ec48584ae452dc2a8b703b59465cb6bd688a405ed1f3c5e0a9152",
+      "product": "astro",
+      "slug": "astrology-0033"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f374e6c172e0e4acd75983e402101b31e5042c4a460f880b7d3aeeff63c26aff",
+      "id": "EXPANSION-50D-FORTUNE-0033",
+      "metadata_invariant": true,
+      "original_body_sha256": "f374e6c172e0e4acd75983e402101b31e5042c4a460f880b7d3aeeff63c26aff",
+      "product": "fortune",
+      "slug": "fortune-0033"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "388e759de9b3bd02c586bbc31d40907e1c61c5410fcbd49718a75de312deb118",
+      "id": "MBTI-BRANCH-ENFP-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "388e759de9b3bd02c586bbc31d40907e1c61c5410fcbd49718a75de312deb118",
+      "product": "fortune",
+      "slug": "personality-0033"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2cd0a649f2b7c70f2383557632c74e9091a20514ac7acec7af52f0d4b46082fe",
+      "id": "TAROT-WANDS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "2cd0a649f2b7c70f2383557632c74e9091a20514ac7acec7af52f0d4b46082fe",
+      "product": "tarot",
+      "slug": "tarot-0033"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "84decbd4894187a7a8bc2875ea2b66c09ea6adc85371e28b567105b4a7e1b1e3",
+      "id": "ASTRO-EXPANSION-50D-0034",
+      "metadata_invariant": true,
+      "original_body_sha256": "84decbd4894187a7a8bc2875ea2b66c09ea6adc85371e28b567105b4a7e1b1e3",
+      "product": "astro",
+      "slug": "astrology-0034"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ab1cbbcc374b61ed8512d5ec3db5b95d2a8635d4b972260712cd7b2b2a9b8312",
+      "id": "EXPANSION-50D-FORTUNE-0034",
+      "metadata_invariant": true,
+      "original_body_sha256": "ab1cbbcc374b61ed8512d5ec3db5b95d2a8635d4b972260712cd7b2b2a9b8312",
+      "product": "fortune",
+      "slug": "fortune-0034"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6a360cfa8c4ed5d1d2fab9bb88516e0fc95bef01aa61d36b0bd91990f953642c",
+      "id": "MBTI-BRANCH-ENFP-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "6a360cfa8c4ed5d1d2fab9bb88516e0fc95bef01aa61d36b0bd91990f953642c",
+      "product": "fortune",
+      "slug": "personality-0034"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5f013ae92fcd25f675108bef491e82f3dcaced0e69d8010a97f2d6d84c70ac64",
+      "id": "TAROT-WANDS-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "5f013ae92fcd25f675108bef491e82f3dcaced0e69d8010a97f2d6d84c70ac64",
+      "product": "tarot",
+      "slug": "tarot-0034"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "37d7da53ae1910c9b97a035304335974dd2fb5ac1a1b3620bb4bb22631889917",
+      "id": "ASTRO-EXPANSION-50D-0035",
+      "metadata_invariant": true,
+      "original_body_sha256": "37d7da53ae1910c9b97a035304335974dd2fb5ac1a1b3620bb4bb22631889917",
+      "product": "astro",
+      "slug": "astrology-0035"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b899c10032c2c33840617128fe7f300cb78099165852cd890abe0e254a7ea0a3",
+      "id": "EXPANSION-50D-FORTUNE-0035",
+      "metadata_invariant": true,
+      "original_body_sha256": "b899c10032c2c33840617128fe7f300cb78099165852cd890abe0e254a7ea0a3",
+      "product": "fortune",
+      "slug": "fortune-0035"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4fd8447f33b663926c0bb5c829eb6343b3c33d951a1936954517959a5cb4be4b",
+      "id": "MBTI-BRANCH-ENFP-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "4fd8447f33b663926c0bb5c829eb6343b3c33d951a1936954517959a5cb4be4b",
+      "product": "fortune",
+      "slug": "personality-0035"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d8910b1d934da27b2860d694b567f61aa1effa50e33b34a1c147ff83c993d444",
+      "id": "TAROT-WANDS-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "d8910b1d934da27b2860d694b567f61aa1effa50e33b34a1c147ff83c993d444",
+      "product": "tarot",
+      "slug": "tarot-0035"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "23b1d89bca1eb6a6cfe57bef8837be123d7160fb57c4807ae588b136af4d2e78",
+      "id": "ASTRO-EXPANSION-50D-0036",
+      "metadata_invariant": true,
+      "original_body_sha256": "23b1d89bca1eb6a6cfe57bef8837be123d7160fb57c4807ae588b136af4d2e78",
+      "product": "astro",
+      "slug": "astrology-0036"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9cc94ac4cbeca34cc1a1983c00088c07fbb8777361b7b889c09b452f88f1d936",
+      "id": "EXPANSION-50D-FORTUNE-0036",
+      "metadata_invariant": true,
+      "original_body_sha256": "9cc94ac4cbeca34cc1a1983c00088c07fbb8777361b7b889c09b452f88f1d936",
+      "product": "fortune",
+      "slug": "fortune-0036"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0eec24a4765d47d559263f154f06de4da705db72905b2fdb3340dd299202b8d1",
+      "id": "MBTI-BRANCH-ENFP-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "0eec24a4765d47d559263f154f06de4da705db72905b2fdb3340dd299202b8d1",
+      "product": "fortune",
+      "slug": "personality-0036"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "01d60f40e7c31ff5c8d17365c3cd8ca29e76f1624ad65b66290f8acb618c4bb8",
+      "id": "TAROT-WANDS-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "01d60f40e7c31ff5c8d17365c3cd8ca29e76f1624ad65b66290f8acb618c4bb8",
+      "product": "tarot",
+      "slug": "tarot-0036"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e1c36d8312c83ca90b1400f804891f360d44848a54212931a05d5108b6cae186",
+      "id": "ASTRO-EXPANSION-50D-0037",
+      "metadata_invariant": true,
+      "original_body_sha256": "e1c36d8312c83ca90b1400f804891f360d44848a54212931a05d5108b6cae186",
+      "product": "astro",
+      "slug": "astrology-0037"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4ee299b383eede5737d3a6e0abafa1fefd89b7a753ddbee75a9a3ea5b4106b2f",
+      "id": "EXPANSION-50D-FORTUNE-0037",
+      "metadata_invariant": true,
+      "original_body_sha256": "4ee299b383eede5737d3a6e0abafa1fefd89b7a753ddbee75a9a3ea5b4106b2f",
+      "product": "fortune",
+      "slug": "fortune-0037"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5c68120c7af98950fd75c4d8915d8151479da401335b5b5c74f72da4eb3c20b9",
+      "id": "MBTI-64-ENTJ-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "5c68120c7af98950fd75c4d8915d8151479da401335b5b5c74f72da4eb3c20b9",
+      "product": "personality",
+      "slug": "personality-0037"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2834c4e4a156fc32e87c89d7a650ab8672f8e7f379d93bc4ae5fd8f6c80cf04f",
+      "id": "TAROT-WANDS-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "2834c4e4a156fc32e87c89d7a650ab8672f8e7f379d93bc4ae5fd8f6c80cf04f",
+      "product": "tarot",
+      "slug": "tarot-0037"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "05ac7e6599229b6e1fa423bcfe146eef18e3a71548422f252486caa55bab9d03",
+      "id": "ASTRO-EXPANSION-50D-0038",
+      "metadata_invariant": true,
+      "original_body_sha256": "05ac7e6599229b6e1fa423bcfe146eef18e3a71548422f252486caa55bab9d03",
+      "product": "astro",
+      "slug": "astrology-0038"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "89245dc02c40c8a7936b42e251b7c6bcedc4bf7b2c8210b59139c690c1a1a46e",
+      "id": "EXPANSION-50D-FORTUNE-0038",
+      "metadata_invariant": true,
+      "original_body_sha256": "89245dc02c40c8a7936b42e251b7c6bcedc4bf7b2c8210b59139c690c1a1a46e",
+      "product": "fortune",
+      "slug": "fortune-0038"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d24208602cb36763b1b80af195bdb439ecc9925ea6082edc19882ba83ec48caa",
+      "id": "MBTI-64-ENTJ-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "d24208602cb36763b1b80af195bdb439ecc9925ea6082edc19882ba83ec48caa",
+      "product": "personality",
+      "slug": "personality-0038"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "63b6915c5729bc39e5f791015f88af6a261603d9dfe74c5a8efefed07668293d",
+      "id": "TAROT-WANDS-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "63b6915c5729bc39e5f791015f88af6a261603d9dfe74c5a8efefed07668293d",
+      "product": "tarot",
+      "slug": "tarot-0038"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4e6f6033cea56cbb46995bd53aaa9e2f71d553e97fb5ad4ed2a212ec9f846388",
+      "id": "ASTRO-EXPANSION-50D-0039",
+      "metadata_invariant": true,
+      "original_body_sha256": "4e6f6033cea56cbb46995bd53aaa9e2f71d553e97fb5ad4ed2a212ec9f846388",
+      "product": "astro",
+      "slug": "astrology-0039"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "64ee032d0796ba326a14515a359c392e3f51319cf321eb8baa1938b29d212e01",
+      "id": "EXPANSION-50D-FORTUNE-0039",
+      "metadata_invariant": true,
+      "original_body_sha256": "64ee032d0796ba326a14515a359c392e3f51319cf321eb8baa1938b29d212e01",
+      "product": "fortune",
+      "slug": "fortune-0039"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b8cfd892a629801aca61a2ec0c8fdb277be3019536c8d2ef0db80a1e32f2471f",
+      "id": "MBTI-64-ENTJ-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "b8cfd892a629801aca61a2ec0c8fdb277be3019536c8d2ef0db80a1e32f2471f",
+      "product": "personality",
+      "slug": "personality-0039"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7c4a931ea6185d4f0bab254e63be52e2f91768a37434360305f74e92f305a219",
+      "id": "TAROT-WANDS-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "7c4a931ea6185d4f0bab254e63be52e2f91768a37434360305f74e92f305a219",
+      "product": "tarot",
+      "slug": "tarot-0039"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c9488b5a1a6585c7ac644cb10d0c9792e8c647548facb4c3c8a8a15f388f6360",
+      "id": "ASTRO-EXPANSION-50D-0040",
+      "metadata_invariant": true,
+      "original_body_sha256": "c9488b5a1a6585c7ac644cb10d0c9792e8c647548facb4c3c8a8a15f388f6360",
+      "product": "astro",
+      "slug": "astrology-0040"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e61fa58329bef71235062d474299471a341056f9f1444a0d2d20c4c952b6dcd4",
+      "id": "EXPANSION-50D-FORTUNE-0040",
+      "metadata_invariant": true,
+      "original_body_sha256": "e61fa58329bef71235062d474299471a341056f9f1444a0d2d20c4c952b6dcd4",
+      "product": "fortune",
+      "slug": "fortune-0040"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8a8872048587b35f3737b62cccd86beeea36b5a540054493085c5e4f02da3ecc",
+      "id": "MBTI-64-ENTJ-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "8a8872048587b35f3737b62cccd86beeea36b5a540054493085c5e4f02da3ecc",
+      "product": "personality",
+      "slug": "personality-0040"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b89f5cbf076e57d91d5eb559f78485c1bba5e719cae9f24f7135c58a0b49edb3",
+      "id": "TAROT-WANDS-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "b89f5cbf076e57d91d5eb559f78485c1bba5e719cae9f24f7135c58a0b49edb3",
+      "product": "tarot",
+      "slug": "tarot-0040"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e66eef22a9d53c14eba6229c99f0d59fcde4e9aa3d3f532c13de982439c98acb",
+      "id": "ASTRO-EXPANSION-50D-0041",
+      "metadata_invariant": true,
+      "original_body_sha256": "e66eef22a9d53c14eba6229c99f0d59fcde4e9aa3d3f532c13de982439c98acb",
+      "product": "astro",
+      "slug": "astrology-0041"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "dd12b10044f2f02e0443082d19a65fd96a03ed4e32d9746e4d4ff28ce52bd138",
+      "id": "EXPANSION-50D-FORTUNE-0041",
+      "metadata_invariant": true,
+      "original_body_sha256": "dd12b10044f2f02e0443082d19a65fd96a03ed4e32d9746e4d4ff28ce52bd138",
+      "product": "fortune",
+      "slug": "fortune-0041"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e72dcbfc1bccc3b2d07497b72ff59ab52937871d7f7fa464501e249f54c14d67",
+      "id": "MBTI-64-ENTP-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "e72dcbfc1bccc3b2d07497b72ff59ab52937871d7f7fa464501e249f54c14d67",
+      "product": "personality",
+      "slug": "personality-0041"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a101be45ff034f42e9a8e2f7b96ee6a9349f07f3caf7417da3d9099f08119934",
+      "id": "TAROT-WANDS-PAGE",
+      "metadata_invariant": true,
+      "original_body_sha256": "a101be45ff034f42e9a8e2f7b96ee6a9349f07f3caf7417da3d9099f08119934",
+      "product": "tarot",
+      "slug": "tarot-0041"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b5cecb57f7d804f00a15fa4e8cf08dd34aeb9b4a162b962fdc9dbba9a105fdfd",
+      "id": "ASTRO-EXPANSION-50D-0042",
+      "metadata_invariant": true,
+      "original_body_sha256": "b5cecb57f7d804f00a15fa4e8cf08dd34aeb9b4a162b962fdc9dbba9a105fdfd",
+      "product": "astro",
+      "slug": "astrology-0042"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4ccd387233b504a90413aa7d406a730d657d738f02a4e5815107686bda15ad22",
+      "id": "EXPANSION-50D-FORTUNE-0042",
+      "metadata_invariant": true,
+      "original_body_sha256": "4ccd387233b504a90413aa7d406a730d657d738f02a4e5815107686bda15ad22",
+      "product": "fortune",
+      "slug": "fortune-0042"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a949a61786ef78171b1b13ccef15d39380ae814f7cdb025086817ae9dd169fc5",
+      "id": "MBTI-64-ENTP-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "a949a61786ef78171b1b13ccef15d39380ae814f7cdb025086817ae9dd169fc5",
+      "product": "personality",
+      "slug": "personality-0042"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8b91e4ba18f9522a9f546dc2c39d5f6f2da0493cc6ca63a81f9ca78b5f8fc592",
+      "id": "TAROT-WANDS-KNIGHT",
+      "metadata_invariant": true,
+      "original_body_sha256": "8b91e4ba18f9522a9f546dc2c39d5f6f2da0493cc6ca63a81f9ca78b5f8fc592",
+      "product": "tarot",
+      "slug": "tarot-0042"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9d29cb9205bae5379922231655e1dffff44b8ada1abe4b847a9e8c6c9b5c703c",
+      "id": "ASTRO-EXPANSION-50D-0043",
+      "metadata_invariant": true,
+      "original_body_sha256": "9d29cb9205bae5379922231655e1dffff44b8ada1abe4b847a9e8c6c9b5c703c",
+      "product": "astro",
+      "slug": "astrology-0043"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a55fb9dff528171ec5ca3d70caf33adb534b89a0661cc4564e32536c44971fe1",
+      "id": "EXPANSION-50D-FORTUNE-0043",
+      "metadata_invariant": true,
+      "original_body_sha256": "a55fb9dff528171ec5ca3d70caf33adb534b89a0661cc4564e32536c44971fe1",
+      "product": "fortune",
+      "slug": "fortune-0043"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "589838cd4eba42c1f223b414418acd03ade876383787db493f39a06f1cd56054",
+      "id": "MBTI-64-ENTP-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "589838cd4eba42c1f223b414418acd03ade876383787db493f39a06f1cd56054",
+      "product": "personality",
+      "slug": "personality-0043"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1a74f2aa369a4816ef3aeb0253f42293066cc098bcf72956635e5ae4c17a75e9",
+      "id": "TAROT-WANDS-QUEEN",
+      "metadata_invariant": true,
+      "original_body_sha256": "1a74f2aa369a4816ef3aeb0253f42293066cc098bcf72956635e5ae4c17a75e9",
+      "product": "tarot",
+      "slug": "tarot-0043"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1012bb71dba3ba75b7ad5f5741da7e480fc7b7a84046e565d3be9cc34794c8a6",
+      "id": "ASTRO-EXPANSION-50D-0044",
+      "metadata_invariant": true,
+      "original_body_sha256": "1012bb71dba3ba75b7ad5f5741da7e480fc7b7a84046e565d3be9cc34794c8a6",
+      "product": "astro",
+      "slug": "astrology-0044"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b5dc74390e92b9a540c7ac5beb786aca85da14d04023ce01486e3068b9f8a87a",
+      "id": "CHART-CYCLE-DECADE",
+      "metadata_invariant": true,
+      "original_body_sha256": "b5dc74390e92b9a540c7ac5beb786aca85da14d04023ce01486e3068b9f8a87a",
+      "product": "fortune",
+      "slug": "fortune-0044"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "64e433c2842f3c7469e541eab616a1277cf3993daca2929f895489c5d284a3e7",
+      "id": "MBTI-64-ENTP-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "64e433c2842f3c7469e541eab616a1277cf3993daca2929f895489c5d284a3e7",
+      "product": "personality",
+      "slug": "personality-0044"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b0c94b8fb609be314e15a543e60515376e79cbd7daa30ca3adc93ff56af7f706",
+      "id": "TAROT-WANDS-KING",
+      "metadata_invariant": true,
+      "original_body_sha256": "b0c94b8fb609be314e15a543e60515376e79cbd7daa30ca3adc93ff56af7f706",
+      "product": "tarot",
+      "slug": "tarot-0044"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1d374567167c8fb629918932e5d897cb7bc47e8105f15f6a88e5cdfbacc797f6",
+      "id": "ASC-ARIES",
+      "metadata_invariant": true,
+      "original_body_sha256": "1d374567167c8fb629918932e5d897cb7bc47e8105f15f6a88e5cdfbacc797f6",
+      "product": "astro",
+      "slug": "astrology-0045"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b8f7bfb95922b4d3f9ccf7fd9e86212b6d3cc30242a0941688fd9da39ae48adc",
+      "id": "MBTI-64-ISFJ-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "b8f7bfb95922b4d3f9ccf7fd9e86212b6d3cc30242a0941688fd9da39ae48adc",
+      "product": "personality",
+      "slug": "personality-0045"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8a5212750b14715081bcde90a4a6a0a20cf81305f0074e776b66c806ca50606a",
+      "id": "TAROT-CUPS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "8a5212750b14715081bcde90a4a6a0a20cf81305f0074e776b66c806ca50606a",
+      "product": "tarot",
+      "slug": "tarot-0045"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7cc6dc329d05c0c34d468976163ea234758a6fd3b8b447f1c90ddc0d5e6464f2",
+      "id": "ASC-TAURUS",
+      "metadata_invariant": true,
+      "original_body_sha256": "7cc6dc329d05c0c34d468976163ea234758a6fd3b8b447f1c90ddc0d5e6464f2",
+      "product": "astro",
+      "slug": "astrology-0046"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "88192a573cdda13bcfb8a8eeb6b1838767b33fde83b0ed9e49585548a233c19c",
+      "id": "MBTI-64-ISFJ-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "88192a573cdda13bcfb8a8eeb6b1838767b33fde83b0ed9e49585548a233c19c",
+      "product": "personality",
+      "slug": "personality-0046"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4ef4a560f95879fc4a73dc5fd00cd1dfc056363b44ec83722347c75807408bc8",
+      "id": "TAROT-CUPS-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "4ef4a560f95879fc4a73dc5fd00cd1dfc056363b44ec83722347c75807408bc8",
+      "product": "tarot",
+      "slug": "tarot-0046"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2e630936ad8352c4bd1ca7d386c5a6517b76097235091a217e494f4497d12031",
+      "id": "ASC-GEMINI",
+      "metadata_invariant": true,
+      "original_body_sha256": "2e630936ad8352c4bd1ca7d386c5a6517b76097235091a217e494f4497d12031",
+      "product": "astro",
+      "slug": "astrology-0047"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "4f3d18e19ee32760883dc23bdb2a716b440ca6d58f45768bfbc2b4c69f898b00",
+      "id": "MBTI-64-ISFJ-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "4f3d18e19ee32760883dc23bdb2a716b440ca6d58f45768bfbc2b4c69f898b00",
+      "product": "personality",
+      "slug": "personality-0047"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5288c121ea5af84fb6c32b062ab30336c76ff6da6a5cc672801224c3150e944e",
+      "id": "TAROT-CUPS-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "5288c121ea5af84fb6c32b062ab30336c76ff6da6a5cc672801224c3150e944e",
+      "product": "tarot",
+      "slug": "tarot-0047"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8c08e61878758f230da2125c216e7be0e53b74a004134bb925a010378e077128",
+      "id": "ASC-CANCER",
+      "metadata_invariant": true,
+      "original_body_sha256": "8c08e61878758f230da2125c216e7be0e53b74a004134bb925a010378e077128",
+      "product": "astro",
+      "slug": "astrology-0048"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c61569aae7a2ec24145edc548b982b76a6453f3b2236bf96b4d742d672b1347f",
+      "id": "MBTI-64-ISFJ-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "c61569aae7a2ec24145edc548b982b76a6453f3b2236bf96b4d742d672b1347f",
+      "product": "personality",
+      "slug": "personality-0048"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d46718610f2f1485ec5fcce9b5bb0ffd9d318053f04afe7dfdc53025873b72d1",
+      "id": "TAROT-CUPS-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "d46718610f2f1485ec5fcce9b5bb0ffd9d318053f04afe7dfdc53025873b72d1",
+      "product": "tarot",
+      "slug": "tarot-0048"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2802709a2c75d0df9f17e1945ed8e5c19ec36e736ee3df9cb14d060cc19d2b52",
+      "id": "ASC-LEO",
+      "metadata_invariant": true,
+      "original_body_sha256": "2802709a2c75d0df9f17e1945ed8e5c19ec36e736ee3df9cb14d060cc19d2b52",
+      "product": "astro",
+      "slug": "astrology-0049"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "25e04ecf8053676d496c07d01e964e6b3108cd11cf953a218518a342b9c1042c",
+      "id": "MBTI-64-ENFJ-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "25e04ecf8053676d496c07d01e964e6b3108cd11cf953a218518a342b9c1042c",
+      "product": "personality",
+      "slug": "personality-0049"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "90850267d2ac6058fac7593b24fcb7c507bc38951a3c6e2262909c55df6bd142",
+      "id": "TAROT-CUPS-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "90850267d2ac6058fac7593b24fcb7c507bc38951a3c6e2262909c55df6bd142",
+      "product": "tarot",
+      "slug": "tarot-0049"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6e00baa2d02f69b402342b66bc9af9cedf0a1128359b2bb09eef1f140074b5f6",
+      "id": "ASC-VIRGO",
+      "metadata_invariant": true,
+      "original_body_sha256": "6e00baa2d02f69b402342b66bc9af9cedf0a1128359b2bb09eef1f140074b5f6",
+      "product": "astro",
+      "slug": "astrology-0050"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2a8b887bbe890e0a4e770ff660ec0e330d52e882c4b00ecb32d1928eed14878d",
+      "id": "MBTI-64-ENFJ-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "2a8b887bbe890e0a4e770ff660ec0e330d52e882c4b00ecb32d1928eed14878d",
+      "product": "personality",
+      "slug": "personality-0050"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "02d78c214167f2007da1081dfe09020d68fa8fc2529cd3ae1610c785940e5daf",
+      "id": "TAROT-CUPS-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "02d78c214167f2007da1081dfe09020d68fa8fc2529cd3ae1610c785940e5daf",
+      "product": "tarot",
+      "slug": "tarot-0050"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f26e32808a98f71012c5d5c864e07b71b6ea27c6b491a7e2d15c680dd203f775",
+      "id": "ASC-LIBRA",
+      "metadata_invariant": true,
+      "original_body_sha256": "f26e32808a98f71012c5d5c864e07b71b6ea27c6b491a7e2d15c680dd203f775",
+      "product": "astro",
+      "slug": "astrology-0051"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "af560e480592669efa92086eff64185dd89d44b0962f86719209e130b5f94ba8",
+      "id": "MBTI-64-ENFJ-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "af560e480592669efa92086eff64185dd89d44b0962f86719209e130b5f94ba8",
+      "product": "personality",
+      "slug": "personality-0051"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1742914facd1304d0c864bddc593f83ea307ebdfbf7d8e405b27d7384febd970",
+      "id": "TAROT-CUPS-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "1742914facd1304d0c864bddc593f83ea307ebdfbf7d8e405b27d7384febd970",
+      "product": "tarot",
+      "slug": "tarot-0051"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "315c2602f31e4518337e7de17834c7b5d4971aacb6f03b5c34fc09f71a60d493",
+      "id": "ASC-SCORPIO",
+      "metadata_invariant": true,
+      "original_body_sha256": "315c2602f31e4518337e7de17834c7b5d4971aacb6f03b5c34fc09f71a60d493",
+      "product": "astro",
+      "slug": "astrology-0052"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b1df18a3c6305326db2e1e2bd65c7b525e0c695cb1aaec6730b591f5f60f43f5",
+      "id": "MBTI-64-ENFJ-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "b1df18a3c6305326db2e1e2bd65c7b525e0c695cb1aaec6730b591f5f60f43f5",
+      "product": "personality",
+      "slug": "personality-0052"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "823d47403f7304b4da16d9c8c97cb1ccb5f99e334ca4364c66df66c7354a7502",
+      "id": "TAROT-CUPS-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "823d47403f7304b4da16d9c8c97cb1ccb5f99e334ca4364c66df66c7354a7502",
+      "product": "tarot",
+      "slug": "tarot-0052"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "31f6a22d49c5a171bc65fd9a65831976358b87ffc9fd5ba73b11e3118076bcb5",
+      "id": "ASC-SAGITTARIUS",
+      "metadata_invariant": true,
+      "original_body_sha256": "31f6a22d49c5a171bc65fd9a65831976358b87ffc9fd5ba73b11e3118076bcb5",
+      "product": "astro",
+      "slug": "astrology-0053"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "716e027b64af318de4b56ba7463a8b5c5b9221dd1d66fa66c29f182835b55f02",
+      "id": "MBTI-INTP-AH",
+      "metadata_invariant": true,
+      "original_body_sha256": "716e027b64af318de4b56ba7463a8b5c5b9221dd1d66fa66c29f182835b55f02",
+      "product": "personality",
+      "slug": "personality-0053"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d0398f27bf8332d88af8a5e07bf5bd40a19b2ebe56f089e5c5fd24e88279eb28",
+      "id": "TAROT-CUPS-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "d0398f27bf8332d88af8a5e07bf5bd40a19b2ebe56f089e5c5fd24e88279eb28",
+      "product": "tarot",
+      "slug": "tarot-0053"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5126912d8e17fa15b152df772ac1543bf58737c7ba8eee97323387acdd536e9e",
+      "id": "ASC-CAPRICORN",
+      "metadata_invariant": true,
+      "original_body_sha256": "5126912d8e17fa15b152df772ac1543bf58737c7ba8eee97323387acdd536e9e",
+      "product": "astro",
+      "slug": "astrology-0054"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "81a0cb59a390b2ca2bd5536df37aed32bb82f49cd6cba3b96ad7da03bde921d1",
+      "id": "MBTI-INTP-AC",
+      "metadata_invariant": true,
+      "original_body_sha256": "81a0cb59a390b2ca2bd5536df37aed32bb82f49cd6cba3b96ad7da03bde921d1",
+      "product": "personality",
+      "slug": "personality-0054"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1b0e48dd47e9142acecb5005446b0e7736bb7bf3a7dbea81670d5aa2ce4babfd",
+      "id": "TAROT-CUPS-PAGE",
+      "metadata_invariant": true,
+      "original_body_sha256": "1b0e48dd47e9142acecb5005446b0e7736bb7bf3a7dbea81670d5aa2ce4babfd",
+      "product": "tarot",
+      "slug": "tarot-0054"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "8455883ce1c9f417e7ea4f6e648523a2da98ca6314fdd57f97691a601fd6cef2",
+      "id": "ASC-AQUARIUS",
+      "metadata_invariant": true,
+      "original_body_sha256": "8455883ce1c9f417e7ea4f6e648523a2da98ca6314fdd57f97691a601fd6cef2",
+      "product": "astro",
+      "slug": "astrology-0055"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d299528756aed4b842ae7d80069264e067aaa032c114cf3a78636633dc51d28f",
+      "id": "MBTI-INTP-OH",
+      "metadata_invariant": true,
+      "original_body_sha256": "d299528756aed4b842ae7d80069264e067aaa032c114cf3a78636633dc51d28f",
+      "product": "personality",
+      "slug": "personality-0055"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "20632e03c2923758e278fc1e0e5a0d510624468ed9b598c2e190faafd13494c4",
+      "id": "TAROT-CUPS-KNIGHT",
+      "metadata_invariant": true,
+      "original_body_sha256": "20632e03c2923758e278fc1e0e5a0d510624468ed9b598c2e190faafd13494c4",
+      "product": "tarot",
+      "slug": "tarot-0055"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ecc74b3ed7c3f8627ec554f92bf8e46cb5b835997881661ae9c1c1c875a39501",
+      "id": "ASC-PISCES",
+      "metadata_invariant": true,
+      "original_body_sha256": "ecc74b3ed7c3f8627ec554f92bf8e46cb5b835997881661ae9c1c1c875a39501",
+      "product": "astro",
+      "slug": "astrology-0056"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a645b0573dd1ad7c462a33ac331dc925713cd810bbe0781c85dc0e02ba6180a4",
+      "id": "MBTI-INTP-OC",
+      "metadata_invariant": true,
+      "original_body_sha256": "a645b0573dd1ad7c462a33ac331dc925713cd810bbe0781c85dc0e02ba6180a4",
+      "product": "personality",
+      "slug": "personality-0056"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b225176e37819ff448a3f5571a47bf99a5502548697748ff836a0309a483010f",
+      "id": "TAROT-CUPS-QUEEN",
+      "metadata_invariant": true,
+      "original_body_sha256": "b225176e37819ff448a3f5571a47bf99a5502548697748ff836a0309a483010f",
+      "product": "tarot",
+      "slug": "tarot-0056"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "973c1cb0d101d820c3a3cecad95076f39c70bbba07276e7c60ec73b795c35631",
+      "id": "VENUS-ARIES",
+      "metadata_invariant": true,
+      "original_body_sha256": "973c1cb0d101d820c3a3cecad95076f39c70bbba07276e7c60ec73b795c35631",
+      "product": "astro",
+      "slug": "astrology-0057"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6bc3a8f388fa1622a7c65a86e81dee4975cb50e154a48aa353c2b4b7e01fa0c4",
+      "id": "TAROT-CUPS-KING",
+      "metadata_invariant": true,
+      "original_body_sha256": "6bc3a8f388fa1622a7c65a86e81dee4975cb50e154a48aa353c2b4b7e01fa0c4",
+      "product": "tarot",
+      "slug": "tarot-0057"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7dcfc3ff193a81d45c78662652625c47ec0df9195415af1256b779c46ee0b8a4",
+      "id": "VENUS-TAURUS",
+      "metadata_invariant": true,
+      "original_body_sha256": "7dcfc3ff193a81d45c78662652625c47ec0df9195415af1256b779c46ee0b8a4",
+      "product": "astro",
+      "slug": "astrology-0058"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0dad1ef657aa2307d0d2655ecdc9f8bcbe30bdcd51a8de933520519f564ba816",
+      "id": "TAROT-SWORDS-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "0dad1ef657aa2307d0d2655ecdc9f8bcbe30bdcd51a8de933520519f564ba816",
+      "product": "tarot",
+      "slug": "tarot-0058"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "55caff8a9f9f569562413f48c7acb24057c99e85f9bbdfe606e0fa669e81750d",
+      "id": "TAROT-SWORDS-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "55caff8a9f9f569562413f48c7acb24057c99e85f9bbdfe606e0fa669e81750d",
+      "product": "tarot",
+      "slug": "tarot-0059"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "486c4faa7f09f95f9057b4fff7d2b0cf07330a84ef10bf3f4f8d2538d65442b3",
+      "id": "TAROT-SWORDS-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "486c4faa7f09f95f9057b4fff7d2b0cf07330a84ef10bf3f4f8d2538d65442b3",
+      "product": "tarot",
+      "slug": "tarot-0060"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d16826fc1eedffc93e264b5a58f4bf693dcd2421035dfaa860403c3df847430f",
+      "id": "VENUS-LEO",
+      "metadata_invariant": true,
+      "original_body_sha256": "d16826fc1eedffc93e264b5a58f4bf693dcd2421035dfaa860403c3df847430f",
+      "product": "astro",
+      "slug": "astrology-0061"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "68fd47c241cdfdc8076bab88fb33540477eba4580b4b5f003be5b04ec1c4695a",
+      "id": "TAROT-SWORDS-05",
+      "metadata_invariant": true,
+      "original_body_sha256": "68fd47c241cdfdc8076bab88fb33540477eba4580b4b5f003be5b04ec1c4695a",
+      "product": "tarot",
+      "slug": "tarot-0061"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "cf680c22160124e327b2d5f1fe5518331002248d490759cbf338ca64c35bb301",
+      "id": "VENUS-VIRGO",
+      "metadata_invariant": true,
+      "original_body_sha256": "cf680c22160124e327b2d5f1fe5518331002248d490759cbf338ca64c35bb301",
+      "product": "astro",
+      "slug": "astrology-0062"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6f3c589162d93213527801edc703f82bbdd9751052bfdc8c00f99aa7af400901",
+      "id": "TAROT-SWORDS-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "6f3c589162d93213527801edc703f82bbdd9751052bfdc8c00f99aa7af400901",
+      "product": "tarot",
+      "slug": "tarot-0062"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "436d963f3f0ec37aca287d575bd302be29026f26cee0f8c1c5f580392d78af83",
+      "id": "VENUS-GEMINI",
+      "metadata_invariant": true,
+      "original_body_sha256": "436d963f3f0ec37aca287d575bd302be29026f26cee0f8c1c5f580392d78af83",
+      "product": "astro",
+      "slug": "astrology-0063"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7b5ab7056961f3370493d0dfeb0d31fc694ea1731355b1e67aa63e3b53cd6125",
+      "id": "TAROT-SWORDS-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "7b5ab7056961f3370493d0dfeb0d31fc694ea1731355b1e67aa63e3b53cd6125",
+      "product": "tarot",
+      "slug": "tarot-0063"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9e578ee813bb3d0dafc1f681b4f67f295eb0a8a352aa86fb7033133c5fce451b",
+      "id": "VENUS-CANCER",
+      "metadata_invariant": true,
+      "original_body_sha256": "9e578ee813bb3d0dafc1f681b4f67f295eb0a8a352aa86fb7033133c5fce451b",
+      "product": "astro",
+      "slug": "astrology-0064"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6bc4d4e4f55927c633714aa58f43c34667b68cc1a8316f707f5459381ce917fd",
+      "id": "TAROT-SWORDS-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "6bc4d4e4f55927c633714aa58f43c34667b68cc1a8316f707f5459381ce917fd",
+      "product": "tarot",
+      "slug": "tarot-0064"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c852b34ca7941955f4f91ae89c00e9f10e9061bd09f49042d66a05eedb00a297",
+      "id": "ASTRO-EXPANSION-50E-0065",
+      "metadata_invariant": true,
+      "original_body_sha256": "c852b34ca7941955f4f91ae89c00e9f10e9061bd09f49042d66a05eedb00a297",
+      "product": "astro",
+      "slug": "astrology-0065"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ca894b386bfddef71aa6218011785f0ba91efb9492f01e71b825ce58fa11d6c6",
+      "id": "TAROT-SWORDS-PAGE",
+      "metadata_invariant": true,
+      "original_body_sha256": "ca894b386bfddef71aa6218011785f0ba91efb9492f01e71b825ce58fa11d6c6",
+      "product": "tarot",
+      "slug": "tarot-0065"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b3d9d2ac5a186df1328c7c13b2cca9fee16bdf52b215bc22b274762382f71e3b",
+      "id": "ASTRO-EXPANSION-50E-0066",
+      "metadata_invariant": true,
+      "original_body_sha256": "b3d9d2ac5a186df1328c7c13b2cca9fee16bdf52b215bc22b274762382f71e3b",
+      "product": "astro",
+      "slug": "astrology-0066"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5568957030e19e52a407c9d3b08abae46caabc7ee15fb0c21b49224bbe07c1f8",
+      "id": "TAROT-SWORDS-KNIGHT",
+      "metadata_invariant": true,
+      "original_body_sha256": "5568957030e19e52a407c9d3b08abae46caabc7ee15fb0c21b49224bbe07c1f8",
+      "product": "tarot",
+      "slug": "tarot-0066"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c83c0867897ff7647760b53e20b23432731a95039eb77ab01d56d28aa5e2d5ad",
+      "id": "ASTRO-EXPANSION-50E-0067",
+      "metadata_invariant": true,
+      "original_body_sha256": "c83c0867897ff7647760b53e20b23432731a95039eb77ab01d56d28aa5e2d5ad",
+      "product": "astro",
+      "slug": "astrology-0067"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "2c31e909fc6ff3c5701fde67d2c19b8ccb95ecf6eafbb6fb1fc07246c75b5210",
+      "id": "TAROT-SWORDS-QUEEN",
+      "metadata_invariant": true,
+      "original_body_sha256": "2c31e909fc6ff3c5701fde67d2c19b8ccb95ecf6eafbb6fb1fc07246c75b5210",
+      "product": "tarot",
+      "slug": "tarot-0067"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e83d1930b05ff04ff015178cd5a69175ba02e59f49e5823a44d9f44e44113b38",
+      "id": "ASTRO-EXPANSION-50E-0068",
+      "metadata_invariant": true,
+      "original_body_sha256": "e83d1930b05ff04ff015178cd5a69175ba02e59f49e5823a44d9f44e44113b38",
+      "product": "astro",
+      "slug": "astrology-0068"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "74d9f9319c0ece2fbf8a4b3d2375f4067f5e869443b6094ac147fa9005baf3f1",
+      "id": "TAROT-SWORDS-KING",
+      "metadata_invariant": true,
+      "original_body_sha256": "74d9f9319c0ece2fbf8a4b3d2375f4067f5e869443b6094ac147fa9005baf3f1",
+      "product": "tarot",
+      "slug": "tarot-0068"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6f8892cc02071a60b25dc64f997dc3640d35a79b464faadba72fbf40b632937e",
+      "id": "ASTRO-EXPANSION-50E-0069",
+      "metadata_invariant": true,
+      "original_body_sha256": "6f8892cc02071a60b25dc64f997dc3640d35a79b464faadba72fbf40b632937e",
+      "product": "astro",
+      "slug": "astrology-0069"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0119da342efaac7a27e0aa020b96a7cc4ccc9c2f565e542d3f2b2b79c167ea95",
+      "id": "TAROT-PENTACLES-01",
+      "metadata_invariant": true,
+      "original_body_sha256": "0119da342efaac7a27e0aa020b96a7cc4ccc9c2f565e542d3f2b2b79c167ea95",
+      "product": "tarot",
+      "slug": "tarot-0069"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6dfe55cf3f2780b74eeb15fb89e55704359260e377b9b0a7107a17e1d3d5c385",
+      "id": "ASTRO-EXPANSION-50E-0070",
+      "metadata_invariant": true,
+      "original_body_sha256": "6dfe55cf3f2780b74eeb15fb89e55704359260e377b9b0a7107a17e1d3d5c385",
+      "product": "astro",
+      "slug": "astrology-0070"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "704f95309370db0da31737fcef4d09d1a2b42c5d051e17b9804d4b0391f8ec78",
+      "id": "TAROT-PENTACLES-02",
+      "metadata_invariant": true,
+      "original_body_sha256": "704f95309370db0da31737fcef4d09d1a2b42c5d051e17b9804d4b0391f8ec78",
+      "product": "tarot",
+      "slug": "tarot-0070"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "37d724529df57244838467f9018b3934970b50d072139d2fe7888c41f2a57c6a",
+      "id": "ASTRO-EXPANSION-50E-0071",
+      "metadata_invariant": true,
+      "original_body_sha256": "37d724529df57244838467f9018b3934970b50d072139d2fe7888c41f2a57c6a",
+      "product": "astro",
+      "slug": "astrology-0071"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7068f628a39ebc1ceb39e6dd1ac0327885c0aab8a794d14122a98354e7da57d2",
+      "id": "TAROT-PENTACLES-03",
+      "metadata_invariant": true,
+      "original_body_sha256": "7068f628a39ebc1ceb39e6dd1ac0327885c0aab8a794d14122a98354e7da57d2",
+      "product": "tarot",
+      "slug": "tarot-0071"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "0039f1bbede4230d79759867ffed0a51797188cdf9efb759d92eade900828af6",
+      "id": "ASTRO-EXPANSION-50E-0072",
+      "metadata_invariant": true,
+      "original_body_sha256": "0039f1bbede4230d79759867ffed0a51797188cdf9efb759d92eade900828af6",
+      "product": "astro",
+      "slug": "astrology-0072"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9e825a625d7112efdff7cf7e3dd674bfdd0ed84660da2380b3ca1d809834944c",
+      "id": "TAROT-PENTACLES-04",
+      "metadata_invariant": true,
+      "original_body_sha256": "9e825a625d7112efdff7cf7e3dd674bfdd0ed84660da2380b3ca1d809834944c",
+      "product": "tarot",
+      "slug": "tarot-0072"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "da692a0ad8f402ae352ab35ca6081b19fd810399ca72425bd9dc720a0742dd50",
+      "id": "ASTRO-EXPANSION-50E-0073",
+      "metadata_invariant": true,
+      "original_body_sha256": "da692a0ad8f402ae352ab35ca6081b19fd810399ca72425bd9dc720a0742dd50",
+      "product": "astro",
+      "slug": "astrology-0073"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "37a49f9925ba5baf4cba0cecb82e4d4d31dbb2bd98b2a69de431140a3af60392",
+      "id": "TAROT-PENTACLES-06",
+      "metadata_invariant": true,
+      "original_body_sha256": "37a49f9925ba5baf4cba0cecb82e4d4d31dbb2bd98b2a69de431140a3af60392",
+      "product": "tarot",
+      "slug": "tarot-0073"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c0d9551642339baf48872e621e4c69817b6bec57d94e8b56b55c5fa835256efd",
+      "id": "ASTRO-EXPANSION-50E-0074",
+      "metadata_invariant": true,
+      "original_body_sha256": "c0d9551642339baf48872e621e4c69817b6bec57d94e8b56b55c5fa835256efd",
+      "product": "astro",
+      "slug": "astrology-0074"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9ef153fb7c8650fde1c77f0668f0484279f344e2bbfcd6bd5b0fa7fce71d044d",
+      "id": "TAROT-PENTACLES-07",
+      "metadata_invariant": true,
+      "original_body_sha256": "9ef153fb7c8650fde1c77f0668f0484279f344e2bbfcd6bd5b0fa7fce71d044d",
+      "product": "tarot",
+      "slug": "tarot-0074"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "718cf230c91053ea1641048c01e8d5a964eadf4af1ed8feac3e2b60963b8571b",
+      "id": "ASTRO-EXPANSION-50E-0075",
+      "metadata_invariant": true,
+      "original_body_sha256": "718cf230c91053ea1641048c01e8d5a964eadf4af1ed8feac3e2b60963b8571b",
+      "product": "astro",
+      "slug": "astrology-0075"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1319551b05aa27137eb6ad8e43af74c213484221e52cbbd6c434ff8c70ae26b5",
+      "id": "TAROT-PENTACLES-08",
+      "metadata_invariant": true,
+      "original_body_sha256": "1319551b05aa27137eb6ad8e43af74c213484221e52cbbd6c434ff8c70ae26b5",
+      "product": "tarot",
+      "slug": "tarot-0075"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7b60cbe4485f837ad7a0a586dab169b972bbb36d639e7181d208a0e29f24ff15",
+      "id": "ASTRO-EXPANSION-50E-0076",
+      "metadata_invariant": true,
+      "original_body_sha256": "7b60cbe4485f837ad7a0a586dab169b972bbb36d639e7181d208a0e29f24ff15",
+      "product": "astro",
+      "slug": "astrology-0076"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "37c9dc8a0f757c9aa51a2d2f3627a1c624696e457172556d3e53a12332332e11",
+      "id": "TAROT-PENTACLES-09",
+      "metadata_invariant": true,
+      "original_body_sha256": "37c9dc8a0f757c9aa51a2d2f3627a1c624696e457172556d3e53a12332332e11",
+      "product": "tarot",
+      "slug": "tarot-0076"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a4a3b1ca7d196c63186209f9890dfef82d43cbb122d4f32373b483c0a97ad4cc",
+      "id": "ASTRO-EXPANSION-50E-0077",
+      "metadata_invariant": true,
+      "original_body_sha256": "a4a3b1ca7d196c63186209f9890dfef82d43cbb122d4f32373b483c0a97ad4cc",
+      "product": "astro",
+      "slug": "astrology-0077"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "df757b6248b337741aac11292f68280620254514f84e61c0c8087aaba12dcfe9",
+      "id": "TAROT-PENTACLES-10",
+      "metadata_invariant": true,
+      "original_body_sha256": "df757b6248b337741aac11292f68280620254514f84e61c0c8087aaba12dcfe9",
+      "product": "tarot",
+      "slug": "tarot-0077"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "97ca5d55673132804dc2ecdfae88b4b744eb2a3a28b88607eafc3d4632da902e",
+      "id": "ASTRO-EXPANSION-50E-0078",
+      "metadata_invariant": true,
+      "original_body_sha256": "97ca5d55673132804dc2ecdfae88b4b744eb2a3a28b88607eafc3d4632da902e",
+      "product": "astro",
+      "slug": "astrology-0078"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "1514e5a774ccb45a9b71e8b63d3d8b9cc7423fd892f767dece64eed4ed119060",
+      "id": "TAROT-PENTACLES-PAGE",
+      "metadata_invariant": true,
+      "original_body_sha256": "1514e5a774ccb45a9b71e8b63d3d8b9cc7423fd892f767dece64eed4ed119060",
+      "product": "tarot",
+      "slug": "tarot-0078"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d5b238bc04c2f2c1b62abd61b485d51bd43914f64993d0d9c71a6604e50c3398",
+      "id": "ASTRO-EXPANSION-50E-0079",
+      "metadata_invariant": true,
+      "original_body_sha256": "d5b238bc04c2f2c1b62abd61b485d51bd43914f64993d0d9c71a6604e50c3398",
+      "product": "astro",
+      "slug": "astrology-0079"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "fd4a86b03c96d93e06b9c692db5775af8ca48aa7369abe37201d47905cb4d550",
+      "id": "TAROT-PENTACLES-KNIGHT",
+      "metadata_invariant": true,
+      "original_body_sha256": "fd4a86b03c96d93e06b9c692db5775af8ca48aa7369abe37201d47905cb4d550",
+      "product": "tarot",
+      "slug": "tarot-0079"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5867b0a035a1b4de5a475a4e431db85529681e4efe92a21a0a786ff7e8a23711",
+      "id": "ASTRO-EXPANSION-50E-0080",
+      "metadata_invariant": true,
+      "original_body_sha256": "5867b0a035a1b4de5a475a4e431db85529681e4efe92a21a0a786ff7e8a23711",
+      "product": "astro",
+      "slug": "astrology-0080"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "18593a30252391ca2c5d7e0aee51c6e44424f9dbbf129d85b5ef805e0d422f2a",
+      "id": "TAROT-PENTACLES-QUEEN",
+      "metadata_invariant": true,
+      "original_body_sha256": "18593a30252391ca2c5d7e0aee51c6e44424f9dbbf129d85b5ef805e0d422f2a",
+      "product": "tarot",
+      "slug": "tarot-0080"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "3560616321f1d69a332bd42a476c85cf48b1928d14bde04fbc4084e470f2896e",
+      "id": "ASTRO-EXPANSION-50E-0081",
+      "metadata_invariant": true,
+      "original_body_sha256": "3560616321f1d69a332bd42a476c85cf48b1928d14bde04fbc4084e470f2896e",
+      "product": "astro",
+      "slug": "astrology-0081"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e0ec3ae4a2e7e6d118ea042fdd22d9c49bdb92dbb3ea3bfab5c294aeafb99f0d",
+      "id": "ASTRO-EXPANSION-50E-0082",
+      "metadata_invariant": true,
+      "original_body_sha256": "e0ec3ae4a2e7e6d118ea042fdd22d9c49bdb92dbb3ea3bfab5c294aeafb99f0d",
+      "product": "astro",
+      "slug": "astrology-0082"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "907c2ef534965067c611b5a17ad89c361f7ef0081fd28b91404d8dac6e572b86",
+      "id": "ASTRO-EXPANSION-50E-0083",
+      "metadata_invariant": true,
+      "original_body_sha256": "907c2ef534965067c611b5a17ad89c361f7ef0081fd28b91404d8dac6e572b86",
+      "product": "astro",
+      "slug": "astrology-0083"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d2fb391256b875651b0fd7953a3e39e2099e75442da3f9ba328fd81464c8975b",
+      "id": "ASTRO-EXPANSION-50E-0084",
+      "metadata_invariant": true,
+      "original_body_sha256": "d2fb391256b875651b0fd7953a3e39e2099e75442da3f9ba328fd81464c8975b",
+      "product": "astro",
+      "slug": "astrology-0084"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "908a0e779190b55d93a6098720de67caff440c6b0eaaa8148b12de14bfc1ee6b",
+      "id": "ASTRO-EXPANSION-50E-0085",
+      "metadata_invariant": true,
+      "original_body_sha256": "908a0e779190b55d93a6098720de67caff440c6b0eaaa8148b12de14bfc1ee6b",
+      "product": "astro",
+      "slug": "astrology-0085"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "07d1337cf13638e81d4d318e33dab1ec0ad8c5eb45499243d41ccde3923a46f3",
+      "id": "ASTRO-EXPANSION-50E-0086",
+      "metadata_invariant": true,
+      "original_body_sha256": "07d1337cf13638e81d4d318e33dab1ec0ad8c5eb45499243d41ccde3923a46f3",
+      "product": "astro",
+      "slug": "astrology-0086"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "e8eabc0e29ee8f8f5f493220aa86179c6515081b4d82fae2dc5cc91928c9a530",
+      "id": "ASTRO-EXPANSION-50E-0087",
+      "metadata_invariant": true,
+      "original_body_sha256": "e8eabc0e29ee8f8f5f493220aa86179c6515081b4d82fae2dc5cc91928c9a530",
+      "product": "astro",
+      "slug": "astrology-0087"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "864962ee2aa23cebdf66f67362abd53ed50410d5f8c89d2f714d8b6b8b0970c2",
+      "id": "ASTRO-EXPANSION-50E-0088",
+      "metadata_invariant": true,
+      "original_body_sha256": "864962ee2aa23cebdf66f67362abd53ed50410d5f8c89d2f714d8b6b8b0970c2",
+      "product": "astro",
+      "slug": "astrology-0088"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a6dfd3decb5cedd5afa6571cf02468fc6a675771bbc8c2e65c276b464584b9b8",
+      "id": "ASTRO-EXPANSION-50E-0089",
+      "metadata_invariant": true,
+      "original_body_sha256": "a6dfd3decb5cedd5afa6571cf02468fc6a675771bbc8c2e65c276b464584b9b8",
+      "product": "astro",
+      "slug": "astrology-0089"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ee057deede074bed669f3c0d520a345d3382f9a9a63f18d733d459226405f2e3",
+      "id": "ASTRO-EXPANSION-50E-0090",
+      "metadata_invariant": true,
+      "original_body_sha256": "ee057deede074bed669f3c0d520a345d3382f9a9a63f18d733d459226405f2e3",
+      "product": "astro",
+      "slug": "astrology-0090"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "ee481dd797b00dc9d813e602eedd96bd39ea97cba9278087516491f41c5c032d",
+      "id": "ASTRO-EXPANSION-50E-0091",
+      "metadata_invariant": true,
+      "original_body_sha256": "ee481dd797b00dc9d813e602eedd96bd39ea97cba9278087516491f41c5c032d",
+      "product": "astro",
+      "slug": "astrology-0091"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "d062dadfd13d44cbd46aa669d115fd9beda27fbef3479a418c910209cc59bd3f",
+      "id": "ASTRO-EXPANSION-50E-0092",
+      "metadata_invariant": true,
+      "original_body_sha256": "d062dadfd13d44cbd46aa669d115fd9beda27fbef3479a418c910209cc59bd3f",
+      "product": "astro",
+      "slug": "astrology-0092"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "7f29503bb308e2c1afa5106c0fb4ea6d2e0c72661bb3b2d6f545e4b6fbbb5faa",
+      "id": "ASTRO-EXPANSION-50E-0093",
+      "metadata_invariant": true,
+      "original_body_sha256": "7f29503bb308e2c1afa5106c0fb4ea6d2e0c72661bb3b2d6f545e4b6fbbb5faa",
+      "product": "astro",
+      "slug": "astrology-0093"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "77172d7d8adb065e230446b3021fc45c007ed138d43a10bc7c6776b9769517aa",
+      "id": "ASTRO-EXPANSION-50E-0094",
+      "metadata_invariant": true,
+      "original_body_sha256": "77172d7d8adb065e230446b3021fc45c007ed138d43a10bc7c6776b9769517aa",
+      "product": "astro",
+      "slug": "astrology-0094"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "c6301b2bb5ae60bca8121269e2ec5607e3a0107f05f0267bfcb5f21ee28904db",
+      "id": "ASTRO-EXPANSION-50E-0095",
+      "metadata_invariant": true,
+      "original_body_sha256": "c6301b2bb5ae60bca8121269e2ec5607e3a0107f05f0267bfcb5f21ee28904db",
+      "product": "astro",
+      "slug": "astrology-0095"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "f1b1ba9ee05a1314c7d612a09b80b7759067fc4bae6d374ca8371f0473528645",
+      "id": "ASTRO-EXPANSION-50E-0096",
+      "metadata_invariant": true,
+      "original_body_sha256": "f1b1ba9ee05a1314c7d612a09b80b7759067fc4bae6d374ca8371f0473528645",
+      "product": "astro",
+      "slug": "astrology-0096"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "9e351d4706b0e7afc6cbcbbbd58c64df0f6cf44ecc7b07d359abefc811824eee",
+      "id": "ASTRO-EXPANSION-50E-0097",
+      "metadata_invariant": true,
+      "original_body_sha256": "9e351d4706b0e7afc6cbcbbbd58c64df0f6cf44ecc7b07d359abefc811824eee",
+      "product": "astro",
+      "slug": "astrology-0097"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6052a9f70d17d4167a165249ee9eea56f1c0bd72c1bd8731a0937f52d3fe18df",
+      "id": "ASTRO-EXPANSION-50E-0098",
+      "metadata_invariant": true,
+      "original_body_sha256": "6052a9f70d17d4167a165249ee9eea56f1c0bd72c1bd8731a0937f52d3fe18df",
+      "product": "astro",
+      "slug": "astrology-0098"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "76fc631042d4e6b6cc2068378574edb631766cdce469006a3192b3e7d804ef8f",
+      "id": "ASTRO-EXPANSION-50E-0099",
+      "metadata_invariant": true,
+      "original_body_sha256": "76fc631042d4e6b6cc2068378574edb631766cdce469006a3192b3e7d804ef8f",
+      "product": "astro",
+      "slug": "astrology-0099"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "994ed2d0a0627814302eca362126eaefc9a4de7ce8d4dd13746f867cf4e650ad",
+      "id": "ASTRO-EXPANSION-50E-0100",
+      "metadata_invariant": true,
+      "original_body_sha256": "994ed2d0a0627814302eca362126eaefc9a4de7ce8d4dd13746f867cf4e650ad",
+      "product": "astro",
+      "slug": "astrology-0100"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "45da998c89bebe019c32aa2a68b54781211483f633a48774078f4bbda4030747",
+      "id": "ASTRO-EXPANSION-50E-0101",
+      "metadata_invariant": true,
+      "original_body_sha256": "45da998c89bebe019c32aa2a68b54781211483f633a48774078f4bbda4030747",
+      "product": "astro",
+      "slug": "astrology-0101"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "708cf95c8e9b494e6677b64b66b2771e0e9b90b03a0fdd9235d943d60aebffed",
+      "id": "ASTRO-EXPANSION-50E-0102",
+      "metadata_invariant": true,
+      "original_body_sha256": "708cf95c8e9b494e6677b64b66b2771e0e9b90b03a0fdd9235d943d60aebffed",
+      "product": "astro",
+      "slug": "astrology-0102"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "5af02a27def3525fc12748cc959a27cdcef45bb1a2bbf5dcd866643adb4f91cc",
+      "id": "ASTRO-EXPANSION-50E-0103",
+      "metadata_invariant": true,
+      "original_body_sha256": "5af02a27def3525fc12748cc959a27cdcef45bb1a2bbf5dcd866643adb4f91cc",
+      "product": "astro",
+      "slug": "astrology-0103"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "217f39f68a911f4c3ba770a146ce414a257dda9423f6119acc11f61b63ba6de7",
+      "id": "ASTRO-EXPANSION-50E-0104",
+      "metadata_invariant": true,
+      "original_body_sha256": "217f39f68a911f4c3ba770a146ce414a257dda9423f6119acc11f61b63ba6de7",
+      "product": "astro",
+      "slug": "astrology-0104"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "012377cf019dd9f12f08a56bfefc9989f9d9b0c619fe6af181ec4abc335174a5",
+      "id": "ASTRO-EXPANSION-50E-0105",
+      "metadata_invariant": true,
+      "original_body_sha256": "012377cf019dd9f12f08a56bfefc9989f9d9b0c619fe6af181ec4abc335174a5",
+      "product": "astro",
+      "slug": "astrology-0105"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "6c568707837dea94780fbe99340953c1f2ed77d61ae09fffe67dfd51db9899cf",
+      "id": "ASTRO-EXPANSION-50E-0106",
+      "metadata_invariant": true,
+      "original_body_sha256": "6c568707837dea94780fbe99340953c1f2ed77d61ae09fffe67dfd51db9899cf",
+      "product": "astro",
+      "slug": "astrology-0106"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "773977e74628a466ab875f8d250db805e5a8e0aef7bc8055b8e4474124f56307",
+      "id": "ASTRO-EXPANSION-50E-0107",
+      "metadata_invariant": true,
+      "original_body_sha256": "773977e74628a466ab875f8d250db805e5a8e0aef7bc8055b8e4474124f56307",
+      "product": "astro",
+      "slug": "astrology-0107"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "70aa7e1dd0ea559af5d4a31fc6e54fb0d1d88ccb850518d980f2a55a687acbb8",
+      "id": "ASTRO-EXPANSION-50E-0108",
+      "metadata_invariant": true,
+      "original_body_sha256": "70aa7e1dd0ea559af5d4a31fc6e54fb0d1d88ccb850518d980f2a55a687acbb8",
+      "product": "astro",
+      "slug": "astrology-0108"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "855a6678c037aad3f4ddceea7bc2d1f9ba1e006e25cf0d978b2b5b9a59f4bef5",
+      "id": "ASTRO-EXPANSION-50E-0109",
+      "metadata_invariant": true,
+      "original_body_sha256": "855a6678c037aad3f4ddceea7bc2d1f9ba1e006e25cf0d978b2b5b9a59f4bef5",
+      "product": "astro",
+      "slug": "astrology-0109"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "82a9c099edf0ed040cf0fa3527b7dc64867a96f624945da68effbd842b13ac47",
+      "id": "ASTRO-EXPANSION-50E-0110",
+      "metadata_invariant": true,
+      "original_body_sha256": "82a9c099edf0ed040cf0fa3527b7dc64867a96f624945da68effbd842b13ac47",
+      "product": "astro",
+      "slug": "astrology-0110"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "a4df6a17441ff4cf5e17db79e65855920db703e66fcddaa47169a2e2004be2e3",
+      "id": "ASTRO-EXPANSION-50E-0111",
+      "metadata_invariant": true,
+      "original_body_sha256": "a4df6a17441ff4cf5e17db79e65855920db703e66fcddaa47169a2e2004be2e3",
+      "product": "astro",
+      "slug": "astrology-0111"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "b1242b57bc454e3ccb22e9cdaccda28d72ed498d3202ed1c0b88e74a3d048dbe",
+      "id": "ASTRO-EXPANSION-50E-0112",
+      "metadata_invariant": true,
+      "original_body_sha256": "b1242b57bc454e3ccb22e9cdaccda28d72ed498d3202ed1c0b88e74a3d048dbe",
+      "product": "astro",
+      "slug": "astrology-0112"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "83a900f59cfdfc931a654f4ca73d50afa6204c4bec922b4659ed76aadcc312a2",
+      "id": "ASTRO-EXPANSION-50E-0113",
+      "metadata_invariant": true,
+      "original_body_sha256": "83a900f59cfdfc931a654f4ca73d50afa6204c4bec922b4659ed76aadcc312a2",
+      "product": "astro",
+      "slug": "astrology-0113"
+    },
+    {
+      "applied": false,
+      "candidate_body_sha256": null,
+      "formal_body_sha256": "eacd78af8860bd6843375b069e1ac637534508d69f08b0a7ba83be9c9db3d0ce",
+      "id": "ASTRO-EXPANSION-50E-0114",
+      "metadata_invariant": true,
+      "original_body_sha256": "eacd78af8860bd6843375b069e1ac637534508d69f08b0a7ba83be9c9db3d0ce",
+      "product": "astro",
+      "slug": "astrology-0114"
+    }
+  ],
+  "metadata_drift": 0,
+  "schema_version": 1,
+  "status": "NO_APPLY_BLOCKED_WRITER_JSON_DECODE",
+  "writer_blocked_articles": 25,
+  "writer_candidate_count": 250
+}

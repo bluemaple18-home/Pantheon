@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-ASPECT-TRINE-01",
+    "CHART-BAZI-05",
+    "MBTI-BRANCH-INFP-AC",
+    "TAROT-SWORDS-07",
+    "ASTRO-ASPECT-SQUARE-01"
+  ],
+  "batch": 33,
+  "job_id": "e2cf8c1e6640ff580ae1edb437039dd95b176ef8",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "fa056554be74326f2d0f339693009b0d70d97fe81db240aa7878aa191b6c36f5",
+  "request_sha256": "e2cf8c1e6640ff580ae1edb437039dd95b176ef8739dba7c1d196ffadb4c266d",
+  "response_sha256": "282ce0a31181b6afb56528fb60e3c60d913f8fc1dc4bcd296ec58a4cb7619e92",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

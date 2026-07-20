@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-CAREER-03",
+    "THEME-LIFE-03",
+    "THEME-WEALTH-03",
+    "MBTI-BASE-03",
+    "THEME-INTERPERSONAL-03"
+  ],
+  "batch": 5,
+  "job_id": "e42c46c536e63658c0ebc72c5efd846bac37969e",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "f679782e45e5e03c6ae81124b5bd8a3379e7c468926effddfb105ac0fbc4714d",
+  "request_sha256": "e42c46c536e63658c0ebc72c5efd846bac37969ed4a288fb23791ba5e6dd9cec",
+  "response_sha256": "74f1a094d7e960b28dd81f2110abe0ad8774f4e08c8c09913fcb654fca88980b",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

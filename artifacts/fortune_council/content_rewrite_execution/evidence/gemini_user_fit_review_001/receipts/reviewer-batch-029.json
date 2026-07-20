@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-SUN-AQUARIUS-01",
+    "CHART-ZIWEI-STAR-07",
+    "MBTI-BRANCH-INTJ-AH",
+    "TAROT-M15",
+    "ASTRO-SUN-PISCES-01"
+  ],
+  "batch": 29,
+  "job_id": "7b506f1a8a2a674768cc521027a0b6afe77a813c",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "b553921dd028538766a006e7f85f25db7a5b602871d17adc1761742c7ab6913c",
+  "request_sha256": "7b506f1a8a2a674768cc521027a0b6afe77a813c8eeea9243cbfaf9a80142bd8",
+  "response_sha256": "fa564d7a07969f718c44e24d61a271e089a18eb826d0caa51c5342787b76da7c",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

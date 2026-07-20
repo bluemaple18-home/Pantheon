@@ -1,0 +1,26 @@
+{
+  "applied_bodies": 0,
+  "inventory_rows": 352,
+  "inventory_sha256": "55277430d248e88089f9e756f2d5b2b4c119c82278d9e2013d686b7be76c729d",
+  "reviewer_approval_after_writer": 0,
+  "reviewer_success_batches": 71,
+  "schema_version": 1,
+  "status": "BLOCKED_WRITER_JSON_DECODE_STOPPED_AT_RETRY_LIMIT",
+  "unique_id_product_slug": 352,
+  "verdict_distribution": {
+    "BLOCKED": 45,
+    "GEMINI_REWRITE": 250,
+    "HUMAN_LIGHT_EDIT": 34,
+    "KEEP": 23
+  },
+  "writer_blocked_articles": 25,
+  "writer_blocked_batches": [
+    "ufit001_writer_009",
+    "ufit001_writer_021",
+    "ufit001_writer_022",
+    "ufit001_writer_023",
+    "ufit001_writer_055"
+  ],
+  "writer_candidate_articles_partial": 250,
+  "writer_success_batches": 50
+}

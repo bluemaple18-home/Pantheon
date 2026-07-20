@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-M20",
+    "ASTRO-ASPECT-OPPOSITION-01",
+    "CHART-BAZI-04",
+    "MBTI-BRANCH-INFP-AH",
+    "TAROT-PENTACLES-KING"
+  ],
+  "batch": 32,
+  "job_id": "f44aada9a05f2257d38485cae63a2f714e899811",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "f2c9edf7a592b3461814012b72e51c587e058f78a3bb486b0a444de9b999453a",
+  "request_sha256": "f44aada9a05f2257d38485cae63a2f714e8998111052f6dfd1b38b54b215c8dd",
+  "response_sha256": "05542fd07b81f515dd5afbed264f1964d543072b6cbfeac1760a82df64db11cf",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

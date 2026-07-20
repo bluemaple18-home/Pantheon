@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-WANDS-KING",
+    "ASC-ARIES",
+    "MBTI-64-ISFJ-AH",
+    "TAROT-CUPS-01",
+    "ASC-TAURUS"
+  ],
+  "batch": 48,
+  "job_id": "078d8d275317d13b3de9610756882196b04bbeb4",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "700244e0bdaaa509bd6650285088e1bab3553766e7bd4492da2ca3e0b2149ccb",
+  "request_sha256": "078d8d275317d13b3de9610756882196b04bbeb44eb4e809f2435c74dca3193a",
+  "response_sha256": "f033e3a16cc3c9a31810a0b6a005bf16d57835b45c9a8cde15cdfc59ca95b2e2",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

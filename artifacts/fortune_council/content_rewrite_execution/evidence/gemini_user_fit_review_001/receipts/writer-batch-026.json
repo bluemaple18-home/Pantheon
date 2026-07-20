@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "ASTRO-EXPANSION-50D-0030",
+    "EXPANSION-50D-FORTUNE-0030",
+    "MBTI-BRANCH-INFJ-AC",
+    "TAROT-SWORDS-09",
+    "ASTRO-EXPANSION-50D-0031"
+  ],
+  "batch": 26,
+  "job_id": "0051537b1305836fc11980651319f720fd8fcc68",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "d5b476bac729653300c39009c0e420e9f3fd3654f9cb9daf9e23b737ee986aae",
+  "request_sha256": "0051537b1305836fc11980651319f720fd8fcc6807ea6a748325cfe1a592a731",
+  "response_sha256": "662c82fa8be1d2cc92940e5c3cd181dea78af37c1f843a23272509d178da0163",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

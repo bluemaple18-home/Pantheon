@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-CUPS-PAGE",
+    "ASC-AQUARIUS",
+    "MBTI-INTP-OH",
+    "TAROT-CUPS-KNIGHT",
+    "ASC-PISCES"
+  ],
+  "batch": 54,
+  "job_id": "47e0367356bbfe38dde78c6157a850651e95c879",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "1dc538ab70964aa3529a231d0a134b7bef524d696eda457b8965e1936de40271",
+  "request_sha256": "47e0367356bbfe38dde78c6157a850651e95c879d899ef14a0a0a9379db48fa2",
+  "response_sha256": "ab0eea75ae98facea0d438065d9918dca33a7d3171825a4f87d39a0e8a669a11",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

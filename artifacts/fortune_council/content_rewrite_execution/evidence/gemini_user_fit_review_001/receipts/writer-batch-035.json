@@ -1,0 +1,38 @@
+{
+  "article_ids": [
+    "CHART-CYCLE-DECADE",
+    "MBTI-64-ENTP-OC",
+    "TAROT-WANDS-KING",
+    "ASC-ARIES",
+    "MBTI-64-ISFJ-AH"
+  ],
+  "batch": 35,
+  "job_id": "b000c2a3ce764543cab0fc9d9f229a7ecb167cb3",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "890a845a1f85fd9f8a7510119c6b74fe8fdc7c5034cf63d117fe8ed56ba8e8d1",
+  "request_sha256": "b000c2a3ce764543cab0fc9d9f229a7ecb167cb3bcf0f11e73f96b55134ee5a9",
+  "response_sha256": "ac41ff28ce0423657efe0cd9a3adb826e22b811306332ba7aca91aa64b3390db",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_1_1",
+    "paragraph_len_1_1_2",
+    "paragraph_len_1_1_3",
+    "paragraph_len_1_4_2",
+    "paragraph_len_2_1_1",
+    "paragraph_len_2_1_2",
+    "paragraph_len_2_1_3",
+    "paragraph_len_3_1_1",
+    "paragraph_len_4_1_1",
+    "paragraph_len_4_1_2",
+    "paragraph_len_4_1_3",
+    "paragraph_len_5_1_1",
+    "paragraph_len_5_1_2",
+    "paragraph_len_5_1_3",
+    "paragraph_len_5_2_2",
+    "paragraph_len_5_4_2"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

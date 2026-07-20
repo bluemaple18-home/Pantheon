@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-SUN-VIRGO-01",
+    "CHART-ZIWEI-STAR-02",
+    "MBTI-TYPE-ENFJ",
+    "TAROT-M08",
+    "ASTRO-SUN-LIBRA-01"
+  ],
+  "batch": 25,
+  "job_id": "522b84c76b3fc5dd9c2547401b4196f3a2451e09",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "fd8171d57f01abf536441cceff7d3ef21831e4b11169acdd9dd6baffcc4b70f9",
+  "request_sha256": "522b84c76b3fc5dd9c2547401b4196f3a2451e0989bd77aa0590d496ed32dc4a",
+  "response_sha256": "747158678feb6ed1eb02a6f0a1b2ec8ca671dd26571f105e936626b3fb4cc13a",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

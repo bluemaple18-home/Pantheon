@@ -1,0 +1,23 @@
+{
+  "article_ids": [
+    "ASTRO-SUN-SAGITTARIUS-01",
+    "CHART-ZIWEI-STAR-05",
+    "MBTI-TYPE-ESTP",
+    "TAROT-M11",
+    "ASTRO-SUN-CAPRICORN-01"
+  ],
+  "batch": 20,
+  "job_id": "d70346d2aeb863537e9d47c7445fa32a8b5f31ed",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "ff3a9f54961b3dd0416b0176cab679bdd6814304b9b273af5f73d30421aa7e1e",
+  "request_sha256": "d70346d2aeb863537e9d47c7445fa32a8b5f31edb4533c5dd76b8851ae5b9bd9",
+  "response_sha256": "f88f7ca84069f64c2113044f66122345458f14a3a8412b88f7bfa5d83d9cab21",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_4_1_1"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

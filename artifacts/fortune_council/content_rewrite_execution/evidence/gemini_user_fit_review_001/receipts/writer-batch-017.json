@@ -1,0 +1,27 @@
+{
+  "article_ids": [
+    "MBTI-TYPE-ISTJ",
+    "ASTRO-SUN-CANCER-01",
+    "CHART-ZIWEI-12",
+    "TAROT-M05",
+    "ASTRO-SUN-LEO-01"
+  ],
+  "batch": 17,
+  "job_id": "3d6ce20933ef459de1f66302e44327ca2a367c0d",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "f645da377147312e15b6b985753ae25eb03cc3f4b870e6667e26642c267eaeea",
+  "request_sha256": "3d6ce20933ef459de1f66302e44327ca2a367c0dbc97841a14eccc728fe3366d",
+  "response_sha256": "b2e301a93c68bd95f1518d3174c53df9e4ff25e39c17c39bb208351302847f6b",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_1_1",
+    "paragraph_len_1_1_2",
+    "paragraph_len_1_1_3",
+    "paragraph_len_4_1_1",
+    "paragraph_len_4_3_2"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

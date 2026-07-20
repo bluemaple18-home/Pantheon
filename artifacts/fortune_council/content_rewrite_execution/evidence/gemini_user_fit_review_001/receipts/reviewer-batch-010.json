@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-MERCURY-01",
+    "CHART-ZIWEI-04",
+    "THEME-CAREER-06",
+    "THEME-LIFE-06",
+    "THEME-WEALTH-06"
+  ],
+  "batch": 10,
+  "job_id": "3fb1821720ce96882ce491ccc3d35179c8577c6c",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "b6481c2f45ac2cdeabe3e9a18dcf224d19add15c5b1d20aa02d85dd0a2418210",
+  "request_sha256": "3fb1821720ce96882ce491ccc3d35179c8577c6c8f80a3dd914f5d45045627db",
+  "response_sha256": "a14eb847f2be534c1dc5bb5e11b1dad184a47f6344f96fcd74e98a2dfc657f45",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

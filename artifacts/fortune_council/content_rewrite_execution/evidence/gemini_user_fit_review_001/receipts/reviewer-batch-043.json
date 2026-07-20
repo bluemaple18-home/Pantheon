@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-64-ENTJ-AC",
+    "TAROT-WANDS-08",
+    "ASTRO-EXPANSION-50D-0039",
+    "EXPANSION-50D-FORTUNE-0039",
+    "MBTI-64-ENTJ-OH"
+  ],
+  "batch": 43,
+  "job_id": "765adf02000497913daecc13f6c7c6d25932fb4a",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "92ab25ecb84c922e69cd2af8e2e73a1d58795edb83dd0b7210fa989c85bf8755",
+  "request_sha256": "765adf02000497913daecc13f6c7c6d25932fb4a1ff4f046f16aacca767b59b9",
+  "response_sha256": "65a5128bd61879b264028d79fc379789b5491d9a8c561256ca6984c70b54dbf7",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

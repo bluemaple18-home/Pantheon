@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-BRANCH-INTJ-OH",
+    "TAROT-M19",
+    "ASTRO-ASPECT-CONJUNCTION-01",
+    "CHART-BAZI-03",
+    "MBTI-BRANCH-INTJ-OC"
+  ],
+  "batch": 31,
+  "job_id": "488369393fbc4e4f2c3581f7f3a6c3cf4a482284",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "41e6130caa5cde87705df74c27432ec940b7e90abdb2524519ea2782bea7dfa4",
+  "request_sha256": "488369393fbc4e4f2c3581f7f3a6c3cf4a4822843c44c1f77640c16e2bbc0b2b",
+  "response_sha256": "2dc12b8c34f1cee69deda471041d6ec2fd4ac17a1a2d13e8525f2553297114df",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

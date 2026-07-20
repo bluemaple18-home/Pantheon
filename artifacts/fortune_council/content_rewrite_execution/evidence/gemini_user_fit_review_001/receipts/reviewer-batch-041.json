@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-EXPANSION-50D-0036",
+    "EXPANSION-50D-FORTUNE-0036",
+    "MBTI-BRANCH-ENFP-OC",
+    "TAROT-WANDS-06",
+    "ASTRO-EXPANSION-50D-0037"
+  ],
+  "batch": 41,
+  "job_id": "c107186ccab203ed734e67c4ac7b32de90195bb8",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "7b875e9e91630f639ea0bcfbf3ae8d58c3253f2d5976ae9ee8be45cccf60d7bd",
+  "request_sha256": "c107186ccab203ed734e67c4ac7b32de90195bb87c0ef50277ae405e11da829e",
+  "response_sha256": "d2e67bec072cf5a72cdf6f115866b92cf8f4ec5ff6c3069c6792802d273e34b8",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

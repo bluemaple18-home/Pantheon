@@ -1,0 +1,36 @@
+{
+  "article_ids": [
+    "TAROT-CUPS-01",
+    "ASC-TAURUS",
+    "MBTI-64-ISFJ-AC",
+    "TAROT-CUPS-03",
+    "ASC-GEMINI"
+  ],
+  "batch": 36,
+  "job_id": "300e16f7a7c807184917ab10181046949fda39e5",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "b88930e100effc9e51b1fcab53836cfe1a6709ef94c9ebbf1b5dccb34a785b99",
+  "request_sha256": "300e16f7a7c807184917ab10181046949fda39e50d873410d7247835aea22147",
+  "response_sha256": "181b061b9a326d3f0448bb251af2a9ffc0e7e32acaefb61ed51dfa2e99cc785f",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [
+    "paragraph_len_1_1_1",
+    "paragraph_len_1_1_2",
+    "paragraph_len_1_2_1",
+    "paragraph_len_1_4_1",
+    "paragraph_len_2_1_1",
+    "paragraph_len_2_3_1",
+    "paragraph_len_2_3_2",
+    "paragraph_len_3_1_1",
+    "paragraph_len_3_3_1",
+    "paragraph_len_3_4_1",
+    "paragraph_len_5_3_2",
+    "paragraph_len_5_4_1",
+    "paragraph_len_5_4_3",
+    "paragraph_len_5_5_1"
+  ],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

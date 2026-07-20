@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-EXPANSION-50E-0083",
+    "ASTRO-EXPANSION-50E-0084",
+    "ASTRO-EXPANSION-50E-0085",
+    "ASTRO-EXPANSION-50E-0086",
+    "ASTRO-EXPANSION-50E-0087"
+  ],
+  "batch": 65,
+  "job_id": "d3d2068adbe3e03db99e3696b75081f231942368",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "c630539b5157f24930134ef6c5622bbc6ef82b72fca29819fe8287d6edbbecd2",
+  "request_sha256": "d3d2068adbe3e03db99e3696b75081f231942368037c97bbe96398fd082cd170",
+  "response_sha256": "fed45e3b0bd4f06970d490f7d1bef0832b7e7ff5ed168bd3c577526875562c67",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

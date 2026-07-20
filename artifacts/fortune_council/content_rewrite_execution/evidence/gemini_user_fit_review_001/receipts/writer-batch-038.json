@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "ASC-VIRGO",
+    "MBTI-64-ENFJ-AC",
+    "TAROT-CUPS-07",
+    "ASC-LIBRA",
+    "MBTI-64-ENFJ-OH"
+  ],
+  "batch": 38,
+  "job_id": "cb4afa55781c9565d33bc0829eee63558f48a9e7",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "29e09233ee9673e1f790044d573dcb25b84e7fd4181ba905226eea715cf5bfca",
+  "request_sha256": "cb4afa55781c9565d33bc0829eee63558f48a9e79702178bca57ae4c3d35ed23",
+  "response_sha256": "8edf10b226c104209d6ae9cbbe3a57c9b6cef5ebda9ce74da545f09ea62c7ba4",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

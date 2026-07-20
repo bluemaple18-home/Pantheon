@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-PENTACLES-05",
+    "ASTRO-EXPANSION-50D-0030",
+    "EXPANSION-50D-FORTUNE-0030",
+    "MBTI-BRANCH-INFJ-AC",
+    "TAROT-SWORDS-09"
+  ],
+  "batch": 36,
+  "job_id": "23dbcaf5db5625c2e3530095e144adf2ca393145",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "a9da42d088f56dd7a4397c50a0a5869be0b0a23424ff40d50799fa2675cb8648",
+  "request_sha256": "23dbcaf5db5625c2e3530095e144adf2ca3931455c4e111f070149fbe734cf69",
+  "response_sha256": "8cb470df8faeeeec926efae5b225938452b87843c15547ba476350e18e087251",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

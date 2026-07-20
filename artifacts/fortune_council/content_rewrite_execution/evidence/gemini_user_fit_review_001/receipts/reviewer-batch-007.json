@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-LIFE-04",
+    "THEME-WEALTH-04",
+    "MBTI-BASE-04",
+    "THEME-INTERPERSONAL-04",
+    "TAROT-M01"
+  ],
+  "batch": 7,
+  "job_id": "47474611bc29cc5967c013c3e781e63da68121c3",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "bde88c78adb2c075b21c51d01132df9d0c9f4eef7245b89d6ddfed4171e15911",
+  "request_sha256": "47474611bc29cc5967c013c3e781e63da68121c3d88187ec0656628ee4f51c62",
+  "response_sha256": "af3ef3403e425fb128d515f9dd7ba0438d00881f9a7715f3e7a2d1ac1a64c5ab",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

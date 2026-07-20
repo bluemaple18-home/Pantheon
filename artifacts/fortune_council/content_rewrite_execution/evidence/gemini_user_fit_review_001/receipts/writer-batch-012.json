@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-LOVE-08",
+    "ASTRO-SATURN-01",
+    "THEME-CAREER-09",
+    "THEME-LIFE-09",
+    "THEME-WEALTH-09"
+  ],
+  "batch": 12,
+  "job_id": "7e6e16ea3943bd29e48c4f9acdf52fbf6a72dedf",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "08e02e6b1f3cc92123bd25d44d20b0b32bc72a8120c25fea1211f63437d554e3",
+  "request_sha256": "7e6e16ea3943bd29e48c4f9acdf52fbf6a72dedfa88ff36df72faf8b52759965",
+  "response_sha256": "3548858c0657a9141ab745ae8e51998fabc9daa63cb45e14996ef2f215b5167f",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

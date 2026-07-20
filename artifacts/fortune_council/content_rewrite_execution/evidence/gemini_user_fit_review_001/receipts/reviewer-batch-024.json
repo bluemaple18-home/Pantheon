@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-M05",
+    "ASTRO-SUN-LEO-01",
+    "CHART-ZIWEI-STAR-01",
+    "MBTI-TYPE-ISFP",
+    "TAROT-M07"
+  ],
+  "batch": 24,
+  "job_id": "7df6e41af26fc6e7cf07b4e7cdbd4735cedb03bd",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "8fe887ff27532d7e239ff97600a2fe9d88a6d03e9eb394a790f340aef9ad78fc",
+  "request_sha256": "7df6e41af26fc6e7cf07b4e7cdbd4735cedb03bd15cd0cfb5e7c113400dd9eac",
+  "response_sha256": "2eb656e82c11a1dc5c93541d6ad363652622330962bc5582e5e11a8474a7f3c6",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

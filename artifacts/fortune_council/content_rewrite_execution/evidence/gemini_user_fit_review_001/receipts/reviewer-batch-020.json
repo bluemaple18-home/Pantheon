@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-TYPE-ISFJ",
+    "THEME-INTERPERSONAL-11",
+    "TAROT-M14",
+    "THEME-LOVE-11",
+    "ASTRO-SUN-TAURUS-01"
+  ],
+  "batch": 20,
+  "job_id": "de36cf3e1219a5f1ddc4733ab2a30ddfed4f8cc7",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "dc5b9894b8169476469fe334f83ddbfb21e687029640d85bcf7e5dfc51fc17f1",
+  "request_sha256": "de36cf3e1219a5f1ddc4733ab2a30ddfed4f8cc7f2f5d72e15c27ce085e955a7",
+  "response_sha256": "2ea5fd2046d9534a33892e996f3c75767cd2fa4a676c0dba20289e8ecf0726f6",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

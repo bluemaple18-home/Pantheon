@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-TYPE-ESFJ",
+    "TAROT-M10",
+    "ASTRO-SUN-SAGITTARIUS-01",
+    "CHART-ZIWEI-STAR-05",
+    "MBTI-TYPE-ESTP"
+  ],
+  "batch": 27,
+  "job_id": "e9a31930f724c4b1d92406778d941e09b033a8e1",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "686b44a1f60e765362015d9cb391f455076d62f16a95a149dc25e609b6d0f525",
+  "request_sha256": "e9a31930f724c4b1d92406778d941e09b033a8e15dcd77febd600b906b8e6b2d",
+  "response_sha256": "5d105411ec64545c3963604ba8c63dc58294fb476cad4ca787ad738f62b59673",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "VENUS-VIRGO",
+    "TAROT-SWORDS-06",
+    "VENUS-GEMINI",
+    "TAROT-SWORDS-08",
+    "VENUS-CANCER"
+  ],
+  "batch": 57,
+  "job_id": "0ca13c09eeb9f914beefde0bdb96798487b8eaf8",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "831a357ab5b04500e40d08603c6c11c8b0d7d59550b18cdc7b60fc539ba5810a",
+  "request_sha256": "0ca13c09eeb9f914beefde0bdb96798487b8eaf819abe0876c3e5fefe2b233b7",
+  "response_sha256": "cef38867521920ef8982f757d4197a9a4d2ae878bb863ce51b45f2d3e97ff070",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

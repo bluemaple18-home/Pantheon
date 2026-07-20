@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "CHART-ZIWEI-STAR-01",
+    "TAROT-M07",
+    "ASTRO-SUN-VIRGO-01",
+    "CHART-ZIWEI-STAR-02",
+    "TAROT-M08"
+  ],
+  "batch": 18,
+  "job_id": "4f4f793e6dab5d8ed1155a76c95c70cd9e152eb3",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "98989fb8eafef0c8772896a24bd4c4b486d4de42859a64c077840c97dd7363ea",
+  "request_sha256": "4f4f793e6dab5d8ed1155a76c95c70cd9e152eb3ce9ce02e7db6037ce1917eee",
+  "response_sha256": "be523d13bbaff213b7a3bef67fb89888b0166757d201b06224692b9ad49bfc4f",
+  "retry_round": 0,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

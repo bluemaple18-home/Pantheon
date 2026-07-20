@@ -1,0 +1,21 @@
+{
+  "article_ids": [
+    "THEME-WEALTH-03",
+    "MBTI-BASE-03",
+    "THEME-LOVE-03",
+    "ASTRO-LOVE-01",
+    "CHART-ZIWEI-02"
+  ],
+  "batch": 5,
+  "job_id": "84042fd6bff182a7ebd6c451db7e1d14f7212424",
+  "model": "gemini-3.5-flash",
+  "prompt_sha256": "7bda85c4cdfaccc6b18304d763fc47efb98810bd1708a10258000fe8d610bc7e",
+  "request_sha256": "84042fd6bff182a7ebd6c451db7e1d14f7212424e9b3b6dd4fe4439be6ff2202",
+  "response_sha256": "82ae01f2e862e8a6a7b901b0d75e1d3a173651956ace306fb8e7be956e14ee9e",
+  "retry_round": 1,
+  "role": "writer",
+  "schema_basic_findings": [],
+  "schema_basic_ok": true,
+  "schema_sha256": "c18be231bfcebdd1ad29bd70c8399cdfbcd2a1809e63a2cac225c2e59d7b545a",
+  "status": "success"
+}

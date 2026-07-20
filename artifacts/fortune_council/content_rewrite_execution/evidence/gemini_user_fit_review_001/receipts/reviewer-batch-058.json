@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "TAROT-SWORDS-10",
+    "ASTRO-EXPANSION-50E-0065",
+    "TAROT-SWORDS-PAGE",
+    "ASTRO-EXPANSION-50E-0066",
+    "TAROT-SWORDS-KNIGHT"
+  ],
+  "batch": 58,
+  "job_id": "4a43515bbb57ee3b5908b4a1de7b71652493b4ef",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "a12ce11b9d5daf18caaff21fc744ba611a318a684dd33adc33fc7cdb0457d0b8",
+  "request_sha256": "4a43515bbb57ee3b5908b4a1de7b71652493b4ef4d09b327014f7ec3b024424f",
+  "response_sha256": "896f733e51ea0a547d0f81dda4a48e18729cba0ff902825543bcc8783cac8bdd",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "MBTI-INTP-OC",
+    "TAROT-CUPS-QUEEN",
+    "VENUS-ARIES",
+    "TAROT-CUPS-KING",
+    "VENUS-TAURUS"
+  ],
+  "batch": 55,
+  "job_id": "f4cac4f9cf7b145dc37ec52dec684f083bf93a66",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "c5eb654fdf3e484956ba6001f83a36e1c085a57224e312ec40a41af9c8c5f592",
+  "request_sha256": "f4cac4f9cf7b145dc37ec52dec684f083bf93a66478c52e5d9e8859ae25a4b05",
+  "response_sha256": "db58edf6d6c8eb7546ddb2781f41fb30def8ccdd0ffa2a13e98104a178f99601",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

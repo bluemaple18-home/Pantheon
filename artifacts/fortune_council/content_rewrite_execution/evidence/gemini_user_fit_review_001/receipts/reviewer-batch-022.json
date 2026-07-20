@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "THEME-INTERPERSONAL-12",
+    "TAROT-M03",
+    "THEME-LOVE-12",
+    "ASTRO-SUN-GEMINI-01",
+    "CHART-ZIWEI-11"
+  ],
+  "batch": 22,
+  "job_id": "deb79fee9b7e99ffd76cead0b41b22eacf730aac",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "4259513767291dd46f34ab84094327c977656875cc79d105a6000c7bf60881cd",
+  "request_sha256": "deb79fee9b7e99ffd76cead0b41b22eacf730aacb050044c9909826ad4cef97e",
+  "response_sha256": "0dfaf481ee7777379bd2d13dd4cee1d5cfde15663a34bf1e3c1831fc371b793d",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}

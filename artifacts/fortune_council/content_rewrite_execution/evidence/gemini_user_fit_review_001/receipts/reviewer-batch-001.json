@@ -1,0 +1,19 @@
+{
+  "article_ids": [
+    "ASTRO-BASE-01",
+    "CHART-BASE-01",
+    "THEME-CAREER-01",
+    "THEME-LIFE-01",
+    "THEME-WEALTH-01"
+  ],
+  "batch": 1,
+  "job_id": "c7c6f7649e7a3b876b005c49f59c59b6251379fe",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_sha256": "1aa0ab4a9a52d546e9d3b4c1016259b12f8a61c42a167cae9ee0c72eaee1226b",
+  "request_sha256": "c7c6f7649e7a3b876b005c49f59c59b6251379feb17f5601394b8c1c92566182",
+  "response_sha256": "b5577fc7ed7e60a252f7b124acda938c71b5ec44b8881e10eb2e625ad0214a00",
+  "retry_round": 0,
+  "role": "reviewer",
+  "schema_sha256": "017241fa6c4dae84f641eba6fde30b6ee6a3cbf1bdf8b1fcc004641466fdbebb",
+  "status": "success"
+}
