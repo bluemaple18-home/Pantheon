@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+python_bin="$repo_root/.venv/bin/python"
+
+if [ ! -x "$python_bin" ]; then
+  echo "release record gate: FAIL: 缺少 .venv/bin/python，請先用 uv 建立專案環境。" >&2
+  exit 1
+fi
+
+"$python_bin" "$repo_root/scripts/check_release_record.py" --pre-push

@@ -165,6 +165,28 @@ git diff --check
 
 ## 8. Commit 與 Push
 
+### 8.1 文章發布版本與記錄
+
+凡 push 範圍包含文章來源或預渲染文章頁，必須在同一個 release commit 完成：
+
+1. 同步提升 `pyproject.toml` 與 `package.json` 的 SemVer 版本。
+2. 在 `CHANGELOG.md` 最上方新增同版本記錄，至少包含日期、release tag、公開文章總數、發布範圍、驗證與證據路徑。
+3. 建立指向 release commit 的 annotated tag：`v<version>`。
+4. 執行 release gate，並在同一次 push 推送 `main` 與 tag。
+
+```bash
+.venv/bin/python scripts/check_release_record.py --base-ref origin/main --require-head-tag
+git push origin main v<version>
+```
+
+啟用 repository hook 後，文章 push 若缺少升版、記錄、annotated tag，或 tag 未與 `main` 同次推送，pre-push 會拒絕操作：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+一般文件或不涉及文章內容的修正不強制升版。
+
 提交前檢查：
 
 ```bash
@@ -179,7 +201,7 @@ git add <file>
 git commit -m "<短句說明>"
 ```
 
-正式部署推送：
+正式部署推送；非文章發布可只推 `main`：
 
 ```bash
 git push origin main

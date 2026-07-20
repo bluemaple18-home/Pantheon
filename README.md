@@ -25,6 +25,12 @@ uv run pytest
 
 - `docs/pantheon_deployment_workflow.md`
 
+版本與正式文章發布記錄統一見 `CHANGELOG.md`。文章發布前可執行：
+
+```bash
+.venv/bin/python scripts/check_release_record.py --base-ref origin/main --require-head-tag
+```
+
 ## API
 
 `POST /api/v1/predict`
