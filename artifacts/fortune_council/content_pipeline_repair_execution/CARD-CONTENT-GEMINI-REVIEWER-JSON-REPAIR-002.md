@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 chain_id: CONTENT-GEMINI-CONTRACT-REPAIR-001
-status: CARD_DRAFTED
+status: BLOCKED_PROVISIONING_CONTROL_PLANE
 repair_generation: 2
 thickness: strict
 risk: high
@@ -34,6 +34,8 @@ evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evide
 source_kind: commit
 source_sha: fa64029acae36f6559b576112b8932238ff16dad
 source_branch: codex/gemini-contract-repair-candidate
+provisioning_source_branch: codex/gemini-reviewer-json-repair-source
+provisioning_source_sha: 6707f072af2810b79b643e9c5a333216e1b23922
 source_clean: true
 main_cwd: <repo-root>
 worktree_path: PENDING
@@ -42,7 +44,7 @@ worktree_exists: false
 index_lock: absent
 unrelated_dirty_paths: []
 thread_id: PENDING
-thread_status: CARD_DRAFTED
+thread_status: BLOCKED_PROVISIONING_CONTROL_PLANE
 previous_card_id: CARD-CONTENT-GEMINI-CONTRACT-REPAIR-001
 previous_thread_id: 019f7fb1-60b5-7183-bd55-99eaeb503107
 previous_worktree_path: <codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon
@@ -112,8 +114,8 @@ previous_candidate_sha: fa64029acae36f6559b576112b8932238ff16dad
 
 ## Gate 1–5
 
-- Gate 1：實體卡、candidate base、scope、模型與驗證契約已定義；需提交後才通過。
-- Gate 2：正式 thread、獨立 worktree、rollout／registry／sidebar 與精確 source SHA 尚待驗證。
+- Gate 1：實體卡已在 main commit `09e101f` 建立；candidate-based provisioning source branch 為 `codex/gemini-reviewer-json-repair-source`，commit `6707f072af2810b79b643e9c5a333216e1b23922`，來源乾淨且卡片可讀。
+- Gate 2：`list_projects` 控制面逾時；未呼叫 `create_thread`，沒有 `clientThreadId` 或正式 `thread_id`，因此標記 `BLOCKED_PROVISIONING_CONTROL_PLANE`。禁止宣稱已建立、排隊或執行中。
 - Gate 3：需 completed turn、final output 與完整 candidate SHA。
 - Gate 4：candidate 後由獨立 Reviewer thread 固定 reviewed commit 判定 GO／NO-GO。
 - Gate 5：主線重跑驗證並核對 allowlist 後才可接受；未授權 merge、push、deploy 或 publish。
