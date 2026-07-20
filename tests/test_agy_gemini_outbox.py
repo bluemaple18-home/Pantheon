@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import plistlib
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,6 +24,33 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+
+
+def test_runner_module_entrypoint_and_launchd_template_are_runnable(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agy_gemini_runner",
+            "--queue-root",
+            str(tmp_path),
+            "process-once",
+        ],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    plist = plistlib.loads(
+        (repo_root / "ops/launchd/com.pantheon.agy-gemini-runner.plist.example").read_bytes()
+    )
+    arguments = plist["ProgramArguments"]
+
+    assert completed.returncode == 0
+    assert json.loads(completed.stdout) == {"status": "idle"}
+    assert arguments[1:3] == ["-m", "scripts.agy_gemini_runner"]
+    assert not any(argument.endswith("agy_gemini_runner.py") for argument in arguments)
 
 
 def test_outbox_request_is_sanitized_hashed_and_idempotent(tmp_path: Path) -> None:

@@ -52,7 +52,7 @@ Runner 只讀 `.work/gemini-runner/outbox/`，完成後：
 以下指令只說明介面；是否執行外部 runner 由使用者自行決定。
 
 ```bash
-<repo-root>/.venv/bin/python scripts/agy_gemini_outbox.py tick \
+<repo-root>/.venv/bin/python -m scripts.agy_gemini_outbox tick \
   .work/gsc-copy/<run-id> \
   --queue-root .work/gemini-runner
 ```
@@ -60,7 +60,7 @@ Runner 只讀 `.work/gemini-runner/outbox/`，完成後：
 第一次 tick 會建立 Writer job，並以 exit code `75` 表示等待外部結果。使用者啟用的 runner 可處理一筆：
 
 ```bash
-<repo-root>/.venv/bin/python scripts/agy_gemini_runner.py \
+<repo-root>/.venv/bin/python -m scripts.agy_gemini_runner \
   --queue-root .work/gemini-runner \
   process-once
 ```
