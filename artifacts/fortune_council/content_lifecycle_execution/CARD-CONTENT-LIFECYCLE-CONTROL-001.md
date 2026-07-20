@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-LIFECYCLE-CONTROL-001
-status: CARD_DRAFTED
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -24,16 +24,16 @@ verification:
   - 現有三線 artifact fixture 相容性
   - plan-only、fail-closed、git diff --check 與 allowlist
 evidence_path: artifacts/fortune_council/content_lifecycle_execution/evidence/content_lifecycle_control_001/
-worktree_path: pending_platform_provisioning
-cwd: pending_platform_provisioning
+worktree_path: <codex-worktree>/7c68/Pantheon
+cwd: <codex-worktree>/7c68/Pantheon
 main_cwd: <repo-root>
-worktree_exists: false
+worktree_exists: true
 source_branch: main
-source_sha: a39e7296710904949c1405d1d12226dcea5d922f
+source_sha: 95e712ee0862c4cc6b5499889c08615a91b9f8e8
 source_clean: true
 index_lock: absent
-thread_id: pending
-thread_status: CARD_DRAFTED
+thread_id: 019f7f35-4083-7643-a1c3-cbb960beb2ca
+thread_status: RUNNING
 ---
 
 # CARD-CONTENT-LIFECYCLE-CONTROL-001｜三線內容生命週期總控
@@ -169,5 +169,6 @@ reconcile --new <manifest> --legacy <manifest> --gsc <brief-or-manifest>
 
 ## Gate 狀態
 
-- Gate 1：實體卡已建立，等待正式 thread 與獨立 worktree receipt。
-- Gate 2–5：尚未開始，禁止預填通過。
+- Gate 1：實體卡已建立並提交於來源 commit `95e712ee0862c4cc6b5499889c08615a91b9f8e8`。
+- Gate 2：正式 thread `019f7f35-4083-7643-a1c3-cbb960beb2ca` 可查，標題為「三線內容生命週期總控」，cwd 為獨立 worktree `<codex-worktree>/7c68/Pantheon`，首回合狀態 `inProgress`。
+- Gate 3–5：尚未開始，禁止預填通過。
