@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-GEMINI-SCALE-PUBLISH-001
-status: CARD_DRAFTED
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -21,16 +21,16 @@ verification:
   - schema、內容品質、uniqueness、文章 identity 與 allowlist
   - 受影響 pytest、生成器 dry-run、git diff --check、候選頁瀏覽器驗收
 evidence_path: artifacts/fortune_council/content_seo_execution/evidence/gemini_scale_publish_001/
-worktree_path: pending_platform_provisioning
-cwd: pending_platform_provisioning
+worktree_path: <codex-worktree>/d962/Pantheon
+cwd: <codex-worktree>/d962/Pantheon
 main_cwd: <repo-root>
-worktree_exists: false
+worktree_exists: true
 source_branch: main
-source_sha: ddcb4efb7da1f91714bbbdfa0875672af37b209e
+source_sha: c0b3db7b099f97eda5392ff7681497b9388b5806
 source_clean: true
 index_lock: absent
-thread_id: pending
-thread_status: CARD_DRAFTED
+thread_id: 019f7eff-96d2-76e1-89cb-b74065208984
+thread_status: RUNNING
 ---
 
 # CARD-CONTENT-GEMINI-SCALE-PUBLISH-001｜既有內容矩陣大量產文
@@ -98,5 +98,6 @@ thread_status: CARD_DRAFTED
 
 ## Gate 狀態
 
-- Gate 1：實體卡已建立，等待正式 thread 與獨立 worktree receipt。
-- Gate 2–5：尚未開始，禁止預填通過。
+- Gate 1：實體卡已建立並提交於來源 commit `c0b3db7b099f97eda5392ff7681497b9388b5806`。
+- Gate 2：正式 thread `019f7eff-96d2-76e1-89cb-b74065208984` 可查，標題為「Gemini 大量產文與上線候選」，cwd 為獨立 worktree `<codex-worktree>/d962/Pantheon`，首回合狀態 `inProgress`；任務已回報卡片可讀且 worktree clean。
+- Gate 3–5：尚未開始，禁止預填通過。

@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-GEMINI-USER-FIT-REVIEW-001
-status: CARD_DRAFTED
+status: RUNNING
 thickness: standard
 risk: medium
 model: gpt-5.5
@@ -22,16 +22,16 @@ verification:
   - deterministic quality、uniqueness 與 metadata invariants
   - 受影響 pytest、git diff --check、代表頁瀏覽器驗收
 evidence_path: artifacts/fortune_council/content_rewrite_execution/evidence/gemini_user_fit_review_001/
-worktree_path: pending_platform_provisioning
-cwd: pending_platform_provisioning
+worktree_path: <codex-worktree>/a646/Pantheon
+cwd: <codex-worktree>/a646/Pantheon
 main_cwd: <repo-root>
-worktree_exists: false
+worktree_exists: true
 source_branch: main
-source_sha: ddcb4efb7da1f91714bbbdfa0875672af37b209e
+source_sha: c0b3db7b099f97eda5392ff7681497b9388b5806
 source_clean: true
 index_lock: absent
-thread_id: pending
-thread_status: CARD_DRAFTED
+thread_id: 019f7eff-96d2-76e1-89cb-b7664260765a
+thread_status: RUNNING
 ---
 
 # CARD-CONTENT-GEMINI-USER-FIT-REVIEW-001｜舊文口語化與使用者需求回顧
@@ -93,5 +93,6 @@ thread_status: CARD_DRAFTED
 
 ## Gate 狀態
 
-- Gate 1：實體卡已建立，等待正式 thread 與獨立 worktree receipt。
-- Gate 2–5：尚未開始，禁止預填通過。
+- Gate 1：實體卡已建立並提交於來源 commit `c0b3db7b099f97eda5392ff7681497b9388b5806`。
+- Gate 2：正式 thread `019f7eff-96d2-76e1-89cb-b7664260765a` 可查，標題為「舊文 Gemini 口語化與使用者需求回顧」，cwd 為獨立 worktree `<codex-worktree>/a646/Pantheon`，首回合狀態 `inProgress`；任務已回報卡片可讀且 worktree clean。
+- Gate 3–5：尚未開始，禁止預填通過。
