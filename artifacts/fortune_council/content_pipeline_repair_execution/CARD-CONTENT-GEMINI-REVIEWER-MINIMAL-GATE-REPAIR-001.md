@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: RUNNING
+status: DELIVERED_CANDIDATE
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -41,9 +41,13 @@ cwd: <codex-worktree>/1264/Pantheon
 worktree_exists: true
 thread_id: 019f833f-bbde-7763-92f6-a2610fd28218
 thread_title: 修復 Gemini reviewer gate corpus
-thread_status: RUNNING
+thread_status: DELIVERED_CANDIDATE
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T13-57-00-019f833f-bbde-7763-92f6-a2610fd28218.jsonl
+candidate_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
+candidate_parent_sha: c5b33832d2c7ccb323e43fed09f502c6a3494a2d
+corpus_external_cli_processes: 12
+corpus_decision: DELIVERED_CORPUS
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001｜隔離 single-hard-reject 測資語意
