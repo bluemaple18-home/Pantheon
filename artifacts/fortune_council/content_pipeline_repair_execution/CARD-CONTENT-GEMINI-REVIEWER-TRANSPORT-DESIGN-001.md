@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: REPAIR_READY
+status: INTEGRATED
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -37,15 +37,18 @@ worktree_path: <codex-worktree>/87fe/Pantheon
 cwd: <codex-worktree>/87fe/Pantheon
 worktree_exists: true
 thread_id: 019f824b-949e-71d3-be96-1e830bdeba51
-thread_status: RUNNING
+thread_status: COMPLETED
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-30-19-019f824b-949e-71d3-be96-1e830bdeba51.jsonl
 candidate_sha: d15df4b1e892f3b9854f42dc067d89af7ee37cd3
 candidate_parent_sha: 7afe5f792af1c87cd983af2f1be6dafb634650e1
 design_verdict: GO_GEMINI_CLI_MACHINE_GATE
-review_status: REVIEW_NO_GO
+review_status: REVIEW_GO
 review_evidence_sha: c870209198c5f538b23ce82714dc560193e553a2
-repair_status: RUNNING
+repair_status: INTEGRATED
+accepted_candidate_sha: 5018589dd014e4c3edf5c6a3d736d912957ec400
+re_review_evidence_sha: c8e253f039ec1bda7c854c2eae7ff1d25d3373de
+integrated_commit_sha: 4e2a9258a1e762935e01d495bf5f2b48cefee05d
 previous_card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 previous_thread_id: 019f8224-7f16-7461-9b00-16793ecd9c80
 previous_worktree_path: <codex-worktree>/ec5e2828-70a0-4fe5-a08c-c99bb5c433d5/Pantheon

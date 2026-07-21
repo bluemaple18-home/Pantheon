@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REPAIR-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: READY_FOR_REVIEW
+status: INTEGRATED
 repair_generation: 1
 thickness: strict
 risk: high
@@ -38,12 +38,13 @@ worktree_path: <codex-worktree>/691a/Pantheon
 cwd: <codex-worktree>/691a/Pantheon
 worktree_exists: true
 thread_id: 019f8262-09d5-7ec3-9438-b1841777990a
-thread_status: RUNNING
+thread_status: COMPLETED
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-54-50-019f8262-09d5-7ec3-9438-b1841777990a.jsonl
 candidate_sha: 5018589dd014e4c3edf5c6a3d736d912957ec400
 candidate_parent_sha: 05adf93b4843d3b4c0149e1c24e0e59d335a7bae
-re_review_status: RUNNING
+re_review_status: REVIEW_GO
+integrated_commit_sha: 4e2a9258a1e762935e01d495bf5f2b48cefee05d
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REPAIR-001｜修復 strict mapper 契約
