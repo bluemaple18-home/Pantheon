@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: RUNNING
+status: BLOCKED_CANDIDATE
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -44,9 +44,13 @@ worktree_path: <codex-worktree>/b3ff/Pantheon
 cwd: <codex-worktree>/b3ff/Pantheon
 worktree_exists: true
 thread_id: 019f8277-3cc6-7052-ae02-1092e4a775d1
-thread_status: RUNNING
+thread_status: DELIVERED_BLOCKED
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T10-18-00-019f8277-3cc6-7052-ae02-1092e4a775d1.jsonl
+candidate_sha: c5b33832d2c7ccb323e43fed09f502c6a3494a2d
+corpus_external_cli_processes: 12
+corpus_decision: BLOCKED
+blocker: single-hard-reject 測資同時觸發 GUARANTEE_CLAIM 與 UNSAFE_INSTRUCTION，與固定單一 expected code 衝突
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001｜production minimal Reviewer gate
