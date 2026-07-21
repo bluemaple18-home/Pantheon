@@ -39,6 +39,8 @@ thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-46-16-019f825a-306e-7e52-956c-52f294e99c26.jsonl
 verdict: NO_GO
 review_evidence_sha: c870209198c5f538b23ce82714dc560193e553a2
+re_review_candidate_sha: 5018589dd014e4c3edf5c6a3d736d912957ec400
+re_review_status: RUNNING
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REVIEW-001｜獨立固定候選審查

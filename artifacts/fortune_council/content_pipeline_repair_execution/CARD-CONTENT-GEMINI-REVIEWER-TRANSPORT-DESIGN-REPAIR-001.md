@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REPAIR-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: RUNNING
+status: READY_FOR_REVIEW
 repair_generation: 1
 thickness: strict
 risk: high
@@ -41,6 +41,9 @@ thread_id: 019f8262-09d5-7ec3-9438-b1841777990a
 thread_status: RUNNING
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-54-50-019f8262-09d5-7ec3-9438-b1841777990a.jsonl
+candidate_sha: 5018589dd014e4c3edf5c6a3d736d912957ec400
+candidate_parent_sha: 05adf93b4843d3b4c0149e1c24e0e59d335a7bae
+re_review_status: RUNNING
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REPAIR-001｜修復 strict mapper 契約
