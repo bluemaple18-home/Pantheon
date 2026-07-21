@@ -1,0 +1,43 @@
+Transport V2 Repair 2 independent re-review verification
+
+fixed candidate
+- HEAD: fe62f1679bf248b0c55a6cea566315dca15a2e07
+- parent: a689771286982943e2314ac831ba6c346d9de08c
+- independent detached worktree; clean before evidence creation; index.lock absent
+
+original immutable re-review probes
+- P2-01: BLOCKED_AS_EXPECTED, ValueError
+- P1-02: BLOCKED_AS_EXPECTED, ValueError
+- P1-01 original two-attempt case: BLOCKED_AS_EXPECTED, ValueError
+- P1-03: BLOCKED_AS_EXPECTED, obsolete count assertion failed
+
+new multi-retry adversarial probe
+command: <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_repair_002_re_review_001/adversarial_probes.py
+result: REPRO P1-01 latest mismatched runtime-retry pair was skipped before client call
+- base attempt-01 pair is valid and failed
+- runtime-retry-01 / attempt-02 gate is deliberately bound to ITEM-B instead of ITEM-A
+- attempt-03 nevertheless starts one client call and creates runtime-retry-02
+
+regression suites
+- Repair1 adversarial harness: 9 passed
+- focused affected suite: 110 passed
+- full suite: 225 passed, 2 fixed Ziwei baseline failures, 1 warning
+  - tests/test_api.py::test_predict_route_returns_charts_and_ai
+  - tests/test_calculators.py::test_ziwei_returns_palace_payload
+
+stored corpus offline replay
+- decision: DELIVERED_CORPUS
+- APPROVE 3/3 and REJECT 3/3
+- external_cli_process_invocations: 6 existing stored receipts
+- provider_model_calls: unobservable/unknown
+- no external process or provider call was started by this re-review
+
+static gates
+- py_compile for four transport scripts: PASS
+- candidate changed-file allowlist: PASS
+- git diff --check: PASS
+
+decision
+- NO_GO / BLOCKED
+- open severity: P1
+- final repair generation exhausted; Repair3 forbidden
