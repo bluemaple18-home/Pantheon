@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: DRAFTED
+status: RUNNING
 thickness: standard
 risk: high
 model: gpt-5.5
@@ -31,6 +31,17 @@ source_kind: commit
 source_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
 source_clean: true
 main_cwd: <repo-root>
+source_ref: task/gemini-reviewer-minimal-gate-review-001
+client_thread_id: client-new-thread:c5839dab-9f36-41f3-845c-05939c22b52a
+provisioning_source_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
+worktree_path: <codex-worktree>/69ec/Pantheon
+cwd: <codex-worktree>/69ec/Pantheon
+worktree_exists: true
+thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
+thread_title: 執行 Gemini 最小 Gate Review
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T14-12-14-019f834d-b192-73f1-8282-c3832fbbce70.jsonl
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001｜Repair 1 固定 SHA 獨立 Review
