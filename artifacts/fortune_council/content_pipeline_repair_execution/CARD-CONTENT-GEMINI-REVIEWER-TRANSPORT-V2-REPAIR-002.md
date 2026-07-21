@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-V2-REPAIR-002
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-V2-001
-status: CARD_DRAFTED
+status: BLOCKED
 repair_generation: 2
 thickness: strict
 risk: high
@@ -36,13 +36,25 @@ verification:
   - focused/full affected tests and stored corpus tamper replay
   - py_compile, allowlist, privacy scan and git diff --check
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_repair_002/
-thread_id: PENDING
-thread_status: CARD_DRAFTED
-worktree_path: PENDING
-cwd: PENDING
+thread_id: 019f8407-571f-7361-b151-e94fc4e15aa1
+thread_status: BLOCKED_FINAL_RE_REVIEW
+worktree_path: <codex-worktree>/94f5/Pantheon
+cwd: <codex-worktree>/94f5/Pantheon
+repair_2_candidate_sha: fe62f1679bf248b0c55a6cea566315dca15a2e07
+final_re_review_evidence_sha: 11f26dbae6539fbff73038fb94dd9c622b67aae7
+final_verdict: NO_GO
+chain_status: BLOCKED
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-V2-REPAIR-002｜最後四個旁路修復
+
+## 最終狀態
+
+- Repair 2 candidate：`fe62f1679bf248b0c55a6cea566315dca15a2e07`。
+- 原 Reviewer 最終 re-review evidence：`11f26dbae6539fbff73038fb94dd9c622b67aae7`。
+- Verdict：`NO_GO / BLOCKED`。
+- 未封閉 P1：attempt-03 只驗證 base pair，未在 client call 前驗證最新 runtime-retry pair；錯綁的 attempt-02 gate 仍可先觸發一次新 process 並建立下一份 receipt。
+- Repair generation 2 已用盡；禁止 Repair 3、改名重開、整合 candidate、恢復內容線、push、deploy 或 publish。
 
 ## 五行派工卡
 
