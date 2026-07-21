@@ -1,0 +1,52 @@
+CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-V2-REVIEW-001
+
+startup gate
+- cwd: independent detached review worktree; differs from main and implementation worktrees
+- worktree: clean before review evidence creation
+- HEAD: ee850aacce97d1f87b1df6c1e2869e753e16c574
+- HEAD^: 96d3a3a17b3e97f2f5e099f1c739ad6c84e7bc0c
+- reviewed range: 22b7d44a8bdee8d64aaea6addeaa882817141bbc..96d3a3a17b3e97f2f5e099f1c739ad6c84e7bc0c
+- provisioning diff: only the Review card
+- index.lock: absent
+- implementation evidence: readable
+- stored corpus: readable
+- receipt/gate files: exactly 12 readable JSON files
+
+focused affected tests
+command: <project-venv>/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_transport_probe.py -q
+result: PASS, 98 passed in 23.83s
+
+offline adversarial probes
+command: <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_review_001/adversarial_probes.py
+result:
+- PASS invocation-local fingerprints and timeout nulls
+- REPRO cross-slot global code/message accepted for A
+- REPRO strict/schema/rubric failed item cannot resume after process_succeeded receipt
+- REPRO replay accepts malformed binding/status/event and ignores duplicate gate
+- PASS isolated replay for first/middle/last failure and failed-identity-only resume
+- PASS strict parser/schema/rubric contradiction matrix
+
+stored corpus offline replay
+command: <project-venv>/bin/python scripts/agy_gemini_transport_probe.py --verify-stored artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_implementation_001/corpus.json
+result: DELIVERED_CORPUS; exactly 6 stored invocations; REJECT 3/3; APPROVE 3/3; no retry/seventh row; provider_model_calls=unobservable/unknown
+qualification: adversarial mutation proves the current verifier can still return DELIVERED_CORPUS after candidate/status binding corruption; therefore this pass is not closure evidence.
+
+syntax
+command: <project-venv>/bin/python -m py_compile scripts/agy_seo_copy_pipeline.py scripts/agy_gemini_outbox.py scripts/agy_gemini_runner.py scripts/agy_gemini_transport_probe.py
+result: PASS
+
+fixed-range allowlist
+result: PASS; all 26 candidate files are within the implementation card allowlist.
+
+privacy and evidence integrity
+result: PASS for the implementation evidence scan; no prompt field, raw stdout/stderr field, response content, secret/token marker, PII marker, local absolute path, executable path, argv text or debug marker found. Six terminal plus six gate files are present.
+
+git diff check
+command: git diff --check 22b7d44a8bdee8d64aaea6addeaa882817141bbc..96d3a3a17b3e97f2f5e099f1c739ad6c84e7bc0c
+result: PASS
+
+full suite
+not rerun. The implementation evidence records 2 failed, 213 passed with two fixed-base Ziwei provider baseline failures; this review does not claim the full suite is green.
+
+final verdict
+NO_GO: P1 x3 and P2 x1; candidate unchanged.
