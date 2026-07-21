@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: RUNNING
+status: FULL_RANGE_NO_GO
 thickness: standard
 risk: high
 model: gpt-5.5
@@ -39,9 +39,14 @@ cwd: <codex-worktree>/69ec/Pantheon
 worktree_exists: true
 thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
 thread_title: 執行 Gemini 最小 Gate Review
-thread_status: RUNNING
+thread_status: FULL_RANGE_NO_GO
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T14-12-14-019f834d-b192-73f1-8282-c3832fbbce70.jsonl
+repair_delta_verdict: GO
+repair_delta_evidence_sha: 95d404ce8ed8edd05257e18998476cb7fb5f9ea0
+full_range_base_sha: 4e2a9258a1e762935e01d495bf5f2b48cefee05d
+full_range_verdict: FULL_RANGE_NO_GO
+full_range_evidence_sha: 472fb0c736971d1cae7a6f5979b5c27249f2aa21
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001｜Repair 1 固定 SHA 獨立 Review
