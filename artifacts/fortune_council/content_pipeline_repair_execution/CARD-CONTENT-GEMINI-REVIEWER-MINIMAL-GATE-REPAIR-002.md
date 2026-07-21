@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: RUNNING
+status: DELIVERED_CANDIDATE
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -44,9 +44,15 @@ cwd: <codex-worktree>/8ecf/Pantheon
 worktree_exists: true
 thread_id: 019f835b-faab-7042-bac3-78500f59d48e
 thread_title: 執行 Repair 2 最小閘門修復
-thread_status: RUNNING
+thread_status: DELIVERED_CANDIDATE
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T14-27-51-019f835b-faab-7042-bac3-78500f59d48e.jsonl
+repair_candidate_sha: 5e9b1c898d943ae59f24f9f87206c3f60b0a0ceb
+repair_candidate_parent_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
+red_result: 7 failed, 1 passed
+green_result: 8 passed
+focused_result: 86 passed
+full_result: 220 passed, 2 failed, 1 warning
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002｜修復 full-range Review 三個 P2

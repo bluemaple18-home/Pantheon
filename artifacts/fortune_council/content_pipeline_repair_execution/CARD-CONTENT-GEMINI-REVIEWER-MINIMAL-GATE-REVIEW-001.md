@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: FULL_RANGE_NO_GO
+status: RE_REVIEW_RUNNING
 thickness: standard
 risk: high
 model: gpt-5.5
@@ -47,6 +47,8 @@ repair_delta_evidence_sha: 95d404ce8ed8edd05257e18998476cb7fb5f9ea0
 full_range_base_sha: 4e2a9258a1e762935e01d495bf5f2b48cefee05d
 full_range_verdict: FULL_RANGE_NO_GO
 full_range_evidence_sha: 472fb0c736971d1cae7a6f5979b5c27249f2aa21
+repair_2_candidate_sha: 5e9b1c898d943ae59f24f9f87206c3f60b0a0ceb
+re_review_owner_thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001｜Repair 1 固定 SHA 獨立 Review
