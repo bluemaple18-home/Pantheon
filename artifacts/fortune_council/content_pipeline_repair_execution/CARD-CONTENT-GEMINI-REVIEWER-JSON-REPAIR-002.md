@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 chain_id: CONTENT-GEMINI-CONTRACT-REPAIR-001
-status: BLOCKED_PROVISIONING_CONTROL_PLANE
+status: QUEUED
 repair_generation: 2
 thickness: strict
 risk: high
@@ -32,10 +32,10 @@ verification:
   - focused/full pytest、git diff --check、allowlist、敏感字串與 debug marker
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_json_repair_002/
 source_kind: commit
-source_sha: fa64029acae36f6559b576112b8932238ff16dad
-source_branch: codex/gemini-contract-repair-candidate
-provisioning_source_branch: codex/gemini-reviewer-json-repair-source
-provisioning_source_sha: 6707f072af2810b79b643e9c5a333216e1b23922
+source_sha: e806ce006680530f64d0386f680561db3319e166
+source_branch: detached_candidate_commit
+provisioning_source_branch: codex/gemini-reviewer-json-repair-source-v2
+provisioning_source_sha: a9bb73cf6072a40d714d6672a416ac3176381207
 source_clean: true
 main_cwd: <repo-root>
 worktree_path: PENDING
@@ -44,11 +44,11 @@ worktree_exists: false
 index_lock: absent
 unrelated_dirty_paths: []
 thread_id: PENDING
-thread_status: BLOCKED_PROVISIONING_CONTROL_PLANE
+thread_status: QUEUED
 previous_card_id: CARD-CONTENT-GEMINI-CONTRACT-REPAIR-001
 previous_thread_id: 019f7fb1-60b5-7183-bd55-99eaeb503107
 previous_worktree_path: <codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon
-previous_candidate_sha: fa64029acae36f6559b576112b8932238ff16dad
+previous_candidate_sha: e806ce006680530f64d0386f680561db3319e166
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002｜Reviewer strict JSON 最終修復
@@ -63,8 +63,8 @@ previous_candidate_sha: fa64029acae36f6559b576112b8932238ff16dad
 
 ## 固定輸入證據
 
-- 基底 candidate：`fa64029acae36f6559b576112b8932238ff16dad`，不得從 main 或未提交 worktree 開始。
-- 前一卡 canary：Tarot `run-02` Writer strict JSON 成功並 hydrate；fresh Gemini 3.1 Pro Low Reviewer request SHA `6ef45c19d11a9ac0124a99c1444d43ee1a6befe82393aa3b6c7461e25d54124b` 回 `JSONDecodeError`。
+- 基底 candidate：`e806ce006680530f64d0386f680561db3319e166`；完整前一卡候選範圍為 `fa64029..e806ce0`，不得從 main 或未提交 worktree 開始。
+- 前一卡 r4 canary：Tarot 已 APPROVED；Personality Writer strict JSON 成功並 hydrate，但 fresh Gemini 3.1 Pro Low Reviewer request SHA `82a8984777646b729b48aa2f5dbf95a5f00515b769b4808cf77291623277bd40` 回 `JSONDecodeError`，其後兩篇未啟動。
 - 同一 CLI／Writer model 的最小與完整 sanitized Writer request 均曾成功，已排除 CLI 不存在、登入失效與 Writer schema 全面不相容。
 - 前一卡 evidence 只讀；禁止搬運 `/tmp` response、重送原 job 或沿用原 retry identity。
 
@@ -114,8 +114,8 @@ previous_candidate_sha: fa64029acae36f6559b576112b8932238ff16dad
 
 ## Gate 1–5
 
-- Gate 1：實體卡已在 main commit `09e101f` 建立；candidate-based provisioning source branch 為 `codex/gemini-reviewer-json-repair-source`，commit `6707f072af2810b79b643e9c5a333216e1b23922`，來源乾淨且卡片可讀。
-- Gate 2：`list_projects` 控制面逾時；未呼叫 `create_thread`，沒有 `clientThreadId` 或正式 `thread_id`，因此標記 `BLOCKED_PROVISIONING_CONTROL_PLANE`。禁止宣稱已建立、排隊或執行中。
+- Gate 1：實體卡已更新為 candidate `e806ce006680530f64d0386f680561db3319e166`；candidate-based provisioning source branch 為 `codex/gemini-reviewer-json-repair-source-v2`，乾淨 source commit 為 `a9bb73cf6072a40d714d6672a416ac3176381207`，卡片可讀、無 unrelated dirty paths。
+- Gate 2：正式 thread、獨立 worktree、rollout／registry／sidebar 與精確 provisioning source SHA 尚待驗證。
 - Gate 3：需 completed turn、final output 與完整 candidate SHA。
 - Gate 4：candidate 後由獨立 Reviewer thread 固定 reviewed commit 判定 GO／NO-GO。
 - Gate 5：主線重跑驗證並核對 allowlist 後才可接受；未授權 merge、push、deploy 或 publish。
