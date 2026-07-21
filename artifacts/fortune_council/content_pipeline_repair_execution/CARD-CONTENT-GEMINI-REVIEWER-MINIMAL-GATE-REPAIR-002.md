@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: DRAFTED
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -36,6 +36,17 @@ source_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
 source_clean: true
 repair_generation: 2
 main_cwd: <repo-root>
+source_ref: task/gemini-reviewer-minimal-gate-repair-002
+client_thread_id: client-new-thread:471f06e7-8205-4c3d-8e58-07f75c071dae
+provisioning_source_sha: 66c070f43c61d38df4a1f7944b277ca9dc05406e
+worktree_path: <codex-worktree>/8ecf/Pantheon
+cwd: <codex-worktree>/8ecf/Pantheon
+worktree_exists: true
+thread_id: 019f835b-faab-7042-bac3-78500f59d48e
+thread_title: 執行 Repair 2 最小閘門修復
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T14-27-51-019f835b-faab-7042-bac3-78500f59d48e.jsonl
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002｜修復 full-range Review 三個 P2
