@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: DRAFTED
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -29,10 +29,17 @@ verification:
   - git diff --check and changed-file allowlist
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_design_001/
 source_kind: commit
-source_sha: 4fcca4c08105b4ac6b145bab34e2514bd1ac9aa9
+source_sha: 7afe5f792af1c87cd983af2f1be6dafb634650e1
 source_branch: main
 source_clean: true
 main_cwd: <repo-root>
+worktree_path: <codex-worktree>/87fe/Pantheon
+cwd: <codex-worktree>/87fe/Pantheon
+worktree_exists: true
+thread_id: 019f824b-949e-71d3-be96-1e830bdeba51
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-30-19-019f824b-949e-71d3-be96-1e830bdeba51.jsonl
 previous_card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 previous_thread_id: 019f8224-7f16-7461-9b00-16793ecd9c80
 previous_worktree_path: <codex-worktree>/ec5e2828-70a0-4fe5-a08c-c99bb5c433d5/Pantheon
