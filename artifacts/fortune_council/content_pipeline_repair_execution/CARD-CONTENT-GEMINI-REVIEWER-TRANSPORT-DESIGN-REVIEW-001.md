@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REVIEW-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: DRAFTED
+status: RUNNING
 role: independent_reviewer
 thickness: strict
 risk: high
@@ -28,6 +28,15 @@ evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evide
 previous_card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
 previous_thread_id: 019f824b-949e-71d3-be96-1e830bdeba51
 previous_worktree_path: <codex-worktree>/87fe/Pantheon
+provisioning_source_sha: 51ce46dc4cdd82a1e18d65cc2d5bd48d48a8f292
+provisioning_parent_sha: d15df4b1e892f3b9854f42dc067d89af7ee37cd3
+worktree_path: <codex-worktree>/bb58/Pantheon
+cwd: <codex-worktree>/bb58/Pantheon
+worktree_exists: true
+thread_id: 019f825a-306e-7e52-956c-52f294e99c26
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-46-16-019f825a-306e-7e52-956c-52f294e99c26.jsonl
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-REVIEW-001｜獨立固定候選審查

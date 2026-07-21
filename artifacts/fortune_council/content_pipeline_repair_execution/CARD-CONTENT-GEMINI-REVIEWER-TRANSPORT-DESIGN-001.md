@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
 chain_id: CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001
-status: RUNNING
+status: READY_FOR_REVIEW
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -40,6 +40,10 @@ thread_id: 019f824b-949e-71d3-be96-1e830bdeba51
 thread_status: RUNNING
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T09-30-19-019f824b-949e-71d3-be96-1e830bdeba51.jsonl
+candidate_sha: d15df4b1e892f3b9854f42dc067d89af7ee37cd3
+candidate_parent_sha: 7afe5f792af1c87cd983af2f1be6dafb634650e1
+design_verdict: GO_GEMINI_CLI_MACHINE_GATE
+review_status: RUNNING
 previous_card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 previous_thread_id: 019f8224-7f16-7461-9b00-16793ecd9c80
 previous_worktree_path: <codex-worktree>/ec5e2828-70a0-4fe5-a08c-c99bb5c433d5/Pantheon
