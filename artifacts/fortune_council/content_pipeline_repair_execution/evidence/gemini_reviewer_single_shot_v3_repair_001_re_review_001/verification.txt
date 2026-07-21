@@ -1,0 +1,55 @@
+STATUS: NO_GO
+
+IDENTITY / STARTUP
+- HEAD / reviewed candidate: c2061f0945945af3ae6133d655780b8df0b79d8e.
+- HEAD^ / Repair provisioning: a871c0825e06a51e7e29660180e907258c6ec67c.
+- original V3 candidate a5309552a9e7caf3ba85fb627a82dbfee0b3c21c is an ancestor.
+- original Review evidence commit: be19f6223eaebcece71b326f71a497c7b161d3a8.
+- independent worktree was clean; card and Repair evidence readable; index.lock absent.
+- Gemini CLI / HTTP / external model calls by re-review: 0.
+
+ORIGINAL ADVERSARIAL PROBE
+- command: PYTHONPATH=. <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_single_shot_v3_review_001/adversarial_probes.py
+- result: stopped fail-closed at wrong persisted request with ValueError: external request hash mismatch.
+- interpretation: original script was intentionally written to return exploit booleans and does not catch the repaired rejection; independent fresh probes cover all five findings.
+
+FRESH ADVERSARIAL PROBES
+- command: PYTHONPATH=. <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_single_shot_v3_repair_001_re_review_001/fresh_adversarial_probes.py
+- P1 reproduced: production CLI missing => RuntimeError / PROCESS_FAILURE / PROCESS_TERMINAL / process_started=true, but actual process count is 0.
+- P1 reproduced: during-launch terminal insertion => launcher_calls=1, then FileExistsError; foreign bytes preserved.
+- pre-launch terminal insertion: launcher_calls=0; bytes preserved.
+- strict outbox: zero/duplicate/malformed/unknown/mismatch all rejected; no new job.
+- anchored replay: whole-triple replacement rejected; allow_other_operations replays only exact committed target amid another operation.
+- witness: valid accepted; swapped/generic/structural/synthetic/other-item rejected.
+- resume: APPROVED skipped; third same blocker produces no fourth.
+
+FOCUSED
+- tests: test_agy_gemini_operations.py, test_agy_gemini_transport_probe.py, test_agy_gemini_outbox.py, test_agy_seo_copy_pipeline.py.
+- result: 129 passed in 22.18s.
+
+FULL SUITE
+- result: 244 passed, 2 failed, 2 warnings in 34.03s.
+- baseline failure 1: tests/test_api.py expected Ziwei provider iztro; runtime returned pantheon_ziwei.
+- baseline failure 2: tests/test_calculators.py expected Ziwei provider iztro; runtime returned pantheon_ziwei.
+- warnings: Starlette TestClient deprecation plus existing invalid escape sequence warning.
+- candidate did not modify app/**, calculators, Ziwei tests or provider routing; full suite is not represented as all-green.
+
+STORED CORPUS OFFLINE REPLAY
+- independent summary: evidence/gemini_reviewer_single_shot_v3_repair_001/stored-corpus-commitments.json.
+- result: logical_operations=6, external_processes=6, approved=6, blocked=0.
+- corpus verdicts remain APPROVE=3 / REJECT=3; no seventh process.
+- provider_model_calls=unobservable/unknown.
+
+STATIC GATES
+- source compile without bytecode writes: PASS for all changed production Python files and fresh probe.
+- production caller trace: pipeline/outbox/runner/probe use scripts.agy_gemini_operations.
+- transport runtime-retry/backoff/resume search: no transport retry implementation found. Two max_attempts matches belong to a separate bounded content repair contract, not transport retry.
+- candidate commit path allowlist: PASS.
+- privacy/secret/raw/debug scan of Repair and re-review evidence: PASS.
+- git diff --check: PASS before evidence commit.
+- re-review working changes: only evidence/gemini_reviewer_single_shot_v3_repair_001_re_review_001/**.
+
+DECISION
+- strict outbox, anchored replay/allow_other_operations, witness and resume are closed.
+- production CLI_NOT_FOUND accounting and during-launch namespace ownership remain P1.
+- required verdict: NO_GO.
