@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: DRAFTED
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -39,6 +39,14 @@ source_sha: 4e2a9258a1e762935e01d495bf5f2b48cefee05d
 source_branch: main
 source_clean: true
 main_cwd: <repo-root>
+provisioning_source_sha: 92f8449990e7901eba298340c25b5b90b5331036
+worktree_path: <codex-worktree>/b3ff/Pantheon
+cwd: <codex-worktree>/b3ff/Pantheon
+worktree_exists: true
+thread_id: 019f8277-3cc6-7052-ae02-1092e4a775d1
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T10-18-00-019f8277-3cc6-7052-ae02-1092e4a775d1.jsonl
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001｜production minimal Reviewer gate
