@@ -15,13 +15,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-MAX_CONFIGURATIONS = 3
+MAX_CONFIGURATIONS = 2
 MAX_REPEATS = 3
-MAX_MODEL_CALLS = 9
+MAX_EXTERNAL_CLI_PROCESS_INVOCATIONS = 6
 EXPECTED_CODES = {"GUARANTEE_CLAIM", "UNSUPPORTED_AUTHORITY"}
 MODEL_LABELS = {
     "pro-low": "Gemini 3.1 Pro (Low)",
-    "pro-high": "Gemini 3.1 Pro (High)",
 }
 
 REPRESENTATIVE_CASE = {
@@ -36,13 +35,20 @@ REPRESENTATIVE_CASE = {
     },
 }
 
+APPROVE_CASE = {
+    "case_id": "public-sanitized-review-approve-001",
+    "title": "今日提醒",
+    "answer": "今天適合先確認資訊來源，再依自己的情況審慎安排計畫。",
+    "policy": REPRESENTATIVE_CASE["policy"],
+}
+
 FINDING_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
         "code": {"type": "string", "enum": sorted(EXPECTED_CODES)},
         "severity": {"type": "string", "enum": ["HARD"]},
-        "message": {"type": "string"},
+        "message": {"type": "string", "minLength": 1},
     },
     "required": ["code", "severity", "message"],
 }
@@ -53,7 +59,7 @@ MINIMAL_SCHEMA = {
     "properties": {
         "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]},
         "hard_failure": {"type": "boolean"},
-        "findings": {"type": "array", "items": FINDING_SCHEMA, "minItems": 1, "maxItems": 2},
+        "findings": {"type": "array", "items": FINDING_SCHEMA, "maxItems": 2},
     },
     "required": ["verdict", "hard_failure", "findings"],
 }
@@ -84,12 +90,16 @@ class Configuration:
     model_label: str
     schema: dict[str, Any]
     use_mapper: bool
+    case: dict[str, Any]
+    expected_verdict: str
+    expected_codes: frozenset[str]
 
 
 CONFIGURATIONS = (
-    Configuration("baseline_nested_pro_low", MODEL_LABELS["pro-low"], BASELINE_SCHEMA, False),
-    Configuration("minimal_mapper_pro_low", MODEL_LABELS["pro-low"], MINIMAL_SCHEMA, True),
-    Configuration("minimal_mapper_pro_high", MODEL_LABELS["pro-high"], MINIMAL_SCHEMA, True),
+    Configuration("minimal_mapper_pro_low_reject", MODEL_LABELS["pro-low"], MINIMAL_SCHEMA, True,
+                  REPRESENTATIVE_CASE, "REJECT", frozenset(EXPECTED_CODES)),
+    Configuration("minimal_mapper_pro_low_approve", MODEL_LABELS["pro-low"], MINIMAL_SCHEMA, True,
+                  APPROVE_CASE, "APPROVE", frozenset()),
 )
 
 
@@ -115,6 +125,8 @@ def _validate(value: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
         return [f"{path}:type"]
     if "enum" in schema and value not in schema["enum"]:
         errors.append(f"{path}:enum")
+    if expected == "string" and len(value) < schema.get("minLength", 0):
+        errors.append(f"{path}:minLength")
     if expected == "object":
         properties = schema.get("properties", {})
         for name in schema.get("required", []):
@@ -135,17 +147,38 @@ def _validate(value: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
     return errors
 
 
-def deterministic_map(judgment: dict[str, Any]) -> dict[str, Any]:
+def judgment_rubric_valid(judgment: dict[str, Any]) -> bool:
+    """驗證 verdict、hard failure 與 findings 的交叉契約。"""
+    findings = judgment["findings"]
+    texts_valid = all(
+        finding["code"].strip() and finding["message"].strip()
+        for finding in findings
+    )
+    approve = judgment["verdict"] == "APPROVE" and judgment["hard_failure"] is False and not findings
+    reject = judgment["verdict"] == "REJECT" and judgment["hard_failure"] is True and bool(findings)
+    return bool(texts_valid and (approve or reject))
+
+
+def deterministic_map(judgment: dict[str, Any], case_id: str = REPRESENTATIVE_CASE["case_id"]) -> dict[str, Any]:
     """只搬移已驗證 judgment；缺欄或不合法時不補猜。"""
     errors = _validate(judgment, MINIMAL_SCHEMA)
-    if errors:
+    if errors or not judgment_rubric_valid(judgment):
         raise ValueError("invalid judgment")
     return {
         "schema_version": 1,
-        "case_id": REPRESENTATIVE_CASE["case_id"],
+        "case_id": case_id,
         "summary": {"reviewed": 1, "rejected": int(judgment["verdict"] == "REJECT")},
-        "articles": [{"article_id": REPRESENTATIVE_CASE["case_id"], **judgment}],
+        "articles": [{"article_id": case_id, **judgment}],
     }
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
 
 
 def evaluate_output(raw_output: bytes, configuration: Configuration) -> dict[str, Any]:
@@ -161,10 +194,13 @@ def evaluate_output(raw_output: bytes, configuration: Configuration) -> dict[str
         "error_position": None,
     }
     try:
-        parsed = json.loads(raw_output)
+        parsed = json.loads(raw_output, object_pairs_hook=_reject_duplicate_keys)
     except json.JSONDecodeError as error:
         result["error_code"] = "STRICT_JSON_PARSE_FAILURE"
         result["error_position"] = error.pos
+        return result
+    except ValueError:
+        result["error_code"] = "STRICT_JSON_DUPLICATE_KEY"
         return result
     result["strict_parse"] = True
     schema_errors = _validate(parsed, configuration.schema)
@@ -173,13 +209,19 @@ def evaluate_output(raw_output: bytes, configuration: Configuration) -> dict[str
         result["schema_error_fingerprint"] = sha256_bytes(compact_bytes(schema_errors))
         return result
     result["schema_valid"] = True
-    formal = deterministic_map(parsed) if configuration.use_mapper else parsed
+    try:
+        formal = deterministic_map(parsed, configuration.case["case_id"]) if configuration.use_mapper else parsed
+    except ValueError:
+        result["error_code"] = "RUBRIC_FAILURE"
+        return result
     item = formal["articles"][0]
     codes = {finding["code"] for finding in item["findings"]}
     result["verdict"] = item["verdict"]
     result["hard_failure"] = item["hard_failure"]
     result["rubric_valid"] = (
-        item["verdict"] == "REJECT" and item["hard_failure"] is True and codes == EXPECTED_CODES
+        judgment_rubric_valid(item)
+        and item["verdict"] == configuration.expected_verdict
+        and codes == configuration.expected_codes
     )
     if not result["rubric_valid"]:
         result["error_code"] = "RUBRIC_FAILURE"
@@ -199,7 +241,7 @@ def build_prompt(configuration: Configuration) -> str:
         f"{contract}\n"
         "findings 必須逐一使用政策中的 code；severity 固定為 HARD。\n"
         f"JSON Schema：{json.dumps(configuration.schema, ensure_ascii=False, separators=(',', ':'))}\n"
-        f"公開 sanitized case：{json.dumps(REPRESENTATIVE_CASE, ensure_ascii=False, separators=(',', ':'))}"
+        f"公開 sanitized case：{json.dumps(configuration.case, ensure_ascii=False, separators=(',', ':'))}"
     )
 
 
@@ -265,8 +307,9 @@ def run_once(cli: Path, configuration: Configuration, *, timeout: int = 180) -> 
 
 
 def run_matrix(cli: Path, runner: Callable[[Path, Configuration], dict[str, Any]] = run_once) -> dict[str, Any]:
-    if len(CONFIGURATIONS) > MAX_CONFIGURATIONS or MAX_REPEATS * len(CONFIGURATIONS) > MAX_MODEL_CALLS:
-        raise RuntimeError("MODEL_CALL_BUDGET_EXCEEDED")
+    if (len(CONFIGURATIONS) > MAX_CONFIGURATIONS
+            or MAX_REPEATS * len(CONFIGURATIONS) != MAX_EXTERNAL_CLI_PROCESS_INVOCATIONS):
+        raise RuntimeError("EXTERNAL_CLI_PROCESS_BUDGET_MISMATCH")
     rows: list[dict[str, Any]] = []
     calls = 0
     for configuration in CONFIGURATIONS:
@@ -276,7 +319,8 @@ def run_matrix(cli: Path, runner: Callable[[Path, Configuration], dict[str, Any]
             rows.append({"config_id": configuration.config_id, "attempt": attempt,
                          "config_sha256": sha256_bytes(compact_bytes({"model": configuration.model_label,
                                                                         "schema": configuration.schema,
-                                                                        "mapper": configuration.use_mapper})),
+                                                                        "mapper": configuration.use_mapper,
+                                                                        "case": configuration.case["case_id"]})),
                          **row})
     summaries = []
     for configuration in CONFIGURATIONS:
@@ -286,9 +330,12 @@ def run_matrix(cli: Path, runner: Callable[[Path, Configuration], dict[str, Any]
         summaries.append({"config_id": configuration.config_id, "model": configuration.model_label,
                           "uses_deterministic_mapper": configuration.use_mapper, "passed_3_of_3": passed,
                           "verdict_consistent": consistent})
-    go = any(item["passed_3_of_3"] and item["verdict_consistent"] for item in summaries)
-    return {"schema_version": 1, "model_calls": calls, "call_budget": MAX_MODEL_CALLS,
-            "decision": "GO_GEMINI_CLI_MACHINE_GATE" if go else "NO_GO_GEMINI_CLI_MACHINE_GATE",
+    go = all(item["passed_3_of_3"] and item["verdict_consistent"] for item in summaries)
+    return {"schema_version": 1,
+            "external_cli_process_invocations": calls,
+            "external_cli_process_budget": MAX_EXTERNAL_CLI_PROCESS_INVOCATIONS,
+            "provider_model_calls": "unobservable/unknown",
+            "decision": "DELIVERED_CORPUS" if go else "BLOCKED",
             "configurations": summaries, "runs": rows}
 
 
@@ -301,7 +348,9 @@ def main() -> int:
     report = {"capability": capability_snapshot(cli), **run_matrix(cli)}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(compact_bytes(report) + b"\n")
-    print(json.dumps({"decision": report["decision"], "model_calls": report["model_calls"]}))
+    print(json.dumps({"decision": report["decision"],
+                      "external_cli_process_invocations": report["external_cli_process_invocations"],
+                      "provider_model_calls": report["provider_model_calls"]}))
     return 0
 
 
