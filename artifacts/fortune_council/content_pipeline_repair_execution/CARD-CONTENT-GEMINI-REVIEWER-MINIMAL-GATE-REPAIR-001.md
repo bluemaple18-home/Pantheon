@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: BLOCKED_PROVISIONING
+status: RUNNING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -32,9 +32,18 @@ source_sha: c5b33832d2c7ccb323e43fed09f502c6a3494a2d
 source_clean: true
 main_cwd: <repo-root>
 source_ref: task/gemini-reviewer-minimal-gate-repair-001
-provisioning_attempts: 3
-provisioning_blocker: create_thread payload 缺少 startingState.type=branch，三次均回 invalid arguments；依停損不得第 4 次
-thread_status: NOT_CREATED
+provisioning_attempts: 1
+provisioning_note: 新一輪依使用者明確指示，使用含 startingState.type=branch 的已驗證 payload 建立
+client_thread_id: client-new-thread:9146e4b3-c606-4b91-8ffa-9237cd69b4de
+provisioning_source_sha: c5b33832d2c7ccb323e43fed09f502c6a3494a2d
+worktree_path: <codex-worktree>/1264/Pantheon
+cwd: <codex-worktree>/1264/Pantheon
+worktree_exists: true
+thread_id: 019f833f-bbde-7763-92f6-a2610fd28218
+thread_title: 修復 Gemini reviewer gate corpus
+thread_status: RUNNING
+thread_host_id: local
+rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T13-57-00-019f833f-bbde-7763-92f6-a2610fd28218.jsonl
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001｜隔離 single-hard-reject 測資語意
