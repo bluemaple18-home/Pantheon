@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002
 chain_id: CONTENT-GEMINI-CONTRACT-REPAIR-001
-status: RUNNING
+status: BLOCKED
 repair_generation: 2
 thickness: strict
 risk: high
@@ -44,13 +44,17 @@ worktree_exists: true
 index_lock: absent
 unrelated_dirty_paths: []
 thread_id: 019f8224-7f16-7461-9b00-16793ecd9c80
-thread_status: RUNNING
+thread_status: COMPLETED
 thread_host_id: slingshot:env_e_6a06af40fde8832ebd0c8333aab4f478
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T08-47-37-019f8224-7f16-7461-9b00-16793ecd9c80.jsonl
 previous_card_id: CARD-CONTENT-GEMINI-CONTRACT-REPAIR-001
 previous_thread_id: 019f7fb1-60b5-7183-bd55-99eaeb503107
 previous_worktree_path: <codex-worktree>/e2d42265-1097-4341-b030-8eba32c67993/Pantheon
 previous_candidate_sha: e806ce006680530f64d0386f680561db3319e166
+candidate_sha: f74d3654bfe0377c34ade128b131d42cf6bb8e41
+candidate_parent_sha: a9bb73cf6072a40d714d6672a416ac3176381207
+canary_status: BLOCKED
+integration_status: NOT_INTEGRATED
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-JSON-REPAIR-002｜Reviewer strict JSON 最終修復
@@ -118,6 +122,13 @@ previous_candidate_sha: e806ce006680530f64d0386f680561db3319e166
 
 - Gate 1：實體卡已更新為 candidate `e806ce006680530f64d0386f680561db3319e166`；candidate-based provisioning source branch 為 `codex/gemini-reviewer-json-repair-source-v2`，乾淨 source commit 為 `a9bb73cf6072a40d714d6672a416ac3176381207`，卡片可讀、無 unrelated dirty paths。
 - Gate 2：正式 thread `019f8224-7f16-7461-9b00-16793ecd9c80` 已由 list/read 查到，title／preview 以本卡 ID 開頭；獨立 worktree `<codex-worktree>/ec5e2828-70a0-4fe5-a08c-c99bb5c433d5/Pantheon` 的 HEAD 精確為 `a9bb73cf6072a40d714d6672a416ac3176381207`、parent 精確為 `e806ce006680530f64d0386f680561db3319e166`、工作樹乾淨、卡片可讀；rollout 檔存在，turn 狀態 `inProgress`。輔助 `scripts/visible_thread_doctor.py` 不存在，未以其取代直接證據。
-- Gate 3：需 completed turn、final output 與完整 candidate SHA。
+- Gate 3：completed turn 已收卡；診斷 candidate 為 `f74d3654bfe0377c34ade128b131d42cf6bb8e41`，parent 為 `a9bb73cf6072a40d714d6672a416ac3176381207`。Focused tests 79 passed、full suite 196 passed（1 warning），worktree clean。
 - Gate 4：candidate 後由獨立 Reviewer thread 固定 reviewed commit 判定 GO／NO-GO。
 - Gate 5：主線重跑驗證並核對 allowlist 後才可接受；未授權 merge、push、deploy 或 publish。
+
+## 終態
+
+- `BLOCKED`：Tarot 因內容 findings 停止；Personality 的首次 Reviewer parse failure 觸發唯一一次 fresh retry，但 retry 再次 `StrictJsonParseFailure`。
+- Candidate SHA 在 retry 前後不變，Writer 未重跑；Fortune／Astrology 未啟動。
+- 無 retry-02、attempt-04 或遺留 outbox job。
+- 依本卡最終停損契約，不建立 Repair 3、不整合 candidate、不恢復大量產文。
