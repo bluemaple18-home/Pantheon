@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: RE_REVIEW_RUNNING
+status: RE_REVIEW_NO_GO
 thickness: standard
 risk: high
 model: gpt-5.5
@@ -39,7 +39,7 @@ cwd: <codex-worktree>/69ec/Pantheon
 worktree_exists: true
 thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
 thread_title: 執行 Gemini 最小 Gate Review
-thread_status: FULL_RANGE_NO_GO
+thread_status: RE_REVIEW_NO_GO
 thread_host_id: local
 rollout_path: <codex-sessions>/2026/07/21/rollout-2026-07-21T14-12-14-019f834d-b192-73f1-8282-c3832fbbce70.jsonl
 repair_delta_verdict: GO
@@ -49,6 +49,14 @@ full_range_verdict: FULL_RANGE_NO_GO
 full_range_evidence_sha: 472fb0c736971d1cae7a6f5979b5c27249f2aa21
 repair_2_candidate_sha: 5e9b1c898d943ae59f24f9f87206c3f60b0a0ceb
 re_review_owner_thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
+re_review_verdict: RE_REVIEW_NO_GO
+re_review_evidence_sha: d7a14e66028d032354d7686f3dcd26f359ecf4bd
+resolved_findings:
+  - Reviewer process accounting
+open_findings:
+  - stale output fingerprint may be copied into a later parse-error receipt
+  - global finding code can still cross slots and be bound to the wrong article
+chain_status: BLOCKED
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REVIEW-001｜Repair 1 固定 SHA 獨立 Review

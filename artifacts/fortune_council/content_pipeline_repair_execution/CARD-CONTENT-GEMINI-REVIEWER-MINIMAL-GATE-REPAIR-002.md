@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: DELIVERED_CANDIDATE
+status: RE_REVIEW_NO_GO
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -53,6 +53,11 @@ red_result: 7 failed, 1 passed
 green_result: 8 passed
 focused_result: 86 passed
 full_result: 220 passed, 2 failed, 1 warning
+re_review_thread_id: 019f834d-b192-73f1-8282-c3832fbbce70
+re_review_verdict: RE_REVIEW_NO_GO
+re_review_evidence_sha: d7a14e66028d032354d7686f3dcd26f359ecf4bd
+chain_status: BLOCKED
+repair_3_authorized: false
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-002｜修復 full-range Review 三個 P2
