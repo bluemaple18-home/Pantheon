@@ -1,0 +1,51 @@
+Transport V2 Repair generation 1 independent re-review
+
+startup gate
+- independent detached Review worktree; differs from main, fixed implementation and Repair implementation worktrees
+- HEAD: 1bac6ea896c14f9f6b7dc4c3097f8b17cfbfff65
+- HEAD^: 144e757b32016bf224700661925ee751d4173d0c
+- d8b6a235bd19d8aae72d40565841f09d35b3f83d: ancestor
+- 96d3a3a17b3e97f2f5e099f1c739ad6c84e7bc0c: ancestor
+- worktree clean before re-review evidence creation; index.lock absent
+- Repair card, four text evidence files, fresh corpus and 12 receipt/gate files readable
+
+repair adversarial harness
+command: <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_repair_001/adversarial_probes.py
+result: PASS, 9 passed
+qualification: these GREEN cases do not cover the four independently reproduced bypasses.
+
+independent re-review probes
+command: <project-venv>/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_repair_001_re_review_001/adversarial_probes.py
+result:
+- REPRO P1-01 mismatched gate binding authorizes a fresh retry
+- REPRO P1-02 malformed persisted terminal silently normalized to pending
+- REPRO P1-03 process_not_started counted as an external CLI process
+- REPRO P2-01 B-only claim accepted with unrelated target-local quote
+
+focused affected suite
+command: <project-venv>/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_transport_probe.py -q
+result: PASS, 107 passed in 23.53s
+
+full suite
+command: <project-venv>/bin/python -m pytest -q
+result: 2 failed, 222 passed, 2 warnings in 36.06s
+known fixed-base failures:
+- tests/test_api.py::test_predict_route_returns_charts_and_ai
+- tests/test_calculators.py::test_ziwei_returns_palace_payload
+Both expect provider iztro while the fixed-base runtime returns pantheon_ziwei. Full suite is not claimed green.
+
+fresh stored corpus offline replay
+command: <project-venv>/bin/python scripts/agy_gemini_transport_probe.py --verify-stored artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_transport_v2_repair_001/corpus.json
+result: DELIVERED_CORPUS; exactly 6 invocations; REJECT 3/3; APPROVE 3/3; provider_model_calls=unobservable/unknown
+- six unique invocation IDs
+- 12 separate fresh receipt/gate files exactly match the embedded corpus pairs
+- no external model or CLI invocation was performed by this re-review
+
+syntax and static gates
+- py_compile for four affected scripts: PASS
+- Repair changed-file allowlist: PASS
+- Repair evidence privacy/secret/raw/path/debug scan: PASS
+- fixed Repair range git diff --check: PASS
+
+final verdict
+NO_GO: P1-01, P1-02, P1-03 and P2-01 remain reproducible; candidate unchanged.
