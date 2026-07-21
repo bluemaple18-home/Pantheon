@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001
 chain_id: CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-IMPLEMENTATION-001
-status: DRAFTED
+status: BLOCKED_PROVISIONING
 thickness: strict
 risk: high
 model: gpt-5.6-sol
@@ -31,6 +31,10 @@ source_kind: commit
 source_sha: c5b33832d2c7ccb323e43fed09f502c6a3494a2d
 source_clean: true
 main_cwd: <repo-root>
+source_ref: task/gemini-reviewer-minimal-gate-repair-001
+provisioning_attempts: 3
+provisioning_blocker: create_thread payload 缺少 startingState.type=branch，三次均回 invalid arguments；依停損不得第 4 次
+thread_status: NOT_CREATED
 ---
 
 # CARD-CONTENT-GEMINI-REVIEWER-MINIMAL-GATE-REPAIR-001｜隔離 single-hard-reject 測資語意
