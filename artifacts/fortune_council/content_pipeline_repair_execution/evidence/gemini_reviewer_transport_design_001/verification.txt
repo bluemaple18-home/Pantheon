@@ -1,0 +1,43 @@
+CARD-CONTENT-GEMINI-REVIEWER-TRANSPORT-DESIGN-001 verification
+
+startup
+- independent_codex_worktree: PASS
+- source_worktree_clean: PASS
+- head_contains_card: PASS (HEAD 7afe5f7; source 4fcca4c is ancestor)
+- previous_candidate_reference_only: PASS
+
+external_tool_gate
+- tool/service: existing Gemini/Antigravity CLI
+- operation_level: bounded dry_run
+- connection_status: active; capability listing succeeded
+- schema_checked: local strict schema + rubric
+- confirmation_required: authorized by formal card
+- execution_status: PASS
+- version: 1.1.4
+- command_sha256: 604c3fff9ce2f82f40f8049f0c0e311c1f51483e77e5e6b31cdfcc4aff2dbf37
+- output_mode: raw print stdout; CLI does not enforce response schema
+- execution_boundary: explicit model label, plan mode, sandbox, temporary cwd/log, fresh process
+- remaining_risk: single short sanitized REJECT case; no production corpus
+
+bounded_call_matrix
+- configuration_count: 3 / 3
+- calls_per_configuration: 3 / 3
+- total_model_calls: 9 / 9
+- baseline_nested_pro_low: exit 3/3, parse 3/3, schema 3/3, rubric 3/3, consistent 3/3
+- minimal_mapper_pro_low: exit 3/3, parse 3/3, schema 3/3, rubric 3/3, consistent 3/3
+- minimal_mapper_pro_high: exit 3/3, parse 3/3, schema 3/3, rubric 3/3, consistent 3/3
+- blocker_retries: 0
+- calls_beyond_budget: 0
+
+local_verification
+- .venv/bin/python -m py_compile scripts/agy_gemini_transport_probe.py: PASS
+- .venv/bin/python -m pytest -q tests/test_agy_gemini_transport_probe.py: PASS (6 passed)
+- matrix contract (9 runs, all 3/3, decision, consistency): PASS
+- raw/prompt/stderr evidence-key scan: PASS
+- secret and absolute-path scan: PASS
+- changed-file allowlist: PASS
+- git diff --check: PASS
+
+decision
+- GO_GEMINI_CLI_MACHINE_GATE
+- architecture candidate only; production recovery remains forbidden pending independent fixed-candidate review and a separate implementation/corpus chain
