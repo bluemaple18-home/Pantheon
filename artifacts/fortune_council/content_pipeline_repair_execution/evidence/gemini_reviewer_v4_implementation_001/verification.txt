@@ -1,0 +1,53 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-IMPLEMENTATION-001 VERIFICATION
+
+Identity
+- starting HEAD: ef5b81307ca895d500ce1b6c346d17a451428942
+- starting parent: afced350d5cb9b3fe663718d622a075aaf70d61f
+- starting worktree: clean
+- architecture and final GO evidence: read completely; unchanged
+
+RED/GREEN
+- RED focused command: <required-python> -m pytest -q tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py
+- RED result: expected collection failure; production broker module absent
+- GREEN focused command: same command
+- GREEN result: 44 passed in 1.91s
+
+Focused and affected suites
+- <required-python> -m pytest -q tests/test_agy_gemini_v4_broker.py
+  result: 22 passed in 1.10s
+- <required-python> -m pytest -q tests/test_agy_gemini_outbox.py
+  result: 22 passed in 0.09s
+
+Full regression
+- <required-python> -m pytest -q
+  result: 236 passed, 2 failed; both failures are unchanged Ziwei provider baseline assertions
+- The same two tests were executed from an unmodified git archive of ef5b813 and failed identically (`pantheon_ziwei` observed, `iztro` expected).
+- Final unaffected-regression command: <required-python> -m pytest -q --deselect tests/test_api.py::test_predict_route_returns_charts_and_ai --deselect tests/test_calculators.py::test_ziwei_returns_palace_payload
+  result: 237 passed, 2 deselected, 1 warning in 62.81s
+- No fourth retry of the same known baseline blocker was attempted.
+
+Contract evidence
+- success/nonzero/timeout: COMPLETE/1 with one exec-confirmed target
+- preflight missing: COMPLETE/0; no target
+- exec format failure: BLOCKED/0; no exec-confirmed target
+- durable crash-before-fork, broker/fork windows, terminal loss: legal table covered
+- schema/version/binding/order/frame/chain, legacy aliases, PID domain, anchor missing/mismatch: rejected
+- existing operation: replay-only; second target was not launched
+- runner flag off: one legacy call
+- runner flag on: one broker call, zero legacy calls
+- BLOCKED/AMBIGUOUS/INVALID and misbound COMPLETE: failed+archive, no inbox, no fallback
+- target observed FD table: [0,1,2]; argv count: 1; raw stdin SHA matched public prompt
+- target launch code: close_fds=True and pass_fds=()
+
+Compile and determinism
+- <required-python> -m py_compile scripts/agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py
+  result: pass
+- byte-identical probe: test_normalized_fake_trace_is_byte_identical
+  result: pass; two independent real synthetic operations produced byte-identical normalized traces
+
+Scope and hygiene
+- git diff --check: pass
+- allowlist changed-path check: pass
+- added-line privacy/raw-local-path/credential/debug-prefix scan: pass
+- broker/evidence privacy/raw-local-path/credential/debug-prefix scan: pass
+- no dependency, network, Gemini CLI, HTTP, external model, retry, merge, push, deploy, publish or content recovery

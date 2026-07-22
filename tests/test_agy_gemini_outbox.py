@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 import scripts.agy_gemini_outbox as outbox
+import scripts.agy_gemini_runner as runner
+from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
 from scripts.agy_gemini_outbox import (
     ExternalJobPending,
@@ -25,6 +27,30 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+
+
+def _broker_result(
+    status: str,
+    receipt: ExecutionReceipt,
+    *,
+    result: dict[str, object] | None = None,
+) -> BrokerResult:
+    success = status == "COMPLETE" and result is not None
+    count: int | str = 1 if status in {"COMPLETE", "BLOCKED"} else "UNKNOWN"
+    return BrokerResult(
+        replay_status=status,
+        process_count=count,
+        outcome="SUCCESS" if success else None,
+        exit_status=0 if success else None,
+        stdout_sha256="a" * 64 if success else None,
+        stderr_sha256="b" * 64 if success else None,
+        byte_count=1 if success else 0,
+        final_anchor="c" * 64 if success else None,
+        receipt=receipt,
+        caller_contract_satisfied=success,
+        result_json=json.dumps(result, sort_keys=True, separators=(",", ":")).encode() if result is not None else None,
+        errors=() if success else ("SYNTHETIC_FAILURE",),
+    )
 
 
 def test_runner_module_entrypoint_and_launchd_template_are_runnable(tmp_path: Path) -> None:
@@ -184,6 +210,107 @@ def test_runner_processes_one_job_and_archives_request(tmp_path: Path) -> None:
     response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
     assert response["request_sha256"] == request["request_sha256"]
     assert response["result"] == {"ok": True}
+
+
+def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-legacy",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="公開 legacy prompt",
+        response_schema=SCHEMA,
+    )
+    calls: list[str] = []
+
+    def generate(_role: str, _model: str, prompt: str, _schema: dict[str, object]) -> dict[str, object]:
+        calls.append(prompt)
+        return {"ok": True}
+
+    assert process_once(tmp_path, generate_json=generate)["status"] == "processed"
+    assert calls == ["公開 legacy prompt"]
+    assert json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())["result"] == {"ok": True}
+
+
+def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-v4",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="公開 V4 prompt",
+        response_schema=SCHEMA,
+    )
+    legacy_calls: list[str] = []
+    broker_calls: list[dict[str, object]] = []
+
+    def fake_broker(**kwargs: object) -> BrokerResult:
+        broker_calls.append(kwargs)
+        return _broker_result(
+            "COMPLETE",
+            ExecutionReceipt(
+                operation_id=request["job_id"],
+                item_id=request["namespace"],
+                attempt_id="attempt-1",
+                request_sha256=request["request_sha256"],
+                model=request["model"],
+            ),
+            result={"ok": True},
+        )
+
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
+    result = process_once(tmp_path, generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": False})
+    assert result == {"status": "processed", "job_id": request["job_id"]}
+    assert legacy_calls == []
+    assert len(broker_calls) == 1
+    assert broker_calls[0]["raw_request"] == "公開 V4 prompt".encode()
+    assert broker_calls[0]["request_sha256"] == request["request_sha256"]
+
+
+def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-misbound",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="公開 V4 prompt",
+        response_schema=SCHEMA,
+    )
+    wrong = ExecutionReceipt("wrong-operation", request["namespace"], "attempt-1", request["request_sha256"], request["model"])
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: _broker_result("COMPLETE", wrong, result={"ok": True}))
+    legacy_calls: list[str] = []
+    result = process_once(tmp_path, generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True})
+    assert result["status"] == "failed"
+    assert legacy_calls == []
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+
+
+@pytest.mark.parametrize("status", ("BLOCKED", "AMBIGUOUS", "INVALID"))
+def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    request = create_external_request(
+        tmp_path,
+        namespace=f"opaque-run-{status.lower()}",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="公開 V4 prompt",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(request["job_id"], request["namespace"], "attempt-1", request["request_sha256"], request["model"])
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: _broker_result(status, receipt))
+    legacy_calls: list[str] = []
+    result = process_once(tmp_path, generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True})
+    assert result["status"] == "failed"
+    assert legacy_calls == []
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+    assert (tmp_path / "failed" / f"{request['job_id']}.json").exists()
+    assert (tmp_path / "archive" / f"{request['job_id']}.json").exists()
 
 
 def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:

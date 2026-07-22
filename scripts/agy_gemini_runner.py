@@ -16,6 +16,7 @@ from scripts.agy_gemini_outbox import (
     validate_external_request,
 )
 from scripts.agy_seo_copy_pipeline import GeminiClient
+from scripts.agy_gemini_v4_broker import ExecutionReceipt, FileAnchorStore, V4BrokerFailure, run_single_shot
 
 
 GenerateJson = Callable[[str, str, str, dict[str, Any]], dict[str, Any]]
@@ -54,12 +55,44 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         validate_external_request(request)
         if request["job_id"] != job_id:
             raise ValueError("request job id differs from queue filename")
-        result = generate_json(
-            str(request["role"]),
-            str(request["model"]),
-            str(request["prompt"]),
-            request["response_schema"],
-        )
+        if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
+            executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
+            broker_result = run_single_shot(
+                operation_id=job_id,
+                item_id=str(request["namespace"]),
+                attempt_id="attempt-1",
+                request_sha256=str(request["request_sha256"]),
+                model=str(request["model"]),
+                executable=executable,
+                raw_request=str(request["prompt"]).encode("utf-8"),
+                response_schema=request["response_schema"],
+                timeout_milliseconds=120_000,
+                ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",
+                anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
+            )
+            expected_receipt = ExecutionReceipt(
+                job_id,
+                str(request["namespace"]),
+                "attempt-1",
+                str(request["request_sha256"]),
+                str(request["model"]),
+            )
+            if (
+                broker_result.receipt != expected_receipt
+                or not broker_result.caller_contract_satisfied
+                or broker_result.result is None
+            ):
+                raise V4BrokerFailure(
+                    f"V4 fail closed: {broker_result.replay_status}/{broker_result.process_count}"
+                )
+            result = broker_result.result
+        else:
+            result = generate_json(
+                str(request["role"]),
+                str(request["model"]),
+                str(request["prompt"]),
+                request["response_schema"],
+            )
         atomic_write_json(
             queue_root / "inbox" / f"{job_id}.json",
             {
