@@ -1,0 +1,47 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-IMPLEMENTATION-REPAIR-001-REVIEW VERIFICATION
+
+Identity
+- starting HEAD: 55154fdfec1f0fb3cdbeb2b122e51364ec6520eb
+- HEAD^ / reviewed Repair candidate: 495cb033ec36467ec78c1b77194759c192216eab
+- Repair candidate parent: a1c06d3134f8710deb4f3d2e9bb5303808c7cb6f
+- starting worktree: clean
+
+Replacement fresh probe
+- Unmodified source: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_v4_implementation_review_replacement_001/fresh_probes.py
+- Direct deep-path startup did not enter the probe because repo root was absent from sys.path; no result artifact was produced.
+- The source remained unmodified and the two evidence runs used PYTHONPATH=. with the required repo Python.
+- Both runs observed OPERATION_CREATED, BROKER_ATTEMPTED, BROKER_ABORTED; target launch 0; run and replay BLOCKED/0; complete false; automatic resend false.
+- Both result files were byte-identical; SHA-256 fcb36ffce9a58226dca20f9d9d6670a048ef94b0850dcd4951dd8454ea290612.
+- The unmodified legacy probe exits 1 when counterexample_reproduced is false; its JSON output is therefore the acceptance signal.
+- Focused production regression independently asserts BROKER_ABORTED outcome CRASH_BEFORE_FORK.
+
+Reviewer-owned negative control
+- <repo-python> reviewer_control.py --output <temporary-output>
+- result: pass
+- schema: INVALID/UNKNOWN
+- order: INVALID/UNKNOWN
+- truncated frame: INVALID/UNKNOWN
+- chain mismatch: INVALID/UNKNOWN
+- every case complete false and automatic resend false
+
+Focused and affected suites
+- <repo-python> -m pytest -q tests/test_agy_gemini_v4_broker.py
+  result: 23 passed in 2.09s
+- <repo-python> -m pytest -q tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py
+  result: 45 passed in 1.60s
+- <repo-python> -m pytest -q tests/test_agy_gemini_v4_broker.py::test_normalized_fake_trace_is_byte_identical
+  result: 1 passed in 0.34s
+
+Compile
+- <repo-python> -m py_compile scripts/agy_gemini_v4_broker.py tests/test_agy_gemini_v4_broker.py reviewer_control.py
+  result: pass
+
+Diff and scope
+- Repair diff contains only scripts/agy_gemini_v4_broker.py, tests/test_agy_gemini_v4_broker.py and six Repair evidence files.
+- runner unchanged: pass
+- review output only adds the card allowlisted review evidence root
+- no Gemini, HTTP, model, dependency, merge, push, deploy, publish or content recovery
+- git diff --check: pass
+
+Verdict
+- GO

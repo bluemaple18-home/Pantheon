@@ -1,0 +1,79 @@
+{
+  "replacement_probe": {
+    "runs": 2,
+    "byte_identical": true,
+    "sha256": "fcb36ffce9a58226dca20f9d9d6670a048ef94b0850dcd4951dd8454ea290612",
+    "legacy_probe_exit_code_each_run": 1,
+    "exit_code_note": "The unmodified probe returns 1 when counterexample_reproduced is false; the output contract is the acceptance signal.",
+    "result": {
+      "counterexample_reproduced": false,
+      "observed": {
+        "anchor_present": true,
+        "fresh_replay": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "errors": [],
+          "process_count": 0,
+          "status": "BLOCKED"
+        },
+        "ledger_event_count": 3,
+        "ledger_event_types": [
+          "OPERATION_CREATED",
+          "BROKER_ATTEMPTED",
+          "BROKER_ABORTED"
+        ],
+        "run_result": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "errors": [],
+          "process_count": 0,
+          "replay_status": "BLOCKED"
+        },
+        "target_launch_count": 0
+      },
+      "offline_synthetic_only": true,
+      "probe": "production_run_single_shot_executable_digest_race_after_operation_created",
+      "verdict": "CONTINUE_REVIEW"
+    }
+  },
+  "reviewer_owned_control": {
+    "control": "invalid_schema_order_frame_chain_fail_closed",
+    "offline_synthetic_only": true,
+    "passed": true,
+    "results": {
+      "chain": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "errors": ["HASH_CHAIN_MISMATCH"],
+        "process_count": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "frame": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "errors": ["PARTIAL_FRAME"],
+        "process_count": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "order": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "errors": [
+          "EXTERNAL_ANCHOR_MISMATCH",
+          "HASH_CHAIN_MISMATCH",
+          "ILLEGAL_EVENT_ORDER",
+          "SEQUENCE_GAP_OR_DUPLICATE"
+        ],
+        "process_count": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "schema": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "errors": ["HASH_CHAIN_MISMATCH", "SCHEMA_VERSION"],
+        "process_count": "UNKNOWN",
+        "status": "INVALID"
+      }
+    }
+  }
+}

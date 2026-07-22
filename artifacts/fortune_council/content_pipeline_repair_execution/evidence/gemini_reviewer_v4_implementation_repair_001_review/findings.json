@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "verdict": "GO",
+  "reviewed_candidate": "495cb033ec36467ec78c1b77194759c192216eab",
+  "candidate_parent": "a1c06d3134f8710deb4f3d2e9bb5303808c7cb6f",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "previous_severity": "P1",
+      "category": "correctness/process_accounting/pre_fork_abort",
+      "status": "CLOSED",
+      "evidence": "Production run_single_shot now durably records OPERATION_CREATED, BROKER_ATTEMPTED and BROKER_ABORTED(CRASH_BEFORE_FORK), launches the target zero times, and replays BLOCKED/0 without completion or resend."
+    }
+  ]
+}
