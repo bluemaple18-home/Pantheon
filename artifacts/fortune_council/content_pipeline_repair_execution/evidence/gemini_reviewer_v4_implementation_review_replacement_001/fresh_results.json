@@ -1,0 +1,43 @@
+{
+  "counterexample_reproduced": true,
+  "observed": {
+    "anchor_present": true,
+    "fresh_replay": {
+      "automatic_resend_allowed": false,
+      "complete": false,
+      "errors": [
+        "ILLEGAL_EVENT_ORDER"
+      ],
+      "process_count": "UNKNOWN",
+      "status": "INVALID"
+    },
+    "ledger_event_count": 1,
+    "ledger_event_types": [
+      "OPERATION_CREATED"
+    ],
+    "run_result": {
+      "automatic_resend_allowed": false,
+      "complete": false,
+      "errors": [
+        "ILLEGAL_EVENT_ORDER"
+      ],
+      "process_count": "UNKNOWN",
+      "replay_status": "INVALID"
+    },
+    "target_launch_count": 0
+  },
+  "offline_synthetic_only": true,
+  "probe": "production_run_single_shot_executable_digest_race_after_operation_created",
+  "required": {
+    "broker_aborted_outcome": "CRASH_BEFORE_FORK",
+    "ledger_event_types": [
+      "OPERATION_CREATED",
+      "BROKER_ATTEMPTED",
+      "BROKER_ABORTED"
+    ],
+    "process_count": 0,
+    "replay_status": "BLOCKED",
+    "target_launch_count": 0
+  },
+  "verdict": "NO_GO"
+}

@@ -1,0 +1,37 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-IMPLEMENTATION-REVIEW-REPLACEMENT-001
+Verdict: NO_GO
+
+Identity
+- reviewed candidate: bfdf6cb841235f87fd6af23576eb8a458a78f3c9
+- candidate parent: ef5b81307ca895d500ce1b6c346d17a451428942
+- replacement reviewer worktree HEAD: da87eff283609e426c7dfbdb397a549e7c9925b5
+- candidate files were not modified
+
+Recovery boundary
+- replacement Reviewer authored fresh_probes.py independently
+- its thread ended with the third consecutive Codex systemError before verdict/commit
+- orchestrator copied the probe without modification and executed it from the candidate worktree
+- offline synthetic subprocess only; no Gemini, HTTP, network or credential
+
+Command
+- PYTHONPATH=. <repo-python> <replacement-evidence>/fresh_probes.py --output <tmp-result>
+- executed twice independently
+- byte comparison: pass
+- result SHA-256: 98c26c9655cc356dc354307e88f5e172e22b5bcd50b3e28586ef2eb48c83137c
+
+Observed
+- counterexample_reproduced: true
+- ledger_event_types: [OPERATION_CREATED]
+- target_launch_count: 0
+- run replay: INVALID / UNKNOWN / ILLEGAL_EVENT_ORDER
+- fresh replay: INVALID / UNKNOWN / ILLEGAL_EVENT_ORDER
+
+Required
+- durable BROKER_ATTEMPTED then BROKER_ABORTED(CRASH_BEFORE_FORK)
+- target_launch_count: 0
+- replay: BLOCKED / 0
+
+Decision
+- one P1; candidate is NO_GO
+- candidate not integrated
+- no real CLI canary, deploy, publish or content recovery

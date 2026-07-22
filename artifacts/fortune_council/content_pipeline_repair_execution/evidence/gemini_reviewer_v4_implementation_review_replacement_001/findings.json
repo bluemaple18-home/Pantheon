@@ -1,0 +1,14 @@
+{
+  "candidate_sha": "bfdf6cb841235f87fd6af23576eb8a458a78f3c9",
+  "findings": [
+    {
+      "code": "V4_IMPL_PREFORK_ABORT_EVENT_MISSING",
+      "priority": "P1",
+      "summary": "Production pre-fork digest mismatch leaves only OPERATION_CREATED and replays INVALID/UNKNOWN instead of durable BROKER_ABORTED and BLOCKED/0."
+    }
+  ],
+  "probe_authorship": "replacement_reviewer",
+  "probe_execution": "orchestrator_recovery_after_three_system_errors",
+  "verdict": "NO_GO"
+}
+
