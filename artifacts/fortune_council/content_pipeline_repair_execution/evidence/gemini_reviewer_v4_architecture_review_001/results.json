@@ -1,0 +1,216 @@
+{
+  "candidate_evidence_structure": {
+    "fd_probe_launches_target_from_broker": false,
+    "matrix_rows_have_runtime_observable_reference": false,
+    "option_b_operation_probe_launches_broker_process": false,
+    "replay_has_typed_complete_blocked_ambiguous_status": false
+  },
+  "crash_and_exec_boundaries": {
+    "before_and_after_spawn_ledgers_byte_identical": true,
+    "broker_crash_after_actual_spawn_before_event": {
+      "actual_child_marker": true,
+      "replay": {
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "TERMINAL_COMPLETENESS"
+        ],
+        "gemini_process_starts": 0,
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN"
+      }
+    },
+    "broker_crash_after_start_event": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "TERMINAL_COMPLETENESS"
+      ],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "broker_crash_before_spawn": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "TERMINAL_COMPLETENESS"
+      ],
+      "gemini_process_starts": 0,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "exec_failure_event_supported": false,
+    "exec_missing_replay": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 0,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "preflight_and_exec_missing_ledgers_byte_identical": true,
+    "preflight_replay": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 0,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    }
+  },
+  "fd_isolation": {
+    "candidate_broker_reports_fd_inheritable": {
+      "broker_fd_inheritable": true,
+      "returncode": 0
+    },
+    "correct_close_fds_blocks_ledger_fd": {
+      "fd_closed": true,
+      "observable": "9",
+      "returncode": 0
+    },
+    "foreign_inheritable_fd_closed_by_correct_policy": {
+      "fd_closed": true,
+      "observable": "9",
+      "returncode": 0
+    },
+    "foreign_inheritable_fd_leaks_with_wrong_close_fds": {
+      "fd_closed": false,
+      "observable": "OPEN",
+      "returncode": 9
+    },
+    "wrong_close_fds_leaks_ledger_fd": {
+      "fd_closed": false,
+      "observable": "OPEN",
+      "returncode": 9
+    },
+    "wrong_pass_fds_leaks_ledger_fd": {
+      "fd_closed": false,
+      "observable": "OPEN",
+      "returncode": 9
+    }
+  },
+  "parent_crash_survival": {
+    "broker_terminal_survived_parent_exit": true,
+    "parent_returncode": 0
+  },
+  "replay_adversarial": {
+    "exact_duplicate": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "HASH_CHAIN_MISMATCH",
+        "SEQUENCE_GAP_OR_DUPLICATE"
+      ],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "invalid_terminal_and_ordinal": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "out_of_order": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "partial": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "PARTIAL_FRAME"
+      ],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "pid_reuse_is_bound_by_operation_not_pid": {
+      "first": {
+        "broker_attempts": 1,
+        "complete": true,
+        "errors": [],
+        "gemini_process_starts": 1,
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN"
+      },
+      "same_fixture_pid": 4242,
+      "second": {
+        "broker_attempts": 1,
+        "complete": true,
+        "errors": [],
+        "gemini_process_starts": 1,
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN"
+      }
+    },
+    "rechained_duplicate_operation_created": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "valid": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "wrong_binding": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "BINDING_MISMATCH"
+      ],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    }
+  },
+  "same_uid_raw_write": {
+    "external_anchor_is_required_for_full_replacement_detection": true,
+    "raw_mutation_with_external_anchor": {
+      "broker_attempts": 0,
+      "complete": false,
+      "errors": [
+        "EXTERNAL_ANCHOR_MISMATCH",
+        "INVALID_JSON",
+        "MISSING_OPERATION_CREATED",
+        "TERMINAL_COMPLETENESS"
+      ],
+      "gemini_process_starts": 0,
+      "logical_operations": 0,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "same_uid_mutation_succeeded": true,
+    "self_consistent_replacement_with_old_external_anchor": {
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "EXTERNAL_ANCHOR_MISMATCH"
+      ],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    },
+    "self_consistent_replacement_without_external_anchor": {
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN"
+    }
+  }
+}

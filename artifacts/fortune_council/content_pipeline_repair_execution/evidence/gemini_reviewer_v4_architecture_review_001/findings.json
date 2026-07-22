@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "verdict": "NO_GO",
+  "reviewed_candidate": "735d2850bd89bf3e4b29748f310981ba4d855709",
+  "findings": [
+    {
+      "severity": "P1",
+      "category": "correctness/process_accounting/crash_replay",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 80,
+      "evidence": "Actual child marker exists after broker crash-before-start-event, while replay reports gemini_process_starts=0; before-spawn and after-spawn ledgers are byte-identical.",
+      "risk": "A real Gemini process can be misreported as zero, enabling unsafe recovery or replay.",
+      "suggested_fix": "Add a durable fork/exec handshake and complete/blocked/ambiguous replay statuses; never infer zero across the ambiguous crash window.",
+      "validation_gap": "No real broker crash-before/after-spawn probes exist in candidate tests.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P1",
+      "category": "correctness/replay_schema",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 109,
+      "evidence": "Out-of-order terminal/start, a re-chained duplicate OPERATION_CREATED, and invalid outcome/ordinal all replay complete.",
+      "risk": "Malformed or contradictory ledgers can be certified complete.",
+      "suggested_fix": "Validate event-specific schemas and the full ordered finite-state machine.",
+      "validation_gap": "Tests cover exact duplicate and partial tail only, not semantically invalid valid-hash chains.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P1",
+      "category": "security/fd_isolation/evidence_honesty",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 208,
+      "evidence": "The fake Gemini is launched by the parent, not broker; broker FD remains inheritable; wrong close_fds/pass_fds and a foreign inherited FD leak in fresh probes.",
+      "risk": "Option B may grant writer authority to the Gemini child or another inherited descriptor despite a green matrix.",
+      "suggested_fix": "Run the fake target from the real broker with a strict FD allowlist/CLOEXEC policy and adversarial negative controls.",
+      "validation_gap": "No broker-to-target FD-table observation exists.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P1",
+      "category": "security/threat_boundary/tamper_evidence",
+      "path": "docs/pantheon_gemini_reviewer_v4_architecture.md",
+      "line": 49,
+      "evidence": "A same-UID self-consistent full ledger replacement replays complete without an old external anchor and is detected only when that anchor is supplied.",
+      "risk": "After parent/broker crash, ledger self-authentication can hide a rewritten history.",
+      "suggested_fix": "Specify an independently trusted anchor owner and crash lifecycle, or mark full same-UID replacement OUT_OF_SCOPE.",
+      "validation_gap": "No anchor-loss or full-chain-replacement test exists.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P1",
+      "category": "correctness/event_schema/process_accounting",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 19,
+      "evidence": "EXEC_FAILURE is absent; preflight missing and a real Popen FileNotFoundError produce byte-identical complete ledgers.",
+      "risk": "The ledger cannot distinguish preflight zero from an exec-boundary failure or race.",
+      "suggested_fix": "Separate preflight rejection, fork attempt, exec failure, process start, and terminal events with explicit accounting semantics.",
+      "validation_gap": "No actual missing executable or executable race test exists.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P2",
+      "category": "testing/evidence_honesty",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 313,
+      "evidence": "All matrix statuses are literal tuples and have no observable/predicate linkage.",
+      "risk": "The matrix remains green even if runtime behavior regresses.",
+      "suggested_fix": "Derive every supported cell from a referenced observable and negative-control predicate.",
+      "validation_gap": "No mutation test proves status changes when an observable fails.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P2",
+      "category": "maintainability/migration/api_contract",
+      "path": "docs/pantheon_gemini_reviewer_v4_architecture.md",
+      "line": 73,
+      "evidence": "The proposed API and allowlist omit broker framing, FD policy, anchor ownership, exec handshake, exact caller/callsite, and legacy retry cutover.",
+      "risk": "A production implementer must invent security-critical architecture beyond a bounded card.",
+      "suggested_fix": "Lock the wire/API contract and exact caller migration surface before implementation dispatch.",
+      "validation_gap": "No caller-level fake executable trace demonstrates an unambiguous 0/1 integration.",
+      "confidence": "high"
+    }
+  ]
+}

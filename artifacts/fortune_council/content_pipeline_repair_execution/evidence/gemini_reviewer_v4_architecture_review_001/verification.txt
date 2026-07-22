@@ -1,0 +1,67 @@
+STATUS: NO_GO
+
+START CONTRACT
+- clean detached worktree: PASS
+- HEAD: 5f09b37c2c601f17d6304018614aea88ac654cbe
+- HEAD^ / reviewed candidate: 735d2850bd89bf3e4b29748f310981ba4d855709
+- reviewed range: 8a4ade5bcadd16fa8e5a7bc0d14e730041b43088..735d2850bd89bf3e4b29748f310981ba4d855709
+- review card, architecture, POC, focused tests, four spike evidence files, V3 recovery review/probe/results and supplied research inventory: READ
+- offline only; no Gemini CLI/HTTP/model, dependency install, venv creation, merge, push, deploy, publish or content recovery
+
+CANDIDATE BASELINE
+- command: <main-workspace>/.venv/bin/python -m pytest -q tests/test_agy_gemini_v4_architecture_probe.py
+- result: 5 passed in 3.54s
+- command: <main-workspace>/.venv/bin/python -m py_compile scripts/agy_gemini_v4_architecture_probe.py tests/test_agy_gemini_v4_architecture_probe.py
+- result: PASS
+- candidate reviewed-range git diff --check: PASS
+- staged review evidence git diff --check: PASS
+
+REVIEWER-OWNED FRESH PROBES
+- command: PYTHONPATH=. <main-workspace>/.venv/bin/python artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_v4_architecture_review_001/reviewer_probes.py --output <review-evidence>/results.json
+- two fresh runs byte-identical: PASS
+- results sha256: bc2ba9e0f0462ff5503a618aaceec21b828fb2370832104dd47e89b7a4dfea90
+- results bytes: 5940
+
+FD ISOLATION
+- correct close_fds=True without pass_fds: child receives EBADF
+- wrong close_fds=False: child writes ledger FD
+- wrong pass_fds with close_fds=True: child writes ledger FD
+- foreign inheritable FD with wrong close_fds: child writes foreign FD
+- candidate broker receives ledger FD as inheritable: true
+- candidate fake Gemini is not launched by broker: confirmed by source trace
+
+REPLAY / CRASH / ACCOUNTING
+- exact duplicate: DETECTED
+- partial/truncated frame: DETECTED
+- wrong binding: DETECTED
+- out-of-order terminal before start: incorrectly accepted complete
+- re-chained duplicate OPERATION_CREATED: incorrectly accepted complete
+- invalid terminal outcome and process ordinal: incorrectly accepted complete
+- actual child spawned before broker crash but before start event: marker true; replay count incorrectly 0
+- crash-before-spawn and crash-after-spawn-before-event ledger bytes: identical
+- broker crash after durable start event: incomplete with count 1
+- parent exit with independent inherited-FD broker: terminal survives
+- preflight missing and real Popen FileNotFoundError ledger bytes: identical
+- EXEC_FAILURE event supported: false
+- provider internal calls: UNKNOWN
+- PID reuse fixture: same PID under distinct operation bindings replays independently; PID is not used as identity
+
+THREAT BOUNDARY
+- same-UID raw filesystem write succeeds
+- raw garbage with trusted old external anchor: DETECTED
+- self-consistent full replacement without external anchor: incorrectly accepted complete
+- same replacement with old external anchor: DETECTED
+- conclusion: append-only/hash chain is tamper evidence only and cannot self-prove the anchor
+
+SCOPE / STATIC
+- POC production imports: 0
+- new framework dependency or retry in candidate: 0
+- C kernel implementation executed: false; all C matrix cells UNSUPPORTED
+- candidate matrix cells derived from runtime observables: false
+- only review evidence added; candidate/POC/tests/docs/spike/V1-V3 unchanged
+
+FINAL
+- P1 findings: 5
+- P2 findings: 2
+- verdict: NO_GO
+- Option B is not authorized for production implementation.
