@@ -1,0 +1,14 @@
+RED
+command: <repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py -q
+result: 5 failed, 23 passed
+failures:
+- 2 model cases observed empty argv instead of the closed agy arguments.
+- unknown model, private path and GEMINI_API_KEY marker were not rejected before ledger creation.
+
+GREEN
+command: <repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py -q
+result: 28 passed
+
+FOCUSED
+command: <repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py -q
+result: 51 passed

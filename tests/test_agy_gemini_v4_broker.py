@@ -11,6 +11,7 @@ from unittest import mock
 import pytest
 
 from scripts import agy_gemini_v4_broker as broker
+from scripts import agy_gemini_outbox as outbox
 
 
 SCHEMA = {
@@ -47,21 +48,49 @@ def _write_target(path: Path, mode: str) -> Path:
     return path
 
 
-def _run(tmp_path: Path, executable: Path, *, timeout_milliseconds: int = 1500) -> broker.BrokerResult:
-    raw = "公開 synthetic request".encode()
+def _run(
+    tmp_path: Path,
+    executable: Path,
+    *,
+    timeout_milliseconds: int = 1500,
+    model: str = "synthetic-model",
+    raw_request: bytes = "公開 synthetic request".encode(),
+) -> broker.BrokerResult:
     return broker.run_single_shot(
         operation_id="operation-001",
         item_id="item-001",
         attempt_id="attempt-1",
         request_sha256="a" * 64,
-        model="synthetic-model",
+        model=model,
         executable=executable,
-        raw_request=raw,
+        raw_request=raw_request,
         response_schema=SCHEMA,
         timeout_milliseconds=timeout_milliseconds,
         ledger_path=tmp_path / "ledger.jsonl",
         anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
     )
+
+
+def _write_fake_agy(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\n"
+        "from pathlib import Path\n"
+        "raw=sys.stdin.buffer.read()\n"
+        "fds=[]\n"
+        "for fd in range(64):\n"
+        "    try: os.fstat(fd)\n"
+        "    except OSError: continue\n"
+        "    fds.append(fd)\n"
+        "trace={'argv':sys.argv[1:],'env':dict(os.environ),'fds':fds,'stdin_bytes':len(raw)}\n"
+        "Path(__file__).with_suffix('.trace').write_text("
+        "json.dumps(trace,sort_keys=True,separators=(',',':')),encoding='utf-8')\n"
+        "print(json.dumps({'ok':True},sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+    return path
 
 
 def _event(binding: broker.Binding, sequence: int, parent: str | None, event_type: str, **fields: object) -> dict[str, object]:
@@ -92,7 +121,7 @@ def _ledger(path: Path, binding: broker.Binding, definitions: list[tuple[str, di
 
 def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
     command = broker.CommandFrame(
-        schema_version=1,
+        schema_version=2,
         operation_id="operation-001",
         item_id="item-001",
         attempt_id="attempt-1",
@@ -100,6 +129,9 @@ def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
         request_sha256="b" * 64,
         request_bytes_length=12,
         timeout_milliseconds=1000,
+        target_profile=broker.RAW_STDIN_PROFILE,
+        model_label="synthetic-model",
+        payload_class=broker.SYNTHETIC_TEST,
     )
     encoded = broker.encode_frame(command.to_dict())
     assert int.from_bytes(encoded[:4], "big") == len(encoded) - 4
@@ -109,6 +141,76 @@ def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
         broker.decode_command_frame(broker.encode_frame(payload))
     with pytest.raises(broker.FrameError):
         broker.decode_command_frame(encoded[:-1])
+
+
+@pytest.mark.parametrize(
+    ("model", "label"),
+    (
+        ("gemini-3.5-flash", "Gemini 3.5 Flash (Low)"),
+        ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (Low)"),
+    ),
+)
+def test_agy_profile_uses_closed_argv_empty_stdin_and_allowlisted_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str, label: str
+) -> None:
+    target = _write_fake_agy(tmp_path / "agy-1.1.5")
+    prompt = "公開且已清理的文章審查請求"
+    monkeypatch.setenv("HOME", "/synthetic-home")
+    monkeypatch.setenv("PATH", "/synthetic-path")
+    monkeypatch.setenv("LANG", "zh_TW.UTF-8")
+    monkeypatch.setenv("GEMINI_API_KEY", "must-not-cross-boundary")
+    monkeypatch.setenv("UNRELATED_SENTINEL", "must-not-cross-boundary")
+
+    result = _run(tmp_path, target, model=model, raw_request=prompt.encode())
+
+    trace = json.loads(target.with_suffix(".trace").read_text())
+    assert (result.replay_status, result.process_count, result.outcome) == ("COMPLETE", 1, "SUCCESS")
+    assert trace["argv"][:6] == ["--model", label, "--mode", "plan", "--sandbox", "--log-file"]
+    assert trace["argv"][-4:-2] == ["--print-timeout", "2s"]
+    assert trace["argv"][-2:] == ["--print", prompt]
+    assert trace["stdin_bytes"] == 0
+    assert trace["fds"] == [0, 1, 2]
+    assert set(trace["env"]) <= {
+        "HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "__CF_USER_TEXT_ENCODING"
+    }
+    assert trace["env"]["HOME"] == "/synthetic-home"
+    assert "GEMINI_API_KEY" not in trace["env"]
+    assert "UNRELATED_SENTINEL" not in trace["env"]
+
+
+@pytest.mark.parametrize(
+    ("model", "prompt"),
+    (
+        ("unknown-model", "公開且已清理的請求"),
+        ("gemini-3.5-flash", "/Users/example/private-draft.md"),
+        ("gemini-3.5-flash", "GEMINI_API_KEY=forbidden"),
+    ),
+)
+def test_agy_profile_rejects_unapproved_binding_before_creating_ledger(
+    tmp_path: Path, model: str, prompt: str
+) -> None:
+    target = _write_fake_agy(tmp_path / "agy-1.1.5")
+
+    with pytest.raises(ValueError):
+        _run(tmp_path, target, model=model, raw_request=prompt.encode())
+
+    assert not (tmp_path / "ledger.jsonl").exists()
+    assert not target.with_suffix(".trace").exists()
+
+
+def test_agy_profile_privacy_patterns_and_size_match_outbox_contract(tmp_path: Path) -> None:
+    target = _write_fake_agy(tmp_path / "agy-1.1.5")
+    assert tuple((item.pattern, item.flags) for item in broker.FORBIDDEN_PUBLIC_PROMPT_PATTERNS) == tuple(
+        (item.pattern, item.flags) for item in outbox.FORBIDDEN_EXTERNAL_PATTERNS
+    )
+    assert broker.MAX_AGY_PROMPT_BYTES == outbox.MAX_PROMPT_BYTES
+
+    for prompt in (b"", b"x" * (outbox.MAX_PROMPT_BYTES + 1)):
+        with pytest.raises(ValueError):
+            _run(tmp_path, target, model="gemini-3.5-flash", raw_request=prompt)
+
+    assert not (tmp_path / "ledger.jsonl").exists()
+    assert not target.with_suffix(".trace").exists()
 
 
 @pytest.mark.parametrize(

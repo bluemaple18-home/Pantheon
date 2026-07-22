@@ -1,0 +1,39 @@
+CLI PARSER IDENTITY
+command: ~/.antigravity/bin/agy --version
+result: 1.1.5
+network/model invocation: none
+
+FOCUSED
+command: <repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py -q
+result: 51 passed in 2.32s
+
+PY_COMPILE
+command: <repo-venv>/bin/python -m py_compile scripts/agy_gemini_v4_broker.py tests/test_agy_gemini_v4_broker.py
+result: PASS
+
+DIFF CHECK
+command: git diff --check
+result: PASS
+
+FULL SUITE IN ISOLATED WORKTREE
+command: <repo-venv>/bin/python -m pytest -q
+result: 243 passed, 2 failed, 1 warning in 61.30s
+failures:
+- tests/test_api.py::test_predict_route_returns_charts_and_ai
+- tests/test_calculators.py::test_ziwei_returns_palace_payload
+environment note: the isolated worktree does not contain the ignored root node_modules directory, so the iztro bridge falls back to pantheon_ziwei. No app, calculator, Node or dependency file is in this card's diff.
+
+BASE COMMIT RUNTIME CHECK IN MAIN WORKSPACE
+command: .venv/bin/python -m pytest tests/test_api.py::test_predict_route_returns_charts_and_ai tests/test_calculators.py::test_ziwei_returns_palace_payload -q
+result: 2 passed, 1 warning in 0.36s
+interpretation: the two full-suite failures are isolated-worktree runtime availability, not a candidate code regression.
+
+PRIVACY / PROCESS ASSERTIONS
+- writer and reviewer model mappings: PASS
+- prompt passed only as --print value for agy profile; target stdin empty: PASS
+- unknown model/private path/credential marker rejected before ledger creation: PASS
+- empty/over-256-KiB prompt rejected and privacy patterns locked to outbox: PASS
+- injected GEMINI_API_KEY and unrelated environment sentinel absent from target: PASS
+- target observed file descriptors [0, 1, 2]: PASS
+- legacy raw-stdin broker lifecycle/replay cases remain green: PASS
+- real Gemini invocation: NOT RUN (forbidden by this card)
