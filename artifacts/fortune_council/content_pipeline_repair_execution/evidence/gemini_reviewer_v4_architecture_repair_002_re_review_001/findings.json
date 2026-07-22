@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "verdict": "GO",
+  "reviewed_candidate": "e34d5da658979bf22884772cc7ff4913e9ede2f7",
+  "candidate_parent": "404e0687c67ad9fa6d07cfd46864ce451309b589",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "previous_severity": "P1",
+      "category": "correctness/process_accounting/crash_replay",
+      "status": "CLOSED",
+      "evidence": "Reviewer-owned terminal-loss probe returns BLOCKED/1, complete=false, resend=false, and PROCESS_TERMINAL_MISSING."
+    },
+    {
+      "previous_severity": "P1",
+      "category": "correctness/replay_schema/migration_boundary",
+      "status": "CLOSED",
+      "evidence": "Both legacy aliases and missing/zero/negative/bool/string PID inputs return INVALID/UNKNOWN; a positive integer PID completes with count 1."
+    },
+    {
+      "previous_severity": "P2",
+      "category": "testing/evidence_honesty/matrix_derivation",
+      "status": "CLOSED",
+      "evidence": "Each of seven independent replay-control reversals changes strict_replay to false and the matrix cell to UNSUPPORTED."
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-ARCHITECTURE-REPAIR-002 FINAL RE-REVIEW
+Verdict: GO
+
+Identity and isolation
+- original reviewer HEAD: 393f8469f07840ddbb056c9c38123ea2ef338f99; clean
+- candidate ancestry: 393f8469f07840ddbb056c9c38123ea2ef338f99 -> 404e0687c67ad9fa6d07cfd46864ce451309b589 -> e34d5da658979bf22884772cc7ff4913e9ede2f7
+- reviewed detached HEAD: e34d5da658979bf22884772cc7ff4913e9ede2f7
+- offline; existing required Python only; synthetic subprocess/fake executable only
+
+Reviewer-owned fresh probes
+- command: <required-python> <re-review-evidence>/fresh_probes.py --output <re-review-evidence>/fresh_results.json
+- result: pass
+- second independent run and byte comparison: pass
+- fresh_results.json SHA-256: 6891ad06383df7ef154eec81528cf1eedfc6cba27bd5352a2f03c497f0420295
+- terminal-loss exact contract: pass
+- legacy alias boundary: pass
+- missing/zero/negative/bool/string PID rejection and positive-int acceptance: pass
+- full legal state/count/completeness/resend table: pass
+- seven individual matrix control reversals: pass; every cell degraded DETECTED -> UNSUPPORTED
+- FD and crash-window regression probes: pass
+
+Focused suite
+- command: <required-python> -m pytest -q tests/test_agy_gemini_v4_architecture_probe.py
+- result: 11 passed in 25.13s
+
+Compile and determinism
+- command: <required-python> -m py_compile scripts/agy_gemini_v4_architecture_probe.py tests/test_agy_gemini_v4_architecture_probe.py <re-review-evidence>/fresh_probes.py
+- result: pass
+- POC two-run byte comparison: pass
+- POC SHA-256: b6b8f04415d55cbe74572aee381b14a9587948d05127f83bb2a1647a405c8fed
+
+Diff and scope
+- candidate diff base: 404e0687c67ad9fa6d07cfd46864ce451309b589
+- candidate changed paths: 9; all inside Repair 2 allowlist
+- production/app/articles/registry/metadata/publishing changes: none
+- candidate git diff --check: pass
+- no Gemini CLI, HTTP, external model, dependency download, venv creation, merge, push, deploy, publish or content recovery
+
+Final evidence validation
+- findings and fresh-results JSON parse: pass
+- evidence-only path check: pass
+- sensitive/local-path/debug-prefix scan: pass
+- unstaged diff check: pass
+- staged diff check: performed immediately before commit
+- evidence commit and clean worktree: recorded after commit

@@ -1,0 +1,274 @@
+{
+  "broker_regression": {
+    "crash": {
+      "after_exec_before_event": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "count": "UNKNOWN",
+        "status": "AMBIGUOUS"
+      },
+      "before_exec": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "count": "UNKNOWN",
+        "status": "AMBIGUOUS"
+      },
+      "durable_zero": {
+        "automatic_resend_allowed": false,
+        "complete": false,
+        "count": 0,
+        "status": "BLOCKED"
+      }
+    },
+    "fd": {
+      "fd_correct": {
+        "allowlist_ok": true,
+        "ledger_fd_absent": true,
+        "target_fd_table": [
+          0,
+          1,
+          2
+        ]
+      },
+      "fd_foreign": {
+        "allowlist_ok": false,
+        "ledger_fd_absent": true,
+        "target_fd_table": [
+          0,
+          1,
+          2,
+          4
+        ]
+      },
+      "fd_wrong_close": {
+        "allowlist_ok": false,
+        "ledger_fd_absent": false,
+        "target_fd_table": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "fd_wrong_pass": {
+        "allowlist_ok": false,
+        "ledger_fd_absent": false,
+        "target_fd_table": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  },
+  "matrix_controls": {
+    "all_reversals_degrade": true,
+    "baseline": {
+      "cell": "DETECTED",
+      "legal_state_results": {
+        "ambiguous-broker": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": "UNKNOWN",
+          "status": "AMBIGUOUS"
+        },
+        "ambiguous-fork": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": "UNKNOWN",
+          "status": "AMBIGUOUS"
+        },
+        "blocked-one": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 1,
+          "status": "BLOCKED"
+        },
+        "blocked-zero-abort": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 0,
+          "status": "BLOCKED"
+        },
+        "blocked-zero-exec": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 0,
+          "status": "BLOCKED"
+        },
+        "complete-one": {
+          "automatic_resend_allowed": false,
+          "complete": true,
+          "count": 1,
+          "status": "COMPLETE"
+        },
+        "complete-zero": {
+          "automatic_resend_allowed": false,
+          "complete": true,
+          "count": 0,
+          "status": "COMPLETE"
+        }
+      },
+      "strict_replay": true
+    },
+    "individual_control_reversals": {
+      "chain_mismatch": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "illegal_order": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "legacy_alias": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "partial_frame": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "pid_domain": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "terminal_loss": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      },
+      "wrong_binding": {
+        "cell": "UNSUPPORTED",
+        "strict_replay": false
+      }
+    }
+  },
+  "replay_contract": {
+    "invalid_pid": {
+      "bool": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "PID_TYPE"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "missing": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "MISSING_FIELD",
+          "PID_TYPE"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "negative": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "PID_VALUE"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "string": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "PID_TYPE"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "zero": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "PID_VALUE"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      }
+    },
+    "invalid_pid_contract_pass": true,
+    "legacy": {
+      "PROCESS_NOT_STARTED": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "ILLEGAL_EVENT_ORDER",
+          "UNKNOWN_EVENT"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "PROCESS_STARTED": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "ILLEGAL_EVENT_ORDER",
+          "UNKNOWN_EVENT"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      }
+    },
+    "legacy_contract_pass": true,
+    "positive_pid": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_count": 1,
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "COMPLETE"
+    },
+    "positive_pid_contract_pass": true,
+    "terminal_loss": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "PROCESS_TERMINAL_MISSING"
+      ],
+      "gemini_process_count": 1,
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "BLOCKED"
+    },
+    "terminal_loss_contract_pass": true
+  }
+}
