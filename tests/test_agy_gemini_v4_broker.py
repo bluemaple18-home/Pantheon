@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import stat
+import subprocess
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -223,6 +225,41 @@ def test_single_shot_preflight_and_exec_failure_never_start_target(tmp_path: Pat
     assert (failed.replay_status, failed.process_count, failed.outcome) == ("BLOCKED", 0, "EXEC_FORMAT")
     assert missing.result is failed.result is None
     assert not (tmp_path / "missing" / "does-not-exist.trace").exists()
+
+
+def test_single_shot_digest_race_durably_aborts_before_target_fork(tmp_path: Path) -> None:
+    target = _write_target(tmp_path / "fake-target", "success")
+    real_popen = subprocess.Popen
+    broker_launches = 0
+
+    def mutate_before_broker_exec(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        nonlocal broker_launches
+        broker_launches += 1
+        if broker_launches == 1:
+            _write_target(target, "nonzero")
+        return real_popen(*args, **kwargs)
+
+    with mock.patch.object(broker.subprocess, "Popen", side_effect=mutate_before_broker_exec):
+        result = _run(tmp_path, target)
+
+    events = [json.loads(line) for line in (tmp_path / "ledger.jsonl").read_text().splitlines()]
+    replay = broker.replay_ledger(
+        tmp_path / "ledger.jsonl",
+        broker.Binding("operation-001", "item-001", "attempt-1"),
+        broker.FileAnchorStore(tmp_path / "anchors").load("operation-001", "attempt-1"),
+    )
+    assert [event["event_type"] for event in events] == [
+        "OPERATION_CREATED",
+        "BROKER_ATTEMPTED",
+        "BROKER_ABORTED",
+    ]
+    assert events[-1]["outcome"] == "CRASH_BEFORE_FORK"
+    assert (result.replay_status, result.process_count) == ("BLOCKED", 0)
+    assert result.caller_contract_satisfied is False
+    assert result.automatic_resend_allowed is False
+    assert (replay.status, replay.process_count, replay.complete) == ("BLOCKED", 0, False)
+    assert replay.automatic_resend_allowed is False
+    assert not target.with_suffix(".trace").exists()
 
 
 def test_existing_operation_never_spawns_or_repairs_anchor(tmp_path: Path) -> None:

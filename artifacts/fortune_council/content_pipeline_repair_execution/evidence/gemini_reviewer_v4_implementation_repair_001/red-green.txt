@@ -1,0 +1,23 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-IMPLEMENTATION-REPAIR-001 RED/GREEN
+
+RED 1｜未修改 replacement probe
+- Command: PYTHONPATH=. <repo-python> <replacement-evidence>/fresh_probes.py --output <repair-evidence>/red-fresh-results.json
+- Exit: 0（probe 以成功重現 counterexample 為成功條件）
+- Observed: OPERATION_CREATED；target 0；run/fresh replay INVALID/UNKNOWN；counterexample_reproduced=true。
+
+RED 2｜新增 production-path regression，production 尚未修改
+- Command: <repo-python> -m pytest -q tests/test_agy_gemini_v4_broker.py::test_single_shot_digest_race_durably_aborts_before_target_fork
+- Result: 1 failed；實際 events 只有 OPERATION_CREATED，缺 BROKER_ATTEMPTED 與 BROKER_ABORTED。
+
+GREEN 1｜同一 regression
+- Command: 同 RED 2。
+- Result: 1 passed in 0.05s。
+- Contract: OPERATION_CREATED → BROKER_ATTEMPTED → BROKER_ABORTED(CRASH_BEFORE_FORK)；target trace 不存在；result/fresh replay BLOCKED/0；complete=false；automatic resend=false。
+
+GREEN 2｜同一未修改 replacement probe
+- Command: 同 RED 1，輸出改為 green-fresh-results.json。
+- Exit: 1（原 probe 固定在 counterexample_reproduced=false 時回 1）。
+- Observed: OPERATION_CREATED → BROKER_ATTEMPTED → BROKER_ABORTED；target 0；run/fresh replay BLOCKED/0；complete=false；automatic resend=false；counterexample_reproduced=false；verdict=CONTINUE_REVIEW。
+- 第二次獨立執行 byte-identical；SHA-256: fcb36ffce9a58226dca20f9d9d6670a048ef94b0850dcd4951dd8454ea290612。
+
+所有 probe 僅使用 offline synthetic subprocess；未呼叫 Gemini、HTTP、network 或 external model。

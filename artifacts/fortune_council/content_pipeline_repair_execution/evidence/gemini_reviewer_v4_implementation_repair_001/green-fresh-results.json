@@ -1,0 +1,41 @@
+{
+  "counterexample_reproduced": false,
+  "observed": {
+    "anchor_present": true,
+    "fresh_replay": {
+      "automatic_resend_allowed": false,
+      "complete": false,
+      "errors": [],
+      "process_count": 0,
+      "status": "BLOCKED"
+    },
+    "ledger_event_count": 3,
+    "ledger_event_types": [
+      "OPERATION_CREATED",
+      "BROKER_ATTEMPTED",
+      "BROKER_ABORTED"
+    ],
+    "run_result": {
+      "automatic_resend_allowed": false,
+      "complete": false,
+      "errors": [],
+      "process_count": 0,
+      "replay_status": "BLOCKED"
+    },
+    "target_launch_count": 0
+  },
+  "offline_synthetic_only": true,
+  "probe": "production_run_single_shot_executable_digest_race_after_operation_created",
+  "required": {
+    "broker_aborted_outcome": "CRASH_BEFORE_FORK",
+    "ledger_event_types": [
+      "OPERATION_CREATED",
+      "BROKER_ATTEMPTED",
+      "BROKER_ABORTED"
+    ],
+    "process_count": 0,
+    "replay_status": "BLOCKED",
+    "target_launch_count": 0
+  },
+  "verdict": "CONTINUE_REVIEW"
+}

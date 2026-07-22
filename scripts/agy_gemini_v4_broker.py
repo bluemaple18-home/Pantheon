@@ -528,13 +528,27 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
             writer.append("PREFLIGHT_REJECTED", outcome="CLI_NOT_FOUND")
             _emit_broker_result(anchor_socket, result_fd, _control("COMPLETE", 0, "CLI_NOT_FOUND", None, b"", b"", writer.anchor), b"")
             return 0
+        writer.append("BROKER_ATTEMPTED", broker_attempt=1)
         try:
             digest = _sha256(executable.read_bytes())
-        except OSError as error:
-            raise FrameError("executable cannot be read") from error
+        except OSError:
+            writer.append("BROKER_ABORTED", outcome="CRASH_BEFORE_FORK")
+            _emit_broker_result(
+                anchor_socket,
+                result_fd,
+                _control("BLOCKED", 0, "CRASH_BEFORE_FORK", None, b"", b"", writer.anchor),
+                b"",
+            )
+            return 0
         if digest != command.executable_digest:
-            raise FrameError("executable digest changed")
-        writer.append("BROKER_ATTEMPTED", broker_attempt=1)
+            writer.append("BROKER_ABORTED", outcome="CRASH_BEFORE_FORK")
+            _emit_broker_result(
+                anchor_socket,
+                result_fd,
+                _control("BLOCKED", 0, "CRASH_BEFORE_FORK", None, b"", b"", writer.anchor),
+                b"",
+            )
+            return 0
         writer.append("FORK_ATTEMPTED", broker_attempt=1, process_ordinal=1)
         existed = executable.exists()
         try:
