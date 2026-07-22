@@ -1,0 +1,28 @@
+CARD-CONTENT-GEMINI-REVIEWER-V4-ARCHITECTURE-REPAIR-002
+
+RED
+command: PYTHONPATH=. <repo-venv>/bin/python <repair-1-re-review>/fresh_adversarial_probes.py --output <temp>/red.json
+comparison: output byte-identical to immutable Repair 1 re-review fresh_results.json
+terminal loss: INVALID / UNKNOWN / complete=false / resend=false
+legacy PROCESS_NOT_STARTED: COMPLETE / 0
+legacy PROCESS_STARTED: COMPLETE / 1
+EXEC_CONFIRMED pid=0: COMPLETE / 1
+strict_replay: true; matrix cell: DETECTED
+
+Regression seam RED
+command: PYTHONPATH=. <repo-venv>/bin/python -m pytest -q tests/test_agy_gemini_v4_architecture_probe.py -k 'current_v2 or strict_replay_matrix_uses'
+result: 2 failed, 7 deselected
+
+GREEN
+same immutable Reviewer probe:
+terminal loss: BLOCKED / 1 / complete=false / resend=false; reason=PROCESS_TERMINAL_MISSING
+legacy PROCESS_NOT_STARTED: INVALID / UNKNOWN
+legacy PROCESS_STARTED: INVALID / UNKNOWN
+EXEC_CONFIRMED pid=0: INVALID / UNKNOWN; error=PID_VALUE
+strict_replay: true; matrix cell: DETECTED
+
+Regression seam GREEN
+result: 2 passed, 7 deselected
+
+Full focused suite after terminal-loss, legacy-alias and PID-domain matrix reversals were added:
+result: 11 passed

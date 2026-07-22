@@ -1,0 +1,358 @@
+{
+  "candidate_status": "READY_FOR_REVIEW",
+  "matrix": [
+    {
+      "A": {
+        "observable": "preflight_is_zero",
+        "observable_id": "preflight_is_zero",
+        "predicate": "observables.preflight_is_zero is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "preflight_is_zero",
+        "observable_id": "preflight_is_zero",
+        "predicate": "observables.preflight_is_zero is true",
+        "status": "PREVENTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "preflight_missing"
+    },
+    {
+      "A": {
+        "observable": "exec_failure_distinct",
+        "observable_id": "exec_failure_distinct",
+        "predicate": "observables.exec_failure_distinct is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "exec_failure_distinct",
+        "observable_id": "exec_failure_distinct",
+        "predicate": "observables.exec_failure_distinct is true",
+        "status": "DETECTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "post_fork_exec_failure"
+    },
+    {
+      "A": {
+        "observable": "confirmed_outcomes_are_one",
+        "observable_id": "confirmed_outcomes_are_one",
+        "predicate": "observables.confirmed_outcomes_are_one is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "confirmed_outcomes_are_one",
+        "observable_id": "confirmed_outcomes_are_one",
+        "predicate": "observables.confirmed_outcomes_are_one is true",
+        "status": "DETECTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "confirmed_process_outcomes"
+    },
+    {
+      "A": {
+        "observable": "fd_policy_correct",
+        "observable_id": "fd_policy_correct",
+        "predicate": "observables.fd_policy_correct is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "fd_policy_correct",
+        "observable_id": "fd_policy_correct",
+        "predicate": "observables.fd_policy_correct is true",
+        "status": "PREVENTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "target_fd_isolation"
+    },
+    {
+      "A": {
+        "observable": "fd_negative_controls",
+        "observable_id": "fd_negative_controls",
+        "predicate": "observables.fd_negative_controls is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "fd_negative_controls",
+        "observable_id": "fd_negative_controls",
+        "predicate": "observables.fd_negative_controls is true",
+        "status": "PREVENTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "fd_negative_controls"
+    },
+    {
+      "A": {
+        "observable": "strict_replay",
+        "observable_id": "strict_replay",
+        "predicate": "observables.strict_replay is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "strict_replay",
+        "observable_id": "strict_replay",
+        "predicate": "observables.strict_replay is true",
+        "status": "DETECTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "illegal_or_partial_replay"
+    },
+    {
+      "A": {
+        "observable": "anchor_boundary_honest",
+        "observable_id": "anchor_boundary_honest",
+        "predicate": "observables.anchor_boundary_honest is true",
+        "status": "OUT_OF_SCOPE"
+      },
+      "B": {
+        "observable": "anchor_boundary_honest",
+        "observable_id": "anchor_boundary_honest",
+        "predicate": "observables.anchor_boundary_honest is true",
+        "status": "OUT_OF_SCOPE"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "same_uid_full_replacement"
+    },
+    {
+      "A": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "B": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "C": {
+        "observable": "kernel_isolation_executed",
+        "observable_id": "kernel_isolation_executed",
+        "predicate": "observables.kernel_isolation_executed is true",
+        "status": "UNSUPPORTED"
+      },
+      "scenario": "kernel_isolation"
+    }
+  ],
+  "provider_internal_calls": "UNKNOWN",
+  "runtime_evidence": {
+    "integrity_and_anchor": {
+      "chain_mismatch_detected": true,
+      "illegal_order_detected": true,
+      "ledger_does_not_self_prove_anchor": true,
+      "legacy_aliases_rejected": true,
+      "legal_state_results": {
+        "ambiguous-broker": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": "UNKNOWN",
+          "status": "AMBIGUOUS"
+        },
+        "ambiguous-fork": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": "UNKNOWN",
+          "status": "AMBIGUOUS"
+        },
+        "blocked-one": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 1,
+          "status": "BLOCKED"
+        },
+        "blocked-zero-abort": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 0,
+          "status": "BLOCKED"
+        },
+        "blocked-zero-exec": {
+          "automatic_resend_allowed": false,
+          "complete": false,
+          "count": 0,
+          "status": "BLOCKED"
+        },
+        "complete-one": {
+          "automatic_resend_allowed": false,
+          "complete": true,
+          "count": 1,
+          "status": "COMPLETE"
+        },
+        "complete-zero": {
+          "automatic_resend_allowed": false,
+          "complete": true,
+          "count": 0,
+          "status": "COMPLETE"
+        }
+      },
+      "legal_state_table_valid": true,
+      "old_anchor_detects_replacement": true,
+      "partial_detected": true,
+      "pid_domain_rejected": true,
+      "same_trust_domain_full_replacement": "OUT_OF_SCOPE",
+      "terminal_loss_classified": true,
+      "valid_complete": true,
+      "wrong_binding_detected": true
+    },
+    "observables": {
+      "anchor_boundary_honest": true,
+      "confirmed_outcomes_are_one": true,
+      "exec_failure_distinct": true,
+      "fd_negative_controls": true,
+      "fd_policy_correct": true,
+      "kernel_isolation_executed": false,
+      "preflight_is_zero": true,
+      "strict_replay": true
+    },
+    "option_b_inherited_fd": {
+      "broker_received_fd": true,
+      "gemini_child_fd_closed": true,
+      "negative_extra_fd_detected": true,
+      "negative_wrong_close_fds_detected": true,
+      "negative_wrong_pass_fds_detected": true,
+      "target_fd_table": [
+        0,
+        1,
+        2
+      ],
+      "token_file_present": false
+    },
+    "option_b_process_accounting": {
+      "exec_race": {
+        "actual_target_marker": false,
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "broker_returncode": 0,
+        "complete": false,
+        "errors": [],
+        "gemini_process_count": 0,
+        "gemini_process_starts": 0,
+        "ledger_fd_absent_from_target": true,
+        "logical_operations": 1,
+        "outcome": "EXEC_RACE",
+        "provider_internal_calls": "UNKNOWN",
+        "status": "BLOCKED",
+        "target_fd_allowlist_ok": false,
+        "target_fd_table": []
+      },
+      "nonzero": {
+        "actual_target_marker": true,
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "broker_returncode": 0,
+        "complete": true,
+        "errors": [],
+        "gemini_process_count": 1,
+        "gemini_process_starts": 1,
+        "ledger_fd_absent_from_target": true,
+        "logical_operations": 1,
+        "outcome": "CLI_NONZERO",
+        "provider_internal_calls": "UNKNOWN",
+        "status": "COMPLETE",
+        "target_fd_allowlist_ok": true,
+        "target_fd_table": [
+          0,
+          1,
+          2
+        ]
+      },
+      "preflight_missing": {
+        "actual_target_marker": false,
+        "automatic_resend_allowed": false,
+        "broker_attempts": 0,
+        "broker_returncode": 0,
+        "complete": true,
+        "errors": [],
+        "gemini_process_count": 0,
+        "gemini_process_starts": 0,
+        "ledger_fd_absent_from_target": true,
+        "logical_operations": 1,
+        "outcome": null,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "COMPLETE",
+        "target_fd_allowlist_ok": false,
+        "target_fd_table": []
+      },
+      "success": {
+        "actual_target_marker": true,
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "broker_returncode": 0,
+        "complete": true,
+        "errors": [],
+        "gemini_process_count": 1,
+        "gemini_process_starts": 1,
+        "ledger_fd_absent_from_target": true,
+        "logical_operations": 1,
+        "outcome": "SUCCESS",
+        "provider_internal_calls": "UNKNOWN",
+        "status": "COMPLETE",
+        "target_fd_allowlist_ok": true,
+        "target_fd_table": [
+          0,
+          1,
+          2
+        ]
+      },
+      "timeout": {
+        "actual_target_marker": true,
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "broker_returncode": 0,
+        "complete": true,
+        "errors": [],
+        "gemini_process_count": 1,
+        "gemini_process_starts": 1,
+        "ledger_fd_absent_from_target": true,
+        "logical_operations": 1,
+        "outcome": "CLI_TIMEOUT",
+        "provider_internal_calls": "UNKNOWN",
+        "status": "COMPLETE",
+        "target_fd_allowlist_ok": true,
+        "target_fd_table": [
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  },
+  "schema_version": 2,
+  "selected_option": "B"
+}
