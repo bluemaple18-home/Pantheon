@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "verdict": "NO_GO",
+  "reviewed_candidate": "ef6d6f3a26e6d44c3586cdb4beee37918d58c9ee",
+  "findings": [
+    {
+      "severity": "P1",
+      "category": "correctness/process_accounting/crash_replay",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 187,
+      "evidence": "A documented EXEC_CONFIRMED-without-terminal prefix replays INVALID/UNKNOWN instead of BLOCKED/1 because PROCESS_TERMINAL_MISSING is treated as an invalidating error.",
+      "risk": "A durably confirmed process loses its known count and cannot be distinguished from an invalid ledger.",
+      "suggested_fix": "Keep terminal-missing as a BLOCKED/1 reason and reserve INVALID/UNKNOWN for actual validation failures.",
+      "validation_gap": "Focused tests omit the documented BLOCKED/1 terminal-loss state.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P1",
+      "category": "correctness/replay_schema/migration_boundary",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 24,
+      "evidence": "Schema v2 accepts undocumented PROCESS_NOT_STARTED as COMPLETE/0 and PROCESS_STARTED as COMPLETE/1; EXEC_CONFIRMED with pid=0 also completes.",
+      "risk": "Legacy ledgers bypass the repaired fork/exec attribution and contradict the documented closed schema.",
+      "suggested_fix": "Remove aliases from schema v2 or isolate them in a versioned legacy decoder that never returns current COMPLETE; require a positive PID observation.",
+      "validation_gap": "Strict tests do not reject legacy aliases or nonpositive PID values.",
+      "confidence": "high"
+    },
+    {
+      "severity": "P2",
+      "category": "testing/evidence_honesty/matrix_derivation",
+      "path": "scripts/agy_gemini_v4_architecture_probe.py",
+      "line": 465,
+      "evidence": "The baseline strict_replay observable remains true and its cell remains DETECTED despite the fresh replay counterexamples; only a manual boolean override downgrades it.",
+      "risk": "The derived matrix can remain green while blocking replay defects are present.",
+      "suggested_fix": "Derive strict_replay from the complete legal-state table and all adversarial replay results rather than three partial booleans.",
+      "validation_gap": "No real failing replay result drives the observable negative control.",
+      "confidence": "high"
+    }
+  ]
+}

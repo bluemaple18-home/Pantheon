@@ -1,0 +1,50 @@
+STATUS: NO_GO
+
+FIXED REVIEW TARGET
+- Repair 1 candidate: ef6d6f3a26e6d44c3586cdb4beee37918d58c9ee
+- provisioning parent: 16e71276ee2c5da32dde2ea2665b37d6204c5a4b
+- original candidate: 735d2850bd89bf3e4b29748f310981ba4d855709
+- independent detached worktree was clean before evidence creation
+
+INPUT EVIDENCE
+- original review findings/results/reviewer_probes: READ
+- Repair card, architecture, POC/tests and Repair evidence: READ
+- author baseline: focused tests 7 passed; original Reviewer probe sha256 23172dc83c216bd4de7a666334bbef5e76d58c3d40a084bc2cabfba3737031a8
+
+REVIEWER-OWNED FRESH PROBE
+- command: PYTHONPATH=. <main-workspace>/.venv/bin/python <re-review-evidence>/fresh_adversarial_probes.py --output <re-review-evidence>/fresh_results.json
+- result file completed before the first platform systemError; per continuation instruction the probe was not rerun
+- fresh_results.json sha256: f73bcdfe95aa4d3faf5856a9e8893f5c87b02c68876eecc47aa1770147222046
+- fresh_results.json bytes: 5625
+- decisive terminal-loss result: documented BLOCKED/1; actual INVALID/UNKNOWN
+- decisive legacy results: PROCESS_NOT_STARTED COMPLETE/0; PROCESS_STARTED COMPLETE/1
+- nonpositive PID result: EXEC_CONFIRMED(pid=0) COMPLETE/1
+- matrix result: manual observable reversal downgrades supported cells, but actual replay counterexamples leave strict_replay=true and cell=DETECTED
+
+RESOLVED AXES
+- real broker durable before-fork: BLOCKED/0
+- before-exec/orphan crash windows: AMBIGUOUS/UNKNOWN, no automatic resend
+- success/nonzero/timeout: COMPLETE/1
+- correct target FD table: [0,1,2]
+- wrong close_fds/pass_fds and foreign extra FD: observed and rejected by allowlist
+- actual unlink exec race: FORK_ATTEMPTED + EXEC_FAILURE(EXEC_RACE), BLOCKED/0, bytes differ from preflight
+- same trust-domain replacement: OUT_OF_SCOPE boundary retained
+- all C cells: UNSUPPORTED
+- provider internal calls: UNKNOWN
+
+UNRESOLVED AXES
+- EXEC_CONFIRMED missing terminal status/count contract
+- closed current event schema due accepted legacy aliases and nonpositive PID
+- strict_replay matrix predicate does not consume these real counterexamples
+
+BOUNDARY
+- no Gemini CLI/HTTP/model, dependency install, venv creation, merge, push, deploy, publish, production implementation or content recovery
+- only artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_reviewer_v4_architecture_repair_001_re_review_001/** added
+- candidate, Repair evidence, original Review evidence and production files unchanged
+- staged re-review evidence git diff --check: PASS
+
+FINAL
+- unresolved P1: 2
+- unresolved P2: 1
+- verdict: NO_GO
+- Option B is not authorized for production implementation.

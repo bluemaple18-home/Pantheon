@@ -1,0 +1,220 @@
+{
+  "anchor_boundary": {
+    "declared_boundary": "OUT_OF_SCOPE",
+    "same_uid_full_replacement_succeeded": true,
+    "with_old_anchor": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "EXTERNAL_ANCHOR_MISMATCH"
+      ],
+      "gemini_process_count": "UNKNOWN",
+      "gemini_process_starts": "UNKNOWN",
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "INVALID"
+    },
+    "without_anchor": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [],
+      "gemini_process_count": 0,
+      "gemini_process_starts": 0,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "BLOCKED"
+    }
+  },
+  "fd_isolation": {
+    "correct": {
+      "allowlist_ok": true,
+      "ledger_fd_absent": true,
+      "target_fd_table": [
+        0,
+        1,
+        2
+      ]
+    },
+    "foreign_extra_fd": {
+      "allowlist_ok": false,
+      "ledger_fd_absent": true,
+      "target_fd_table": [
+        0,
+        1,
+        2,
+        4
+      ]
+    },
+    "wrong_close_fds": {
+      "allowlist_ok": false,
+      "ledger_fd_absent": false,
+      "target_fd_table": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "wrong_pass_fds": {
+      "allowlist_ok": false,
+      "ledger_fd_absent": false,
+      "target_fd_table": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  },
+  "matrix_evidence": {
+    "all_c_cells_unsupported": true,
+    "all_supported_observables_reversed": {
+      "confirmed_process_outcomes": "UNSUPPORTED",
+      "fd_negative_controls": "UNSUPPORTED",
+      "illegal_or_partial_replay": "UNSUPPORTED",
+      "post_fork_exec_failure": "UNSUPPORTED",
+      "preflight_missing": "UNSUPPORTED",
+      "target_fd_isolation": "UNSUPPORTED"
+    },
+    "baseline": {
+      "confirmed_process_outcomes": "DETECTED",
+      "fd_negative_controls": "PREVENTED",
+      "illegal_or_partial_replay": "DETECTED",
+      "post_fork_exec_failure": "DETECTED",
+      "preflight_missing": "PREVENTED",
+      "target_fd_isolation": "PREVENTED"
+    },
+    "strict_replay_cell": {
+      "observable": "strict_replay",
+      "observable_id": "strict_replay",
+      "predicate": "observables.strict_replay is true",
+      "status": "DETECTED"
+    },
+    "strict_replay_observable_value": true
+  },
+  "real_broker_and_exec": {
+    "actual_unlink_exec_race": {
+      "count": 0,
+      "events": [
+        "OPERATION_CREATED",
+        "BROKER_ATTEMPTED",
+        "FORK_ATTEMPTED",
+        "EXEC_FAILURE"
+      ],
+      "outcome": "EXEC_RACE",
+      "status": "BLOCKED"
+    },
+    "before_exec_confirmation": {
+      "actual_marker": false,
+      "automatic_resend_allowed": false,
+      "count": "UNKNOWN",
+      "status": "AMBIGUOUS"
+    },
+    "confirmed_outcomes": {
+      "nonzero": {
+        "count": 1,
+        "outcome": "CLI_NONZERO",
+        "status": "COMPLETE"
+      },
+      "success": {
+        "count": 1,
+        "outcome": "SUCCESS",
+        "status": "COMPLETE"
+      },
+      "timeout": {
+        "count": 1,
+        "outcome": "CLI_TIMEOUT",
+        "status": "COMPLETE"
+      }
+    },
+    "durable_before_fork": {
+      "count": 0,
+      "status": "BLOCKED"
+    },
+    "orphan_after_exec_before_event": {
+      "actual_marker": true,
+      "automatic_resend_allowed": false,
+      "count": "UNKNOWN",
+      "status": "AMBIGUOUS"
+    },
+    "preflight": {
+      "count": 0,
+      "events": [
+        "OPERATION_CREATED",
+        "PREFLIGHT_REJECTED"
+      ],
+      "status": "COMPLETE"
+    },
+    "preflight_and_race_bytes_differ": true
+  },
+  "replay_contract": {
+    "exec_confirmed_without_terminal": {
+      "actual": {
+        "automatic_resend_allowed": false,
+        "broker_attempts": 1,
+        "complete": false,
+        "errors": [
+          "PROCESS_TERMINAL_MISSING"
+        ],
+        "gemini_process_count": "UNKNOWN",
+        "gemini_process_starts": "UNKNOWN",
+        "logical_operations": 1,
+        "provider_internal_calls": "UNKNOWN",
+        "status": "INVALID"
+      },
+      "documented_expected": {
+        "count": 1,
+        "status": "BLOCKED"
+      }
+    },
+    "legacy_aliases_in_documented_closed_schema": false,
+    "legacy_process_not_started": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_count": 0,
+      "gemini_process_starts": 0,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "COMPLETE"
+    },
+    "legacy_process_started": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_count": 1,
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "COMPLETE"
+    },
+    "nonpositive_pid": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": true,
+      "errors": [],
+      "gemini_process_count": 1,
+      "gemini_process_starts": 1,
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "COMPLETE"
+    },
+    "terminal_before_exec_confirmed": {
+      "automatic_resend_allowed": false,
+      "broker_attempts": 1,
+      "complete": false,
+      "errors": [
+        "ILLEGAL_EVENT_ORDER"
+      ],
+      "gemini_process_count": "UNKNOWN",
+      "gemini_process_starts": "UNKNOWN",
+      "logical_operations": 1,
+      "provider_internal_calls": "UNKNOWN",
+      "status": "INVALID"
+    }
+  }
+}
