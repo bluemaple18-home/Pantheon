@@ -1,0 +1,29 @@
+{
+  "application_non_owner_rejected_before_spawn": {
+    "callback_entries": 1,
+    "failure_code": "PROCESS_FAILURE",
+    "gate_status": "BLOCKED",
+    "old_manifest_bytes_unchanged": true,
+    "process_started": false,
+    "target_popen_spawns": 0,
+    "terminal_status": "PROCESS_NOT_STARTED"
+  },
+  "raw_callback_entry_vs_target_spawn": {
+    "callback_entries": 1,
+    "completion_error": "FileExistsError",
+    "raw_bytes_unchanged": true,
+    "target_popen_spawns": 0
+  },
+  "same_user_token_discovery_and_writer_bypass": {
+    "attacker_payload": {
+      "record_written": true,
+      "token_read": true
+    },
+    "attacker_returncode": 0,
+    "attacker_started_without_token_argument": true,
+    "completion_error": "FileExistsError",
+    "foreign_record_persisted": true,
+    "old_manifest_bytes_unchanged": true,
+    "target_popen_spawns": 1
+  }
+}
