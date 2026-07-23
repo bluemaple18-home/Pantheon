@@ -481,6 +481,16 @@ import { AGY_HARNESS_NEW_20260723_76_ARTICLE_RECORDS } from "./article-expansion
 
 import { AGY_HARNESS_NEW_20260723_04_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-04.js?v=agy-harness-new-20260723-04";
 
+import { AGY_HARNESS_NEW_20260723_81_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-81.js?v=agy-harness-new-20260723-81";
+
+import { AGY_HARNESS_NEW_20260723_13_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-13.js?v=agy-harness-new-20260723-13";
+
+import { AGY_HARNESS_NEW_20260723_09_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-09.js?v=agy-harness-new-20260723-09";
+
+import { AGY_HARNESS_NEW_20260723_54_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-54.js?v=agy-harness-new-20260723-54";
+
+import { AGY_HARNESS_NEW_20260723_68_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-68.js?v=agy-harness-new-20260723-68";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2454,6 +2464,11 @@ export const ARTICLE_REGISTRY = [
   ...AGY_HARNESS_NEW_20260723_10_ARTICLE_RECORDS,
   ...AGY_HARNESS_NEW_20260723_76_ARTICLE_RECORDS,
   ...AGY_HARNESS_NEW_20260723_04_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_81_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_13_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_09_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_54_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_68_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {

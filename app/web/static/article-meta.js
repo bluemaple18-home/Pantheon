@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-harness-new-20260723-04";
+} from "./article-registry.js?v=agy-harness-new-20260723-68";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -121,7 +121,22 @@ import { AGY_HARNESS_NEW_20260723_76_ARTICLE_BODY_LIBRARY } from "./article-expa
 
 import { AGY_HARNESS_NEW_20260723_04_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-04.js?v=agy-harness-new-20260723-04";
 
+import { AGY_HARNESS_NEW_20260723_81_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-81.js?v=agy-harness-new-20260723-81";
+
+import { AGY_HARNESS_NEW_20260723_13_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-13.js?v=agy-harness-new-20260723-13";
+
+import { AGY_HARNESS_NEW_20260723_09_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-09.js?v=agy-harness-new-20260723-09";
+
+import { AGY_HARNESS_NEW_20260723_54_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-54.js?v=agy-harness-new-20260723-54";
+
+import { AGY_HARNESS_NEW_20260723_68_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-68.js?v=agy-harness-new-20260723-68";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_HARNESS_NEW_20260723_68_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_54_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_09_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_13_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_81_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_04_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_76_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_10_ARTICLE_BODY_LIBRARY,
