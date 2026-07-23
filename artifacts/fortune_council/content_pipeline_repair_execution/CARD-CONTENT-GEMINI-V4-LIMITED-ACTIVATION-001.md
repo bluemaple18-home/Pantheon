@@ -6,7 +6,7 @@
 - strictness: `strict`
 - risk: `high`
 - status: `IN_PROGRESS`
-- decision: `PENDING`
+- decision: `AWAITING_EXTERNAL_CONFIRMATION`
 
 ## 目標
 
@@ -72,3 +72,17 @@
 
 - `DELIVERED_CANDIDATE / READY_FOR_ACTIVATION_REVIEW`
 - `BLOCKED`
+
+## 離線 Gate 結果
+
+- source brief SHA-256:
+  `209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c`
+- staged job ID:
+  `1ad663e7f17477d0cee5056260427b4b360b7fab`
+- role / model: `writer / gemini-3.5-flash`
+- prompt bytes: `2555`
+- schema bytes: `1211`
+- sanitized request validation: `PASS`
+- current external invocation: `0`
+- current ledger / anchor / inbox / archive / failed record: `absent`
+- decision: `AWAITING_EXTERNAL_CONFIRMATION`

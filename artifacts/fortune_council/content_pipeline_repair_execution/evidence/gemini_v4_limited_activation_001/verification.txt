@@ -1,0 +1,67 @@
+Gemini V4 limited activation offline verification
+=================================================
+
+Candidate
+---------
+4c4211c2ff3961f24d48e75a6a7ef16c53a4da08
+
+Source
+------
+repo-relative source:
+artifacts/fortune_council/content_seo_execution/evidence/daily_publishing/daily-20260723-repair-01/brief.json
+
+source tracked by Git: PASS
+source mode: create
+source article count: 1
+source sha256:
+209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c
+
+Offline request
+---------------
+tick status: pending
+tick exit: 75 (expected)
+job id: 1ad663e7f17477d0cee5056260427b4b360b7fab
+role: writer
+model: gemini-3.5-flash
+prompt bytes: 2555
+schema bytes: 1211
+request strict validation: PASS
+public-data filter: PASS
+request digest rebuild: PASS
+
+Pre-external state
+------------------
+outbox request: present
+pending operation receipt: present
+ledger: absent
+anchor: absent
+processing: absent
+inbox: absent
+archive: absent
+failed: absent
+candidate article: absent
+review output: absent
+
+External boundary
+-----------------
+AGY_GEMINI_V4_BROKER planned value: 1
+entrypoint: scripts.agy_gemini_v4_broker:run_single_shot
+target profile: antigravity_cli_v1
+target maximum: 1 process
+runner maximum: 1 process-once command
+retry: forbidden
+fallback: forbidden
+automatic resend: forbidden
+publisher invocation: forbidden
+push / deploy / publish / default promotion: forbidden
+
+Current external invocation count: 0
+Authorization state: AWAITING_EXTERNAL_CONFIRMATION
+
+Privacy
+-------
+prompt saved in evidence: false
+credential saved in evidence: false
+full environment saved in evidence: false
+executable path saved in evidence: false
+CLI log saved in evidence: false
