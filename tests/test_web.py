@@ -322,9 +322,21 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert "/static/pantheon-orb-alpha-poster.webp" in response.text
     assert "/static/pantheon-orb-alpha-v2.webm" in response.text
     assert "data-pantheon-motion-visual" in response.text
-    assert "/static/styles.css?v=article-mobile-overflow-20260718-1" in response.text
+    assert "/static/styles.css?v=articles-cls-20260723-1" in response.text
     assert f"/static/articles.js?v={ARTICLE_CACHE_TOKEN}" in response.text
     assert "id=\"birth-form\"" not in response.text
+
+
+def test_articles_hub_reserves_motion_visual_space_before_javascript_mounts() -> None:
+    styles_css = Path("app/web/static/styles.css").read_text()
+    placeholder_rule = re.search(
+        r"\.content-topic-panel \[data-pantheon-motion-visual\] \{(?P<body>[^}]+)\}",
+        styles_css,
+    )
+
+    assert placeholder_rule is not None
+    assert "width: min(100%, 43rem);" in placeholder_rule["body"]
+    assert "aspect-ratio: 5 / 6;" in placeholder_rule["body"]
 
 
 def test_articles_hub_uses_balanced_display_order() -> None:
