@@ -1,0 +1,133 @@
+Gemini V4 limited activation diagnostic independent review
+==========================================================
+
+Identity / startup gate
+-----------------------
+candidate:
+53decc338eb750bd5556758679132c7288889778
+
+source activation evidence:
+e98d9d6f2843432fc38eb803a1ac97ac3c0f9860
+
+provisioning commit:
+056a39afc510fc798d47f4e7565a13372e647318
+
+HEAD equals provisioning commit: PASS
+worktree initially clean: PASS
+index.lock absent: PASS
+provisioning parent equals candidate: PASS
+provisioning diff adds only Review card: PASS
+source evidence is candidate ancestor: PASS
+
+Candidate scope
+---------------
+Production:
+- scripts/agy_gemini_runner.py
+- scripts/agy_gemini_v4_broker.py
+
+Tests:
+- tests/test_agy_gemini_outbox.py
+- tests/test_agy_gemini_v4_broker.py
+
+Remaining candidate paths are the Repair card and its dedicated evidence.
+Publisher / article / registry / automation production changes: 0
+
+Affected test matrix
+--------------------
+V4:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 77 passed in 30.29s
+
+Legacy:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed in 29.54s
+
+Coordinator:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed in 0.15s
+
+Content publisher:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_content_publisher.py -q
+Result: 5 passed in 0.06s
+
+Web:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_web.py -q
+Result: 63 passed, 2 warnings in 13.27s
+
+Unique pytest total: 208 passed
+
+Focused diagnostics
+-------------------
+Candidate diagnostic seam:
+- invalid JSON
+- array non-object
+- schema mismatch
+- malformed success failed record
+- production closed profile
+Result: 5 passed in 1.35s
+
+Behavioral boundary seam:
+- success
+- nonzero
+- timeout
+- existing operation no resend
+- flag-off legacy
+- flag-on no fallback
+- receipt mismatch
+- unreadable replay anchor/control failure
+Result: 10 passed in 1.97s
+
+Independent negative probes
+---------------------------
+JSON null production-path probe:
+{"caller_contract_satisfied": false, "result": null, "result_validation": "NOT_EVALUATED"}
+Expected result_validation: NOT_OBJECT
+Result: FAIL / P2 reproduced
+
+Forged BrokerResult failed-record probe:
+- replay_status arbitrary sentinel persisted: true
+- process_count arbitrary container persisted: true
+- outcome arbitrary sentinel persisted: true
+- result_validation closed-value check present: true
+Result: FAIL / P1 reproduced
+
+Static / scope / privacy
+------------------------
+py_compile broker, runner and changed tests: PASS
+candidate git diff --check: PASS
+added debug-marker scan: PASS
+production write allowlist: PASS
+added prompt/raw/credential persistence-term scan: PASS
+credential scan:
+- one existing x-goog-api-key deny-pattern literal
+- no credential value found
+
+Privacy conclusion:
+FAIL — production broker path does not retain prompt/raw stdout/raw stderr/response
+body, but a forged BrokerResult can persist arbitrary content through three
+unsanitized diagnostic fields.
+
+Behavioral conclusion
+---------------------
+flag-on fail-closed: PASS
+flag-on no legacy fallback: PASS
+flag-off legacy: PASS
+failed record consumer compatibility: PASS
+existing operation no resend: PASS
+exactly-once ledger / anchor unchanged: PASS
+Gemini / agy invocation during Review: 0
+retry of blocked real job: 0
+second real payload: 0
+merge / push / deploy / publish / activation / promotion / removal: 0
+
+Warnings
+--------
+tests/test_web.py retains one existing invalid-escape warning and one dependency
+deprecation warning. Neither is introduced by this candidate.
