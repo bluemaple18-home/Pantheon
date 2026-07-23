@@ -591,6 +591,10 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
 
     assert "meta description 欄位本身必須明寫" in prompt
     assert "不得只把限制放在正文" in prompt
+    assert "正文第一段第一句必須完整且連續包含該篇 primaryKeyword" in prompt
+    assert "每篇正文必須恰好 5 節、每節恰好 3 段" in prompt
+    assert "初稿每段以 95 到 110 字為生成目標" in prompt
+    assert "即使是否定句也改用其他說法" in prompt
 
 
 def test_run_cli_accepts_zero_content_repairs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1228,6 +1232,24 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
     assert len(remaining) == 29
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
+
+
+def test_matrix_prepare_can_isolate_every_article_in_its_own_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: [])
+
+    paths = prepare_matrix_runs(
+        repo_root,
+        "isolated-writer",
+        output_root=tmp_path,
+        limit=5,
+        max_articles_per_run=1,
+    )
+
+    assert len(paths) == 5
+    assert all(len(json.loads(path.read_text(encoding="utf-8"))["articles"]) == 1 for path in paths)
 
 
 def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_path: Path) -> None:

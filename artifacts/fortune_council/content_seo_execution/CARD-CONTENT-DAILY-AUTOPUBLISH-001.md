@@ -3,7 +3,7 @@ card_id: CARD-CONTENT-DAILY-AUTOPUBLISH-001
 status: READY_FOR_HIGH_FREQUENCY
 thickness: strict
 risk: high
-ownership: 每小時最多五篇的受監督自動產文、批次發布與失敗停損
+ownership: repo harness 持續產文、每批最多五篇、批次發布與失敗停損
 allowlist:
   - artifacts/fortune_council/content_seo_execution/CARD-CONTENT-DAILY-AUTOPUBLISH-001.md
   - artifacts/fortune_council/content_seo_execution/evidence/scale_clusters/cluster_plan.md
@@ -30,28 +30,31 @@ verification:
   - full pytest、git diff --check、本機與正式頁驗收
 ---
 
-# Pantheon 高頻批次自動發文
+# Pantheon 高頻內容 Harness
 
 ## 目標
 
-每日目標至少 100 篇，排程採每小時最多五篇，理論上限 120 篇。內容線使用既有
-Gemini CLI，不等待 V4；V4 維持獨立技術改善。
+每日目標至少 100 篇。由 repo 內 `agy_gemini_coordinator` 持續消化 Queue，
+不依賴 Codex App automation。每批最多五篇，但每篇使用獨立 Writer run。
+內容線使用既有 Gemini CLI，不等待 V4；V4 維持獨立技術改善。
 
 ## 每輪控制流
 
 1. 確認 `main`、worktree clean、`HEAD == origin/main`，否則停止。
 2. 先從 cluster plan 的未上線 backlog 依序取最多五篇；舊 Queue 用完後接續 content matrix v2。
-3. 建立公開 brief；若因 8 KiB 契約分成多個 brief，必須依序使用既有 CLI Writer 與各自的 fresh Reviewer。
+3. 每篇建立獨立公開 brief，依序使用既有 CLI Writer 與各自的 fresh Reviewer。
 4. 全批 deterministic findings 必須為空，每篇 Reviewer 都必須 `APPROVE`，不得 override。
 5. 全批通過後才建立 policy approval，一次 apply 至文章 registry 與正文模組。
 6. 更新版本、CHANGELOG、prerender、sitemap 與 feed，執行完整測試。
 7. 全批只建立一個 release commit 與一個 annotated tag，同次 push `main` 與 tag。
 8. 驗收全批正式文章 URL；保存 commit、tag、URL、HTTP、canonical 與文章標題。
 
-## 吞吐與併發
+## Harness、吞吐與併發
 
-- 排程每小時執行一次，每輪最多五篇；24 輪的理論上限是 120 篇／日。
-- 前一輪尚未結束時，下一輪必須因 dirty worktree 或 HEAD 不一致而停止，不得平行發布。
+- Coordinator 每 60 秒取得至多一個外部 job；用 checkpoint 持續推進，不建立 App 排程。
+- 每批最多五篇，但 Writer／Reviewer 都是一篇一個隔離 run，避免多篇 JSON 與內容互相污染。
+- 每篇允許初稿加最多兩次 findings-bound repair；第三次同 blocker 仍失敗就停，不做第 4 次。
+- 前一批尚未結束時，下一批不得平行發布；只有單一 actor 可修改 main。
 - backlog 少於五篇時只處理剩餘篇數，不補造題目。
 - 任一篇失敗即停止整批，不 apply 部分成功文章，也不跳過失敗題目。
 

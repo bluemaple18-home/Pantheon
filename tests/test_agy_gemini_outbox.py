@@ -460,7 +460,7 @@ def test_pipeline_tick_reserves_one_bounded_final_content_repair(
     result = run_pipeline_tick(run_dir, tmp_path / "queue")
 
     assert result["status"] == "complete"
-    assert observed == [3]
+    assert observed == [2]
 
 
 def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Path) -> None:

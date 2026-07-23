@@ -1038,7 +1038,10 @@ def prepare_matrix_runs(
     output_root: Path | None = None,
     limit: int | None = None,
     exclude_ids: set[str] | None = None,
+    max_articles_per_run: int = MAX_RUN_ARTICLES,
 ) -> list[Path]:
+    if not 1 <= max_articles_per_run <= MAX_RUN_ARTICLES:
+        raise ValueError(f"max_articles_per_run must be between 1 and {MAX_RUN_ARTICLES}")
     full_backlog = build_matrix_backlog(repo_root)
     targets = _matrix_targets(repo_root, full_backlog)
     excluded = exclude_ids or set()
@@ -1061,7 +1064,10 @@ def prepare_matrix_runs(
             "source": {"type": "matrix", "paths": [MATRIX_PLAN.as_posix(), MATRIX_V2_PLAN.as_posix()]},
             "articles": candidate_batch,
         }
-        if current_batch and (len(candidate_batch) > MAX_RUN_ARTICLES or len(compact_json_bytes(candidate)) + 1 > MAX_ARTICLE_BRIEF_BYTES):
+        if current_batch and (
+            len(candidate_batch) > max_articles_per_run
+            or len(compact_json_bytes(candidate)) + 1 > MAX_ARTICLE_BRIEF_BYTES
+        ):
             batches.append(current_batch)
             current_batch = [article]
         else:
@@ -1814,7 +1820,14 @@ def review_schema() -> dict[str, Any]:
 def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, findings: list[dict[str, Any]] | None = None) -> str:
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
     if brief.get("mode") == "create":
-        instruction += " meta description 欄位本身必須明寫內容只提供通用理解、不能替個人下結論等限制；不得只把限制放在正文。"
+        instruction += (
+            " 每篇正文必須恰好 5 節、每節恰好 3 段、每段 90 到 130 字，正文合計 1300 到 2000 字；"
+            "為避免中文計數超標，初稿每段以 95 到 110 字為生成目標，130 字仍是硬上限；"
+            "不得把某節段落複製到另一節。正文第一段第一句必須完整且連續包含該篇 primaryKeyword；"
+            "title 也必須完整且連續包含 primaryKeyword。完全避免 public policy 的 banned_phrases，"
+            "即使是否定句也改用其他說法。meta description 欄位本身必須明寫內容只提供通用理解、"
+            "不能替個人下結論等限制；不得只把限制放在正文。"
+        )
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"
     elif brief.get("mode") == "rewrite_existing_body":
@@ -3543,6 +3556,7 @@ def parse_args() -> argparse.Namespace:
     prepare.add_argument("--run-prefix", required=True)
     prepare.add_argument("--limit", type=int)
     prepare.add_argument("--exclude", action="append", default=[])
+    prepare.add_argument("--max-articles-per-run", type=int, default=MAX_RUN_ARTICLES)
     rewrite = subparsers.add_parser("prepare-rewrite")
     rewrite.add_argument("--queue", type=Path, required=True)
     rewrite.add_argument("--batch", type=int, required=True)
@@ -3607,7 +3621,13 @@ def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     if args.command == "prepare-matrix":
-        paths = prepare_matrix_runs(repo_root, args.run_prefix, limit=args.limit, exclude_ids=set(args.exclude))
+        paths = prepare_matrix_runs(
+            repo_root,
+            args.run_prefix,
+            limit=args.limit,
+            exclude_ids=set(args.exclude),
+            max_articles_per_run=args.max_articles_per_run,
+        )
         print(json.dumps({"backlog": sum(len(json.loads(path.read_text())["articles"]) for path in paths), "runs": [str(path.parent) for path in paths]}, ensure_ascii=False))
         return 0
     if args.command == "prepare-rewrite":

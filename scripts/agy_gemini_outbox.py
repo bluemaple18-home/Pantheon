@@ -16,7 +16,7 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 
 SCHEMA_VERSION = 1
-OUTBOX_MAX_REPAIRS = 3
+OUTBOX_MAX_REPAIRS = 2
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
