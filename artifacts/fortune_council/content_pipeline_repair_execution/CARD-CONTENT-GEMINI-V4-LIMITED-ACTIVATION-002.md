@@ -6,7 +6,7 @@
 - strictness: `strict`
 - risk: `high`
 - status: `IN_PROGRESS`
-- decision: `DRY_RUN_PENDING`
+- decision: `AWAITING_EXTERNAL_CONFIRMATION`
 
 ## 基準
 
@@ -94,3 +94,26 @@ payload 與影響的明確確認。
 - `BLOCKED`
 
 本卡的 candidate 或 GO 都不代表整合、上線、預設 promotion 或 legacy removal。
+
+## 離線 Gate 結果
+
+- source brief SHA-256:
+  `209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c`
+- staged brief SHA-256:
+  `ce38b9edfedbb2de2e79558615db8a2fb48831bc397cf3f55ab182da1bd487ac`
+- staged job ID:
+  `e64cb371f426c406af15d136728b659ffe18b7d2`
+- prior blocked job reused:
+  `false`
+- role / model:
+  `writer / gemini-3.5-flash`
+- prompt bytes / schema bytes:
+  `2555 / 1211`
+- sanitized request validation:
+  `PASS`
+- current external invocation:
+  `0`
+- current ledger / anchor / inbox / archive / failed record:
+  `absent`
+- decision:
+  `AWAITING_EXTERNAL_CONFIRMATION`
