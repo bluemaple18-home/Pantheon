@@ -4304,7 +4304,10 @@ select:focus {
 
 .content-topic-panel [data-pantheon-motion-visual] {
   display: grid;
+  width: min(100%, 43rem);
+  aspect-ratio: 5 / 6;
   min-width: 0;
+  justify-self: center;
   place-items: center;
 }
 
@@ -5538,6 +5541,10 @@ select:focus {
   .pantheon-hero-logo {
     width: min(82vw, 260px);
     margin-top: -2px;
+  }
+
+  .content-topic-panel [data-pantheon-motion-visual] {
+    width: min(calc(100% - 20px), 34rem);
   }
 
   .visual {
