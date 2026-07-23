@@ -110,6 +110,15 @@ PRIVACY_FIELDS = {
     "cli_log_saved",
     "executable_path_saved",
 }
+TRUSTED_RESULT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "ok": {"type": "boolean"},
+        "transport": {"type": "string", "enum": ["agy-v4-mainline-repair-canary"]},
+    },
+    "required": ["ok", "transport"],
+}
 
 
 class VerificationError(ValueError):
@@ -181,9 +190,25 @@ def validate_schema(value: object, schema: object) -> bool:
     return True
 
 
+def weaken_result_schema(value: dict[str, Any]) -> None:
+    value["result_schema"] = {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {},
+        "required": [],
+    }
+
+
+def coherently_weaken_result(value: dict[str, Any]) -> None:
+    weaken_result_schema(value)
+    value["execution"]["result"] = {"unexpected": "accepted"}
+    value["inbox"]["result"] = {"unexpected": "accepted"}
+
+
 def verify_bundle(bundle: object) -> dict[str, object]:
     root = require_closed(bundle, TOP_LEVEL_FIELDS, "bundle")
     require(root["schema_version"] == 1, "bundle schema version is invalid")
+    require(root["result_schema"] == TRUSTED_RESULT_SCHEMA, "bundle result schema differs from trusted contract")
     receipt = require_closed(root["receipt"], RECEIPT_FIELDS, "receipt")
     command = require_closed(root["command"], COMMAND_FIELDS, "command")
     execution = require_closed(root["execution"], EXECUTION_FIELDS, "execution")
@@ -270,7 +295,15 @@ def verify_bundle(bundle: object) -> dict[str, object]:
     require(execution["caller_contract_satisfied"] is True, "caller contract is not satisfied")
     require(execution["errors"] == [], "execution contains errors")
     require(execution["automatic_resend_allowed"] is False, "automatic resend is enabled")
-    require(validate_schema(execution["result"], root["result_schema"]), "execution result schema is invalid")
+    require(validate_schema(execution["result"], TRUSTED_RESULT_SCHEMA), "execution result schema is invalid")
+    canonical_result = canonical_json(execution["result"])
+    require(
+        any(
+            execution["byte_count"] == len(encoded) and execution["stdout_sha256"] == sha256(encoded)
+            for encoded in (canonical_result, canonical_result + b"\n")
+        ),
+        "execution result output binding mismatch",
+    )
 
     for field in CONTROL_FIELDS:
         require(control[field] == execution[field], f"control/execution {field} mismatch")
@@ -281,7 +314,7 @@ def verify_bundle(bundle: object) -> dict[str, object]:
     require(inbox["request_sha256"] == request_sha256, "inbox request mismatch")
     require(inbox["model"] == receipt["model"], "inbox model mismatch")
     require(inbox["result"] == execution["result"], "inbox result mismatch")
-    require(validate_schema(inbox["result"], root["result_schema"]), "inbox result schema is invalid")
+    require(validate_schema(inbox["result"], TRUSTED_RESULT_SCHEMA), "inbox result schema is invalid")
 
     require(policy["target_invocations"] == 1, "target invocation count is invalid")
     require(policy["fallback_invocations"] == 0, "fallback was invoked")
@@ -332,9 +365,11 @@ def mutation_matrix(bundle: object) -> dict[str, object]:
         ),
         ("wrong_anchor", lambda value: value["ledger"].__setitem__("final_anchor", "0" * 64)),
         (
-            "wrong_result_schema",
+            "wrong_result",
             lambda value: value["execution"].__setitem__("result", {"ok": "not-a-boolean"}),
         ),
+        ("wrong_result_schema", weaken_result_schema),
+        ("coherent_weakened_schema", coherently_weaken_result),
     ]
     results: list[dict[str, object]] = []
     for name, mutate in cases:
