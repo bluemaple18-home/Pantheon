@@ -1,0 +1,37 @@
+Gemini V4 output binding RED/GREEN
+==================================
+
+RED command
+------------
+.venv/bin/python -m pytest tests/test_agy_gemini_outbox.py::test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding -q
+
+RED result
+----------
+1 failed
+
+Failure seam:
+assert result.result_json == expected_stdout
+actual:   b'{"ok":true}'
+expected: b'{\n  "ok": true\n}\n'
+
+The same result already had caller_contract_satisfied=True and parsed to {"ok": True}.
+
+GREEN change
+------------
+scripts/agy_gemini_v4_broker.py:
+return the already validated raw_result rather than canonical_json(parsed) when parsed
+is not None.
+
+GREEN command
+-------------
+.venv/bin/python -m pytest tests/test_agy_gemini_outbox.py::test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding -q
+
+GREEN result
+------------
+1 passed
+
+Assertions now prove:
+- parsed result remains {"ok": True}
+- result_json exactly equals original pretty JSON stdout bytes
+- byte_count equals len(result_json)
+- stdout_sha256 equals SHA-256(result_json)

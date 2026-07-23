@@ -1,0 +1,10 @@
+{
+  "coherent_weakened_schema": {
+    "accepted": false,
+    "error": "bundle result schema differs from trusted contract"
+  },
+  "wrong_result_schema": {
+    "accepted": false,
+    "error": "bundle result schema differs from trusted contract"
+  }
+}

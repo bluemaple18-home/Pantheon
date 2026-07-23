@@ -1,0 +1,17 @@
+{
+  "expected_result_schema_matches": true,
+  "final_anchor_matches": true,
+  "final_anchor_recomputed": "d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601",
+  "ledger_sha256_matches": true,
+  "ledger_sha256_recomputed": "ce52cc41e295f8a9bd88835a892d11e130f6dea8a1703998e85d1a33404cc49d",
+  "mutation_controls_rejected": 14,
+  "mutation_controls_total": 14,
+  "offline_verifier_status": "PASS",
+  "operation_id_matches_request_prefix": true,
+  "result_byte_count_matches": true,
+  "result_stdout_sha256_matches": true,
+  "weakened_schema_coherent_tamper": {
+    "accepted": false,
+    "error": "bundle result schema differs from trusted contract"
+  }
+}

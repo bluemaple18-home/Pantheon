@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "command_result": "21 passed in 1.94s",
+  "cases": [
+    {"scenario": "flag_off_legacy", "status": "PASS", "observable": "one legacy call; no V4 selection"},
+    {"scenario": "flag_on_success", "status": "PASS", "observable": "COMPLETE/1 with strict result"},
+    {"scenario": "flag_on_nonzero", "status": "PASS", "observable": "COMPLETE/1; no caller result"},
+    {"scenario": "flag_on_timeout", "status": "PASS", "observable": "COMPLETE/1; no caller result"},
+    {"scenario": "malformed_output", "status": "PASS", "observable": "V4BrokerFailure; no legacy fallback or inbox"},
+    {"scenario": "pre_fork_abort", "status": "PASS", "observable": "durable abort BLOCKED/0"},
+    {"scenario": "fork_exec_ambiguous", "status": "PASS", "observable": "AMBIGUOUS/UNKNOWN; resend false"},
+    {"scenario": "partial_ledger", "status": "PASS", "observable": "INVALID/UNKNOWN"},
+    {"scenario": "replay_existing_operation", "status": "PASS", "observable": "no target respawn or ledger repair"},
+    {"scenario": "digest_mismatch", "status": "PASS", "observable": "rejected before ledger creation"},
+    {"scenario": "concurrent_duplicate", "status": "PASS", "observable": "loser replays COMPLETE/1 without caller result and preserves replay anchor"},
+    {"scenario": "blocked_no_fallback", "status": "PASS", "observable": "failed; no legacy call"},
+    {"scenario": "ambiguous_no_fallback", "status": "PASS", "observable": "failed; no legacy call"},
+    {"scenario": "invalid_no_fallback", "status": "PASS", "observable": "failed; no legacy call"}
+  ],
+  "privacy": {
+    "prompt_saved": false,
+    "credential_saved": false,
+    "full_environment_saved": false
+  }
+}

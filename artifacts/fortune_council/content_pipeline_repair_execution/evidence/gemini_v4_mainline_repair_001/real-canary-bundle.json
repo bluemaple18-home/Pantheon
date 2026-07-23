@@ -1,0 +1,157 @@
+{
+  "command": {
+    "attempt_id": "attempt-1",
+    "executable_digest": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "item_id": "gemini-v4-mainline-repair-canary",
+    "model_label": "Gemini 3.5 Flash (Low)",
+    "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+    "payload_class": "PUBLIC_SANITIZED",
+    "request_bytes_length": 112,
+    "request_sha256": "ee891ee36e0891fee606887957826dd868b73daa239c0b7bb6177e1d85f4b6fa",
+    "schema_version": 2,
+    "target_profile": "antigravity_cli_v1",
+    "timeout_milliseconds": 120000
+  },
+  "control": {
+    "byte_count": 56,
+    "exit_status": 0,
+    "final_anchor": "d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601",
+    "outcome": "SUCCESS",
+    "process_count": 1,
+    "replay_status": "COMPLETE",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "2edf86315be5bbeb260727631bb21c6765f95c8c2edef9a5cff61058f5ede659"
+  },
+  "executable_identity": {
+    "cli_version": "1.1.5",
+    "sha256": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "tool": "agy"
+  },
+  "execution": {
+    "automatic_resend_allowed": false,
+    "byte_count": 56,
+    "caller_contract_satisfied": true,
+    "errors": [],
+    "exit_status": 0,
+    "final_anchor": "d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601",
+    "outcome": "SUCCESS",
+    "process_count": 1,
+    "replay_status": "COMPLETE",
+    "result": {
+      "ok": true,
+      "transport": "agy-v4-mainline-repair-canary"
+    },
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "2edf86315be5bbeb260727631bb21c6765f95c8c2edef9a5cff61058f5ede659"
+  },
+  "inbox": {
+    "job_id": "ee891ee36e0891fee606887957826dd868b73daa",
+    "model": "gemini-3.5-flash",
+    "request_sha256": "ee891ee36e0891fee606887957826dd868b73daa239c0b7bb6177e1d85f4b6fa",
+    "result": {
+      "ok": true,
+      "transport": "agy-v4-mainline-repair-canary"
+    },
+    "schema_version": 1
+  },
+  "invocation_policy": {
+    "automatic_resend_allowed": false,
+    "automatic_retry_invocations": 0,
+    "fallback_invocations": 0,
+    "target_invocations": 1
+  },
+  "ledger": {
+    "canonical_frames": [
+      {
+        "attempt_id": "attempt-1",
+        "event_type": "OPERATION_CREATED",
+        "item_id": "gemini-v4-mainline-repair-canary",
+        "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+        "parent_sha256": null,
+        "schema_version": 2,
+        "sequence": 1
+      },
+      {
+        "attempt_id": "attempt-1",
+        "broker_attempt": 1,
+        "event_type": "BROKER_ATTEMPTED",
+        "item_id": "gemini-v4-mainline-repair-canary",
+        "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+        "parent_sha256": "1d6f97b19a3b7e629a6839f0288fa337eb3704e04b5d5ac64db4bf21ec4efcef",
+        "schema_version": 2,
+        "sequence": 2
+      },
+      {
+        "attempt_id": "attempt-1",
+        "broker_attempt": 1,
+        "event_type": "FORK_ATTEMPTED",
+        "item_id": "gemini-v4-mainline-repair-canary",
+        "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+        "parent_sha256": "196bcd99850ca9aa68058cdfb11afdd86185344cfece89f47e69adc96dd86e98",
+        "process_ordinal": 1,
+        "schema_version": 2,
+        "sequence": 3
+      },
+      {
+        "attempt_id": "attempt-1",
+        "event_type": "EXEC_CONFIRMED",
+        "item_id": "gemini-v4-mainline-repair-canary",
+        "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+        "parent_sha256": "fb86cb5cee211ec0a3cbc063c5f944a69b7496b58b838bc97f27349738fddbd3",
+        "pid": 59931,
+        "process_ordinal": 1,
+        "schema_version": 2,
+        "sequence": 4
+      },
+      {
+        "attempt_id": "attempt-1",
+        "event_type": "PROCESS_TERMINAL",
+        "item_id": "gemini-v4-mainline-repair-canary",
+        "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+        "outcome": "SUCCESS",
+        "parent_sha256": "fde538bbfb889ef8012afc61e28d9be6e8b8f06b92e56aae92549fd17276c764",
+        "schema_version": 2,
+        "sequence": 5
+      }
+    ],
+    "encoding": "canonical-jsonl-v1",
+    "final_anchor": "d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601",
+    "ledger_sha256": "ce52cc41e295f8a9bd88835a892d11e130f6dea8a1703998e85d1a33404cc49d"
+  },
+  "privacy": {
+    "cli_log_saved": false,
+    "credential_saved": false,
+    "executable_path_saved": false,
+    "full_environment_saved": false,
+    "prompt_saved": false
+  },
+  "receipt": {
+    "attempt_id": "attempt-1",
+    "executable_digest": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "item_id": "gemini-v4-mainline-repair-canary",
+    "model": "gemini-3.5-flash",
+    "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+    "request_sha256": "ee891ee36e0891fee606887957826dd868b73daa239c0b7bb6177e1d85f4b6fa",
+    "target_profile": "antigravity_cli_v1"
+  },
+  "result_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "transport": {
+        "enum": [
+          "agy-v4-mainline-repair-canary"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "ok",
+      "transport"
+    ],
+    "type": "object"
+  },
+  "schema_version": 1
+}

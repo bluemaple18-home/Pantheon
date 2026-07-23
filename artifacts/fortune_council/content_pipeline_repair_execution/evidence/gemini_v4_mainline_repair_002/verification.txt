@@ -1,0 +1,62 @@
+STATUS: DELIVERED_CANDIDATE
+
+IDENTITY / PREFLIGHT
+- independent cwd distinct from main, canonical Reviewer and Repair-1 cwd: PASS
+- clean startup worktree: PASS
+- startup HEAD: 233ddc25032e0cac4bbc5d3144dbc383f49c0c18
+- startup HEAD parent: 6c4931c1da63257cd70bd0abe5776dc1758e4557
+- canonical re-review commit read-only: 9279516ed98465fbec535b836e58b078c2157a0d
+- startup index.lock absent: PASS
+- Repair-2 card created before verifier/evidence implementation changes: PASS
+
+RUNTIME NOTE
+- first RED command used the absent worktree-local `.venv/bin/python` and exited 127 before entering probe logic.
+- rerun used the existing Pantheon `uv + .venv` interpreter; no environment creation, package download or external call occurred.
+- same blocker count: 1/3; resolved by toolchain path discovery.
+
+RED / GREEN
+- unmodified verifier wrong_result_schema: ACCEPTED (expected RED)
+- unmodified verifier coherent_weakened_schema: ACCEPTED (expected RED)
+- fixed verifier wrong_result_schema: REJECTED
+- fixed verifier coherent_weakened_schema: REJECTED
+- legal real bundle: PASS
+- legal synthetic bundle: PASS
+- mutation matrix: PASS / 14 of 14 rejected
+- original controls retained: 12 of 12 behavioral controls rejected
+- new schema controls: 2 of 2 rejected
+- old summary: REJECTED / bundle fields are not closed
+
+TRUSTED CONTRACT / OUTPUT BINDING
+- bundle result_schema exact fixed closed schema: PASS
+- execution result against trusted schema: PASS
+- inbox result against trusted schema: PASS
+- canonical result byte count binding: PASS
+- canonical result stdout SHA-256 binding: PASS
+- existing ledger/receipt/control/inbox bindings: PASS
+
+CANONICAL REVIEWER EQUIVALENT PROBE
+command: <pantheon-venv>/bin/python <repair-2-evidence>/reviewer-probe-equivalent.py <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/real-canary-bundle.json --output <repair-2-evidence>/reviewer-probe-equivalent.json
+exit: 0
+- offline verifier: PASS
+- ledger SHA recomputation: MATCH
+- final anchor recomputation: MATCH
+- operation ID / request prefix: MATCH
+- expected fixed schema: MATCH
+- canonical result byte count: MATCH
+- canonical result stdout SHA-256: MATCH
+- coherent weakened schema: REJECTED
+- mutation controls: 14/14 rejected
+
+STATIC / PRIVACY / SCOPE
+- py_compile verifier and Repair-2 probes: PASS
+- privacy / secret / local absolute path scan: PASS / no matches
+- changed-files manifest: PASS / exact match
+- Repair-2 allowlist: PASS
+- generated __pycache__ files: absent
+- git diff --check: PASS
+- index.lock absent before staging: PASS
+
+NOT RUN / NOT AUTHORIZED
+- external agy/Gemini call or canary
+- production tests or production file changes
+- retry, fallback, merge, push, deploy, publish, shadow or default transport promotion

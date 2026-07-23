@@ -870,8 +870,16 @@ def run_single_shot(
     try:
         ledger_fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        replay = replay_ledger(ledger_path, binding, anchor_store.load(operation_id, attempt_id))
-        return _failure_result(receipt, replay, existing_anchor)
+        try:
+            replay_anchor = anchor_store.load(operation_id, attempt_id)
+        except AnchorError:
+            return _failure_result(
+                receipt,
+                ReplayResult("INVALID", "UNKNOWN", False, ("EXTERNAL_ANCHOR_INVALID",)),
+                None,
+            )
+        replay = replay_ledger(ledger_path, binding, replay_anchor)
+        return _failure_result(receipt, replay, replay_anchor)
     command_read, command_write = os.pipe()
     result_read, result_write = os.pipe()
     anchor_parent, anchor_child = socket.socketpair()
@@ -1003,7 +1011,7 @@ def run_single_shot(
         final_anchor,
         receipt,
         caller_ok,
-        canonical_json(parsed) if parsed is not None else None,
+        raw_result if parsed is not None else None,
         replay.errors,
     )
 

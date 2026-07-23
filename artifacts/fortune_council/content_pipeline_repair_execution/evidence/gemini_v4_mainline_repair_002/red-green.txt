@@ -1,0 +1,36 @@
+P1 RED
+command: <pantheon-venv>/bin/python <repair-2-evidence>/schema-probe.py <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/real-canary-bundle.json --output <repair-2-evidence>/red-schema-probe.json
+exit: 0
+verifier state: unmodified Repair-1 verifier
+wrong_result_schema: accepted=true
+coherent_weakened_schema: accepted=true
+meaning: bundle-owned schema can be weakened and remains trusted; coherent tamper incorrectly passes.
+
+P1 GREEN
+command: <pantheon-venv>/bin/python <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/real-canary-bundle.json --output <repair-2-evidence>/real-verification.json
+exit: 0
+result: PASS
+
+command: <pantheon-venv>/bin/python <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/synthetic-canary-bundle.json --output <repair-2-evidence>/synthetic-verification.json
+exit: 0
+result: PASS
+
+command: <pantheon-venv>/bin/python <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/synthetic-canary-bundle.json --mutation-matrix --output <repair-2-evidence>/mutation-matrix.json
+exit: 0
+result: PASS; 14/14 rejected.
+controls: original result-only control preserved; wrong_result_schema and coherent_weakened_schema both rejected.
+
+command: <pantheon-venv>/bin/python <repair-2-evidence>/schema-probe.py <repair-1-evidence>/canary-verifier.py <repair-1-evidence>/real-canary-bundle.json --output <repair-2-evidence>/green-schema-probe.json
+exit: 0
+wrong_result_schema: accepted=false
+coherent_weakened_schema: accepted=false
+error: bundle result schema differs from trusted contract
+
+OLD SUMMARY REJECTION
+command: <pantheon-venv>/bin/python <repair-1-evidence>/canary-verifier.py <old-evidence>/real-canary.json --output <repair-2-evidence>/old-summary-verification.json
+exit: 1
+result: REJECTED / bundle fields are not closed
+
+EXTERNAL CALLS
+- real agy/Gemini calls in Repair-2: 0
+- canary, retry, fallback and resend: not run / not authorized
