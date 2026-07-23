@@ -17,6 +17,8 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 SCHEMA_VERSION = 1
 OUTBOX_MAX_REPAIRS = 2
+OUTBOX_MAX_TRANSPORT_RETRIES = 2
+RETRYABLE_EXTERNAL_ERRORS = {"JSONDecodeError"}
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -230,15 +232,22 @@ class OutboxGeminiClient:
 
     def generate_json(self, role: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         model = self.writer_model if role == "writer" else self.reviewer_model
-        request = create_external_request(
-            self.queue_root,
-            namespace=self.namespace,
-            role=role,
-            model=model,
-            prompt=prompt,
-            response_schema=schema,
-        )
-        return consume_external_response(self.queue_root, request)
+        for retry_index in range(OUTBOX_MAX_TRANSPORT_RETRIES + 1):
+            namespace = self.namespace if retry_index == 0 else f"{self.namespace}-r{retry_index}"
+            request = create_external_request(
+                self.queue_root,
+                namespace=namespace,
+                role=role,
+                model=model,
+                prompt=prompt,
+                response_schema=schema,
+            )
+            try:
+                return consume_external_response(self.queue_root, request)
+            except ExternalJobFailed as failed:
+                if failed.error_type not in RETRYABLE_EXTERNAL_ERRORS or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES:
+                    raise
+        raise RuntimeError("unreachable external transport retry state")
 
 
 def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:

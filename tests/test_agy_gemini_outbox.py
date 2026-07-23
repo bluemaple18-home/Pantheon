@@ -463,6 +463,57 @@ def test_pipeline_tick_reserves_one_bounded_final_content_repair(
     assert observed == [2]
 
 
+def test_outbox_client_retries_json_decode_with_new_job_identity(tmp_path: Path) -> None:
+    client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-json")
+    first = outbox.create_external_request(
+        tmp_path,
+        namespace="retry-json",
+        role="writer",
+        model=client.writer_model,
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{first['job_id']}.json",
+        {"error_type": "JSONDecodeError"},
+    )
+
+    with pytest.raises(ExternalJobPending) as pending:
+        client.generate_json("writer", "公開 prompt", SCHEMA)
+
+    assert pending.value.job_id != first["job_id"]
+    retry_request = json.loads((tmp_path / "outbox" / f"{pending.value.job_id}.json").read_text())
+    assert retry_request["namespace"] == "retry-json-r1"
+    assert retry_request["prompt_sha256"] == first["prompt_sha256"]
+
+
+def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> None:
+    client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-stop")
+    failed_job_ids: list[str] = []
+    for retry_index in range(3):
+        namespace = "retry-stop" if retry_index == 0 else f"retry-stop-r{retry_index}"
+        request = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="reviewer",
+            model=client.reviewer_model,
+            prompt="公開 prompt",
+            response_schema=SCHEMA,
+        )
+        failed_job_ids.append(request["job_id"])
+        outbox.atomic_write_json(
+            tmp_path / "failed" / f"{request['job_id']}.json",
+            {"error_type": "JSONDecodeError"},
+        )
+
+    with pytest.raises(outbox.ExternalJobFailed) as failure:
+        client.generate_json("reviewer", "公開 prompt", SCHEMA)
+
+    assert failure.value.job_id == failed_job_ids[-1]
+    assert failure.value.error_type == "JSONDecodeError"
+    assert len(list((tmp_path / "outbox").glob("*.json"))) == 3
+
+
 def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "optimize-01"
     queue_root = tmp_path / "queue"
