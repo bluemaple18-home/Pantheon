@@ -1,8 +1,8 @@
 # Limited Activation Decision
 
-- status: `IN_PROGRESS`
-- decision: `AWAITING_EXTERNAL_CONFIRMATION`
-- external invocation count: `0`
+- status: `BLOCKED`
+- decision: `BLOCKED`
+- external invocation count: `1`
 
 ## 已通過
 
@@ -13,14 +13,26 @@
 - executable digest 與既有真實 V4 canary identity 相符。
 - runtime 位於 repo 外，沒有 production、文章或發布檔案變更。
 
-## 下一個動作的精確效果
+## 真實執行結論
 
-若使用者確認，只執行一次 V4 runner `process-once`。它最多啟動一個 agy target，
-把固定的 2555-byte sanitized writer prompt 送至 `gemini-3.5-flash`，並在 repo 外
-runtime 寫 ledger、anchor 及成功或失敗結果。它不繼續文章 pipeline、不產生文章
-候選、不呼叫 publisher，也不 push／deploy／publish。
+使用者在看到外送目的地、主題與內容類型後明確同意。V4 runner 隨後只執行一次
+`process-once`，durable ledger 證明恰一個 `EXEC_CONFIRMED` 與一個
+`PROCESS_TERMINAL/SUCCESS`，replay 為 `COMPLETE/1`。
 
-成功或失敗都停止，不 retry、不 fallback、不執行第二次。
+但 broker 沒有交付 caller result，runner 以 `V4BrokerFailure` fail-closed。成功
+inbox 不存在，failed 與 archive record 存在。沒有 retry、fallback、第二次 process
+或發布副作用。
+
+## 唯一 blocker
+
+Target process 成功結束，但 raw stdout 沒有成為符合 strict response schema 的 JSON
+result。現有 durable ledger 只證明 process exactly-once，不保存 raw output；failed
+record 也沒有保存 `JSON_PARSE_FAILED` 或 `SCHEMA_MISMATCH` 之類的安全原因碼。因此
+本次結果不能安全歸因，也不能用第二次外呼試錯。
+
+下一步必須另立 repair 卡，先以 RED 測試補上不含 prompt／raw response 的安全診斷
+欄位，再做 synthetic verification 與獨立 Review。任何第二次真實外呼都需要新的
+明確授權。
 
 ## 尚未授權
 

@@ -55,8 +55,51 @@ automatic resend: forbidden
 publisher invocation: forbidden
 push / deploy / publish / default promotion: forbidden
 
-Current external invocation count: 0
-Authorization state: AWAITING_EXTERNAL_CONFIRMATION
+Actual execution
+----------------
+user confirmation: received
+target invocation count: 1
+runner status: failed
+runner error type: V4BrokerFailure
+durable replay status: COMPLETE
+durable process count: 1
+automatic resend allowed: false
+event count: 5
+EXEC_CONFIRMED count: 1
+PROCESS_TERMINAL count: 1
+PROCESS_TERMINAL outcome: SUCCESS
+replay errors: none
+inbox: absent
+failed record: present
+archive record: present
+ledger: present
+anchor: present
+
+ledger sha256:
+40a81c6dfb8fb1ab8db3b47c8027cad577643dc9c101c83d5a1c7c51f3bc1f86
+
+anchor record sha256:
+e8df32029ed7745e824eac92d2696827799b194c7da000a3701e451b0aa9e3c3
+
+final anchor:
+8407e5599e6d6c55ad6ba4ad7ee1ba529b362290c7fcb98d5e8950bdb21045a0
+
+retry count: 0
+fallback count: 0
+second process-once count: 0
+publisher invocation: 0
+
+Interpretation
+--------------
+The target process was durably confirmed exactly once and exited with SUCCESS.
+The runner still failed closed because the broker caller contract was not satisfied.
+The broker only exposes a parsed result when raw stdout is valid JSON and satisfies
+the strict response schema. Existing durable records intentionally retain no raw
+response and the failed record does not retain a parse-vs-schema diagnostic.
+Therefore the exact content-level cause cannot be reconstructed or guessed.
+
+Current external invocation count: 1
+Authorization state: EXECUTED_ONCE / BLOCKED
 
 Privacy
 -------

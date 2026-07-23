@@ -5,8 +5,8 @@
 - ownership: `v4_limited_activation_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `AWAITING_EXTERNAL_CONFIRMATION`
+- status: `BLOCKED`
+- decision: `BLOCKED`
 
 ## 目標
 
@@ -86,3 +86,18 @@
 - current external invocation: `0`
 - current ledger / anchor / inbox / archive / failed record: `absent`
 - decision: `AWAITING_EXTERNAL_CONFIRMATION`
+
+## 真實執行結果
+
+- user confirmation: `received`
+- external target invocation: `1`
+- retry / fallback / automatic resend: `0`
+- durable replay: `COMPLETE / 1`
+- ledger terminal outcome: `SUCCESS`
+- runner result: `failed / V4BrokerFailure`
+- inbox: `absent`
+- failed／archive／ledger／anchor: `present`
+- blocker:
+  target process 成功結束，但 raw result 未通過 strict JSON/schema caller contract；
+  現有 fail record 未保存可區分 JSON parse failure 與 schema mismatch 的安全診斷欄位。
+- final decision: `BLOCKED`
