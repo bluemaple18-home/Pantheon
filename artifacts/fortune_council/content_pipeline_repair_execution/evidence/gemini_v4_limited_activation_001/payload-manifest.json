@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "authorization_state": "not_authorized",
+  "authorization_state": "executed_once",
   "runtime_id": "pantheon-v4-activation-001.NUUrOT",
   "source": {
     "path": "artifacts/fortune_council/content_seo_execution/evidence/daily_publishing/daily-20260723-repair-01/brief.json",
@@ -32,7 +32,8 @@
     "timeout_milliseconds": 120000,
     "maximum_process_count": 1
   },
-  "external_invocation_count": 0,
+  "external_invocation_count": 1,
+  "execution_status": "failed_closed",
   "retry_allowed": false,
   "fallback_allowed": false,
   "automatic_resend_allowed": false,
