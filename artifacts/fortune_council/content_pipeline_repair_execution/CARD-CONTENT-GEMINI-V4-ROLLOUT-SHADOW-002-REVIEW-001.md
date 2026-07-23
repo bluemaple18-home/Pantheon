@@ -1,13 +1,16 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-ROLLOUT-SHADOW-002-REVIEW-001
 chain_id: CONTENT-GEMINI-V4-ROLLOUT-002-REVIEW-001
-status: READY
+status: DELIVERED_CANDIDATE
 role: independent_limited_rollout_reviewer
 ownership: review_only
 thickness: strict
 risk: high
 model: gpt-5.6-sol
 reasoning: high
+review_verdict: GO
+delivery_status: READY_FOR_LIMITED_ROLLOUT
+external_invocations: 0
 base_sha: 6706ae3a28eb601fdf4c8b97531173138f67ef37
 candidate_sha: 2e221546b9de8dba3498201f78b86831bacffe44
 candidate_parent_sha: 6706ae3a28eb601fdf4c8b97531173138f67ef37
@@ -87,3 +90,18 @@ Shadow-002 candidate `2e221546b9de8dba3498201f78b86831bacffe44` 是否提供足�
 - `BLOCKED`
 
 GO 不代表 activation、整合、預設切換、發布或上線；主線仍須另行開卡並取得必要授權。
+
+## Review result
+
+- Verdict：`DELIVERED_CANDIDATE / GO / READY_FOR_LIMITED_ROLLOUT`
+- Findings：未發現 P0–P3 具體問題。
+- Independent verifier：`PASS`
+- Encoding acceptance：`3/3 accepted`
+- Mutation controls：`13/13 rejected`
+- Regression：`137 unique passed`（V4 74、legacy 57、coordinator 6）
+- Target invocation／process：`1/1`
+- Retry／fallback／automatic resend／second external call：`0/0/0/0`
+- Review external Gemini／agy invocation：`0`
+- Boundary：只允許主線另開 activation 卡考慮預設關閉、明確 opt-in、極小受限範圍；
+  不授權預設切換、文章發布、merge、push、deploy或任何新的外部呼叫。
+- Provider internal model-call provenance：`UNKNOWN`
