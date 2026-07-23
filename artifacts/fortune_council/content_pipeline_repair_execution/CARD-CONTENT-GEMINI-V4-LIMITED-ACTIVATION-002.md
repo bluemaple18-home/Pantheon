@@ -5,8 +5,8 @@
 - ownership: `v4_limited_activation_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `AWAITING_EXTERNAL_CONFIRMATION`
+- status: `BLOCKED`
+- decision: `BLOCKED`
 
 ## 基準
 
@@ -116,4 +116,31 @@ payload 與影響的明確確認。
 - current ledger / anchor / inbox / archive / failed record:
   `absent`
 - decision:
-  `AWAITING_EXTERNAL_CONFIRMATION`
+  `BLOCKED`
+
+## 真實執行結果
+
+- user final confirmation:
+  `received`
+- external target invocation:
+  `1`
+- retry / fallback / automatic resend:
+  `0`
+- durable replay:
+  `COMPLETE / 1`
+- ledger terminal outcome:
+  `SUCCESS`
+- runner result:
+  `failed / V4BrokerFailure`
+- safe result validation:
+  `JSON_INVALID`
+- inbox:
+  `absent`
+- failed／archive／ledger／anchor:
+  `present`
+- blocker:
+  V4 outbox request 雖含 role、prompt 與 response schema，但 production runner
+  只把 raw prompt 傳給 agy；沒有像 legacy CLI transport 一樣把 role instruction、
+  JSON-only 約束與 schema 渲染進 effective CLI prompt。
+- final decision:
+  `BLOCKED`
