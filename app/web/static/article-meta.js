@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-harness-new-20260723-24";
+} from "./article-registry.js?v=agy-harness-new-20260723-30";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -81,7 +81,37 @@ import { AGY_DAILY_20260723_REPAIR_01_ARTICLE_BODY_LIBRARY } from "./article-exp
 
 import { AGY_HARNESS_NEW_20260723_24_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-24.js?v=agy-harness-new-20260723-24";
 
+import { AGY_HARNESS_NEW_20260723_79_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-79.js?v=agy-harness-new-20260723-79";
+
+import { AGY_HARNESS_NEW_20260723_99_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-99.js?v=agy-harness-new-20260723-99";
+
+import { AGY_HARNESS_NEW_20260723_73_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-73.js?v=agy-harness-new-20260723-73";
+
+import { AGY_HARNESS_NEW_20260723_21_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-21.js?v=agy-harness-new-20260723-21";
+
+import { AGY_HARNESS_NEW_20260723_62_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-62.js?v=agy-harness-new-20260723-62";
+
+import { AGY_HARNESS_NEW_20260723_97_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-97.js?v=agy-harness-new-20260723-97";
+
+import { AGY_HARNESS_NEW_20260723_50_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-50.js?v=agy-harness-new-20260723-50";
+
+import { AGY_HARNESS_NEW_20260723_93_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-93.js?v=agy-harness-new-20260723-93";
+
+import { AGY_HARNESS_NEW_20260723_56_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-56.js?v=agy-harness-new-20260723-56";
+
+import { AGY_HARNESS_NEW_20260723_30_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-30.js?v=agy-harness-new-20260723-30";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_HARNESS_NEW_20260723_30_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_56_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_93_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_50_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_97_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_62_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_21_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_73_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_99_ARTICLE_BODY_LIBRARY,
+  ...AGY_HARNESS_NEW_20260723_79_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_24_ARTICLE_BODY_LIBRARY,
   ...AGY_DAILY_20260723_REPAIR_01_ARTICLE_BODY_LIBRARY,
   ...AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_BODY_LIBRARY,

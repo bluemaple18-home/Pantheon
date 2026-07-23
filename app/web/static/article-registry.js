@@ -441,6 +441,26 @@ import { AGY_DAILY_20260723_REPAIR_01_ARTICLE_RECORDS } from "./article-expansio
 
 import { AGY_HARNESS_NEW_20260723_24_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-24.js?v=agy-harness-new-20260723-24";
 
+import { AGY_HARNESS_NEW_20260723_79_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-79.js?v=agy-harness-new-20260723-79";
+
+import { AGY_HARNESS_NEW_20260723_99_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-99.js?v=agy-harness-new-20260723-99";
+
+import { AGY_HARNESS_NEW_20260723_73_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-73.js?v=agy-harness-new-20260723-73";
+
+import { AGY_HARNESS_NEW_20260723_21_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-21.js?v=agy-harness-new-20260723-21";
+
+import { AGY_HARNESS_NEW_20260723_62_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-62.js?v=agy-harness-new-20260723-62";
+
+import { AGY_HARNESS_NEW_20260723_97_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-97.js?v=agy-harness-new-20260723-97";
+
+import { AGY_HARNESS_NEW_20260723_50_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-50.js?v=agy-harness-new-20260723-50";
+
+import { AGY_HARNESS_NEW_20260723_93_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-93.js?v=agy-harness-new-20260723-93";
+
+import { AGY_HARNESS_NEW_20260723_56_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-56.js?v=agy-harness-new-20260723-56";
+
+import { AGY_HARNESS_NEW_20260723_30_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-30.js?v=agy-harness-new-20260723-30";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2394,6 +2414,16 @@ export const ARTICLE_REGISTRY = [
   ...AGY_AGY_VENUS_GEMINI_SINGLE_20260718_01_ARTICLE_RECORDS,
   ...AGY_DAILY_20260723_REPAIR_01_ARTICLE_RECORDS,
   ...AGY_HARNESS_NEW_20260723_24_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_79_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_99_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_73_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_21_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_62_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_97_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_50_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_93_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_56_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_30_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {
