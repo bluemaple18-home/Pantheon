@@ -1,0 +1,104 @@
+Gemini V4 publish final-sync verification
+=========================================
+
+Identity
+--------
+reviewed integration lineage:
+37c98fa4bbf66c896c4a97b1beccd25593583b0b
+
+fixed publisher commit:
+1eb311f49c720925501a1fa3dfc9e2b492e71451
+
+final-sync card commit:
+f4a3b71bf0177cc056825a592e05d483185366a9
+
+merge commit:
+dcaddc49acd812798a058b36b833fe4fe2a022ec
+
+merge parents:
+f4a3b71bf0177cc056825a592e05d483185366a9
+1eb311f49c720925501a1fa3dfc9e2b492e71451
+
+merge conflicts: 0
+manual conflict resolution: 0
+
+Object identity
+---------------
+app tree, fixed publisher / final sync:
+e3a334f0cb4d86c5460812f4cd8f702b8f7bd2cb
+e3a334f0cb4d86c5460812f4cd8f702b8f7bd2cb
+PASS
+
+ops/launchd tree, fixed publisher / final sync:
+8ad95972f43062ff657ce94b36c1b50774e222f5
+8ad95972f43062ff657ce94b36c1b50774e222f5
+PASS
+
+content publisher blob, fixed publisher / final sync:
+9829981f810797e578ce016ea2eb40d520c8726d
+9829981f810797e578ce016ea2eb40d520c8726d
+PASS
+
+SEO pipeline blob, fixed publisher / final sync:
+6a0ac7d5d3d7c96ddf45b94f670dae19403d1b51
+6a0ac7d5d3d7c96ddf45b94f670dae19403d1b51
+PASS
+
+V4 broker blob, reviewed lineage / final sync:
+dc7578f916874b0deac9178f00ad9958f2a7f33f
+dc7578f916874b0deac9178f00ad9958f2a7f33f
+PASS
+
+Scoped V4 diff against reviewed lineage: empty / PASS
+Scoped publication diff against fixed publisher commit: empty / PASS
+
+Regression
+----------
+V4 focused:
+74 passed in 29.78s
+
+Legacy publishing:
+57 passed in 29.76s
+
+Coordinator:
+6 passed in 0.12s
+
+Content publisher:
+5 passed in 0.05s
+
+Original integration matrix total:
+142 passed
+
+Web regression affected by v0.3.8:
+63 passed in 13.61s
+
+Unique pytest total:
+205 passed
+
+Warnings
+--------
+- tests/test_web.py has one pre-existing invalid-escape SyntaxWarning.
+- FastAPI test client emits one dependency deprecation warning.
+- Neither warning is a test failure or introduced by V4 final sync.
+
+Static / privacy / scope
+------------------------
+py_compile: PASS
+git diff --check: PASS
+DBG scan: PASS
+credential scan: PASS
+
+The only literal privacy-pattern hit is the existing
+"-----BEGIN PRIVATE KEY-----" negative-test fixture in
+tests/test_agy_gemini_outbox.py. The test asserts that such payloads are
+rejected; the file is byte-identical to the reviewed lineage.
+
+External effects
+----------------
+Gemini / agy invocation: 0
+push: 0
+deploy: 0
+publish: 0
+activation: 0
+default promotion: 0
+legacy removal: 0
