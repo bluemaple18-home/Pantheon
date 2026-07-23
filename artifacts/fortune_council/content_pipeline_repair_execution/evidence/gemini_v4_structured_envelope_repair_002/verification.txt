@@ -1,0 +1,64 @@
+Gemini V4 structured envelope size Repair-2 verification
+========================================================
+
+Focused size contract
+---------------------
+outbox max task: 262144 bytes
+outbox max schema: 65536 bytes
+closed envelope budget: 65536 bytes
+broker effective-prompt ceiling: 393216 bytes
+maximum valid task/schema rendered size: 327942 bytes
+maximum valid rendered prompt <= broker ceiling: PASS
+empty prompt rejected before ledger: PASS
+ceiling + 1 byte rejected before ledger: PASS
+privacy pattern parity with outbox: PASS
+production ARG_MAX: 1048576 bytes
+broker ceiling < production ARG_MAX: PASS
+
+Affected test matrix
+--------------------
+V4 focused:
+82 passed in 30.79s
+
+Legacy publishing:
+57 passed in 29.81s
+
+Coordinator:
+6 passed in 0.13s
+
+Content publisher:
+5 passed in 0.05s
+
+Web:
+63 passed, 2 warnings in 13.45s
+
+Unique pytest total:
+213 passed
+
+Static / privacy
+----------------
+py_compile broker and changed tests: PASS
+git diff --check: PASS
+production write allowlist: PASS
+debug marker retained: false
+effective prompt saved in evidence: false
+raw stdout / stderr / response body saved: false
+credential / full environment saved: false
+
+Behavioral boundary
+-------------------
+outbox raw task / schema limits changed: false
+AGY_GEMINI_V4_BROKER=1 remains the only V4 opt-in: PASS
+flag off remains legacy: PASS
+flag on failure remains no-fallback: PASS
+process / ledger / anchor / replay logic changed: false
+publisher / article / registry / automation code changed: false
+Gemini / agy invocation during Repair: 0
+retry of Activation-001 / 002: 0
+third real payload: 0
+push / deploy / publish / default promotion: 0
+
+Warnings
+--------
+tests/test_web.py retains one existing invalid-escape SyntaxWarning and one dependency
+deprecation warning. Neither is introduced by this Repair.

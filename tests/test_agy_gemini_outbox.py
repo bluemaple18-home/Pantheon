@@ -317,6 +317,32 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(
     assert broker_calls[0]["request_sha256"] == request["request_sha256"]
 
 
+def test_maximum_valid_outbox_payload_fits_v4_effective_prompt_ceiling() -> None:
+    empty_schema = {"description": "", "type": "object"}
+    empty_schema_bytes = outbox._json_bytes(empty_schema)
+    response_schema = {
+        "description": "x" * (outbox.MAX_SCHEMA_BYTES - len(empty_schema_bytes)),
+        "type": "object",
+    }
+    prompt = "x" * outbox.MAX_PROMPT_BYTES
+
+    request = outbox.build_external_request(
+        namespace="maximum-valid-v4-envelope",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt=prompt,
+        response_schema=response_schema,
+    )
+    effective_prompt = runner._render_v4_effective_prompt(
+        request["role"],
+        request["prompt"],
+        request["response_schema"],
+    )
+
+    assert len(outbox._json_bytes(response_schema)) == outbox.MAX_SCHEMA_BYTES
+    assert len(effective_prompt) <= broker.MAX_AGY_PROMPT_BYTES
+
+
 def test_production_runner_explicitly_selects_closed_profile_for_unknown_basename(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

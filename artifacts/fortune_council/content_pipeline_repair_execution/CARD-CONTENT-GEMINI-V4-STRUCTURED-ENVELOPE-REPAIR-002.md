@@ -5,8 +5,8 @@
 - ownership: `v4_effective_prompt_size_contract_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_REVIEW`
 
 ## 來源 Review
 
@@ -94,3 +94,24 @@ envelope 合成後，effective prompt 可能超過 broker 現有 262,144-byte
 - `BLOCKED`
 
 本卡不授權第三次真實外呼。
+
+## 執行結果
+
+- RED:
+  `2 failed`
+- focused GREEN:
+  `5 passed`
+- affected matrix:
+  `213 passed`
+- maximum valid rendered prompt:
+  `327942 bytes`
+- broker effective-prompt ceiling:
+  `393216 bytes / 384 KiB`
+- ceiling + 1 preflight rejection:
+  `PASS`
+- broker process／ledger／anchor／replay logic changed:
+  `false`
+- Gemini／agy invocation during Repair:
+  `0`
+- decision:
+  `DELIVERED_CANDIDATE / READY_FOR_REVIEW`
