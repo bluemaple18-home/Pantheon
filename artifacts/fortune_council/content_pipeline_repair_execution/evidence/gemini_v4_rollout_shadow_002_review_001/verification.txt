@@ -1,0 +1,141 @@
+Gemini V4 Shadow-002 independent limited rollout verification
+==============================================================
+
+Identity / startup gate
+-----------------------
+- independent detached worktree: PASS
+- starting tree clean: PASS
+- starting HEAD: b2d2a0457ebbbcf665dc41bedd2a146b7df4d315
+- provisioning branch points to starting HEAD: PASS
+- HEAD contains candidate and Review card: PASS
+- base / candidate unique parent:
+  6706ae3a28eb601fdf4c8b97531173138f67ef37: PASS
+- candidate:
+  2e221546b9de8dba3498201f78b86831bacffe44
+- Review-card commit parent equals candidate: PASS
+- actual gitdir index.lock absent: PASS
+
+Required reads
+--------------
+- AGENTS.md: complete
+- Review card and Shadow-002 card: complete
+- Shadow-002 evidence: complete
+- output-binding Repair / Review cards and evidence: complete
+- production broker / runner and affected tests: complete
+
+Independent verifier
+--------------------
+Command:
+<python> -B \
+  artifacts/fortune_council/content_pipeline_repair_execution/evidence/\
+gemini_v4_rollout_shadow_002/shadow-verifier.py \
+  artifacts/fortune_council/content_pipeline_repair_execution/evidence/\
+gemini_v4_rollout_shadow_002/real-shadow-bundle.json
+
+Result:
+- status: PASS
+- verifier imports production broker / runner: 0
+- external CLI invocation: 0
+- output encoding: canonical-json-newline-v1
+- reconstructed stdout byte count: 59
+- reconstructed stdout SHA-256:
+  28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5
+
+Independent recomputation
+-------------------------
+- fixed prompt byte count: 185
+- request SHA-256:
+  5317d8ebdb3e52f47924bf8bf6266163a24960317e9c8cdeb4d3f0a4cc13753a
+- operation ID:
+  5317d8ebdb3e52f47924bf8bf6266163a2496031
+- event hashes:
+  1. d56f626b2dae63546397e747c46ff6a8aa71c50e6480b8686cb90a27347be31d
+  2. de410d62e9369281f22b50708c8dd7121e74c592853b95caa4410470e9e0ed54
+  3. a92c4c339146d9ddf3ab891ec9455d06b8e526ae78cbf98dea856a4f08aaa167
+  4. ea2fef01e416c0926c53e8ab19d391a3dc5cde4e192f59a6b2b2b7923311a864
+  5. 03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621
+- ledger SHA-256:
+  0d5130546f7c70f56e64c742eecb097205cdb2aae276db3865c31b5e65bc04b9
+- final anchor:
+  03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621
+- receipt / command / operation / item / attempt / request / model / profile:
+  PASS
+- executable digest cross-binding:
+  6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf
+  PASS across receipt / command / executable identity
+- target invocation / process: 1 / 1
+- retry / fallback / automatic resend / second external call: 0 / 0 / 0 / 0
+
+Encoding acceptance
+-------------------
+- canonical-json-v1: PASS (58 bytes)
+- canonical-json-newline-v1: PASS (59 bytes)
+- sorted-indent2-json-newline-v1: PASS (68 bytes)
+- accepted: 3/3
+
+Mutation matrix
+---------------
+- unknown_encoding: rejected
+- wrong_whitespace: rejected
+- wrong_key_order: rejected
+- extra_newline: rejected
+- stdout_digest: rejected
+- stdout_length: rejected
+- result_schema: rejected
+- partial_ledger: rejected
+- wrong_anchor: rejected
+- receipt_binding: rejected
+- process_count: rejected
+- fallback_count: rejected
+- extra_top_level_field: rejected
+- total: 13/13 rejected
+
+Regression
+----------
+V4 focused:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 74 passed
+
+Legacy publishing:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed
+
+Coordinator:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed
+
+Targeted flag-off legacy / flag-on no-fallback:
+Result: 6 passed; included in V4 74 and not double-counted.
+
+Unique pytest total: 137 passed
+
+Static / scope / privacy
+------------------------
+- py_compile recorder and verifier: PASS
+- candidate changed files: 13
+- candidate changed files equal declared evidence: PASS
+- candidate allowlist: PASS
+- production code / tests / unrelated docs changed by candidate: 0
+- real bundle raw stdout / prompt / credential / local path / full environment /
+  CLI log: absent
+- privacy flags: all false
+- forbidden-value scan: no hits
+- [DBG- marker in candidate Python diff: absent
+- candidate git diff --check: PASS
+- Review git diff --check before finalization: PASS
+- Review external Gemini / agy invocation: 0
+- repair / activation / merge / push / deploy / publish / default promotion: 0
+
+Environment / provenance note
+-----------------------------
+- The detached Review worktree has no local .venv. Tests used an existing project
+  virtualenv interpreter with bytecode and pytest cache disabled for this worktree.
+- Evidence intentionally saves no executable path or binary. The stored digest is
+  independently cross-bound across receipt / command / executable identity, while
+  production broker code hashes the executable snapshot before launch. Rehashing the
+  historical 1.1.5 binary from the bundle is not possible.
