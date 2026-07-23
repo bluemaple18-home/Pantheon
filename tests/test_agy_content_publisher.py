@@ -187,6 +187,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "__MAX_RUNS__",
     ]
     assert arguments[-1] == "--push"
+    assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],
         cwd=repo_root,
