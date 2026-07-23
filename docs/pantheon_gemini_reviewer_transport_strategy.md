@@ -2,9 +2,12 @@
 
 ## 決策
 
-`DELIVERED_CANDIDATE`（等待原 Reviewer thread re-review）
+`SUPERSEDED_AS_CONTENT_GATE`（V4 transport 改為獨立技術改善）
 
-本狀態只表示 Repair 卡的 deterministic contract 與 sanitized corpus 已完成，不能自行解讀為 `GO`。它不表示 production pipeline 已修復，也不授權恢復新文、舊文修復、GSC、發布或部署。
+本文件保留 Reviewer transport probe 的歷史證據與 V4 implementation 契約，但不再作為受監督產文的恢復 Gate。現行決策見
+[`pantheon_content_transport_decoupling.md`](pantheon_content_transport_decoupling.md)：
+新文、舊文修復與 GSC 調整可使用既有 CLI transport 以小批次恢復，仍須通過
+deterministic gate、獨立 Reviewer 與人工 approval；發布與部署維持既有授權邊界。
 
 推薦 transport 為 `minimal_mapper_pro_low`：Gemini 3.1 Pro Low 只產出最小 judgment，local deterministic mapper 在 judgment 通過 strict parse、schema 與 rubric 後，才搬移成正式 review object。Mapper 不得補欄、猜 code、改 verdict 或推導模型未明示的 hard failure。
 
@@ -65,7 +68,7 @@ Mapper 只接收已通過 `ReviewerJudgmentV1` 的 object，並由本地可信 i
 1. 由原 Reviewer thread 固定本 Repair candidate commit 重新審查；本卡不得自行宣稱 `GO`。
 2. 另開 implementation chain；不得在本卡修改 production transport。
 3. Implementation 先用多個 sanitized case（包含 APPROVE、REJECT、混合 code、較長 prompt）做 fresh-process corpus gate。
-4. Corpus gate 未達每個 case 3/3 strict parse + schema + rubric + consistency 前，不得恢復任何正式內容線。
+4. Corpus gate 未達每個 case 3/3 strict parse + schema + rubric + consistency 前，不得把 V4 設為預設 transport，也不得啟用無人值守大量送出；此條不阻擋使用既有 CLI transport 的受監督小批次產文。
 
 ## 剩餘風險
 

@@ -4,6 +4,11 @@
 
 本文件描述本機使用者擁有的整合。Repo 只提供 queue、coordinator 與 launchd installer；不自動安裝、不登入 Gemini、不讀取或寫入 token。使用者完成一次性啟用後，coordinator 才會在本機背景處理已明確登記的 run。
 
+內容產文與 V4 broker 的放量決策已分離，完整邊界見
+[`pantheon_content_transport_decoupling.md`](pantheon_content_transport_decoupling.md)。
+未設定 `AGY_GEMINI_V4_BROKER=1` 時，runner 使用既有 Gemini CLI callsite；
+V4 canary 的成功或失敗不改變受監督產文狀態。
+
 ```text
 Pantheon private run
 → sanitized outbox request
@@ -46,6 +51,10 @@ Runner 只讀 `.work/gemini-runner/outbox/`，完成後：
 - request 移到 `archive/`。
 - 成功或格式錯誤的模型 JSON 都寫入 `inbox/`，並綁定 request SHA；格式錯誤由既有 Reviewer gate 產生正式 REJECT。
 - 失敗只在 `failed/` 留下 job ID、request SHA 與錯誤類型，不保存 CLI stderr 或憑證內容。
+
+`AGY_GEMINI_V4_BROKER=1` 只供獨立 V4 canary／shadow 驗證。受監督產文不得
+因環境中殘留該 flag 而誤入 V4；直接內容 pipeline 固定以
+`AGY_GEMINI_TRANSPORT=cli` 選擇既有 CLI transport。
 
 ## 手動 dry-run 流程
 
