@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=agy-harness-new-20260723-19";
+import { buildArticleContent } from "./article-meta.js?v=agy-harness-new-20260723-71";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
