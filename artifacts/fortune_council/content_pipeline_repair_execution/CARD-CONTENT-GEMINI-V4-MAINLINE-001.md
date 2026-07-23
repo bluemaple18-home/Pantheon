@@ -2,6 +2,12 @@
 card_id: CARD-CONTENT-GEMINI-V4-MAINLINE-001
 chain_id: CONTENT-GEMINI-V4-MAINLINE-001
 status: DELIVERED_CANDIDATE
+review_status: REVIEW_GO
+gate_5_mainline_acceptance: ACCEPTED
+accepted_candidate_sha: 8c1b935917364c820dec19304ecf6e0ac50cde5a
+accepted_review_commit: 1c81e8f85229098f3c0a5a6f033eb5a126e8d015
+integration_status: INTEGRATED_LOCAL_MAIN
+integrated_code_commit_sha: 5cf113c7d1ce3d9f35708519e998dc377c468896
 role: v4_implementation_owner
 ownership: v4_broker_only
 thickness: strict
@@ -89,3 +95,14 @@ decision_statuses:
 - Gate 5：受影響測試、privacy/allowlist 檢查、`git diff --check`、candidate commit 全部可重現。
 
 交付狀態只能是 `DELIVERED_CANDIDATE` 或 `BLOCKED`；decision 只能是 `READY_FOR_REVIEW` 或 `BLOCKED`。本線不得自行宣稱完成、GO、已整合或已上線。
+
+## Main integration
+
+- Accepted candidate：`8c1b935917364c820dec19304ecf6e0ac50cde5a`
+- Canonical Review：`GO`，commit `1c81e8f85229098f3c0a5a6f033eb5a126e8d015`
+- Local main code merge：`5cf113c7d1ce3d9f35708519e998dc377c468896`
+- Integration status：`INTEGRATED_LOCAL_MAIN`
+- Default behavior：flag off，仍走 legacy transport。
+- Rollout：`DO_NOT_PROMOTE_DEFAULT`
+
+此 integration 不代表已 push、deploy、publish或啟用 V4。文章 automation、content queue、registry、文章內容、sitemap、feed與prerender均未由本 chain 修改。

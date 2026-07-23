@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-CONTENT-GEMINI-V4-MAIN-INTEGRATION-001",
+  "chain_id": "CONTENT-GEMINI-V4-MAINLINE-001",
+  "status": "INTEGRATED",
+  "integration_scope": "LOCAL_MAIN_ONLY",
+  "main_before_sha": "e2bb8da6d40b42729f9a6fb1e9c20abff564dd91",
+  "accepted_candidate_sha": "8c1b935917364c820dec19304ecf6e0ac50cde5a",
+  "candidate_review_commit": "1c81e8f85229098f3c0a5a6f033eb5a126e8d015",
+  "candidate_review_verdict": "GO",
+  "code_merge_commit_sha": "5cf113c7d1ce3d9f35708519e998dc377c468896",
+  "merge_parents": [
+    "a5185d1d30ebc50e9a0fec12019331ac4db506cd",
+    "8c1b935917364c820dec19304ecf6e0ac50cde5a"
+  ],
+  "divergence_before_merge": {
+    "main_only_commits": 11,
+    "candidate_only_commits": 3
+  },
+  "overlap": {
+    "paths": [
+      "tests/test_agy_gemini_outbox.py"
+    ],
+    "text_conflicts": 0,
+    "semantic_checks": {
+      "legacy_bounded_repair_expected_value": 2,
+      "main_malformed_json_retry_tests_preserved": true,
+      "v4_concurrent_anchor_tests_preserved": true,
+      "v4_malformed_anchor_test_preserved": true,
+      "v4_flag_on_no_fallback_test_preserved": true
+    }
+  },
+  "verification": {
+    "v4_focused": {
+      "result": "PASS",
+      "passed": 73
+    },
+    "legacy_seo_publishing": {
+      "result": "PASS",
+      "passed": 57
+    },
+    "gemini_coordinator": {
+      "result": "PASS",
+      "passed": 6
+    },
+    "git_diff_check": "PASS"
+  },
+  "forbidden_scope": {
+    "article_content_modified_by_candidate": false,
+    "registry_modified_by_candidate": false,
+    "sitemap_or_feed_modified_by_candidate": false,
+    "seo_copy_pipeline_modified_by_candidate": false,
+    "dependencies_modified_by_candidate": false
+  },
+  "runtime_boundary": {
+    "default_transport": "legacy",
+    "v4_opt_in_switch": "AGY_GEMINI_V4_BROKER=1",
+    "flag_on_legacy_fallback": false,
+    "publication_blocked_by_default": false
+  },
+  "not_executed": [
+    "push",
+    "deploy",
+    "publish",
+    "article automation",
+    "shadow rollout",
+    "default transport promotion"
+  ],
+  "rollout_decision": "DO_NOT_PROMOTE_DEFAULT"
+}

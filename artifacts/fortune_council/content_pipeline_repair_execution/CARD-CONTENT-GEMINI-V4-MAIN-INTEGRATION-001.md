@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-MAIN-INTEGRATION-001
 chain_id: CONTENT-GEMINI-V4-MAINLINE-001
-status: CARD_DRAFTED
+status: INTEGRATED
 role: mainline_integrator
 ownership: local_main_integration_only
 thickness: strict
@@ -31,7 +31,7 @@ forbidden_scope:
   - force merge, rebase and history rewrite
   - push, deploy, publish and default transport promotion
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/
-integration_status: PENDING
+integration_status: INTEGRATED_LOCAL_MAIN
 rollout_decision: DO_NOT_PROMOTE_DEFAULT
 ---
 
@@ -71,3 +71,15 @@ rollout_decision: DO_NOT_PROMOTE_DEFAULT
 ## Boundary
 
 本卡只授權本機 `main` integration。不得 push、deploy、publish、執行文章 automation、變更文章內容或將 V4 設為預設 transport。
+
+## Result
+
+- Main before：`e2bb8da6d40b42729f9a6fb1e9c20abff564dd91`
+- Code merge commit：`5cf113c7d1ce3d9f35708519e998dc377c468896`
+- Merge parents：integration card commit `a5185d1d30ebc50e9a0fec12019331ac4db506cd` 與 accepted candidate `8c1b935917364c820dec19304ecf6e0ac50cde5a`
+- Overlap resolution：Git 自動合併；語意核對保留 legacy bounded repair=`2`、malformed JSON retry tests 與全部 V4 race/fail-closed tests。
+- V4 focused：`73 passed`
+- Legacy SEO publishing：`57 passed`
+- Coordinator：`6 passed`
+- Article／registry／metadata／sitemap／feed／prerender diff：無。
+- Push／deploy／publish／default promotion：未執行。
