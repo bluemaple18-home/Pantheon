@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-harness-new-20260723-83";
+} from "./article-registry.js?v=agy-harness-new-20260723-70";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -213,7 +213,10 @@ import { AGY_HARNESS_NEW_20260723_42_ARTICLE_BODY_LIBRARY } from "./article-expa
 
 import { AGY_HARNESS_NEW_20260723_83_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-83.js?v=agy-harness-new-20260723-83";
 
+import { AGY_HARNESS_NEW_20260723_70_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-70.js?v=agy-harness-new-20260723-70";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_HARNESS_NEW_20260723_70_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_83_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_42_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_44_ARTICLE_BODY_LIBRARY,
