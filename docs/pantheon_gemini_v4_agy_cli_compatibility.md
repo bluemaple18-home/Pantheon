@@ -6,7 +6,7 @@
 
 ## 封閉介面
 
-只有 executable basename 為 `agy` 或版本化的 `agy-<version>` 時才使用此 profile：
+production runner 固定且顯式選擇 `antigravity_cli_v1`，不以 executable basename 推論安全等級。runner 必須提供部署時配置的 trusted executable SHA-256；未知 profile、缺少或不相符的 digest 一律在 target fork 前 fail closed。`raw_stdin_v1` 只可由明確的 synthetic/test caller 使用，production runner 不讀取 profile override，因此 production 設定無法抵達 synthetic profile。
 
 ```text
 agy
@@ -23,7 +23,7 @@ agy
 - `gemini-3.5-flash` → `Gemini 3.5 Flash (Low)`
 - `gemini-3.1-pro-preview` → `Gemini 3.1 Pro (Low)`
 
-未知模型在 ledger 建立與 target fork 前拒絕。CommandFrame v2 綁定 profile、CLI model label、payload class、prompt SHA-256、prompt byte length、executable digest 與 timeout；既有 receipt 繼續綁定 operation、item、attempt、外部 request SHA-256 與 request model。
+未知模型在 ledger 建立與 target fork 前拒絕。CommandFrame v2 綁定 profile、CLI model label、payload class、prompt SHA-256、prompt byte length、executable digest 與 timeout；production receipt 另綁定 operation、item、attempt、外部 request SHA-256、request model、`antigravity_cli_v1` profile 與 trusted executable digest，runner 只接受完全相符的 receipt。
 
 ## 資料與程序邊界
 
@@ -35,7 +35,11 @@ agy
 - target environment 只允許 `HOME`、`LANG`、`LC_ALL`、`PATH`、`TMPDIR` 與 macOS runtime 的 `__CF_USER_TEXT_ENCODING`。不繼承 `GEMINI_API_KEY`、token 或其他 parent environment。
 - `HOME` 提供既有本機 CLI 設定與登入狀態；本相容層不讀取、不複製也不記錄憑證內容。
 
-非 `agy` executable 保留 `raw_stdin_v1` synthetic/test profile，維持舊測試與非正式 target 的原始 stdin 行為；不得把它當成生產 Gemini transport。
+`raw_stdin_v1` synthetic/test profile 維持 fake target 的原始 stdin 行為，但其 receipt 不含 production profile binding，production runner 必須拒絕，且不得把它當成生產 Gemini transport。
+
+## Completion provenance 限制
+
+本相容層可證的成功範圍僅是：已雜湊並封存的 trusted executable snapshot 完成一次 transport、exit status 為 0，且 stdout 通過 JSON schema。`agy 1.1.5` 未提供可由本 broker 獨立驗證的供應商內部 model-call provenance；因此 receipt 與 `caller_contract_satisfied` 不宣稱 Gemini 供應商內部模型呼叫確實發生，只代表上述 trusted transport completion。
 
 ## Canary 邊界
 

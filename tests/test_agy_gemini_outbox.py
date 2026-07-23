@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import plistlib
 import subprocess
@@ -234,8 +235,11 @@ def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatc
 
 
 def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
-    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", hashlib.sha256(executable.read_bytes()).hexdigest())
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-v4",
@@ -257,6 +261,8 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
                 attempt_id="attempt-1",
                 request_sha256=request["request_sha256"],
                 model=request["model"],
+                target_profile="antigravity_cli_v1",
+                executable_digest=hashlib.sha256(executable.read_bytes()).hexdigest(),
             ),
             result={"ok": True},
         )
@@ -270,9 +276,53 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
     assert broker_calls[0]["request_sha256"] == request["request_sha256"]
 
 
-def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_production_runner_explicitly_selects_closed_profile_for_unknown_basename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
-    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    monkeypatch.setenv("AGY_GEMINI_V4_PROFILE", "raw_stdin_v1")
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-explicit-profile",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 V4 prompt",
+        response_schema=SCHEMA,
+    )
+    broker_calls: list[dict[str, object]] = []
+
+    def fake_broker(**kwargs: object) -> BrokerResult:
+        broker_calls.append(kwargs)
+        receipt = ExecutionReceipt(
+            request["job_id"],
+            request["namespace"],
+            "attempt-1",
+            request["request_sha256"],
+            request["model"],
+            "antigravity_cli_v1",
+            executable_digest,
+        )
+        return _broker_result("BLOCKED", receipt)
+
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
+
+    assert process_once(tmp_path)["status"] == "failed"
+    assert broker_calls[0]["target_profile"] == "antigravity_cli_v1"
+    assert broker_calls[0]["expected_executable_digest"] == executable_digest
+
+
+def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-misbound",
@@ -281,7 +331,15 @@ def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeyp
         prompt="公開 V4 prompt",
         response_schema=SCHEMA,
     )
-    wrong = ExecutionReceipt("wrong-operation", request["namespace"], "attempt-1", request["request_sha256"], request["model"])
+    wrong = ExecutionReceipt(
+        "wrong-operation",
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
     monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: _broker_result("COMPLETE", wrong, result={"ok": True}))
     legacy_calls: list[str] = []
     result = process_once(tmp_path, generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True})
@@ -290,10 +348,52 @@ def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeyp
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
 
 
+def test_runner_rejects_schema_valid_success_without_production_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-no-provenance",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 V4 prompt",
+        response_schema=SCHEMA,
+    )
+    synthetic_receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "raw_stdin_v1",
+        executable_digest,
+    )
+    monkeypatch.setattr(
+        runner,
+        "run_single_shot",
+        lambda **_kwargs: _broker_result("COMPLETE", synthetic_receipt, result={"ok": True}),
+    )
+
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+
+
 @pytest.mark.parametrize("status", ("BLOCKED", "AMBIGUOUS", "INVALID"))
 def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
-    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/synthetic/fake-target")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
     request = create_external_request(
         tmp_path,
         namespace=f"opaque-run-{status.lower()}",
@@ -302,7 +402,15 @@ def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, mon
         prompt="公開 V4 prompt",
         response_schema=SCHEMA,
     )
-    receipt = ExecutionReceipt(request["job_id"], request["namespace"], "attempt-1", request["request_sha256"], request["model"])
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
     monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: _broker_result(status, receipt))
     legacy_calls: list[str] = []
     result = process_once(tmp_path, generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True})

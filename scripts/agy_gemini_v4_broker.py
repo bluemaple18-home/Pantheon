@@ -271,6 +271,8 @@ class ExecutionReceipt:
     attempt_id: str
     request_sha256: str
     model: str
+    target_profile: str
+    executable_digest: str
 
 
 @dataclass(frozen=True)
@@ -555,10 +557,6 @@ def _emit_broker_result(anchor_socket: socket.socket, result_fd: int, control: d
     sys.stdout.buffer.flush()
 
 
-def _is_agy_executable(executable: Path) -> bool:
-    return executable.name == "agy" or re.fullmatch(r"agy-[0-9][0-9.]*", executable.name) is not None
-
-
 def _validate_public_prompt(raw_request: bytes) -> str:
     if not raw_request or len(raw_request) > MAX_AGY_PROMPT_BYTES:
         raise ValueError("agy prompt size is invalid")
@@ -596,6 +594,18 @@ def _target_invocation(
     ]
     environment = {key: os.environ[key] for key in TARGET_ENV_ALLOWLIST if key in os.environ}
     return arguments, b"", environment
+
+
+def _write_executable_snapshot(directory: Path, executable_bytes: bytes) -> Path:
+    snapshot = directory / "verified-target"
+    descriptor = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o500)
+    try:
+        _write_all(descriptor, executable_bytes)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.chmod(directory, 0o500)
+    return snapshot
 
 
 def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: int, executable: Path) -> int:
@@ -637,53 +647,67 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
         writer.append("FORK_ATTEMPTED", broker_attempt=1, process_ordinal=1)
         existed = executable.exists()
         temporary_directory: tempfile.TemporaryDirectory[str] | None = None
-        log_path: Path | None = None
-        if command.target_profile == ANTIGRAVITY_CLI_PROFILE:
-            temporary_directory = tempfile.TemporaryDirectory(prefix="agy-v4-")
-            log_path = Path(temporary_directory.name) / "agy.log"
-        arguments, target_input, target_environment = _target_invocation(
-            command, executable, raw_request, log_path
-        )
+        target: subprocess.Popen[bytes] | None = None
         try:
-            target = subprocess.Popen(
-                arguments,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                close_fds=True,
-                pass_fds=(),
-                env=target_environment,
+            log_path: Path | None = None
+            if command.target_profile == ANTIGRAVITY_CLI_PROFILE:
+                temporary_directory = tempfile.TemporaryDirectory(prefix="agy-v4-")
+                log_path = Path(temporary_directory.name) / "agy.log"
+            arguments, target_input, target_environment = _target_invocation(
+                command, executable, raw_request, log_path
             )
-        except OSError as error:
-            if temporary_directory is not None:
-                temporary_directory.cleanup()
-            outcome = _exec_failure_outcome(error, existed)
-            writer.append("EXEC_FAILURE", outcome=outcome, process_ordinal=1)
-            _emit_broker_result(anchor_socket, result_fd, _control("BLOCKED", 0, outcome, None, b"", b"", writer.anchor), b"")
+            try:
+                target = subprocess.Popen(
+                    arguments,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    close_fds=True,
+                    pass_fds=(),
+                    env=target_environment,
+                )
+            except OSError as error:
+                outcome = _exec_failure_outcome(error, existed)
+                writer.append("EXEC_FAILURE", outcome=outcome, process_ordinal=1)
+                _emit_broker_result(
+                    anchor_socket,
+                    result_fd,
+                    _control("BLOCKED", 0, outcome, None, b"", b"", writer.anchor),
+                    b"",
+                )
+                return 0
+            writer.append("EXEC_CONFIRMED", process_ordinal=1, pid=target.pid)
+            try:
+                stdout, stderr = target.communicate(
+                    input=target_input, timeout=command.timeout_milliseconds / 1000
+                )
+                outcome = "SUCCESS" if target.returncode == 0 else "CLI_NONZERO"
+                exit_status = target.returncode
+            except subprocess.TimeoutExpired:
+                target.kill()
+                stdout, stderr = target.communicate()
+                outcome = "CLI_TIMEOUT"
+                exit_status = None
+            if len(stdout) > MAX_RESULT_BYTES or len(stderr) > MAX_RESULT_BYTES:
+                stdout, stderr, outcome, exit_status = b"", b"", "CLI_NONZERO", target.returncode
+            writer.append("PROCESS_TERMINAL", outcome=outcome)
+            _emit_broker_result(
+                anchor_socket,
+                result_fd,
+                _control("COMPLETE", 1, outcome, exit_status, stdout, stderr, writer.anchor),
+                stdout,
+            )
             return 0
-        writer.append("EXEC_CONFIRMED", process_ordinal=1, pid=target.pid)
-        try:
-            stdout, stderr = target.communicate(input=target_input, timeout=command.timeout_milliseconds / 1000)
-            outcome = "SUCCESS" if target.returncode == 0 else "CLI_NONZERO"
-            exit_status = target.returncode
-        except subprocess.TimeoutExpired:
-            target.kill()
-            stdout, stderr = target.communicate()
-            outcome = "CLI_TIMEOUT"
-            exit_status = None
         finally:
+            if target is not None:
+                if target.poll() is None:
+                    target.kill()
+                target.wait()
+                for pipe in (target.stdin, target.stdout, target.stderr):
+                    if pipe is not None:
+                        pipe.close()
             if temporary_directory is not None:
                 temporary_directory.cleanup()
-        if len(stdout) > MAX_RESULT_BYTES or len(stderr) > MAX_RESULT_BYTES:
-            stdout, stderr, outcome, exit_status = b"", b"", "CLI_NONZERO", target.returncode
-        writer.append("PROCESS_TERMINAL", outcome=outcome)
-        _emit_broker_result(
-            anchor_socket,
-            result_fd,
-            _control("COMPLETE", 1, outcome, exit_status, stdout, stderr, writer.anchor),
-            stdout,
-        )
-        return 0
     except Exception:
         try:
             anchor_socket.close()
@@ -776,6 +800,8 @@ def run_single_shot(
     request_sha256: str,
     model: str,
     executable: Path,
+    target_profile: str,
+    expected_executable_digest: str,
     raw_request: bytes,
     response_schema: dict[str, Any],
     timeout_milliseconds: int,
@@ -789,7 +815,9 @@ def run_single_shot(
         raise ValueError("receipt binding is invalid")
     if type(raw_request) is not bytes or len(raw_request) > MAX_RESULT_BYTES:
         raise ValueError("raw request is invalid")
-    if _is_agy_executable(executable):
+    if not _valid_sha256(expected_executable_digest):
+        raise ValueError("trusted executable digest is invalid")
+    if target_profile == ANTIGRAVITY_CLI_PROFILE:
         try:
             model_label = AGY_MODEL_LABELS[model]
         except KeyError as error:
@@ -797,12 +825,24 @@ def run_single_shot(
         _validate_public_prompt(raw_request)
         target_profile = ANTIGRAVITY_CLI_PROFILE
         payload_class = PUBLIC_SANITIZED
-    else:
+    elif target_profile == RAW_STDIN_PROFILE:
         model_label = model
-        target_profile = RAW_STDIN_PROFILE
         payload_class = SYNTHETIC_TEST
-    receipt = ExecutionReceipt(operation_id, item_id, attempt_id, request_sha256, model)
-    executable_digest = _sha256(executable.read_bytes()) if executable.exists() and executable.is_file() else _sha256(b"")
+    else:
+        raise ValueError("target profile is invalid")
+    executable_bytes = executable.read_bytes() if executable.exists() and executable.is_file() else b""
+    executable_digest = _sha256(executable_bytes)
+    if executable_digest != expected_executable_digest:
+        raise ValueError("trusted executable digest mismatch")
+    receipt = ExecutionReceipt(
+        operation_id,
+        item_id,
+        attempt_id,
+        request_sha256,
+        model,
+        target_profile,
+        executable_digest,
+    )
     command = CommandFrame(
         COMMAND_SCHEMA_VERSION,
         operation_id,
@@ -836,9 +876,14 @@ def run_single_shot(
     result_read, result_write = os.pipe()
     anchor_parent, anchor_child = socket.socketpair()
     process: subprocess.Popen[bytes] | None = None
+    snapshot_directory: tempfile.TemporaryDirectory[str] | None = None
     raw_result = b""
     control_bytes = b""
     try:
+        broker_executable = executable
+        if executable_bytes:
+            snapshot_directory = tempfile.TemporaryDirectory(prefix="agy-v4-exec-")
+            broker_executable = _write_executable_snapshot(Path(snapshot_directory.name), executable_bytes)
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -849,7 +894,7 @@ def run_single_shot(
                 str(ledger_fd),
                 str(anchor_child.fileno()),
                 str(result_write),
-                str(executable),
+                str(broker_executable),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -916,6 +961,9 @@ def run_single_shot(
                 channel.close()
             except OSError:
                 pass
+        if snapshot_directory is not None:
+            os.chmod(snapshot_directory.name, 0o700)
+            snapshot_directory.cleanup()
     try:
         final_anchor = anchor_store.load(operation_id, attempt_id)
     except AnchorError:

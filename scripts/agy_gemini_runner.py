@@ -16,7 +16,13 @@ from scripts.agy_gemini_outbox import (
     validate_external_request,
 )
 from scripts.agy_seo_copy_pipeline import GeminiClient
-from scripts.agy_gemini_v4_broker import ExecutionReceipt, FileAnchorStore, V4BrokerFailure, run_single_shot
+from scripts.agy_gemini_v4_broker import (
+    ANTIGRAVITY_CLI_PROFILE,
+    ExecutionReceipt,
+    FileAnchorStore,
+    V4BrokerFailure,
+    run_single_shot,
+)
 
 
 GenerateJson = Callable[[str, str, str, dict[str, Any]], dict[str, Any]]
@@ -57,6 +63,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             raise ValueError("request job id differs from queue filename")
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
+            expected_executable_digest = os.environ["AGY_GEMINI_V4_EXECUTABLE_SHA256"]
             broker_result = run_single_shot(
                 operation_id=job_id,
                 item_id=str(request["namespace"]),
@@ -64,6 +71,8 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 request_sha256=str(request["request_sha256"]),
                 model=str(request["model"]),
                 executable=executable,
+                target_profile=ANTIGRAVITY_CLI_PROFILE,
+                expected_executable_digest=expected_executable_digest,
                 raw_request=str(request["prompt"]).encode("utf-8"),
                 response_schema=request["response_schema"],
                 timeout_milliseconds=120_000,
@@ -76,6 +85,8 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 "attempt-1",
                 str(request["request_sha256"]),
                 str(request["model"]),
+                ANTIGRAVITY_CLI_PROFILE,
+                expected_executable_digest,
             )
             if (
                 broker_result.receipt != expected_receipt
