@@ -439,6 +439,33 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
     assert calls[1]["args"][2] == "Gemini 3.1 Pro (Low)"
 
 
+def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        calls.append(args)
+        return pipeline.subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=json.dumps({"ok": True}),
+            stderr="",
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_TRANSPORT", "cli")
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.delenv("AGY_GEMINI_V4_EXECUTABLE", raising=False)
+    monkeypatch.delenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", raising=False)
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/agy-1.1.3")
+    monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
+
+    client = GeminiClient.from_environment()
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+
+    assert client.generate_json("writer", "write", schema) == {"ok": True}
+    assert len(calls) == 1
+    assert calls[0][0] == "/opt/tools/agy-1.1.3"
+
+
 def test_external_model_brief_excludes_private_repo_metadata() -> None:
     brief = {
         "schema_version": 1,

@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-V4-DECOUPLING-001
 chain_id: CONTENT-V4-DECOUPLING-001
-status: IMPLEMENTING
+status: VERIFIED
 role: mainline_integrator
 ownership: content_transport_policy
 thickness: normal
