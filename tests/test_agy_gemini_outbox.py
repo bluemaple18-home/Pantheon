@@ -387,6 +387,47 @@ def test_runner_rejects_schema_valid_success_without_production_provenance(
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
 
 
+def test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding(
+    tmp_path: Path,
+) -> None:
+    expected_stdout = json.dumps(
+        {"ok": True},
+        indent=2,
+        sort_keys=True,
+    ).encode() + b"\n"
+    executable = tmp_path / "pretty-json-target"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json\n"
+        "print(json.dumps({'ok': True}, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+
+    result = broker.run_single_shot(
+        operation_id="operation-pretty-json",
+        item_id="item-pretty-json",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="synthetic-model",
+        executable=executable,
+        target_profile=broker.RAW_STDIN_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request=b"public synthetic request",
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=tmp_path / "ledger.jsonl",
+        anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+    )
+
+    assert result.caller_contract_satisfied is True
+    assert result.result == {"ok": True}
+    assert result.result_json == expected_stdout
+    assert result.byte_count == len(expected_stdout)
+    assert result.stdout_sha256 == hashlib.sha256(expected_stdout).hexdigest()
+
+
 @pytest.mark.parametrize("status", ("BLOCKED", "AMBIGUOUS", "INVALID"))
 def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
     executable = tmp_path / "agy-current"
