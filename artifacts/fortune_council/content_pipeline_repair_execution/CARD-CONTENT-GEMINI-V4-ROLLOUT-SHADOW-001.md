@@ -37,7 +37,7 @@ external_tool_gate:
   max_invocations: 1
   retry: forbidden
   fallback: forbidden
-  authorization: USER_START_ROLLOUT_2026-07-23
+  authorization: SCOPE_START_AUTHORIZED_FINAL_PAYLOAD_CONFIRMATION_PENDING
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_rollout_shadow_001/
 delivery_statuses:
   - DELIVERED_CANDIDATE
@@ -73,6 +73,7 @@ decision_statuses:
 - Schema：closed object；禁止額外欄位。
 - 影響：一次外部 generation；不含文章、不含私密資料、不改遠端設定。
 - 次數：最多一次；任何 timeout、nonzero、malformed、ledger／anchor／binding失敗後立即停止，不做第二次。
+- 最終外呼前，Rollout thread必須回報 offline gates、實際 executable/version/digest、完整固定 prompt與影響摘要，等待使用者明確確認。
 
 ## 執行順序
 
