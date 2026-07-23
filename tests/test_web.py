@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLE
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-harness-new-20260723-64"
+ARTICLE_CACHE_TOKEN = "agy-harness-new-20260723-59"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -285,6 +285,7 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/astrology/astrology-0127",
     "/articles/personality/personality-0084",
     "/articles/astrology/astrology-0179",
+    "/articles/astrology/astrology-0174",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
