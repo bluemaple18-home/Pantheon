@@ -1,0 +1,30 @@
+{
+  "attempt_id": "shadow-002-attempt-1",
+  "automatic_resend_allowed": false,
+  "event_count": 5,
+  "event_types": [
+    "OPERATION_CREATED",
+    "BROKER_ATTEMPTED",
+    "FORK_ATTEMPTED",
+    "EXEC_CONFIRMED",
+    "PROCESS_TERMINAL"
+  ],
+  "evidence_kind": "production",
+  "executable_sha256": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+  "final_anchor": "03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621",
+  "item_id": "gemini-v4-rollout-shadow-canary-002",
+  "ledger_sha256": "0d5130546f7c70f56e64c742eecb097205cdb2aae276db3865c31b5e65bc04b9",
+  "model": "gemini-3.5-flash",
+  "no_fallback": true,
+  "no_retry": true,
+  "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+  "output_encoding": "canonical-json-newline-v1",
+  "privacy_safe": true,
+  "process_count": 1,
+  "request_sha256": "5317d8ebdb3e52f47924bf8bf6266163a24960317e9c8cdeb4d3f0a4cc13753a",
+  "result_schema_valid": true,
+  "status": "PASS",
+  "stdout_byte_count": 59,
+  "stdout_sha256": "28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5",
+  "target_profile": "antigravity_cli_v1"
+}
