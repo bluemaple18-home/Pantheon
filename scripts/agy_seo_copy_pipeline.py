@@ -1775,6 +1775,8 @@ def review_schema() -> dict[str, Any]:
 
 def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, findings: list[dict[str, Any]] | None = None) -> str:
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
+    if brief.get("mode") == "create":
+        instruction += " meta description 欄位本身必須明寫內容只提供通用理解、不能替個人下結論等限制；不得只把限制放在正文。"
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"
     elif brief.get("mode") == "rewrite_existing_body":

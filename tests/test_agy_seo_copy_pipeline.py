@@ -516,6 +516,41 @@ def test_external_model_brief_excludes_private_repo_metadata() -> None:
         assert secret not in encoded
 
 
+def test_create_writer_prompt_requires_description_local_boundary() -> None:
+    brief = {
+        "schema_version": 1,
+        "run_id": "prompt-boundary",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": "PROMPT-BOUNDARY",
+                    "primaryKeyword": "土星回歸",
+                    "title": "土星回歸是什麼？",
+                    "intent": "理解人生階段",
+                },
+                "target": {
+                    "id": "PROMPT-BOUNDARY",
+                    "section": "astrology",
+                    "product": "astrology",
+                    "slug": "saturn-return",
+                    "serial": "astrology-0115",
+                    "urlSlug": "saturn-return",
+                    "primaryKeyword": "土星回歸",
+                    "published": "2026-07-23",
+                    "updated": "2026-07-23",
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+
+    prompt = pipeline._writer_prompt(brief)
+
+    assert "meta description 欄位本身必須明寫" in prompt
+    assert "不得只把限制放在正文" in prompt
+
+
 def test_external_gsc_brief_drops_metrics_paths_and_internal_ids() -> None:
     brief = {
         "schema_version": 1,
