@@ -5,8 +5,8 @@
 - ownership: `independent_v4_structured_envelope_review_only`
 - strictness: `strict`
 - risk: `high`
-- status: `PENDING`
-- verdict: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- verdict: `DELIVERED_CANDIDATE / NO_GO`
 
 ## 審查標的
 
@@ -73,3 +73,32 @@
 
 GO 只代表可回主線考慮後續 activation prep，不是 activation、整合、上線、預設
 promotion、legacy removal 或第三次真實外呼授權。
+
+## Review 結果
+
+- provisioning commit:
+  `d56153329c7467515e00e8e13e9e9aa6f714e5f5`
+- candidate ancestry:
+  `PASS`
+- affected matrix:
+  `212 passed`
+- focused envelope:
+  `6 passed`
+- focused behavioral boundaries:
+  `10 passed`
+- role／schema determinism:
+  `PASS`
+- effective-prompt／external-request double binding:
+  `PASS`
+- privacy／no-fallback／flag-off legacy:
+  `PASS`
+- findings:
+  `1 x P2`
+- blocker:
+  validated max-size outbox task 加上 structured envelope 後會超過 broker 的
+  256 KiB effective-prompt 上限，在 ledger 前以 `ValueError` 失敗。
+- decision:
+  `DELIVERED_CANDIDATE / NO_GO`
+
+本 Review 不授權第三次真實外呼、retry、merge、push、deploy、publish、
+activation、default promotion 或 legacy removal。
