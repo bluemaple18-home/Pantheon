@@ -74,6 +74,15 @@ AGY_VENUS_BATCH_04_IDS = {
 }
 
 AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS | AGY_ASC_VENUS_BATCH_03_IDS | AGY_VENUS_BATCH_04_IDS
+DAILY_QUEUE_IDS = {
+    "ASTRO-SCENARIO-SATURN-RETURN",
+    "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
+    "ASTRO-SCENARIO-MOON-RISING-DIFFERENCE",
+    "ASTRO-SCENARIO-BIG-THREE",
+    "ASTRO-SCENARIO-RETROGRADE-PLANETS",
+    "ASTRO-SCENARIO-MANY-ASPECTS",
+    "ASTRO-SCENARIO-SYNASTRY-ASPECTS",
+}
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
@@ -1087,7 +1096,7 @@ def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch:
     assert {"MBTI-INTP-AH", "MBTI-INTP-AC", "MBTI-INTP-OH", "MBTI-INTP-OC"} <= ids
     assert {"ASC-ARIES", "ASC-TAURUS", "ASC-GEMINI"} <= ids
     assert "CHART-CYCLE-DECADE" in ids
-    assert ids == AGY_MATRIX_IDS
+    assert ids == AGY_MATRIX_IDS | DAILY_QUEUE_IDS
 
 
 def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1100,7 +1109,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     items = [item for brief in briefs for item in brief["articles"]]
     serials = [item["target"]["serial"] for item in items]
 
-    assert len(items) == 23
+    assert len(items) == 30
     assert len(serials) == len(set(serials))
     assert all(item["target"]["published"] == date.today().isoformat() for item in items)
     assert all(item["target"]["primaryKeyword"] == item["matrix"]["primaryKeyword"] for item in items)
@@ -1115,7 +1124,7 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
     )
     remaining = [item for path in remaining_paths for item in json.loads(path.read_text(encoding="utf-8"))["articles"]]
     original_targets = {item["matrix"]["id"]: item["target"] for item in items}
-    assert len(remaining) == 22
+    assert len(remaining) == 29
     assert all(item["target"] == original_targets[item["matrix"]["id"]] for item in remaining)
 
 
@@ -1353,9 +1362,19 @@ def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None
         pipeline.apply_rewrite_release(tmp_path, release_root)
 
 
-def test_integrated_matrix_backlog_is_empty() -> None:
+def test_integrated_matrix_backlog_contains_only_daily_queue() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    assert {item["id"] for item in build_matrix_backlog(repo_root)} == set()
+    backlog = build_matrix_backlog(repo_root)
+
+    assert [item["id"] for item in backlog] == [
+        "ASTRO-SCENARIO-SATURN-RETURN",
+        "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
+        "ASTRO-SCENARIO-MOON-RISING-DIFFERENCE",
+        "ASTRO-SCENARIO-BIG-THREE",
+        "ASTRO-SCENARIO-RETROGRADE-PLANETS",
+        "ASTRO-SCENARIO-MANY-ASPECTS",
+        "ASTRO-SCENARIO-SYNASTRY-ASPECTS",
+    ]
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
