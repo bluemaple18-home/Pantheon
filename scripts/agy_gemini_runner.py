@@ -8,7 +8,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Final
 
 from scripts.agy_gemini_outbox import (
     SCHEMA_VERSION,
@@ -39,12 +39,38 @@ OUTCOME_STATES = frozenset({
     "CLI_NONZERO",
     "CLI_TIMEOUT",
 })
+V4_ROLE_INSTRUCTIONS: Final = {
+    "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
+    "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
+}
 
 
 def _cli_generate_json(role: str, model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
     client = GeminiClient(writer_model=model if role == "writer" else None, reviewer_model=model if role == "reviewer" else None)
     client.transport = client._cli_transport
     return client.generate_json(role, prompt, schema)
+
+
+def _render_v4_effective_prompt(
+    role: str,
+    prompt: str,
+    response_schema: dict[str, Any],
+) -> bytes:
+    if role not in V4_ROLE_INSTRUCTIONS:
+        raise ValueError("V4 role is not closed")
+    canonical_schema = json.dumps(
+        response_schema,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return (
+        f"{V4_ROLE_INSTRUCTIONS[role]}\n"
+        "禁止使用任何工具或讀取工作區。\n"
+        "輸出必須是單一 JSON object，不得有 Markdown code fence。\n"
+        f"JSON Schema：{canonical_schema}\n\n"
+        f"任務：\n{prompt}"
+    ).encode("utf-8")
 
 
 def _claim_next(queue_root: Path) -> Path | None:
@@ -116,7 +142,11 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 executable=executable,
                 target_profile=ANTIGRAVITY_CLI_PROFILE,
                 expected_executable_digest=expected_executable_digest,
-                raw_request=str(request["prompt"]).encode("utf-8"),
+                raw_request=_render_v4_effective_prompt(
+                    str(request["role"]),
+                    str(request["prompt"]),
+                    request["response_schema"],
+                ),
                 response_schema=request["response_schema"],
                 timeout_milliseconds=120_000,
                 ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",

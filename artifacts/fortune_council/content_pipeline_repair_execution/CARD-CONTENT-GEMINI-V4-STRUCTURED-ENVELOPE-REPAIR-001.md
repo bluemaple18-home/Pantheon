@@ -5,8 +5,8 @@
 - ownership: `v4_effective_prompt_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_REVIEW`
 
 ## 來源失敗
 
@@ -101,3 +101,24 @@ V4 adapter 遺失這層 structured-generation envelope。
 - `BLOCKED`
 
 本卡不授權第三次真實外呼。
+
+## 執行結果
+
+- RED:
+  `2 failed / 1 passed`
+- focused GREEN:
+  `6 passed`
+- affected matrix:
+  `212 passed`
+- writer／reviewer role isolation:
+  `PASS`
+- JSON-only／no-code-fence／canonical schema／user task exact binding:
+  `PASS`
+- flag-off legacy bypass:
+  `PASS`
+- broker／ledger／anchor／replay changed:
+  `false`
+- Gemini／agy invocation during Repair:
+  `0`
+- decision:
+  `DELIVERED_CANDIDATE / READY_FOR_REVIEW`

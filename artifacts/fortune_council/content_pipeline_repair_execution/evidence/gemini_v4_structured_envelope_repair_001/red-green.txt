@@ -1,0 +1,40 @@
+Gemini V4 structured envelope Repair RED/GREEN
+================================================
+
+RED command
+-----------
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider -q \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_uses_only_broker_and_writes_bound_result \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_off_preserves_single_legacy_call
+
+RED result
+----------
+2 failed, 1 passed
+
+Writer failure:
+effective prompt was only the sanitized user task; writer role, JSON-only and schema
+were absent.
+
+Reviewer failure:
+effective prompt was only the sanitized user task; reviewer role, JSON-only and
+schema were absent.
+
+Flag-off legacy:
+passed.
+
+GREEN command
+-------------
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider -q \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_uses_only_broker_and_writes_bound_result \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_off_preserves_single_legacy_call \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback \
+  tests/test_agy_gemini_outbox.py::test_runner_closes_all_forged_broker_diagnostic_fields
+
+GREEN result
+------------
+6 passed in 0.05s
+
+External target invocation
+--------------------------
+Gemini / agy invocation: 0
+Third real payload: 0

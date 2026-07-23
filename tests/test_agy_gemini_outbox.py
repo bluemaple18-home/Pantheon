@@ -235,7 +235,28 @@ def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatc
     assert json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())["result"] == {"ok": True}
 
 
-def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("role", "expected_role_instruction", "forbidden_role_instruction"),
+    (
+        (
+            "writer",
+            "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
+            "你是獨立 Pantheon 文章 Reviewer。",
+        ),
+        (
+            "reviewer",
+            "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
+            "你是 Pantheon 繁體中文文章 Writer。",
+        ),
+    ),
+)
+def test_runner_flag_on_uses_only_broker_and_writes_bound_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    expected_role_instruction: str,
+    forbidden_role_instruction: str,
+) -> None:
     executable = tmp_path / "agy-current"
     executable.write_bytes(b"trusted agy fixture")
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
@@ -244,8 +265,8 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-v4",
-        role="reviewer",
-        model="gemini-test-reviewer",
+        role=role,
+        model=f"gemini-test-{role}",
         prompt="公開 V4 prompt",
         response_schema=SCHEMA,
     )
@@ -273,7 +294,26 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
     assert result == {"status": "processed", "job_id": request["job_id"]}
     assert legacy_calls == []
     assert len(broker_calls) == 1
-    assert broker_calls[0]["raw_request"] == "公開 V4 prompt".encode()
+    effective_prompt = broker_calls[0]["raw_request"].decode()
+    canonical_schema = json.dumps(
+        SCHEMA,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    expected_effective_prompt = (
+        f"{expected_role_instruction}\n"
+        "禁止使用任何工具或讀取工作區。\n"
+        "輸出必須是單一 JSON object，不得有 Markdown code fence。\n"
+        f"JSON Schema：{canonical_schema}\n\n"
+        "任務：\n公開 V4 prompt"
+    )
+    assert effective_prompt == expected_effective_prompt
+    assert forbidden_role_instruction not in effective_prompt
+    assert hashlib.sha256(broker_calls[0]["raw_request"]).hexdigest() == hashlib.sha256(
+        expected_effective_prompt.encode()
+    ).hexdigest()
+    assert len(broker_calls[0]["raw_request"]) == len(expected_effective_prompt.encode())
     assert broker_calls[0]["request_sha256"] == request["request_sha256"]
 
 

@@ -95,6 +95,13 @@ anchor_store.compare_and_swap(operation_id, attempt_id, previous_anchor, next_an
 
 目前只接一條 caller：`scripts/agy_gemini_runner.py:process_once` 由 `AGY_GEMINI_V4_BROKER=1` 選入 `scripts.agy_gemini_v4_broker:run_single_shot`。`scripts/agy_seo_copy_pipeline.py:GeminiClient._cli_transport`、HTTP transport、outbox enqueue、coordinator、其他 `_generate_with_receipt(...)` callsites全部維持原狀。
 
+Flag-on runner 必須先把 validated outbox 的 `role / prompt / response_schema`
+渲染成 deterministic effective prompt：closed role instruction、禁止工具／讀取
+工作區、JSON-only／no-code-fence、canonical compact schema與 sanitized user
+task。broker 的 CommandFrame prompt digest／byte count 綁定 effective prompt；
+receipt 的 external request SHA-256 綁定原 outbox request。Flag-off legacy 不經過
+此 renderer。
+
 Flag 關閉時走 legacy；flag 開啟時同一 operation 不得 fallback 回 legacy transport。`scripts/agy_seo_copy_pipeline.py:_generate_with_receipt` 的 `-runtime-retry-NN` 行為不得包住 V4 operation；canary 接線時必須讓 V4 ambiguous/blocked 結果直接 fail closed。舊 retry 的全面移除需另一張 migration card，不在 Repair 1 或首張 implementation 卡內。
 
 V4 仍不得成為預設 transport。預設切換必須另有 migration commit，並在獨立 review、shadow run 與內容 schema／Reviewer 契約驗證後決定。
@@ -104,6 +111,11 @@ V4 仍不得成為預設 transport。預設切換必須另有 migration commit�
 `CARD-CONTENT-GEMINI-V4-MAINLINE-001` 以 current source branch 為唯一 production truth，補上 concurrent-create loser 的 anchor provenance regression：競爭後 replay 使用哪一個 external anchor，`BrokerResult.final_anchor` 就必須回傳同一值，不得產生 `COMPLETE/1` 配上 stale `null` anchor。
 
 本卡 synthetic acceptance 覆蓋 flag-off legacy、success、nonzero、timeout、malformed output、pre-fork abort、partial ledger、replay、digest mismatch與 concurrent duplicate。其後只執行一次真實 `agy 1.1.5` 合成公開 canary；durable ledger 為 `COMPLETE/1`、`EXEC_CONFIRMED` 恰一個、strict result schema通過，且沒有 failed record、retry或fallback。遮蔽 evidence 位於 `artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/`。
+
+後續 Activation-002 以真實文章 request 重現 `COMPLETE/1` 加
+`JSON_INVALID`，證明 exactly-once 正常但 structured-generation envelope 在
+runner adapter 遺失。對應 Repair 在 runner seam 補回 deterministic envelope，
+不修改 broker／ledger／anchor／replay，也不授權第三次真實 canary。
 
 Rollback 只關閉 feature flag並回到切換前 code path；V4 ledger／anchor保留唯讀，不轉譯成舊 receipt、不補 terminal、不 replay target。若 flag-on operation 已留下 `BLOCKED/AMBIGUOUS/INVALID`，rollback 也不得觸發 legacy fallback。
 
