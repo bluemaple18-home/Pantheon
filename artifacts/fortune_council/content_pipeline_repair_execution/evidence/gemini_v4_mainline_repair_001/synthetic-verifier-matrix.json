@@ -1,0 +1,78 @@
+{
+  "cases": [
+    {
+      "error": "command/receipt operation_id mismatch",
+      "rejected": true,
+      "scenario": "wrong_operation",
+      "status": "PASS"
+    },
+    {
+      "error": "command/receipt item_id mismatch",
+      "rejected": true,
+      "scenario": "wrong_item",
+      "status": "PASS"
+    },
+    {
+      "error": "command/receipt attempt_id mismatch",
+      "rejected": true,
+      "scenario": "wrong_attempt",
+      "status": "PASS"
+    },
+    {
+      "error": "command/receipt request_sha256 mismatch",
+      "rejected": true,
+      "scenario": "wrong_request",
+      "status": "PASS"
+    },
+    {
+      "error": "receipt model is not approved",
+      "rejected": true,
+      "scenario": "wrong_model",
+      "status": "PASS"
+    },
+    {
+      "error": "receipt profile is invalid",
+      "rejected": true,
+      "scenario": "wrong_profile",
+      "status": "PASS"
+    },
+    {
+      "error": "command executable digest mismatch",
+      "rejected": true,
+      "scenario": "wrong_digest",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger event 3 chain is invalid",
+      "rejected": true,
+      "scenario": "broken_chain",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger must contain five closed events",
+      "rejected": true,
+      "scenario": "partial_ledger",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger must contain five closed events",
+      "rejected": true,
+      "scenario": "duplicate_event",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger anchor mismatch",
+      "rejected": true,
+      "scenario": "wrong_anchor",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result schema is invalid",
+      "rejected": true,
+      "scenario": "wrong_result_schema",
+      "status": "PASS"
+    }
+  ],
+  "schema_version": 1,
+  "status": "PASS"
+}
