@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLE
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-harness-new-20260723-49"
+ARTICLE_CACHE_TOKEN = "agy-harness-new-20260723-100"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -280,6 +280,7 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/astrology/astrology-0147",
     "/articles/personality/personality-0078",
     "/articles/astrology/astrology-0164",
+    "/articles/personality/personality-0090",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
@@ -445,7 +446,7 @@ console.log(JSON.stringify({
         "fortune",
     ]
     assert [record["path"] for record in data["records"]] == [
-        "/articles/personality/personality-0089",
+        "/articles/personality/personality-0090",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
         "/articles/astrology/astrology-0180",
@@ -454,7 +455,7 @@ console.log(JSON.stringify({
         "/articles/interpersonal/interpersonal-0012",
         "/articles/wealth/wealth-0012",
         "/articles/life-direction/life-direction-0012",
-        "/articles/personality/personality-0087",
+        "/articles/personality/personality-0089",
         "/articles/tarot/tarot-0079",
         "/articles/fortune/fortune-0043",
     ]
