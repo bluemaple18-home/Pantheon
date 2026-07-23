@@ -5547,8 +5547,8 @@ select:focus {
     width: min(calc(100% - 20px), 34rem);
   }
 
-  .visual {
-    width: min(calc(100% - 20px), 34rem);
+  .content-topic-panel [data-pantheon-motion-visual] > .visual {
+    width: 100%;
     margin-inline: auto;
   }
 
