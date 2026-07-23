@@ -231,12 +231,76 @@ def _prepend_changelog(repo_root: Path, *, version: str, article_count: int, run
     changelog.write_text(body.replace("\n## [", "\n" + section + "\n## [", 1), encoding="utf-8")
 
 
+def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, articles: list[dict[str, Any]]) -> Path:
+    test_path = repo_root / "tests/test_web.py"
+    text = test_path.read_text(encoding="utf-8")
+    text = re.sub(r'ARTICLE_CACHE_TOKEN = "[^"]+"', f'ARTICLE_CACHE_TOKEN = "{cache_token}"', text, count=1)
+    paths = [_article_path(article) for article in articles]
+    marker = "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("]\n\nPUBLIC_ARTICLE_PATHS", start)
+    block = text[start:end]
+    for path in paths:
+        line = f'    "{path}",\n'
+        if line not in block:
+            block += line
+    text = text[:start] + block + text[end:]
+    if (repo_root / "app/web/static/articles.js").exists():
+        records = _hub_display_records(repo_root)
+        category_list = _python_string_list([str(record["category"]) for record in records])
+        path_list = _python_string_list([str(record["path"]) for record in records])
+        pattern = re.compile(
+            r'assert \[record\["category"\] for record in data\["records"\]\] == \[\n.*?\n    \]\n'
+            r'    assert \[record\["path"\] for record in data\["records"\]\] == \[\n.*?\n    \]',
+            flags=re.DOTALL,
+        )
+        replacement = (
+            'assert [record["category"] for record in data["records"]] == [\n'
+            f"{category_list}\n"
+            "    ]\n"
+            '    assert [record["path"] for record in data["records"]] == [\n'
+            f"{path_list}\n"
+            "    ]"
+        )
+        text, replaced = pattern.subn(replacement, text, count=1)
+        if replaced != 1:
+            raise PublishBlocked("test_web hub display fixture marker not found")
+    test_path.write_text(text, encoding="utf-8")
+    return test_path
+
+
+def _python_string_list(values: list[str]) -> str:
+    return "\n".join(f'        "{value}",' for value in values)
+
+
+def _hub_display_records(repo_root: Path) -> list[dict[str, str]]:
+    script = """
+import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+import { pickLatestArticles } from "./app/web/static/articles.js";
+const selected = pickLatestArticles(listArticleRecords());
+console.log(JSON.stringify(selected.map((article) => ({
+  path: getArticlePath(article),
+  category: article.articleCategory,
+}))));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=repo_root, check=True, capture_output=True, text=True)
+    return list(json.loads(result.stdout))
+
+
+def _run_prerender(repo_root: Path) -> None:
+    _run_checked(repo_root, [sys.executable, "scripts/prerender_article_shells.py"])
+
+
+def _run_feed(repo_root: Path) -> None:
+    _run_checked(repo_root, [sys.executable, "scripts/generate_feed.py"])
+
+
 def _run_checked(repo_root: Path, args: list[str]) -> None:
     subprocess.run(args, cwd=repo_root, check=True)
 
 
 def _stage_commit_tag_push(repo_root: Path, version: str, git: GitRunner = run_git, *, push: bool, release_gate: bool) -> str:
-    git(repo_root, ["add", "app/web/static", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
+    git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     git(repo_root, ["commit", "-m", f"chore(content): publish Gemini approved articles v{version}"], None)
     git(repo_root, ["tag", "-a", f"v{version}", "-m", f"Pantheon content release v{version}"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
@@ -275,18 +339,26 @@ def publish_ready_runs(
             return {"schema_version": SCHEMA_VERSION, "status": "dry-run", "published": 0, "ready_runs": run_ids, "base_sha": base_sha}
 
         changed: list[str] = []
+        approved_articles: list[dict[str, Any]] = []
+        cache_token = ""
         for state, candidate, review in ready:
             decisions = {str(item["id"]): "APPROVE" for item in candidate["articles"]}
             approval = pipeline.build_approval(str(candidate["run_id"]), candidate["articles"], review, decisions, PUBLISHER_ID)
             run_dir = Path(str(state["run_dir"]))
             _write_json(run_dir / "approval.json", approval)
             changed.extend(str(path.relative_to(repo_root)) for path in pipeline.apply_approved_candidates(repo_root, str(candidate["run_id"]), candidate["articles"], review, approval))
+            approved_articles.extend(candidate["articles"])
+            cache_token = f"agy-{pipeline._safe_identifier(str(candidate['run_id']))[0]}"
 
         version = _bump_patch_version(repo_root)
         evidence_dir = state_root / "evidence" / f"publish-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
+        fixture_path = _sync_web_test_release_fixture(repo_root, cache_token=cache_token, articles=approved_articles)
+        changed.append(str(fixture_path.relative_to(repo_root)))
+        _run_prerender(repo_root)
+        _run_feed(repo_root)
         _prepend_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, evidence_path=evidence_rel)
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)

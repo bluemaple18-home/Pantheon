@@ -90,6 +90,17 @@ def _minimal_article_static(repo_root: Path) -> None:
         encoding="utf-8",
     )
     (static / "article-meta.js").write_text('const ARTICLE_BODY_LIBRARY = {\n};\n', encoding="utf-8")
+    tests = repo_root / "tests"
+    tests.mkdir()
+    (tests / "test_web.py").write_text(
+        'ARTICLE_CACHE_TOKEN = "old-token"\n\n'
+        "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
+        "]\n\n"
+        "PUBLIC_ARTICLE_PATHS = [\n"
+        "    *DAILY_PUBLIC_ARTICLE_PATHS,\n"
+        "]\n",
+        encoding="utf-8",
+    )
 
 
 def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
@@ -119,6 +130,8 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     run_dir = tmp_path / "runs" / "run-approved"
     _write_run(queue_root, run_dir, article)
     monkeypatch.setattr(publisher.pipeline, "_registry_inventory", lambda _repo: [])
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     git_calls: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -182,3 +195,27 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_sync_web_test_release_fixture_updates_cache_token_and_paths(tmp_path: Path) -> None:
+    test_dir = tmp_path / "tests"
+    test_dir.mkdir()
+    (test_dir / "test_web.py").write_text(
+        'ARTICLE_CACHE_TOKEN = "old-token"\n\n'
+        "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
+        '    "/articles/astrology/astrology-0115",\n'
+        "]\n\n"
+        "PUBLIC_ARTICLE_PATHS = [\n"
+        "    *DAILY_PUBLIC_ARTICLE_PATHS,\n"
+        "]\n",
+        encoding="utf-8",
+    )
+    article = make_publishable_article("AUTO-NEW")
+    article["serial"] = "astrology-0139"
+    article["urlSlug"] = "astrology-0139"
+
+    publisher._sync_web_test_release_fixture(tmp_path, cache_token="new-token", articles=[article])
+    text = (test_dir / "test_web.py").read_text(encoding="utf-8")
+
+    assert 'ARTICLE_CACHE_TOKEN = "new-token"' in text
+    assert '    "/articles/astrology/astrology-0139",\n' in text
