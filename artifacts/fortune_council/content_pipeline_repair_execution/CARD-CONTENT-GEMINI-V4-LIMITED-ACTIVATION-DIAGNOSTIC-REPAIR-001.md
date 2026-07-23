@@ -5,8 +5,8 @@
 - ownership: `v4_safe_failure_diagnostics_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_REVIEW`
 
 ## 來源失敗
 
@@ -84,3 +84,17 @@
 - `BLOCKED`
 
 本卡不授權第二次真實外呼。
+
+## 執行結果
+
+- RED: `4 failed`
+- focused GREEN: `4 passed`
+- final diagnostic seam: `5 passed`
+- affected matrix: `208 passed`
+- result-validation states:
+  `VALID / JSON_INVALID / NOT_OBJECT / SCHEMA_MISMATCH / NOT_EVALUATED`
+- failed record 只新增 closed `broker_diagnostic`：
+  `replay_status / process_count / outcome / result_validation`
+- prompt／raw stdout／stderr／response body retained: `false`
+- Gemini／agy invocation during repair: `0`
+- decision: `DELIVERED_CANDIDATE / READY_FOR_REVIEW`

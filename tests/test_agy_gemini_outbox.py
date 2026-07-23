@@ -315,6 +315,8 @@ def test_production_runner_explicitly_selects_closed_profile_for_unknown_basenam
     assert process_once(tmp_path)["status"] == "failed"
     assert broker_calls[0]["target_profile"] == "antigravity_cli_v1"
     assert broker_calls[0]["expected_executable_digest"] == executable_digest
+    failed = json.loads((tmp_path / "failed" / f"{request['job_id']}.json").read_text())
+    assert failed["broker_diagnostic"]["result_validation"] == "NOT_EVALUATED"
 
 
 def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -627,6 +629,7 @@ def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallbac
         caller_contract_satisfied=False,
         result_json=None,
         errors=("MALFORMED_OUTPUT",),
+        result_validation="SCHEMA_MISMATCH",
     )
     monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
     legacy_calls: list[str] = []
@@ -643,6 +646,15 @@ def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallbac
     }
     assert legacy_calls == []
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+    failed = json.loads((tmp_path / "failed" / f"{request['job_id']}.json").read_text())
+    assert failed["broker_diagnostic"] == {
+        "outcome": "SUCCESS",
+        "process_count": 1,
+        "replay_status": "COMPLETE",
+        "result_validation": "SCHEMA_MISMATCH",
+    }
+    assert "prompt" not in failed
+    assert "result" not in failed
 
 
 def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:

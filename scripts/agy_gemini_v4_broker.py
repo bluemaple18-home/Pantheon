@@ -84,6 +84,13 @@ RAW_STDIN_PROFILE: Final = "raw_stdin_v1"
 ANTIGRAVITY_CLI_PROFILE: Final = "antigravity_cli_v1"
 PUBLIC_SANITIZED: Final = "PUBLIC_SANITIZED"
 SYNTHETIC_TEST: Final = "SYNTHETIC_TEST"
+RESULT_VALIDATION_STATES: Final = frozenset({
+    "NOT_EVALUATED",
+    "JSON_INVALID",
+    "NOT_OBJECT",
+    "SCHEMA_MISMATCH",
+    "VALID",
+})
 AGY_MODEL_LABELS: Final = {
     "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
     "gemini-3.1-pro-preview": "Gemini 3.1 Pro (Low)",
@@ -290,6 +297,7 @@ class BrokerResult:
     result_json: bytes | None
     errors: tuple[str, ...]
     automatic_resend_allowed: bool = False
+    result_validation: str = "NOT_EVALUATED"
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -309,6 +317,7 @@ class BrokerResult:
             "byte_count": self.byte_count,
             "receipt": self.receipt.__dict__,
             "caller_contract_satisfied": self.caller_contract_satisfied,
+            "result_validation": self.result_validation,
             "result": self.result,
             "errors": list(self.errors),
             "automatic_resend_allowed": self.automatic_resend_allowed,
@@ -993,12 +1002,19 @@ def run_single_shot(
         return _failure_result(receipt, ReplayResult("INVALID", "UNKNOWN", False, replay.errors + ("CONTROL_REPLAY_MISMATCH",)), final_anchor)
     parsed: dict[str, Any] | None = None
     caller_ok = False
+    result_validation = "NOT_EVALUATED"
     if replay.status == "COMPLETE" and replay.process_count == 1 and control["outcome"] == "SUCCESS":
         try:
             candidate = json.loads(raw_result)
         except (json.JSONDecodeError, UnicodeDecodeError):
             candidate = None
-        if isinstance(candidate, dict) and _validate_json_schema(candidate, response_schema):
+            result_validation = "JSON_INVALID"
+        if candidate is not None and not isinstance(candidate, dict):
+            result_validation = "NOT_OBJECT"
+        elif isinstance(candidate, dict) and not _validate_json_schema(candidate, response_schema):
+            result_validation = "SCHEMA_MISMATCH"
+        elif isinstance(candidate, dict):
+            result_validation = "VALID"
             parsed, caller_ok = candidate, True
     return BrokerResult(
         replay.status,
@@ -1013,6 +1029,7 @@ def run_single_shot(
         caller_ok,
         raw_result if parsed is not None else None,
         replay.errors,
+        result_validation=result_validation,
     )
 
 
