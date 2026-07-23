@@ -1,0 +1,24 @@
+{
+  "attempt_id": "attempt-1",
+  "automatic_resend_allowed": false,
+  "event_count": 5,
+  "event_types": [
+    "OPERATION_CREATED",
+    "BROKER_ATTEMPTED",
+    "FORK_ATTEMPTED",
+    "EXEC_CONFIRMED",
+    "PROCESS_TERMINAL"
+  ],
+  "executable_sha256": "bd9f634ad6ed2ee2cdb11d93e4385a466b51b6f39eef9cc223de3dcd4f719d12",
+  "final_anchor": "c804e26fa0463acfd356f19a4301315f317885a6219265fed50cfbff9bc25387",
+  "item_id": "gemini-v4-mainline-repair-canary",
+  "ledger_sha256": "e022f10003dd896aa655ddf95640a75e93f0f55e0eea1cb0a9c4ca7ff0b3f07f",
+  "model": "gemini-3.5-flash",
+  "no_fallback": true,
+  "operation_id": "ee891ee36e0891fee606887957826dd868b73daa",
+  "process_count": 1,
+  "request_sha256": "ee891ee36e0891fee606887957826dd868b73daa239c0b7bb6177e1d85f4b6fa",
+  "result_schema_valid": true,
+  "status": "PASS",
+  "target_profile": "antigravity_cli_v1"
+}

@@ -492,6 +492,61 @@ def test_concurrent_create_loser_returns_replayed_external_anchor(
     assert result.final_anchor == parent
 
 
+def test_concurrent_create_loser_returns_invalid_when_race_anchor_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    ledger_path = tmp_path / "ledger.jsonl"
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    load_calls = 0
+    target_spawns: list[list[str]] = []
+
+    def load_race_anchor(_operation_id: str, _attempt_id: str) -> str | None:
+        nonlocal load_calls
+        load_calls += 1
+        if load_calls == 1:
+            return None
+        raise broker.AnchorError("synthetic unreadable race anchor")
+
+    def lose_create_race(_path: object, _flags: int, _mode: int = 0o777) -> int:
+        raise FileExistsError
+
+    def reject_spawn(command: list[str], **_kwargs: object) -> None:
+        target_spawns.append(command)
+        raise AssertionError("race loser must not spawn broker or target")
+
+    monkeypatch.setattr(anchor_store, "load", load_race_anchor)
+    monkeypatch.setattr(broker.os, "open", lose_create_race)
+    monkeypatch.setattr(broker.subprocess, "Popen", reject_spawn)
+
+    result = broker.run_single_shot(
+        operation_id="operation-race-invalid",
+        item_id="item-race-invalid",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=executable,
+        target_profile=broker.ANTIGRAVITY_CLI_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request="公開 malformed race anchor synthetic request".encode(),
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=ledger_path,
+        anchor_store=anchor_store,
+    )
+
+    assert (result.replay_status, result.process_count) == ("INVALID", "UNKNOWN")
+    assert result.errors == ("EXTERNAL_ANCHOR_INVALID",)
+    assert result.caller_contract_satisfied is False
+    assert result.result_json is None
+    assert result.final_anchor is None
+    assert result.automatic_resend_allowed is False
+    assert target_spawns == []
+    assert load_calls == 2
+
+
 def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
