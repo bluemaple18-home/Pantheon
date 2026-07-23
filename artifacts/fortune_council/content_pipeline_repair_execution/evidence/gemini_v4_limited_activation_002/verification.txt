@@ -1,0 +1,21 @@
+Gemini V4 limited activation-002 dry-run verification
+=====================================================
+
+Card Gate 1: PASS
+Fresh repo-external runtime: PASS
+Fresh run identity / namespace / job ID / request digest: PASS
+Prior blocked job reused: false
+Prior runtime reused: false
+Outbox tick pending exit 75: PASS
+Pending request count: 1
+Strict request rebuild / digest validation: PASS
+Public-data filter: PASS
+Executable digest match: PASS
+Prompt saved in evidence: false
+Raw response saved in evidence: false
+Credential / full environment / executable path saved: false
+Ledger / anchor / inbox / archive / failed record present: false
+Gemini / agy invocation: 0
+Retry / fallback / automatic resend: 0
+Publisher / publish / deploy / promotion: 0
+Decision: AWAITING_EXTERNAL_CONFIRMATION
