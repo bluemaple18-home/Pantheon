@@ -5,8 +5,8 @@
 - ownership: `v4_publish_final_sync_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_ACTIVATION_REVIEW`
 
 ## 目標
 
@@ -69,3 +69,15 @@
 - `BLOCKED`
 
 本卡不授權把候選推上遠端或切換 production transport。
+
+## 執行結果
+
+- final-sync merge:
+  `dcaddc49acd812798a058b36b833fe4fe2a022ec`
+- merge parents:
+  - `f4a3b71bf0177cc056825a592e05d483185366a9`
+  - `1eb311f49c720925501a1fa3dfc9e2b492e71451`
+- merge conflicts: `0`
+- tests: `205 passed`
+- external invocation / push / deploy / publish / activation: `0`
+- verdict: `DELIVERED_CANDIDATE / READY_FOR_ACTIVATION_REVIEW`
