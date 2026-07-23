@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "canary_attempts": 1,
+  "cli_version": "1.1.5",
+  "executable_sha256": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+  "job_id": "c316f660341295dea812f0a438579a95e6342de4",
+  "request_sha256": "c316f660341295dea812f0a438579a95e6342de416beedeb0c17d36c5f2974d8",
+  "runner_status": "processed",
+  "runner_error_type": null,
+  "replay_status": "COMPLETE",
+  "process_count": 1,
+  "automatic_resend_allowed": false,
+  "event_types": [
+    "OPERATION_CREATED",
+    "BROKER_ATTEMPTED",
+    "FORK_ATTEMPTED",
+    "EXEC_CONFIRMED",
+    "PROCESS_TERMINAL"
+  ],
+  "exec_confirmed_count": 1,
+  "ledger_sha256": "45fc7e472a1791bba3158ad7265f7b62daf6fee3727d96da09c4671c1991b67f",
+  "final_anchor": "1bfff7d68500bba4bce6036b2c85208539538d68be0931440eef87b95165ed07",
+  "archive_present": true,
+  "inbox_present": true,
+  "failed_present": false,
+  "failed_error_type": null,
+  "result_schema_valid": true,
+  "result": {
+    "ok": true,
+    "transport": "agy-v4-mainline-canary"
+  },
+  "privacy": {
+    "prompt_saved": false,
+    "credential_saved": false,
+    "full_environment_saved": false,
+    "cli_log_saved": false
+  }
+}

@@ -43,4 +43,6 @@ agy
 
 ## Canary 邊界
 
-本變更只允許 fake CLI 驗證，不呼叫 Gemini。獨立 reviewer 明確 GO 後，真 canary 必須另卡執行：只送一個合成公開 JSON request、最多一個 target process、無 retry／fallback、不得讀寫文章或發布資料。任何 nonzero、timeout、JSON/schema、ledger/replay 或 binding 失敗都立即停止。
+`CARD-CONTENT-GEMINI-V4-MAINLINE-001` 在 fake CLI synthetic matrix 全綠後，依獨立主線授權執行了一次真實 `agy 1.1.5` canary。輸入是單一合成公開 JSON request；結果為 durable `COMPLETE/1`、一個 `EXEC_CONFIRMED`、strict schema通過，且沒有 retry、fallback、failed record、文章或發布資料讀寫。
+
+遮蔽 evidence 位於 `artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/real-canary.json`。這個結果只證明本機 trusted transport completion 與 ledger/anchor/replay binding，不提升 provider internal call provenance，也不授權把 V4 切為預設 transport。

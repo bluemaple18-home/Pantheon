@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_gemini_outbox as outbox
 import scripts.agy_gemini_runner as runner
+from scripts import agy_gemini_v4_broker as broker
 from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
 from scripts.agy_gemini_outbox import (
@@ -419,6 +420,188 @@ def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, mon
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
     assert (tmp_path / "failed" / f"{request['job_id']}.json").exists()
     assert (tmp_path / "archive" / f"{request['job_id']}.json").exists()
+
+
+def test_concurrent_create_loser_returns_replayed_external_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    ledger_path = tmp_path / "ledger.jsonl"
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    binding = broker.Binding("operation-concurrent", "item-concurrent", "attempt-1")
+    definitions = [
+        ("OPERATION_CREATED", {}),
+        ("BROKER_ATTEMPTED", {"broker_attempt": 1}),
+        ("FORK_ATTEMPTED", {"broker_attempt": 1, "process_ordinal": 1}),
+        ("EXEC_CONFIRMED", {"process_ordinal": 1, "pid": 4321}),
+        ("PROCESS_TERMINAL", {"outcome": "SUCCESS"}),
+    ]
+    frames = []
+    parent = None
+    for sequence, (event_type, fields) in enumerate(definitions, 1):
+        event = {
+            "schema_version": 2,
+            "sequence": sequence,
+            "parent_sha256": parent,
+            "event_type": event_type,
+            "operation_id": binding.operation_id,
+            "item_id": binding.item_id,
+            "attempt_id": binding.attempt_id,
+            **fields,
+        }
+        encoded = broker.canonical_json(event)
+        frames.append(encoded + b"\n")
+        parent = hashlib.sha256(encoded).hexdigest()
+    assert parent is not None
+    real_open = broker.os.open
+
+    def lose_create_race(path: object, flags: int, mode: int = 0o777) -> int:
+        if Path(path) == ledger_path and flags & broker.os.O_EXCL:
+            ledger_path.write_bytes(b"".join(frames))
+            assert anchor_store.compare_and_swap(
+                binding.operation_id,
+                binding.attempt_id,
+                None,
+                parent,
+            )
+            raise FileExistsError
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(broker.os, "open", lose_create_race)
+
+    result = broker.run_single_shot(
+        operation_id=binding.operation_id,
+        item_id=binding.item_id,
+        attempt_id=binding.attempt_id,
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=executable,
+        target_profile=broker.ANTIGRAVITY_CLI_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request="公開 concurrent duplicate synthetic request".encode(),
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=ledger_path,
+        anchor_store=anchor_store,
+    )
+
+    assert (result.replay_status, result.process_count) == ("COMPLETE", 1)
+    assert result.caller_contract_satisfied is False
+    assert result.final_anchor == parent
+
+
+def test_concurrent_create_loser_returns_invalid_when_race_anchor_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    ledger_path = tmp_path / "ledger.jsonl"
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    load_calls = 0
+    target_spawns: list[list[str]] = []
+
+    def load_race_anchor(_operation_id: str, _attempt_id: str) -> str | None:
+        nonlocal load_calls
+        load_calls += 1
+        if load_calls == 1:
+            return None
+        raise broker.AnchorError("synthetic unreadable race anchor")
+
+    def lose_create_race(_path: object, _flags: int, _mode: int = 0o777) -> int:
+        raise FileExistsError
+
+    def reject_spawn(command: list[str], **_kwargs: object) -> None:
+        target_spawns.append(command)
+        raise AssertionError("race loser must not spawn broker or target")
+
+    monkeypatch.setattr(anchor_store, "load", load_race_anchor)
+    monkeypatch.setattr(broker.os, "open", lose_create_race)
+    monkeypatch.setattr(broker.subprocess, "Popen", reject_spawn)
+
+    result = broker.run_single_shot(
+        operation_id="operation-race-invalid",
+        item_id="item-race-invalid",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=executable,
+        target_profile=broker.ANTIGRAVITY_CLI_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request="公開 malformed race anchor synthetic request".encode(),
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=ledger_path,
+        anchor_store=anchor_store,
+    )
+
+    assert (result.replay_status, result.process_count) == ("INVALID", "UNKNOWN")
+    assert result.errors == ("EXTERNAL_ANCHOR_INVALID",)
+    assert result.caller_contract_satisfied is False
+    assert result.result_json is None
+    assert result.final_anchor is None
+    assert result.automatic_resend_allowed is False
+    assert target_spawns == []
+    assert load_calls == 2
+
+
+def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-malformed",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 malformed-output synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=("MALFORMED_OUTPUT",),
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+    legacy_calls: list[str] = []
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True},
+    )
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    assert legacy_calls == []
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
 
 
 def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:

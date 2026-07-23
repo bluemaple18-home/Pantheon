@@ -1,0 +1,39 @@
+P1 RED
+command: .venv/bin/python <evidence-root>/canary-verifier.py <old-evidence-root>/real-canary.json
+exit: 1
+result: REJECTED
+error: bundle fields are not closed
+meaning: old summary cannot establish closed receipt/ledger/control/inbox binding.
+
+P1 GREEN
+command: printf <fixed-public-canary-prompt> | PYTHONPATH=. .venv/bin/python <evidence-root>/canary-recorder.py --synthetic --output <evidence-root>/synthetic-canary-bundle.json
+exit: 0
+result: RECORDED
+
+command: .venv/bin/python <evidence-root>/canary-verifier.py <evidence-root>/synthetic-canary-bundle.json --output <evidence-root>/synthetic-canary-verification.json
+exit: 0
+result: PASS; COMPLETE/1; five canonical events; receipt/command/control/inbox/result/executable binding valid.
+
+command: .venv/bin/python <evidence-root>/canary-verifier.py <evidence-root>/synthetic-canary-bundle.json --mutation-matrix --output <evidence-root>/synthetic-verifier-matrix.json
+exit: 0
+result: PASS; all 12 mutations rejected.
+mutations: wrong operation/item/attempt/request/model/profile/digest, broken chain, partial ledger, duplicate event, wrong anchor, wrong result schema.
+
+P2 RED
+command: PYTHONPATH=. uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_concurrent_create_loser_returns_invalid_when_race_anchor_is_unreadable -q
+exit: 1
+result: AnchorError("synthetic unreadable race anchor") escaped from public run_single_shot.
+
+P2 GREEN
+command: PYTHONPATH=. uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_concurrent_create_loser_returns_invalid_when_race_anchor_is_unreadable -q
+exit: 0
+result: 1 passed; INVALID/UNKNOWN + EXTERNAL_ANCHOR_INVALID; caller false; result none; resend false; spawn 0.
+
+AUTHORIZED REAL CANARY
+external generation attempts: 1
+recorder exit: 0
+offline verifier exit: 0
+result: PASS; COMPLETE/1; five canonical events; one EXEC_CONFIRMED; strict result schema; no fallback/retry/resend.
+executable_sha256: 6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf
+ledger_sha256: ce52cc41e295f8a9bd88835a892d11e130f6dea8a1703998e85d1a33404cc49d
+final_anchor: d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601

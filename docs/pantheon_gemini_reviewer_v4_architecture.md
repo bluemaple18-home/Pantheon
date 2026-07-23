@@ -1,6 +1,6 @@
-# Pantheon Gemini Reviewer V4 architecture｜Repair 2 candidate
+# Pantheon Gemini Reviewer V4 architecture｜Mainline candidate
 
-狀態：`READY_FOR_REVIEW`。本文件與 POC 只修 architecture contract；不授權 production implementation、Gemini 呼叫、retry、merge、deploy、publish 或 content recovery。
+狀態：`READY_FOR_REVIEW`。目前 production implementation 只存在於明確 opt-in 的 V4 broker 路徑；本文件不授權切換預設、retry、merge、deploy、publish 或 content recovery。
 
 ## Decision
 
@@ -91,26 +91,22 @@ anchor_store.compare_and_swap(operation_id, attempt_id, previous_anchor, next_an
 
 每個 matrix cell 必須含 `observable_id` 與 executable predicate，status 只能由本次 runtime observables 推導；沒有可執行 observable 就是 `UNSUPPORTED`。正向 observables 至少包含 preflight=0、exec-failure 分帳、confirmed outcomes=1、target FD allowlist、strict replay與 anchor boundary。`strict_replay` 必須由上表所有合法 status/count/completeness/resend 組合，以及 terminal loss、legacy alias、PID domain、illegal order、partial frame、wrong binding 與 broken chain 的實際 replay controls 共同推導；其中任一結果錯誤，`illegal_or_partial_replay` cell 必須降為 `UNSUPPORTED`。每項 supported claim 都有反向 negative control；覆寫／反轉 observable 時 cell 必須降級，不能保留 literal 綠燈。方案 C 因 `kernel_isolation_executed=false` 全部 `UNSUPPORTED`。
 
-## Exact future production cutover（仍需另卡）
+## Current production cutover boundary
 
-首張 implementation 卡只允許 canary 接一條 caller：`scripts/agy_gemini_runner.py:process_once` 內目前呼叫 `generate_json(...)` 的位置，改由 `AGY_GEMINI_V4_BROKER=1` 選入 `scripts.agy_gemini_v4_broker:run_single_shot`。`scripts/agy_seo_copy_pipeline.py:GeminiClient._cli_transport`、HTTP transport、outbox enqueue、coordinator、其他 `_generate_with_receipt(...)` callsites全部維持原狀，不能順手切換。
+目前只接一條 caller：`scripts/agy_gemini_runner.py:process_once` 由 `AGY_GEMINI_V4_BROKER=1` 選入 `scripts.agy_gemini_v4_broker:run_single_shot`。`scripts/agy_seo_copy_pipeline.py:GeminiClient._cli_transport`、HTTP transport、outbox enqueue、coordinator、其他 `_generate_with_receipt(...)` callsites全部維持原狀。
 
 Flag 關閉時走 legacy；flag 開啟時同一 operation 不得 fallback 回 legacy transport。`scripts/agy_seo_copy_pipeline.py:_generate_with_receipt` 的 `-runtime-retry-NN` 行為不得包住 V4 operation；canary 接線時必須讓 V4 ambiguous/blocked 結果直接 fail closed。舊 retry 的全面移除需另一張 migration card，不在 Repair 1 或首張 implementation 卡內。
 
-## Implementation allowlist、tests、migration 與 rollback
+V4 仍不得成為預設 transport。預設切換必須另有 migration commit，並在獨立 review、shadow run 與內容 schema／Reviewer 契約驗證後決定。
 
-下一張卡的唯一 production allowlist：
+## Mainline verification 與 rollback
 
-- 新增 `scripts/agy_gemini_v4_broker.py`（broker、ledger replay、anchor client 同一 module）
-- 修改 `scripts/agy_gemini_runner.py` 的 `process_once` 單一 callsite與 feature flag
-- 新增 `tests/test_agy_gemini_v4_broker.py`
-- 修改 `tests/test_agy_gemini_outbox.py` 只補 runner canary/fail-closed contract
-- 新增一個獨立 migration evidence root
+`CARD-CONTENT-GEMINI-V4-MAINLINE-001` 以 current source branch 為唯一 production truth，補上 concurrent-create loser 的 anchor provenance regression：競爭後 replay 使用哪一個 external anchor，`BrokerResult.final_anchor` 就必須回傳同一值，不得產生 `COMPLETE/1` 配上 stale `null` anchor。
 
-明確禁止修改 `scripts/agy_seo_copy_pipeline.py`、outbox/coordinator production modules、app、articles、registry、metadata、publish、既有 evidence及任何 dependency。Implementation 順序：先 isolated module/fake tests → flag-off regression → single runner canary fake trace → independent review → 才能另議真實 CLI。不得 dual-spawn、automatic retry或 content recovery。
+本卡 synthetic acceptance 覆蓋 flag-off legacy、success、nonzero、timeout、malformed output、pre-fork abort、partial ledger、replay、digest mismatch與 concurrent duplicate。其後只執行一次真實 `agy 1.1.5` 合成公開 canary；durable ledger 為 `COMPLETE/1`、`EXEC_CONFIRMED` 恰一個、strict result schema通過，且沒有 failed record、retry或fallback。遮蔽 evidence 位於 `artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/`。
 
 Rollback 只關閉 feature flag並回到切換前 code path；V4 ledger／anchor保留唯讀，不轉譯成舊 receipt、不補 terminal、不 replay target。若 flag-on operation 已留下 `BLOCKED/AMBIGUOUS/INVALID`，rollback 也不得觸發 legacy fallback。
 
-## Repair 2 verification boundary
+## Remaining review boundary
 
-本 POC 只用 synthetic executable/local subprocess。Focused tests必須涵蓋 real broker crash-before-fork、fork/exec crash window、orphan target、missing/race exec、target FD table、wrong close/pass/extra FD、anchor loss/full replacement、完整合法 replay 表、terminal loss、legacy aliases、PID domain、illegal FSM與 matrix observable reversal。原 Reviewer probes必須顯示 `EXEC_CONFIRMED` 缺 terminal 為 `BLOCKED/1`，legacy aliases與非正 PID皆為 `INVALID/UNKNOWN`，同時 strict matrix仍由實際 controls維持綠燈；terminal loss、legacy alias或 PID control任一反轉時 matrix cell必須降級。POC連跑兩次 JSON byte-identical，且 privacy、allowlist、debug prefix、py_compile、focused tests與 `git diff --check`全綠後，才可交回原 Reviewer做最終 re-review；Repair author 不自審 GO。本輪是 Repair 2/2，若最終 re-review仍為 `NO_GO`，chain固定 `BLOCKED`，不得建立 Repair 3。
+本 candidate 仍需獨立 Review；implementation owner 不自審 GO。真實 canary 只能證明 trusted executable snapshot 的 transport completion、local ledger/anchor/replay accounting 與 strict caller result，不能證明 provider internal model-call provenance。放量決策維持「不切預設」；後續若要 shadow run 或 migration，必須另卡、另證據、另 commit。
