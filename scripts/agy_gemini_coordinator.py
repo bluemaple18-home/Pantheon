@@ -20,7 +20,7 @@ from scripts.agy_gemini_outbox import (
 from scripts.agy_gemini_runner import process_once
 
 
-MAX_BRIEF_BYTES = 8 * 1024
+MAX_BRIEF_BYTES = 12 * 1024
 MAX_ACTIVE_RUNS_PER_CYCLE = 5
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
@@ -35,7 +35,7 @@ def _brief(run_dir: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ValueError("run directory must contain brief.json")
     if path.stat().st_size > MAX_BRIEF_BYTES:
-        raise ValueError("brief exceeds 8 KB")
+        raise ValueError("brief exceeds 12 KB")
     brief = json.loads(path.read_text(encoding="utf-8"))
     run_id = brief.get("run_id")
     articles = brief.get("articles")

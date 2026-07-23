@@ -48,6 +48,26 @@ def test_register_run_rejects_more_than_five_articles(tmp_path: Path) -> None:
         raise AssertionError("six-article run must be rejected")
 
 
+def test_register_run_accepts_private_rewrite_brief_above_eight_kb(tmp_path: Path) -> None:
+    run_dir = tmp_path / "private-runs" / "rewrite-above-eight-kb"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "run_id": "rewrite-above-eight-kb",
+                "mode": "rewrite_existing_body",
+                "articles": [{"current_body": "字" * 3000}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    state = register_run(run_dir, tmp_path / "queue")
+
+    assert state["status"] == "active"
+
+
 def test_cycle_processes_one_external_job_then_completes_run(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "run-001"
     queue_root = tmp_path / "queue"
