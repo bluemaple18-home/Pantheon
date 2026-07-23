@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-PUBLISH-MAIN-INTEGRATION-001
 chain_id: CONTENT-GEMINI-V4-PUBLISH-MAIN-INTEGRATION-001
-status: ACTIVE
+status: DELIVERED_CANDIDATE
 role: integration_owner
 ownership: publish_main_v4_integration_only
 thickness: strict
