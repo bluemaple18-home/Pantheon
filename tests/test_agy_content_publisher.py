@@ -8,7 +8,7 @@ import subprocess
 import pytest
 
 from scripts import agy_content_publisher as publisher
-from scripts.agy_seo_copy_pipeline import article_sha256
+from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
 def _long(text: str) -> str:
@@ -82,6 +82,89 @@ def _write_run(queue_root: Path, run_dir: Path, article: dict[str, object], verd
     )
 
 
+def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001") -> dict[str, object]:
+    body_sections = [
+        {
+            "heading": f"舊文重寫段落 {section + 1}",
+            "paragraphs": [_long(f"這是第{section + 1}段第{index + 1}則舊文重寫內容，保留原主題但改成更貼近使用者的說法。") for index in range(3)],
+        }
+        for section in range(5)
+    ]
+    return {
+        "article_id": article_id,
+        "identity": {
+            "id": article_id,
+            "product": "astrology",
+            "category": "astrology",
+            "serial": "astrology-0001",
+            "slug": slug,
+            "primaryKeyword": "舊文測試",
+            "title": "舊文測試標題",
+        },
+        "current_body_sha256": body_sha256([{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}]),
+        "bodySections": body_sections,
+    }
+
+
+def _write_rewrite_run(queue_root: Path, run_dir: Path, article: dict[str, object], verdict: str = "APPROVE") -> None:
+    candidate = {"schema_version": 1, "run_id": run_dir.name, "mode": "rewrite_existing_body", "articles": [article]}
+    review = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": verdict,
+                "hard_failure": verdict != "APPROVE",
+                "findings": [] if verdict == "APPROVE" else [{"code": "reject", "message": "退件"}],
+            }
+        ],
+    }
+    brief = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "mode": "rewrite_existing_body",
+        "articles": [
+            {
+                "slot": "article-01",
+                "article_id": article["article_id"],
+                "identity": article["identity"],
+                "immutable_fields": {
+                    **article["identity"],
+                    "description": "原 description",
+                    "answer": "原 answer",
+                    "faq": [{"question": "原問題？", "answer": "原回答。"}],
+                    "tags": ["測試"],
+                    "published": "2026-07-01",
+                    "updated": "2026-07-01",
+                    "urlSlug": article["identity"]["slug"],
+                    "canonical_path": f"/articles/astrology/{article['identity']['slug']}",
+                    "source_file": "app/web/static/article-meta.js",
+                },
+                "current_body": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
+                "current_body_sha256": article["current_body_sha256"],
+                "rewrite_brief": ["改得更口語，但保留使用者情境與限制。"],
+                "source_file": "app/web/static/article-meta.js",
+                "body_source": "ARTICLE_BODY_LIBRARY",
+            }
+        ],
+    }
+    _write_json(run_dir / "candidate.json", candidate)
+    _write_json(run_dir / "review.json", review)
+    _write_json(run_dir / "brief.json", brief)
+    _write_json(
+        queue_root / "runs" / f"{run_dir.name}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "run_dir": str(run_dir),
+            "status": "complete",
+            "result": {"status": "complete", "run_id": run_dir.name, "candidate": str(run_dir / "candidate.json")},
+        },
+    )
+
+
 def _minimal_article_static(repo_root: Path) -> None:
     static = repo_root / "app" / "web" / "static"
     static.mkdir(parents=True)
@@ -89,7 +172,15 @@ def _minimal_article_static(repo_root: Path) -> None:
         'export const ARTICLE_REGISTRY = [\n];\nfunction listArticleRecords() { return []; }\n',
         encoding="utf-8",
     )
-    (static / "article-meta.js").write_text('const ARTICLE_BODY_LIBRARY = {\n};\n', encoding="utf-8")
+    (static / "article-meta.js").write_text(
+        "const ARTICLE_BODY_LIBRARY = {\n};\n\n"
+        "export function buildArticleContent() {\n"
+        '  const article = { slug: "legacy-001" };\n'
+        "  const customBody = ARTICLE_BODY_LIBRARY[article.slug];\n"
+        "  return customBody;\n"
+        "}\n",
+        encoding="utf-8",
+    )
     tests = repo_root / "tests"
     tests.mkdir()
     (tests / "test_web.py").write_text(
@@ -152,6 +243,87 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     assert (run_dir / "approval.json").exists()
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
     assert "## [0.3.1]" in (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+
+
+def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    approved = make_rewrite_article("LEGACY-APPROVED", "legacy-approved")
+    rejected = make_rewrite_article("LEGACY-REJECTED", "legacy-rejected")
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-approved", approved)
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-rejected", rejected, verdict="REJECT")
+    _write_json(
+        state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [],
+            "quarantined_runs": [{"run_id": "rewrite-approved", "reason": "publisher only supports create mode"}],
+        },
+    )
+    monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
+
+    ready = publisher.collect_ready_rewrite_runs(queue_root, state_root, limit=10)
+
+    assert [state["run_id"] for state, _, _, _ in ready] == ["rewrite-approved"]
+
+
+def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_root = tmp_path
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / ".work" / "content-publisher"
+    _minimal_article_static(repo_root)
+    (repo_root / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
+    (repo_root / "package.json").write_text('{"version":"0.3.0"}\n', encoding="utf-8")
+    (repo_root / "CHANGELOG.md").write_text(
+        "# Pantheon Release Log\n\n## [0.3.0] - 2026-07-23\n\n- Release tag：`v0.3.0`\n- 公開文章總數：353\n- 發布範圍：測試。\n- 驗證：測試。\n- 證據：`test`\n",
+        encoding="utf-8",
+    )
+    article = make_rewrite_article()
+    run_dir = tmp_path / "runs" / "rewrite-approved"
+    _write_rewrite_run(queue_root, run_dir, article)
+    monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: {
+            "LEGACY-001": {
+                "record": {
+                    "id": "LEGACY-001",
+                    "product": "astrology",
+                    "articleCategory": "astrology",
+                    "serial": "astrology-0001",
+                    "urlSlug": "legacy-001",
+                    "primaryKeyword": "舊文測試",
+                    "title": "舊文測試標題",
+                },
+                "currentBody": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
+            }
+        },
+    )
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 353)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    git_calls: list[list[str]] = []
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        git_calls.append(args)
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"] or args == ["rev-parse", "origin/main"]:
+            return "a" * 40
+        return ""
+
+    result = publisher.publish_ready_rewrite_runs(repo_root, queue_root, state_root, git=fake_git, push=False, run_tests=False, release_gate=False)
+
+    assert result["status"] == "PUBLISHED_REWRITE"
+    assert result["public_article_count"] == 353
+    modules = list((repo_root / "app/web/static").glob("article-rewrite-agy-rewrite-*.js"))
+    assert len(modules) == 1
+    meta = (repo_root / "app/web/static/article-meta.js").read_text(encoding="utf-8")
+    assert "REWRITE_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug]" in meta
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert ledger["rewrite_released_runs"][0]["run_id"] == "rewrite-approved"
+    assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
 
 
 def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:

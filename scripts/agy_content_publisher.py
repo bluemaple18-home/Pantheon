@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""發布已通過 Gemini Reviewer 的 create-mode 文章 run。"""
+"""發布已通過 Gemini Reviewer 的文章 run。"""
 
 from __future__ import annotations
 
@@ -79,12 +79,13 @@ def _ledger_path(state_root: Path) -> Path:
 def _load_ledger(state_root: Path) -> dict[str, Any]:
     path = _ledger_path(state_root)
     if not path.exists():
-        return {"schema_version": SCHEMA_VERSION, "published_runs": [], "quarantined_runs": []}
+        return {"schema_version": SCHEMA_VERSION, "published_runs": [], "quarantined_runs": [], "rewrite_released_runs": []}
     ledger = _read_json(path)
     if ledger.get("schema_version") != SCHEMA_VERSION:
         raise PublishBlocked("publisher ledger schema is invalid")
     ledger.setdefault("published_runs", [])
     ledger.setdefault("quarantined_runs", [])
+    ledger.setdefault("rewrite_released_runs", [])
     return ledger
 
 
@@ -185,6 +186,64 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
     return ready
 
 
+def _load_rewrite_brief(run_dir: Path, run_id: str) -> dict[str, Any]:
+    brief_path = run_dir / "brief.json"
+    if not brief_path.is_file():
+        raise PublishBlocked(f"rewrite brief is missing for {run_id}")
+    brief = _read_json(brief_path)
+    if brief.get("run_id") != run_id:
+        raise PublishBlocked(f"rewrite brief run id drift for {run_id}")
+    pipeline.validate_rewrite_brief(brief)
+    return brief
+
+
+def _rewrite_findings_for_run(candidate: dict[str, Any], brief: dict[str, Any]) -> list[dict[str, str]]:
+    quality, uniqueness = pipeline.rewrite_aggregate_findings(brief, candidate["articles"])
+    return [*quality, *uniqueness]
+
+
+def collect_ready_rewrite_runs(
+    queue_root: Path,
+    state_root: Path,
+    *,
+    limit: int = DEFAULT_MAX_RUNS,
+) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    ledger = _load_ledger(state_root)
+    released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
+    ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    seen_article_ids: set[str] = set()
+    seen_body_hashes: dict[str, str] = {}
+    for state_path in _run_files(queue_root):
+        try:
+            state, candidate, review = _load_completed_run(state_path)
+        except PublishBlocked:
+            continue
+        run_id = str(state["run_id"])
+        if run_id in released or candidate.get("mode") != "rewrite_existing_body":
+            continue
+        if not _review_is_clean_approve(review):
+            continue
+        run_dir = Path(str(state["run_dir"]))
+        brief = _load_rewrite_brief(run_dir, run_id)
+        findings = _rewrite_findings_for_run(candidate, brief)
+        if findings:
+            continue
+        for article in candidate["articles"]:
+            article_id = str(article["article_id"])
+            if article_id in seen_article_ids:
+                raise PublishBlocked(f"duplicate rewrite article id in release batch: {article_id}")
+            body_hash = pipeline.body_sha256(article["bodySections"])
+            owner = seen_body_hashes.get(body_hash)
+            if owner:
+                raise PublishBlocked(f"duplicate rewrite body across batch: {owner} and {article_id}")
+            seen_article_ids.add(article_id)
+            seen_body_hashes[body_hash] = article_id
+        ready.append((state, candidate, review, brief))
+        if len(ready) >= limit:
+            break
+    return ready
+
+
 def _current_version(repo_root: Path) -> tuple[int, int, int]:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     match = re.search(r'^version = "(\d+)\.(\d+)\.(\d+)"$', pyproject, flags=re.MULTILINE)
@@ -224,6 +283,25 @@ def _prepend_changelog(repo_root: Path, *, version: str, article_count: int, run
             f"- 公開文章總數：{article_count}",
             f"- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 {len(run_ids)} 個 run；run_id：{', '.join(run_ids)}。",
             "- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。",
+            f"- 證據：`{evidence_path}`",
+            "",
+        ]
+    )
+    changelog.write_text(body.replace("\n## [", "\n" + section + "\n## [", 1), encoding="utf-8")
+
+
+def _prepend_rewrite_changelog(repo_root: Path, *, version: str, article_count: int, run_ids: list[str], article_ids: list[str], evidence_path: str) -> None:
+    changelog = repo_root / "CHANGELOG.md"
+    body = changelog.read_text(encoding="utf-8")
+    today = date.today().isoformat()
+    section = "\n".join(
+        [
+            f"## [{version}] - {today}",
+            "",
+            f"- Release tag：`v{version}`",
+            f"- 公開文章總數：{article_count}（舊文重寫，不新增 registry 條目）",
+            f"- 發布範圍：套用 Gemini Reviewer APPROVE 且 deterministic gate 通過的舊文 body override {len(article_ids)} 篇；run_id：{', '.join(run_ids)}。",
+            "- 驗證：publisher clean-origin gate、Reviewer hash gate、rewrite deterministic gate、source body drift gate、focused article pipeline tests 與 release record gate。",
             f"- 證據：`{evidence_path}`",
             "",
         ]
@@ -299,9 +377,17 @@ def _run_checked(repo_root: Path, args: list[str]) -> None:
     subprocess.run(args, cwd=repo_root, check=True)
 
 
-def _stage_commit_tag_push(repo_root: Path, version: str, git: GitRunner = run_git, *, push: bool, release_gate: bool) -> str:
+def _stage_commit_tag_push(
+    repo_root: Path,
+    version: str,
+    git: GitRunner = run_git,
+    *,
+    push: bool,
+    release_gate: bool,
+    message: str | None = None,
+) -> str:
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
-    git(repo_root, ["commit", "-m", f"chore(content): publish Gemini approved articles v{version}"], None)
+    git(repo_root, ["commit", "-m", message or f"chore(content): publish Gemini approved articles v{version}"], None)
     git(repo_root, ["tag", "-a", f"v{version}", "-m", f"Pantheon content release v{version}"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if release_gate:
@@ -309,6 +395,79 @@ def _stage_commit_tag_push(repo_root: Path, version: str, git: GitRunner = run_g
     if push:
         git(repo_root, ["push", "origin", "HEAD:main", f"v{version}"], None)
     return commit_sha
+
+
+def _rewrite_identity_for_inventory_item(item: dict[str, Any]) -> dict[str, str]:
+    record = item["record"]
+    return {
+        "id": str(record["id"]),
+        "product": str(record["product"]),
+        "category": str(record["articleCategory"]),
+        "serial": str(record["serial"]),
+        "slug": str(record["urlSlug"]),
+        "primaryKeyword": str(record["primaryKeyword"]),
+        "title": str(record["title"]),
+    }
+
+
+def _assert_rewrite_source_matches(repo_root: Path, candidates: list[dict[str, Any]]) -> None:
+    inventory = pipeline._existing_rewrite_inventory(repo_root)
+    for candidate in candidates:
+        for article in candidate["articles"]:
+            article_id = str(article["article_id"])
+            current = inventory.get(article_id)
+            if current is None:
+                raise PublishBlocked(f"rewrite source article no longer exists: {article_id}")
+            if article["identity"] != _rewrite_identity_for_inventory_item(current):
+                raise PublishBlocked(f"rewrite identity drift for {article_id}")
+            actual_hash = pipeline.body_sha256(current["currentBody"])
+            approved_hash = pipeline.body_sha256(article["bodySections"])
+            if actual_hash not in {str(article["current_body_sha256"]), approved_hash}:
+                raise PublishBlocked(f"rewrite body drift for {article_id}")
+
+
+def _update_rewrite_body_override_lookup(meta_path: Path, export_name: str) -> None:
+    text = meta_path.read_text(encoding="utf-8")
+    pattern = re.compile(r"(?m)^(\s*const customBody = )(.+?);$")
+    match = pattern.search(text)
+    if not match:
+        raise PublishBlocked("article-meta customBody lookup marker not found")
+    expression = match.group(2)
+    token = f"{export_name}[article.slug]"
+    if token in expression:
+        return
+    updated_expression = f"{token} || {expression}"
+    text = text[: match.start(2)] + updated_expression + text[match.end(2) :]
+    meta_path.write_text(text, encoding="utf-8")
+
+
+def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dict[str, Any]]) -> list[Path]:
+    if not candidates:
+        return []
+    _assert_rewrite_source_matches(repo_root, candidates)
+    file_slug, identifier = pipeline._safe_identifier(release_id)
+    export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
+    module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
+    bodies: dict[str, list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        for article in candidate["articles"]:
+            slug = str(article["identity"]["slug"])
+            if slug in bodies:
+                raise PublishBlocked(f"duplicate rewrite slug in release batch: {slug}")
+            bodies[slug] = article["bodySections"]
+    module.write_text(
+        f"export const {export_name} = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n",
+        encoding="utf-8",
+    )
+    meta_path = repo_root / "app/web/static/article-meta.js"
+    import_line = f'import {{ {export_name} }} from "./{module.name}?v={release_id}";\n'
+    meta = meta_path.read_text(encoding="utf-8")
+    meta = pipeline._insert_once(meta, "const ARTICLE_BODY_LIBRARY = {", import_line + "\n")
+    meta_path.write_text(meta, encoding="utf-8")
+    _update_rewrite_body_override_lookup(meta_path, export_name)
+    changed = [module, meta_path]
+    changed.extend(pipeline._bump_article_cache_queries(repo_root, release_id))
+    return changed
 
 
 def publish_ready_runs(
@@ -382,6 +541,82 @@ def publish_ready_runs(
         return evidence
 
 
+def publish_ready_rewrite_runs(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    max_runs: int = DEFAULT_MAX_RUNS,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+    git: GitRunner = run_git,
+) -> dict[str, Any]:
+    state_root.mkdir(parents=True, exist_ok=True)
+    lock_path = state_root / "publisher.lock"
+    with lock_path.open("a+") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"schema_version": SCHEMA_VERSION, "status": "busy", "rewritten": 0}
+        base_sha = _assert_clean_origin_head(repo_root, git)
+        ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs)
+        if not ready:
+            return {"schema_version": SCHEMA_VERSION, "status": "idle", "rewritten": 0, "base_sha": base_sha}
+        run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        candidates = [candidate for _, candidate, _, _ in ready]
+        article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "rewritten": 0,
+                "ready_runs": run_ids,
+                "article_ids": article_ids,
+                "base_sha": base_sha,
+            }
+
+        release_id = f"agy-rewrite-{date.today().strftime('%Y%m%d')}-{len(run_ids):02d}"
+        changed = [str(path.relative_to(repo_root)) for path in apply_rewrite_release(repo_root, release_id, candidates)]
+        version = _bump_patch_version(repo_root)
+        evidence_dir = state_root / "evidence" / f"rewrite-{version}"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
+        article_count = _public_article_count(repo_root)
+        _run_prerender(repo_root)
+        _run_feed(repo_root)
+        _prepend_rewrite_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, article_ids=article_ids, evidence_path=evidence_rel)
+        if run_tests:
+            _run_checked(repo_root, TEST_COMMAND)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            push=push,
+            release_gate=release_gate,
+            message=f"chore(content): publish Gemini rewrite release v{version}",
+        )
+        ledger = _load_ledger(state_root)
+        for run_id in run_ids:
+            ledger["rewrite_released_runs"].append({"run_id": run_id, "version": version, "commit_sha": commit_sha, "published_at": _now()})
+        _write_json(_ledger_path(state_root), ledger)
+        evidence = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "PUBLISHED_REWRITE",
+            "base_sha": base_sha,
+            "commit_sha": commit_sha,
+            "version": version,
+            "run_ids": run_ids,
+            "article_ids": article_ids,
+            "changed": sorted(set(changed)),
+            "public_article_count": article_count,
+            "pushed": push,
+        }
+        _write_json(evidence_dir / "rewrite-evidence.json", evidence)
+        return evidence
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -389,6 +624,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--skip-release-gate", action="store_true")
@@ -397,7 +633,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    result = publish_ready_runs(
+    publisher_fn = publish_ready_rewrite_runs if args.rewrite_release else publish_ready_runs
+    result = publisher_fn(
         args.repo_root.resolve(),
         args.queue_root.resolve(),
         (args.repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve(),
@@ -408,7 +645,7 @@ def main() -> int:
         release_gate=not args.skip_release_gate,
     )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") in {"PUBLISHED", "idle", "busy", "dry-run"} else 1
+    return 0 if result.get("status") in {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "busy", "dry-run"} else 1
 
 
 if __name__ == "__main__":
