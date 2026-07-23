@@ -1,9 +1,9 @@
 ---
 card_id: CARD-CONTENT-DAILY-AUTOPUBLISH-001
-status: IMPLEMENTING
+status: READY_FOR_HIGH_FREQUENCY
 thickness: strict
 risk: high
-ownership: 每日單篇受監督自動產文、發布與失敗停損
+ownership: 每小時最多五篇的受監督自動產文、批次發布與失敗停損
 allowlist:
   - artifacts/fortune_council/content_seo_execution/CARD-CONTENT-DAILY-AUTOPUBLISH-001.md
   - artifacts/fortune_council/content_seo_execution/evidence/scale_clusters/cluster_plan.md
@@ -18,37 +18,46 @@ forbidden_scope:
   - scripts/agy_gemini_v4_broker.py
   - AGY_GEMINI_V4_BROKER=1
   - Reviewer REJECT 或 deterministic finding 的 override
-  - 每次超過一篇
+  - 每次超過五篇
+  - 多批同時修改 main、版本、registry 或 release tag
   - dirty worktree、非 main、HEAD 與 origin/main 不一致時發布
 verification:
   - daily backlog 非空且與現有 registry 去重
-  - 每輪只建立一篇 brief
-  - Gemini CLI Writer 與獨立 Reviewer receipts
-  - deterministic findings 為空且 Reviewer APPROVE
+  - 每輪最多取五篇，維持 backlog 固定順序
+  - 每個 brief 都有 Gemini CLI Writer 與 fresh independent Reviewer receipts
+  - 全批 deterministic findings 為空且每篇 Reviewer APPROVE
   - release version、CHANGELOG、annotated tag 與 release gate
   - full pytest、git diff --check、本機與正式頁驗收
 ---
 
-# Pantheon 每日單篇自動發文
+# Pantheon 高頻批次自動發文
 
 ## 目標
 
-恢復每天一篇公開文章。內容線使用既有 Gemini CLI，不等待 V4；V4 維持獨立技術改善。
+每日目標至少 100 篇，排程採每小時最多五篇，理論上限 120 篇。內容線使用既有
+Gemini CLI，不等待 V4；V4 維持獨立技術改善。
 
 ## 每輪控制流
 
 1. 確認 `main`、worktree clean、`HEAD == origin/main`，否則停止。
-2. 先從 cluster plan 的未上線 backlog 取第一篇；舊 Queue 用完後接續 content matrix v2，最多一篇。
-3. 建立公開 brief，使用既有 CLI Writer 與 fresh Reviewer。
-4. deterministic findings 必須為空，Reviewer 必須 `APPROVE`，不得 override。
-5. 建立 policy approval、apply 至文章 registry 與正文模組。
+2. 先從 cluster plan 的未上線 backlog 依序取最多五篇；舊 Queue 用完後接續 content matrix v2。
+3. 建立公開 brief；若因 8 KiB 契約分成多個 brief，必須依序使用既有 CLI Writer 與各自的 fresh Reviewer。
+4. 全批 deterministic findings 必須為空，每篇 Reviewer 都必須 `APPROVE`，不得 override。
+5. 全批通過後才建立 policy approval，一次 apply 至文章 registry 與正文模組。
 6. 更新版本、CHANGELOG、prerender、sitemap 與 feed，執行完整測試。
-7. 建立 release commit 與 annotated tag，同次 push `main` 與 tag。
-8. 驗收正式文章 URL；保存 commit、tag、URL、HTTP、canonical 與文章標題。
+7. 全批只建立一個 release commit 與一個 annotated tag，同次 push `main` 與 tag。
+8. 驗收全批正式文章 URL；保存 commit、tag、URL、HTTP、canonical 與文章標題。
+
+## 吞吐與併發
+
+- 排程每小時執行一次，每輪最多五篇；24 輪的理論上限是 120 篇／日。
+- 前一輪尚未結束時，下一輪必須因 dirty worktree 或 HEAD 不一致而停止，不得平行發布。
+- backlog 少於五篇時只處理剩餘篇數，不補造題目。
+- 任一篇失敗即停止整批，不 apply 部分成功文章，也不跳過失敗題目。
 
 ## 停損
 
-- 任一 Gemini、schema、內容 Gate、測試、release gate、push 或正式頁驗收失敗即停止。
+- 任一 Gemini、schema、內容 Gate、測試、release gate、push 或正式頁驗收失敗即停止整批。
 - 不自動 retry 外部 generation 或 push。
 - 不使用 V4 fallback。
 - 兩份矩陣 backlog 都為空時回報 `IDLE_NO_BACKLOG`，不得自行發明題目。

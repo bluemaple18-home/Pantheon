@@ -117,7 +117,13 @@ def test_content_matrix_v2_has_1720_atomic_unique_topics() -> None:
         (row["family"], row["entity"], row.get("pairedEntity", ""), row["scenario"])
         for row in rows
     ]
+    pair_keys = [
+        (row["family"], frozenset((row["entity"], row["pairedEntity"])), row["scenario"])
+        for row in rows
+        if row["family"].endswith("_pair")
+    ]
     assert len(atomic_keys) == len(set(atomic_keys))
+    assert len(pair_keys) == len(set(pair_keys))
     assert all("、" not in row["scenario"] for row in rows)
 
 

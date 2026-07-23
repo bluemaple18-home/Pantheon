@@ -1977,12 +1977,12 @@
       "family": "tarot",
       "id": "V2-TAROT-FOOL-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道愚者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "愚者在感情中代表什麼",
+      "primaryKeyword": "塔羅愚者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "愚者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅愚者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -1991,12 +1991,12 @@
       "family": "tarot",
       "id": "V2-TAROT-FOOL-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道愚者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "愚者在工作中代表什麼",
+      "primaryKeyword": "塔羅愚者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "愚者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅愚者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2005,12 +2005,12 @@
       "family": "tarot",
       "id": "V2-TAROT-FOOL-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道愚者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "愚者在人際中代表什麼",
+      "primaryKeyword": "塔羅愚者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "愚者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅愚者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2019,12 +2019,12 @@
       "family": "tarot",
       "id": "V2-TAROT-FOOL-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道愚者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "愚者在金錢中代表什麼",
+      "primaryKeyword": "塔羅愚者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "愚者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅愚者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2033,12 +2033,12 @@
       "family": "tarot",
       "id": "V2-TAROT-FOOL-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道愚者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "愚者在低潮中代表什麼",
+      "primaryKeyword": "塔羅愚者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "愚者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅愚者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2047,12 +2047,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MAGICIAN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道魔術師能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "魔術師在感情中代表什麼",
+      "primaryKeyword": "塔羅魔術師在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "魔術師在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅魔術師在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2061,12 +2061,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MAGICIAN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道魔術師能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "魔術師在工作中代表什麼",
+      "primaryKeyword": "塔羅魔術師在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "魔術師在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅魔術師在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2075,12 +2075,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MAGICIAN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道魔術師能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "魔術師在人際中代表什麼",
+      "primaryKeyword": "塔羅魔術師在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "魔術師在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅魔術師在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2089,12 +2089,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MAGICIAN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道魔術師能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "魔術師在金錢中代表什麼",
+      "primaryKeyword": "塔羅魔術師在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "魔術師在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅魔術師在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2103,12 +2103,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MAGICIAN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道魔術師能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "魔術師在低潮中代表什麼",
+      "primaryKeyword": "塔羅魔術師在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "魔術師在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅魔術師在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2117,12 +2117,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIGH-PRIESTESS-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道女祭司能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "女祭司在感情中代表什麼",
+      "primaryKeyword": "塔羅女祭司在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "女祭司在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅女祭司在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2131,12 +2131,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIGH-PRIESTESS-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道女祭司能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "女祭司在工作中代表什麼",
+      "primaryKeyword": "塔羅女祭司在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "女祭司在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅女祭司在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2145,12 +2145,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIGH-PRIESTESS-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道女祭司能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "女祭司在人際中代表什麼",
+      "primaryKeyword": "塔羅女祭司在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "女祭司在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅女祭司在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2159,12 +2159,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIGH-PRIESTESS-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道女祭司能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "女祭司在金錢中代表什麼",
+      "primaryKeyword": "塔羅女祭司在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "女祭司在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅女祭司在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2173,12 +2173,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIGH-PRIESTESS-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道女祭司能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "女祭司在低潮中代表什麼",
+      "primaryKeyword": "塔羅女祭司在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "女祭司在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅女祭司在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2187,12 +2187,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPRESS-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇后在感情中代表什麼",
+      "primaryKeyword": "塔羅皇后在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2201,12 +2201,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPRESS-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇后在工作中代表什麼",
+      "primaryKeyword": "塔羅皇后在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2215,12 +2215,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPRESS-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇后在人際中代表什麼",
+      "primaryKeyword": "塔羅皇后在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2229,12 +2229,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPRESS-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇后在金錢中代表什麼",
+      "primaryKeyword": "塔羅皇后在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2243,12 +2243,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPRESS-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇后在低潮中代表什麼",
+      "primaryKeyword": "塔羅皇后在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2257,12 +2257,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPEROR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道皇帝能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇帝在感情中代表什麼",
+      "primaryKeyword": "塔羅皇帝在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "皇帝在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇帝在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2271,12 +2271,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPEROR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道皇帝能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇帝在工作中代表什麼",
+      "primaryKeyword": "塔羅皇帝在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "皇帝在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇帝在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2285,12 +2285,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPEROR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道皇帝能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇帝在人際中代表什麼",
+      "primaryKeyword": "塔羅皇帝在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "皇帝在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇帝在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2299,12 +2299,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPEROR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道皇帝能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇帝在金錢中代表什麼",
+      "primaryKeyword": "塔羅皇帝在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "皇帝在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇帝在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2313,12 +2313,12 @@
       "family": "tarot",
       "id": "V2-TAROT-EMPEROR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道皇帝能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "皇帝在低潮中代表什麼",
+      "primaryKeyword": "塔羅皇帝在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "皇帝在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅皇帝在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2327,12 +2327,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIEROPHANT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道教皇能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "教皇在感情中代表什麼",
+      "primaryKeyword": "塔羅教皇在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "教皇在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅教皇在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2341,12 +2341,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIEROPHANT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道教皇能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "教皇在工作中代表什麼",
+      "primaryKeyword": "塔羅教皇在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "教皇在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅教皇在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2355,12 +2355,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIEROPHANT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道教皇能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "教皇在人際中代表什麼",
+      "primaryKeyword": "塔羅教皇在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "教皇在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅教皇在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2369,12 +2369,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIEROPHANT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道教皇能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "教皇在金錢中代表什麼",
+      "primaryKeyword": "塔羅教皇在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "教皇在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅教皇在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2383,12 +2383,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HIEROPHANT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道教皇能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "教皇在低潮中代表什麼",
+      "primaryKeyword": "塔羅教皇在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "教皇在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅教皇在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2397,12 +2397,12 @@
       "family": "tarot",
       "id": "V2-TAROT-LOVERS-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道戀人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戀人在感情中代表什麼",
+      "primaryKeyword": "塔羅戀人在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "戀人在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戀人在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2411,12 +2411,12 @@
       "family": "tarot",
       "id": "V2-TAROT-LOVERS-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道戀人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戀人在工作中代表什麼",
+      "primaryKeyword": "塔羅戀人在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "戀人在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戀人在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2425,12 +2425,12 @@
       "family": "tarot",
       "id": "V2-TAROT-LOVERS-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道戀人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戀人在人際中代表什麼",
+      "primaryKeyword": "塔羅戀人在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "戀人在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戀人在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2439,12 +2439,12 @@
       "family": "tarot",
       "id": "V2-TAROT-LOVERS-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道戀人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戀人在金錢中代表什麼",
+      "primaryKeyword": "塔羅戀人在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "戀人在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戀人在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2453,12 +2453,12 @@
       "family": "tarot",
       "id": "V2-TAROT-LOVERS-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道戀人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戀人在低潮中代表什麼",
+      "primaryKeyword": "塔羅戀人在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "戀人在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戀人在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2467,12 +2467,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CHARIOT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道戰車能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戰車在感情中代表什麼",
+      "primaryKeyword": "塔羅戰車在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "戰車在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戰車在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2481,12 +2481,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CHARIOT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道戰車能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戰車在工作中代表什麼",
+      "primaryKeyword": "塔羅戰車在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "戰車在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戰車在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2495,12 +2495,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CHARIOT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道戰車能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戰車在人際中代表什麼",
+      "primaryKeyword": "塔羅戰車在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "戰車在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戰車在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2509,12 +2509,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CHARIOT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道戰車能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戰車在金錢中代表什麼",
+      "primaryKeyword": "塔羅戰車在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "戰車在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戰車在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2523,12 +2523,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CHARIOT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道戰車能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "戰車在低潮中代表什麼",
+      "primaryKeyword": "塔羅戰車在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "戰車在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅戰車在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2537,12 +2537,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STRENGTH-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道力量能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "力量在感情中代表什麼",
+      "primaryKeyword": "塔羅力量在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "力量在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅力量在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2551,12 +2551,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STRENGTH-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道力量能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "力量在工作中代表什麼",
+      "primaryKeyword": "塔羅力量在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "力量在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅力量在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2565,12 +2565,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STRENGTH-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道力量能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "力量在人際中代表什麼",
+      "primaryKeyword": "塔羅力量在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "力量在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅力量在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2579,12 +2579,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STRENGTH-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道力量能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "力量在金錢中代表什麼",
+      "primaryKeyword": "塔羅力量在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "力量在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅力量在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2593,12 +2593,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STRENGTH-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道力量能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "力量在低潮中代表什麼",
+      "primaryKeyword": "塔羅力量在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "力量在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅力量在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2607,12 +2607,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HERMIT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道隱者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "隱者在感情中代表什麼",
+      "primaryKeyword": "塔羅隱者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "隱者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅隱者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2621,12 +2621,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HERMIT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道隱者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "隱者在工作中代表什麼",
+      "primaryKeyword": "塔羅隱者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "隱者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅隱者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2635,12 +2635,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HERMIT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道隱者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "隱者在人際中代表什麼",
+      "primaryKeyword": "塔羅隱者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "隱者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅隱者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2649,12 +2649,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HERMIT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道隱者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "隱者在金錢中代表什麼",
+      "primaryKeyword": "塔羅隱者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "隱者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅隱者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2663,12 +2663,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HERMIT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道隱者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "隱者在低潮中代表什麼",
+      "primaryKeyword": "塔羅隱者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "隱者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅隱者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2677,12 +2677,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WHEEL-OF-FORTUNE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道命運之輪能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "命運之輪在感情中代表什麼",
+      "primaryKeyword": "塔羅命運之輪在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "命運之輪在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅命運之輪在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2691,12 +2691,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WHEEL-OF-FORTUNE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道命運之輪能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "命運之輪在工作中代表什麼",
+      "primaryKeyword": "塔羅命運之輪在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "命運之輪在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅命運之輪在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2705,12 +2705,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WHEEL-OF-FORTUNE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道命運之輪能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "命運之輪在人際中代表什麼",
+      "primaryKeyword": "塔羅命運之輪在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "命運之輪在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅命運之輪在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2719,12 +2719,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WHEEL-OF-FORTUNE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道命運之輪能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "命運之輪在金錢中代表什麼",
+      "primaryKeyword": "塔羅命運之輪在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "命運之輪在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅命運之輪在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2733,12 +2733,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WHEEL-OF-FORTUNE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道命運之輪能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "命運之輪在低潮中代表什麼",
+      "primaryKeyword": "塔羅命運之輪在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "命運之輪在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅命運之輪在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2747,12 +2747,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUSTICE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道正義能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "正義在感情中代表什麼",
+      "primaryKeyword": "塔羅正義在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "正義在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅正義在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2761,12 +2761,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUSTICE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道正義能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "正義在工作中代表什麼",
+      "primaryKeyword": "塔羅正義在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "正義在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅正義在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2775,12 +2775,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUSTICE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道正義能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "正義在人際中代表什麼",
+      "primaryKeyword": "塔羅正義在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "正義在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅正義在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2789,12 +2789,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUSTICE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道正義能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "正義在金錢中代表什麼",
+      "primaryKeyword": "塔羅正義在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "正義在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅正義在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2803,12 +2803,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUSTICE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道正義能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "正義在低潮中代表什麼",
+      "primaryKeyword": "塔羅正義在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "正義在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅正義在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2817,12 +2817,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HANGED-MAN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道吊人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "吊人在感情中代表什麼",
+      "primaryKeyword": "塔羅吊人在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "吊人在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅吊人在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2831,12 +2831,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HANGED-MAN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道吊人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "吊人在工作中代表什麼",
+      "primaryKeyword": "塔羅吊人在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "吊人在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅吊人在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2845,12 +2845,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HANGED-MAN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道吊人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "吊人在人際中代表什麼",
+      "primaryKeyword": "塔羅吊人在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "吊人在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅吊人在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2859,12 +2859,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HANGED-MAN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道吊人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "吊人在金錢中代表什麼",
+      "primaryKeyword": "塔羅吊人在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "吊人在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅吊人在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2873,12 +2873,12 @@
       "family": "tarot",
       "id": "V2-TAROT-HANGED-MAN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道吊人能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "吊人在低潮中代表什麼",
+      "primaryKeyword": "塔羅吊人在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "吊人在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅吊人在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2887,12 +2887,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEATH-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道死神能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "死神在感情中代表什麼",
+      "primaryKeyword": "塔羅死神在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "死神在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅死神在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2901,12 +2901,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEATH-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道死神能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "死神在工作中代表什麼",
+      "primaryKeyword": "塔羅死神在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "死神在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅死神在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2915,12 +2915,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEATH-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道死神能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "死神在人際中代表什麼",
+      "primaryKeyword": "塔羅死神在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "死神在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅死神在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2929,12 +2929,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEATH-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道死神能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "死神在金錢中代表什麼",
+      "primaryKeyword": "塔羅死神在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "死神在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅死神在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2943,12 +2943,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEATH-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道死神能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "死神在低潮中代表什麼",
+      "primaryKeyword": "塔羅死神在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "死神在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅死神在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2957,12 +2957,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TEMPERANCE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道節制能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "節制在感情中代表什麼",
+      "primaryKeyword": "塔羅節制在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "節制在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅節制在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2971,12 +2971,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TEMPERANCE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道節制能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "節制在工作中代表什麼",
+      "primaryKeyword": "塔羅節制在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "節制在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅節制在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2985,12 +2985,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TEMPERANCE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道節制能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "節制在人際中代表什麼",
+      "primaryKeyword": "塔羅節制在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "節制在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅節制在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -2999,12 +2999,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TEMPERANCE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道節制能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "節制在金錢中代表什麼",
+      "primaryKeyword": "塔羅節制在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "節制在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅節制在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3013,12 +3013,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TEMPERANCE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道節制能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "節制在低潮中代表什麼",
+      "primaryKeyword": "塔羅節制在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "節制在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅節制在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3027,12 +3027,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEVIL-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道惡魔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "惡魔在感情中代表什麼",
+      "primaryKeyword": "塔羅惡魔在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "惡魔在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅惡魔在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3041,12 +3041,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEVIL-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道惡魔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "惡魔在工作中代表什麼",
+      "primaryKeyword": "塔羅惡魔在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "惡魔在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅惡魔在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3055,12 +3055,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEVIL-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道惡魔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "惡魔在人際中代表什麼",
+      "primaryKeyword": "塔羅惡魔在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "惡魔在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅惡魔在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3069,12 +3069,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEVIL-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道惡魔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "惡魔在金錢中代表什麼",
+      "primaryKeyword": "塔羅惡魔在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "惡魔在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅惡魔在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3083,12 +3083,12 @@
       "family": "tarot",
       "id": "V2-TAROT-DEVIL-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道惡魔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "惡魔在低潮中代表什麼",
+      "primaryKeyword": "塔羅惡魔在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "惡魔在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅惡魔在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3097,12 +3097,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TOWER-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道高塔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "高塔在感情中代表什麼",
+      "primaryKeyword": "塔羅高塔在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "高塔在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅高塔在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3111,12 +3111,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TOWER-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道高塔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "高塔在工作中代表什麼",
+      "primaryKeyword": "塔羅高塔在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "高塔在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅高塔在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3125,12 +3125,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TOWER-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道高塔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "高塔在人際中代表什麼",
+      "primaryKeyword": "塔羅高塔在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "高塔在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅高塔在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3139,12 +3139,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TOWER-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道高塔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "高塔在金錢中代表什麼",
+      "primaryKeyword": "塔羅高塔在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "高塔在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅高塔在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3153,12 +3153,12 @@
       "family": "tarot",
       "id": "V2-TAROT-TOWER-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道高塔能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "高塔在低潮中代表什麼",
+      "primaryKeyword": "塔羅高塔在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "高塔在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅高塔在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3167,12 +3167,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STAR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道星星能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "星星在感情中代表什麼",
+      "primaryKeyword": "塔羅星星在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "星星在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅星星在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3181,12 +3181,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STAR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道星星能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "星星在工作中代表什麼",
+      "primaryKeyword": "塔羅星星在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "星星在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅星星在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3195,12 +3195,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STAR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道星星能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "星星在人際中代表什麼",
+      "primaryKeyword": "塔羅星星在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "星星在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅星星在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3209,12 +3209,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STAR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道星星能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "星星在金錢中代表什麼",
+      "primaryKeyword": "塔羅星星在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "星星在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅星星在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3223,12 +3223,12 @@
       "family": "tarot",
       "id": "V2-TAROT-STAR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道星星能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "星星在低潮中代表什麼",
+      "primaryKeyword": "塔羅星星在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "星星在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅星星在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3237,12 +3237,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MOON-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道月亮能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "月亮在感情中代表什麼",
+      "primaryKeyword": "塔羅月亮在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "月亮在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅月亮在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3251,12 +3251,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MOON-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道月亮能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "月亮在工作中代表什麼",
+      "primaryKeyword": "塔羅月亮在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "月亮在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅月亮在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3265,12 +3265,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MOON-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道月亮能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "月亮在人際中代表什麼",
+      "primaryKeyword": "塔羅月亮在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "月亮在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅月亮在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3279,12 +3279,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MOON-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道月亮能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "月亮在金錢中代表什麼",
+      "primaryKeyword": "塔羅月亮在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "月亮在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅月亮在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3293,12 +3293,12 @@
       "family": "tarot",
       "id": "V2-TAROT-MOON-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道月亮能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "月亮在低潮中代表什麼",
+      "primaryKeyword": "塔羅月亮在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "月亮在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅月亮在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3307,12 +3307,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SUN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道太陽能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "太陽在感情中代表什麼",
+      "primaryKeyword": "塔羅太陽在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "太陽在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅太陽在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3321,12 +3321,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SUN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道太陽能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "太陽在工作中代表什麼",
+      "primaryKeyword": "塔羅太陽在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "太陽在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅太陽在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3335,12 +3335,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SUN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道太陽能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "太陽在人際中代表什麼",
+      "primaryKeyword": "塔羅太陽在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "太陽在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅太陽在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3349,12 +3349,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SUN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道太陽能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "太陽在金錢中代表什麼",
+      "primaryKeyword": "塔羅太陽在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "太陽在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅太陽在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3363,12 +3363,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SUN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道太陽能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "太陽在低潮中代表什麼",
+      "primaryKeyword": "塔羅太陽在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "太陽在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅太陽在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3377,12 +3377,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUDGEMENT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道審判能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "審判在感情中代表什麼",
+      "primaryKeyword": "塔羅審判在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "審判在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅審判在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3391,12 +3391,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUDGEMENT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道審判能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "審判在工作中代表什麼",
+      "primaryKeyword": "塔羅審判在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "審判在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅審判在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3405,12 +3405,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUDGEMENT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道審判能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "審判在人際中代表什麼",
+      "primaryKeyword": "塔羅審判在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "審判在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅審判在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3419,12 +3419,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUDGEMENT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道審判能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "審判在金錢中代表什麼",
+      "primaryKeyword": "塔羅審判在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "審判在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅審判在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3433,12 +3433,12 @@
       "family": "tarot",
       "id": "V2-TAROT-JUDGEMENT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道審判能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "審判在低潮中代表什麼",
+      "primaryKeyword": "塔羅審判在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "審判在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅審判在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3447,12 +3447,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WORLD-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道世界能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "世界在感情中代表什麼",
+      "primaryKeyword": "塔羅世界在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "世界在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅世界在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3461,12 +3461,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WORLD-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道世界能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "世界在工作中代表什麼",
+      "primaryKeyword": "塔羅世界在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "世界在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅世界在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3475,12 +3475,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WORLD-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道世界能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "世界在人際中代表什麼",
+      "primaryKeyword": "塔羅世界在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "世界在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅世界在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3489,12 +3489,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WORLD-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道世界能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "世界在金錢中代表什麼",
+      "primaryKeyword": "塔羅世界在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "世界在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅世界在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3503,12 +3503,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WORLD-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道世界能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "世界在低潮中代表什麼",
+      "primaryKeyword": "塔羅世界在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "世界在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅世界在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3517,12 +3517,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-ACE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖一在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖一在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3531,12 +3531,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-ACE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖一在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖一在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3545,12 +3545,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-ACE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖一在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖一在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3559,12 +3559,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-ACE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖一在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖一在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3573,12 +3573,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-ACE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖一在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖一在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3587,12 +3587,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TWO-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖二在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖二在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3601,12 +3601,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TWO-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖二在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖二在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3615,12 +3615,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TWO-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖二在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖二在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3629,12 +3629,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TWO-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖二在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖二在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3643,12 +3643,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TWO-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖二在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖二在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3657,12 +3657,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-THREE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖三在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖三在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3671,12 +3671,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-THREE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖三在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖三在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3685,12 +3685,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-THREE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖三在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖三在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3699,12 +3699,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-THREE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖三在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖三在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3713,12 +3713,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-THREE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖三在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖三在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3727,12 +3727,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FOUR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖四在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖四在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3741,12 +3741,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FOUR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖四在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖四在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3755,12 +3755,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FOUR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖四在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖四在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3769,12 +3769,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FOUR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖四在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖四在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3783,12 +3783,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FOUR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖四在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖四在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3797,12 +3797,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FIVE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖五在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖五在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3811,12 +3811,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FIVE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖五在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖五在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3825,12 +3825,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FIVE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖五在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖五在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3839,12 +3839,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FIVE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖五在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖五在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3853,12 +3853,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-FIVE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖五在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖五在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3867,12 +3867,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SIX-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖六在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖六在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3881,12 +3881,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SIX-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖六在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖六在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3895,12 +3895,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SIX-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖六在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖六在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3909,12 +3909,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SIX-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖六在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖六在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3923,12 +3923,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SIX-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖六在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖六在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3937,12 +3937,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SEVEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖七在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖七在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3951,12 +3951,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SEVEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖七在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖七在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3965,12 +3965,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SEVEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖七在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖七在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3979,12 +3979,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SEVEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖七在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖七在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -3993,12 +3993,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-SEVEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖七在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖七在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4007,12 +4007,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-EIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖八在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖八在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4021,12 +4021,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-EIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖八在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖八在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4035,12 +4035,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-EIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖八在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖八在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4049,12 +4049,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-EIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖八在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖八在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4063,12 +4063,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-EIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖八在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖八在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4077,12 +4077,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-NINE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖九在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖九在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4091,12 +4091,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-NINE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖九在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖九在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4105,12 +4105,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-NINE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖九在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖九在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4119,12 +4119,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-NINE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖九在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖九在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4133,12 +4133,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-NINE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖九在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖九在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4147,12 +4147,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖十在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖十在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4161,12 +4161,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖十在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖十在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4175,12 +4175,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖十在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖十在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4189,12 +4189,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖十在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖十在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4203,12 +4203,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-TEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖十在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖十在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4217,12 +4217,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-PAGE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖侍者在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖侍者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4231,12 +4231,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-PAGE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖侍者在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖侍者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4245,12 +4245,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-PAGE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖侍者在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖侍者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4259,12 +4259,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-PAGE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖侍者在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖侍者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4273,12 +4273,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-PAGE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖侍者在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖侍者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4287,12 +4287,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KNIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖騎士在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖騎士在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4301,12 +4301,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KNIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖騎士在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖騎士在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4315,12 +4315,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KNIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖騎士在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖騎士在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4329,12 +4329,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KNIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖騎士在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖騎士在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4343,12 +4343,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KNIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖騎士在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖騎士在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4357,12 +4357,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-QUEEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖皇后在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖皇后在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4371,12 +4371,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-QUEEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖皇后在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖皇后在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4385,12 +4385,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-QUEEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖皇后在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖皇后在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4399,12 +4399,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-QUEEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖皇后在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖皇后在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4413,12 +4413,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-QUEEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖皇后在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖皇后在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4427,12 +4427,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KING-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道權杖國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖國王在感情中代表什麼",
+      "primaryKeyword": "塔羅權杖國王在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "權杖國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4441,12 +4441,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KING-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道權杖國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖國王在工作中代表什麼",
+      "primaryKeyword": "塔羅權杖國王在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "權杖國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4455,12 +4455,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KING-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道權杖國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖國王在人際中代表什麼",
+      "primaryKeyword": "塔羅權杖國王在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "權杖國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4469,12 +4469,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KING-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道權杖國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖國王在金錢中代表什麼",
+      "primaryKeyword": "塔羅權杖國王在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "權杖國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4483,12 +4483,12 @@
       "family": "tarot",
       "id": "V2-TAROT-WANDS-KING-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道權杖國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "權杖國王在低潮中代表什麼",
+      "primaryKeyword": "塔羅權杖國王在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "權杖國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅權杖國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4497,12 +4497,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-ACE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯一在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯一在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4511,12 +4511,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-ACE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯一在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯一在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4525,12 +4525,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-ACE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯一在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯一在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4539,12 +4539,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-ACE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯一在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯一在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4553,12 +4553,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-ACE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯一在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯一在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4567,12 +4567,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TWO-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯二在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯二在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4581,12 +4581,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TWO-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯二在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯二在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4595,12 +4595,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TWO-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯二在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯二在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4609,12 +4609,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TWO-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯二在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯二在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4623,12 +4623,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TWO-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯二在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯二在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4637,12 +4637,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-THREE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯三在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯三在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4651,12 +4651,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-THREE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯三在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯三在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4665,12 +4665,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-THREE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯三在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯三在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4679,12 +4679,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-THREE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯三在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯三在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4693,12 +4693,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-THREE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯三在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯三在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4707,12 +4707,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FOUR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯四在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯四在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4721,12 +4721,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FOUR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯四在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯四在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4735,12 +4735,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FOUR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯四在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯四在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4749,12 +4749,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FOUR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯四在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯四在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4763,12 +4763,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FOUR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯四在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯四在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4777,12 +4777,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FIVE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯五在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯五在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4791,12 +4791,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FIVE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯五在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯五在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4805,12 +4805,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FIVE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯五在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯五在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4819,12 +4819,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FIVE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯五在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯五在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4833,12 +4833,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-FIVE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯五在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯五在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4847,12 +4847,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SIX-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯六在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯六在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4861,12 +4861,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SIX-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯六在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯六在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4875,12 +4875,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SIX-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯六在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯六在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4889,12 +4889,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SIX-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯六在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯六在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4903,12 +4903,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SIX-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯六在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯六在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4917,12 +4917,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SEVEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯七在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯七在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4931,12 +4931,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SEVEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯七在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯七在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4945,12 +4945,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SEVEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯七在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯七在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4959,12 +4959,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SEVEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯七在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯七在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4973,12 +4973,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-SEVEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯七在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯七在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -4987,12 +4987,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-EIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯八在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯八在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5001,12 +5001,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-EIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯八在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯八在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5015,12 +5015,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-EIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯八在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯八在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5029,12 +5029,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-EIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯八在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯八在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5043,12 +5043,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-EIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯八在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯八在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5057,12 +5057,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-NINE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯九在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯九在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5071,12 +5071,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-NINE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯九在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯九在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5085,12 +5085,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-NINE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯九在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯九在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5099,12 +5099,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-NINE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯九在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯九在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5113,12 +5113,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-NINE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯九在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯九在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5127,12 +5127,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯十在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯十在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5141,12 +5141,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯十在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯十在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5155,12 +5155,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯十在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯十在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5169,12 +5169,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯十在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯十在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5183,12 +5183,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-TEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯十在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯十在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5197,12 +5197,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-PAGE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯侍者在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯侍者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5211,12 +5211,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-PAGE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯侍者在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯侍者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5225,12 +5225,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-PAGE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯侍者在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯侍者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5239,12 +5239,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-PAGE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯侍者在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯侍者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5253,12 +5253,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-PAGE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯侍者在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯侍者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5267,12 +5267,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KNIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯騎士在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯騎士在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5281,12 +5281,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KNIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯騎士在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯騎士在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5295,12 +5295,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KNIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯騎士在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯騎士在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5309,12 +5309,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KNIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯騎士在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯騎士在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5323,12 +5323,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KNIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯騎士在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯騎士在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5337,12 +5337,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-QUEEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯皇后在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯皇后在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5351,12 +5351,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-QUEEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯皇后在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯皇后在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5365,12 +5365,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-QUEEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯皇后在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯皇后在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5379,12 +5379,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-QUEEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯皇后在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯皇后在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5393,12 +5393,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-QUEEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯皇后在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯皇后在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5407,12 +5407,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KING-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道聖杯國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯國王在感情中代表什麼",
+      "primaryKeyword": "塔羅聖杯國王在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "聖杯國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5421,12 +5421,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KING-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道聖杯國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯國王在工作中代表什麼",
+      "primaryKeyword": "塔羅聖杯國王在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "聖杯國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5435,12 +5435,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KING-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道聖杯國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯國王在人際中代表什麼",
+      "primaryKeyword": "塔羅聖杯國王在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "聖杯國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5449,12 +5449,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KING-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道聖杯國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯國王在金錢中代表什麼",
+      "primaryKeyword": "塔羅聖杯國王在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "聖杯國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5463,12 +5463,12 @@
       "family": "tarot",
       "id": "V2-TAROT-CUPS-KING-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道聖杯國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "聖杯國王在低潮中代表什麼",
+      "primaryKeyword": "塔羅聖杯國王在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "聖杯國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅聖杯國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5477,12 +5477,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-ACE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍一在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍一在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5491,12 +5491,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-ACE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍一在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍一在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5505,12 +5505,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-ACE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍一在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍一在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5519,12 +5519,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-ACE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍一在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍一在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5533,12 +5533,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-ACE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍一在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍一在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5547,12 +5547,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TWO-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍二在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍二在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5561,12 +5561,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TWO-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍二在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍二在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5575,12 +5575,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TWO-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍二在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍二在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5589,12 +5589,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TWO-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍二在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍二在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5603,12 +5603,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TWO-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍二在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍二在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5617,12 +5617,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-THREE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍三在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍三在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5631,12 +5631,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-THREE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍三在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍三在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5645,12 +5645,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-THREE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍三在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍三在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5659,12 +5659,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-THREE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍三在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍三在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5673,12 +5673,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-THREE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍三在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍三在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5687,12 +5687,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FOUR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍四在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍四在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5701,12 +5701,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FOUR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍四在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍四在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5715,12 +5715,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FOUR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍四在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍四在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5729,12 +5729,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FOUR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍四在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍四在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5743,12 +5743,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FOUR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍四在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍四在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5757,12 +5757,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FIVE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍五在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍五在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5771,12 +5771,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FIVE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍五在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍五在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5785,12 +5785,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FIVE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍五在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍五在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5799,12 +5799,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FIVE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍五在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍五在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5813,12 +5813,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-FIVE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍五在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍五在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5827,12 +5827,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SIX-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍六在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍六在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5841,12 +5841,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SIX-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍六在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍六在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5855,12 +5855,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SIX-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍六在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍六在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5869,12 +5869,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SIX-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍六在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍六在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5883,12 +5883,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SIX-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍六在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍六在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5897,12 +5897,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SEVEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍七在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍七在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5911,12 +5911,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SEVEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍七在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍七在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5925,12 +5925,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SEVEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍七在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍七在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5939,12 +5939,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SEVEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍七在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍七在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5953,12 +5953,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-SEVEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍七在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍七在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5967,12 +5967,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-EIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍八在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍八在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5981,12 +5981,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-EIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍八在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍八在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -5995,12 +5995,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-EIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍八在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍八在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6009,12 +6009,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-EIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍八在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍八在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6023,12 +6023,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-EIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍八在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍八在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6037,12 +6037,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-NINE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍九在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍九在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6051,12 +6051,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-NINE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍九在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍九在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6065,12 +6065,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-NINE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍九在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍九在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6079,12 +6079,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-NINE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍九在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍九在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6093,12 +6093,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-NINE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍九在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍九在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6107,12 +6107,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍十在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍十在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6121,12 +6121,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍十在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍十在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6135,12 +6135,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍十在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍十在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6149,12 +6149,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍十在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍十在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6163,12 +6163,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-TEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍十在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍十在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6177,12 +6177,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-PAGE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍侍者在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍侍者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6191,12 +6191,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-PAGE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍侍者在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍侍者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6205,12 +6205,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-PAGE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍侍者在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍侍者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6219,12 +6219,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-PAGE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍侍者在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍侍者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6233,12 +6233,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-PAGE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍侍者在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍侍者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6247,12 +6247,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KNIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍騎士在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍騎士在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6261,12 +6261,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KNIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍騎士在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍騎士在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6275,12 +6275,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KNIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍騎士在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍騎士在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6289,12 +6289,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KNIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍騎士在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍騎士在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6303,12 +6303,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KNIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍騎士在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍騎士在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6317,12 +6317,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-QUEEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍皇后在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍皇后在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6331,12 +6331,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-QUEEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍皇后在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍皇后在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6345,12 +6345,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-QUEEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍皇后在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍皇后在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6359,12 +6359,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-QUEEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍皇后在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍皇后在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6373,12 +6373,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-QUEEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍皇后在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍皇后在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6387,12 +6387,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KING-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道寶劍國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍國王在感情中代表什麼",
+      "primaryKeyword": "塔羅寶劍國王在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "寶劍國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6401,12 +6401,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KING-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道寶劍國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍國王在工作中代表什麼",
+      "primaryKeyword": "塔羅寶劍國王在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "寶劍國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6415,12 +6415,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KING-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道寶劍國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍國王在人際中代表什麼",
+      "primaryKeyword": "塔羅寶劍國王在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "寶劍國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6429,12 +6429,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KING-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道寶劍國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍國王在金錢中代表什麼",
+      "primaryKeyword": "塔羅寶劍國王在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "寶劍國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6443,12 +6443,12 @@
       "family": "tarot",
       "id": "V2-TAROT-SWORDS-KING-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道寶劍國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "寶劍國王在低潮中代表什麼",
+      "primaryKeyword": "塔羅寶劍國王在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "寶劍國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅寶劍國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6457,12 +6457,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-ACE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣一在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣一在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣一在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6471,12 +6471,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-ACE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣一在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣一在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣一在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6485,12 +6485,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-ACE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣一在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣一在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣一在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6499,12 +6499,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-ACE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣一在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣一在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣一在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6513,12 +6513,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-ACE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣一能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣一在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣一在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣一在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6527,12 +6527,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TWO-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣二在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣二在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣二在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6541,12 +6541,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TWO-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣二在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣二在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣二在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6555,12 +6555,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TWO-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣二在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣二在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣二在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6569,12 +6569,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TWO-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣二在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣二在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣二在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6583,12 +6583,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TWO-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣二能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣二在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣二在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣二在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6597,12 +6597,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-THREE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣三在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣三在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣三在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6611,12 +6611,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-THREE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣三在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣三在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣三在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6625,12 +6625,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-THREE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣三在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣三在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣三在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6639,12 +6639,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-THREE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣三在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣三在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣三在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6653,12 +6653,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-THREE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣三能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣三在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣三在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣三在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6667,12 +6667,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FOUR-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣四在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣四在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣四在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6681,12 +6681,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FOUR-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣四在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣四在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣四在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6695,12 +6695,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FOUR-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣四在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣四在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣四在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6709,12 +6709,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FOUR-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣四在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣四在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣四在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6723,12 +6723,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FOUR-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣四能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣四在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣四在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣四在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6737,12 +6737,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FIVE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣五在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣五在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣五在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6751,12 +6751,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FIVE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣五在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣五在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣五在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6765,12 +6765,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FIVE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣五在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣五在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣五在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6779,12 +6779,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FIVE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣五在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣五在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣五在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6793,12 +6793,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-FIVE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣五能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣五在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣五在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣五在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6807,12 +6807,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SIX-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣六在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣六在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣六在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6821,12 +6821,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SIX-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣六在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣六在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣六在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6835,12 +6835,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SIX-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣六在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣六在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣六在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6849,12 +6849,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SIX-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣六在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣六在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣六在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6863,12 +6863,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SIX-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣六能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣六在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣六在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣六在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6877,12 +6877,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SEVEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣七在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣七在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣七在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6891,12 +6891,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SEVEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣七在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣七在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣七在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6905,12 +6905,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SEVEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣七在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣七在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣七在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6919,12 +6919,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SEVEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣七在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣七在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣七在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6933,12 +6933,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-SEVEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣七能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣七在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣七在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣七在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6947,12 +6947,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-EIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣八在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣八在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣八在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6961,12 +6961,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-EIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣八在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣八在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣八在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6975,12 +6975,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-EIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣八在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣八在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣八在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -6989,12 +6989,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-EIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣八在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣八在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣八在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7003,12 +7003,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-EIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣八能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣八在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣八在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣八在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7017,12 +7017,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-NINE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣九在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣九在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣九在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7031,12 +7031,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-NINE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣九在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣九在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣九在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7045,12 +7045,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-NINE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣九在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣九在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣九在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7059,12 +7059,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-NINE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣九在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣九在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣九在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7073,12 +7073,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-NINE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣九能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣九在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣九在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣九在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7087,12 +7087,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣十在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣十在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣十在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7101,12 +7101,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣十在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣十在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣十在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7115,12 +7115,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣十在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣十在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣十在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7129,12 +7129,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣十在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣十在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣十在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7143,12 +7143,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-TEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣十能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣十在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣十在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣十在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7157,12 +7157,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-PAGE-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣侍者在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣侍者在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣侍者在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7171,12 +7171,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-PAGE-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣侍者在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣侍者在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣侍者在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7185,12 +7185,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-PAGE-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣侍者在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣侍者在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣侍者在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7199,12 +7199,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-PAGE-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣侍者在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣侍者在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣侍者在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7213,12 +7213,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-PAGE-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣侍者能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣侍者在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣侍者在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣侍者在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7227,12 +7227,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KNIGHT-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣騎士在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣騎士在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣騎士在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7241,12 +7241,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KNIGHT-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣騎士在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣騎士在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣騎士在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7255,12 +7255,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KNIGHT-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣騎士在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣騎士在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣騎士在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7269,12 +7269,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KNIGHT-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣騎士在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣騎士在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣騎士在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7283,12 +7283,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KNIGHT-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣騎士能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣騎士在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣騎士在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣騎士在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7297,12 +7297,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-QUEEN-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣皇后在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣皇后在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣皇后在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7311,12 +7311,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-QUEEN-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣皇后在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣皇后在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣皇后在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7325,12 +7325,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-QUEEN-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣皇后在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣皇后在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣皇后在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7339,12 +7339,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-QUEEN-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣皇后在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣皇后在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣皇后在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7353,12 +7353,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-QUEEN-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣皇后能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣皇后在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣皇后在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣皇后在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7367,12 +7367,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KING-LOVE",
       "intent": "正在觀察曖昧、交往或分手後的互動，想知道錢幣國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣國王在感情中代表什麼",
+      "primaryKeyword": "塔羅錢幣國王在感情中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "感情",
       "section": "tarot",
-      "title": "錢幣國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣國王在感情中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7381,12 +7381,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KING-WORK",
       "intent": "遇到求職、合作、升遷或職涯選擇，想知道錢幣國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣國王在工作中代表什麼",
+      "primaryKeyword": "塔羅錢幣國王在工作中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "工作",
       "section": "tarot",
-      "title": "錢幣國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣國王在工作中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7395,12 +7395,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KING-RELATIONSHIPS",
       "intent": "想整理朋友、家人或同事之間的界線，想知道錢幣國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣國王在人際中代表什麼",
+      "primaryKeyword": "塔羅錢幣國王在人際中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "人際",
       "section": "tarot",
-      "title": "錢幣國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣國王在人際中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7409,12 +7409,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KING-MONEY",
       "intent": "面對消費、收入、分配或風險選擇，想知道錢幣國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣國王在金錢中代表什麼",
+      "primaryKeyword": "塔羅錢幣國王在金錢中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "金錢",
       "section": "tarot",
-      "title": "錢幣國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣國王在金錢中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "tarot",
@@ -7423,12 +7423,12 @@
       "family": "tarot",
       "id": "V2-TAROT-PENTACLES-KING-STRESS",
       "intent": "壓力升高、反覆卡住或需要重新整理步調，想知道錢幣國王能提供哪些觀察角度、反例與使用限制",
-      "primaryKeyword": "錢幣國王在低潮中代表什麼",
+      "primaryKeyword": "塔羅錢幣國王在低潮中代表什麼",
       "priority": "V2-SINGLE",
       "product": "tarot",
       "scenario": "低潮",
       "section": "tarot",
-      "title": "錢幣國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
+      "title": "塔羅錢幣國王在低潮中代表什麼？先看牌義、處境與不能直接斷定的事"
     },
     {
       "category": "fortune",

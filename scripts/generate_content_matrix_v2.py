@@ -105,7 +105,7 @@ def _single_row(
     category: str,
 ) -> dict[str, str]:
     if family == "tarot":
-        keyword = f"{name}在{scenario}中代表什麼"
+        keyword = f"塔羅{name}在{scenario}中代表什麼"
         title = f"{keyword}？先看牌義、處境與不能直接斷定的事"
     elif family == "ziwei":
         keyword = f"紫微斗數{name}在{scenario}中的表現"
