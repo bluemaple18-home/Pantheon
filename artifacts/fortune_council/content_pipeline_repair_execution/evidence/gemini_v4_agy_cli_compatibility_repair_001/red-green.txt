@@ -1,0 +1,37 @@
+# RED / GREEN
+
+## Finding 1 — explicit production profile
+
+RED command:
+`<repo-venv>/bin/python -m pytest tests/test_agy_gemini_outbox.py::test_production_runner_explicitly_selects_closed_profile_for_unknown_basename -q`
+
+RED result: `1 failed`; `KeyError: 'target_profile'` demonstrated that production runner did not select a closed profile.
+
+GREEN result: `1 passed`; runner passed `antigravity_cli_v1` and the configured trusted executable digest even for `agy-current`, ignoring a synthetic profile environment override.
+
+## Finding 2 — executable pathname TOCTOU
+
+RED command:
+`<repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py::test_single_shot_executes_verified_snapshot_when_source_path_changes_after_verification -q`
+
+RED result: `1 failed`; after the third anchor CAS replaced the source pathname, observed outcome was `CLI_NONZERO` rather than the verified executable's `SUCCESS`.
+
+GREEN result: `1 passed`; the same post-verification pathname replacement no longer changed executed bytes, and the verified snapshot returned `SUCCESS` with `{"ok": true}`.
+
+## Finding 3 — post-fork cleanup
+
+RED command:
+`<repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py::test_post_fork_anchor_failure_kills_and_reaps_target -q`
+
+RED result: `1 failed`; after rejecting the fourth (`EXEC_CONFIRMED`) CAS, `os.kill(pid, 0)` showed the target remained alive.
+
+GREEN result: `1 passed`; the target PID was absent after return and the operation-local agy log directory was removed. Result remained fail closed with no automatic resend.
+
+## Finding 4 — production receipt provenance
+
+RED command:
+`<repo-venv>/bin/python -m pytest tests/test_agy_gemini_outbox.py::test_runner_rejects_schema_valid_success_without_production_provenance -q`
+
+RED result: `1 failed`; a schema-valid result with a receipt lacking production provenance was written as `processed`.
+
+GREEN result: `1 passed`; a `raw_stdin_v1` synthetic receipt cannot satisfy the production runner's expected `antigravity_cli_v1` plus trusted digest binding.

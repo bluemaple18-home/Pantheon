@@ -1,0 +1,32 @@
+# Verification
+
+FOCUSED (final pre-commit)
+command: `<repo-venv>/bin/python -m pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py -q`
+result: `57 passed in 4.30s`
+
+PY_COMPILE
+command: `<repo-venv>/bin/python -m py_compile scripts/agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py`
+result: PASS
+
+DIFF CHECK
+command: `git diff --check`
+result: PASS
+
+ALLOWLIST
+result: PASS; modified paths are limited to the five allowed source/test/doc files plus `evidence/gemini_v4_agy_cli_compatibility_repair_001/**`.
+
+PRIVACY / DEBUG MARKERS
+result: PASS; newly added diff lines contain no local user path, private temp path, credential marker or debug instrumentation marker. The broader test-source scan found only the pre-existing intentional forbidden-private-key fixture.
+
+NEGATIVE CONTROLS
+- unknown profile: rejected before ledger
+- configured digest mismatch: rejected before ledger
+- production profile environment override: ignored by runner
+- synthetic receipt with schema-valid stdout: rejected by production runner
+- post-fork anchor CAS rejection: child reaped, temporary log directory removed, no resend
+
+REAL GEMINI / AGY MODEL INVOCATION
+result: NOT RUN (forbidden)
+
+WORKTREE CLEAN
+result: verified after creating the single candidate commit and reported in the Repair handoff.

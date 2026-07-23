@@ -18,10 +18,11 @@ from pathlib import Path
 from typing import Any, Final, Literal, Protocol
 
 
-COMMAND_SCHEMA_VERSION: Final = 1
+COMMAND_SCHEMA_VERSION: Final = 2
 EVENT_SCHEMA_VERSION: Final = 2
 MAX_FRAME_BYTES: Final = 64 * 1024
 MAX_RESULT_BYTES: Final = 2 * 1024 * 1024
+MAX_AGY_PROMPT_BYTES: Final = 256 * 1024
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EVENT_TYPES: Final = {
@@ -79,6 +80,32 @@ CONTROL_FIELDS: Final = {
     "byte_count",
     "final_anchor",
 }
+RAW_STDIN_PROFILE: Final = "raw_stdin_v1"
+ANTIGRAVITY_CLI_PROFILE: Final = "antigravity_cli_v1"
+PUBLIC_SANITIZED: Final = "PUBLIC_SANITIZED"
+SYNTHETIC_TEST: Final = "SYNTHETIC_TEST"
+AGY_MODEL_LABELS: Final = {
+    "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
+    "gemini-3.1-pro-preview": "Gemini 3.1 Pro (Low)",
+}
+TARGET_ENV_ALLOWLIST: Final = (
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR",
+    "__CF_USER_TEXT_ENCODING",
+)
+FORBIDDEN_PUBLIC_PROMPT_PATTERNS: Final = (
+    re.compile(r"/(?:Users|home|private|var|tmp)/"),
+    re.compile(r"\.work/"),
+    re.compile(r"GEMINI_API_KEY", re.IGNORECASE),
+    re.compile(r"x-goog-api-key", re.IGNORECASE),
+    re.compile(r"authorization\s*:\s*bearer", re.IGNORECASE),
+    re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    re.compile(r"(?:ghp|github_pat)_[0-9A-Za-z_]{20,}"),
+)
 
 
 class FrameError(ValueError):
@@ -176,6 +203,9 @@ class CommandFrame:
     request_sha256: str
     request_bytes_length: int
     timeout_milliseconds: int
+    target_profile: str
+    model_label: str
+    payload_class: str
 
     def validate(self) -> None:
         Binding(self.operation_id, self.item_id, self.attempt_id).validate()
@@ -187,6 +217,15 @@ class CommandFrame:
             raise FrameError("request length is invalid")
         if type(self.timeout_milliseconds) is not int or not 1 <= self.timeout_milliseconds <= 3_600_000:
             raise FrameError("timeout is invalid")
+        if self.target_profile not in {RAW_STDIN_PROFILE, ANTIGRAVITY_CLI_PROFILE}:
+            raise FrameError("target profile is invalid")
+        if type(self.model_label) is not str or not self.model_label:
+            raise FrameError("model label is invalid")
+        expected_payload_class = PUBLIC_SANITIZED if self.target_profile == ANTIGRAVITY_CLI_PROFILE else SYNTHETIC_TEST
+        if self.payload_class != expected_payload_class:
+            raise FrameError("payload class is invalid")
+        if self.target_profile == ANTIGRAVITY_CLI_PROFILE and self.model_label not in AGY_MODEL_LABELS.values():
+            raise FrameError("agy model label is invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -198,6 +237,9 @@ class CommandFrame:
             "request_sha256": self.request_sha256,
             "request_bytes_length": self.request_bytes_length,
             "timeout_milliseconds": self.timeout_milliseconds,
+            "target_profile": self.target_profile,
+            "model_label": self.model_label,
+            "payload_class": self.payload_class,
         }
 
 
@@ -229,6 +271,8 @@ class ExecutionReceipt:
     attempt_id: str
     request_sha256: str
     model: str
+    target_profile: str
+    executable_digest: str
 
 
 @dataclass(frozen=True)
@@ -513,6 +557,57 @@ def _emit_broker_result(anchor_socket: socket.socket, result_fd: int, control: d
     sys.stdout.buffer.flush()
 
 
+def _validate_public_prompt(raw_request: bytes) -> str:
+    if not raw_request or len(raw_request) > MAX_AGY_PROMPT_BYTES:
+        raise ValueError("agy prompt size is invalid")
+    try:
+        prompt = raw_request.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("agy prompt must be UTF-8 public text") from error
+    if any(pattern.search(prompt) for pattern in FORBIDDEN_PUBLIC_PROMPT_PATTERNS):
+        raise ValueError("agy prompt contains forbidden private data")
+    return prompt
+
+
+def _target_invocation(
+    command: CommandFrame, executable: Path, raw_request: bytes, log_path: Path | None
+) -> tuple[list[str], bytes, dict[str, str]]:
+    if command.target_profile == RAW_STDIN_PROFILE:
+        return [str(executable)], raw_request, {}
+    if log_path is None:
+        raise FrameError("agy log path is required")
+    prompt = raw_request.decode("utf-8")
+    timeout_seconds = (command.timeout_milliseconds + 999) // 1000
+    arguments = [
+        str(executable),
+        "--model",
+        command.model_label,
+        "--mode",
+        "plan",
+        "--sandbox",
+        "--log-file",
+        str(log_path),
+        "--print-timeout",
+        f"{timeout_seconds}s",
+        "--print",
+        prompt,
+    ]
+    environment = {key: os.environ[key] for key in TARGET_ENV_ALLOWLIST if key in os.environ}
+    return arguments, b"", environment
+
+
+def _write_executable_snapshot(directory: Path, executable_bytes: bytes) -> Path:
+    snapshot = directory / "verified-target"
+    descriptor = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o500)
+    try:
+        _write_all(descriptor, executable_bytes)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.chmod(directory, 0o500)
+    return snapshot
+
+
 def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: int, executable: Path) -> int:
     anchor_socket = socket.socket(fileno=anchor_fd)
     try:
@@ -551,41 +646,68 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
             return 0
         writer.append("FORK_ATTEMPTED", broker_attempt=1, process_ordinal=1)
         existed = executable.exists()
+        temporary_directory: tempfile.TemporaryDirectory[str] | None = None
+        target: subprocess.Popen[bytes] | None = None
         try:
-            target = subprocess.Popen(
-                [str(executable)],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                close_fds=True,
-                pass_fds=(),
-                env={},
+            log_path: Path | None = None
+            if command.target_profile == ANTIGRAVITY_CLI_PROFILE:
+                temporary_directory = tempfile.TemporaryDirectory(prefix="agy-v4-")
+                log_path = Path(temporary_directory.name) / "agy.log"
+            arguments, target_input, target_environment = _target_invocation(
+                command, executable, raw_request, log_path
             )
-        except OSError as error:
-            outcome = _exec_failure_outcome(error, existed)
-            writer.append("EXEC_FAILURE", outcome=outcome, process_ordinal=1)
-            _emit_broker_result(anchor_socket, result_fd, _control("BLOCKED", 0, outcome, None, b"", b"", writer.anchor), b"")
+            try:
+                target = subprocess.Popen(
+                    arguments,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    close_fds=True,
+                    pass_fds=(),
+                    env=target_environment,
+                )
+            except OSError as error:
+                outcome = _exec_failure_outcome(error, existed)
+                writer.append("EXEC_FAILURE", outcome=outcome, process_ordinal=1)
+                _emit_broker_result(
+                    anchor_socket,
+                    result_fd,
+                    _control("BLOCKED", 0, outcome, None, b"", b"", writer.anchor),
+                    b"",
+                )
+                return 0
+            writer.append("EXEC_CONFIRMED", process_ordinal=1, pid=target.pid)
+            try:
+                stdout, stderr = target.communicate(
+                    input=target_input, timeout=command.timeout_milliseconds / 1000
+                )
+                outcome = "SUCCESS" if target.returncode == 0 else "CLI_NONZERO"
+                exit_status = target.returncode
+            except subprocess.TimeoutExpired:
+                target.kill()
+                stdout, stderr = target.communicate()
+                outcome = "CLI_TIMEOUT"
+                exit_status = None
+            if len(stdout) > MAX_RESULT_BYTES or len(stderr) > MAX_RESULT_BYTES:
+                stdout, stderr, outcome, exit_status = b"", b"", "CLI_NONZERO", target.returncode
+            writer.append("PROCESS_TERMINAL", outcome=outcome)
+            _emit_broker_result(
+                anchor_socket,
+                result_fd,
+                _control("COMPLETE", 1, outcome, exit_status, stdout, stderr, writer.anchor),
+                stdout,
+            )
             return 0
-        writer.append("EXEC_CONFIRMED", process_ordinal=1, pid=target.pid)
-        try:
-            stdout, stderr = target.communicate(input=raw_request, timeout=command.timeout_milliseconds / 1000)
-            outcome = "SUCCESS" if target.returncode == 0 else "CLI_NONZERO"
-            exit_status = target.returncode
-        except subprocess.TimeoutExpired:
-            target.kill()
-            stdout, stderr = target.communicate()
-            outcome = "CLI_TIMEOUT"
-            exit_status = None
-        if len(stdout) > MAX_RESULT_BYTES or len(stderr) > MAX_RESULT_BYTES:
-            stdout, stderr, outcome, exit_status = b"", b"", "CLI_NONZERO", target.returncode
-        writer.append("PROCESS_TERMINAL", outcome=outcome)
-        _emit_broker_result(
-            anchor_socket,
-            result_fd,
-            _control("COMPLETE", 1, outcome, exit_status, stdout, stderr, writer.anchor),
-            stdout,
-        )
-        return 0
+        finally:
+            if target is not None:
+                if target.poll() is None:
+                    target.kill()
+                target.wait()
+                for pipe in (target.stdin, target.stdout, target.stderr):
+                    if pipe is not None:
+                        pipe.close()
+            if temporary_directory is not None:
+                temporary_directory.cleanup()
     except Exception:
         try:
             anchor_socket.close()
@@ -678,6 +800,8 @@ def run_single_shot(
     request_sha256: str,
     model: str,
     executable: Path,
+    target_profile: str,
+    expected_executable_digest: str,
     raw_request: bytes,
     response_schema: dict[str, Any],
     timeout_milliseconds: int,
@@ -691,8 +815,34 @@ def run_single_shot(
         raise ValueError("receipt binding is invalid")
     if type(raw_request) is not bytes or len(raw_request) > MAX_RESULT_BYTES:
         raise ValueError("raw request is invalid")
-    receipt = ExecutionReceipt(operation_id, item_id, attempt_id, request_sha256, model)
-    executable_digest = _sha256(executable.read_bytes()) if executable.exists() and executable.is_file() else _sha256(b"")
+    if not _valid_sha256(expected_executable_digest):
+        raise ValueError("trusted executable digest is invalid")
+    if target_profile == ANTIGRAVITY_CLI_PROFILE:
+        try:
+            model_label = AGY_MODEL_LABELS[model]
+        except KeyError as error:
+            raise ValueError("agy model is not approved") from error
+        _validate_public_prompt(raw_request)
+        target_profile = ANTIGRAVITY_CLI_PROFILE
+        payload_class = PUBLIC_SANITIZED
+    elif target_profile == RAW_STDIN_PROFILE:
+        model_label = model
+        payload_class = SYNTHETIC_TEST
+    else:
+        raise ValueError("target profile is invalid")
+    executable_bytes = executable.read_bytes() if executable.exists() and executable.is_file() else b""
+    executable_digest = _sha256(executable_bytes)
+    if executable_digest != expected_executable_digest:
+        raise ValueError("trusted executable digest mismatch")
+    receipt = ExecutionReceipt(
+        operation_id,
+        item_id,
+        attempt_id,
+        request_sha256,
+        model,
+        target_profile,
+        executable_digest,
+    )
     command = CommandFrame(
         COMMAND_SCHEMA_VERSION,
         operation_id,
@@ -702,6 +852,9 @@ def run_single_shot(
         _sha256(raw_request),
         len(raw_request),
         timeout_milliseconds,
+        target_profile,
+        model_label,
+        payload_class,
     )
     command.validate()
     try:
@@ -723,9 +876,14 @@ def run_single_shot(
     result_read, result_write = os.pipe()
     anchor_parent, anchor_child = socket.socketpair()
     process: subprocess.Popen[bytes] | None = None
+    snapshot_directory: tempfile.TemporaryDirectory[str] | None = None
     raw_result = b""
     control_bytes = b""
     try:
+        broker_executable = executable
+        if executable_bytes:
+            snapshot_directory = tempfile.TemporaryDirectory(prefix="agy-v4-exec-")
+            broker_executable = _write_executable_snapshot(Path(snapshot_directory.name), executable_bytes)
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -736,7 +894,7 @@ def run_single_shot(
                 str(ledger_fd),
                 str(anchor_child.fileno()),
                 str(result_write),
-                str(executable),
+                str(broker_executable),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -803,6 +961,9 @@ def run_single_shot(
                 channel.close()
             except OSError:
                 pass
+        if snapshot_directory is not None:
+            os.chmod(snapshot_directory.name, 0o700)
+            snapshot_directory.cleanup()
     try:
         final_anchor = anchor_store.load(operation_id, attempt_id)
     except AnchorError:
