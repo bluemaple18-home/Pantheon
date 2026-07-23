@@ -513,6 +513,8 @@ import { AGY_HARNESS_NEW_20260723_63_ARTICLE_RECORDS } from "./article-expansion
 
 import { AGY_HARNESS_NEW_20260723_38_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-38.js?v=agy-harness-new-20260723-38";
 
+import { AGY_HARNESS_NEW_20260723_18_ARTICLE_RECORDS } from "./article-expansion-agy-harness-new-20260723-18.js?v=agy-harness-new-20260723-18";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2502,6 +2504,7 @@ export const ARTICLE_REGISTRY = [
   ...AGY_HARNESS_NEW_20260723_86_ARTICLE_RECORDS,
   ...AGY_HARNESS_NEW_20260723_63_ARTICLE_RECORDS,
   ...AGY_HARNESS_NEW_20260723_38_ARTICLE_RECORDS,
+  ...AGY_HARNESS_NEW_20260723_18_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {
