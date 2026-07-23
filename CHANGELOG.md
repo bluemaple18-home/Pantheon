@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.18] - 2026-07-23
+
+- Release tag：`v0.3.18`
+- 公開文章總數：384
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：harness-new-20260723-77。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`.work/content-publisher/evidence/publish-0.3.18`
+
 ## [0.3.17] - 2026-07-23
 
 - Release tag：`v0.3.17`
