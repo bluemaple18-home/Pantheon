@@ -3517,6 +3517,7 @@ def parse_args() -> argparse.Namespace:
     prepare_repair.add_argument("--repair-generation", type=int, default=1)
     run = subparsers.add_parser("run")
     run.add_argument("run_dir", type=Path)
+    run.add_argument("--max-repairs", type=int, choices=range(0, 3), default=2)
     repair_run = subparsers.add_parser("run-rewrite-repair")
     repair_run.add_argument("run_dir", type=Path)
     isolated_run = subparsers.add_parser("run-isolated-rewrite")
@@ -3649,7 +3650,11 @@ def main() -> int:
         return 0
     run_dir = args.run_dir.resolve()
     if args.command == "run":
-        candidate, review = run_writer_reviewer(run_dir, GeminiClient.from_environment())
+        candidate, review = run_writer_reviewer(
+            run_dir,
+            GeminiClient.from_environment(),
+            max_repairs=args.max_repairs,
+        )
         print(json.dumps({"run_id": candidate["run_id"], "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]), "review": str(run_dir / "review.md")}, ensure_ascii=False))
         return 0
     if args.command in {"run-rewrite-repair", "run-isolated-rewrite"}:

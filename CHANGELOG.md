@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.2.1] - 2026-07-23
+
+- Release tag：`v0.2.1`
+- 公開文章總數：353
+- 發布範圍：新增「土星回歸是什麼？30歲前後的工作與關係觀察」，並讓每日產文 CLI 可明確鎖定零次內容修補。
+- 驗證：Gemini Writer 與 fresh Reviewer 通過；255 tests passed；prerender、feed、sitemap 與 `git diff --check` 通過。
+- 證據：`artifacts/fortune_council/content_seo_execution/evidence/daily_publishing/daily-20260723-repair-01/`
+
 ## [0.2.0] - 2026-07-20
 
 - Release tag：`v0.2.0`

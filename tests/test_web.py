@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLE
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "rewrite-release-001"
+ARTICLE_CACHE_TOKEN = "agy-daily-20260723-repair-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -221,6 +221,10 @@ EXPANSION_50E_PUBLIC_ARTICLE_PATHS = [
     *(f"/articles/astrology/astrology-{serial:04d}" for serial in range(65, 115)),
 ]
 
+DAILY_PUBLIC_ARTICLE_PATHS = [
+    "/articles/astrology/astrology-0115",
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
@@ -236,6 +240,7 @@ PUBLIC_ARTICLE_PATHS = [
     *AGY_ASC_VENUS_BATCH_03_PUBLIC_ARTICLE_PATHS,
     *AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS,
     *EXPANSION_50E_PUBLIC_ARTICLE_PATHS,
+    *DAILY_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -364,7 +369,7 @@ console.log(JSON.stringify({
         "/articles/personality/personality-0056",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0114",
+            "/articles/astrology/astrology-0115",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
@@ -1667,7 +1672,7 @@ console.log(JSON.stringify({{
     data = json.loads(result.stdout)
 
     assert len(EXPANSION_50E_PUBLIC_ARTICLE_PATHS) == 50
-    assert data["totalCount"] == 352
+    assert data["totalCount"] == len(PUBLIC_ARTICLE_PATHS)
     assert data["recordCount"] == 50
     assert data["bodyCount"] == 50
     assert data["batchCount"] == 50

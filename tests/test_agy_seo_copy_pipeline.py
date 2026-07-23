@@ -551,6 +551,19 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "不得只把限制放在正文" in prompt
 
 
+def test_run_cli_accepts_zero_content_repairs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agy_seo_copy_pipeline.py", "run", ".work/gsc-copy/daily", "--max-repairs", "0"],
+    )
+
+    args = pipeline.parse_args()
+
+    assert args.command == "run"
+    assert args.max_repairs == 0
+
+
 def test_external_gsc_brief_drops_metrics_paths_and_internal_ids() -> None:
     brief = {
         "schema_version": 1,
@@ -1121,7 +1134,11 @@ def test_hard_gate_cannot_be_overridden() -> None:
 def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     integrated_inventory = pipeline._registry_inventory(repo_root)
-    baseline_inventory = [item for item in integrated_inventory if str(item.get("id")) not in AGY_MATRIX_IDS]
+    baseline_inventory = [
+        item
+        for item in integrated_inventory
+        if str(item.get("id")) not in AGY_MATRIX_IDS | DAILY_QUEUE_IDS
+    ]
     monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: baseline_inventory)
     backlog = build_matrix_backlog(repo_root)
     ids = {item["id"] for item in backlog}
@@ -1137,7 +1154,11 @@ def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch:
 def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     integrated_inventory = pipeline._registry_inventory(repo_root)
-    baseline_inventory = [item for item in integrated_inventory if str(item.get("id")) not in AGY_MATRIX_IDS]
+    baseline_inventory = [
+        item
+        for item in integrated_inventory
+        if str(item.get("id")) not in AGY_MATRIX_IDS | DAILY_QUEUE_IDS
+    ]
     monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: baseline_inventory)
     paths = prepare_matrix_runs(repo_root, "identity-test", output_root=tmp_path)
     briefs = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
@@ -1402,7 +1423,6 @@ def test_integrated_matrix_backlog_contains_only_daily_queue() -> None:
     backlog = build_matrix_backlog(repo_root)
 
     assert [item["id"] for item in backlog] == [
-        "ASTRO-SCENARIO-SATURN-RETURN",
         "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
         "ASTRO-SCENARIO-MOON-RISING-DIFFERENCE",
         "ASTRO-SCENARIO-BIG-THREE",
