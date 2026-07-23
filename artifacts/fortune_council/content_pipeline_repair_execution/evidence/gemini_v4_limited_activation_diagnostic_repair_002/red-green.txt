@@ -1,0 +1,36 @@
+Gemini V4 limited activation diagnostic Repair-2 RED/GREEN
+=========================================================
+
+RED command
+-----------
+<repo-venv>/bin/python -m pytest -q \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_reports_safe_result_validation_without_retaining_raw_output \
+  tests/test_agy_gemini_outbox.py::test_runner_closes_all_forged_broker_diagnostic_fields
+
+RED result
+----------
+2 failed, 3 passed
+
+Failure 1:
+json-null expected NOT_OBJECT; actual NOT_EVALUATED.
+
+Failure 2:
+forged unhashable result_validation caused TypeError instead of a closed
+V4BrokerFailure diagnostic.
+
+GREEN command
+-------------
+<repo-venv>/bin/python -m pytest -q \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_reports_safe_result_validation_without_retaining_raw_output \
+  tests/test_agy_gemini_outbox.py::test_runner_closes_all_forged_broker_diagnostic_fields \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback \
+  tests/test_agy_gemini_outbox.py::test_production_runner_explicitly_selects_closed_profile_for_unknown_basename
+
+GREEN result
+------------
+8 passed in 1.75s
+
+External target invocation
+--------------------------
+Gemini / agy invocation: 0
+Retry of prior real job: 0

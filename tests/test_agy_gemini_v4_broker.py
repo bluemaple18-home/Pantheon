@@ -43,6 +43,7 @@ def _write_target(path: Path, mode: str) -> Path:
         f"mode={mode!r}\n"
         "if mode=='success': print(json.dumps({'ok':True},sort_keys=True))\n"
         "elif mode=='invalid-json': print('not-json')\n"
+        "elif mode=='json-null': print('null')\n"
         "elif mode=='not-object': print(json.dumps(['not-object']))\n"
         "elif mode=='schema-mismatch': print(json.dumps({'ok':'not-a-boolean'},sort_keys=True))\n"
         "elif mode=='nonzero': print('non-json-output'); sys.exit(7)\n"
@@ -318,6 +319,7 @@ def test_single_shot_success_is_one_process_bound_and_private(tmp_path: Path) ->
     ("mode", "expected_validation"),
     (
         ("invalid-json", "JSON_INVALID"),
+        ("json-null", "NOT_OBJECT"),
         ("not-object", "NOT_OBJECT"),
         ("schema-mismatch", "SCHEMA_MISMATCH"),
     ),

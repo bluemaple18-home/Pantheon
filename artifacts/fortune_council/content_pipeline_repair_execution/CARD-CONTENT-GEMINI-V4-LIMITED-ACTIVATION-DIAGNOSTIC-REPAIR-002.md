@@ -5,8 +5,8 @@
 - ownership: `v4_safe_failure_diagnostics_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_REVIEW`
 
 ## 來源 Review
 
@@ -83,3 +83,22 @@
 - `BLOCKED`
 
 本卡不授權第二次真實外呼。
+
+## 執行結果
+
+- RED:
+  `2 failed / 3 passed`
+- focused GREEN:
+  `8 passed`
+- affected matrix:
+  `211 passed`
+- JSON `null`:
+  `NOT_OBJECT`
+- forged scalar／container diagnostics:
+  closed to `INVALID / UNKNOWN / null / NOT_EVALUATED`
+- prompt／raw stdout／stderr／response body retained:
+  `false`
+- Gemini／agy invocation during repair:
+  `0`
+- decision:
+  `DELIVERED_CANDIDATE / READY_FOR_REVIEW`
