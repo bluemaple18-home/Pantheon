@@ -102,6 +102,10 @@ task。broker 的 CommandFrame prompt digest／byte count 綁定 effective promp
 receipt 的 external request SHA-256 綁定原 outbox request。Flag-off legacy 不經過
 此 renderer。
 
+Effective-prompt ceiling 是 `384 KiB`：涵蓋 outbox 的 `256 KiB` task、
+`64 KiB` schema與 `64 KiB` closed envelope budget，且低於目前 production
+target 的 `ARG_MAX=1 MiB`。超過 ceiling 仍在 ledger／target fork 前拒絕。
+
 Flag 關閉時走 legacy；flag 開啟時同一 operation 不得 fallback 回 legacy transport。`scripts/agy_seo_copy_pipeline.py:_generate_with_receipt` 的 `-runtime-retry-NN` 行為不得包住 V4 operation；canary 接線時必須讓 V4 ambiguous/blocked 結果直接 fail closed。舊 retry 的全面移除需另一張 migration card，不在 Repair 1 或首張 implementation 卡內。
 
 V4 仍不得成為預設 transport。預設切換必須另有 migration commit，並在獨立 review、shadow run 與內容 schema／Reviewer 契約驗證後決定。

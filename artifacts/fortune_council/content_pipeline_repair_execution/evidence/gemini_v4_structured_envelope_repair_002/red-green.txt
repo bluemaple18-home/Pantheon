@@ -1,0 +1,37 @@
+Gemini V4 structured envelope size Repair-2 RED/GREEN
+=====================================================
+
+RED command
+-----------
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider -q \
+  tests/test_agy_gemini_v4_broker.py::test_agy_profile_privacy_patterns_and_size_match_outbox_contract \
+  tests/test_agy_gemini_outbox.py::test_maximum_valid_outbox_payload_fits_v4_effective_prompt_ceiling
+
+RED result
+----------
+2 failed
+
+Failure 1:
+broker ceiling was 262144 bytes; required contract was
+262144 task + 65536 schema + 65536 envelope.
+
+Failure 2:
+maximum valid outbox task/schema rendered to 327942 bytes, exceeding the old
+262144-byte broker ceiling.
+
+GREEN command
+-------------
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider -q \
+  tests/test_agy_gemini_v4_broker.py::test_agy_profile_privacy_patterns_and_size_match_outbox_contract \
+  tests/test_agy_gemini_outbox.py::test_maximum_valid_outbox_payload_fits_v4_effective_prompt_ceiling \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_uses_only_broker_and_writes_bound_result \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_off_preserves_single_legacy_call
+
+GREEN result
+------------
+5 passed in 0.08s
+
+External target invocation
+--------------------------
+Gemini / agy invocation: 0
+Third real payload: 0

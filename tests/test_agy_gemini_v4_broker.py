@@ -216,9 +216,13 @@ def test_agy_profile_privacy_patterns_and_size_match_outbox_contract(tmp_path: P
     assert tuple((item.pattern, item.flags) for item in broker.FORBIDDEN_PUBLIC_PROMPT_PATTERNS) == tuple(
         (item.pattern, item.flags) for item in outbox.FORBIDDEN_EXTERNAL_PATTERNS
     )
-    assert broker.MAX_AGY_PROMPT_BYTES == outbox.MAX_PROMPT_BYTES
+    assert broker.MAX_AGY_PROMPT_BYTES == (
+        outbox.MAX_PROMPT_BYTES
+        + outbox.MAX_SCHEMA_BYTES
+        + broker.MAX_AGY_ENVELOPE_OVERHEAD_BYTES
+    )
 
-    for prompt in (b"", b"x" * (outbox.MAX_PROMPT_BYTES + 1)):
+    for prompt in (b"", b"x" * (broker.MAX_AGY_PROMPT_BYTES + 1)):
         with pytest.raises(ValueError):
             _run(tmp_path, target, model="gemini-3.5-flash", raw_request=prompt)
 

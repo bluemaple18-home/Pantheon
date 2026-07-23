@@ -43,6 +43,20 @@ prompt；production receipt 的 request SHA-256 仍綁定原始 outbox request�
 digest 各自證明 transport bytes 與 queue identity，不得互相替代。Flag-off legacy
 路徑不經過 V4 renderer。
 
+Size contract 固定為：
+
+- sanitized user task：
+  `256 KiB`
+- canonical response schema：
+  `64 KiB`
+- closed role／instruction envelope budget：
+  `64 KiB`
+- broker effective-prompt ceiling：
+  `384 KiB`
+
+這個 ceiling 低於目前 production target 的 `ARG_MAX=1 MiB`；超過 384 KiB 仍在
+target fork 前 fail closed。Outbox 的既有 raw task／schema public limits不縮減。
+
 ## 資料與程序邊界
 
 - effective prompt 進入 argv 是 `agy --print` 的產品限制，因此 role instruction、
