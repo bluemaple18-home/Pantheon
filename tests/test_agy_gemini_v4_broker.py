@@ -42,6 +42,9 @@ def _write_target(path: Path, mode: str) -> Path:
         "json.dumps(trace,sort_keys=True,separators=(',',':')),encoding='utf-8')\n"
         f"mode={mode!r}\n"
         "if mode=='success': print(json.dumps({'ok':True},sort_keys=True))\n"
+        "elif mode=='invalid-json': print('not-json')\n"
+        "elif mode=='not-object': print(json.dumps(['not-object']))\n"
+        "elif mode=='schema-mismatch': print(json.dumps({'ok':'not-a-boolean'},sort_keys=True))\n"
         "elif mode=='nonzero': print('non-json-output'); sys.exit(7)\n"
         "elif mode=='timeout': time.sleep(10)\n",
         encoding="utf-8",
@@ -288,6 +291,7 @@ def test_single_shot_success_is_one_process_bound_and_private(tmp_path: Path) ->
     trace = json.loads(target.with_suffix(".trace").read_text())
     assert (result.replay_status, result.process_count, result.outcome) == ("COMPLETE", 1, "SUCCESS")
     assert result.caller_contract_satisfied is True
+    assert result.result_validation == "VALID"
     assert result.result == {"ok": True}
     mutable_copy = result.result
     assert mutable_copy is not None
@@ -311,6 +315,31 @@ def test_single_shot_success_is_one_process_bound_and_private(tmp_path: Path) ->
 
 
 @pytest.mark.parametrize(
+    ("mode", "expected_validation"),
+    (
+        ("invalid-json", "JSON_INVALID"),
+        ("not-object", "NOT_OBJECT"),
+        ("schema-mismatch", "SCHEMA_MISMATCH"),
+    ),
+)
+def test_single_shot_reports_safe_result_validation_without_retaining_raw_output(
+    tmp_path: Path,
+    mode: str,
+    expected_validation: str,
+) -> None:
+    target = _write_target(tmp_path / "fake-target", mode)
+
+    result = _run(tmp_path, target)
+
+    assert (result.replay_status, result.process_count, result.outcome) == ("COMPLETE", 1, "SUCCESS")
+    assert result.caller_contract_satisfied is False
+    assert result.result is None
+    assert result.result_json is None
+    assert result.result_validation == expected_validation
+    assert "not-json" not in json.dumps(result.normalized_trace(), ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
     ("mode", "expected_status", "expected_count", "expected_outcome"),
     (
         ("nonzero", "COMPLETE", 1, "CLI_NONZERO"),
@@ -323,6 +352,7 @@ def test_single_shot_nonzero_and_timeout_are_one_without_caller_result(tmp_path:
     assert (result.replay_status, result.process_count, result.outcome) == (expected_status, expected_count, expected_outcome)
     assert result.caller_contract_satisfied is False
     assert result.result is None
+    assert result.result_validation == "NOT_EVALUATED"
     assert target.with_suffix(".trace").exists()
     events = [json.loads(line) for line in (tmp_path / "ledger.jsonl").read_text().splitlines()]
     assert [event["event_type"] for event in events].count("EXEC_CONFIRMED") == 1

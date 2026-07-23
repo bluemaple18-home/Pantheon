@@ -21,6 +21,7 @@ from scripts.agy_gemini_v4_broker import (
     ExecutionReceipt,
     FileAnchorStore,
     V4BrokerFailure,
+    RESULT_VALIDATION_STATES,
     run_single_shot,
 )
 
@@ -56,6 +57,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
     job_id = processing_path.stem
     archive_path = queue_root / "archive" / f"{job_id}.json"
     request: dict[str, Any] = {}
+    broker_diagnostic: dict[str, object] | None = None
     try:
         request = json.loads(processing_path.read_text(encoding="utf-8"))
         validate_external_request(request)
@@ -93,6 +95,15 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 or not broker_result.caller_contract_satisfied
                 or broker_result.result is None
             ):
+                result_validation = broker_result.result_validation
+                if result_validation not in RESULT_VALIDATION_STATES:
+                    result_validation = "NOT_EVALUATED"
+                broker_diagnostic = {
+                    "replay_status": broker_result.replay_status,
+                    "process_count": broker_result.process_count,
+                    "outcome": broker_result.outcome,
+                    "result_validation": result_validation,
+                }
                 raise V4BrokerFailure(
                     f"V4 fail closed: {broker_result.replay_status}/{broker_result.process_count}"
                 )
@@ -119,16 +130,16 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         os.replace(processing_path, archive_path)
         return {"status": "processed", "job_id": job_id}
     except Exception as error:
-        atomic_write_json(
-            queue_root / "failed" / f"{job_id}.json",
-            {
-                "schema_version": SCHEMA_VERSION,
-                "job_id": job_id,
-                "request_sha256": request.get("request_sha256"),
-                "error_type": type(error).__name__,
-                "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-            },
-        )
+        failed_record: dict[str, object] = {
+            "schema_version": SCHEMA_VERSION,
+            "job_id": job_id,
+            "request_sha256": request.get("request_sha256"),
+            "error_type": type(error).__name__,
+            "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        }
+        if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
+            failed_record["broker_diagnostic"] = broker_diagnostic
+        atomic_write_json(queue_root / "failed" / f"{job_id}.json", failed_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
         return {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
