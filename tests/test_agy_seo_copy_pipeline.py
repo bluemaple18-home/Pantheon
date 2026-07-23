@@ -36,6 +36,8 @@ from scripts.gsc_opportunity_brief import (
     select_opportunities,
     write_bounded_json,
 )
+from scripts.generate_content_matrix_v2 import build_payload as build_matrix_v2_payload
+from scripts.generate_content_matrix_v2 import build_rows as build_matrix_v2_rows
 
 
 AGY_V1_MATRIX_IDS = {
@@ -83,6 +85,40 @@ DAILY_QUEUE_IDS = {
     "ASTRO-SCENARIO-MANY-ASPECTS",
     "ASTRO-SCENARIO-SYNASTRY-ASPECTS",
 }
+V2_MATRIX_IDS = {row["id"] for row in build_matrix_v2_rows()}
+
+
+def test_content_matrix_v2_has_1720_atomic_unique_topics() -> None:
+    payload = build_matrix_v2_payload()
+    rows = payload["rows"]
+    artifact = (
+        Path(__file__).resolve().parents[1]
+        / "artifacts/fortune_council/content_seo_execution/evidence/content_matrix_v2/content-matrix-v2.json"
+    )
+
+    assert payload["total"] == 1720
+    assert json.loads(artifact.read_text(encoding="utf-8")) == payload
+    assert payload["familyCounts"] == {
+        "zodiac": 60,
+        "mbti": 80,
+        "tarot": 390,
+        "ziwei": 70,
+        "bazi": 50,
+        "mbti_pair": 680,
+        "zodiac_pair": 390,
+    }
+    assert len({row["id"] for row in rows}) == len(rows)
+    assert len({row["primaryKeyword"] for row in rows}) == len(rows)
+    assert len({row["title"] for row in rows}) == len(rows)
+    assert all(20 <= len(row["title"]) <= 45 for row in rows)
+    assert all(row["primaryKeyword"] in row["title"] for row in rows)
+
+    atomic_keys = [
+        (row["family"], row["entity"], row.get("pairedEntity", ""), row["scenario"])
+        for row in rows
+    ]
+    assert len(atomic_keys) == len(set(atomic_keys))
+    assert all("、" not in row["scenario"] for row in rows)
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
@@ -1148,7 +1184,9 @@ def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch:
     assert {"MBTI-INTP-AH", "MBTI-INTP-AC", "MBTI-INTP-OH", "MBTI-INTP-OC"} <= ids
     assert {"ASC-ARIES", "ASC-TAURUS", "ASC-GEMINI"} <= ids
     assert "CHART-CYCLE-DECADE" in ids
-    assert ids == AGY_MATRIX_IDS | DAILY_QUEUE_IDS
+    assert AGY_MATRIX_IDS | DAILY_QUEUE_IDS <= ids
+    assert len(ids & V2_MATRIX_IDS) >= 1000
+    assert len(ids) == len(backlog)
 
 
 def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1160,6 +1198,8 @@ def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: 
         if str(item.get("id")) not in AGY_MATRIX_IDS | DAILY_QUEUE_IDS
     ]
     monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: baseline_inventory)
+    sample = build_matrix_backlog(repo_root)[:30]
+    monkeypatch.setattr(pipeline, "build_matrix_backlog", lambda _: sample)
     paths = prepare_matrix_runs(repo_root, "identity-test", output_root=tmp_path)
     briefs = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
     items = [item for brief in briefs for item in brief["articles"]]
@@ -1418,11 +1458,11 @@ def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None
         pipeline.apply_rewrite_release(tmp_path, release_root)
 
 
-def test_integrated_matrix_backlog_contains_only_daily_queue() -> None:
+def test_integrated_matrix_backlog_keeps_daily_queue_first_then_v2() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     backlog = build_matrix_backlog(repo_root)
 
-    assert [item["id"] for item in backlog] == [
+    assert [item["id"] for item in backlog[:6]] == [
         "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
         "ASTRO-SCENARIO-MOON-RISING-DIFFERENCE",
         "ASTRO-SCENARIO-BIG-THREE",
@@ -1430,6 +1470,9 @@ def test_integrated_matrix_backlog_contains_only_daily_queue() -> None:
         "ASTRO-SCENARIO-MANY-ASPECTS",
         "ASTRO-SCENARIO-SYNASTRY-ASPECTS",
     ]
+    assert len(backlog) >= 1000
+    assert len({item["id"] for item in backlog}) == len(backlog)
+    assert any(item["id"].startswith("V2-") for item in backlog[6:])
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

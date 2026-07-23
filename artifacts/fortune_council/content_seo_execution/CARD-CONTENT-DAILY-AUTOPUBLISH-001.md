@@ -7,6 +7,11 @@ ownership: 每日單篇受監督自動產文、發布與失敗停損
 allowlist:
   - artifacts/fortune_council/content_seo_execution/CARD-CONTENT-DAILY-AUTOPUBLISH-001.md
   - artifacts/fortune_council/content_seo_execution/evidence/scale_clusters/cluster_plan.md
+  - artifacts/fortune_council/content_seo_execution/evidence/content_matrix_v2/content-matrix-v2.json
+  - artifacts/fortune_council/content_seo_execution/evidence/content_matrix_v2/README.md
+  - scripts/generate_content_matrix_v2.py
+  - scripts/agy_seo_copy_pipeline.py
+  - tests/test_agy_seo_copy_pipeline.py
   - docs/pantheon_content_transport_decoupling.md
   - Codex automation Pantheon 每日單篇發文
 forbidden_scope:
@@ -33,7 +38,7 @@ verification:
 ## 每輪控制流
 
 1. 確認 `main`、worktree clean、`HEAD == origin/main`，否則停止。
-2. 從 cluster plan 的未上線 backlog 取第一篇，最多一篇。
+2. 先從 cluster plan 的未上線 backlog 取第一篇；舊 Queue 用完後接續 content matrix v2，最多一篇。
 3. 建立公開 brief，使用既有 CLI Writer 與 fresh Reviewer。
 4. deterministic findings 必須為空，Reviewer 必須 `APPROVE`，不得 override。
 5. 建立 policy approval、apply 至文章 registry 與正文模組。
@@ -46,9 +51,20 @@ verification:
 - 任一 Gemini、schema、內容 Gate、測試、release gate、push 或正式頁驗收失敗即停止。
 - 不自動 retry 外部 generation 或 push。
 - 不使用 V4 fallback。
-- backlog 為空時回報 `IDLE_NO_BACKLOG`，不得自行發明題目。
+- 兩份矩陣 backlog 都為空時回報 `IDLE_NO_BACKLOG`，不得自行發明題目。
 
 ## 初始 Queue
 
 初始七篇均為現有 registry 未出現的星盤使用者情境題，寫在
 `evidence/scale_clusters/cluster_plan.md` 的「每日單篇自動發文 Queue」。
+
+## 第二期 Queue
+
+初始 Queue 跑完後，接續
+`evidence/content_matrix_v2/content-matrix-v2.json`。第二期共有 1,720 個候選題，
+每一列只對應「一個單體或一組配對 × 一個生活情境」，不得把五個情境合成一篇。
+
+- 單體情境：星座 60、MBTI 80、塔羅 390、紫微主星 70、八字十神 50。
+- 配對情境：MBTI 配對 680、星座配對 390。
+- 配對採無方向 canonical 組合，`A × B` 與 `B × A` 不重複。
+- registry 已有同 ID 或語意等價主題仍須略過，不得為了湊數重複發布。

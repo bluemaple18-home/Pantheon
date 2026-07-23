@@ -34,6 +34,9 @@ ANTIGRAVITY_MODEL_LABELS = {
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
 MATRIX_PLAN = Path("artifacts/fortune_council/content_seo_execution/evidence/scale_clusters/cluster_plan.md")
+MATRIX_V2_PLAN = Path(
+    "artifacts/fortune_council/content_seo_execution/evidence/content_matrix_v2/content-matrix-v2.json"
+)
 PUBLICATION_STANDARD = Path("docs/pantheon_article_publication_standard.md")
 
 ARTICLE_FIELDS = {
@@ -918,6 +921,31 @@ def _matrix_rows(plan_text: str) -> list[dict[str, str]]:
     return list(rows.values())
 
 
+def _structured_matrix_rows(path: Path) -> list[dict[str, str]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schemaVersion") != "content-matrix-v2.0":
+        raise ValueError("content matrix v2 schema differs from contract")
+    raw_rows = payload.get("rows")
+    if not isinstance(raw_rows, list) or payload.get("total") != len(raw_rows):
+        raise ValueError("content matrix v2 total differs from rows")
+    required = {
+        "priority", "id", "primaryKeyword", "title", "intent",
+        "family", "entityType", "entity", "scenario",
+        "section", "product", "category",
+    }
+    rows: list[dict[str, str]] = []
+    for index, raw in enumerate(raw_rows):
+        if not isinstance(raw, dict) or not required <= set(raw):
+            raise ValueError(f"content matrix v2 row {index} is missing required fields")
+        row = {str(key): str(value) for key, value in raw.items()}
+        if not all(row[field].strip() for field in required):
+            raise ValueError(f"content matrix v2 row {index} contains an empty required field")
+        rows.append(row)
+    if len({row["id"] for row in rows}) != len(rows):
+        raise ValueError("content matrix v2 ids must be unique")
+    return rows
+
+
 def _registry_inventory(repo_root: Path) -> list[dict[str, Any]]:
     script = """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
@@ -944,7 +972,9 @@ def _row_is_present(row: dict[str, str], inventory: list[dict[str, Any]]) -> boo
 
 
 def build_matrix_backlog(repo_root: Path) -> list[dict[str, str]]:
-    rows = _matrix_rows((repo_root / MATRIX_PLAN).read_text(encoding="utf-8"))
+    legacy_rows = _matrix_rows((repo_root / MATRIX_PLAN).read_text(encoding="utf-8"))
+    v2_rows = _structured_matrix_rows(repo_root / MATRIX_V2_PLAN)
+    rows = list({row["id"]: row for row in [*legacy_rows, *v2_rows]}.values())
     inventory = _registry_inventory(repo_root)
     return [row for row in rows if not _row_is_present(row, inventory)]
 
@@ -978,7 +1008,9 @@ def _matrix_targets(repo_root: Path, backlog: list[dict[str, str]]) -> dict[str,
     targets: dict[str, dict[str, str]] = {}
     for row in backlog:
         article_id = row["id"]
-        if article_id.startswith("MBTI-"):
+        if {"section", "product", "category"} <= set(row):
+            section, product, category = row["section"], row["product"], row["category"]
+        elif article_id.startswith("MBTI-"):
             section, product, category = "mbti", "personality", "personality"
         elif article_id.startswith(("CHART-", "ZIWEI-")):
             section, product, category = "ziwei", "fortune", "fortune"
@@ -1026,7 +1058,7 @@ def prepare_matrix_runs(
             "schema_version": SCHEMA_VERSION,
             "run_id": run_id,
             "mode": "create",
-            "source": {"type": "matrix", "path": MATRIX_PLAN.as_posix()},
+            "source": {"type": "matrix", "paths": [MATRIX_PLAN.as_posix(), MATRIX_V2_PLAN.as_posix()]},
             "articles": candidate_batch,
         }
         if current_batch and (len(candidate_batch) > MAX_RUN_ARTICLES or len(compact_json_bytes(candidate)) + 1 > MAX_ARTICLE_BRIEF_BYTES):
@@ -1040,7 +1072,13 @@ def prepare_matrix_runs(
     paths = []
     for index, articles in enumerate(batches, start=1):
         run_id = f"{run_prefix}-{index:02d}"
-        brief = {"schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": "create", "source": {"type": "matrix", "path": MATRIX_PLAN.as_posix()}, "articles": articles}
+        brief = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": run_id,
+            "mode": "create",
+            "source": {"type": "matrix", "paths": [MATRIX_PLAN.as_posix(), MATRIX_V2_PLAN.as_posix()]},
+            "articles": articles,
+        }
         validate_new_brief(brief)
         path = output_root / run_id / "brief.json"
         write_json(path, brief)
