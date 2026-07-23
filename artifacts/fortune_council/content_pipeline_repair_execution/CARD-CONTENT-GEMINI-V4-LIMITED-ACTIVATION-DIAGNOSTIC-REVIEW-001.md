@@ -5,8 +5,8 @@
 - ownership: `independent_review_only`
 - strictness: `strict`
 - risk: `high`
-- status: `READY`
-- verdict: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- verdict: `DELIVERED_CANDIDATE / NO_GO`
 
 ## 固定候選
 
@@ -68,3 +68,29 @@
 - `BLOCKED`
 
 即使 GO，也不授權第二次真實外呼。
+
+## Review 結果
+
+- provisioning commit:
+  `056a39afc510fc798d47f4e7565a13372e647318`
+- candidate ancestry:
+  `PASS`
+- affected matrix:
+  `208 passed`
+- focused candidate diagnostics:
+  `5 passed`
+- focused behavioral boundaries:
+  `10 passed`
+- findings:
+  `1 x P1 / 1 x P2`
+- privacy:
+  `FAIL — forged BrokerResult 可把未封閉欄位任意內容寫入 failed record`
+- no-fallback:
+  `PASS`
+- exactly-once ledger／anchor:
+  `PASS — candidate 未修改相關實作，既有 replay tests 全綠`
+- decision:
+  `DELIVERED_CANDIDATE / NO_GO`
+
+本 Review 不授權 repair、第二次真實外呼、retry、activation、publish、merge、
+push、deploy、default promotion 或 legacy removal。
