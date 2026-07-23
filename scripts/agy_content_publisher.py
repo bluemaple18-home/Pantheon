@@ -347,6 +347,14 @@ def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, article
     return test_path
 
 
+def _sync_web_test_cache_token(repo_root: Path, *, cache_token: str) -> Path:
+    test_path = repo_root / "tests/test_web.py"
+    text = test_path.read_text(encoding="utf-8")
+    text = re.sub(r'ARTICLE_CACHE_TOKEN = "[^"]+"', f'ARTICLE_CACHE_TOKEN = "{cache_token}"', text, count=1)
+    test_path.write_text(text, encoding="utf-8")
+    return test_path
+
+
 def _python_string_list(values: list[str]) -> str:
     return "\n".join(f'        "{value}",' for value in values)
 
@@ -385,8 +393,11 @@ def _stage_commit_tag_push(
     push: bool,
     release_gate: bool,
     message: str | None = None,
+    extra_add_paths: list[str] | None = None,
 ) -> str:
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
+    if extra_add_paths:
+        git(repo_root, ["add", *extra_add_paths], None)
     git(repo_root, ["commit", "-m", message or f"chore(content): publish Gemini approved articles v{version}"], None)
     git(repo_root, ["tag", "-a", f"v{version}", "-m", f"Pantheon content release v{version}"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
@@ -584,6 +595,8 @@ def publish_ready_rewrite_runs(
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
+        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=release_id)
+        changed.append(str(fixture_path.relative_to(repo_root)))
         _run_prerender(repo_root)
         _run_feed(repo_root)
         _prepend_rewrite_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, article_ids=article_ids, evidence_path=evidence_rel)
@@ -596,6 +609,7 @@ def publish_ready_rewrite_runs(
             push=push,
             release_gate=release_gate,
             message=f"chore(content): publish Gemini rewrite release v{version}",
+            extra_add_paths=["scripts/agy_content_publisher.py"],
         )
         ledger = _load_ledger(state_root)
         for run_id in run_ids:

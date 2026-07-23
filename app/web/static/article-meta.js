@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-harness-new-20260723-84";
+} from "./article-registry.js?v=agy-rewrite-20260724-12";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -158,6 +158,8 @@ import { AGY_HARNESS_NEW_20260723_18_ARTICLE_BODY_LIBRARY } from "./article-expa
 import { AGY_HARNESS_NEW_20260723_25_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-25.js?v=agy-harness-new-20260723-25";
 
 import { AGY_HARNESS_NEW_20260723_84_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-harness-new-20260723-84.js?v=agy-harness-new-20260723-84";
+
+import { AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260724-12.js?v=agy-rewrite-20260724-12";
 
 const ARTICLE_BODY_LIBRARY = {
   ...AGY_HARNESS_NEW_20260723_84_ARTICLE_BODY_LIBRARY,
@@ -1005,7 +1007,7 @@ function buildProductHubReadingGuide(label, articleCount) {
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const cardFaceSections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
-  const customBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
+  const customBody = AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
   if (customBody) {
     const body = isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
     return [...cardFaceSections, ...body];
