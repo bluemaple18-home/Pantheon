@@ -1,0 +1,129 @@
+Gemini V4 Shadow-002 offline verification
+=========================================
+
+Identity / startup
+------------------
+- independent detached worktree: PASS
+- starting tree clean: PASS
+- starting HEAD: 6706ae3a28eb601fdf4c8b97531173138f67ef37
+- starting HEAD unique parent is integrated main 1dd80978: PASS
+- source branch pointed to starting HEAD: PASS
+- Repair 4e04e825 and integrated Review/main 1dd80978 are ancestors: PASS
+- previous blocked rollout 90559641 is not an ancestor: PASS
+- index.lock absent: PASS
+
+Recorder / verifier
+-------------------
+- recorder imports production broker only to execute synthetic fixture: PASS
+- independent verifier imports neither broker nor runner: PASS
+- bundle closed schemas: PASS
+- bundle saves parsed result plus encoding label, not raw stdout: PASS
+- verifier reconstructs full bytes from parsed result plus label: PASS
+- verifier checks reconstructed byte_count and stdout_sha256: PASS
+- ledger SHA-256, hash chain and final anchor independently recomputed: PASS
+- receipt/command/ledger/inbox/rollout identity bindings: PASS
+- process count exactly one: PASS
+- fallback/retry/resend counts zero: PASS
+- privacy booleans all false: PASS
+
+Synthetic encoding acceptance
+-----------------------------
+- canonical-json-v1: PASS (58 bytes)
+- canonical-json-newline-v1: PASS (59 bytes)
+- sorted-indent2-json-newline-v1: PASS (68 bytes)
+- accepted: 3/3
+
+Each encoding was both:
+1. constructed and checked by the encoding matrix; and
+2. emitted by a separate synthetic recorder run and directly verified.
+
+Mutation matrix
+---------------
+- unknown_encoding: rejected
+- wrong_whitespace: rejected
+- wrong_key_order: rejected
+- extra_newline: rejected
+- stdout_digest: rejected
+- stdout_length: rejected
+- result_schema: rejected
+- partial_ledger: rejected
+- wrong_anchor: rejected
+- receipt_binding: rejected
+- process_count: rejected
+- fallback_count: rejected
+- extra_top_level_field: rejected
+- total: 13/13 rejected
+
+Regression
+----------
+Targeted flag-off legacy / flag-on no-fallback:
+<python> -B -m pytest -p no:cacheprovider <four targeted node ids> -q
+Result: 6 passed
+
+V4 focused:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 74 passed
+
+Legacy publishing:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed
+
+Coordinator:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed
+
+Unique pytest total: 137 passed
+The targeted 6 are already included in the focused 74 and are not double-counted.
+
+Static / scope / privacy
+------------------------
+- py_compile recorder and verifier: PASS
+- evidence JSON parses: PASS
+- changed-file allowlist: PASS
+- production scripts/tests/docs/app changed: 0
+- real-shadow-bundle.json present only after final authorization: PASS
+- real-shadow-verification.json present: PASS
+- evidence bundle local paths/credentials/full environment/CLI log/raw stdout: absent
+- [DBG- markers: absent
+- git diff --check: PASS after final evidence update
+- external Gemini/agy generation: 1
+- push/deploy/publish/default promotion: 0
+
+Authorized production shadow
+----------------------------
+- final fixed package shown before authorization: PASS
+- authorization: CONSUMED_ONE_INVOCATION
+- recorder status: RECORDED
+- operation_id: 5317d8ebdb3e52f47924bf8bf6266163a2496031
+- item_id: gemini-v4-rollout-shadow-canary-002
+- attempt_id: shadow-002-attempt-1
+- model: gemini-3.5-flash
+- target profile: antigravity_cli_v1
+- executable SHA-256:
+  6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf
+- replay/process/outcome: COMPLETE/1/SUCCESS
+- output encoding: canonical-json-newline-v1
+- reconstructed stdout byte count: 59
+- reconstructed stdout SHA-256:
+  28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5
+- result schema valid: PASS
+- ledger SHA-256:
+  0d5130546f7c70f56e64c742eecb097205cdb2aae276db3865c31b5e65bc04b9
+- final anchor:
+  03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621
+- independent verifier: PASS
+- target invocations: 1
+- fallback/retry/automatic resend: 0
+- raw stdout saved: false
+- second external call: not executed and forbidden
+
+Environment note
+----------------
+This detached worktree has no local .venv. Tests used an existing project virtualenv
+interpreter with bytecode and pytest cache disabled. No dependency installation or
+repository-local runtime artifact was created.

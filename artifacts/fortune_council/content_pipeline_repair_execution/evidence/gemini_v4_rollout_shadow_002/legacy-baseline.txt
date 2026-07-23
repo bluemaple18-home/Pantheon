@@ -1,0 +1,23 @@
+Gemini V4 Shadow-002 legacy and no-fallback baseline
+====================================================
+
+Targeted command
+----------------
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_off_preserves_single_legacy_call \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_without_legacy_fallback \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_rejects_misbound_complete_result -q
+
+Result
+------
+6 passed in 0.06s
+
+Assertions
+----------
+- Flag off performs exactly one legacy call and writes the parsed result: PASS
+- Flag on BLOCKED/AMBIGUOUS/INVALID invokes legacy zero times: PASS
+- Flag on malformed schema-valid process result invokes legacy zero times: PASS
+- Flag on misbound COMPLETE result invokes legacy zero times: PASS
+- Failed flag-on paths do not write inbox results: PASS
+- External Gemini/agy generation: 0

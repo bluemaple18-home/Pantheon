@@ -1,0 +1,26 @@
+{
+  "accepted": 3,
+  "cases": [
+    {
+      "byte_count": 58,
+      "encoding": "canonical-json-v1",
+      "status": "PASS",
+      "stdout_sha256": "7cc53bf5ff7cdd437edfb07bbef1dc37b29c61dd004f0eb3c54ffbe3e454b602"
+    },
+    {
+      "byte_count": 59,
+      "encoding": "canonical-json-newline-v1",
+      "status": "PASS",
+      "stdout_sha256": "28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5"
+    },
+    {
+      "byte_count": 68,
+      "encoding": "sorted-indent2-json-newline-v1",
+      "status": "PASS",
+      "stdout_sha256": "c33faf1ba851f4e8716b7b734da3c5379a61a805958492663ecca496cb158c28"
+    }
+  ],
+  "schema_version": 1,
+  "status": "PASS",
+  "total": 3
+}

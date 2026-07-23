@@ -1,0 +1,172 @@
+{
+  "command": {
+    "attempt_id": "shadow-002-attempt-1",
+    "executable_digest": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "item_id": "gemini-v4-rollout-shadow-canary-002",
+    "model_label": "Gemini 3.5 Flash (Low)",
+    "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+    "payload_class": "PUBLIC_SANITIZED",
+    "request_bytes_length": 185,
+    "request_sha256": "5317d8ebdb3e52f47924bf8bf6266163a24960317e9c8cdeb4d3f0a4cc13753a",
+    "schema_version": 2,
+    "target_profile": "antigravity_cli_v1",
+    "timeout_milliseconds": 120000
+  },
+  "control": {
+    "byte_count": 59,
+    "exit_status": 0,
+    "final_anchor": "03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621",
+    "outcome": "SUCCESS",
+    "process_count": 1,
+    "replay_status": "COMPLETE",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5"
+  },
+  "evidence_kind": "production",
+  "executable_identity": {
+    "cli_version": "1.1.5",
+    "kind": "production",
+    "sha256": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "tool": "agy"
+  },
+  "execution": {
+    "automatic_resend_allowed": false,
+    "byte_count": 59,
+    "caller_contract_satisfied": true,
+    "errors": [],
+    "exit_status": 0,
+    "final_anchor": "03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621",
+    "outcome": "SUCCESS",
+    "output_encoding": "canonical-json-newline-v1",
+    "process_count": 1,
+    "replay_status": "COMPLETE",
+    "result": {
+      "ok": true,
+      "transport": "agy-v4-rollout-shadow-canary-002"
+    },
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "28c08d3d33806babce80bb457b636b41c9ab97595b7ff1c300a2a71440e152f5"
+  },
+  "inbox": {
+    "job_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+    "model": "gemini-3.5-flash",
+    "request_sha256": "5317d8ebdb3e52f47924bf8bf6266163a24960317e9c8cdeb4d3f0a4cc13753a",
+    "result": {
+      "ok": true,
+      "transport": "agy-v4-rollout-shadow-canary-002"
+    },
+    "schema_version": 1
+  },
+  "invocation_policy": {
+    "automatic_resend_allowed": false,
+    "automatic_retry_invocations": 0,
+    "fallback_invocations": 0,
+    "target_invocations": 1
+  },
+  "ledger": {
+    "canonical_frames": [
+      {
+        "attempt_id": "shadow-002-attempt-1",
+        "event_type": "OPERATION_CREATED",
+        "item_id": "gemini-v4-rollout-shadow-canary-002",
+        "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+        "parent_sha256": null,
+        "schema_version": 2,
+        "sequence": 1
+      },
+      {
+        "attempt_id": "shadow-002-attempt-1",
+        "broker_attempt": 1,
+        "event_type": "BROKER_ATTEMPTED",
+        "item_id": "gemini-v4-rollout-shadow-canary-002",
+        "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+        "parent_sha256": "d56f626b2dae63546397e747c46ff6a8aa71c50e6480b8686cb90a27347be31d",
+        "schema_version": 2,
+        "sequence": 2
+      },
+      {
+        "attempt_id": "shadow-002-attempt-1",
+        "broker_attempt": 1,
+        "event_type": "FORK_ATTEMPTED",
+        "item_id": "gemini-v4-rollout-shadow-canary-002",
+        "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+        "parent_sha256": "de410d62e9369281f22b50708c8dd7121e74c592853b95caa4410470e9e0ed54",
+        "process_ordinal": 1,
+        "schema_version": 2,
+        "sequence": 3
+      },
+      {
+        "attempt_id": "shadow-002-attempt-1",
+        "event_type": "EXEC_CONFIRMED",
+        "item_id": "gemini-v4-rollout-shadow-canary-002",
+        "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+        "parent_sha256": "a92c4c339146d9ddf3ab891ec9455d06b8e526ae78cbf98dea856a4f08aaa167",
+        "pid": 60986,
+        "process_ordinal": 1,
+        "schema_version": 2,
+        "sequence": 4
+      },
+      {
+        "attempt_id": "shadow-002-attempt-1",
+        "event_type": "PROCESS_TERMINAL",
+        "item_id": "gemini-v4-rollout-shadow-canary-002",
+        "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+        "outcome": "SUCCESS",
+        "parent_sha256": "ea2fef01e416c0926c53e8ab19d391a3dc5cde4e192f59a6b2b2b7923311a864",
+        "schema_version": 2,
+        "sequence": 5
+      }
+    ],
+    "encoding": "canonical-jsonl-v1",
+    "final_anchor": "03c56ce06e79c45c1e5e6a3d036ec871e8db1ee55066b62e61aadc70f875e621",
+    "ledger_sha256": "0d5130546f7c70f56e64c742eecb097205cdb2aae276db3865c31b5e65bc04b9"
+  },
+  "privacy": {
+    "cli_log_saved": false,
+    "credential_saved": false,
+    "executable_path_saved": false,
+    "full_environment_saved": false,
+    "prompt_saved": false,
+    "raw_stdout_saved": false
+  },
+  "receipt": {
+    "attempt_id": "shadow-002-attempt-1",
+    "executable_digest": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "item_id": "gemini-v4-rollout-shadow-canary-002",
+    "model": "gemini-3.5-flash",
+    "operation_id": "5317d8ebdb3e52f47924bf8bf6266163a2496031",
+    "request_sha256": "5317d8ebdb3e52f47924bf8bf6266163a24960317e9c8cdeb4d3f0a4cc13753a",
+    "target_profile": "antigravity_cli_v1"
+  },
+  "result_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "ok": {
+        "enum": [
+          true
+        ],
+        "type": "boolean"
+      },
+      "transport": {
+        "enum": [
+          "agy-v4-rollout-shadow-canary-002"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "ok",
+      "transport"
+    ],
+    "type": "object"
+  },
+  "rollout_identity": {
+    "chain_id": "CONTENT-GEMINI-V4-ROLLOUT-002",
+    "output_binding_repair_sha": "4e04e82506c4a1c2a3846640f9504fca972ae9fd",
+    "output_binding_review_sha": "1dd80978dc4c6facbb588aa8869bec8362e606a3",
+    "output_binding_review_verdict": "GO",
+    "previous_blocked_rollout_sha": "90559641a9460c26eb7c168ebbb78ce4be2a51fa",
+    "upstream_main_sha": "1dd80978dc4c6facbb588aa8869bec8362e606a3"
+  },
+  "schema_version": 1
+}

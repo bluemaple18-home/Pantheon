@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-ROLLOUT-SHADOW-002
 chain_id: CONTENT-GEMINI-V4-ROLLOUT-002
-status: CARD_DRAFTED
+status: DELIVERED_CANDIDATE
 role: rollout_shadow_owner
 ownership: v4_shadow_evidence_only
 thickness: strict
@@ -14,6 +14,12 @@ output_binding_review_sha: 1dd80978dc4c6facbb588aa8869bec8362e606a3
 output_binding_review_verdict: GO
 previous_blocked_rollout_sha: 90559641a9460c26eb7c168ebbb78ce4be2a51fa
 previous_blocker: REAL_SHADOW_OUTPUT_BINDING_MISMATCH
+offline_gate: PASS
+real_shadow_gate: PASS
+external_canary_authorization: CONSUMED_ONE_INVOCATION
+external_invocations: 1
+delivery_status: DELIVERED_CANDIDATE
+decision: READY_FOR_LIMITED_ROLLOUT_REVIEW
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_rollout_shadow_002/
 ---
 
@@ -61,7 +67,8 @@ credential、完整環境、CLI log、本機路徑或 raw stdout。
 
 ## Offline gates
 
-1. clean獨立worktree、HEAD精確等於 upstream main、lineage與cards可讀。
+1. clean獨立worktree；provisioning HEAD的唯一parent精確等於upstream main，且HEAD
+   只新增本卡；lineage與cards可讀。
 2. flag-off legacy與flag-on no-fallback回歸。
 3. V4 focused、legacy publishing、coordinator完整受影響測試。
 4. evidence-owned recorder/verifier synthetic bundle。
@@ -72,7 +79,7 @@ credential、完整環境、CLI log、本機路徑或 raw stdout。
 
 ## External canary gate
 
-external_canary_authorization: `PENDING_FINAL_CONFIRMATION`
+external_canary_authorization: `CONSUMED_ONE_INVOCATION`
 
 - Tool：既有 `agy 1.1.5`
 - Model：`gemini-3.5-flash`
@@ -112,3 +119,20 @@ tool basename、version、digest、完整 prompt、schema、encoding contract、
 - `BLOCKED`
 
 即使全綠也不得自行宣稱 rollout ready、整合、放量或上線。
+
+## Offline checkpoint
+
+- Offline gates：`PASS`。
+- V4 focused：`74 passed`。
+- Legacy publishing：`57 passed`。
+- Coordinator：`6 passed`。
+- Flag-off legacy／flag-on no-fallback targeted：`6 passed`（已包含於上述suite）。
+- Synthetic recorder：三種precommitted encoding均由獨立verifier直接重建並接受。
+- Mutation controls：`13/13 rejected`。
+- Offline階段 external Gemini／agy generation：`0`。
+- 主線展示最終固定包後取得使用者明確確認：`PASS`。
+- Production external generation：`1`；外呼額度已全數消耗。
+- Real shadow：`COMPLETE/1`、closed schema、`canonical-json-newline-v1`。
+- Independent verifier：`PASS`。
+- Current delivery：`DELIVERED_CANDIDATE / READY_FOR_LIMITED_ROLLOUT_REVIEW`。
+- 後續不得再呼叫、retry或fallback；本卡只交獨立limited rollout Review。
