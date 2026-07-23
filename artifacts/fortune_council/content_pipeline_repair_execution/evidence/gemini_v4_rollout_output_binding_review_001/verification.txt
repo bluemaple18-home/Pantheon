@@ -1,0 +1,97 @@
+Gemini V4 output binding independent review verification
+========================================================
+
+Identity / startup gate
+-----------------------
+- independent detached worktree: PASS
+- starting tree clean: PASS
+- starting HEAD: a3f88329fc7f61ee087397d1915ff330c954523e
+- HEAD contains candidate and Review card: PASS
+- base: 4bb72adaa68436c07975725330f5eda575a67e4f
+- candidate: 4e04e82506c4a1c2a3846640f9504fca972ae9fd
+- candidate parent equals base exactly: PASS
+- Review-card commit parent equals candidate exactly: PASS
+- provisioning branch points to starting HEAD: PASS
+- git-dir index.lock absent: PASS
+
+Required reads
+--------------
+- AGENTS.md: complete
+- Review card and Repair card: complete
+- Repair root-cause, red-green, verification, decision and changed-files: complete
+- production broker and runner: complete
+- affected V4 focused, legacy publishing and coordinator tests: complete
+- blocked rollout decision, verification and privacy-safe real bundle: read-only
+
+Trust-boundary checks
+---------------------
+- control byte_count checked against len(raw_result) before BrokerResult: PASS
+- control stdout_sha256 checked against SHA-256(raw_result) before BrokerResult: PASS
+- replay/process/final-anchor control binding checked first: PASS
+- .result performs JSON parse and returns dict only: PASS
+- schema-valid success alone preserves verified raw result_json bytes: PASS
+- malformed output returns caller_contract_satisfied=false/result_json=None: PASS
+- schema-invalid output returns caller_contract_satisfied=false/result_json=None: PASS
+- normalized_trace exposes parsed object only: PASS
+- runner inbox persists parsed object only: PASS
+- flag-on failure has no legacy fallback: PASS
+- flag-off preserves legacy: PASS
+- replay/concurrent duplicate and anchor exactly-once regressions: PASS
+
+Independent targeted reproduction
+---------------------------------
+Command:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py::test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding -q
+Result: 1 passed
+
+Independent synthetic contract harness
+--------------------------------------
+- pretty_binding: PASS
+- pretty_bytes: 17
+- pretty_sha256:
+  12b34da73b0c67a0319e6eddbd3582af66e3b558b4d44e4a6860e0cec20d726f
+- malformed_fail_closed: PASS
+- schema_invalid_fail_closed: PASS
+- normalized_trace_parsed_only: PASS
+- runner_inbox_parsed_only: PASS
+- legacy_fallback_calls: 0
+
+Regression
+----------
+V4 focused:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 74 passed
+
+Legacy publishing:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed
+
+Coordinator:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed
+
+Unique pytest total: 137 passed
+The targeted pretty test is included in the focused 74 and is not double-counted.
+
+Static / scope
+--------------
+- py_compile broker, runner and changed test: PASS
+- base-to-candidate actual changed files: 8
+- actual changed files equal Repair changed-files evidence: PASS
+- Repair allowlist audit: PASS
+- changed Python diff debug/credential/raw-output persistence scan: PASS
+- git diff --check before Review evidence: PASS
+- external Gemini/agy invocation: 0
+- retry/fallback/push/deploy/publish/default promotion: 0
+
+Environment note
+----------------
+The detached Review worktree had no local .venv. Tests used an existing project
+virtualenv interpreter with bytecode and pytest cache disabled for this worktree.
+No dependency install or repository-local runtime file was created.

@@ -1,13 +1,14 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-ROLLOUT-OUTPUT-BINDING-REVIEW-001
 chain_id: CONTENT-GEMINI-V4-ROLLOUT-OUTPUT-BINDING-REVIEW-001
-status: READY
+status: DELIVERED_CANDIDATE
 role: independent_reviewer
 ownership: review_only
 thickness: strict
 risk: high
 model: gpt-5.6-sol
 reasoning: high
+review_verdict: GO
 base_sha: 4bb72adaa68436c07975725330f5eda575a67e4f
 candidate_sha: 4e04e82506c4a1c2a3846640f9504fca972ae9fd
 blocked_rollout_commit: 90559641a9460c26eb7c168ebbb78ce4be2a51fa
@@ -75,3 +76,13 @@ fail-closed、ledger/anchor exactly-once、legacy default與 privacy契約？
 
 GO 只表示 Repair candidate 可交回主線考慮整合；不代表 rollout ready、已放量、
 已上線或可省略新的外部 canary確認。
+
+## Review result
+
+- Delivery：`DELIVERED_CANDIDATE / GO`
+- Findings：未發現 P0–P3 具體問題。
+- Regression：`137 passed`（V4 focused 74、legacy publishing 57、
+  coordinator 6）。
+- External Gemini／agy invocation：`0`。
+- Boundary：只建議將 Repair candidate 交回主線考慮整合；不表示 rollout ready，
+  仍需新的外部 canary 授權與確認。
