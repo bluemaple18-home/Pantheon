@@ -657,6 +657,90 @@ def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallbac
     assert "result" not in failed
 
 
+@pytest.mark.parametrize(
+    ("replay_status", "process_count", "outcome", "result_validation"),
+    (
+        (
+            {"secret": "must-not-persist"},
+            ["must-not-persist"],
+            {"secret": "must-not-persist"},
+            {"secret": "must-not-persist"},
+        ),
+        (
+            "must-not-persist",
+            "must-not-persist",
+            "must-not-persist",
+            "must-not-persist",
+        ),
+    ),
+)
+def test_runner_closes_all_forged_broker_diagnostic_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replay_status: object,
+    process_count: object,
+    outcome: object,
+    result_validation: object,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-forged-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 forged diagnostic synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    secret_marker = "must-not-persist"
+    forged = BrokerResult(
+        replay_status=replay_status,  # type: ignore[arg-type]
+        process_count=process_count,  # type: ignore[arg-type]
+        outcome=outcome,  # type: ignore[arg-type]
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=("FORGED_DIAGNOSTIC",),
+        result_validation=result_validation,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: forged)
+
+    result = process_once(tmp_path)
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    assert failed["broker_diagnostic"] == {
+        "outcome": None,
+        "process_count": "UNKNOWN",
+        "replay_status": "INVALID",
+        "result_validation": "NOT_EVALUATED",
+    }
+    assert secret_marker not in failed_path.read_text()
+
+
 def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:
     request = create_external_request(
         tmp_path,

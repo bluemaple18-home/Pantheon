@@ -1007,15 +1007,15 @@ def run_single_shot(
         try:
             candidate = json.loads(raw_result)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            candidate = None
             result_validation = "JSON_INVALID"
-        if candidate is not None and not isinstance(candidate, dict):
-            result_validation = "NOT_OBJECT"
-        elif isinstance(candidate, dict) and not _validate_json_schema(candidate, response_schema):
-            result_validation = "SCHEMA_MISMATCH"
-        elif isinstance(candidate, dict):
-            result_validation = "VALID"
-            parsed, caller_ok = candidate, True
+        else:
+            if not isinstance(candidate, dict):
+                result_validation = "NOT_OBJECT"
+            elif not _validate_json_schema(candidate, response_schema):
+                result_validation = "SCHEMA_MISMATCH"
+            else:
+                result_validation = "VALID"
+                parsed, caller_ok = candidate, True
     return BrokerResult(
         replay.status,
         replay.process_count,

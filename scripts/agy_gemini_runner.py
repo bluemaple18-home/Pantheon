@@ -27,6 +27,18 @@ from scripts.agy_gemini_v4_broker import (
 
 
 GenerateJson = Callable[[str, str, str, dict[str, Any]], dict[str, Any]]
+REPLAY_STATUS_STATES = frozenset({"COMPLETE", "BLOCKED", "AMBIGUOUS", "INVALID"})
+PROCESS_COUNT_STATES = frozenset({0, 1, "UNKNOWN"})
+OUTCOME_STATES = frozenset({
+    "CLI_NOT_FOUND",
+    "CRASH_BEFORE_FORK",
+    "PERMISSION_DENIED",
+    "EXEC_FORMAT",
+    "EXEC_RACE",
+    "SUCCESS",
+    "CLI_NONZERO",
+    "CLI_TIMEOUT",
+})
 
 
 def _cli_generate_json(role: str, model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -47,6 +59,35 @@ def _claim_next(queue_root: Path) -> Path | None:
             continue
         return target
     return None
+
+
+def _closed_broker_diagnostic(broker_result: object) -> dict[str, object]:
+    replay_status = getattr(broker_result, "replay_status", None)
+    if type(replay_status) is not str or replay_status not in REPLAY_STATUS_STATES:
+        replay_status = "INVALID"
+
+    process_count = getattr(broker_result, "process_count", None)
+    if (
+        type(process_count) not in {int, str}
+        or type(process_count) is bool
+        or process_count not in PROCESS_COUNT_STATES
+    ):
+        process_count = "UNKNOWN"
+
+    outcome = getattr(broker_result, "outcome", None)
+    if outcome is not None and (type(outcome) is not str or outcome not in OUTCOME_STATES):
+        outcome = None
+
+    result_validation = getattr(broker_result, "result_validation", None)
+    if type(result_validation) is not str or result_validation not in RESULT_VALIDATION_STATES:
+        result_validation = "NOT_EVALUATED"
+
+    return {
+        "replay_status": replay_status,
+        "process_count": process_count,
+        "outcome": outcome,
+        "result_validation": result_validation,
+    }
 
 
 def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, str]:
@@ -95,17 +136,10 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 or not broker_result.caller_contract_satisfied
                 or broker_result.result is None
             ):
-                result_validation = broker_result.result_validation
-                if result_validation not in RESULT_VALIDATION_STATES:
-                    result_validation = "NOT_EVALUATED"
-                broker_diagnostic = {
-                    "replay_status": broker_result.replay_status,
-                    "process_count": broker_result.process_count,
-                    "outcome": broker_result.outcome,
-                    "result_validation": result_validation,
-                }
+                broker_diagnostic = _closed_broker_diagnostic(broker_result)
                 raise V4BrokerFailure(
-                    f"V4 fail closed: {broker_result.replay_status}/{broker_result.process_count}"
+                    f"V4 fail closed: {broker_diagnostic['replay_status']}/"
+                    f"{broker_diagnostic['process_count']}"
                 )
             result = broker_result.result
         else:
