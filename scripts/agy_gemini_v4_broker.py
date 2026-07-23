@@ -1011,7 +1011,7 @@ def run_single_shot(
         final_anchor,
         receipt,
         caller_ok,
-        canonical_json(parsed) if parsed is not None else None,
+        raw_result if parsed is not None else None,
         replay.errors,
     )
 
