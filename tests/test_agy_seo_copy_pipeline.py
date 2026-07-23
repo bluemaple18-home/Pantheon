@@ -1489,18 +1489,14 @@ def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None
 def test_integrated_matrix_backlog_keeps_daily_queue_first_then_v2() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     backlog = build_matrix_backlog(repo_root)
+    backlog_ids = [item["id"] for item in backlog]
+    legacy_rows = pipeline._matrix_rows((repo_root / pipeline.MATRIX_PLAN).read_text(encoding="utf-8"))
+    remaining_daily = [row["id"] for row in legacy_rows if row["id"] in DAILY_QUEUE_IDS and row["id"] in backlog_ids]
 
-    assert [item["id"] for item in backlog[:6]] == [
-        "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
-        "ASTRO-SCENARIO-MOON-RISING-DIFFERENCE",
-        "ASTRO-SCENARIO-BIG-THREE",
-        "ASTRO-SCENARIO-RETROGRADE-PLANETS",
-        "ASTRO-SCENARIO-MANY-ASPECTS",
-        "ASTRO-SCENARIO-SYNASTRY-ASPECTS",
-    ]
+    assert backlog_ids[: len(remaining_daily)] == remaining_daily
     assert len(backlog) >= 1000
-    assert len({item["id"] for item in backlog}) == len(backlog)
-    assert any(item["id"].startswith("V2-") for item in backlog[6:])
+    assert len(set(backlog_ids)) == len(backlog)
+    assert any(item["id"].startswith("V2-") for item in backlog[len(remaining_daily) :])
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
