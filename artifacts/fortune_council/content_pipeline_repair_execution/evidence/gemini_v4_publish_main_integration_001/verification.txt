@@ -1,0 +1,39 @@
+Gemini V4 publish-main integration verification
+===============================================
+
+Identity / ancestry
+-------------------
+- locked publish base ancestor: PASS
+- V4 reviewed tip ancestor: PASS
+- merge parents: card commit + V4 reviewed tip
+- merge conflicts: 0
+
+Publication zero-drift
+----------------------
+git diff --quiet <publish-base>..HEAD -- \
+  app scripts/agy_content_publisher.py scripts/agy_seo_copy_pipeline.py ops/launchd
+Result: PASS
+
+Regression
+----------
+- V4 focused: 74 passed
+- legacy publishing: 57 passed
+- Gemini coordinator: 6 passed
+- content publisher: 5 passed
+- total unique: 142 passed
+
+Static / scope
+--------------
+- py_compile broker, runner, publisher and changed tests: PASS
+- git diff --check from publish base: PASS
+- debug instrumentation in V4 changed Python files: absent
+- changed paths before integration evidence: 73
+- external Gemini/agy invocation: 0
+- queue/article/automation mutation by integration owner: 0
+- push/deploy/publish/default promotion: 0
+
+Moving remote note
+------------------
+The fixed base was origin/main v0.3.7. origin/main advanced again while this candidate
+was being verified. Those later publication commits are outside this fixed candidate
+and require a final synchronization/coordination gate before any remote integration.
