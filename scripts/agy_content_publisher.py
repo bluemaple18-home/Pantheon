@@ -94,9 +94,9 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
 
 def _record_quarantine(state_root: Path, state: dict[str, Any], reason: str) -> None:
     ledger = _load_ledger(state_root)
-    existing = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
+    existing = {(str(item.get("run_id")), str(item.get("reason"))) for item in ledger["quarantined_runs"]}
     run_id = str(state.get("run_id") or "")
-    if run_id and run_id not in existing:
+    if run_id and (run_id, reason) not in existing:
         ledger["quarantined_runs"].append({"run_id": run_id, "reason": reason, "recorded_at": _now()})
         _write_json(_ledger_path(state_root), ledger)
 

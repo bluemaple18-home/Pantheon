@@ -346,6 +346,15 @@ def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, m
     state_root = tmp_path / "state"
     article = make_rewrite_article("LEGACY-001", "legacy-001")
     _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-drift", article)
+    _write_json(
+        state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [],
+            "quarantined_runs": [{"run_id": "rewrite-drift", "reason": "publisher only supports create mode"}],
+            "rewrite_released_runs": [],
+        },
+    )
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
         if args == ["status", "--porcelain"]:
@@ -388,8 +397,8 @@ def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, m
     assert result["status"] == "idle"
     assert result["legacy_rewrite_backlog"]["quarantined"] == 1
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
-    assert ledger["quarantined_runs"][0]["run_id"] == "rewrite-drift"
-    assert ledger["quarantined_runs"][0]["reason"] == "rewrite identity drift for LEGACY-001"
+    assert ledger["quarantined_runs"][-1]["run_id"] == "rewrite-drift"
+    assert ledger["quarantined_runs"][-1]["reason"] == "rewrite identity drift for LEGACY-001"
 
 
 def test_legacy_rewrite_backlog_blocks_reject_repair_until_all_legacy_attempted(tmp_path: Path) -> None:
