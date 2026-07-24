@@ -41,6 +41,14 @@ OUTCOME_STATES = frozenset({
     "CLI_NONZERO",
     "CLI_TIMEOUT",
 })
+JSON_DIAGNOSTIC_STATES = frozenset({
+    "EMPTY",
+    "UTF8_INVALID",
+    "MARKDOWN_FENCE",
+    "WRAPPED_JSON",
+    "PARSE_ERROR_AT_END",
+    "PARSE_ERROR_OTHER",
+})
 SCHEMA_DIAGNOSTIC_KEYWORDS = frozenset({
     "additionalProperties",
     "enum",
@@ -192,6 +200,13 @@ def _closed_broker_diagnostic(
     schema_diagnostics = _closed_schema_diagnostics(broker_result, response_schema)
     if schema_diagnostics:
         diagnostic["schema_diagnostics"] = schema_diagnostics
+    json_diagnostic = getattr(broker_result, "json_diagnostic", None)
+    if (
+        result_validation == "JSON_INVALID"
+        and type(json_diagnostic) is str
+        and json_diagnostic in JSON_DIAGNOSTIC_STATES
+    ):
+        diagnostic["json_diagnostic"] = json_diagnostic
     return diagnostic
 
 

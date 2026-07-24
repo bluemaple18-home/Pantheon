@@ -121,6 +121,14 @@ V4 仍不得成為預設 transport。預設切換必須另有 migration commit�
 runner adapter 遺失。對應 Repair 在 runner seam 補回 deterministic envelope，
 不修改 broker／ledger／anchor／replay，也不授權第三次真實 canary。
 
+Activation-004 在 envelope 與 schema diagnostics 已 Review 後仍得到
+`COMPLETE/1 / SUCCESS / JSON_INVALID`。目前 production 嚴格 parser 不猜測內容；
+broker 只把 parse failure 收斂成 closed、value-free 的 `EMPTY / UTF8_INVALID /
+MARKDOWN_FENCE / WRAPPED_JSON / PARSE_ERROR_AT_END / PARSE_ERROR_OTHER`，
+runner 再做獨立 allowlist。分類不保存 raw output、片段、offset 或 parser message，
+也不代表 caller contract 已滿足。未取得下一次明確外呼確認前，狀態維持
+`BLOCKED / DO_NOT_PROMOTE_DEFAULT`。
+
 Rollback 只關閉 feature flag並回到切換前 code path；V4 ledger／anchor保留唯讀，不轉譯成舊 receipt、不補 terminal、不 replay target。若 flag-on operation 已留下 `BLOCKED/AMBIGUOUS/INVALID`，rollback 也不得觸發 legacy fallback。
 
 ## Remaining review boundary

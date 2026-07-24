@@ -142,6 +142,14 @@ class V4BrokerFailure(RuntimeError):
 
 
 ProcessCount = int | Literal["UNKNOWN"]
+JsonDiagnostic = Literal[
+    "EMPTY",
+    "UTF8_INVALID",
+    "MARKDOWN_FENCE",
+    "WRAPPED_JSON",
+    "PARSE_ERROR_AT_END",
+    "PARSE_ERROR_OTHER",
+]
 
 
 def canonical_json(value: object) -> bytes:
@@ -302,6 +310,34 @@ class SchemaDiagnostic:
     path: tuple[str | int, ...]
 
 
+def _diagnose_json_invalid(
+    raw: bytes,
+    error: json.JSONDecodeError | UnicodeDecodeError,
+) -> JsonDiagnostic:
+    if not raw.strip():
+        return "EMPTY"
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "UTF8_INVALID"
+    stripped = text.strip()
+    if stripped.startswith("```") or stripped.endswith("```"):
+        return "MARKDOWN_FENCE"
+    first_object = text.find("{")
+    last_object = text.rfind("}")
+    if first_object >= 0 and last_object > first_object:
+        try:
+            embedded = json.loads(text[first_object:last_object + 1])
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        else:
+            if isinstance(embedded, dict):
+                return "WRAPPED_JSON"
+    if isinstance(error, json.JSONDecodeError) and error.pos >= len(text.rstrip()):
+        return "PARSE_ERROR_AT_END"
+    return "PARSE_ERROR_OTHER"
+
+
 @dataclass(frozen=True)
 class BrokerResult:
     replay_status: str
@@ -319,6 +355,7 @@ class BrokerResult:
     automatic_resend_allowed: bool = False
     result_validation: str = "NOT_EVALUATED"
     schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
+    json_diagnostic: JsonDiagnostic | None = None
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -1078,11 +1115,13 @@ def run_single_shot(
     caller_ok = False
     result_validation = "NOT_EVALUATED"
     schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
+    json_diagnostic: JsonDiagnostic | None = None
     if replay.status == "COMPLETE" and replay.process_count == 1 and control["outcome"] == "SUCCESS":
         try:
             candidate = json.loads(raw_result)
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
             result_validation = "JSON_INVALID"
+            json_diagnostic = _diagnose_json_invalid(raw_result, error)
         else:
             if not isinstance(candidate, dict):
                 result_validation = "NOT_OBJECT"
@@ -1108,6 +1147,7 @@ def run_single_shot(
         replay.errors,
         result_validation=result_validation,
         schema_diagnostics=schema_diagnostics,
+        json_diagnostic=json_diagnostic,
     )
 
 

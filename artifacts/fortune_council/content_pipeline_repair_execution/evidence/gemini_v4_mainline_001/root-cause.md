@@ -36,3 +36,40 @@
 最小修正讓 replay 與結果共用同一個 `replay_anchor`。單一測試由 RED 轉 GREEN，完整 focused suite 由 baseline `68 passed` 變為 `69 passed`；補上 malformed-output control 後 synthetic acceptance matrix 為 `21 passed`。
 
 唯一真實 `agy 1.1.5` canary 隨後得到 durable `COMPLETE/1`、一個 `EXEC_CONFIRMED`、strict schema結果與無 failed record。技術 blocker 已解除；尚存治理邊界是獨立 Review、shadow run 與另立 migration commit，因此本卡不切預設、不放量。
+
+## JSON_INVALID continuation（2026-07-24）
+
+### 新 production truth
+
+- Activation-004：`COMPLETE/1`、process outcome `SUCCESS`、replay
+  `COMPLETE`，但 `result_validation=JSON_INVALID` 且沒有 inbox delivery。
+- 同一 production transport 的歷史真實結果包含 `VALID`、
+  `SCHEMA_MISMATCH` 與 `JSON_INVALID`；因此「agy 固定加入相同 wrapper」已被
+  否證。
+- durable failed record 依 privacy boundary 不保存 raw response；既有證據無法
+  區分空輸出、encoding、Markdown fence／前後包裝、末端 parse failure 或其他
+  syntax failure。
+
+### 可證偽假說
+
+1. 若是固定 Markdown fence／前後包裝，closed classifier 應回報
+   `MARKDOWN_FENCE` 或 `WRAPPED_JSON`。
+2. 若輸出可能被截斷，classifier 應回報客觀的 `PARSE_ERROR_AT_END`；此名稱不宣稱
+   截斷原因。
+3. 若是空輸出或 encoding 問題，應分別回報 `EMPTY` 或 `UTF8_INVALID`。
+4. 其他不符合以上結構者只能回報 `PARSE_ERROR_OTHER`，不得保存 parser message、
+   offset 或內容片段。
+
+### Feedback loop 與最小修正
+
+- RED：六種 broker stdout 分類加 runner persistence 共 7 cases，production
+  尚無 `json_diagnostic`，結果 `7 failed`。
+- GREEN：broker 只產 closed enum；runner 以另一份 allowlist 二次過濾。加入 forged
+  string／object negative controls 後 `9 passed`。
+- JSON 接受條件、schema、ledger、anchor、replay、process count 與 fallback 行為
+  都未修改。
+
+### 目前 blocker
+
+本 candidate 只讓下一次失敗可被安全歸因，沒有證據可以選擇任何 tolerant parse
+修正，因此狀態仍是 `BLOCKED`。下一次真實 canary 未獲本 continuation 授權。

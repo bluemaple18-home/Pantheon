@@ -65,3 +65,19 @@ NOT RUN / NOT AUTHORIZED
 - content shadow run
 - default transport migration
 - merge, push, deploy or publish
+
+JSON_INVALID CONTINUATION
+source evidence: Activation-004 durable COMPLETE/1 / SUCCESS / JSON_INVALID
+targeted RED: 7 failed
+targeted GREEN plus forged controls: 9 passed in 1.23s
+py_compile: PASS
+debug marker scan: PASS
+first affected-suite run: 95 passed, 1 timeout-fixture trace race failed
+isolated timeout-fixture rerun: 1 passed in 0.58s
+final affected suite after local review adjustment: 122 passed in 33.86s
+continuation allowlist / added-diff privacy / diff check: PASS / PASS / PASS
+local review: normalized trace schema change removed; no remaining P0-P2 finding
+production JSON acceptance relaxed: false
+ledger / anchor / replay modified: false
+external call: 0
+decision: BLOCKED
