@@ -220,6 +220,24 @@ def _legacy_rewrite_article_brief(
     }
 
 
+def _compact_legacy_backlog(backlog: dict[str, Any]) -> dict[str, Any]:
+    preview = backlog.get("unattempted_articles")
+    return {
+        "released": backlog.get("released", 0),
+        "clean_approve": backlog.get("clean_approve", 0),
+        "reject": backlog.get("reject", 0),
+        "active_or_incomplete": backlog.get("active_or_incomplete", 0),
+        "non_legacy": backlog.get("non_legacy", 0),
+        "legacy_total": backlog.get("legacy_total", 0),
+        "attempted": backlog.get("attempted", 0),
+        "unattempted": backlog.get("unattempted", 0),
+        "clean_approve_run_ids": backlog.get("clean_approve_run_ids", []),
+        "reject_run_ids": backlog.get("reject_run_ids", []),
+        "unattempted_preview": preview[:5] if isinstance(preview, list) else [],
+        "repair_rejects_allowed": backlog.get("repair_rejects_allowed", False),
+    }
+
+
 def seed_legacy_rewrite_runs(
     repo_root: Path,
     queue_root: Path,
@@ -247,9 +265,9 @@ def seed_legacy_rewrite_runs(
         legacy_records=legacy_records,
     )
     if backlog["clean_approve"] > 0:
-        return {"status": "publish_ready_first", "created": 0, "created_run_ids": [], "backlog": backlog}
+        return {"status": "publish_ready_first", "created": 0, "created_run_ids": [], "backlog": _compact_legacy_backlog(backlog)}
     if backlog["unattempted"] <= 0:
-        return {"status": "idle", "created": 0, "created_run_ids": [], "backlog": backlog}
+        return {"status": "idle", "created": 0, "created_run_ids": [], "backlog": _compact_legacy_backlog(backlog)}
 
     registered_article_ids = _registered_rewrite_article_ids(queue_root)
     inventory = pipeline._existing_rewrite_inventory(repo_root)
@@ -287,7 +305,7 @@ def seed_legacy_rewrite_runs(
         "status": "seeded" if created else "idle",
         "created": len(created),
         "created_run_ids": created,
-        "backlog": backlog,
+        "backlog": _compact_legacy_backlog(backlog),
     }
 
 
