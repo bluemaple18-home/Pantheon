@@ -255,6 +255,7 @@ def summarize_legacy_rewrite_backlog(
     state_root: Path,
     *,
     allowed_article_ids: set[str],
+    legacy_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
@@ -264,9 +265,14 @@ def summarize_legacy_rewrite_backlog(
         "reject": 0,
         "active_or_incomplete": 0,
         "non_legacy": 0,
+        "legacy_total": len(legacy_records) if legacy_records is not None else len(allowed_article_ids),
+        "attempted": 0,
+        "unattempted": 0,
         "clean_approve_run_ids": [],
         "reject_run_ids": [],
+        "unattempted_articles": [],
     }
+    attempted_article_ids: set[str] = set()
     for state_path in _run_files(queue_root):
         try:
             state, candidate, review = _load_completed_run(state_path)
@@ -279,6 +285,7 @@ def summarize_legacy_rewrite_backlog(
         if not candidate_article_ids <= allowed_article_ids:
             summary["non_legacy"] += 1
             continue
+        attempted_article_ids.update(candidate_article_ids)
         if run_id in released:
             summary["released"] += 1
             continue
@@ -294,7 +301,19 @@ def summarize_legacy_rewrite_backlog(
         else:
             summary["reject"] += 1
             summary["reject_run_ids"].append(run_id)
-    summary["repair_rejects_allowed"] = summary["clean_approve"] == 0 and summary["reject"] > 0
+    summary["attempted"] = len(attempted_article_ids)
+    if legacy_records is not None:
+        unattempted_records = [record for record in legacy_records if str(record.get("id") or "") not in attempted_article_ids]
+        summary["unattempted"] = len(unattempted_records)
+        summary["unattempted_articles"] = [_legacy_article_summary(record) for record in unattempted_records]
+    else:
+        summary["unattempted"] = max(0, len(allowed_article_ids) - len(attempted_article_ids))
+    summary["repair_rejects_allowed"] = (
+        summary["clean_approve"] == 0
+        and summary["active_or_incomplete"] == 0
+        and summary["unattempted"] == 0
+        and summary["reject"] > 0
+    )
     return summary
 
 
@@ -361,6 +380,16 @@ def legacy_article_records(repo_root: Path) -> list[dict[str, Any]]:
 
 def legacy_article_ids(repo_root: Path) -> set[str]:
     return {str(record["id"]) for record in legacy_article_records(repo_root)}
+
+
+def _legacy_article_summary(record: dict[str, Any]) -> dict[str, str]:
+    return {
+        "id": str(record.get("id") or ""),
+        "serial": _record_serial(record),
+        "category": _record_category(record),
+        "path": str(record.get("path") or ""),
+        "title": str(record.get("title") or ""),
+    }
 
 
 def legacy_serial_report(repo_root: Path) -> dict[str, Any]:
@@ -679,8 +708,14 @@ def publish_ready_rewrite_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "rewritten": 0}
         base_sha = _assert_clean_origin_head(repo_root, git)
-        allowed_article_ids = legacy_article_ids(repo_root)
-        backlog_summary = summarize_legacy_rewrite_backlog(queue_root, state_root, allowed_article_ids=allowed_article_ids)
+        legacy_records = legacy_article_records(repo_root)
+        allowed_article_ids = {str(record["id"]) for record in legacy_records}
+        backlog_summary = summarize_legacy_rewrite_backlog(
+            queue_root,
+            state_root,
+            allowed_article_ids=allowed_article_ids,
+            legacy_records=legacy_records,
+        )
         ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs, allowed_article_ids=allowed_article_ids)
         if not ready:
             status = "idle_rejects_only" if backlog_summary["repair_rejects_allowed"] else "idle"

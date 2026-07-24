@@ -278,6 +278,49 @@ def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, mo
     assert ready == []
 
 
+def test_legacy_rewrite_backlog_blocks_reject_repair_until_all_legacy_attempted(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    rejected = make_rewrite_article("LEGACY-REJECTED", "legacy-rejected")
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-rejected", rejected, verdict="REJECT")
+    legacy_records = [
+        {"id": "LEGACY-REJECTED", "serial": "astrology-0001", "articleCategory": "astrology"},
+        {"id": "LEGACY-UNATTEMPTED", "serial": "astrology-0002", "articleCategory": "astrology"},
+    ]
+
+    summary = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={"LEGACY-REJECTED", "LEGACY-UNATTEMPTED"},
+        legacy_records=legacy_records,
+    )
+
+    assert summary["clean_approve"] == 0
+    assert summary["reject"] == 1
+    assert summary["attempted"] == 1
+    assert summary["unattempted"] == 1
+    assert summary["unattempted_articles"][0]["serial"] == "astrology-0002"
+    assert summary["repair_rejects_allowed"] is False
+
+
+def test_legacy_rewrite_backlog_allows_reject_repair_after_all_legacy_attempted(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    rejected = make_rewrite_article("LEGACY-REJECTED", "legacy-rejected")
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-rejected", rejected, verdict="REJECT")
+    legacy_records = [{"id": "LEGACY-REJECTED", "serial": "astrology-0001", "articleCategory": "astrology"}]
+
+    summary = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={"LEGACY-REJECTED"},
+        legacy_records=legacy_records,
+    )
+
+    assert summary["unattempted"] == 0
+    assert summary["repair_rejects_allowed"] is True
+
+
 def test_legacy_serial_report_uses_pre_automated_gemini_cutoff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     records = [
         {"id": f"OLD-{index}", "serial": f"astrology-{index:04d}", "articleCategory": "astrology"}
@@ -308,7 +351,7 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     run_dir = tmp_path / "runs" / "rewrite-approved"
     _write_rewrite_run(queue_root, run_dir, article)
     monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
-    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
+    monkeypatch.setattr(publisher, "legacy_article_records", lambda _repo: [{"id": "LEGACY-001", "serial": "astrology-0001", "articleCategory": "astrology"}])
     monkeypatch.setattr(
         publisher.pipeline,
         "_existing_rewrite_inventory",
