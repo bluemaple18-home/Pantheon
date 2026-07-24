@@ -264,13 +264,16 @@ def _filter_rewrite_runs_with_current_sources(
     repo_root: Path,
     state_root: Path,
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]],
+    *,
+    quarantine: bool,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     filtered: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     for state, candidate, review, brief in ready:
         try:
             _assert_rewrite_source_matches(repo_root, [candidate])
         except PublishBlocked as exc:
-            _record_quarantine(state_root, state, str(exc))
+            if quarantine:
+                _record_quarantine(state_root, state, str(exc))
             continue
         filtered.append((state, candidate, review, brief))
     return filtered
@@ -778,7 +781,7 @@ def publish_ready_rewrite_runs(
             legacy_records=legacy_records,
         )
         ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs, allowed_article_ids=allowed_article_ids)
-        ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready)
+        ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
         if not ready:
             backlog_summary = summarize_legacy_rewrite_backlog(
                 queue_root,

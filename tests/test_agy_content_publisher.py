@@ -389,7 +389,6 @@ def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, m
         queue_root,
         state_root,
         git=fake_git,
-        dry_run=True,
         run_tests=False,
         release_gate=False,
     )
