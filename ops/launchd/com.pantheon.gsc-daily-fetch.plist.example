@@ -9,7 +9,7 @@
   <array>
     <string>__PYTHON__</string>
     <string>-m</string>
-    <string>scripts.gsc_daily_fetch</string>
+    <string>scripts.gsc_daily_cycle</string>
   </array>
 
   <key>WorkingDirectory</key>

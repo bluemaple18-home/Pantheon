@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 
 GSC_API = "https://www.googleapis.com/webmasters/v3"
+URL_INSPECTION_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
 GSC_READONLY_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 DEFAULT_PAGE_SIZE = 25_000
 DEFAULT_MAX_ROWS = 250_000
@@ -191,6 +192,27 @@ class GscReadonlyClient:
 
     def list_properties(self) -> list[dict[str, Any]]:
         return list(self._request("GET", f"{GSC_API}/sites").get("siteEntry") or [])
+
+    def inspect_url(
+        self,
+        property_url: str,
+        inspection_url: str,
+        *,
+        language_code: str = "en-US",
+    ) -> dict[str, Any]:
+        response = self._request(
+            "POST",
+            URL_INSPECTION_API,
+            {
+                "siteUrl": property_url,
+                "inspectionUrl": inspection_url,
+                "languageCode": language_code,
+            },
+        )
+        result = response.get("inspectionResult")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"URL Inspection 缺少 inspectionResult：{inspection_url}")
+        return result
 
     def query_page(
         self,
