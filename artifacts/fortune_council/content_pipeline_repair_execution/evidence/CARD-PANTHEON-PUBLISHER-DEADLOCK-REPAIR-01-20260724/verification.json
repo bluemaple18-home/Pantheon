@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-01-20260724",
+  "chain": "pantheon-publisher-deadlock-repair-20260724",
+  "generation": "Repair-1",
+  "status": "REPAIR_READY_FOR_REVIEW",
+  "parent_candidate": "21dab0283f5a6690d1d4cd1631efe1354955818e",
+  "original_reviewer_thread": "019f9497-d801-7183-b4a9-9c9388aadd15",
+  "findings": {
+    "PPD-R-001": {
+      "severity": "P1",
+      "tests": [
+        "test_transaction_preserves_owned_change_between_clean_check_and_mutation",
+        "test_recovery_never_overwrites_concurrent_post_image_bytes"
+      ],
+      "result": "GREEN"
+    },
+    "PPD-R-002": {
+      "severity": "P1",
+      "tests": [
+        "test_atomic_push_exception_reconciles_remote_matrix[base--rollback]",
+        "test_atomic_push_exception_reconciles_remote_matrix[candidate-candidate-committed]",
+        "test_atomic_push_exception_reconciles_remote_matrix[candidate--unknown]"
+      ],
+      "result": "GREEN"
+    },
+    "PPD-R-003": {
+      "severity": "P1",
+      "tests": [
+        "test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable"
+      ],
+      "result": "GREEN"
+    },
+    "PPD-R-004": {
+      "severity": "P2",
+      "tests": [
+        "test_recovery_fault_always_has_pre_cleanup_metadata[archive-copy]",
+        "test_recovery_fault_always_has_pre_cleanup_metadata[update-ref]",
+        "test_recovery_fault_always_has_pre_cleanup_metadata[restore]",
+        "test_recovery_fault_always_has_pre_cleanup_metadata[unlink]",
+        "test_recovery_fault_always_has_pre_cleanup_metadata[tag-delete]",
+        "test_recovery_fault_always_has_pre_cleanup_metadata[final-evidence-write]"
+      ],
+      "result": "GREEN"
+    }
+  },
+  "verification": [
+    {
+      "scope": "publisher-focused",
+      "command": "<project-venv>/bin/python -m pytest tests/test_agy_content_publisher.py -q",
+      "passed": 32,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "scope": "three-agy-files",
+      "command": "<project-venv>/bin/python -m pytest tests/test_agy_content_publisher.py tests/test_agy_seo_copy_pipeline.py tests/test_agy_multilingual_pipeline.py -q",
+      "passed": 107,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "scope": "web",
+      "command": "<project-venv>/bin/python -m pytest tests/test_web.py -q",
+      "passed": 63,
+      "failed": 0,
+      "warnings": 1,
+      "exit_code": 0
+    },
+    {
+      "scope": "full",
+      "command": "<project-venv>/bin/python -m pytest -q",
+      "passed": 401,
+      "failed": 0,
+      "warnings": 1,
+      "exit_code": 0
+    },
+    {
+      "scope": "diff-check",
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "dependency_restore": {
+    "reason": "The first full run had only the two card-predeclared Ziwei failures because node_modules/iztro was absent.",
+    "command": "pnpm install --frozen-lockfile",
+    "manifest_changed": false,
+    "lockfile_changed": false,
+    "exit_code": 0
+  }
+}

@@ -6,9 +6,10 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import fcntl
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -37,10 +38,62 @@ TEST_COMMAND = [
     "-q",
 ]
 SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION", "idle", "idle_rejects_only", "busy", "dry-run"}
+RETRY_DELAY_SECONDS = 300
+MAX_RETRY_ATTEMPTS = 3
 
 
 class PublishBlocked(ValueError):
     """發布 gate fail-closed。"""
+
+
+class PushOutcomeUnknown(PublishBlocked):
+    """遠端 atomic push 結果無法安全判定。"""
+
+
+class MutationJournal:
+    """記錄 publisher write-set 的 pre/post image，避免 recovery 覆寫並行 bytes。"""
+
+    def __init__(self, repo_root: Path, git: GitRunner) -> None:
+        self.repo_root = repo_root
+        self.git = git
+        self.pre_images: dict[str, bytes | None] = {}
+        self.expected_post_images: dict[str, bytes | None] = {}
+        self.mutation_started = False
+
+    def _owned_files(self) -> set[str]:
+        paths = set(_git_paths(self.repo_root, self.git, ["ls-files", "-co", "--exclude-standard", "-z"]))
+        return {path for path in paths if _publisher_owned_path(path)}
+
+    def _read(self, relative: str) -> bytes | None:
+        path = self.repo_root / relative
+        return path.read_bytes() if path.is_file() else None
+
+    def begin(self) -> None:
+        if self.mutation_started:
+            return
+        self.pre_images = {relative: self._read(relative) for relative in self._owned_files()}
+        self.mutation_started = True
+
+    def checkpoint(self, paths: list[str] | None = None) -> None:
+        if not self.mutation_started:
+            return
+        write_set = set(paths or self._owned_files()) | set(self.pre_images)
+        for relative in write_set:
+            if _publisher_owned_path(relative):
+                self.pre_images.setdefault(relative, None)
+                self.expected_post_images[relative] = self._read(relative)
+
+    def image_metadata(self) -> dict[str, dict[str, str | bool | None]]:
+        relatives = sorted(set(self.pre_images) | set(self.expected_post_images))
+        return {
+            relative: {
+                "pre_exists": self.pre_images.get(relative) is not None,
+                "pre_sha256": _bytes_sha256(self.pre_images.get(relative)),
+                "expected_post_exists": self.expected_post_images.get(relative) is not None,
+                "expected_post_sha256": _bytes_sha256(self.expected_post_images.get(relative)),
+            }
+            for relative in relatives
+        }
 
 
 def _now() -> str:
@@ -53,6 +106,77 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: object) -> None:
     pipeline.write_json(path, payload)
+
+
+def _bytes_sha256(value: bytes | None) -> str | None:
+    return hashlib.sha256(value).hexdigest() if value is not None else None
+
+
+def _atomic_write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def _repo_lock_path(repo_root: Path, git: GitRunner) -> Path:
+    try:
+        common_dir = Path(git(repo_root, ["rev-parse", "--git-common-dir"], None))
+        if not common_dir.is_absolute():
+            common_dir = repo_root / common_dir
+    except (OSError, subprocess.CalledProcessError):
+        common_dir = repo_root / ".git"
+    common_dir.mkdir(parents=True, exist_ok=True)
+    return common_dir / "agy-content-publisher.transaction.lock"
+
+
+def _retry_path(state_root: Path, phase: str, run_id: str) -> Path:
+    safe_run_id = re.sub(r"[^A-Za-z0-9._-]+", "-", run_id).strip("-") or "unknown"
+    return state_root / "retry" / phase / f"{safe_run_id}.json"
+
+
+def _retry_eligible(state_root: Path, phase: str, run_id: str) -> bool:
+    path = _retry_path(state_root, phase, run_id)
+    if not path.is_file():
+        return True
+    try:
+        retry = _read_json(path)
+        attempts = int(retry.get("attempts", 0))
+        next_eligible = datetime.fromisoformat(str(retry["next_eligible_at"]))
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return False
+    return attempts < MAX_RETRY_ATTEMPTS and datetime.now().astimezone() >= next_eligible
+
+
+def _record_retry_failure(
+    state_root: Path,
+    phase: str,
+    run_ids: list[str],
+    error: Exception,
+    evidence_path: Path,
+) -> None:
+    for run_id in run_ids:
+        path = _retry_path(state_root, phase, run_id)
+        previous = _read_json(path) if path.is_file() else {}
+        attempts = int(previous.get("attempts", 0)) + 1
+        delay = RETRY_DELAY_SECONDS * (2 ** min(attempts - 1, 4))
+        _atomic_write_json(
+            path,
+            {
+                "schema_version": SCHEMA_VERSION,
+                "phase": phase,
+                "run_id": run_id,
+                "attempts": attempts,
+                "max_attempts": MAX_RETRY_ATTEMPTS,
+                "error_type": type(error).__name__,
+                "error": str(error),
+                "evidence": str(evidence_path),
+                "last_attempt_at": _now(),
+                "next_eligible_at": (datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(timespec="seconds"),
+                "eligibility": "exhausted" if attempts >= MAX_RETRY_ATTEMPTS else "deferred",
+                "candidate_preserved": True,
+            },
+        )
 
 
 def run_git(repo_root: Path, args: list[str], input_text: str | None = None) -> str:
@@ -94,7 +218,7 @@ def _publisher_owned_path(relative: str) -> bool:
     }
 
 
-def _queued_run_ids(queue_root: Path, phase: str, limit: int) -> list[str]:
+def _queued_run_ids(queue_root: Path, state_root: Path, phase: str, limit: int) -> list[str]:
     expected_mode = {
         "create": "create",
         "rewrite": "rewrite_existing_body",
@@ -108,8 +232,14 @@ def _queued_run_ids(queue_root: Path, phase: str, limit: int) -> list[str]:
             brief = _read_json(run_dir / "brief.json")
         except (OSError, json.JSONDecodeError):
             continue
-        if state.get("status") == "complete" and brief.get("mode") == expected_mode:
-            run_ids.append(str(state.get("run_id") or ""))
+        run_id = str(state.get("run_id") or "")
+        if (
+            state.get("status") == "complete"
+            and brief.get("mode") == expected_mode
+            and run_id
+            and _retry_eligible(state_root, phase, run_id)
+        ):
+            run_ids.append(run_id)
         if len(run_ids) >= limit:
             break
     return [run_id for run_id in run_ids if run_id]
@@ -124,6 +254,7 @@ def _recover_failed_publish(
     run_ids: list[str],
     error: Exception,
     git: GitRunner,
+    journal: MutationJournal | None = None,
 ) -> Path:
     """保存失敗證據，只還原從乾淨 base 產生的本輪 repo 變更。"""
     failed_head = git(repo_root, ["rev-parse", "HEAD"], None)
@@ -132,31 +263,78 @@ def _recover_failed_publish(
     evidence_dir = state_root / "evidence" / f"failed-{phase}-{suffix}"
     evidence_dir.mkdir(parents=True, exist_ok=False)
     status_before = git(repo_root, ["status", "--porcelain"], None)
-    (evidence_dir / "working-tree.patch").write_text(
-        git(repo_root, ["diff", "--binary", base_sha], None),
-        encoding="utf-8",
+    failure_attempt = evidence_dir / "failure-attempt.json"
+    _atomic_write_json(
+        failure_attempt,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "status": "RECOVERY_PENDING",
+            "phase": phase,
+            "run_ids": run_ids,
+            "base_sha": base_sha,
+            "failed_head": failed_head,
+            "error_type": type(error).__name__,
+            "error": str(error),
+            "return_code": error.returncode if isinstance(error, subprocess.CalledProcessError) else None,
+            "status_before_recovery": status_before.splitlines(),
+            "mutation_started": bool(journal and journal.mutation_started),
+            "write_set": journal.image_metadata() if journal else {},
+            "recorded_at": _now(),
+        },
     )
-    untracked = _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"])
-    for relative in untracked:
-        source = repo_root / relative
-        if not source.is_file():
-            continue
-        target = evidence_dir / "untracked" / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+    recovery_result = evidence_dir / "recovery-result.json"
+    cleanup_steps: list[dict[str, Any]] = []
+
+    def record_step(step: str, status: str, **details: Any) -> None:
+        cleanup_steps.append({"step": step, "status": status, **details, "recorded_at": _now()})
+        _atomic_write_json(
+            recovery_result,
+            {
+                "schema_version": SCHEMA_VERSION,
+                "phase": phase,
+                "run_ids": run_ids,
+                "base_sha": base_sha,
+                "failed_head": failed_head,
+                "steps": cleanup_steps,
+            },
+        )
+
+    untracked: list[str] = []
+    try:
+        (evidence_dir / "working-tree.patch").write_text(
+            git(repo_root, ["diff", "--binary", base_sha], None),
+            encoding="utf-8",
+        )
+        untracked = _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"])
+        for relative in untracked:
+            source = repo_root / relative
+            if not source.is_file():
+                continue
+            target = evidence_dir / "untracked" / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+    except Exception as cleanup_error:
+        record_step("archive-copy", "failed", error_type=type(cleanup_error).__name__, error=str(cleanup_error))
+        raise
+    record_step("archive-copy", "complete", untracked=untracked)
 
     created_tags: list[str] = []
-    if failed_head != base_sha:
-        created_tags = [
-            tag
-            for tag in git(repo_root, ["tag", "--points-at", failed_head], None).splitlines()
-            if re.fullmatch(r"v\d+\.\d+\.\d+", tag)
-        ]
-        git(
-            repo_root,
-            ["update-ref", "-m", f"rollback failed {phase} publish", "HEAD", base_sha, failed_head],
-            None,
-        )
+    try:
+        if failed_head != base_sha:
+            created_tags = [
+                tag
+                for tag in git(repo_root, ["tag", "--points-at", failed_head], None).splitlines()
+                if re.fullmatch(r"v\d+\.\d+\.\d+", tag)
+            ]
+            git(
+                repo_root,
+                ["update-ref", "-m", f"rollback failed {phase} publish", "HEAD", base_sha, failed_head],
+                None,
+            )
+    except Exception as cleanup_error:
+        record_step("update-ref", "failed", error_type=type(cleanup_error).__name__, error=str(cleanup_error))
+        raise
+    record_step("update-ref", "complete", updated=failed_head != base_sha)
 
     changed_tracked = sorted(
         set(
@@ -165,20 +343,62 @@ def _recover_failed_publish(
         )
     )
     tracked = [relative for relative in changed_tracked if _publisher_owned_path(relative)]
-    if tracked:
-        git(repo_root, ["restore", f"--source={base_sha}", "--staged", "--worktree", "--", *tracked], None)
-    for relative in _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"]):
-        path = repo_root / relative
-        if _publisher_owned_path(relative) and (path.is_file() or path.is_symlink()):
-            path.unlink()
-    for tag in created_tags:
-        git(repo_root, ["tag", "-d", tag], None)
+    conflicts: list[str] = []
+    restored: list[str] = []
+    try:
+        if journal and journal.mutation_started:
+            for relative in sorted(set(journal.pre_images) | set(journal.expected_post_images)):
+                current = journal._read(relative)
+                expected = journal.expected_post_images.get(relative)
+                if current != expected:
+                    conflicts.append(relative)
+                    continue
+                path = repo_root / relative
+                pre_image = journal.pre_images.get(relative)
+                if pre_image is None:
+                    if path.is_file() or path.is_symlink():
+                        path.unlink()
+                else:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(pre_image)
+                restored.append(relative)
+            if restored:
+                git(repo_root, ["add", "-A"], None)
+                git(repo_root, ["reset", "-q", base_sha], None)
+        elif tracked:
+            git(repo_root, ["restore", f"--source={base_sha}", "--staged", "--worktree", "--", *tracked], None)
+            restored.extend(tracked)
+    except Exception as cleanup_error:
+        record_step("restore", "failed", error_type=type(cleanup_error).__name__, error=str(cleanup_error))
+        raise
+    record_step("restore", "conflict" if conflicts else "complete", restored=restored, conflicts=conflicts)
+
+    removed_untracked: list[str] = []
+    try:
+        if not journal:
+            for relative in _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"]):
+                path = repo_root / relative
+                if _publisher_owned_path(relative) and (path.is_file() or path.is_symlink()):
+                    path.unlink()
+                    removed_untracked.append(relative)
+    except Exception as cleanup_error:
+        record_step("unlink", "failed", error_type=type(cleanup_error).__name__, error=str(cleanup_error))
+        raise
+    record_step("unlink", "complete", removed=removed_untracked)
+    try:
+        for tag in created_tags:
+            git(repo_root, ["tag", "-d", tag], None)
+    except Exception as cleanup_error:
+        record_step("tag-delete", "failed", error_type=type(cleanup_error).__name__, error=str(cleanup_error))
+        raise
+    record_step("tag-delete", "complete", removed=created_tags)
 
     status_after = git(repo_root, ["status", "--porcelain"], None)
     evidence_path = evidence_dir / "failure.json"
-    _write_json(
-        evidence_path,
-        {
+    try:
+        _write_json(
+            evidence_path,
+            {
             "schema_version": SCHEMA_VERSION,
             "status": "FAILED_RECOVERED" if not status_after else "FAILED_RECOVERY_INCOMPLETE",
             "phase": phase,
@@ -190,17 +410,28 @@ def _recover_failed_publish(
             "status_before_recovery": status_before.splitlines(),
             "status_after_recovery": status_after.splitlines(),
             "untracked_files_preserved": untracked,
-            "publisher_owned_paths_restored": tracked,
+            "publisher_owned_paths_restored": restored,
+            "concurrent_write_conflicts": conflicts,
             "unknown_tracked_paths_preserved": [
                 relative for relative in changed_tracked if not _publisher_owned_path(relative)
             ],
             "removed_local_tags": created_tags,
-            "repo_recovered": not status_after,
+            "repo_recovered": not status_after and not conflicts,
             "retry_status": "candidate_preserved",
             "recorded_at": _now(),
-        },
-    )
-    if status_after:
+            },
+        )
+    except Exception as cleanup_error:
+        record_step(
+            "final-evidence-write",
+            "failed",
+            error_type=type(cleanup_error).__name__,
+            error=str(cleanup_error),
+            path=str(evidence_path),
+        )
+        raise
+    record_step("final-evidence-write", "complete", path=str(evidence_path))
+    if status_after or conflicts:
         raise PublishBlocked(f"{phase} publish recovery did not restore a clean repo; evidence: {evidence_path}") from error
     return evidence_path
 
@@ -216,33 +447,49 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
             **kwargs: Any,
         ) -> dict[str, Any]:
             git = kwargs.get("git", run_git)
-            if not _repo_clean(repo_root, git):
-                return function(repo_root, queue_root, state_root, *args, **kwargs)
-            base_sha = git(repo_root, ["rev-parse", "HEAD"], None)
-            run_ids = _queued_run_ids(queue_root, phase, int(kwargs.get("max_runs", DEFAULT_MAX_RUNS)))
-            try:
-                return function(repo_root, queue_root, state_root, *args, **kwargs)
-            except Exception as error:
-                if git(repo_root, ["rev-parse", "HEAD"], None) == base_sha and _repo_clean(repo_root, git):
-                    raise
-                evidence_path = _recover_failed_publish(
-                    repo_root,
+            state_root.mkdir(parents=True, exist_ok=True)
+            with _repo_lock_path(repo_root, git).open("a+") as lock:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
+                base_sha = _assert_clean_origin_head(repo_root, git)
+                run_ids = _queued_run_ids(
+                    queue_root,
                     state_root,
-                    base_sha=base_sha,
-                    phase=phase,
-                    run_ids=run_ids,
-                    error=error,
-                    git=git,
+                    phase,
+                    int(kwargs.get("max_runs", DEFAULT_MAX_RUNS)),
                 )
-                return {
-                    "schema_version": SCHEMA_VERSION,
-                    "status": "failed_recovered",
-                    count_key: 0,
-                    "base_sha": base_sha,
-                    "error_type": type(error).__name__,
-                    "evidence": str(evidence_path),
-                    "retry_status": "candidate_preserved",
-                }
+                journal = MutationJournal(repo_root, git)
+                kwargs["_transaction_base_sha"] = base_sha
+                kwargs["_mutation_journal"] = journal
+                try:
+                    return function(repo_root, queue_root, state_root, *args, **kwargs)
+                except PushOutcomeUnknown:
+                    raise
+                except Exception as error:
+                    if not journal.mutation_started:
+                        raise
+                    evidence_path = _recover_failed_publish(
+                        repo_root,
+                        state_root,
+                        base_sha=base_sha,
+                        phase=phase,
+                        run_ids=run_ids,
+                        error=error,
+                        git=git,
+                        journal=journal,
+                    )
+                    _record_retry_failure(state_root, phase, run_ids, error, evidence_path)
+                    return {
+                        "schema_version": SCHEMA_VERSION,
+                        "status": "failed_recovered",
+                        count_key: 0,
+                        "base_sha": base_sha,
+                        "error_type": type(error).__name__,
+                        "evidence": str(evidence_path),
+                        "retry_status": "candidate_preserved_deferred",
+                    }
 
         return wrapped
 
@@ -385,6 +632,8 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
         run_id = str(state["run_id"])
         if run_id in published or run_id in quarantined:
             continue
+        if not _retry_eligible(state_root, "create", run_id):
+            continue
         if candidate.get("mode") == "translate_existing":
             continue
         if candidate.get("mode") != "create":
@@ -428,6 +677,8 @@ def collect_ready_translation_runs(
         except (OSError, json.JSONDecodeError):
             continue
         if brief.get("mode") != "translate_existing" or run_id in published or run_id in deferred:
+            continue
+        if not _retry_eligible(state_root, "translation", run_id):
             continue
         if state.get("status") == "failed":
             _record_translation_deferred(state_root, run_id, f"run failed: {state.get('error_type') or 'unknown'}")
@@ -507,6 +758,8 @@ def collect_ready_rewrite_runs(
             continue
         run_id = str(state["run_id"])
         if run_id in released or run_id in quarantined or candidate.get("mode") != "rewrite_existing_body":
+            continue
+        if not _retry_eligible(state_root, "rewrite", run_id):
             continue
         candidate_article_ids = {str(article["article_id"]) for article in candidate["articles"]}
         if allowed_article_ids is not None and not candidate_article_ids <= allowed_article_ids:
@@ -924,6 +1177,7 @@ def _stage_commit_tag_push(
     release_gate: bool,
     message: str | None = None,
     extra_add_paths: list[str] | None = None,
+    outcome_evidence_dir: Path | None = None,
 ) -> str:
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
@@ -934,7 +1188,51 @@ def _stage_commit_tag_push(
     if release_gate:
         _run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
     if push:
-        git(repo_root, ["push", "--atomic", "origin", "HEAD:main", f"v{version}"], None)
+        try:
+            git(repo_root, ["push", "--atomic", "origin", "HEAD:main", f"v{version}"], None)
+        except Exception as push_error:
+            git(repo_root, ["fetch", "origin", "main"], None)
+            remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
+            remote_tags = git(
+                repo_root,
+                ["ls-remote", "origin", f"refs/tags/v{version}", f"refs/tags/v{version}^{{}}"],
+                None,
+            )
+            tag_lines = [line.split() for line in remote_tags.splitlines() if line.strip()]
+            remote_tag = ""
+            reconcile_ref = f"refs/agy-publisher-reconcile/v{version}"
+            if tag_lines:
+                try:
+                    git(
+                        repo_root,
+                        ["fetch", "--force", "origin", f"refs/tags/v{version}:{reconcile_ref}"],
+                        None,
+                    )
+                    remote_tag = git(repo_root, ["rev-parse", f"{reconcile_ref}^{{}}"], None)
+                finally:
+                    git(repo_root, ["update-ref", "-d", reconcile_ref], None)
+            if remote_main == commit_sha and remote_tag == commit_sha:
+                return commit_sha
+            if remote_main != commit_sha and not remote_tag:
+                raise push_error
+            evidence_dir = outcome_evidence_dir or repo_root / ".git"
+            evidence_path = evidence_dir / "push-outcome-unknown.json"
+            _atomic_write_json(
+                evidence_path,
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "status": "PUSH_OUTCOME_UNKNOWN",
+                    "version": version,
+                    "candidate_sha": commit_sha,
+                    "remote_main": remote_main,
+                    "remote_tag": remote_tag or None,
+                    "remote_tag_lines": remote_tags.splitlines(),
+                    "error_type": type(push_error).__name__,
+                    "error": str(push_error),
+                    "recorded_at": _now(),
+                },
+            )
+            raise PushOutcomeUnknown(f"atomic push outcome is inconsistent; evidence: {evidence_path}") from push_error
     return commit_sha
 
 
@@ -1023,6 +1321,8 @@ def publish_ready_runs(
     run_tests: bool = True,
     release_gate: bool = True,
     git: GitRunner = run_git,
+    _transaction_base_sha: str | None = None,
+    _mutation_journal: MutationJournal | None = None,
 ) -> dict[str, Any]:
     state_root.mkdir(parents=True, exist_ok=True)
     lock_path = state_root / "publisher.lock"
@@ -1031,7 +1331,7 @@ def publish_ready_runs(
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
-        base_sha = _assert_clean_origin_head(repo_root, git)
+        base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         recovered_translation_runs = [] if dry_run else _seed_pending_translations(repo_root, queue_root, state_root)
         ready = collect_ready_runs(queue_root, state_root, limit=max_runs)
         if not ready:
@@ -1046,6 +1346,8 @@ def publish_ready_runs(
         if dry_run:
             return {"schema_version": SCHEMA_VERSION, "status": "dry-run", "published": 0, "ready_runs": run_ids, "base_sha": base_sha}
 
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.begin()
         changed: list[str] = []
         approved_articles: list[dict[str, Any]] = []
         cache_token = ""
@@ -1055,6 +1357,7 @@ def publish_ready_runs(
             run_dir = Path(str(state["run_dir"]))
             _write_json(run_dir / "approval.json", approval)
             changed.extend(str(path.relative_to(repo_root)) for path in pipeline.apply_approved_candidates(repo_root, str(candidate["run_id"]), candidate["articles"], review, approval))
+            journal.checkpoint(changed)
             approved_articles.extend(candidate["articles"])
             cache_token = f"agy-{pipeline._safe_identifier(str(candidate['run_id']))[0]}"
 
@@ -1068,9 +1371,17 @@ def publish_ready_runs(
         _run_prerender(repo_root)
         _run_feed(repo_root)
         _prepend_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, evidence_path=evidence_rel)
+        journal.checkpoint()
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
-        commit_sha = _stage_commit_tag_push(repo_root, version, git, push=push, release_gate=release_gate)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            push=push,
+            release_gate=release_gate,
+            outcome_evidence_dir=evidence_dir,
+        )
         ledger = _load_ledger(state_root)
         articles_by_run = {
             str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
@@ -1120,6 +1431,8 @@ def publish_ready_rewrite_runs(
     run_tests: bool = True,
     release_gate: bool = True,
     git: GitRunner = run_git,
+    _transaction_base_sha: str | None = None,
+    _mutation_journal: MutationJournal | None = None,
 ) -> dict[str, Any]:
     state_root.mkdir(parents=True, exist_ok=True)
     lock_path = state_root / "publisher.lock"
@@ -1128,7 +1441,7 @@ def publish_ready_rewrite_runs(
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "rewritten": 0}
-        base_sha = _assert_clean_origin_head(repo_root, git)
+        base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         legacy_records = legacy_article_records(repo_root)
         allowed_article_ids = {str(record["id"]) for record in legacy_records}
         backlog_summary = summarize_legacy_rewrite_backlog(
@@ -1170,8 +1483,11 @@ def publish_ready_rewrite_runs(
                 "legacy_rewrite_backlog": backlog_summary,
             }
 
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.begin()
         release_id = f"agy-rewrite-{date.today().strftime('%Y%m%d')}-{len(run_ids):02d}"
         changed = [str(path.relative_to(repo_root)) for path in apply_rewrite_release(repo_root, release_id, candidates)]
+        journal.checkpoint(changed)
         version = _bump_patch_version(repo_root)
         evidence_dir = state_root / "evidence" / f"rewrite-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -1182,6 +1498,7 @@ def publish_ready_rewrite_runs(
         _run_prerender(repo_root)
         _run_feed(repo_root)
         _prepend_rewrite_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, article_ids=article_ids, evidence_path=evidence_rel)
+        journal.checkpoint()
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(
@@ -1192,6 +1509,7 @@ def publish_ready_rewrite_runs(
             release_gate=release_gate,
             message=f"chore(content): publish Gemini rewrite release v{version}",
             extra_add_paths=["scripts/agy_content_publisher.py"],
+            outcome_evidence_dir=evidence_dir,
         )
         ledger = _load_ledger(state_root)
         for run_id in run_ids:
@@ -1227,6 +1545,8 @@ def publish_ready_translation_runs(
     run_tests: bool = True,
     release_gate: bool = True,
     git: GitRunner = run_git,
+    _transaction_base_sha: str | None = None,
+    _mutation_journal: MutationJournal | None = None,
 ) -> dict[str, Any]:
     """發布所有已通過的單語 run；退件留待最後修復且不阻塞通過者。"""
     state_root.mkdir(parents=True, exist_ok=True)
@@ -1236,7 +1556,7 @@ def publish_ready_translation_runs(
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "translated": 0}
-        base_sha = _assert_clean_origin_head(repo_root, git)
+        base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         ready = collect_ready_translation_runs(repo_root, queue_root, state_root, limit=max_runs)
         if not ready:
             ledger = _load_ledger(state_root)
@@ -1252,6 +1572,8 @@ def publish_ready_translation_runs(
                 "base_sha": base_sha,
             }
 
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.begin()
         changed: list[str] = []
         published: list[tuple[str, str, str]] = []
         for state, _brief, candidate, _review in ready:
@@ -1268,6 +1590,7 @@ def publish_ready_translation_runs(
                 _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
                 continue
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
+            journal.checkpoint(changed)
             published.append((run_id, locale, article_id))
         if not published:
             return {
@@ -1299,6 +1622,7 @@ def publish_ready_translation_runs(
             locales=locales,
             evidence_path=evidence_rel,
         )
+        journal.checkpoint()
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(
@@ -1308,6 +1632,7 @@ def publish_ready_translation_runs(
             push=push,
             release_gate=release_gate,
             message=f"chore(content): publish multilingual release v{version}",
+            outcome_evidence_dir=evidence_dir,
         )
         ledger = _load_ledger(state_root)
         for run_id, locale, article_id in published:

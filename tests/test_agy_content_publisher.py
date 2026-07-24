@@ -971,6 +971,358 @@ def test_recovery_removes_unpushed_commit_and_tag_but_preserves_failure_evidence
     assert failure["repo_recovered"] is True
 
 
+def _init_recovery_repo(tmp_path: Path) -> tuple[Path, Path, Path, str]:
+    repo_root = tmp_path / "repo"
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    owned = repo_root / "app/web/owned.txt"
+    owned.parent.mkdir(parents=True)
+    owned.write_bytes(b"base\n")
+    subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return repo_root, queue_root, state_root, base_sha
+
+
+def test_transaction_preserves_owned_change_between_clean_check_and_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    owned = repo_root / "app/web/owned.txt"
+
+    def clean_check(_repo: Path, _git: publisher.GitRunner) -> str:
+        owned.write_bytes(b"concurrent-before-mutation\n")
+        return base_sha
+
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", clean_check)
+
+    @publisher._recoverable_publish("create", "published")
+    def failing_publish(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _transaction_base_sha == base_sha
+        assert _mutation_journal is not None
+        _mutation_journal.begin()
+        (repo / "app/web/owned.txt").write_bytes(b"publisher\n")
+        _mutation_journal.checkpoint(["app/web/owned.txt"])
+        raise RuntimeError("candidate-specific failure")
+
+    with pytest.raises(publisher.PublishBlocked, match="did not restore a clean repo"):
+        failing_publish(repo_root, queue_root, state_root)
+
+    assert owned.read_bytes() == b"concurrent-before-mutation\n"
+    failure = json.loads(next((state_root / "evidence").glob("failed-create-*/failure.json")).read_text(encoding="utf-8"))
+    assert failure["status_after_recovery"] == ["M app/web/owned.txt"]
+
+
+def test_recovery_never_overwrites_concurrent_post_image_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    owned = repo_root / "app/web/owned.txt"
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
+
+    @publisher._recoverable_publish("create", "published")
+    def failing_publish(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _mutation_journal is not None
+        _mutation_journal.begin()
+        (repo / "app/web/owned.txt").write_bytes(b"publisher\n")
+        _mutation_journal.checkpoint(["app/web/owned.txt"])
+        (repo / "app/web/owned.txt").write_bytes(b"concurrent-after-mutation\n")
+        raise RuntimeError("candidate-specific failure")
+
+    with pytest.raises(publisher.PublishBlocked, match="did not restore a clean repo"):
+        failing_publish(repo_root, queue_root, state_root)
+
+    assert owned.read_bytes() == b"concurrent-after-mutation\n"
+    failure = json.loads(next((state_root / "evidence").glob("failed-create-*/failure.json")).read_text(encoding="utf-8"))
+    assert failure["concurrent_write_conflicts"] == ["app/web/owned.txt"]
+
+
+@pytest.mark.parametrize(
+    ("remote_main", "remote_tag", "expected"),
+    [
+        ("base", "", "rollback"),
+        ("candidate", "candidate", "committed"),
+        ("candidate", "", "unknown"),
+    ],
+)
+def test_atomic_push_exception_reconciles_remote_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    remote_main: str,
+    remote_tag: str,
+    expected: str,
+) -> None:
+    candidate = "c" * 40
+    base = "b" * 40
+    evidence_dir = tmp_path / "evidence"
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args[:2] == ["push", "--atomic"]:
+            raise subprocess.CalledProcessError(1, args)
+        if args == ["rev-parse", "HEAD"]:
+            return candidate
+        if args == ["rev-parse", "origin/main"]:
+            return candidate if remote_main == "candidate" else base
+        if args == ["rev-parse", "refs/agy-publisher-reconcile/v0.3.59^{}"]:
+            return candidate if remote_tag == "candidate" else base
+        if args[:2] == ["ls-remote", "origin"]:
+            return f"{candidate}\trefs/tags/v0.3.59^{{}}\n" if remote_tag == "candidate" else ""
+        return ""
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    if expected == "rollback":
+        with pytest.raises(subprocess.CalledProcessError):
+            publisher._stage_commit_tag_push(
+                tmp_path,
+                "0.3.59",
+                fake_git,
+                push=True,
+                release_gate=False,
+                outcome_evidence_dir=evidence_dir,
+            )
+    elif expected == "unknown":
+        with pytest.raises(publisher.PushOutcomeUnknown):
+            publisher._stage_commit_tag_push(
+                tmp_path,
+                "0.3.59",
+                fake_git,
+                push=True,
+                release_gate=False,
+                outcome_evidence_dir=evidence_dir,
+            )
+        unknown = json.loads((evidence_dir / "push-outcome-unknown.json").read_text(encoding="utf-8"))
+        assert unknown["status"] == "PUSH_OUTCOME_UNKNOWN"
+        assert unknown["remote_main"] == candidate
+        assert unknown["remote_tag"] is None
+    else:
+        assert publisher._stage_commit_tag_push(
+            tmp_path,
+            "0.3.59",
+            fake_git,
+            push=True,
+            release_gate=False,
+            outcome_evidence_dir=evidence_dir,
+        ) == candidate
+
+
+def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dirs: dict[str, Path] = {}
+    states: dict[str, dict[str, object]] = {}
+    for index, run_id in enumerate(("run-bad", "run-good"), start=1):
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        run_dirs[run_id] = run_dir
+        _write_json(run_dir / "brief.json", {"run_id": run_id, "mode": "create"})
+        _write_json(
+            run_dir / "candidate.json",
+            {
+                "run_id": run_id,
+                "mode": "create",
+                "articles": [
+                    {
+                        "id": f"AUTO-{index:03d}",
+                        "serial": f"astrology-{index:04d}",
+                        "urlSlug": f"queue-{index}",
+                        "bodySections": [],
+                    }
+                ],
+            },
+        )
+        _write_json(run_dir / "review.json", {"run_id": run_id})
+        state = {
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+            "result": {"candidate": str(run_dir / "candidate.json")},
+        }
+        states[run_id] = state
+        _write_json(queue_root / "runs" / f"{index:02d}-{run_id}.json", state)
+
+    monkeypatch.setattr(
+        publisher,
+        "_load_completed_run",
+        lambda path: (
+            states["run-bad" if "run-bad" in path.name else "run-good"],
+            publisher._read_json(run_dirs["run-bad" if "run-bad" in path.name else "run-good"] / "candidate.json"),
+            {"run_id": "run-bad" if "run-bad" in path.name else "run-good"},
+        ),
+    )
+    monkeypatch.setattr(publisher, "_review_is_clean_approve", lambda _review: True)
+    monkeypatch.setattr(publisher.pipeline, "quality_findings", lambda _articles: [])
+    failure_evidence = state_root / "evidence" / "failed-run-bad" / "failure.json"
+    _write_json(failure_evidence, {"status": "FAILED_RECOVERED"})
+    publisher._record_retry_failure(state_root, "create", ["run-bad"], RuntimeError("bad candidate"), failure_evidence)
+
+    ready = publisher.collect_ready_runs(queue_root, state_root, limit=1)
+
+    assert [state["run_id"] for state, _candidate, _review in ready] == ["run-good"]
+    assert (queue_root / "runs" / "01-run-bad.json").is_file()
+    assert (run_dirs["run-bad"] / "candidate.json").is_file()
+    retry = publisher._read_json(publisher._retry_path(state_root, "create", "run-bad"))
+    assert retry["attempts"] == 1
+    assert retry["candidate_preserved"] is True
+
+    repo_root = tmp_path / "repo"
+    published_path = repo_root / "app/web/published.txt"
+    published_path.parent.mkdir(parents=True)
+    published_path.write_text("base\n", encoding="utf-8")
+    (repo_root / "tests").mkdir()
+    (repo_root / "tests/test_web.py").write_text("baseline\n", encoding="utf-8")
+    for relative, content in (
+        ("pyproject.toml", '[project]\nversion = "0.3.58"\n'),
+        ("package.json", '{"version":"0.3.58"}\n'),
+        ("CHANGELOG.md", "# changelog\n"),
+    ):
+        (repo_root / relative).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
+    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *_args, **_kwargs: {"status": "approved"})
+
+    def apply_good(repo: Path, *_args: object, **_kwargs: object) -> list[Path]:
+        target = repo / "app/web/published.txt"
+        target.write_text("run-good\n", encoding="utf-8")
+        return [target]
+
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", apply_good)
+    monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo: "0.3.59")
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_prepend_changelog", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(publisher, "_sync_web_test_release_fixture", lambda *_args, **_kwargs: repo_root / "tests/test_web.py")
+    monkeypatch.setattr(publisher, "_stage_commit_tag_push", lambda *_args, **_kwargs: "d" * 40)
+
+    result = publisher.publish_ready_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=1,
+        push=False,
+        run_tests=False,
+        release_gate=False,
+    )
+
+    assert result["status"] == "PUBLISHED"
+    assert result["run_ids"] == ["run-good"]
+    assert published_path.read_text(encoding="utf-8") == "run-good\n"
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["archive-copy", "update-ref", "restore", "unlink", "tag-delete", "final-evidence-write"],
+)
+def test_recovery_fault_always_has_pre_cleanup_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    repo_root, _queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    owned = repo_root / "app/web/owned.txt"
+    owned.write_bytes(b"publisher\n")
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "candidate"], cwd=repo_root, check=True)
+    subprocess.run(["git", "tag", "-a", "v0.3.59", "-m", "candidate"], cwd=repo_root, check=True)
+    untracked = repo_root / "app/web/untracked.txt"
+    untracked.write_bytes(b"untracked\n")
+
+    original_git = publisher.run_git
+    original_write_json = publisher._write_json
+    original_unlink = Path.unlink
+
+    def fault_git(repo: Path, args: list[str], input_text: str | None = None) -> str:
+        operation = (
+            "update-ref"
+            if args and args[0] == "update-ref"
+            else "restore"
+            if args and args[0] == "restore"
+            else "tag-delete"
+            if args[:2] == ["tag", "-d"]
+            else ""
+        )
+        if operation == fault:
+            raise subprocess.CalledProcessError(70, ["git", *args])
+        return original_git(repo, args, input_text)
+
+    if fault == "archive-copy":
+        monkeypatch.setattr(publisher.shutil, "copy2", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("archive fault")))
+    if fault == "unlink":
+        monkeypatch.setattr(
+            Path,
+            "unlink",
+            lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("unlink fault"))
+            if self == untracked
+            else original_unlink(self, *args, **kwargs),
+        )
+    if fault == "final-evidence-write":
+        monkeypatch.setattr(
+            publisher,
+            "_write_json",
+            lambda path, payload: (_ for _ in ()).throw(OSError("evidence fault"))
+            if path.name == "failure.json"
+            else original_write_json(path, payload),
+        )
+
+    with pytest.raises(Exception):
+        publisher._recover_failed_publish(
+            repo_root,
+            state_root,
+            base_sha=base_sha,
+            phase="create",
+            run_ids=["run-bad"],
+            error=RuntimeError("publish failed"),
+            git=fault_git,
+        )
+
+    attempts = list((state_root / "evidence").glob("failed-create-*/failure-attempt.json"))
+    assert len(attempts) == 1
+    attempt = json.loads(attempts[0].read_text(encoding="utf-8"))
+    assert attempt["base_sha"] == base_sha
+    assert attempt["run_ids"] == ["run-bad"]
+    assert attempt["status_before_recovery"]
+    recovery = json.loads(attempts[0].with_name("recovery-result.json").read_text(encoding="utf-8"))
+    assert recovery["steps"][-1]["step"] == fault
+    assert recovery["steps"][-1]["status"] == "failed"
+
+
 def test_sync_web_test_release_fixture_updates_cache_token_and_paths(tmp_path: Path) -> None:
     test_dir = tmp_path / "tests"
     test_dir.mkdir()
