@@ -1,0 +1,28 @@
+Gemini V4 limited activation-003 dry-run verification
+=====================================================
+
+Card Gate 1: PASS
+Fresh repo-external runtime: PASS
+Fresh run identity / namespace / job ID / request digest: PASS
+Prior blocked jobs reused: false
+Prior runtimes reused: false
+Outbox tick pending exit 75: PASS
+Pending request count: 1
+Strict request rebuild / digest validation: PASS
+Public-data filter: PASS
+Closed writer role: PASS
+No-tool / no-workspace: PASS
+Single JSON object / no Markdown code fence: PASS
+Canonical schema present: PASS
+Sanitized task exact suffix: PASS
+Effective prompt bytes / ceiling: 4028 / 393216
+Effective prompt size gate: PASS
+Executable digest match: PASS
+Prompt / schema saved in evidence: false
+Raw response saved in evidence: false
+Credential / full environment / executable path saved: false
+Ledger / anchor / inbox / archive / failed record present: false
+Gemini / agy invocation: 0
+Retry / fallback / automatic resend: 0
+Publisher / publish / deploy / promotion: 0
+Decision: AWAITING_EXTERNAL_CONFIRMATION

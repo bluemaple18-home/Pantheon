@@ -6,7 +6,7 @@
 - strictness: `strict`
 - risk: `high`
 - status: `IN_PROGRESS`
-- decision: `DRY_RUN_PENDING`
+- decision: `AWAITING_EXTERNAL_CONFIRMATION`
 
 ## 基準
 
@@ -110,3 +110,30 @@ CommandFrame prompt digest／byte count 綁 effective prompt；receipt request S
 - `BLOCKED`
 
 本卡的 candidate 或 GO 都不代表整合、上線、預設 promotion 或 legacy removal。
+
+## 離線 Gate 結果
+
+- source brief SHA-256:
+  `209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c`
+- staged brief SHA-256:
+  `765ffb7c4c3aeee1f04b7652544d9bd427484d79d735f6716b10f725f964b547`
+- staged job ID:
+  `35b808faa055a70ba92d40f5186535de6ea5590f`
+- prior blocked jobs reused:
+  `false`
+- role / model:
+  `writer / gemini-3.5-flash`
+- user task / schema / effective prompt bytes:
+  `2555 / 1211 / 4028`
+- effective prompt ceiling:
+  `393216`
+- structured envelope validation:
+  `PASS`
+- sanitized request validation:
+  `PASS`
+- current external invocation:
+  `0`
+- current ledger / anchor / inbox / archive / failed record:
+  `absent`
+- decision:
+  `AWAITING_EXTERNAL_CONFIRMATION`
