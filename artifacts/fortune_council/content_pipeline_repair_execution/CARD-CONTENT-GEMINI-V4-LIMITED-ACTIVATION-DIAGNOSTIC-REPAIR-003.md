@@ -5,8 +5,8 @@
 - ownership: `v4_safe_schema_diagnostics_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `PENDING`
+- status: `DELIVERED_CANDIDATE`
+- decision: `READY_FOR_REVIEW`
 
 ## 基準
 
@@ -103,3 +103,35 @@
 - `BLOCKED`
 
 本卡不授權真實外呼。
+
+## 執行結果
+
+- CodeGraph initial index:
+  `129 files / 2154 nodes / 4482 edges / up to date`
+- initial diagnostics RED:
+  `4 failed`
+- initial diagnostics GREEN:
+  `4 passed`
+- bounded array-index RED／GREEN:
+  `1 failed -> 1 passed`
+- broker／runner focused:
+  `76 passed`
+- final V4 matrix:
+  `102 passed`
+- legacy:
+  `57 passed`
+- coordinator／publisher／web:
+  `74 passed / 2 existing warnings`
+- unique affected total:
+  `233 passed`
+- production schema path coverage:
+  `safe token names / observed maximum depth 6 < limit 8`
+- prompt／raw stdout／stderr／response value retained:
+  `false`
+- Gemini／agy invocation during repair:
+  `0`
+- decision:
+  `DELIVERED_CANDIDATE / READY_FOR_REVIEW`
+
+本候選只建立下一筆 schema mismatch 的安全定位能力，不代表 V4 已打通、可放量、
+可成為預設 transport 或可移除 legacy。獨立 Review GO 前不得建立新 canary。

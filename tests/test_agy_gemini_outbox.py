@@ -723,6 +723,87 @@ def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallbac
     assert "result" not in failed
 
 
+def test_runner_persists_only_closed_schema_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    diagnostic_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "ok": {"type": "boolean"},
+            "items": {"type": "array", "items": {"type": "boolean"}},
+            "a" * 65: {"type": "boolean"},
+        },
+        "required": ["ok"],
+    }
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-schema-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 schema diagnostic synthetic request",
+        response_schema=diagnostic_schema,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=(),
+        result_validation="SCHEMA_MISMATCH",
+    )
+    object.__setattr__(
+        malformed,
+        "schema_diagnostics",
+        (
+            broker.SchemaDiagnostic("type", ("ok",)),
+            broker.SchemaDiagnostic("message", ("ok",)),
+            broker.SchemaDiagnostic("enum", ("unknown-property",)),
+            broker.SchemaDiagnostic("type", ({"secret": "must-not-persist"},)),
+            broker.SchemaDiagnostic("type", ("ok", "too-deep")),
+            broker.SchemaDiagnostic("type", ("items", 10**1000)),
+            broker.SchemaDiagnostic("type", ("ok",) * 9),
+            broker.SchemaDiagnostic("type", ("a" * 65,)),
+        ),
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    assert failed["broker_diagnostic"]["schema_diagnostics"] == [
+        {"keyword": "type", "path": ["ok"]},
+    ]
+    assert "must-not-persist" not in failed_path.read_text()
+    assert "unknown-property" not in failed_path.read_text()
+    assert "message" not in failed_path.read_text()
+
+
 @pytest.mark.parametrize(
     ("replay_status", "process_count", "outcome", "result_validation"),
     (

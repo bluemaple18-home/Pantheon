@@ -46,6 +46,12 @@ def _write_target(path: Path, mode: str) -> Path:
         "elif mode=='json-null': print('null')\n"
         "elif mode=='not-object': print(json.dumps(['not-object']))\n"
         "elif mode=='schema-mismatch': print(json.dumps({'ok':'not-a-boolean'},sort_keys=True))\n"
+        "elif mode=='nested-schema-mismatch': print(json.dumps("
+        "{'title':'okay','sections':[{'heading':7,'body':'x'}]},sort_keys=True))\n"
+        "elif mode=='additional-property-mismatch': print(json.dumps("
+        "{'ok':True,'must-not-persist':'secret-value'},sort_keys=True))\n"
+        "elif mode=='many-schema-mismatches': print(json.dumps("
+        "{'a':'x','b':'x','c':'x','d':'x'},sort_keys=True))\n"
         "elif mode=='nonzero': print('non-json-output'); sys.exit(7)\n"
         "elif mode=='timeout': time.sleep(10)\n",
         encoding="utf-8",
@@ -62,6 +68,7 @@ def _run(
     model: str = "synthetic-model",
     raw_request: bytes = "公開 synthetic request".encode(),
     target_profile: str | None = None,
+    response_schema: dict[str, object] = SCHEMA,
 ) -> broker.BrokerResult:
     selected_profile = target_profile or (
         broker.ANTIGRAVITY_CLI_PROFILE if executable.name.startswith("agy") else broker.RAW_STDIN_PROFILE
@@ -77,7 +84,7 @@ def _run(
         target_profile=selected_profile,
         expected_executable_digest=expected_digest,
         raw_request=raw_request,
-        response_schema=SCHEMA,
+        response_schema=response_schema,
         timeout_milliseconds=timeout_milliseconds,
         ledger_path=tmp_path / "ledger.jsonl",
         anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
@@ -343,6 +350,105 @@ def test_single_shot_reports_safe_result_validation_without_retaining_raw_output
     assert result.result_json is None
     assert result.result_validation == expected_validation
     assert "not-json" not in json.dumps(result.normalized_trace(), ensure_ascii=False)
+
+
+def test_single_shot_reports_bounded_schema_keyword_and_defined_path_without_values(
+    tmp_path: Path,
+) -> None:
+    nested_schema: dict[str, object] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "title": {"type": "string", "minLength": 3},
+            "sections": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "heading": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["heading", "body"],
+                },
+            },
+        },
+        "required": ["title", "sections"],
+    }
+    target = _write_target(tmp_path / "fake-target", "nested-schema-mismatch")
+
+    result = _run(tmp_path, target, response_schema=nested_schema)
+
+    assert result.result_validation == "SCHEMA_MISMATCH"
+    assert result.schema_diagnostics == (
+        broker.SchemaDiagnostic("type", ("sections", 0, "heading")),
+    )
+    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
+    assert "secret-value" not in serialized
+    assert "must-not-persist" not in serialized
+
+
+def test_single_shot_schema_diagnostics_do_not_retain_unknown_property_names(
+    tmp_path: Path,
+) -> None:
+    target = _write_target(tmp_path / "fake-target", "additional-property-mismatch")
+
+    result = _run(tmp_path, target)
+
+    assert result.result_validation == "SCHEMA_MISMATCH"
+    assert result.schema_diagnostics == (
+        broker.SchemaDiagnostic("additionalProperties", ()),
+    )
+    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
+    assert "must-not-persist" not in serialized
+    assert "secret-value" not in serialized
+
+
+def test_single_shot_schema_diagnostics_are_bounded_to_three(
+    tmp_path: Path,
+) -> None:
+    many_schema: dict[str, object] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            key: {"type": "boolean"}
+            for key in ("a", "b", "c", "d")
+        },
+        "required": ["a", "b", "c", "d"],
+    }
+    target = _write_target(tmp_path / "fake-target", "many-schema-mismatches")
+
+    result = _run(tmp_path, target, response_schema=many_schema)
+
+    assert result.schema_diagnostics == (
+        broker.SchemaDiagnostic("type", ("a",)),
+        broker.SchemaDiagnostic("type", ("b",)),
+        broker.SchemaDiagnostic("type", ("c",)),
+    )
+
+
+def test_schema_diagnostic_path_is_bounded_when_mismatch_is_deeper_than_limit() -> None:
+    value: object = "wrong-type"
+    schema: object = {"type": "boolean"}
+    for index in reversed(range(10)):
+        key = f"level{index}"
+        value = {key: value}
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {key: schema},
+            "required": [key],
+        }
+
+    diagnostics = broker._diagnose_json_schema(value, schema)
+
+    assert diagnostics == (
+        broker.SchemaDiagnostic(
+            "schema",
+            tuple(f"level{index}" for index in range(8)),
+        ),
+    )
 
 
 @pytest.mark.parametrize(
