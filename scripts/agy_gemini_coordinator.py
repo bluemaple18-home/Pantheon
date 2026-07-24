@@ -7,10 +7,14 @@ import argparse
 import fcntl
 import hashlib
 import json
+import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from scripts import agy_content_publisher as publisher
+from scripts import agy_seo_copy_pipeline as pipeline
 from scripts.agy_gemini_outbox import (
     ExternalJobFailed,
     ExternalJobPending,
@@ -22,6 +26,7 @@ from scripts.agy_gemini_runner import process_once
 
 MAX_BRIEF_BYTES = 12 * 1024
 MAX_ACTIVE_RUNS_PER_CYCLE = 5
+DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
 
@@ -122,11 +127,180 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
     return states[:MAX_ACTIVE_RUNS_PER_CYCLE]
 
 
+def _read_run_brief_from_state(state: dict[str, Any]) -> dict[str, Any] | None:
+    run_dir = Path(str(state.get("run_dir") or ""))
+    path = run_dir / "brief.json"
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+
+def _article_ids_from_brief(brief: dict[str, Any] | None) -> set[str]:
+    if not isinstance(brief, dict) or brief.get("mode") != "rewrite_existing_body":
+        return set()
+    articles = brief.get("articles")
+    if not isinstance(articles, list):
+        return set()
+    return {str(article.get("article_id") or "") for article in articles if isinstance(article, dict) and article.get("article_id")}
+
+
+def _registered_rewrite_article_ids(queue_root: Path) -> set[str]:
+    article_ids: set[str] = set()
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        article_ids.update(_article_ids_from_brief(_read_run_brief_from_state(state)))
+    return article_ids
+
+
+def _slug_part(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-").lower()
+    return slug[:80] or "article"
+
+
+def _head_sha(repo_root: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _legacy_rewrite_article_brief(
+    record: dict[str, Any],
+    inventory_item: dict[str, Any],
+) -> dict[str, Any]:
+    article_id = str(record["id"])
+    source_record = inventory_item.get("record") if isinstance(inventory_item.get("record"), dict) else record
+    current_body = inventory_item.get("currentBody")
+    immutable_fields = {
+        "id": article_id,
+        "product": str(source_record.get("product") or source_record.get("articleCategory") or publisher._record_category(record)),
+        "slug": str(source_record.get("slug") or ""),
+        "serial": publisher._record_serial(record),
+        "title": str(source_record.get("title") or record.get("title") or ""),
+        "description": str(source_record.get("description") or record.get("description") or ""),
+        "answer": str(source_record.get("answer") or record.get("answer") or ""),
+        "faq": source_record.get("faq") if isinstance(source_record.get("faq"), list) else [],
+        "tags": source_record.get("tags") if isinstance(source_record.get("tags"), list) else [],
+        "published": str(inventory_item.get("published") or source_record.get("published") or ""),
+        "updated": str(inventory_item.get("updated") or source_record.get("updated") or ""),
+        "urlSlug": str(source_record.get("urlSlug") or source_record.get("slug") or record.get("slug") or ""),
+        "primaryKeyword": str(source_record.get("primaryKeyword") or record.get("primaryKeyword") or ""),
+    }
+    return {
+        "slot": "article-01",
+        "article_id": article_id,
+        "identity": {
+            "id": article_id,
+            "product": immutable_fields["product"],
+            "category": publisher._record_category(record),
+            "serial": immutable_fields["serial"],
+            "slug": immutable_fields["slug"],
+            "primaryKeyword": immutable_fields["primaryKeyword"],
+            "title": immutable_fields["title"],
+        },
+        "immutable_fields": immutable_fields,
+        "current_body": current_body,
+        "current_body_sha256": pipeline.body_sha256(current_body),
+        "rewrite_brief": [
+            "把正文改得更口語、貼近使用者情境；不要改標題、URL、FAQ、metadata 或文章定位。",
+            "每節至少放入一個具體生活場景、可觀察動作或可直接套用的判斷句，避免模板句與空泛雞湯。",
+            "保留原本搜尋意圖與主題邊界；不要承諾感情、工作、財富、健康或人生結果。",
+        ],
+        "source_file": "app/web/static/article-meta.js",
+        "body_source": "buildArticleContent",
+    }
+
+
+def seed_legacy_rewrite_runs(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    run_root: Path,
+    *,
+    max_new_runs: int = DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE,
+    max_active_runs: int = MAX_ACTIVE_RUNS_PER_CYCLE,
+    source_commit: str | None = None,
+) -> dict[str, Any]:
+    """自動挑最前面的未掃舊文，建立私密 rewrite run 並登記到 coordinator。"""
+    if max_new_runs <= 0:
+        return {"status": "disabled", "created": 0, "created_run_ids": []}
+
+    active_count = len(_active_states(queue_root))
+    if active_count >= max_active_runs:
+        return {"status": "active_limit", "created": 0, "created_run_ids": [], "active": active_count}
+
+    legacy_records = publisher.legacy_article_records(repo_root)
+    allowed_article_ids = {str(record["id"]) for record in legacy_records}
+    backlog = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids=allowed_article_ids,
+        legacy_records=legacy_records,
+    )
+    if backlog["clean_approve"] > 0:
+        return {"status": "publish_ready_first", "created": 0, "created_run_ids": [], "backlog": backlog}
+    if backlog["unattempted"] <= 0:
+        return {"status": "idle", "created": 0, "created_run_ids": [], "backlog": backlog}
+
+    registered_article_ids = _registered_rewrite_article_ids(queue_root)
+    inventory = pipeline._existing_rewrite_inventory(repo_root)
+    head = source_commit or _head_sha(repo_root)
+    capacity = max(0, min(max_new_runs, max_active_runs - active_count))
+    created: list[str] = []
+    for record in legacy_records:
+        if len(created) >= capacity:
+            break
+        article_id = str(record.get("id") or "")
+        if not article_id or article_id in registered_article_ids:
+            continue
+        inventory_item = inventory.get(article_id)
+        if not inventory_item:
+            continue
+        run_id = f"legacy-auto-sweep-v1-{publisher._record_serial(record)}-{_slug_part(article_id)}"
+        run_dir = run_root / run_id
+        article_brief = _legacy_rewrite_article_brief(record, inventory_item)
+        brief = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "rewrite_existing_body",
+            "source_commit": head,
+            "sort_contract": "legacy_auto_sweep_v1_oldest_unattempted_first",
+            "articles": [article_brief],
+        }
+        pipeline.validate_rewrite_brief(brief)
+        pipeline.write_json(run_dir / "brief.json", brief)
+        pipeline.write_json(run_dir / "public-brief.json", pipeline.public_model_brief(brief))
+        register_run(run_dir, queue_root)
+        registered_article_ids.add(article_id)
+        created.append(run_id)
+
+    return {
+        "status": "seeded" if created else "idle",
+        "created": len(created),
+        "created_run_ids": created,
+        "backlog": backlog,
+    }
+
+
 def cycle_once(
     queue_root: Path,
     *,
     tick: Tick = run_pipeline_tick,
     process: Process = process_once,
+    repo_root: Path | None = None,
+    legacy_sweep: bool = False,
+    legacy_state_root: Path | None = None,
+    legacy_run_root: Path | None = None,
+    legacy_max_new_runs_per_cycle: int = DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE,
 ) -> dict[str, Any]:
     """每輪最多執行一個外部 job；完成後再 tick 一次寫入下一個狀態。"""
     root = queue_root.resolve()
@@ -137,6 +311,17 @@ def cycle_once(
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"status": "busy", "active": 0, "complete": 0, "failed": 0, "runner": {"status": "idle"}}
+
+        legacy_summary: dict[str, Any] | None = None
+        if legacy_sweep:
+            resolved_repo = (repo_root or Path.cwd()).resolve()
+            legacy_summary = seed_legacy_rewrite_runs(
+                resolved_repo,
+                root,
+                (legacy_state_root or resolved_repo / ".work/content-publisher").resolve(),
+                (legacy_run_root or resolved_repo / ".work/gsc-copy").resolve(),
+                max_new_runs=legacy_max_new_runs_per_cycle,
+            )
 
         states = _active_states(root)
         pending = 0
@@ -166,6 +351,7 @@ def cycle_once(
             "complete": completed,
             "failed": failed,
             "runner": runner,
+            "legacy_sweep": legacy_summary,
         }
 
 
@@ -181,6 +367,11 @@ def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
+    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--legacy-state-root", type=Path, default=Path(".work/content-publisher"))
+    parser.add_argument("--legacy-run-root", type=Path, default=Path(".work/gsc-copy"))
+    parser.add_argument("--legacy-sweep", action="store_true")
+    parser.add_argument("--legacy-max-new-runs-per-cycle", type=int, default=DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE)
     subparsers = parser.add_subparsers(dest="command", required=True)
     register = subparsers.add_parser("register")
     register.add_argument("run_dir", type=Path)
@@ -202,7 +393,14 @@ def main() -> int:
     elif args.command == "status":
         result = read_run_state(args.run_dir, queue_root)
     else:
-        result = cycle_once(queue_root)
+        result = cycle_once(
+            queue_root,
+            repo_root=args.repo_root,
+            legacy_sweep=args.legacy_sweep,
+            legacy_state_root=args.legacy_state_root,
+            legacy_run_root=args.legacy_run_root,
+            legacy_max_new_runs_per_cycle=args.legacy_max_new_runs_per_cycle,
+        )
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result.get("status") == "failed" else 0
 

@@ -12,6 +12,13 @@
     <string>scripts.agy_gemini_coordinator</string>
     <string>--queue-root</string>
     <string>__REPO_ROOT__/.work/gemini-runner</string>
+    <string>--repo-root</string>
+    <string>__REPO_ROOT__</string>
+    <string>--legacy-state-root</string>
+    <string>__REPO_ROOT__/.work/content-publisher</string>
+    <string>--legacy-run-root</string>
+    <string>__REPO_ROOT__/.work/gsc-copy</string>
+    <string>--legacy-sweep</string>
     <string>cycle</string>
   </array>
 
