@@ -1,11 +1,11 @@
 # Gemini V4 Limited Activation-003 Decision
 
 - status:
-  `IN_PROGRESS`
+  `BLOCKED`
 - decision:
-  `AWAITING_EXTERNAL_CONFIRMATION`
+  `BLOCKED`
 - external invocation count:
-  `0`
+  `1`
 
 ## 已通過
 
@@ -19,16 +19,27 @@
 - Executable digest 與 verified `agy 1.1.5` identity 一致。
 - Runtime 尚無 ledger、anchor、inbox、archive 或 failed record。
 
-## 執行前必要確認
+## 真實執行結論
 
-使用者必須看到並確認：
+使用者在看到工具、模型、公開主題、effective envelope、process 上限與副作用後
+明確確認。V4 runner 只執行一次，durable ledger 與 external anchor 證明：
 
-- 目標是既有本機 Antigravity `agy` CLI／Gemini 3.5 Flash。
-- 主題是公開文章「土星回歸是什麼」。
-- User task 與前兩次相同；request identity 全新。
-- 這次 effective prompt 新增 role、JSON-only、禁止 code fence 與完整 schema。
-- 最多一個 target process、timeout 120 秒、無 retry、無 fallback。
-- 只在 repo 外留下 ledger／anchor／inbox 或 failed／archive。
-- 不跑下一個 pipeline tick，不產生文章檔，不發布。
+- replay `COMPLETE / 1`
+- 恰一個 `EXEC_CONFIRMED`
+- 恰一個 `PROCESS_TERMINAL / SUCCESS`
+- replay errors `0`
 
-未取得 final payload confirmation 前不得執行 runner。
+Runner 隨後以 `V4BrokerFailure` fail closed；closed diagnostic 是
+`result_validation=SCHEMA_MISMATCH`。沒有 inbox，failed、archive、ledger 與
+anchor 存在。沒有 retry、fallback、第二次 process、pipeline continuation、
+publisher 或發布。
+
+## 唯一 blocker
+
+Structured envelope 已解決上一筆 canary 的 `JSON_INVALID`，真實回傳現在可進入
+schema validation，但 Gemini 3.5 Flash 的輸出仍未符合指定 response schema。
+Exactly-once ledger／anchor 與 CLI process 契約正常；不能以 target process
+`SUCCESS` 取代 response schema 成功。
+
+本卡不授權重送。下一步必須先在另立 Repair 卡中，以不保存 raw response 的方式
+增加安全、結構化的 schema mismatch 診斷，經獨立 Review 後才可考慮新 canary。

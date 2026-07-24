@@ -5,8 +5,8 @@
 - ownership: `v4_limited_activation_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `AWAITING_EXTERNAL_CONFIRMATION`
+- status: `BLOCKED`
+- decision: `BLOCKED`
 
 ## 基準
 
@@ -132,8 +132,35 @@ CommandFrame prompt digest／byte count 綁 effective prompt；receipt request S
 - sanitized request validation:
   `PASS`
 - current external invocation:
-  `0`
+  `1`
 - current ledger / anchor / inbox / archive / failed record:
-  `absent`
+  `present / present / absent / present / present`
+- durable replay / process count / terminal outcome:
+  `COMPLETE / 1 / SUCCESS`
+- result validation:
+  `SCHEMA_MISMATCH`
+- retry / fallback / second process / publisher:
+  `0 / 0 / 0 / 0`
 - decision:
-  `AWAITING_EXTERNAL_CONFIRMATION`
+  `BLOCKED`
+
+## 真實 canary 結果
+
+使用者在 final payload disclosure 後明確授權執行。Runner 只啟動一個
+agy／Gemini target process；durable ledger 與 anchor 證明 replay 為
+`COMPLETE`、process count 為 `1`，且唯一 process 以 `SUCCESS` 結束。
+
+Broker 隨後因回傳 JSON 未通過指定 response schema 而 fail closed：
+`result_validation=SCHEMA_MISMATCH`。Request 已移至 archive／failed，沒有
+inbox；未執行 retry、legacy fallback、第二次 process、pipeline continuation、
+publisher、publish 或 deploy。
+
+## 唯一 blocker
+
+Structured envelope 已讓真實回傳越過上一輪 `JSON_INVALID`，但 Gemini 3.5 Flash
+的實際輸出仍未滿足 response schema。Exactly-once ledger／anchor 與 CLI process
+契約正常；目前 blocker 是真實模型輸出的 schema conformance，不能把 process
+成功文案當成 canary 成功。
+
+本卡不授權重送。任何下一次外呼都必須另立 Repair／Review 契約，先以去識別
+診斷收斂 schema mismatch，再重新取得 final payload 確認。
