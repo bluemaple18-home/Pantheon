@@ -128,3 +128,25 @@ decision_statuses:
   並取得明確確認。
 - rollout:
   `DO_NOT_PROMOTE_DEFAULT`
+
+## JSON diagnostic canary-005 preflight
+
+- independent Review:
+  `GO`；使用既有可見 Review task，以 `gpt-5.5 / medium` 完全唯讀審查
+  candidate `1ed95de7f09becce05c997a77173d39b251b5b9b`
+- findings:
+  `P0-P3 none`
+- review verification:
+  `17 targeted pytest + 44 outbox suite + 15 direct probes`
+- fresh job:
+  `5241c89cdbe7722816b33db19f09839561b4a942`
+- generation invocation:
+  `0`
+- current executable:
+  local `agy 1.1.6`，interface 仍具備既有 V4 所需的 `--print <prompt>`；
+  executable digest 與 Activation-004 不同，必須以新 digest 明確確認
+- status:
+  `AWAITING_EXTERNAL_CONFIRMATION`
+- boundary:
+  確認前不得執行 generation；確認後最多一個 process，不 retry、不 fallback、
+  不接續 pipeline、不 publisher、不 publish
