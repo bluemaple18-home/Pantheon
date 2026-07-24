@@ -521,6 +521,63 @@ def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:
         publisher.publish_ready_runs(tmp_path, tmp_path / "queue", tmp_path / "state", git=fake_git, run_tests=False, release_gate=False)
 
 
+def test_publish_ready_all_runs_create_then_rewrite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, bool, bool, bool]] = []
+
+    def fake_create(
+        _repo_root: Path,
+        _queue_root: Path,
+        _state_root: Path,
+        *,
+        max_runs: int,
+        dry_run: bool,
+        push: bool,
+        run_tests: bool,
+        release_gate: bool,
+        git: publisher.GitRunner,
+    ) -> dict[str, object]:
+        calls.append(("create", push, run_tests, release_gate))
+        assert max_runs == 3
+        assert dry_run is True
+        assert git is publisher.run_git
+        return {"schema_version": 1, "status": "idle", "published": 0}
+
+    def fake_rewrite(
+        _repo_root: Path,
+        _queue_root: Path,
+        _state_root: Path,
+        *,
+        max_runs: int,
+        dry_run: bool,
+        push: bool,
+        run_tests: bool,
+        release_gate: bool,
+        git: publisher.GitRunner,
+    ) -> dict[str, object]:
+        calls.append(("rewrite", push, run_tests, release_gate))
+        assert max_runs == 3
+        assert dry_run is True
+        assert git is publisher.run_git
+        return {"schema_version": 1, "status": "idle_rejects_only", "rewritten": 0}
+
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_create)
+    monkeypatch.setattr(publisher, "publish_ready_rewrite_runs", fake_rewrite)
+
+    result = publisher.publish_ready_all(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        max_runs=3,
+        dry_run=True,
+        push=True,
+        run_tests=False,
+        release_gate=False,
+    )
+
+    assert result["status"] == "ok"
+    assert calls == [("create", True, False, False), ("rewrite", True, False, False)]
+
+
 def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     plist = plistlib.loads((repo_root / "ops/launchd/com.pantheon.agy-content-publisher.plist.example").read_bytes())
@@ -537,7 +594,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "--max-runs",
         "__MAX_RUNS__",
     ]
-    assert arguments[-1] == "--push"
+    assert arguments[-2:] == ["--include-rewrites", "--push"]
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],

@@ -23,6 +23,7 @@ LEGACY_ARTICLE_COUNT_CUTOFF = 353
 LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
 GitRunner = Callable[[Path, list[str], str | None], str]
 TEST_COMMAND = [sys.executable, "-m", "pytest", "tests/test_web.py", "tests/test_agy_seo_copy_pipeline.py", "tests/test_release_record.py", "-q"]
+SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "idle_rejects_only", "busy", "dry-run"}
 
 
 class PublishBlocked(ValueError):
@@ -817,6 +818,51 @@ def publish_ready_rewrite_runs(
         return evidence
 
 
+def publish_ready_all(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    max_runs: int = DEFAULT_MAX_RUNS,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+    git: GitRunner = run_git,
+) -> dict[str, Any]:
+    """同一輪 publisher tick 依序處理新文與舊文 rewrite。"""
+    create_result = publish_ready_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=max_runs,
+        dry_run=dry_run,
+        push=push,
+        run_tests=run_tests,
+        release_gate=release_gate,
+        git=git,
+    )
+    rewrite_result = publish_ready_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=max_runs,
+        dry_run=dry_run,
+        push=push,
+        run_tests=run_tests,
+        release_gate=release_gate,
+        git=git,
+    )
+    create_ok = create_result.get("status") in SUCCESS_STATUSES
+    rewrite_ok = rewrite_result.get("status") in SUCCESS_STATUSES
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "ok" if create_ok and rewrite_ok else "failed",
+        "create": create_result,
+        "rewrite": rewrite_result,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -825,6 +871,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
+    parser.add_argument("--include-rewrites", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--skip-tests", action="store_true")
@@ -840,7 +887,14 @@ def main() -> int:
         return 0
     if args.queue_root is None:
         raise SystemExit("--queue-root is required unless --legacy-report is set")
-    publisher_fn = publish_ready_rewrite_runs if args.rewrite_release else publish_ready_runs
+    if args.rewrite_release and args.include_rewrites:
+        raise SystemExit("--rewrite-release and --include-rewrites cannot be used together")
+    if args.include_rewrites:
+        publisher_fn = publish_ready_all
+    elif args.rewrite_release:
+        publisher_fn = publish_ready_rewrite_runs
+    else:
+        publisher_fn = publish_ready_runs
     result = publisher_fn(
         repo_root,
         args.queue_root.resolve(),
@@ -852,7 +906,7 @@ def main() -> int:
         release_gate=not args.skip_release_gate,
     )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") in {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "idle_rejects_only", "busy", "dry-run"} else 1
+    return 0 if result.get("status") in {*SUCCESS_STATUSES, "ok"} else 1
 
 
 if __name__ == "__main__":

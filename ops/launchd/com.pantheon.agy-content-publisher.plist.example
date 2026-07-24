@@ -18,6 +18,7 @@
     <string>__REPO_ROOT__/.work/content-publisher</string>
     <string>--max-runs</string>
     <string>__MAX_RUNS__</string>
+    <string>--include-rewrites</string>
     <string>--push</string>
   </array>
 
