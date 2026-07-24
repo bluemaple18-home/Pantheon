@@ -1,0 +1,114 @@
+Gemini V4 Schema Diagnostic Repair-3 independent verification
+==============================================================
+
+Identity / gate
+---------------
+candidate:
+406ec22631adde0a3c30fd753fa0be4a0baa55a9
+
+exact parent:
+3d40badfa5a97c5e2e49529f73995d5b51f23727
+
+merge-base:
+3d40badfa5a97c5e2e49529f73995d5b51f23727
+
+clean detached worktree before review: PASS
+index.lock absent: PASS
+candidate scope matches Repair allowlist: PASS
+
+Independent adversarial probes
+------------------------------
+parent/candidate schema acceptance differential:
+50000 cases / 0 mismatches / 0 exceptions
+
+production writer/reviewer schemas:
+8 schemas / 128 schema-defined paths / maximum depth 6 / PASS
+
+JSON null -> NOT_OBJECT: PASS
+unknown additional property name retained: false
+instance value retained: false
+maximum diagnostics / observed: 3 / 3
+over-depth path closed: PASS
+over-length token closed: PASS
+container and unhashable token closed without crash: PASS
+10,000-digit integer closed without persistence: PASS
+forged message marker in failed record: false
+forged message marker in returned failure result: false
+
+BrokerResult compatibility
+--------------------------
+old 12-positional required-field constructor: PASS
+old 14-positional constructor including prior defaults: PASS
+schema_diagnostics remains final defaulted field: PASS
+replay / existing operation no resend: PASS
+
+Focused pytest
+--------------
+9 passed in 1.35s
+
+Affected pytest matrix
+----------------------
+V4 broker / runner / architecture:
+87 passed in 32.73s
+
+transport probe:
+15 passed in 0.02s
+
+V4 subtotal:
+102 passed
+
+legacy SEO pipeline:
+57 passed in 31.40s
+
+coordinator:
+6 passed in 0.13s
+
+publisher:
+5 passed in 0.05s
+
+web:
+63 passed, 2 existing warnings in 14.11s
+
+unique affected total:
+233 passed
+
+Static / scope / privacy
+------------------------
+py_compile changed production and tests: PASS
+git diff --check parent..candidate: PASS
+candidate changed-files allowlist: PASS
+[DBG-*], pdb and breakpoint marker scan: PASS
+credential / private-key marker scan: PASS
+production code hardcoded private path: absent
+prompt / raw stdout / raw stderr persisted: false
+response body / instance value persisted: false
+validator message / CLI log persisted: false
+full environment / credential persisted: false
+
+Behavioral boundary
+-------------------
+flag off legacy single call: PASS
+flag on fail closed: PASS
+flag on legacy fallback calls: 0
+exactly-once ledger / anchor implementation changed: false
+response schema / structured envelope changed: false
+publisher / articles / registry / automation changed: false
+
+Bounded-work observation
+------------------------
+700,000 valid integer items with maxItems=5:
+parent seconds: 0.000012
+candidate seconds: 0.271071
+acceptance result equal: true
+finding: P3 non-blocking CPU amplification
+
+Prohibited actions
+------------------
+Gemini / agy invocation: 0
+Activation-003 retry: 0
+new real payload: 0
+merge / push / deploy / publish / activation / promotion / legacy removal: 0
+
+Verdict
+-------
+DELIVERED_CANDIDATE / GO
