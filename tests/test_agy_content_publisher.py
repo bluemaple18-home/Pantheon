@@ -341,6 +341,57 @@ def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, mo
     assert ready == []
 
 
+def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    article = make_rewrite_article("LEGACY-001", "legacy-001")
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-drift", article)
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"] or args == ["rev-parse", "origin/main"]:
+            return "a" * 40
+        return ""
+
+    monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
+    monkeypatch.setattr(publisher, "legacy_article_records", lambda _repo: [{"id": "LEGACY-001", "serial": "astrology-0001", "articleCategory": "astrology"}])
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: {
+            "LEGACY-001": {
+                "record": {
+                    "id": "LEGACY-001",
+                    "product": "astrology",
+                    "articleCategory": "astrology",
+                    "serial": "astrology-0001",
+                    "urlSlug": "legacy-001",
+                    "primaryKeyword": "舊文測試",
+                    "title": "已變動的舊文標題",
+                },
+                "currentBody": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
+            }
+        },
+    )
+
+    result = publisher.publish_ready_rewrite_runs(
+        tmp_path,
+        queue_root,
+        state_root,
+        git=fake_git,
+        dry_run=True,
+        run_tests=False,
+        release_gate=False,
+    )
+
+    assert result["status"] == "idle"
+    assert result["legacy_rewrite_backlog"]["quarantined"] == 1
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert ledger["quarantined_runs"][0]["run_id"] == "rewrite-drift"
+    assert ledger["quarantined_runs"][0]["reason"] == "rewrite identity drift for LEGACY-001"
+
+
 def test_legacy_rewrite_backlog_blocks_reject_repair_until_all_legacy_attempted(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"

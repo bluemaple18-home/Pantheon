@@ -101,6 +101,14 @@ def _record_quarantine(state_root: Path, state: dict[str, Any], reason: str) -> 
         _write_json(_ledger_path(state_root), ledger)
 
 
+def _rewrite_quarantined_run_ids(ledger: dict[str, Any]) -> set[str]:
+    return {
+        str(item.get("run_id"))
+        for item in ledger["quarantined_runs"]
+        if str(item.get("reason")) != "publisher only supports create mode"
+    }
+
+
 def _load_completed_run(state_path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     state = _read_json(state_path)
     if state.get("schema_version") != SCHEMA_VERSION or state.get("status") != "complete":
@@ -214,6 +222,7 @@ def collect_ready_rewrite_runs(
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
+    quarantined = _rewrite_quarantined_run_ids(ledger)
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     seen_article_ids: set[str] = set()
     seen_body_hashes: dict[str, str] = {}
@@ -223,7 +232,7 @@ def collect_ready_rewrite_runs(
         except PublishBlocked:
             continue
         run_id = str(state["run_id"])
-        if run_id in released or candidate.get("mode") != "rewrite_existing_body":
+        if run_id in released or run_id in quarantined or candidate.get("mode") != "rewrite_existing_body":
             continue
         candidate_article_ids = {str(article["article_id"]) for article in candidate["articles"]}
         if allowed_article_ids is not None and not candidate_article_ids <= allowed_article_ids:
@@ -251,6 +260,22 @@ def collect_ready_rewrite_runs(
     return ready
 
 
+def _filter_rewrite_runs_with_current_sources(
+    repo_root: Path,
+    state_root: Path,
+    ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]],
+) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    filtered: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    for state, candidate, review, brief in ready:
+        try:
+            _assert_rewrite_source_matches(repo_root, [candidate])
+        except PublishBlocked as exc:
+            _record_quarantine(state_root, state, str(exc))
+            continue
+        filtered.append((state, candidate, review, brief))
+    return filtered
+
+
 def summarize_legacy_rewrite_backlog(
     queue_root: Path,
     state_root: Path,
@@ -260,8 +285,10 @@ def summarize_legacy_rewrite_backlog(
 ) -> dict[str, Any]:
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
+    quarantined = _rewrite_quarantined_run_ids(ledger)
     summary = {
         "released": 0,
+        "quarantined": 0,
         "clean_approve": 0,
         "reject": 0,
         "active_or_incomplete": 0,
@@ -317,6 +344,9 @@ def summarize_legacy_rewrite_backlog(
             summary["non_legacy"] += 1
             continue
         attempted_article_ids.update(candidate_article_ids)
+        if run_id in quarantined:
+            summary["quarantined"] += 1
+            continue
         if run_id in released:
             summary["released"] += 1
             continue
@@ -748,7 +778,14 @@ def publish_ready_rewrite_runs(
             legacy_records=legacy_records,
         )
         ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs, allowed_article_ids=allowed_article_ids)
+        ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready)
         if not ready:
+            backlog_summary = summarize_legacy_rewrite_backlog(
+                queue_root,
+                state_root,
+                allowed_article_ids=allowed_article_ids,
+                legacy_records=legacy_records,
+            )
             status = "idle_rejects_only" if backlog_summary["repair_rejects_allowed"] else "idle"
             return {
                 "schema_version": SCHEMA_VERSION,
