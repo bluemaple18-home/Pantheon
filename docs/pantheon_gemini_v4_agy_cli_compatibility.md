@@ -85,3 +85,21 @@ Activation-002 以真實文章 payload 得到 durable `COMPLETE/1` 與
 runner 只傳 user task，遺失 legacy CLI 的 role／JSON-only／schema envelope。
 Structured-envelope Repair 只以 synthetic runner seam 與既有 broker digest tests
 驗證；本文件不授權第三次真實外呼。
+
+Activation-004 在 structured envelope 與 schema diagnostic Repair 通過獨立 Review
+後，仍得到 durable `COMPLETE/1`、`PROCESS_TERMINAL/SUCCESS` 與
+`JSON_INVALID`。由於同一路徑也曾得到 `VALID` 與 `SCHEMA_MISMATCH`，不能假設
+agy 固定加入同一種 wrapper，也不得在沒有證據時自動剝除 code fence 或前後文字。
+
+`JSON_INVALID` 只允許 broker 產生一個 value-free closed diagnostic：
+
+- `EMPTY`
+- `UTF8_INVALID`
+- `MARKDOWN_FENCE`
+- `WRAPPED_JSON`
+- `PARSE_ERROR_AT_END`
+- `PARSE_ERROR_OTHER`
+
+runner 以獨立 allowlist 二次過濾，且只在 `result_validation=JSON_INVALID` 時保存該
+enum。不得保存 raw bytes、文字片段、parser message、offset 或未知字串。這項診斷
+不放寬嚴格 `json.loads`／schema 契約、不自動修復輸出，也不授權新外呼。

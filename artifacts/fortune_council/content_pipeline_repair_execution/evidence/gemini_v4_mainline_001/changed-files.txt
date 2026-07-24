@@ -9,4 +9,5 @@ artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_m
 docs/pantheon_gemini_reviewer_v4_architecture.md
 docs/pantheon_gemini_v4_agy_cli_compatibility.md
 scripts/agy_gemini_v4_broker.py
+scripts/agy_gemini_runner.py
 tests/test_agy_gemini_outbox.py

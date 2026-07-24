@@ -15,3 +15,14 @@ result: 69 passed in 29.60s
 MALFORMED OUTPUT CONTROL
 command: uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback -q
 result: 1 passed in 0.03s
+
+JSON_INVALID CONTINUATION RED
+command: .venv/bin/python -B -m pytest -q tests/test_agy_gemini_outbox.py::test_broker_classifies_json_invalid_without_retaining_output tests/test_agy_gemini_outbox.py::test_runner_persists_only_closed_json_diagnostic
+result: 7 failed
+signal: BrokerResult had no json_diagnostic and runner could not persist a closed format classification.
+
+JSON_INVALID CONTINUATION GREEN
+command: same selectors after the minimal broker classifier and independent runner allowlist
+result: 9 passed in 1.23s
+coverage: EMPTY, UTF8_INVALID, MARKDOWN_FENCE, WRAPPED_JSON, PARSE_ERROR_AT_END, PARSE_ERROR_OTHER, valid persistence, forged string rejection, forged object rejection
+privacy: no raw output, content fragment, parser message, offset or unknown diagnostic persisted

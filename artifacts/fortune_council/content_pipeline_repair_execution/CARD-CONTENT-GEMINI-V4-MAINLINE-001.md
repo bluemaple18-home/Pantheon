@@ -1,7 +1,7 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-MAINLINE-001
 chain_id: CONTENT-GEMINI-V4-MAINLINE-001
-status: DELIVERED_CANDIDATE
+status: BLOCKED
 review_status: REVIEW_GO
 gate_5_mainline_acceptance: ACCEPTED
 accepted_candidate_sha: 8c1b935917364c820dec19304ecf6e0ac50cde5a
@@ -38,7 +38,7 @@ forbidden_scope:
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/
 thread_status: VERIFIED
 worktree_status: VERIFIED
-decision: READY_FOR_REVIEW
+decision: BLOCKED
 rollout_decision: DO_NOT_PROMOTE_DEFAULT
 delivery_statuses:
   - DELIVERED_CANDIDATE
@@ -106,3 +106,25 @@ decision_statuses:
 - Rollout：`DO_NOT_PROMOTE_DEFAULT`
 
 此 integration 不代表已 push、deploy、publish或啟用 V4。文章 automation、content queue、registry、文章內容、sitemap、feed與prerender均未由本 chain 修改。
+
+## JSON_INVALID continuation
+
+- source evidence:
+  `CARD-CONTENT-GEMINI-V4-LIMITED-ACTIVATION-004`
+- durable result:
+  `COMPLETE / 1 / PROCESS_TERMINAL SUCCESS / JSON_INVALID`
+- current blocker:
+  真實長文章 stdout 未通過嚴格 JSON parse，且既有 privacy boundary 不保存 raw
+  response，因此目前無法區分 empty、invalid UTF-8、Markdown fence／前後包裝、
+  截斷或一般 syntax error。
+- scope:
+  只新增 bounded、value-free、closed JSON format diagnostic 與 runner 二次 sanitizer；
+  不猜測或自動修復輸出，不放寬 caller schema，不修改 ledger／anchor／replay。
+- feedback loop:
+  先在既有 `tests/test_agy_gemini_outbox.py` 補 RED，證明所有分類不保留 raw
+  bytes、片段、offset、parser message 或未知字串；再做最小 production 修正。
+- external call:
+  本 continuation 不授權 Gemini／agy canary。任何新外呼仍須重新揭露 final payload
+  並取得明確確認。
+- rollout:
+  `DO_NOT_PROMOTE_DEFAULT`

@@ -496,6 +496,132 @@ def test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding(
     assert result.stdout_sha256 == hashlib.sha256(expected_stdout).hexdigest()
 
 
+@pytest.mark.parametrize(
+    ("raw_output", "expected_diagnostic"),
+    (
+        (b"", "EMPTY"),
+        (b"\xff", "UTF8_INVALID"),
+        (b"```json\n{\"ok\":true}\n```\n", "MARKDOWN_FENCE"),
+        (b"result: {\"ok\":true}", "WRAPPED_JSON"),
+        (b"{\"ok\":", "PARSE_ERROR_AT_END"),
+        (b"{\"ok\":nope}", "PARSE_ERROR_OTHER"),
+    ),
+)
+def test_broker_classifies_json_invalid_without_retaining_output(
+    tmp_path: Path,
+    raw_output: bytes,
+    expected_diagnostic: str,
+) -> None:
+    executable = tmp_path / f"json-invalid-{expected_diagnostic.lower()}"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"sys.stdout.buffer.write(bytes.fromhex({raw_output.hex()!r}))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+
+    result = broker.run_single_shot(
+        operation_id=f"operation-{expected_diagnostic.lower()}",
+        item_id="item-json-invalid",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="synthetic-model",
+        executable=executable,
+        target_profile=broker.RAW_STDIN_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request=b"public synthetic request",
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=tmp_path / f"{expected_diagnostic.lower()}.jsonl",
+        anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+    )
+
+    assert result.result_validation == "JSON_INVALID"
+    assert result.json_diagnostic == expected_diagnostic
+    assert result.result_json is None
+    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
+    if raw_output:
+        assert raw_output.hex() not in serialized
+    assert "result:" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("json_diagnostic", "expected"),
+    (
+        ("MARKDOWN_FENCE", "MARKDOWN_FENCE"),
+        ("must-not-persist", None),
+        ({"secret": "must-not-persist"}, None),
+    ),
+)
+def test_runner_persists_only_closed_json_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    json_diagnostic: object,
+    expected: str | None,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-json-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 JSON diagnostic synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        broker.ANTIGRAVITY_CLI_PROFILE,
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=(),
+        result_validation="JSON_INVALID",
+        json_diagnostic=json_diagnostic,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    expected_fields = {
+        "outcome",
+        "process_count",
+        "replay_status",
+        "result_validation",
+    }
+    if expected is None:
+        assert "json_diagnostic" not in failed["broker_diagnostic"]
+    else:
+        assert failed["broker_diagnostic"]["json_diagnostic"] == expected
+        expected_fields.add("json_diagnostic")
+    assert set(failed["broker_diagnostic"]) == expected_fields
+    assert "must-not-persist" not in failed_path.read_text()
+
+
 @pytest.mark.parametrize("status", ("BLOCKED", "AMBIGUOUS", "INVALID"))
 def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
     executable = tmp_path / "agy-current"
