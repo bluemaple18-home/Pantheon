@@ -118,6 +118,31 @@ def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) ->
     assert "invalid candidate" not in state
 
 
+def test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "run-malformed-json"
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, "run-malformed-json")
+    register_run(run_dir, queue_root)
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending("public-job-malformed")
+
+    def malformed_runner(_queue_root: Path) -> dict[str, str]:
+        raise json.JSONDecodeError("unterminated response", '{"result":', 10)
+
+    summary = cycle_once(queue_root, tick=pending_tick, process=malformed_runner)
+    state = read_run_state(run_dir, queue_root)
+
+    assert summary["status"] == "failed"
+    assert summary["runner"] == {
+        "status": "failed",
+        "job_id": "public-job-malformed",
+        "error_type": "JSONDecodeError",
+    }
+    assert state["status"] == "active"
+    assert state["last_job_id"] == "public-job-malformed"
+
+
 def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path: Path, monkeypatch) -> None:
     repo_root = tmp_path / "repo"
     queue_root = tmp_path / "queue"

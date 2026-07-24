@@ -482,7 +482,14 @@ def cycle_once(
 
         runner: dict[str, str] = {"status": "idle"}
         if pending:
-            runner = process(root)
+            try:
+                runner = process(root)
+            except json.JSONDecodeError:
+                job_id = next(
+                    (str(state["last_job_id"]) for state in states if state.get("last_job_id")),
+                    "unknown",
+                )
+                runner = {"status": "failed", "job_id": job_id, "error_type": "JSONDecodeError"}
             if runner.get("status") == "failed":
                 failed += 1
             elif runner.get("status") == "processed":

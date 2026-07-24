@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import functools
+import hashlib
 from datetime import date, datetime
 import fcntl
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 from typing import Any, Callable
@@ -76,6 +79,174 @@ def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
     if local != remote:
         raise PublishBlocked(f"local HEAD differs from origin/main: {local[:12]} != {remote[:12]}")
     return local
+
+
+def _git_paths(repo_root: Path, git: GitRunner, args: list[str]) -> list[str]:
+    return [path for path in git(repo_root, args, None).split("\0") if path]
+
+
+def _publisher_owned_path(relative: str) -> bool:
+    return relative.startswith("app/web/") or relative in {
+        "CHANGELOG.md",
+        "package.json",
+        "pyproject.toml",
+        "tests/test_web.py",
+    }
+
+
+def _queued_run_ids(queue_root: Path, phase: str, limit: int) -> list[str]:
+    expected_mode = {
+        "create": "create",
+        "rewrite": "rewrite_existing_body",
+        "translation": "translate_existing",
+    }[phase]
+    run_ids: list[str] = []
+    for state_path in _run_files(queue_root):
+        try:
+            state = _read_json(state_path)
+            run_dir = Path(str(state.get("run_dir") or ""))
+            brief = _read_json(run_dir / "brief.json")
+        except (OSError, json.JSONDecodeError):
+            continue
+        if state.get("status") == "complete" and brief.get("mode") == expected_mode:
+            run_ids.append(str(state.get("run_id") or ""))
+        if len(run_ids) >= limit:
+            break
+    return [run_id for run_id in run_ids if run_id]
+
+
+def _recover_failed_publish(
+    repo_root: Path,
+    state_root: Path,
+    *,
+    base_sha: str,
+    phase: str,
+    run_ids: list[str],
+    error: Exception,
+    git: GitRunner,
+) -> Path:
+    """保存失敗證據，只還原從乾淨 base 產生的本輪 repo 變更。"""
+    failed_head = git(repo_root, ["rev-parse", "HEAD"], None)
+    nonce = datetime.now().astimezone().isoformat(timespec="microseconds")
+    suffix = hashlib.sha256(f"{phase}:{base_sha}:{nonce}".encode("utf-8")).hexdigest()[:10]
+    evidence_dir = state_root / "evidence" / f"failed-{phase}-{suffix}"
+    evidence_dir.mkdir(parents=True, exist_ok=False)
+    status_before = git(repo_root, ["status", "--porcelain"], None)
+    (evidence_dir / "working-tree.patch").write_text(
+        git(repo_root, ["diff", "--binary", base_sha], None),
+        encoding="utf-8",
+    )
+    untracked = _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"])
+    for relative in untracked:
+        source = repo_root / relative
+        if not source.is_file():
+            continue
+        target = evidence_dir / "untracked" / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+    created_tags: list[str] = []
+    if failed_head != base_sha:
+        created_tags = [
+            tag
+            for tag in git(repo_root, ["tag", "--points-at", failed_head], None).splitlines()
+            if re.fullmatch(r"v\d+\.\d+\.\d+", tag)
+        ]
+        git(
+            repo_root,
+            ["update-ref", "-m", f"rollback failed {phase} publish", "HEAD", base_sha, failed_head],
+            None,
+        )
+
+    changed_tracked = sorted(
+        set(
+            _git_paths(repo_root, git, ["diff", "--name-only", "-z", base_sha])
+            + _git_paths(repo_root, git, ["diff", "--cached", "--name-only", "-z", base_sha])
+        )
+    )
+    tracked = [relative for relative in changed_tracked if _publisher_owned_path(relative)]
+    if tracked:
+        git(repo_root, ["restore", f"--source={base_sha}", "--staged", "--worktree", "--", *tracked], None)
+    for relative in _git_paths(repo_root, git, ["ls-files", "--others", "--exclude-standard", "-z"]):
+        path = repo_root / relative
+        if _publisher_owned_path(relative) and (path.is_file() or path.is_symlink()):
+            path.unlink()
+    for tag in created_tags:
+        git(repo_root, ["tag", "-d", tag], None)
+
+    status_after = git(repo_root, ["status", "--porcelain"], None)
+    evidence_path = evidence_dir / "failure.json"
+    _write_json(
+        evidence_path,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "status": "FAILED_RECOVERED" if not status_after else "FAILED_RECOVERY_INCOMPLETE",
+            "phase": phase,
+            "run_ids": run_ids,
+            "base_sha": base_sha,
+            "failed_head": failed_head,
+            "error_type": type(error).__name__,
+            "return_code": error.returncode if isinstance(error, subprocess.CalledProcessError) else None,
+            "status_before_recovery": status_before.splitlines(),
+            "status_after_recovery": status_after.splitlines(),
+            "untracked_files_preserved": untracked,
+            "publisher_owned_paths_restored": tracked,
+            "unknown_tracked_paths_preserved": [
+                relative for relative in changed_tracked if not _publisher_owned_path(relative)
+            ],
+            "removed_local_tags": created_tags,
+            "repo_recovered": not status_after,
+            "retry_status": "candidate_preserved",
+            "recorded_at": _now(),
+        },
+    )
+    if status_after:
+        raise PublishBlocked(f"{phase} publish recovery did not restore a clean repo; evidence: {evidence_path}") from error
+    return evidence_path
+
+
+def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+    def decorate(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+        @functools.wraps(function)
+        def wrapped(
+            repo_root: Path,
+            queue_root: Path,
+            state_root: Path,
+            *args: Any,
+            **kwargs: Any,
+        ) -> dict[str, Any]:
+            git = kwargs.get("git", run_git)
+            if not _repo_clean(repo_root, git):
+                return function(repo_root, queue_root, state_root, *args, **kwargs)
+            base_sha = git(repo_root, ["rev-parse", "HEAD"], None)
+            run_ids = _queued_run_ids(queue_root, phase, int(kwargs.get("max_runs", DEFAULT_MAX_RUNS)))
+            try:
+                return function(repo_root, queue_root, state_root, *args, **kwargs)
+            except Exception as error:
+                if git(repo_root, ["rev-parse", "HEAD"], None) == base_sha and _repo_clean(repo_root, git):
+                    raise
+                evidence_path = _recover_failed_publish(
+                    repo_root,
+                    state_root,
+                    base_sha=base_sha,
+                    phase=phase,
+                    run_ids=run_ids,
+                    error=error,
+                    git=git,
+                )
+                return {
+                    "schema_version": SCHEMA_VERSION,
+                    "status": "failed_recovered",
+                    count_key: 0,
+                    "base_sha": base_sha,
+                    "error_type": type(error).__name__,
+                    "evidence": str(evidence_path),
+                    "retry_status": "candidate_preserved",
+                }
+
+        return wrapped
+
+    return decorate
 
 
 def _run_files(queue_root: Path) -> list[Path]:
@@ -706,6 +877,7 @@ def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, article
 
 
 def _sync_web_test_cache_token(repo_root: Path, *, cache_token: str) -> Path:
+    pipeline._bump_article_cache_queries(repo_root, cache_token)
     test_path = repo_root / "tests/test_web.py"
     text = test_path.read_text(encoding="utf-8")
     text = re.sub(r'ARTICLE_CACHE_TOKEN = "[^"]+"', f'ARTICLE_CACHE_TOKEN = "{cache_token}"', text, count=1)
@@ -762,7 +934,7 @@ def _stage_commit_tag_push(
     if release_gate:
         _run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
     if push:
-        git(repo_root, ["push", "origin", "HEAD:main", f"v{version}"], None)
+        git(repo_root, ["push", "--atomic", "origin", "HEAD:main", f"v{version}"], None)
     return commit_sha
 
 
@@ -839,6 +1011,7 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     return changed
 
 
+@_recoverable_publish("create", "published")
 def publish_ready_runs(
     repo_root: Path,
     queue_root: Path,
@@ -935,6 +1108,7 @@ def publish_ready_runs(
         return evidence
 
 
+@_recoverable_publish("rewrite", "rewritten")
 def publish_ready_rewrite_runs(
     repo_root: Path,
     queue_root: Path,
@@ -1041,6 +1215,7 @@ def publish_ready_rewrite_runs(
         return evidence
 
 
+@_recoverable_publish("translation", "translated")
 def publish_ready_translation_runs(
     repo_root: Path,
     queue_root: Path,
@@ -1110,7 +1285,9 @@ def publish_ready_translation_runs(
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
-        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=f"agy-i18n-{version.replace('.', '-')}")
+        cache_token = f"agy-i18n-{version.replace('.', '-')}"
+        changed.extend(str(path.relative_to(repo_root)) for path in pipeline._bump_article_cache_queries(repo_root, cache_token))
+        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=cache_token)
         changed.append(str(fixture_path.relative_to(repo_root)))
         _run_prerender(repo_root)
         _run_feed(repo_root)

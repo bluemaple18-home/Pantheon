@@ -1,0 +1,27 @@
+RED
+command:
+  <repo-root>/.venv/bin/python -m pytest \
+    tests/test_agy_content_publisher.py::test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_evidence \
+    tests/test_agy_content_publisher.py::test_sync_web_test_cache_token_updates_runtime_templates_from_same_token \
+    tests/test_agy_gemini_coordinator.py::test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable -q
+exit_code: 1
+result: 3 failed
+observed:
+  - CalledProcessError escaped translation publish and no recovery result existed.
+  - ARTICLE_CACHE_TOKEN changed while article.html runtime token stayed old.
+  - JSONDecodeError escaped cycle_once.
+
+GREEN
+same_command_exit_code: 0
+same_command_result: 3 passed
+
+ATOMIC PUSH RED
+command:
+  <repo-root>/.venv/bin/python -m pytest \
+    tests/test_agy_content_publisher.py::test_stage_commit_pushes_release_commit_and_tag_atomically -q
+exit_code: 1
+result: expected --atomic, observed non-atomic push
+
+ATOMIC PUSH GREEN
+same_command_exit_code: 0
+same_command_result: 1 passed

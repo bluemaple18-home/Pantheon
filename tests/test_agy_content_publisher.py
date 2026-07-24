@@ -331,6 +331,137 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
     assert ledger["quarantined_runs"] == []
 
 
+def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root = tmp_path / "repo"
+    run_dir = tmp_path / "runs" / "translate-ko"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "publisher-state"
+    static = repo_root / "app/web/static"
+    tests_dir = repo_root / "tests"
+    static.mkdir(parents=True)
+    tests_dir.mkdir()
+    run_dir.mkdir(parents=True)
+    (static / "article-locales.js").write_text("export const ARTICLE_LOCALE_REGISTRY = [];\n", encoding="utf-8")
+    (repo_root / "app/web/article.html").write_text(
+        '<script type="module" src="static/article.js?v=old-token"></script>\n',
+        encoding="utf-8",
+    )
+    (tests_dir / "test_web.py").write_text('ARTICLE_CACHE_TOKEN = "old-token"\n', encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text('[project]\nversion = "0.3.58"\n', encoding="utf-8")
+    (repo_root / "package.json").write_text('{"version":"0.3.58"}\n', encoding="utf-8")
+    (repo_root / "CHANGELOG.md").write_text(
+        "# Pantheon Release Log\n\n## [0.3.58] - 2026-07-24\n\n- baseline\n",
+        encoding="utf-8",
+    )
+    candidate = {
+        "run_id": "translate-ko",
+        "articles": [{"article_id": "AUTO-001:ko", "source_article_id": "AUTO-001", "locale": "ko"}],
+    }
+    _write_json(
+        run_dir / "brief.json",
+        {"run_id": "translate-ko", "mode": "translate_existing", "articles": []},
+    )
+    _write_json(run_dir / "candidate.json", candidate)
+    state = {"run_id": "translate-ko", "run_dir": str(run_dir)}
+    _write_json(
+        queue_root / "runs" / "translate-ko.json",
+        {**state, "status": "complete", "result": {"candidate": str(run_dir / "candidate.json")}},
+    )
+    subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
+    monkeypatch.setattr(
+        publisher,
+        "collect_ready_translation_runs",
+        lambda *_args, **_kwargs: [(state, {"run_id": "translate-ko"}, candidate, {"run_id": "translate-ko"})],
+    )
+
+    def apply_translation(repo: Path, run: Path, _approver: str) -> list[Path]:
+        run_id = run.name
+        _write_json(run / "approval.json", {"run_id": run_id, "status": "approved"})
+        module = repo / f"app/web/static/article-locale-{run_id}.js"
+        module.write_text("export const KO = [];\n", encoding="utf-8")
+        manifest = repo / "app/web/static/article-locales.js"
+        manifest.write_text(f"import './article-locale-{run_id}.js';\n", encoding="utf-8")
+        return [module, manifest]
+
+    monkeypatch.setattr(publisher.multilingual, "approve_and_apply_translation_run", apply_translation)
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 440)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    monkeypatch.setattr(
+        publisher,
+        "_run_checked",
+        lambda _repo, args: (_ for _ in ()).throw(subprocess.CalledProcessError(1, args)),
+    )
+
+    result = publisher.publish_ready_translation_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_tests=True,
+        release_gate=True,
+    )
+
+    assert result["status"] == "failed_recovered"
+    assert result["error_type"] == "CalledProcessError"
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+    assert (run_dir / "candidate.json").is_file()
+    assert (run_dir / "approval.json").is_file()
+    assert (queue_root / "runs" / "translate-ko.json").is_file()
+    failure = json.loads(Path(str(result["evidence"])).read_text(encoding="utf-8"))
+    assert failure["base_sha"] == base_sha
+    assert failure["run_ids"] == ["translate-ko"]
+    assert failure["repo_recovered"] is True
+    assert failure["retry_status"] == "candidate_preserved"
+
+    next_run_dir = tmp_path / "runs" / "translate-en"
+    next_run_dir.mkdir()
+    next_candidate = {
+        "run_id": "translate-en",
+        "articles": [{"article_id": "AUTO-002:en", "source_article_id": "AUTO-002", "locale": "en"}],
+    }
+    _write_json(next_run_dir / "candidate.json", next_candidate)
+    next_state = {"run_id": "translate-en", "run_dir": str(next_run_dir)}
+    monkeypatch.setattr(
+        publisher,
+        "collect_ready_translation_runs",
+        lambda *_args, **_kwargs: [(next_state, {"run_id": "translate-en"}, next_candidate, {"run_id": "translate-en"})],
+    )
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+
+    next_result = publisher.publish_ready_translation_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_tests=True,
+        release_gate=False,
+    )
+
+    assert next_result["status"] == "PUBLISHED_TRANSLATION"
+    assert next_result["run_ids"] == ["translate-en"]
+    assert (next_run_dir / "approval.json").is_file()
+
+
 def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = tmp_path
     queue_root = tmp_path / "queue"
@@ -761,6 +892,85 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert completed.returncode == 0, completed.stderr
 
 
+def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        calls.append(args)
+        return "c" * 40 if args == ["rev-parse", "HEAD"] else ""
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+
+    publisher._stage_commit_tag_push(
+        Path("/synthetic/repo"),
+        "0.3.59",
+        fake_git,
+        push=True,
+        release_gate=True,
+    )
+
+    assert calls[-1] == ["push", "--atomic", "origin", "HEAD:main", "v0.3.59"]
+
+
+def test_recovery_removes_unpushed_commit_and_tag_but_preserves_failure_evidence(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    state_root = tmp_path / "state"
+    (repo_root / "app/web").mkdir(parents=True)
+    article_html = repo_root / "app/web/article.html"
+    article_html.write_text("old\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    article_html.write_text("new\n", encoding="utf-8")
+    subprocess.run(["git", "add", "app/web/article.html"], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "candidate"], cwd=repo_root, check=True)
+    subprocess.run(["git", "tag", "-a", "v0.3.59", "-m", "candidate"], cwd=repo_root, check=True)
+
+    evidence = publisher._recover_failed_publish(
+        repo_root,
+        state_root,
+        base_sha=base_sha,
+        phase="translation",
+        run_ids=["translate-ko"],
+        error=subprocess.CalledProcessError(1, ["release-gate"]),
+        git=publisher.run_git,
+    )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == base_sha
+    assert subprocess.run(
+        ["git", "tag", "--list", "v0.3.59"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+    failure = json.loads(evidence.read_text(encoding="utf-8"))
+    assert failure["removed_local_tags"] == ["v0.3.59"]
+    assert failure["repo_recovered"] is True
+
+
 def test_sync_web_test_release_fixture_updates_cache_token_and_paths(tmp_path: Path) -> None:
     test_dir = tmp_path / "tests"
     test_dir.mkdir()
@@ -783,3 +993,25 @@ def test_sync_web_test_release_fixture_updates_cache_token_and_paths(tmp_path: P
 
     assert 'ARTICLE_CACHE_TOKEN = "new-token"' in text
     assert '    "/articles/astrology/astrology-0139",\n' in text
+
+
+def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp_path: Path) -> None:
+    test_dir = tmp_path / "tests"
+    web_dir = tmp_path / "app/web"
+    test_dir.mkdir(parents=True)
+    web_dir.mkdir(parents=True)
+    (test_dir / "test_web.py").write_text('ARTICLE_CACHE_TOKEN = "old-token"\n', encoding="utf-8")
+    (web_dir / "article.html").write_text(
+        '<script type="module" src="static/article.js?v=old-token"></script>\n',
+        encoding="utf-8",
+    )
+    (web_dir / "articles.html").write_text(
+        '<script type="module" src="/static/articles.js?v=old-token"></script>\n',
+        encoding="utf-8",
+    )
+
+    publisher._sync_web_test_cache_token(tmp_path, cache_token="agy-i18n-0-3-59")
+
+    assert 'ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-59"' in (test_dir / "test_web.py").read_text(encoding="utf-8")
+    assert "static/article.js?v=agy-i18n-0-3-59" in (web_dir / "article.html").read_text(encoding="utf-8")
+    assert "static/articles.js?v=agy-i18n-0-3-59" in (web_dir / "articles.html").read_text(encoding="utf-8")

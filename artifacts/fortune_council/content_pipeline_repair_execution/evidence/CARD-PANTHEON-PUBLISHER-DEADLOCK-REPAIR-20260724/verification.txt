@@ -1,0 +1,47 @@
+CARD_ID: CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-20260724
+STATUS: DELIVERED_CANDIDATE
+SOURCE_SHA: 41522076fccbe0406fb4d270d138368ce5c0395f
+
+RED-CAPABLE REGRESSION
+command: focused publisher/cache-token/coordinator three-test command recorded in red-green.txt
+red_exit_code: 1
+red_result: 3 failed
+green_exit_code: 0
+green_result: 3 passed
+
+ATOMIC PUSH REGRESSION
+red_exit_code: 1
+green_exit_code: 0
+green_result: release commit and tag use one --atomic push
+
+REQUIRED FOCUSED SUITE
+command: <repo-root>/.venv/bin/python -m pytest tests/test_agy_content_publisher.py tests/test_agy_multilingual_pipeline.py tests/test_agy_gemini_coordinator.py tests/test_web.py -q
+exit_code: 0
+result: 112 passed, 1 warning
+
+FULL PYTEST
+command: <repo-root>/.venv/bin/python -m pytest -q
+first_environment_probe_exit_code: 1
+first_environment_probe_result: 386 passed, 2 failed because node_modules/iztro was absent; both failures selected the documented pantheon_ziwei fallback
+dependency_restore: pnpm install --frozen-lockfile; package.json and pnpm-lock.yaml unchanged
+final_exit_code: 0
+final_result: 389 passed, 1 warning
+
+INVARIANTS
+- gate fail after apply/tests: repo_recovered=true and git status clean
+- gate fail after local commit/tag: HEAD restored to base, local unpushed tag removed, evidence retained
+- next passing translation candidate publishes after a recovered failure
+- queue run and run-dir candidate/approval remain outside rollback
+- unknown concurrent paths are preserved and force fail-closed instead of being deleted
+- ARTICLE_CACHE_TOKEN and runtime article/articles template queries use the same translation release token
+- runner JSONDecodeError is reported with job_id/error_type; run remains active for existing retry boundary
+- commit and tag push atomically
+- V4 default and rollout files unchanged
+
+FINAL STATIC GATES
+git_diff_check: exit 0
+debug_marker_scan: no [DBG- markers
+py_compile: exit 0
+changed_files_allowlist: pass; four code/test files plus this card evidence directory
+git_status_short: only allowlisted code/test files and this card evidence directory before commit
+candidate_sha: reported by the delivery response after commit; a commit cannot contain its own SHA
