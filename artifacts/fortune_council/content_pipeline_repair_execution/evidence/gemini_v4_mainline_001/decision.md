@@ -41,3 +41,21 @@ invocation 仍為 0。
 包含新版本與新 digest。確認前主卡仍為 `BLOCKED`；這份 preflight 只進入
 `AWAITING_EXTERNAL_CONFIRMATION`，不授權 retry、fallback、pipeline continuation、
 publisher、publish、promotion 或 legacy removal。
+
+## Canary-005 final decision
+
+- process count：`1`
+- durable replay：`COMPLETE`
+- process outcome：`SUCCESS`
+- caller result：`JSON_INVALID`
+- closed diagnostic：`PARSE_ERROR_AT_END`
+- inbox delivery：`absent`
+
+這個結果證明 exactly-once 與新 closed diagnostic 正常，但長文章 stdout 在末端未
+形成合法 JSON。它排除 empty、encoding、fence 與 wrapper 類原因；未讀 raw
+response，因此不能進一步宣稱是 provider token limit、CLI truncation 或缺少哪個
+結尾 token。
+
+決策維持 `BLOCKED / DO_NOT_PROMOTE_DEFAULT`。本 job 不得 retry；下一步只能先做
+針對 output completion boundary 的離線 root-cause／repair，再以新 job 重新取得
+外部授權。

@@ -101,3 +101,15 @@ queue outbox / all other durable state: 1 / 0
 agy read-only version / help checks: 1.1.6 / PASS
 generation invocation: 0
 status: AWAITING_EXTERNAL_CONFIRMATION
+
+JSON DIAGNOSTIC CANARY-005 RESULT
+user confirmation: explicit
+agy version / digest: 1.1.6 / e82027374c14240cdfa55c312ee34c068bfe3918bd795b7cf857af8c005bfb4e
+external generation process count: 1
+ledger terminal sequence: 5
+replay / process outcome: COMPLETE / SUCCESS
+result validation / json diagnostic: JSON_INVALID / PARSE_ERROR_AT_END
+inbox / archive / failed: absent / present / present
+retry / fallback / pipeline continuation / publisher / publish: 0 / 0 / 0 / 0 / 0
+raw response read / saved: false / false
+decision: BLOCKED

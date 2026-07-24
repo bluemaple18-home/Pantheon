@@ -146,7 +146,26 @@ decision_statuses:
   local `agy 1.1.6`，interface 仍具備既有 V4 所需的 `--print <prompt>`；
   executable digest 與 Activation-004 不同，必須以新 digest 明確確認
 - status:
-  `AWAITING_EXTERNAL_CONFIRMATION`
+  `BLOCKED`
 - boundary:
   確認前不得執行 generation；確認後最多一個 process，不 retry、不 fallback、
   不接續 pipeline、不 publisher、不 publish
+
+### Canary-005 result
+
+- external generation process:
+  `1`
+- durable replay / process outcome:
+  `COMPLETE / SUCCESS`
+- caller validation:
+  `JSON_INVALID / PARSE_ERROR_AT_END`
+- inbox / archive / failed:
+  `absent / present / present`
+- retry / fallback / pipeline continuation / publisher / publish:
+  `0 / 0 / 0 / 0 / 0`
+- interpretation:
+  parser 在去除尾端空白後抵達 stdout 末端仍未形成合法 JSON；這排除 empty、
+  invalid UTF-8、Markdown fence、wrapped JSON 與一般中段 parse error，但單憑
+  closed diagnostic 不宣稱是 provider token limit 或 CLI truncation。
+- decision:
+  `BLOCKED / DO_NOT_PROMOTE_DEFAULT`
