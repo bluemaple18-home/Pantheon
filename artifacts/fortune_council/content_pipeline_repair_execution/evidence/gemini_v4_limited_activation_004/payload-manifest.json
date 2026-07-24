@@ -23,7 +23,7 @@
   "fallback_allowed": false,
   "pipeline_continuation_allowed": false,
   "publisher_allowed": false,
-  "external_invocation_count": 0,
+  "external_invocation_count": 1,
   "privacy": {
     "prompt_saved": false,
     "raw_response_saved": false,
@@ -34,5 +34,5 @@
     "executable_path_saved": false,
     "cli_log_saved": false
   },
-  "decision": "AWAITING_EXTERNAL_CONFIRMATION"
+  "decision": "BLOCKED"
 }

@@ -5,8 +5,8 @@
 - ownership: `v4_limited_activation_only`
 - strictness: `strict`
 - risk: `high`
-- status: `IN_PROGRESS`
-- decision: `AWAITING_EXTERNAL_CONFIRMATION`
+- status: `BLOCKED`
+- decision: `BLOCKED`
 
 ## 基準
 
@@ -118,8 +118,21 @@ keyword／schema-defined path，不保存 raw response 或 instance value。
 - safe schema diagnostics Review:
   `DELIVERED_CANDIDATE / GO`
 - current external invocation:
-  `0`
+  `1`
 - current ledger / anchor / inbox / archive / failed record:
-  `absent`
+  `present / present / absent / present / present`
+- durable process count / replay:
+  `1 / COMPLETE`
+- process outcome / result validation:
+  `SUCCESS / JSON_INVALID`
+- retry / fallback / pipeline continuation / publisher:
+  `0 / 0 / 0 / 0`
 - decision:
-  `AWAITING_EXTERNAL_CONFIRMATION`
+  `BLOCKED`
+
+## Activation 結果
+
+唯一一次已確認的 canary 建立完整 ledger 與 anchor，且外部 process 終止為
+`SUCCESS`；但 broker 的封閉結果驗證為 `JSON_INVALID`，因此沒有 caller-bound
+inbox delivery。request 已歸檔並產生遮蔽 failed record；未讀取或保存 raw
+response，未重試、fallback、接續 pipeline、發文、部署或 promotion。
