@@ -57,3 +57,5 @@ concurrent writer 在同一 helper attribution window 內寫入的 bytes。
 - 正式 actor 在整輪中不切 HEAD、不套 patch、不 rollback；actor concurrent bytes
   不會被 transaction cleanup 觸碰。
 - transaction worktree 結束後移除；下一輪重新從最新 `origin/main` 建立。
+- actor 與 transaction 的 publisher runtime／lockfile 必須 bytes 相同；若 actor
+  runtime 落後，發布前即 fail-closed 並要求先部署 actor。

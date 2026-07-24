@@ -13,9 +13,9 @@ Base：`473556cc00e6a620491897ade606c72b90caac47`
 
 | Check | Result |
 | --- | --- |
-| Publisher focused | `37 passed` |
-| Publisher + SEO + multilingual + web | `175 passed, 2 warnings` |
-| Full pytest | `406 passed, 2 warnings` |
+| Publisher focused | `38 passed` |
+| Publisher + SEO + multilingual + web | `175 passed, 2 warnings` before runtime-parity guard；新增 guard test 後 focused `38 passed` |
+| Full pytest | `407 passed, 2 warnings` |
 | `py_compile`（cache redirected to `/tmp`） | PASS |
 | `git diff --check` | PASS |
 | `[DBG-` scan | clean |
@@ -23,4 +23,3 @@ Base：`473556cc00e6a620491897ade606c72b90caac47`
 | V4 default promotion | no related changed file；explicit env gate remains |
 
 Warnings are existing Starlette/httpx deprecation and sandboxed pytest-cache write warnings.
-

@@ -30,6 +30,13 @@ PUBLISHER_ID = "agy-content-publisher"
 LEGACY_ARTICLE_COUNT_CUTOFF = 353
 LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
 GitRunner = Callable[[Path, list[str], str | None], str]
+TRANSACTION_RUNTIME_PATHS = (
+    "scripts/agy_content_publisher.py",
+    "scripts/agy_seo_copy_pipeline.py",
+    "scripts/agy_multilingual_pipeline.py",
+    "pnpm-lock.yaml",
+    "uv.lock",
+)
 TEST_COMMAND = [
     sys.executable,
     "-m",
@@ -324,6 +331,23 @@ def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
     return local
 
 
+def _assert_transaction_runtime_matches(repo_root: Path, transaction_root: Path) -> None:
+    """避免 lagging actor 用舊 publisher runtime 操作較新的 origin/main。"""
+    mismatches: list[str] = []
+    for relative in TRANSACTION_RUNTIME_PATHS:
+        actor_path = repo_root / relative
+        transaction_path = transaction_root / relative
+        actor_bytes = actor_path.read_bytes() if actor_path.is_file() else None
+        transaction_bytes = transaction_path.read_bytes() if transaction_path.is_file() else None
+        if actor_bytes != transaction_bytes:
+            mismatches.append(relative)
+    if mismatches:
+        raise PublishBlocked(
+            "publisher actor runtime differs from origin/main; deploy actor before publishing: "
+            + ", ".join(mismatches)
+        )
+
+
 @contextmanager
 def _isolated_transaction_worktree(
     repo_root: Path,
@@ -346,6 +370,7 @@ def _isolated_transaction_worktree(
             None,
         )
         added = True
+        _assert_transaction_runtime_matches(repo_root, transaction_root)
         actor_node_modules = repo_root / "node_modules"
         transaction_node_modules = transaction_root / "node_modules"
         if actor_node_modules.is_dir() and not transaction_node_modules.exists():

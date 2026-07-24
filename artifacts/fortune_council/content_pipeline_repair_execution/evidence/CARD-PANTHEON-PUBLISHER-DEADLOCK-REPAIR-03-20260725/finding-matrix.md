@@ -15,6 +15,10 @@ Card：`CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-03-20260725`
 actor 注入同路徑 concurrent bytes，CLI 結束後該 bytes 仍原樣存在；publisher
 cleanup 不會對正式 actor 執行 restore、unlink 或 HEAD update。
 
+為避免 actor HEAD 因內容發布而落後後，舊 Python runtime 操作較新的
+`origin/main`，transaction 啟動時另核對 publisher 三個 runtime 模組、
+`pnpm-lock.yaml` 與 `uv.lock`；任一 bytes 不同即 fail-closed。
+
 ## V4 boundary
 
 Repair-3 未修改 `scripts/agy_gemini_runner.py` 或任何 V4 routing／launchd 設定。

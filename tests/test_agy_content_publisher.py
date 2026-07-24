@@ -1610,6 +1610,18 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     assert not list(state_root.glob("transaction-*"))
 
 
+def test_isolated_transaction_blocks_stale_actor_runtime(tmp_path: Path) -> None:
+    actor = tmp_path / "actor"
+    transaction = tmp_path / "transaction"
+    for root, body in ((actor, b"old\n"), (transaction, b"new\n")):
+        path = root / "scripts/agy_content_publisher.py"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(body)
+
+    with pytest.raises(publisher.PublishBlocked, match="deploy actor before publishing"):
+        publisher._assert_transaction_runtime_matches(actor, transaction)
+
+
 def test_main_runs_real_publish_in_isolated_worktree(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
