@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "profile": "gemini_structured_api_v1",
+  "external_generation_count": 0,
+  "cells": [
+    {
+      "id": "native_schema_payload",
+      "status": "PASS",
+      "observable": "responseMimeType_application_json_and_responseJsonSchema"
+    },
+    {
+      "id": "credential_fd_only",
+      "status": "PASS",
+      "observable": "credential_absent_from_argv_environment_stdin_and_evidence"
+    },
+    {
+      "id": "provider_stop_success",
+      "status": "PASS",
+      "observable": "one_candidate_stop_canonical_object"
+    },
+    {
+      "id": "provider_max_tokens",
+      "status": "PASS",
+      "observable": "closed_failure_without_partial_result"
+    },
+    {
+      "id": "provider_safety",
+      "status": "PASS",
+      "observable": "closed_failure_without_partial_result"
+    },
+    {
+      "id": "http_503",
+      "status": "PASS",
+      "observable": "one_http_open_no_retry_no_body_persistence"
+    },
+    {
+      "id": "redirect",
+      "status": "PASS",
+      "observable": "redirect_request_refused"
+    },
+    {
+      "id": "malformed_envelope",
+      "status": "PASS",
+      "observable": "candidate_parts_json_fail_closed"
+    },
+    {
+      "id": "provider_schema_preflight",
+      "status": "PASS",
+      "observable": "unsupported_or_open_schema_rejected_before_http"
+    },
+    {
+      "id": "current_article_schemas",
+      "status": "PASS",
+      "observable": "create_optimize_rewrite_and_review_fit_provider_subset"
+    },
+    {
+      "id": "target_diagnostic",
+      "status": "PASS",
+      "observable": "closed_allowlist_persisted_unknown_stderr_discarded"
+    },
+    {
+      "id": "runner_no_legacy_fallback",
+      "status": "PASS",
+      "observable": "structured_flag_on_calls_only_broker"
+    },
+    {
+      "id": "agy_profile_regression",
+      "status": "PASS",
+      "observable": "legacy_profile_contract_tests_remain_green"
+    }
+  ],
+  "decision": "READY_FOR_REVIEW",
+  "rollout": "DO_NOT_PROMOTE_DEFAULT"
+}

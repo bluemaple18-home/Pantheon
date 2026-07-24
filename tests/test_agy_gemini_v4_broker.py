@@ -69,6 +69,7 @@ def _run(
     raw_request: bytes = "公開 synthetic request".encode(),
     target_profile: str | None = None,
     response_schema: dict[str, object] = SCHEMA,
+    credential_fd: int | None = None,
 ) -> broker.BrokerResult:
     selected_profile = target_profile or (
         broker.ANTIGRAVITY_CLI_PROFILE if executable.name.startswith("agy") else broker.RAW_STDIN_PROFILE
@@ -88,6 +89,7 @@ def _run(
         timeout_milliseconds=timeout_milliseconds,
         ledger_path=tmp_path / "ledger.jsonl",
         anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+        credential_fd=credential_fd,
     )
 
 
@@ -107,6 +109,41 @@ def _write_fake_agy(path: Path) -> Path:
         f"Path({str(path.with_suffix('.trace'))!r}).write_text("
         "json.dumps(trace,sort_keys=True,separators=(',',':')),encoding='utf-8')\n"
         "print(json.dumps({'ok':True},sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+    return path
+
+
+def _write_fake_structured_target(
+    path: Path,
+    *,
+    failure_code: str | None = None,
+) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"#!{sys.executable}\n"
+        "import hashlib,json,os,sys\n"
+        "from pathlib import Path\n"
+        "raw=sys.stdin.buffer.read()\n"
+        "fd_index=sys.argv.index('--credential-fd')+1\n"
+        "credential_fd=int(sys.argv[fd_index])\n"
+        "credential=os.read(credential_fd,4096)\n"
+        "fds=[]\n"
+        "for fd in range(64):\n"
+        "    try: os.fstat(fd)\n"
+        "    except OSError: continue\n"
+        "    fds.append(fd)\n"
+        "trace={'argv':sys.argv[1:],'env_keys':sorted(os.environ),'fds':fds,"
+        "'stdin_sha256':hashlib.sha256(raw).hexdigest(),"
+        "'credential_sha256':hashlib.sha256(credential).hexdigest()}\n"
+        f"Path({str(path.with_suffix('.trace'))!r}).write_text("
+        "json.dumps(trace,sort_keys=True,separators=(',',':')),encoding='utf-8')\n"
+        + (
+            f"sys.stderr.write({failure_code!r}+'\\n');sys.exit(70)\n"
+            if failure_code is not None
+            else "print(json.dumps({'ok':True},sort_keys=True,separators=(',',':')))\n"
+        ),
         encoding="utf-8",
     )
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
@@ -235,6 +272,136 @@ def test_agy_profile_privacy_patterns_and_size_match_outbox_contract(tmp_path: P
 
     assert not (tmp_path / "ledger.jsonl").exists()
     assert not target.with_suffix(".trace").exists()
+
+
+def test_structured_profile_passes_only_public_stdin_and_dedicated_credential_fd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _write_fake_structured_target(tmp_path / "structured-target")
+    credential = b"synthetic-api-key-with-safe-length"
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, credential)
+    os.close(write_fd)
+    monkeypatch.setenv("GEMINI_API_KEY", "must-not-cross-boundary")
+    monkeypatch.setenv("UNRELATED_SENTINEL", "must-not-cross-boundary")
+    monkeypatch.setenv("HOME", "/must-not-cross-structured-boundary")
+    raw_request = broker.canonical_json(
+        {
+            "schema_version": 1,
+            "role": "writer",
+            "prompt": "公開文章任務",
+            "response_schema": SCHEMA,
+        }
+    )
+    try:
+        result = _run(
+            tmp_path,
+            target,
+            model="gemini-3.5-flash",
+            raw_request=raw_request,
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+            credential_fd=read_fd,
+        )
+    finally:
+        os.close(read_fd)
+
+    trace = json.loads(target.with_suffix(".trace").read_text())
+    assert (result.replay_status, result.process_count, result.outcome) == ("COMPLETE", 1, "SUCCESS")
+    assert result.caller_contract_satisfied is True
+    assert trace["argv"][:2] == ["--model", "gemini-3.5-flash"]
+    assert "--credential-fd" in trace["argv"]
+    assert trace["stdin_sha256"] == hashlib.sha256(raw_request).hexdigest()
+    assert trace["credential_sha256"] == hashlib.sha256(credential).hexdigest()
+    assert set(trace["fds"]) == {0, 1, 2, int(trace["argv"][trace["argv"].index("--credential-fd") + 1])}
+    assert "GEMINI_API_KEY" not in trace["env_keys"]
+    assert "UNRELATED_SENTINEL" not in trace["env_keys"]
+    assert "HOME" not in trace["env_keys"]
+
+
+def test_structured_profile_requires_credential_before_ledger_creation(tmp_path: Path) -> None:
+    target = _write_fake_structured_target(tmp_path / "structured-target")
+
+    with pytest.raises(ValueError, match="credential fd"):
+        _run(
+            tmp_path,
+            target,
+            model="gemini-3.5-flash",
+            raw_request=b'{"schema_version":1}',
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+        )
+
+    assert not (tmp_path / "ledger.jsonl").exists()
+    assert not target.with_suffix(".trace").exists()
+
+
+def test_structured_profile_persists_only_closed_target_diagnostic(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(
+        tmp_path / "structured-target",
+        failure_code="OUTPUT_TRUNCATED",
+    )
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"synthetic-api-key-with-safe-length")
+    os.close(write_fd)
+    try:
+        result = _run(
+            tmp_path,
+            target,
+            model="gemini-3.5-flash",
+            raw_request=broker.canonical_json(
+                {
+                    "schema_version": 1,
+                    "role": "writer",
+                    "prompt": "公開文章任務",
+                    "response_schema": SCHEMA,
+                }
+            ),
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+            credential_fd=read_fd,
+        )
+    finally:
+        os.close(read_fd)
+
+    assert (result.outcome, result.target_diagnostic) == (
+        "CLI_NONZERO",
+        "OUTPUT_TRUNCATED",
+    )
+    assert result.result is None
+
+
+def test_structured_profile_discards_unknown_target_stderr(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(
+        tmp_path / "structured-target",
+        failure_code="private-provider-message",
+    )
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"synthetic-api-key-with-safe-length")
+    os.close(write_fd)
+    try:
+        result = _run(
+            tmp_path,
+            target,
+            model="gemini-3.5-flash",
+            raw_request=broker.canonical_json(
+                {
+                    "schema_version": 1,
+                    "role": "writer",
+                    "prompt": "公開文章任務",
+                    "response_schema": SCHEMA,
+                }
+            ),
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+            credential_fd=read_fd,
+        )
+    finally:
+        os.close(read_fd)
+
+    assert result.outcome == "CLI_NONZERO"
+    assert result.target_diagnostic is None
 
 
 @pytest.mark.parametrize(

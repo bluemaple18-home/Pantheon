@@ -82,10 +82,13 @@ CONTROL_FIELDS: Final = {
     "stderr_sha256",
     "byte_count",
     "final_anchor",
+    "target_diagnostic",
 }
 RAW_STDIN_PROFILE: Final = "raw_stdin_v1"
 ANTIGRAVITY_CLI_PROFILE: Final = "antigravity_cli_v1"
+GEMINI_STRUCTURED_API_PROFILE: Final = "gemini_structured_api_v1"
 PUBLIC_SANITIZED: Final = "PUBLIC_SANITIZED"
+PUBLIC_STRUCTURED: Final = "PUBLIC_STRUCTURED"
 SYNTHETIC_TEST: Final = "SYNTHETIC_TEST"
 RESULT_VALIDATION_STATES: Final = frozenset({
     "NOT_EVALUATED",
@@ -109,6 +112,10 @@ AGY_MODEL_LABELS: Final = {
     "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
     "gemini-3.1-pro-preview": "Gemini 3.1 Pro (Low)",
 }
+API_MODEL_LABELS: Final = {
+    "gemini-3.5-flash": "gemini-3.5-flash",
+    "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+}
 TARGET_ENV_ALLOWLIST: Final = (
     "HOME",
     "LANG",
@@ -116,6 +123,31 @@ TARGET_ENV_ALLOWLIST: Final = (
     "PATH",
     "TMPDIR",
     "__CF_USER_TEXT_ENCODING",
+)
+STRUCTURED_TARGET_ENV_ALLOWLIST: Final = (
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "__CF_USER_TEXT_ENCODING",
+)
+STRUCTURED_TARGET_DIAGNOSTICS: Final = frozenset(
+    {
+        "AUTH_FAILED",
+        "CREDENTIAL_INVALID",
+        "ENVELOPE_INVALID",
+        "INTERNAL_ERROR",
+        "OUTPUT_BLOCKED",
+        "OUTPUT_INCOMPLETE",
+        "OUTPUT_TRUNCATED",
+        "PROVIDER_REJECTED",
+        "PROVIDER_UNAVAILABLE",
+        "RATE_LIMITED",
+        "REQUEST_INVALID",
+        "TRANSPORT_ERROR",
+    }
 )
 FORBIDDEN_PUBLIC_PROMPT_PATTERNS: Final = (
     re.compile(r"/(?:Users|home|private|var|tmp)/"),
@@ -246,15 +278,28 @@ class CommandFrame:
             raise FrameError("request length is invalid")
         if type(self.timeout_milliseconds) is not int or not 1 <= self.timeout_milliseconds <= 3_600_000:
             raise FrameError("timeout is invalid")
-        if self.target_profile not in {RAW_STDIN_PROFILE, ANTIGRAVITY_CLI_PROFILE}:
+        if self.target_profile not in {
+            RAW_STDIN_PROFILE,
+            ANTIGRAVITY_CLI_PROFILE,
+            GEMINI_STRUCTURED_API_PROFILE,
+        }:
             raise FrameError("target profile is invalid")
         if type(self.model_label) is not str or not self.model_label:
             raise FrameError("model label is invalid")
-        expected_payload_class = PUBLIC_SANITIZED if self.target_profile == ANTIGRAVITY_CLI_PROFILE else SYNTHETIC_TEST
+        expected_payload_class = {
+            RAW_STDIN_PROFILE: SYNTHETIC_TEST,
+            ANTIGRAVITY_CLI_PROFILE: PUBLIC_SANITIZED,
+            GEMINI_STRUCTURED_API_PROFILE: PUBLIC_STRUCTURED,
+        }[self.target_profile]
         if self.payload_class != expected_payload_class:
             raise FrameError("payload class is invalid")
         if self.target_profile == ANTIGRAVITY_CLI_PROFILE and self.model_label not in AGY_MODEL_LABELS.values():
             raise FrameError("agy model label is invalid")
+        if (
+            self.target_profile == GEMINI_STRUCTURED_API_PROFILE
+            and self.model_label not in API_MODEL_LABELS.values()
+        ):
+            raise FrameError("Gemini API model label is invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -356,6 +401,7 @@ class BrokerResult:
     result_validation: str = "NOT_EVALUATED"
     schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
     json_diagnostic: JsonDiagnostic | None = None
+    target_diagnostic: str | None = None
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -593,7 +639,7 @@ def _recv_frame(sock: socket.socket) -> bytes:
 
 def _control(
     status: str, count: ProcessCount, outcome: str | None, exit_status: int | None,
-    stdout: bytes, stderr: bytes, anchor: str | None,
+    stdout: bytes, stderr: bytes, anchor: str | None, target_diagnostic: str | None = None,
 ) -> dict[str, object]:
     return {
         "replay_status": status,
@@ -604,7 +650,24 @@ def _control(
         "stderr_sha256": _sha256(stderr),
         "byte_count": len(stdout),
         "final_anchor": anchor,
+        "target_diagnostic": target_diagnostic,
     }
+
+
+def _structured_target_diagnostic(
+    target_profile: str,
+    outcome: str,
+    stderr: bytes,
+) -> str | None:
+    if target_profile != GEMINI_STRUCTURED_API_PROFILE or outcome != "CLI_NONZERO":
+        return None
+    try:
+        diagnostic = stderr.decode("ascii").strip()
+    except UnicodeDecodeError:
+        return None
+    if "\n" in diagnostic or diagnostic not in STRUCTURED_TARGET_DIAGNOSTICS:
+        return None
+    return diagnostic
 
 
 def _exec_failure_outcome(error: OSError, executable_existed: bool) -> str:
@@ -637,10 +700,37 @@ def _validate_public_prompt(raw_request: bytes) -> str:
 
 
 def _target_invocation(
-    command: CommandFrame, executable: Path, raw_request: bytes, log_path: Path | None
-) -> tuple[list[str], bytes, dict[str, str]]:
+    command: CommandFrame,
+    executable: Path,
+    raw_request: bytes,
+    log_path: Path | None,
+    credential_fd: int | None,
+) -> tuple[list[str], bytes, dict[str, str], tuple[int, ...]]:
     if command.target_profile == RAW_STDIN_PROFILE:
-        return [str(executable)], raw_request, {}
+        return [str(executable)], raw_request, {}, ()
+    if command.target_profile == GEMINI_STRUCTURED_API_PROFILE:
+        if credential_fd is None or credential_fd < 3:
+            raise FrameError("structured target credential fd is required")
+        timeout_seconds = (command.timeout_milliseconds + 999) // 1000
+        environment = {
+            key: os.environ[key]
+            for key in STRUCTURED_TARGET_ENV_ALLOWLIST
+            if key in os.environ
+        }
+        return (
+            [
+                str(executable),
+                "--model",
+                command.model_label,
+                "--credential-fd",
+                str(credential_fd),
+                "--timeout-seconds",
+                str(timeout_seconds),
+            ],
+            raw_request,
+            environment,
+            (credential_fd,),
+        )
     if log_path is None:
         raise FrameError("agy log path is required")
     prompt = raw_request.decode("utf-8")
@@ -660,7 +750,7 @@ def _target_invocation(
         prompt,
     ]
     environment = {key: os.environ[key] for key in TARGET_ENV_ALLOWLIST if key in os.environ}
-    return arguments, b"", environment
+    return arguments, b"", environment, ()
 
 
 def _write_executable_snapshot(directory: Path, executable_bytes: bytes) -> Path:
@@ -675,7 +765,14 @@ def _write_executable_snapshot(directory: Path, executable_bytes: bytes) -> Path
     return snapshot
 
 
-def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: int, executable: Path) -> int:
+def _broker_entry(
+    command_fd: int,
+    ledger_fd: int,
+    anchor_fd: int,
+    result_fd: int,
+    executable: Path,
+    credential_fd: int | None,
+) -> int:
     anchor_socket = socket.socket(fileno=anchor_fd)
     try:
         command = decode_command_frame(_read_framed_fd(command_fd))
@@ -720,8 +817,12 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
             if command.target_profile == ANTIGRAVITY_CLI_PROFILE:
                 temporary_directory = tempfile.TemporaryDirectory(prefix="agy-v4-")
                 log_path = Path(temporary_directory.name) / "agy.log"
-            arguments, target_input, target_environment = _target_invocation(
-                command, executable, raw_request, log_path
+            arguments, target_input, target_environment, target_pass_fds = _target_invocation(
+                command,
+                executable,
+                raw_request,
+                log_path,
+                credential_fd,
             )
             try:
                 target = subprocess.Popen(
@@ -730,9 +831,12 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     close_fds=True,
-                    pass_fds=(),
+                    pass_fds=target_pass_fds,
                     env=target_environment,
                 )
+                if credential_fd is not None:
+                    os.close(credential_fd)
+                    credential_fd = None
             except OSError as error:
                 outcome = _exec_failure_outcome(error, existed)
                 writer.append("EXEC_FAILURE", outcome=outcome, process_ordinal=1)
@@ -758,10 +862,24 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
             if len(stdout) > MAX_RESULT_BYTES or len(stderr) > MAX_RESULT_BYTES:
                 stdout, stderr, outcome, exit_status = b"", b"", "CLI_NONZERO", target.returncode
             writer.append("PROCESS_TERMINAL", outcome=outcome)
+            target_diagnostic = _structured_target_diagnostic(
+                command.target_profile,
+                outcome,
+                stderr,
+            )
             _emit_broker_result(
                 anchor_socket,
                 result_fd,
-                _control("COMPLETE", 1, outcome, exit_status, stdout, stderr, writer.anchor),
+                _control(
+                    "COMPLETE",
+                    1,
+                    outcome,
+                    exit_status,
+                    stdout,
+                    stderr,
+                    writer.anchor,
+                    target_diagnostic,
+                ),
                 stdout,
             )
             return 0
@@ -785,6 +903,11 @@ def _broker_entry(command_fd: int, ledger_fd: int, anchor_fd: int, result_fd: in
                 pass
         return 70
     finally:
+        if credential_fd is not None:
+            try:
+                os.close(credential_fd)
+            except OSError:
+                pass
         try:
             os.close(ledger_fd)
         except OSError:
@@ -807,6 +930,16 @@ def _validate_control(payload: object) -> dict[str, object]:
         raise FrameError("control exit status is invalid")
     if payload["outcome"] is not None and type(payload["outcome"]) is not str:
         raise FrameError("control outcome is invalid")
+    if (
+        payload["target_diagnostic"] is not None
+        and (
+            type(payload["target_diagnostic"]) is not str
+            or payload["target_diagnostic"] not in STRUCTURED_TARGET_DIAGNOSTICS
+        )
+    ):
+        raise FrameError("control target diagnostic is invalid")
+    if payload["target_diagnostic"] is not None and payload["outcome"] != "CLI_NONZERO":
+        raise FrameError("control target diagnostic has invalid outcome")
     return payload
 
 
@@ -927,6 +1060,7 @@ def run_single_shot(
     timeout_milliseconds: int,
     ledger_path: Path,
     anchor_store: AnchorStore,
+    credential_fd: int | None = None,
 ) -> BrokerResult:
     """執行恰一次 target；既有 ledger 一律只 replay，不補事件或重送。"""
     binding = Binding(operation_id, item_id, attempt_id)
@@ -945,9 +1079,27 @@ def run_single_shot(
         _validate_public_prompt(raw_request)
         target_profile = ANTIGRAVITY_CLI_PROFILE
         payload_class = PUBLIC_SANITIZED
+        if credential_fd is not None:
+            raise ValueError("agy profile must not receive credential fd")
+    elif target_profile == GEMINI_STRUCTURED_API_PROFILE:
+        try:
+            model_label = API_MODEL_LABELS[model]
+        except KeyError as error:
+            raise ValueError("Gemini API model is not approved") from error
+        _validate_public_prompt(raw_request)
+        if type(credential_fd) is not int or credential_fd < 3:
+            raise ValueError("structured target credential fd is invalid")
+        try:
+            os.fstat(credential_fd)
+        except OSError as error:
+            raise ValueError("structured target credential fd is invalid") from error
+        target_profile = GEMINI_STRUCTURED_API_PROFILE
+        payload_class = PUBLIC_STRUCTURED
     elif target_profile == RAW_STDIN_PROFILE:
         model_label = model
         payload_class = SYNTHETIC_TEST
+        if credential_fd is not None:
+            raise ValueError("synthetic profile must not receive credential fd")
     else:
         raise ValueError("target profile is invalid")
     executable_bytes = executable.read_bytes() if executable.exists() and executable.is_file() else b""
@@ -1012,8 +1164,7 @@ def run_single_shot(
         if executable_bytes:
             snapshot_directory = tempfile.TemporaryDirectory(prefix="agy-v4-exec-")
             broker_executable = _write_executable_snapshot(Path(snapshot_directory.name), executable_bytes)
-        process = subprocess.Popen(
-            [
+        broker_arguments = [
                 sys.executable,
                 "-m",
                 "scripts.agy_gemini_v4_broker",
@@ -1023,12 +1174,23 @@ def run_single_shot(
                 str(anchor_child.fileno()),
                 str(result_write),
                 str(broker_executable),
-            ],
+            ]
+        broker_pass_fds = [
+            command_read,
+            ledger_fd,
+            anchor_child.fileno(),
+            result_write,
+        ]
+        if credential_fd is not None:
+            broker_arguments.extend(["--credential-fd", str(credential_fd)])
+            broker_pass_fds.append(credential_fd)
+        process = subprocess.Popen(
+            broker_arguments,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             close_fds=True,
-            pass_fds=(command_read, ledger_fd, anchor_child.fileno(), result_write),
+            pass_fds=tuple(broker_pass_fds),
         )
         os.close(ledger_fd)
         ledger_fd = -1
@@ -1148,6 +1310,11 @@ def run_single_shot(
         result_validation=result_validation,
         schema_diagnostics=schema_diagnostics,
         json_diagnostic=json_diagnostic,
+        target_diagnostic=(
+            str(control["target_diagnostic"])
+            if control["target_diagnostic"] is not None
+            else None
+        ),
     )
 
 
@@ -1159,6 +1326,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("anchor_fd", type=int)
     parser.add_argument("result_fd", type=int)
     parser.add_argument("executable", type=Path)
+    parser.add_argument("--credential-fd", type=int)
     return parser.parse_args()
 
 
@@ -1172,6 +1340,7 @@ def main() -> int:
         arguments.anchor_fd,
         arguments.result_fd,
         arguments.executable,
+        arguments.credential_fd,
     )
 
 

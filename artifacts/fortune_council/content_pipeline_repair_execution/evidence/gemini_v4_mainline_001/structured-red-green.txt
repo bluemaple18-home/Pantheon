@@ -1,0 +1,40 @@
+PROVIDER-NATIVE STRUCTURED TRANSPORT RED / GREEN
+
+RED
+command: focused structured target/broker/runner selectors
+result: collection error
+cause: scripts.agy_gemini_v4_structured_target did not exist
+
+GREEN 1
+coverage: native responseJsonSchema payload; credential FD; STOP success; MAX_TOKENS/SAFETY/OTHER; HTTP 503 no retry; malformed provider envelope; private credential permissions
+result: 18 passed in 0.50s
+
+GREEN 2
+coverage: closed provider schema subset; redirect refusal; current create/optimize/rewrite/review schemas
+result: 23 passed in 0.52s
+
+REGRESSION 1
+result: 113 passed / 1 failed
+finding: obsolete test expected an unapproved profile value to be silently ignored
+repair: production remains fail closed; test now requires broker invocation count 0
+
+REGRESSION 2
+result: 119 passed in 33.46s
+
+LOCAL REVIEW FINDING
+finding: CLI_NONZERO alone would not distinguish MAX_TOKENS, safety, HTTP or envelope failure
+repair: broker and runner now persist only a duplicated closed target-diagnostic allowlist
+negative control: unknown stderr is discarded
+
+REGRESSION 3
+result: 122 passed in 35.26s
+
+FULL AFFECTED
+result: 179 passed in 65.10s
+
+FULL REPOSITORY
+result: 316 passed / 2 pre-existing unrelated failures / 1 warning in 75.69s
+unrelated failures: isolated-worktree iztro dependency fallback in test_api and test_calculators
+
+EXTERNAL GENERATION / CREDENTIAL CHANGE / PUBLISH
+0 / 0 / 0

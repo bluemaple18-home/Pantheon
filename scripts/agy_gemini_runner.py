@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Final
@@ -19,6 +20,7 @@ from scripts.agy_gemini_outbox import (
 from scripts.agy_seo_copy_pipeline import GeminiClient
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
+    GEMINI_STRUCTURED_API_PROFILE,
     ExecutionReceipt,
     FileAnchorStore,
     V4BrokerFailure,
@@ -26,6 +28,7 @@ from scripts.agy_gemini_v4_broker import (
     SchemaDiagnostic,
     run_single_shot,
 )
+from scripts.agy_gemini_v4_structured_target import encode_target_request
 
 
 GenerateJson = Callable[[str, str, str, dict[str, Any]], dict[str, Any]]
@@ -64,6 +67,20 @@ SAFE_SCHEMA_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MAX_SCHEMA_DIAGNOSTICS = 3
 MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
+STRUCTURED_TARGET_DIAGNOSTICS = frozenset({
+    "AUTH_FAILED",
+    "CREDENTIAL_INVALID",
+    "ENVELOPE_INVALID",
+    "INTERNAL_ERROR",
+    "OUTPUT_BLOCKED",
+    "OUTPUT_INCOMPLETE",
+    "OUTPUT_TRUNCATED",
+    "PROVIDER_REJECTED",
+    "PROVIDER_UNAVAILABLE",
+    "RATE_LIMITED",
+    "REQUEST_INVALID",
+    "TRANSPORT_ERROR",
+})
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -96,6 +113,40 @@ def _render_v4_effective_prompt(
         f"JSON Schema：{canonical_schema}\n\n"
         f"任務：\n{prompt}"
     ).encode("utf-8")
+
+
+def _open_private_credential_file(path: Path) -> int:
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ValueError("V4 credential file is unavailable") from error
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o077
+        or not 20 <= before.st_size <= 512
+    ):
+        raise ValueError("V4 credential file must be owner-only regular file")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError("V4 credential file cannot be opened") from error
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+            or after.st_uid != os.getuid()
+            or after.st_mode & 0o077
+            or not 20 <= after.st_size <= 512
+        ):
+            raise ValueError("V4 credential file changed during validation")
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
 
 
 def _claim_next(queue_root: Path) -> Path | None:
@@ -207,6 +258,15 @@ def _closed_broker_diagnostic(
         and json_diagnostic in JSON_DIAGNOSTIC_STATES
     ):
         diagnostic["json_diagnostic"] = json_diagnostic
+    target_diagnostic = getattr(broker_result, "target_diagnostic", None)
+    receipt = getattr(broker_result, "receipt", None)
+    if (
+        outcome == "CLI_NONZERO"
+        and getattr(receipt, "target_profile", None) == GEMINI_STRUCTURED_API_PROFILE
+        and type(target_diagnostic) is str
+        and target_diagnostic in STRUCTURED_TARGET_DIAGNOSTICS
+    ):
+        diagnostic["target_diagnostic"] = target_diagnostic
     return diagnostic
 
 
@@ -227,32 +287,54 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
             expected_executable_digest = os.environ["AGY_GEMINI_V4_EXECUTABLE_SHA256"]
-            broker_result = run_single_shot(
-                operation_id=job_id,
-                item_id=str(request["namespace"]),
-                attempt_id="attempt-1",
-                request_sha256=str(request["request_sha256"]),
-                model=str(request["model"]),
-                executable=executable,
-                target_profile=ANTIGRAVITY_CLI_PROFILE,
-                expected_executable_digest=expected_executable_digest,
-                raw_request=_render_v4_effective_prompt(
+            target_profile = os.environ.get(
+                "AGY_GEMINI_V4_PROFILE",
+                ANTIGRAVITY_CLI_PROFILE,
+            )
+            credential_fd: int | None = None
+            if target_profile == GEMINI_STRUCTURED_API_PROFILE:
+                credential_path = Path(os.environ["AGY_GEMINI_V4_CREDENTIAL_FILE"])
+                credential_fd = _open_private_credential_file(credential_path)
+                raw_request = encode_target_request(
                     str(request["role"]),
                     str(request["prompt"]),
                     request["response_schema"],
-                ),
-                response_schema=request["response_schema"],
-                timeout_milliseconds=120_000,
-                ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",
-                anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
-            )
+                )
+            elif target_profile == ANTIGRAVITY_CLI_PROFILE:
+                raw_request = _render_v4_effective_prompt(
+                    str(request["role"]),
+                    str(request["prompt"]),
+                    request["response_schema"],
+                )
+            else:
+                raise ValueError("AGY_GEMINI_V4_PROFILE is not approved")
+            try:
+                broker_result = run_single_shot(
+                    operation_id=job_id,
+                    item_id=str(request["namespace"]),
+                    attempt_id="attempt-1",
+                    request_sha256=str(request["request_sha256"]),
+                    model=str(request["model"]),
+                    executable=executable,
+                    target_profile=target_profile,
+                    expected_executable_digest=expected_executable_digest,
+                    raw_request=raw_request,
+                    response_schema=request["response_schema"],
+                    timeout_milliseconds=120_000,
+                    ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",
+                    anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
+                    credential_fd=credential_fd,
+                )
+            finally:
+                if credential_fd is not None:
+                    os.close(credential_fd)
             expected_receipt = ExecutionReceipt(
                 job_id,
                 str(request["namespace"]),
                 "attempt-1",
                 str(request["request_sha256"]),
                 str(request["model"]),
-                ANTIGRAVITY_CLI_PROFILE,
+                target_profile,
                 expected_executable_digest,
             )
             if (

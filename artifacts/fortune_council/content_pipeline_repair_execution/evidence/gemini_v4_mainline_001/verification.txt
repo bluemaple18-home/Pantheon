@@ -126,3 +126,37 @@ allowlist: PASS
 git diff --check: PASS
 additional external generation / retry / publish: 0 / 0 / 0
 decision: BLOCKED / DO_NOT_PROMOTE_DEFAULT
+
+PROVIDER-NATIVE STRUCTURED TRANSPORT
+profile: gemini_structured_api_v1
+external operation level: local dry-run / fake provider only
+external generation / credential mutation / publish: 0 / 0 / 0
+RED: collection error; structured target module absent
+first GREEN: 18 passed in 0.50s
+schema/redirect/current-article GREEN: 23 passed in 0.52s
+closed target diagnostic controls: 3 passed in 0.82s
+focused broker/outbox/target/probe: 122 passed in 35.26s
+full affected including legacy SEO pipeline: 179 passed in 65.10s
+full repository: 316 passed, 2 failed, 1 warning in 75.69s
+pre-existing unrelated failures:
+- tests/test_api.py::test_predict_route_returns_charts_and_ai
+- tests/test_calculators.py::test_ziwei_returns_palace_payload
+interpretation: same isolated-worktree iztro -> pantheon_ziwei fallback pair recorded before this continuation; no app/calculator/dependency file changed
+py_compile: PASS
+structured synthetic matrix JSON: PASS
+provider schema preflight: create / optimize / rewrite / review PASS
+credential in argv / environment / request / evidence: false / false / false / false
+HTTP application retry / redirect follow: 0 / 0
+unknown target stderr persisted: false
+git diff --check: PASS
+candidate decision: READY_FOR_REVIEW
+rollout: DO_NOT_PROMOTE_DEFAULT
+
+EXTERNAL TOOL GATE
+tool/service: Gemini Developer API
+operation_level: dry_run
+connection_status: not accessed
+schema_checked: official structured-output contract + local production schemas
+confirmation_required_for_real_canary: true
+execution_status: not executed
+remaining_risk: provider model/credential/runtime acceptance and network ambiguity

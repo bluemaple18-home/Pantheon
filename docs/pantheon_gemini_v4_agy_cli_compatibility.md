@@ -119,3 +119,22 @@ canonical schema 是 instruction，不是 transport enforcement。
 不完整 stdout 轉成 caller success。長文章 V4 promotion 必須等待另一個能
 machine-enforce structured output的 transport，或新的 bounded chunk operation
 architecture；目前 legacy 維持預設。
+
+## Long-form replacement profile
+
+長文章候選改用 `gemini_structured_api_v1`，不再把 `agy --print` 當 promotion
+target。此 profile重用既有 production API payload的
+`responseMimeType=application/json`／`responseJsonSchema`，但移除 legacy
+429/503 retry並加上：
+
+- digest-pinned adapter
+- credential FD（禁止 argv/env）
+- fixed endpoint與model allowlist
+- `maxOutputTokens=32768`
+- redirect refusal
+- `finishReason=STOP` gate
+- broker-side independent schema validation
+- closed target diagnostics
+
+`antigravity_cli_v1` 保留既有 ledger／receipt replay相容性與 synthetic regression，
+但在 structured real canary通過前不得再用來主張長文章可放量。

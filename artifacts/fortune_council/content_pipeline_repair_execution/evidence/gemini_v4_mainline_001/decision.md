@@ -84,3 +84,24 @@ Final decision：
 - legacy default：維持
 - V4 flag-on：維持 fail closed
 - additional real canary under this blocker：`0`
+
+## Provider-native structured candidate
+
+同一主卡已形成 `gemini_structured_api_v1` candidate。它重用現有 production API
+schema payload，但把一次 process、adapter digest、credential FD、redirect refusal、
+finish reason與本地 schema gate納入 V4 fail-closed boundary。
+
+目前 decision：
+
+- candidate：`READY_FOR_REVIEW`
+- rollout：`DO_NOT_PROMOTE_DEFAULT`
+- real structured API call：`0`
+- credential mutation：`0`
+- legacy publish default：維持
+
+下一個外部步驟只能在獨立 Review後，揭露 model、public payload hash、adapter
+digest與最大一次 request，再取得明確確認。未通過前不得移除 legacy rollback。
+
+Local code review已修正唯一維運 finding：structured target的 closed failure code
+現在可安全穿過 broker／runner雙 allowlist；未知 stderr仍被丟棄。未發現其餘
+P0–P2 finding。這不取代獨立 Review。

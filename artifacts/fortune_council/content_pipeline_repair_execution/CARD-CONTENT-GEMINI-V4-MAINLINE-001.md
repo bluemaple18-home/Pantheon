@@ -1,9 +1,9 @@
 ---
 card_id: CARD-CONTENT-GEMINI-V4-MAINLINE-001
 chain_id: CONTENT-GEMINI-V4-MAINLINE-001
-status: BLOCKED
-review_status: REVIEW_GO
-gate_5_mainline_acceptance: ACCEPTED
+status: DELIVERED_CANDIDATE
+review_status: PENDING_STRUCTURED_TRANSPORT_REVIEW
+gate_5_mainline_acceptance: PENDING_STRUCTURED_TRANSPORT_REVIEW
 accepted_candidate_sha: 8c1b935917364c820dec19304ecf6e0ac50cde5a
 accepted_review_commit: 1c81e8f85229098f3c0a5a6f033eb5a126e8d015
 integration_status: INTEGRATED_LOCAL_MAIN
@@ -22,8 +22,11 @@ allowlist:
   - docs/pantheon_gemini_v4_agy_cli_compatibility.md
   - scripts/agy_gemini_v4_broker.py
   - scripts/agy_gemini_runner.py
+  - scripts/agy_gemini_v4_structured_target.py
   - scripts/agy_gemini_v4_architecture_probe.py
+  - tests/test_agy_gemini_v4_broker.py
   - tests/test_agy_gemini_outbox.py
+  - tests/test_agy_gemini_v4_structured_target.py
   - tests/test_agy_gemini_v4_architecture_probe.py
   - artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/**
 forbidden_scope:
@@ -38,8 +41,10 @@ forbidden_scope:
 evidence_path: artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/
 thread_status: VERIFIED
 worktree_status: VERIFIED
-decision: BLOCKED
+decision: READY_FOR_REVIEW
 rollout_decision: DO_NOT_PROMOTE_DEFAULT
+structured_transport_status: DELIVERED_CANDIDATE
+structured_transport_decision: READY_FOR_REVIEW
 delivery_statuses:
   - DELIVERED_CANDIDATE
   - BLOCKED
@@ -186,3 +191,34 @@ decision_statuses:
   bounded chunk operations；兩者均超出本卡。
 - final decision:
   `BLOCKED / DO_NOT_PROMOTE_DEFAULT`
+
+## Provider-native structured transport continuation
+
+Latest user authorization expands this same mainline only enough to replace the V4 production
+target; legacy publishing remains frozen. No new visible card or parallel mainline is created.
+
+- stable seam:
+  `run_single_shot` remains the production entrypoint and sole process owner. A digest-pinned
+  `gemini_structured_api_v1` target receives public prompt/schema through stdin and credential
+  through a dedicated inherited FD.
+- provider contract:
+  reuse the existing production Gemini API payload shape from the read-only legacy reference:
+  `responseMimeType=application/json` plus `responseJsonSchema`; add a bounded output-token
+  ceiling and require a terminal `STOP` response before emitting canonical JSON.
+- retry contract:
+  target performs one HTTP request and never retries. Existing ledger replay never re-executes
+  a terminal or partial operation.
+- credential contract:
+  no key in argv, environment, prompt, ledger, anchor, receipt, stderr or evidence. Runner only
+  opens an explicitly configured owner-only credential file and passes its descriptor.
+- migration:
+  flag off remains legacy. Flag on selects only the structured target after synthetic acceptance;
+  the old `agy --print` profile remains replay-compatible but is no longer the runner production
+  selection.
+- external boundary:
+  implementation and fake-provider tests do not authorize a real API call, credential change,
+  default promotion, publish, push or deploy.
+- candidate status:
+  `DELIVERED_CANDIDATE / READY_FOR_REVIEW`
+- rollout:
+  `DO_NOT_PROMOTE_DEFAULT`

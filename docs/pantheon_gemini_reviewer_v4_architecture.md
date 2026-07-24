@@ -145,6 +145,27 @@ profile／receipt capability binding；若採 chunking，每個 chunk 必須有�
 operation identity、ledger／anchor與 deterministic assembly contract。兩者都需
 新的 architecture／acceptance boundary，不能在既有 single-shot profile內暗改。
 
+## Provider-native target profile
+
+`gemini_structured_api_v1` 保留相同 `run_single_shot`、ledger、anchor、replay與
+receipt boundary，但把 target改成 digest-pinned獨立 adapter：
+
+- public role／prompt／schema 以 canonical JSON走 stdin，不進 argv；
+- credential只由 owner-only file開啟後透過 inherited FD傳入，不進 environment；
+- structured target environment不含 `HOME`；
+- provider payload使用 `responseMimeType=application/json` 與
+  `responseJsonSchema`，並固定 `maxOutputTokens=32768`；
+- 一個 process只有一次 non-redirecting HTTP open，不 retry；
+- 只接受 one candidate、`finishReason=STOP`與 one non-thought JSON object；
+- adapter canonicalize後由 broker再次執行 caller schema validation。
+
+Provider／HTTP失敗只允許 closed `target_diagnostic`。broker與runner各自持有
+allowlist；unknown stderr、response body、prompt、credential與parser文字都不保存。
+
+這個 profile不宣稱 provider internal exactly-once：network failure可能發生在
+provider已接收 request之後，而 generateContent沒有 broker可驗證的 idempotency
+key。此時 operation fail closed且禁止自動重送，publish count仍為 0。
+
 ## Remaining review boundary
 
 本 candidate 仍需獨立 Review；implementation owner 不自審 GO。真實 canary 只能證明 trusted executable snapshot 的 transport completion、local ledger/anchor/replay accounting 與 strict caller result，不能證明 provider internal model-call provenance。放量決策維持「不切預設」；後續若要 shadow run 或 migration，必須另卡、另證據、另 commit。

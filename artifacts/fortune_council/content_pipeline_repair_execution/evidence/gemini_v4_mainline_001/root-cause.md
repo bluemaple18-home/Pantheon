@@ -91,3 +91,22 @@ exactly-once，兩者都不是修復。完整判定見 `output-completion-root-c
 
 同一長文章 `JSON_INVALID` blocker 已達第三次，依 stop rule 不執行第四次 canary。
 本卡內沒有安全 production patch；狀態維持 `BLOCKED / DO_NOT_PROMOTE_DEFAULT`。
+
+## Provider-native repair continuation（2026-07-25）
+
+最新授權允許在同一主卡內替換 V4 target capability。唯讀 production reference
+顯示 legacy API client已使用 Gemini原生 `responseMimeType`／
+`responseJsonSchema`；因此修復不是擴寫 parser，而是把這個 payload契約移入
+exactly-once broker管理的獨立 adapter。
+
+新 `gemini_structured_api_v1`：
+
+- 不使用 `agy --print`
+- 不從 prompt要求 schema enforcement
+- 不把 credential放入 argv/env
+- 不 retry 429/503或transport error
+- 不跟 HTTP redirect
+- 只有 provider `STOP`與本地 strict schema同時通過才交付
+
+synthetic evidence已排除前次 `PARSE_ERROR_AT_END`的能力缺口；真實 structured API
+尚未外呼，因此 rollout仍為 `DO_NOT_PROMOTE_DEFAULT`。
