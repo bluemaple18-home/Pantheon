@@ -73,3 +73,21 @@
 
 本 candidate 只讓下一次失敗可被安全歸因，沒有證據可以選擇任何 tolerant parse
 修正，因此狀態仍是 `BLOCKED`。下一次真實 canary 未獲本 continuation 授權。
+
+## Output completion closure（2026-07-24）
+
+Canary-005 得到 `COMPLETE/1 / SUCCESS / JSON_INVALID /
+PARSE_ERROR_AT_END`。離線 trace 已排除 broker 2 MiB result ceiling、外層 timeout、
+fence、wrapper、encoding、empty output與 legacy fallback是相容根因。
+
+本機及官方 `agy 1.1.6` headless contract 只有文字型 `--print` 與 timeout，沒有
+JSON Schema／structured-output enforcement；canonical schema 只能作為 prompt
+instruction。legacy writer 以 schema retry 收斂格式錯誤，但 V4 exactly-once
+禁止沿用。
+
+因此可證明的架構根因是「transport 不提供 machine-enforced structured completion」，
+而不是 broker parser defect。自動補 delimiter 會猜測並改寫 stdout；重試則違反
+exactly-once，兩者都不是修復。完整判定見 `output-completion-root-cause.md`。
+
+同一長文章 `JSON_INVALID` blocker 已達第三次，依 stop rule 不執行第四次 canary。
+本卡內沒有安全 production patch；狀態維持 `BLOCKED / DO_NOT_PROMOTE_DEFAULT`。

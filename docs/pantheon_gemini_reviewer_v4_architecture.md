@@ -131,6 +131,20 @@ runner 再做獨立 allowlist。分類不保存 raw output、片段、offset 或
 
 Rollback 只關閉 feature flag並回到切換前 code path；V4 ledger／anchor保留唯讀，不轉譯成舊 receipt、不補 terminal、不 replay target。若 flag-on operation 已留下 `BLOCKED/AMBIGUOUS/INVALID`，rollback 也不得觸發 legacy fallback。
 
+## Long-form structured-output boundary
+
+Canary-005 已把長文章失敗定位為
+`COMPLETE/1 / SUCCESS / JSON_INVALID / PARSE_ERROR_AT_END`。這代表 exactly-once
+process accounting完成，但 caller contract未完成。`agy 1.1.6 --print` 沒有
+machine-enforced JSON Schema／structured-output interface；runner 的 canonical
+schema envelope只能是 prompt instruction。
+
+V4 不得用補括號、補引號、substring extraction、tolerant parser或同 operation
+retry補足此能力缺口。若採原生 structured-output transport，必須建立新的
+profile／receipt capability binding；若採 chunking，每個 chunk 必須有獨立
+operation identity、ledger／anchor與 deterministic assembly contract。兩者都需
+新的 architecture／acceptance boundary，不能在既有 single-shot profile內暗改。
+
 ## Remaining review boundary
 
 本 candidate 仍需獨立 Review；implementation owner 不自審 GO。真實 canary 只能證明 trusted executable snapshot 的 transport completion、local ledger/anchor/replay accounting 與 strict caller result，不能證明 provider internal model-call provenance。放量決策維持「不切預設」；後續若要 shadow run 或 migration，必須另卡、另證據、另 commit。

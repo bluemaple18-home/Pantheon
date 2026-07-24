@@ -169,3 +169,20 @@ decision_statuses:
   closed diagnostic 不宣稱是 provider token limit 或 CLI truncation。
 - decision:
   `BLOCKED / DO_NOT_PROMOTE_DEFAULT`
+
+## Output completion closure
+
+- localized layer:
+  target stdout 到 strict caller JSON contract；ledger／anchor／replay、fork/exec與
+  外層 timeout不是 failure layer。
+- production capability:
+  `agy 1.1.6 --print` 沒有 JSON Schema／structured-output enforcement；prompt
+  envelope 只能要求格式，不能保證格式。
+- rejected repairs:
+  不自動補 delimiter、不 tolerant parse、不 retry terminal job、不執行第四次同
+  blocker canary。
+- safe next architecture:
+  另立原生 structured-output transport，或把長文章拆成各自有 durable identity的
+  bounded chunk operations；兩者均超出本卡。
+- final decision:
+  `BLOCKED / DO_NOT_PROMOTE_DEFAULT`

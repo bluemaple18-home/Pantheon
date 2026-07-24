@@ -59,3 +59,28 @@ response，因此不能進一步宣稱是 provider token limit、CLI truncation 
 決策維持 `BLOCKED / DO_NOT_PROMOTE_DEFAULT`。本 job 不得 retry；下一步只能先做
 針對 output completion boundary 的離線 root-cause／repair，再以新 job 重新取得
 外部授權。
+
+## Output completion architecture decision
+
+離線 root-cause 已完成。`agy 1.1.6 --print` 沒有 machine-enforced JSON
+Schema／structured-output contract；因此 prompt 內附 schema 無法保證長文章 stdout
+形成完整 JSON。現有證據也排除 broker result ceiling、外層 timeout、fence與
+wrapper是本次相容根因。
+
+本卡拒絕以下假修復：
+
+- 自動補 JSON delimiter或 tolerant parse；
+- 對同一 operation retry；
+- 未改變 transport capability 就執行第四次 canary。
+
+最小可行下一步是另立 transport architecture boundary，使用原生 structured
+output，或把長文章拆成各自有 operation identity／ledger 的 bounded chunks。
+兩者都超出本卡 allowlist與 single-shot contract。
+
+Final decision：
+
+- status：`BLOCKED`
+- rollout：`DO_NOT_PROMOTE_DEFAULT`
+- legacy default：維持
+- V4 flag-on：維持 fail closed
+- additional real canary under this blocker：`0`

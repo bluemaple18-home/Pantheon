@@ -113,3 +113,16 @@ inbox / archive / failed: absent / present / present
 retry / fallback / pipeline continuation / publisher / publish: 0 / 0 / 0 / 0 / 0
 raw response read / saved: false / false
 decision: BLOCKED
+
+OUTPUT COMPLETION ROOT-CAUSE CLOSURE
+codegraph index: 129 files / 2,159 nodes / 2,003 edges
+localized failure layer: target stdout -> strict caller JSON contract
+broker result ceiling / outer timeout / fence / wrapper: FALSIFIED / FALSIFIED / FALSIFIED / FALSIFIED
+agy 1.1.6 structured-output or JSON-schema flag: NOT AVAILABLE
+safe production code repair inside current contract: NONE
+focused V4 suites: 96 passed in 35.72s
+py_compile: PASS
+allowlist: PASS
+git diff --check: PASS
+additional external generation / retry / publish: 0 / 0 / 0
+decision: BLOCKED / DO_NOT_PROMOTE_DEFAULT

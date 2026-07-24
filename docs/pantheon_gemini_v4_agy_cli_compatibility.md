@@ -103,3 +103,19 @@ agy 固定加入同一種 wrapper，也不得在沒有證據時自動剝除 code
 runner 以獨立 allowlist 二次過濾，且只在 `result_validation=JSON_INVALID` 時保存該
 enum。不得保存 raw bytes、文字片段、parser message、offset 或未知字串。這項診斷
 不放寬嚴格 `json.loads`／schema 契約、不自動修復輸出，也不授權新外呼。
+
+## Structured-output capability boundary
+
+Canary-005 在 `agy 1.1.6` 得到
+`COMPLETE/1 / SUCCESS / JSON_INVALID / PARSE_ERROR_AT_END`。離線 trace 排除 broker
+result ceiling、外層 timeout、fence與wrapper是相容根因。
+
+`agy 1.1.6` 的 headless interface 只有文字型 `--print <prompt>` 與
+`--print-timeout`；官方 help／文件沒有 JSON Schema、structured-output、
+response MIME type或 output-token ceiling參數。因此 effective prompt 內的
+canonical schema 是 instruction，不是 transport enforcement。
+
+這個 profile 不得以 tolerant parser、自動補 delimiter或同 operation retry，把
+不完整 stdout 轉成 caller success。長文章 V4 promotion 必須等待另一個能
+machine-enforce structured output的 transport，或新的 bounded chunk operation
+architecture；目前 legacy 維持預設。
