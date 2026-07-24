@@ -26,6 +26,9 @@ from scripts.agy_gemini_runner import process_once
 
 MAX_BRIEF_BYTES = 12 * 1024
 MAX_ACTIVE_RUNS_PER_CYCLE = 5
+DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS = 2
+DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE = 1
+DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN = 5
 DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
@@ -147,15 +150,57 @@ def _article_ids_from_brief(brief: dict[str, Any] | None) -> set[str]:
     return {str(article.get("article_id") or "") for article in articles if isinstance(article, dict) and article.get("article_id")}
 
 
-def _registered_rewrite_article_ids(queue_root: Path) -> set[str]:
+def _create_article_ids_from_brief(brief: dict[str, Any] | None) -> set[str]:
+    if not isinstance(brief, dict) or brief.get("mode") != "create":
+        return set()
+    articles = brief.get("articles")
+    if not isinstance(articles, list):
+        return set()
+    article_ids: set[str] = set()
+    for article in articles:
+        if not isinstance(article, dict):
+            continue
+        target = article.get("target")
+        if isinstance(target, dict) and target.get("id"):
+            article_ids.add(str(target["id"]))
+            continue
+        if article.get("id"):
+            article_ids.add(str(article["id"]))
+    return article_ids
+
+
+def _registered_article_ids_by_mode(queue_root: Path, mode: str) -> set[str]:
     article_ids: set[str] = set()
     for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        article_ids.update(_article_ids_from_brief(_read_run_brief_from_state(state)))
+        brief = _read_run_brief_from_state(state)
+        if mode == "create":
+            article_ids.update(_create_article_ids_from_brief(brief))
+        elif mode == "rewrite_existing_body":
+            article_ids.update(_article_ids_from_brief(brief))
     return article_ids
+
+
+def _active_count_by_mode(queue_root: Path, mode: str) -> int:
+    count = 0
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if state.get("status") != "active":
+            continue
+        brief = _read_run_brief_from_state(state)
+        if isinstance(brief, dict) and brief.get("mode") == mode:
+            count += 1
+    return count
+
+
+def _registered_rewrite_article_ids(queue_root: Path) -> set[str]:
+    return _registered_article_ids_by_mode(queue_root, "rewrite_existing_body")
 
 
 def _slug_part(value: str) -> str:
@@ -171,6 +216,74 @@ def _head_sha(repo_root: Path) -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def _next_new_matrix_run_prefix(run_root: Path, queue_root: Path) -> str:
+    today = datetime.now().astimezone().strftime("%Y%m%d")
+    stem = f"auto-new-v1-{today}"
+    used: set[str] = set()
+    if run_root.exists():
+        used.update(path.name for path in run_root.iterdir() if path.is_dir())
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        run_id = str(state.get("run_id") or "")
+        if run_id:
+            used.add(run_id)
+    index = 1
+    while True:
+        prefix = f"{stem}-{index:03d}"
+        if not any(item == prefix or item.startswith(f"{prefix}-") for item in used):
+            return prefix
+        index += 1
+
+
+def seed_new_matrix_runs(
+    repo_root: Path,
+    queue_root: Path,
+    run_root: Path,
+    *,
+    min_active_runs: int = DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS,
+    max_new_runs: int = DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE,
+    max_articles_per_run: int = DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN,
+) -> dict[str, Any]:
+    """自動從內容矩陣挑未登記的新文，建立 create run 並交給 coordinator。"""
+    if min_active_runs <= 0 or max_new_runs <= 0:
+        return {"status": "disabled", "created": 0, "created_run_ids": []}
+    active_create = _active_count_by_mode(queue_root, "create")
+    if active_create >= min_active_runs:
+        return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
+
+    created: list[str] = []
+    excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
+    for _ in range(min(max_new_runs, min_active_runs - active_create)):
+        run_prefix = _next_new_matrix_run_prefix(run_root, queue_root)
+        paths = pipeline.prepare_matrix_runs(
+            repo_root,
+            run_prefix,
+            output_root=run_root,
+            limit=max_articles_per_run,
+            exclude_ids=excluded_ids,
+            max_articles_per_run=max_articles_per_run,
+        )
+        if not paths:
+            break
+        for brief_path in paths:
+            state = register_run(brief_path.parent, queue_root)
+            created.append(str(state["run_id"]))
+            brief = _brief(brief_path.parent)
+            excluded_ids.update(_create_article_ids_from_brief(brief))
+        if len(created) >= max_new_runs:
+            break
+
+    return {
+        "status": "seeded" if created else "idle",
+        "created": len(created),
+        "created_run_ids": created,
+        "active_create_before": active_create,
+    }
 
 
 def _legacy_rewrite_article_brief(
@@ -315,6 +428,11 @@ def cycle_once(
     tick: Tick = run_pipeline_tick,
     process: Process = process_once,
     repo_root: Path | None = None,
+    new_matrix_sweep: bool = False,
+    new_matrix_run_root: Path | None = None,
+    new_matrix_min_active_runs: int = DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS,
+    new_matrix_max_new_runs_per_cycle: int = DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE,
+    new_matrix_max_articles_per_run: int = DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN,
     legacy_sweep: bool = False,
     legacy_state_root: Path | None = None,
     legacy_run_root: Path | None = None,
@@ -330,9 +448,20 @@ def cycle_once(
         except BlockingIOError:
             return {"status": "busy", "active": 0, "complete": 0, "failed": 0, "runner": {"status": "idle"}}
 
+        resolved_repo = (repo_root or Path.cwd()).resolve()
+        new_matrix_summary: dict[str, Any] | None = None
+        if new_matrix_sweep:
+            new_matrix_summary = seed_new_matrix_runs(
+                resolved_repo,
+                root,
+                (new_matrix_run_root or resolved_repo / ".work/gsc-copy").resolve(),
+                min_active_runs=new_matrix_min_active_runs,
+                max_new_runs=new_matrix_max_new_runs_per_cycle,
+                max_articles_per_run=new_matrix_max_articles_per_run,
+            )
+
         legacy_summary: dict[str, Any] | None = None
         if legacy_sweep:
-            resolved_repo = (repo_root or Path.cwd()).resolve()
             legacy_summary = seed_legacy_rewrite_runs(
                 resolved_repo,
                 root,
@@ -369,6 +498,7 @@ def cycle_once(
             "complete": completed,
             "failed": failed,
             "runner": runner,
+            "new_matrix_sweep": new_matrix_summary,
             "legacy_sweep": legacy_summary,
         }
 
@@ -386,6 +516,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--new-matrix-run-root", type=Path, default=Path(".work/gsc-copy"))
+    parser.add_argument("--new-matrix-sweep", action="store_true")
+    parser.add_argument("--new-matrix-min-active-runs", type=int, default=DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS)
+    parser.add_argument("--new-matrix-max-new-runs-per-cycle", type=int, default=DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE)
+    parser.add_argument("--new-matrix-max-articles-per-run", type=int, default=DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN)
     parser.add_argument("--legacy-state-root", type=Path, default=Path(".work/content-publisher"))
     parser.add_argument("--legacy-run-root", type=Path, default=Path(".work/gsc-copy"))
     parser.add_argument("--legacy-sweep", action="store_true")
@@ -414,6 +549,11 @@ def main() -> int:
         result = cycle_once(
             queue_root,
             repo_root=args.repo_root,
+            new_matrix_sweep=args.new_matrix_sweep,
+            new_matrix_run_root=args.new_matrix_run_root,
+            new_matrix_min_active_runs=args.new_matrix_min_active_runs,
+            new_matrix_max_new_runs_per_cycle=args.new_matrix_max_new_runs_per_cycle,
+            new_matrix_max_articles_per_run=args.new_matrix_max_articles_per_run,
             legacy_sweep=args.legacy_sweep,
             legacy_state_root=args.legacy_state_root,
             legacy_run_root=args.legacy_run_root,

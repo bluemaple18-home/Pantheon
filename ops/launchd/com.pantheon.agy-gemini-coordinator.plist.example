@@ -14,6 +14,9 @@
     <string>__REPO_ROOT__/.work/gemini-runner</string>
     <string>--repo-root</string>
     <string>__REPO_ROOT__</string>
+    <string>--new-matrix-run-root</string>
+    <string>__REPO_ROOT__/.work/gsc-copy</string>
+    <string>--new-matrix-sweep</string>
     <string>--legacy-state-root</string>
     <string>__REPO_ROOT__/.work/content-publisher</string>
     <string>--legacy-run-root</string>

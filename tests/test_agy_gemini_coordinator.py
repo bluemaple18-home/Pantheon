@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from scripts import agy_gemini_coordinator as coordinator
-from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs
+from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending
 
 
@@ -232,6 +232,115 @@ def test_cycle_legacy_sweep_does_not_require_manual_register(tmp_path: Path, mon
     assert summary["runner"] == {"status": "idle"}
 
 
+def test_seed_new_matrix_runs_registers_prepared_create_run(tmp_path: Path, monkeypatch) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    calls: list[dict[str, object]] = []
+
+    def fake_prepare_matrix_runs(
+        _repo_root: Path,
+        run_prefix: str,
+        *,
+        output_root: Path,
+        limit: int,
+        exclude_ids: set[str],
+        max_articles_per_run: int,
+    ) -> list[Path]:
+        calls.append(
+            {
+                "run_prefix": run_prefix,
+                "limit": limit,
+                "exclude_ids": sorted(exclude_ids),
+                "max_articles_per_run": max_articles_per_run,
+            }
+        )
+        paths: list[Path] = []
+        for index, article_id in enumerate(["V2-ZODIAC-ARIES-LOVE", "V2-ZODIAC-ARIES-WORK"], start=1):
+            run_dir = output_root / f"{run_prefix}-{index:02d}"
+            run_dir.mkdir(parents=True)
+            brief = {
+                "schema_version": 1,
+                "run_id": f"{run_prefix}-{index:02d}",
+                "mode": "create",
+                "articles": [{"target": {"id": article_id}}],
+            }
+            path = run_dir / "brief.json"
+            path.write_text(json.dumps(brief), encoding="utf-8")
+            paths.append(path)
+        return paths
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", fake_prepare_matrix_runs)
+
+    summary = seed_new_matrix_runs(
+        repo_root,
+        queue_root,
+        run_root,
+        min_active_runs=1,
+        max_new_runs=1,
+        max_articles_per_run=5,
+    )
+
+    assert summary["status"] == "seeded"
+    assert summary["created"] == 2
+    assert summary["created_run_ids"][0].startswith("auto-new-v1-")
+    assert summary["created_run_ids"][1].startswith("auto-new-v1-")
+    assert calls[0]["limit"] == 5
+    assert calls[0]["exclude_ids"] == []
+    assert len(list((queue_root / "runs").glob("*.json"))) == 2
+
+
+def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    def fake_prepare_matrix_runs(
+        _repo_root: Path,
+        run_prefix: str,
+        *,
+        output_root: Path,
+        limit: int,
+        exclude_ids: set[str],
+        max_articles_per_run: int,
+    ) -> list[Path]:
+        run_dir = output_root / f"{run_prefix}-01"
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": f"{run_prefix}-01",
+                    "mode": "create",
+                    "articles": [{"target": {"id": "V2-MBTI-INTJ-WORK"}}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return [run_dir / "brief.json"]
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", fake_prepare_matrix_runs)
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending("public-job-new-001")
+
+    summary = cycle_once(
+        tmp_path / "queue",
+        tick=pending_tick,
+        process=lambda _root: {"status": "idle"},
+        repo_root=repo_root,
+        new_matrix_sweep=True,
+        new_matrix_run_root=tmp_path / "private-runs",
+        new_matrix_min_active_runs=1,
+        new_matrix_max_new_runs_per_cycle=1,
+    )
+
+    assert summary["new_matrix_sweep"]["status"] == "seeded"
+    assert summary["new_matrix_sweep"]["created"] == 1
+    assert summary["active"] == 1
+    assert summary["runner"] == {"status": "idle"}
+
+
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     plist = plistlib.loads(
@@ -240,6 +349,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     arguments = plist["ProgramArguments"]
 
     assert arguments[1:3] == ["-m", "scripts.agy_gemini_coordinator"]
+    assert "--new-matrix-sweep" in arguments
+    assert "--new-matrix-run-root" in arguments
     assert "--legacy-sweep" in arguments
     assert "--legacy-state-root" in arguments
     assert "--legacy-run-root" in arguments
