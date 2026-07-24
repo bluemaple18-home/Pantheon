@@ -134,6 +134,60 @@ decision_statuses:
 - rollout:
   `DO_NOT_PROMOTE_DEFAULT`
 
+## Structured transport replacement Review dispatch
+
+The prior visible Reviewer identity
+`019f8f7c-2695-7241-a14e-c611c9cc7ee7` remains readable, but its background
+host rejected three consecutive follow-up deliveries and stays `notLoaded`.
+The mainline therefore stops that delivery method and provisions one
+replacement visible Review thread without resetting the chain or findings
+ledger.
+
+- dispatch version:
+  `2`
+- reviewer generation:
+  `structured-transport-review-1`
+- parent candidate:
+  `748c10f13e597ad74b16ecf2914fc388ed0f07de`
+- review base:
+  `d5e19971614669665a7fbe0710fab7fcb1a0b883`
+- source branch:
+  `codex/gemini-v4-publish-main-integration-001`
+- source kind:
+  committed candidate plus this card-only provisioning commit
+- source preflight:
+  clean worktree, Git metadata available, `index.lock` absent, unrelated dirty
+  paths empty
+- Reviewer ownership:
+  read-only structured transport review; no repair
+- Reviewer allowlist:
+  committed candidate diff, related production callers/consumers, tests, docs
+  and evidence
+- Reviewer forbidden scope:
+  file writes, credential reads or changes, real Gemini/API calls, retry,
+  fallback, merge, push, deploy, publish, activation and default promotion
+- required perspectives:
+  correctness, regression, security/privacy, reliability/exactly-once,
+  test gaps, maintainability and release readiness
+- verification:
+  affected pytest suites, static/secret checks, `git diff --check`, and
+  source-to-evidence consistency
+- finding schema:
+  severity (`P0`–`P3`), category, path, line, evidence, risk, suggested fix,
+  validation gap and confidence
+- verdict:
+  `GO` or `CHANGES_REQUESTED`
+- model route:
+  `gpt-5.6-sol / high`; credential FD, external HTTP, durable replay and
+  fail-closed boundaries make this strict/high rather than a routine doc review
+- worktree:
+  platform-assigned independent worktree; must not equal the mainline worktree
+- thread receipt:
+  pending formal thread provisioning and post-create reconciliation
+- external-call authorization:
+  none; even `GO` only permits the mainline to prepare a separately confirmed
+  single real canary
+
 ## JSON diagnostic canary-005 preflight
 
 - independent Review:
