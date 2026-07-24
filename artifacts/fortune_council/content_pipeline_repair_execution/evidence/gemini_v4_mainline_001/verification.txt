@@ -1,0 +1,103 @@
+# Verification
+
+SOURCE BASE
+commit: ea7308bf14533c22bc83809bd72faeddcdeed6d0
+branch label at start: codex/gemini-v4-mainline-001
+
+FOCUSED BASELINE
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py -q
+result: 68 passed in 30.02s
+
+RED / GREEN
+command: uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_concurrent_create_loser_returns_replayed_external_anchor -q
+RED: 1 failed; COMPLETE/1 replay returned stale null final_anchor
+GREEN: 1 passed in 0.02s
+
+SYNTHETIC ACCEPTANCE
+command: explicit 10-selector V4 matrix command recorded by this task
+result: 21 passed in 1.94s
+coverage: flag-off legacy; flag-on success/nonzero/timeout/malformed; durable pre-fork abort and ambiguous windows; partial/binding/chain/anchor replay; existing-operation replay; digest mismatch; concurrent-create loser; BLOCKED/AMBIGUOUS/INVALID no-fallback
+
+FINAL V4 FOCUSED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py -q
+result: 70 passed in 29.48s
+
+FULL REPOSITORY SUITE
+command: uv run --frozen pytest -q
+result: 254 passed, 2 failed, 2 warnings in 66.14s
+failures:
+- tests/test_api.py::test_predict_route_returns_charts_and_ai
+- tests/test_calculators.py::test_ziwei_returns_palace_payload
+interpretation: both failures are outside this card's diff and reproduce the pre-existing isolated-worktree runtime fallback from expected iztro to pantheon_ziwei when the ignored Node runtime dependency is unavailable. The same failure pair is recorded in prior V4 compatibility evidence. No app, calculator, dependency or Node file is modified by this candidate.
+
+PY_COMPILE
+command: .venv/bin/python -m py_compile scripts/agy_gemini_v4_broker.py scripts/agy_gemini_runner.py scripts/agy_gemini_v4_architecture_probe.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py
+result: PASS
+
+JSON VALIDATION
+command: .venv/bin/python -m json.tool on synthetic-matrix.json and real-canary.json
+result: PASS
+
+PRIVACY / DEBUG
+scope: evidence/gemini_v4_mainline_001 and modified V4 code/tests
+result: PASS; no saved prompt, credential, full environment, local private path or [DBG- marker
+
+ALLOWLIST
+result: PASS; all changed paths are within CARD-CONTENT-GEMINI-V4-MAINLINE-001 allowlist
+
+DIFF CHECK
+command: git diff --check
+result: PASS
+
+REAL CANARY
+tool: existing local agy 1.1.5
+external generation attempts: 1
+runner: processed
+ledger replay: COMPLETE/1
+EXEC_CONFIRMED count: 1
+strict result schema: PASS
+failed record: absent
+retry/fallback/publish: none
+evidence: real-canary.json
+
+NOT RUN / NOT AUTHORIZED
+- provider-internal call provenance verification
+- content shadow run
+- default transport migration
+- merge, push, deploy or publish
+
+JSON_INVALID CONTINUATION
+source evidence: Activation-004 durable COMPLETE/1 / SUCCESS / JSON_INVALID
+targeted RED: 7 failed
+targeted GREEN plus forged controls: 9 passed in 1.23s
+py_compile: PASS
+debug marker scan: PASS
+first affected-suite run: 95 passed, 1 timeout-fixture trace race failed
+isolated timeout-fixture rerun: 1 passed in 0.58s
+final affected suite after local review adjustment: 122 passed in 33.86s
+continuation allowlist / added-diff privacy / diff check: PASS / PASS / PASS
+local review: normalized trace schema change removed; no remaining P0-P2 finding
+production JSON acceptance relaxed: false
+ledger / anchor / replay modified: false
+external call: 0
+decision: BLOCKED
+
+INDEPENDENT JSON DIAGNOSTIC REVIEW
+thread: existing visible V4 Review task
+model / reasoning: gpt-5.5 / medium
+verdict: GO
+findings P0-P3: none
+targeted pytest: 17 passed
+outbox suite: 44 passed
+direct behavior probes: 15 PASS
+review writes / external calls: 0 / 0
+
+JSON DIAGNOSTIC CANARY-005 PREFLIGHT
+fresh job: 5241c89cdbe7722816b33db19f09839561b4a942
+request validation / public prompt validation: PASS / PASS
+task / schema / effective prompt bytes: 2555 / 1211 / 4028
+effective prompt ceiling: 393216
+queue outbox / all other durable state: 1 / 0
+agy read-only version / help checks: 1.1.6 / PASS
+generation invocation: 0
+status: AWAITING_EXTERNAL_CONFIRMATION

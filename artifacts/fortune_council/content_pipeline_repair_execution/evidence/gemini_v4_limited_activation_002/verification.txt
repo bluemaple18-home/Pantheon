@@ -1,0 +1,75 @@
+Gemini V4 limited activation-002 dry-run verification
+=====================================================
+
+Card Gate 1: PASS
+Fresh repo-external runtime: PASS
+Fresh run identity / namespace / job ID / request digest: PASS
+Prior blocked job reused: false
+Prior runtime reused: false
+Outbox tick pending exit 75: PASS
+Pending request count: 1
+Strict request rebuild / digest validation: PASS
+Public-data filter: PASS
+Executable digest match: PASS
+Prompt saved in evidence: false
+Raw response saved in evidence: false
+Credential / full environment / executable path saved: false
+Ledger / anchor / inbox / archive / failed record present: false
+Gemini / agy invocation: 0
+Retry / fallback / automatic resend: 0
+Publisher / publish / deploy / promotion: 0
+Decision before external action: AWAITING_EXTERNAL_CONFIRMATION
+
+Actual execution
+----------------
+User final confirmation: received
+Target invocation count: 1
+Runner status: failed
+Runner error type: V4BrokerFailure
+Safe result validation: JSON_INVALID
+Durable replay status: COMPLETE
+Durable process count: 1
+Automatic resend allowed: false
+Event count: 5
+EXEC_CONFIRMED count: 1
+PROCESS_TERMINAL count: 1
+PROCESS_TERMINAL outcome: SUCCESS
+Replay errors: none
+Inbox: absent
+Failed / archive / ledger / anchor: present
+
+ledger sha256:
+ec3965fef51223747738861295f6f5ee9baa4c63c3f91d42827b4d572d2066ab
+
+anchor record sha256:
+5064a09e76fa92c36ca046ea40b4612c0a9f0389ed62a448b9afc02378729258
+
+archive record sha256:
+c2c90b668ba1239e67ddef37a14f064b9a68e74163fb1697cf2715f77675109f
+
+failed record sha256:
+57cf3eff21f4b7b108e795f549fcdabb5fa381235c5e6a63d84c523a779e67c7
+
+final anchor:
+0eba61d182e0bad1d508984ae40ad6a519a6949d18f21eaa35408db4f07e5070
+
+Retry count: 0
+Fallback count: 0
+Second process-once count: 0
+Publisher invocation: 0
+
+Privacy
+-------
+Prompt saved in evidence: false
+Raw response saved in evidence: false
+Credential / full environment / executable path saved: false
+CLI log saved in evidence: false
+
+Final decision: BLOCKED
+
+Post-activation local regression
+--------------------------------
+V4 outbox / broker / architecture probe:
+80 passed in 31.51s
+
+Production code changed by Activation-002: false

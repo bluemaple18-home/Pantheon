@@ -1,0 +1,12 @@
+Direct integration-owner files:
+- artifacts/fortune_council/content_pipeline_repair_execution/CARD-CONTENT-GEMINI-V4-PUBLISH-MAIN-INTEGRATION-001.md
+- artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_publish_main_integration_001/changed-files.txt
+- artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_publish_main_integration_001/decision.md
+- artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_publish_main_integration_001/merge-report.md
+- artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_publish_main_integration_001/preflight.md
+- artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_publish_main_integration_001/verification.txt
+
+Inherited merge:
+- fixed V4 reviewed lineage through b2c51d4ee9da7a45a05be8c59725a28020d9bb60
+- no direct edits to inherited V4 files
+- no changes to publication/article/automation paths relative to publish base

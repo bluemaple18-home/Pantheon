@@ -1,0 +1,142 @@
+Gemini V4 publish-main integration independent verification
+============================================================
+
+Identity / startup gate
+-----------------------
+- independent detached worktree: PASS
+- starting tree clean: PASS
+- starting HEAD: ba22c050c1091860548f47c3135d9b9900a2990e
+- provisioning branch points to starting HEAD: PASS
+- HEAD unique parent is candidate: PASS
+- HEAD adds only Review card: PASS
+- actual gitdir index.lock absent: PASS
+- locked publish base / tag:
+  78d8d2fc91bd435adf371762b9ff49665cdc26d5 / v0.3.7
+- V4 reviewed tip:
+  b2c51d4ee9da7a45a05be8c59725a28020d9bb60
+- integration card commit:
+  2cba7a3898a1c21950c21bdfa99273eac05e32dd
+- integration card parent equals publish base: PASS
+- integration card commit adds only Integration card: PASS
+- integration merge:
+  99318a01d77804b90490ae87bc5485e0ddb85960
+- merge first parent equals Integration card commit: PASS
+- merge second parent equals V4 reviewed tip: PASS
+- fixed candidate:
+  b0d0f6dd855bb185c9958c7a9cf6bd0ad178a8cc
+- candidate unique parent equals integration merge: PASS
+- publish base is candidate ancestor: PASS
+- V4 reviewed tip is candidate ancestor: PASS
+
+Required reads
+--------------
+- AGENTS.md: complete
+- Review card and Integration card: complete
+- Integration evidence: complete
+- Shadow-002 / independent Review cards and evidence: complete
+- output-binding Repair / Review evidence: complete
+- publish-base publisher / launchd automation and publisher tests: complete
+- V4 broker / runner and affected tests: complete
+- CodeGraph note: project index was absent; no index was created because Review write
+  scope is evidence-only. Fixed Git objects and working-tree sources were read directly.
+
+Publication zero drift
+----------------------
+- app tree base / candidate:
+  6adf22aa5bf23b3c7f0e8e9edd0436b43dc5dee1 /
+  6adf22aa5bf23b3c7f0e8e9edd0436b43dc5dee1
+- ops/launchd tree base / candidate:
+  8ad95972f43062ff657ce94b36c1b50774e222f5 /
+  8ad95972f43062ff657ce94b36c1b50774e222f5
+- content publisher blob base / candidate:
+  9829981f810797e578ce016ea2eb40d520c8726d /
+  9829981f810797e578ce016ea2eb40d520c8726d
+- SEO pipeline blob base / candidate:
+  6a0ac7d5d3d7c96ddf45b94f670dae19403d1b51 /
+  6a0ac7d5d3d7c96ddf45b94f670dae19403d1b51
+- feed generator blob base / candidate:
+  90435969096e848acafd518b266e0a6c2ed799e8 /
+  90435969096e848acafd518b266e0a6c2ed799e8
+- prerender generator blob base / candidate:
+  528a1e2ca3cbd56298e03e5219724bbd48a6de3f /
+  528a1e2ca3cbd56298e03e5219724bbd48a6de3f
+- scoped base-to-candidate diff: empty / PASS
+- article / registry / metadata / sitemap / feed / prerender changed-path scan:
+  0 hits / PASS
+- V4 production and focused-test files equal reviewed tip: PASS
+
+Regression
+----------
+V4 focused:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 74 passed
+
+Legacy publishing:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed
+
+Coordinator:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed
+
+Content publisher:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_content_publisher.py -q
+Result: 5 passed
+
+Unique pytest total: 142 passed
+
+Targeted contracts
+------------------
+- flag-off legacy / flag-on BLOCKED, AMBIGUOUS, INVALID, malformed and misbound
+  no-fallback: 6 passed
+- raw-byte output binding, concurrent-create loser replay, one-process binding and
+  existing-operation no-resend: 4 passed
+- targeted tests are included in the 142 unique total and are not double-counted
+- AGY_GEMINI_V4_BROKER=1 remains the only V4 opt-in: PASS
+- flag off remains legacy: PASS
+- flag on failure has no legacy fallback: PASS
+- output-binding and exactly-once contract: PASS
+
+Static / scope / privacy
+------------------------
+- py_compile broker, runner, publisher, SEO pipeline and six test files: PASS
+- base-to-integration-merge changed paths: 73
+- base-to-candidate changed paths: 78
+- candidate direct changed paths: 6
+- candidate direct-write allowlist: PASS
+- Review provisioning changed paths: 1
+- Review provisioning allowlist: PASS
+- candidate Python diff [DBG- hits: 0
+- added current-user / private-temp path hits: 0
+- Integration card/evidence sensitive-value hits: 0
+- candidate git diff --check: PASS
+- Review provisioning git diff --check: PASS
+- external Gemini / agy invocation: 0
+- repair / merge / push / deploy / publish / activation / default promotion /
+  legacy removal: 0
+
+Environment / command note
+--------------------------
+- Tests used an existing project uv virtualenv interpreter with bytecode and pytest
+  cache disabled for this worktree.
+- py_compile output was redirected outside the repository.
+- One initial read-only static aggregation command was invalid because a zsh special
+  variable shadowed PATH; the corrected command passed. No candidate or repository
+  state was modified by that command.
+
+Moving publication ref
+----------------------
+- local read-only origin/main snapshot:
+  1eb311f49c720925501a1fa3dfc9e2b492e71451
+- subject: chore(content): publish Gemini approved articles v0.3.8
+- commits after locked base in local snapshot: 1
+- origin/main is candidate ancestor: NO
+- candidate is origin/main ancestor: NO
+- interpretation: expected moving-ref divergence; publisher coordination and final
+  sync are mandatory before any remote integration, followed by affected gate reruns.

@@ -1,0 +1,73 @@
+STATUS: DELIVERED_CANDIDATE / READY_FOR_RE_REVIEW
+
+IDENTITY / PREFLIGHT
+- independent cwd: PASS
+- clean startup worktree: PASS
+- startup HEAD: 6c4931c1da63257cd70bd0abe5776dc1758e4557
+- unique parent: ea7308bf14533c22bc83809bd72faeddcdeed6d0
+- index.lock absent: PASS
+- Repair card created before code/test/evidence changes: PASS
+
+P1 OLD SUMMARY RED
+- verifier exit: 1
+- result: REJECTED / bundle fields are not closed
+
+P1 SYNTHETIC REHEARSAL
+- recorder exit: 0
+- standalone verifier exit: 0
+- result: PASS / COMPLETE/1 / five canonical events / strict schema / no fallback
+- mutation matrix: 12/12 rejected, status PASS
+
+P2 PUBLIC CONTRACT
+- deterministic RED: AnchorError escaped
+- minimal GREEN: 1 passed
+- structured result: INVALID/UNKNOWN + EXTERNAL_ANCHOR_INVALID
+- caller result: false / none
+- automatic resend: false
+- broker/target spawn: 0
+
+FOCUSED TESTS
+command: PYTHONPATH=. .venv/bin/pytest tests/test_agy_gemini_outbox.py -q
+exit: 0
+result: 27 passed
+
+command: PYTHONPATH=. .venv/bin/pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py -q
+exit: 0
+result: 71 passed
+
+CANONICAL REVIEWER SELECTOR
+command: PYTHONPATH=. .venv/bin/pytest tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py -q -k <canonical-27-test-selector>
+exit: 0
+result: 27 passed, 33 deselected
+
+STATIC / PRIVACY / SCOPE
+- py_compile broker, outbox test, recorder, verifier: PASS
+- git diff --check: PASS
+- debug instrumentation marker scan: PASS / absent
+- JSON evidence prompt value, credential, private key, authorization header and local absolute path scan: PASS / absent
+- runtime prompt saved: false
+- executable path saved: false
+- full environment / CLI log saved: false
+- all changed files inside Repair allowlist: PASS
+
+EXTERNAL CANARY
+- authorization: AUTHORIZED_AND_CONSUMED
+- tool: agy 1.1.5 identity
+- executable SHA-256: 6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf
+- model: gemini-3.5-flash
+- real agy/Gemini calls in this Repair: 1
+- recorder exit: 0
+- offline verifier exit: 0
+- replay/process: COMPLETE/1
+- canonical event count: 5
+- EXEC_CONFIRMED count: 1
+- ledger SHA-256: ce52cc41e295f8a9bd88835a892d11e130f6dea8a1703998e85d1a33404cc49d
+- final anchor: d2130f32d3d88c0d9f0b5b39f4b7cf15e4ec9731db04833265362a5d7ce1b601
+- result schema: PASS
+- no fallback / retry / resend: PASS
+- real-canary-bundle.json: created
+- real-canary-verification.json: PASS
+- retry/fallback: none
+
+NOT RUN / NOT AUTHORIZED
+- merge, push, deploy, publish, shadow or default promotion

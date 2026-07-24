@@ -1,0 +1,10 @@
+{
+  "coherent_weakened_schema": {
+    "accepted": true,
+    "error": null
+  },
+  "wrong_result_schema": {
+    "accepted": true,
+    "error": null
+  }
+}

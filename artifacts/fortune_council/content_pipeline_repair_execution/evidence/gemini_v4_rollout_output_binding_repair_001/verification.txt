@@ -1,0 +1,45 @@
+Gemini V4 output binding repair verification
+============================================
+
+Scope
+-----
+- production change: one expression in scripts/agy_gemini_v4_broker.py
+- regression test: one deterministic pretty-JSON raw-byte binding test
+- external agy/Gemini invocations: 0
+- retry/fallback/publish/deploy/default promotion: 0
+
+Focused RED/GREEN
+-----------------
+- RED: 1 failed at result_json raw-byte equality
+- GREEN: 1 passed
+
+Affected regression
+-------------------
+- V4 focused:
+  .venv/bin/python -m pytest tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_v4_architecture_probe.py -q
+  result: 74 passed
+- legacy publishing:
+  .venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py -q
+  result: 57 passed
+- coordinator:
+  .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q
+  result: 6 passed
+- total: 137 passed
+
+Contract checks
+---------------
+- schema-valid pretty JSON preserves verified raw bytes: PASS
+- result property still returns parsed dict: PASS
+- malformed/schema-invalid fail-closed coverage: PASS in V4 suite
+- replay/concurrent duplicate coverage: PASS in V4 suite
+- flag-off legacy and flag-on no-fallback coverage: PASS
+- py_compile broker and changed test: PASS
+- debug instrumentation in changed Python files: absent
+- git diff --check: PASS before evidence finalization
+
+Privacy
+-------
+- no prompt, credential, environment, CLI log, or real raw output added
+- test output is synthetic closed-schema JSON only
+- production raw bytes remain in-memory on BrokerResult; normalized trace continues to
+  expose only the parsed result object

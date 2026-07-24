@@ -1,0 +1,39 @@
+Gemini V4 limited activation diagnostic repair RED/GREEN
+========================================================
+
+RED seam
+--------
+Command:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_reports_safe_result_validation_without_retaining_raw_output \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback -q
+
+Result:
+4 failed
+
+Failures:
+- 3 x AttributeError: BrokerResult has no result_validation
+- 1 x KeyError: failed record has no broker_diagnostic
+
+Harness note:
+The first selector attempt used a nonexistent test name and collected zero tests.
+It was a command-selection mistake, not a candidate signal. The corrected command
+above is the red-capable reproduction.
+
+GREEN seam
+----------
+Same corrected command after the minimal production change:
+4 passed in 1.33s
+
+Final diagnostic seam
+---------------------
+Command:
+<python> -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_reports_safe_result_validation_without_retaining_raw_output \
+  tests/test_agy_gemini_outbox.py::test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback \
+  tests/test_agy_gemini_outbox.py::test_production_runner_explicitly_selects_closed_profile_for_unknown_basename -q
+
+Result:
+5 passed in 1.30s
+
+External Gemini / agy invocation during RED/GREEN: 0

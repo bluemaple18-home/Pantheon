@@ -1,0 +1,189 @@
+Gemini V4 structured-envelope independent review
+=================================================
+
+Identity / startup gate
+-----------------------
+candidate:
+a438bf2dec16fb386b5fe23bec83583140f44ed5
+
+candidate parent / Repair provisioning:
+c7d4e4dd540182b2e0276250222d6264bf2f64cf
+
+Review provisioning commit:
+d56153329c7467515e00e8e13e9e9aa6f714e5f5
+
+source Activation-002 evidence:
+b454dad83ff565fc6a206c80e7b939ff7c7ef3ca
+
+HEAD equals Review provisioning commit: PASS
+worktree initially clean: PASS
+index.lock absent: PASS
+Review provisioning parent equals candidate: PASS
+candidate parent equals Repair provisioning: PASS
+candidate / Review provisioning merge-base equals candidate: PASS
+source Activation-002 evidence is candidate ancestor: PASS
+Review provisioning diff adds only Review card: PASS
+
+Activation-002 localization
+---------------------------
+durable replay: COMPLETE / 1
+terminal: PROCESS_TERMINAL / SUCCESS
+caller: V4BrokerFailure / JSON_INVALID
+retry / fallback / second process: 0
+
+Interpretation:
+- exactly-once broker / ledger path completed normally
+- caller stdout contract failed JSON parsing
+- pre-Repair runner omitted role and response schema from broker raw_request
+- synthetic capture localizes a concrete structured-envelope defect to runner adapter
+- no claim is made that a future real agy call must comply with the repaired envelope
+
+Candidate scope
+---------------
+Production:
+- scripts/agy_gemini_runner.py
+
+Tests:
+- tests/test_agy_gemini_outbox.py
+
+Documentation:
+- docs/pantheon_gemini_reviewer_v4_architecture.md
+- docs/pantheon_gemini_v4_agy_cli_compatibility.md
+
+Remaining candidate paths are the Repair card and its dedicated evidence.
+Broker / ledger / anchor / replay production changes: 0
+Publisher / article / registry / automation production changes: 0
+
+Affected test matrix
+--------------------
+V4:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 81 passed in 30.50s
+
+Legacy:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed in 29.84s
+
+Coordinator:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed in 0.11s
+
+Content publisher:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_content_publisher.py -q
+Result: 5 passed in 0.04s
+
+Web:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_web.py -q
+Result: 63 passed, 2 warnings in 13.41s
+
+Unique pytest total: 212 passed
+
+Focused envelope
+----------------
+Coverage:
+- writer effective prompt
+- reviewer effective prompt
+- flag-off renderer bypass
+- flag-on malformed output no fallback
+- closed forged diagnostic
+
+Result: 6 passed in 0.05s
+
+Focused behavioral boundaries
+-----------------------------
+Coverage:
+- success
+- nonzero
+- timeout
+- existing operation no resend
+- flag-off legacy
+- flag-on no fallback
+- receipt mismatch
+- unreadable replay anchor / control failure
+
+Result: 10 passed in 2.05s
+
+Adversarial role / schema determinism
+-------------------------------------
+writer / reviewer isolation: PASS
+unknown role fail closed: PASS
+schema insertion-order determinism: PASS
+nested property-order determinism: PASS
+schema newline remains JSON-escaped: PASS
+canonical compact schema exact: PASS
+sanitized Unicode / multiline task exact suffix: PASS
+no-tool / no-workspace instruction: PASS
+single JSON object / no-code-fence instruction: PASS
+
+Probe writer bytes: 450
+Probe writer SHA-256:
+91ab7e29fbd98966a261c80ad7334f013bab5681f746f5489a39177f71e1259b
+
+Double binding probe
+--------------------
+synthetic target process count: 1
+caller contract satisfied: true
+target received effective prompt exact bytes: true
+effective prompt bytes: 402
+effective prompt SHA-256:
+b7f9b02679499d034435a982f9ce2766500471b3b23ba191690135a5e2700e38
+external request SHA-256:
+176b0ca568e59343508b5b624c5928efcebddd6bdd10d483b754b0a60da034f1
+receipt external request SHA bound: true
+digests distinct: true
+
+Adversarial size boundary
+-------------------------
+raw task bytes accepted by outbox: 262144
+effective prompt bytes after renderer: 262509
+broker effective-prompt limit: 262144
+broker accepts: false
+broker error: agy prompt size is invalid
+
+End-to-end process_once:
+outbox request created: true
+runner status: failed
+error type: ValueError
+ledger present: false
+legacy calls: 0
+
+Result: FAIL / P2 reproduced
+
+Static / scope / privacy
+------------------------
+py_compile runner and changed test: PASS
+candidate git diff --check: PASS
+production write allowlist: PASS
+added debug-marker scan: PASS
+credential-value scan: PASS
+added persistence sink scan: PASS
+broker / outbox / SEO pipeline changed-line scan: 0 hits / PASS
+
+Privacy conclusion:
+PASS — effective prompt is passed to broker bytes but is not newly persisted.
+No raw stdout/stderr, response body, credential or full environment retention was
+found.
+
+Behavioral conclusion
+---------------------
+flag-on fail-closed: PASS
+flag-on no legacy fallback: PASS
+flag-off legacy bypass: PASS
+existing operation no resend: PASS
+exactly-once ledger / anchor / replay unchanged: PASS
+Gemini / agy invocation during Review: 0
+retry of Activation-001 / 002: 0
+third real payload: 0
+merge / push / deploy / publish / promotion / removal: 0
+
+Warnings
+--------
+tests/test_web.py retains one existing invalid-escape warning and one dependency
+deprecation warning. Neither is introduced by this candidate.

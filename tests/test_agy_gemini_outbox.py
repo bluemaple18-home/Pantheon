@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_gemini_outbox as outbox
 import scripts.agy_gemini_runner as runner
+from scripts import agy_gemini_v4_broker as broker
 from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
 from scripts.agy_gemini_outbox import (
@@ -234,7 +235,28 @@ def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatc
     assert json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())["result"] == {"ok": True}
 
 
-def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("role", "expected_role_instruction", "forbidden_role_instruction"),
+    (
+        (
+            "writer",
+            "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
+            "你是獨立 Pantheon 文章 Reviewer。",
+        ),
+        (
+            "reviewer",
+            "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
+            "你是 Pantheon 繁體中文文章 Writer。",
+        ),
+    ),
+)
+def test_runner_flag_on_uses_only_broker_and_writes_bound_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    expected_role_instruction: str,
+    forbidden_role_instruction: str,
+) -> None:
     executable = tmp_path / "agy-current"
     executable.write_bytes(b"trusted agy fixture")
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
@@ -243,8 +265,8 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-v4",
-        role="reviewer",
-        model="gemini-test-reviewer",
+        role=role,
+        model=f"gemini-test-{role}",
         prompt="公開 V4 prompt",
         response_schema=SCHEMA,
     )
@@ -272,8 +294,53 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(tmp_path: Path,
     assert result == {"status": "processed", "job_id": request["job_id"]}
     assert legacy_calls == []
     assert len(broker_calls) == 1
-    assert broker_calls[0]["raw_request"] == "公開 V4 prompt".encode()
+    effective_prompt = broker_calls[0]["raw_request"].decode()
+    canonical_schema = json.dumps(
+        SCHEMA,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    expected_effective_prompt = (
+        f"{expected_role_instruction}\n"
+        "禁止使用任何工具或讀取工作區。\n"
+        "輸出必須是單一 JSON object，不得有 Markdown code fence。\n"
+        f"JSON Schema：{canonical_schema}\n\n"
+        "任務：\n公開 V4 prompt"
+    )
+    assert effective_prompt == expected_effective_prompt
+    assert forbidden_role_instruction not in effective_prompt
+    assert hashlib.sha256(broker_calls[0]["raw_request"]).hexdigest() == hashlib.sha256(
+        expected_effective_prompt.encode()
+    ).hexdigest()
+    assert len(broker_calls[0]["raw_request"]) == len(expected_effective_prompt.encode())
     assert broker_calls[0]["request_sha256"] == request["request_sha256"]
+
+
+def test_maximum_valid_outbox_payload_fits_v4_effective_prompt_ceiling() -> None:
+    empty_schema = {"description": "", "type": "object"}
+    empty_schema_bytes = outbox._json_bytes(empty_schema)
+    response_schema = {
+        "description": "x" * (outbox.MAX_SCHEMA_BYTES - len(empty_schema_bytes)),
+        "type": "object",
+    }
+    prompt = "x" * outbox.MAX_PROMPT_BYTES
+
+    request = outbox.build_external_request(
+        namespace="maximum-valid-v4-envelope",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt=prompt,
+        response_schema=response_schema,
+    )
+    effective_prompt = runner._render_v4_effective_prompt(
+        request["role"],
+        request["prompt"],
+        request["response_schema"],
+    )
+
+    assert len(outbox._json_bytes(response_schema)) == outbox.MAX_SCHEMA_BYTES
+    assert len(effective_prompt) <= broker.MAX_AGY_PROMPT_BYTES
 
 
 def test_production_runner_explicitly_selects_closed_profile_for_unknown_basename(
@@ -314,6 +381,8 @@ def test_production_runner_explicitly_selects_closed_profile_for_unknown_basenam
     assert process_once(tmp_path)["status"] == "failed"
     assert broker_calls[0]["target_profile"] == "antigravity_cli_v1"
     assert broker_calls[0]["expected_executable_digest"] == executable_digest
+    failed = json.loads((tmp_path / "failed" / f"{request['job_id']}.json").read_text())
+    assert failed["broker_diagnostic"]["result_validation"] == "NOT_EVALUATED"
 
 
 def test_runner_flag_on_rejects_misbound_complete_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -386,6 +455,173 @@ def test_runner_rejects_schema_valid_success_without_production_provenance(
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
 
 
+def test_broker_preserves_schema_valid_pretty_json_for_stdout_digest_binding(
+    tmp_path: Path,
+) -> None:
+    expected_stdout = json.dumps(
+        {"ok": True},
+        indent=2,
+        sort_keys=True,
+    ).encode() + b"\n"
+    executable = tmp_path / "pretty-json-target"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json\n"
+        "print(json.dumps({'ok': True}, indent=2, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+
+    result = broker.run_single_shot(
+        operation_id="operation-pretty-json",
+        item_id="item-pretty-json",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="synthetic-model",
+        executable=executable,
+        target_profile=broker.RAW_STDIN_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request=b"public synthetic request",
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=tmp_path / "ledger.jsonl",
+        anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+    )
+
+    assert result.caller_contract_satisfied is True
+    assert result.result == {"ok": True}
+    assert result.result_json == expected_stdout
+    assert result.byte_count == len(expected_stdout)
+    assert result.stdout_sha256 == hashlib.sha256(expected_stdout).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("raw_output", "expected_diagnostic"),
+    (
+        (b"", "EMPTY"),
+        (b"\xff", "UTF8_INVALID"),
+        (b"```json\n{\"ok\":true}\n```\n", "MARKDOWN_FENCE"),
+        (b"result: {\"ok\":true}", "WRAPPED_JSON"),
+        (b"{\"ok\":", "PARSE_ERROR_AT_END"),
+        (b"{\"ok\":nope}", "PARSE_ERROR_OTHER"),
+    ),
+)
+def test_broker_classifies_json_invalid_without_retaining_output(
+    tmp_path: Path,
+    raw_output: bytes,
+    expected_diagnostic: str,
+) -> None:
+    executable = tmp_path / f"json-invalid-{expected_diagnostic.lower()}"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"sys.stdout.buffer.write(bytes.fromhex({raw_output.hex()!r}))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+
+    result = broker.run_single_shot(
+        operation_id=f"operation-{expected_diagnostic.lower()}",
+        item_id="item-json-invalid",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="synthetic-model",
+        executable=executable,
+        target_profile=broker.RAW_STDIN_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request=b"public synthetic request",
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=tmp_path / f"{expected_diagnostic.lower()}.jsonl",
+        anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+    )
+
+    assert result.result_validation == "JSON_INVALID"
+    assert result.json_diagnostic == expected_diagnostic
+    assert result.result_json is None
+    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
+    if raw_output:
+        assert raw_output.hex() not in serialized
+    assert "result:" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("json_diagnostic", "expected"),
+    (
+        ("MARKDOWN_FENCE", "MARKDOWN_FENCE"),
+        ("must-not-persist", None),
+        ({"secret": "must-not-persist"}, None),
+    ),
+)
+def test_runner_persists_only_closed_json_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    json_diagnostic: object,
+    expected: str | None,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-json-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 JSON diagnostic synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        broker.ANTIGRAVITY_CLI_PROFILE,
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=(),
+        result_validation="JSON_INVALID",
+        json_diagnostic=json_diagnostic,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    expected_fields = {
+        "outcome",
+        "process_count",
+        "replay_status",
+        "result_validation",
+    }
+    if expected is None:
+        assert "json_diagnostic" not in failed["broker_diagnostic"]
+    else:
+        assert failed["broker_diagnostic"]["json_diagnostic"] == expected
+        expected_fields.add("json_diagnostic")
+    assert set(failed["broker_diagnostic"]) == expected_fields
+    assert "must-not-persist" not in failed_path.read_text()
+
+
 @pytest.mark.parametrize("status", ("BLOCKED", "AMBIGUOUS", "INVALID"))
 def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
     executable = tmp_path / "agy-current"
@@ -419,6 +655,363 @@ def test_runner_flag_on_fails_closed_without_legacy_fallback(tmp_path: Path, mon
     assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
     assert (tmp_path / "failed" / f"{request['job_id']}.json").exists()
     assert (tmp_path / "archive" / f"{request['job_id']}.json").exists()
+
+
+def test_concurrent_create_loser_returns_replayed_external_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    ledger_path = tmp_path / "ledger.jsonl"
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    binding = broker.Binding("operation-concurrent", "item-concurrent", "attempt-1")
+    definitions = [
+        ("OPERATION_CREATED", {}),
+        ("BROKER_ATTEMPTED", {"broker_attempt": 1}),
+        ("FORK_ATTEMPTED", {"broker_attempt": 1, "process_ordinal": 1}),
+        ("EXEC_CONFIRMED", {"process_ordinal": 1, "pid": 4321}),
+        ("PROCESS_TERMINAL", {"outcome": "SUCCESS"}),
+    ]
+    frames = []
+    parent = None
+    for sequence, (event_type, fields) in enumerate(definitions, 1):
+        event = {
+            "schema_version": 2,
+            "sequence": sequence,
+            "parent_sha256": parent,
+            "event_type": event_type,
+            "operation_id": binding.operation_id,
+            "item_id": binding.item_id,
+            "attempt_id": binding.attempt_id,
+            **fields,
+        }
+        encoded = broker.canonical_json(event)
+        frames.append(encoded + b"\n")
+        parent = hashlib.sha256(encoded).hexdigest()
+    assert parent is not None
+    real_open = broker.os.open
+
+    def lose_create_race(path: object, flags: int, mode: int = 0o777) -> int:
+        if Path(path) == ledger_path and flags & broker.os.O_EXCL:
+            ledger_path.write_bytes(b"".join(frames))
+            assert anchor_store.compare_and_swap(
+                binding.operation_id,
+                binding.attempt_id,
+                None,
+                parent,
+            )
+            raise FileExistsError
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(broker.os, "open", lose_create_race)
+
+    result = broker.run_single_shot(
+        operation_id=binding.operation_id,
+        item_id=binding.item_id,
+        attempt_id=binding.attempt_id,
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=executable,
+        target_profile=broker.ANTIGRAVITY_CLI_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request="公開 concurrent duplicate synthetic request".encode(),
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=ledger_path,
+        anchor_store=anchor_store,
+    )
+
+    assert (result.replay_status, result.process_count) == ("COMPLETE", 1)
+    assert result.caller_contract_satisfied is False
+    assert result.final_anchor == parent
+
+
+def test_concurrent_create_loser_returns_invalid_when_race_anchor_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    ledger_path = tmp_path / "ledger.jsonl"
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    load_calls = 0
+    target_spawns: list[list[str]] = []
+
+    def load_race_anchor(_operation_id: str, _attempt_id: str) -> str | None:
+        nonlocal load_calls
+        load_calls += 1
+        if load_calls == 1:
+            return None
+        raise broker.AnchorError("synthetic unreadable race anchor")
+
+    def lose_create_race(_path: object, _flags: int, _mode: int = 0o777) -> int:
+        raise FileExistsError
+
+    def reject_spawn(command: list[str], **_kwargs: object) -> None:
+        target_spawns.append(command)
+        raise AssertionError("race loser must not spawn broker or target")
+
+    monkeypatch.setattr(anchor_store, "load", load_race_anchor)
+    monkeypatch.setattr(broker.os, "open", lose_create_race)
+    monkeypatch.setattr(broker.subprocess, "Popen", reject_spawn)
+
+    result = broker.run_single_shot(
+        operation_id="operation-race-invalid",
+        item_id="item-race-invalid",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=executable,
+        target_profile=broker.ANTIGRAVITY_CLI_PROFILE,
+        expected_executable_digest=executable_digest,
+        raw_request="公開 malformed race anchor synthetic request".encode(),
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=ledger_path,
+        anchor_store=anchor_store,
+    )
+
+    assert (result.replay_status, result.process_count) == ("INVALID", "UNKNOWN")
+    assert result.errors == ("EXTERNAL_ANCHOR_INVALID",)
+    assert result.caller_contract_satisfied is False
+    assert result.result_json is None
+    assert result.final_anchor is None
+    assert result.automatic_resend_allowed is False
+    assert target_spawns == []
+    assert load_calls == 2
+
+
+def test_runner_flag_on_fails_closed_on_malformed_success_without_legacy_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-malformed",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 malformed-output synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=("MALFORMED_OUTPUT",),
+        result_validation="SCHEMA_MISMATCH",
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+    legacy_calls: list[str] = []
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: legacy_calls.append("legacy") or {"ok": True},
+    )
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    assert legacy_calls == []
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+    failed = json.loads((tmp_path / "failed" / f"{request['job_id']}.json").read_text())
+    assert failed["broker_diagnostic"] == {
+        "outcome": "SUCCESS",
+        "process_count": 1,
+        "replay_status": "COMPLETE",
+        "result_validation": "SCHEMA_MISMATCH",
+    }
+    assert "prompt" not in failed
+    assert "result" not in failed
+
+
+def test_runner_persists_only_closed_schema_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    diagnostic_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "ok": {"type": "boolean"},
+            "items": {"type": "array", "items": {"type": "boolean"}},
+            "a" * 65: {"type": "boolean"},
+        },
+        "required": ["ok"],
+    }
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-schema-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 schema diagnostic synthetic request",
+        response_schema=diagnostic_schema,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    malformed = BrokerResult(
+        replay_status="COMPLETE",
+        process_count=1,
+        outcome="SUCCESS",
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=(),
+        result_validation="SCHEMA_MISMATCH",
+    )
+    object.__setattr__(
+        malformed,
+        "schema_diagnostics",
+        (
+            broker.SchemaDiagnostic("type", ("ok",)),
+            broker.SchemaDiagnostic("message", ("ok",)),
+            broker.SchemaDiagnostic("enum", ("unknown-property",)),
+            broker.SchemaDiagnostic("type", ({"secret": "must-not-persist"},)),
+            broker.SchemaDiagnostic("type", ("ok", "too-deep")),
+            broker.SchemaDiagnostic("type", ("items", 10**1000)),
+            broker.SchemaDiagnostic("type", ("ok",) * 9),
+            broker.SchemaDiagnostic("type", ("a" * 65,)),
+        ),
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
+
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    assert failed["broker_diagnostic"]["schema_diagnostics"] == [
+        {"keyword": "type", "path": ["ok"]},
+    ]
+    assert "must-not-persist" not in failed_path.read_text()
+    assert "unknown-property" not in failed_path.read_text()
+    assert "message" not in failed_path.read_text()
+
+
+@pytest.mark.parametrize(
+    ("replay_status", "process_count", "outcome", "result_validation"),
+    (
+        (
+            {"secret": "must-not-persist"},
+            ["must-not-persist"],
+            {"secret": "must-not-persist"},
+            {"secret": "must-not-persist"},
+        ),
+        (
+            "must-not-persist",
+            "must-not-persist",
+            "must-not-persist",
+            "must-not-persist",
+        ),
+    ),
+)
+def test_runner_closes_all_forged_broker_diagnostic_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replay_status: object,
+    process_count: object,
+    outcome: object,
+    result_validation: object,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-forged-diagnostic",
+        role="reviewer",
+        model="gemini-3.5-flash",
+        prompt="公開 forged diagnostic synthetic request",
+        response_schema=SCHEMA,
+    )
+    receipt = ExecutionReceipt(
+        request["job_id"],
+        request["namespace"],
+        "attempt-1",
+        request["request_sha256"],
+        request["model"],
+        "antigravity_cli_v1",
+        executable_digest,
+    )
+    secret_marker = "must-not-persist"
+    forged = BrokerResult(
+        replay_status=replay_status,  # type: ignore[arg-type]
+        process_count=process_count,  # type: ignore[arg-type]
+        outcome=outcome,  # type: ignore[arg-type]
+        exit_status=0,
+        stdout_sha256="a" * 64,
+        stderr_sha256="b" * 64,
+        byte_count=8,
+        final_anchor="c" * 64,
+        receipt=receipt,
+        caller_contract_satisfied=False,
+        result_json=None,
+        errors=("FORGED_DIAGNOSTIC",),
+        result_validation=result_validation,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: forged)
+
+    result = process_once(tmp_path)
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    assert failed["broker_diagnostic"] == {
+        "outcome": None,
+        "process_count": "UNKNOWN",
+        "replay_status": "INVALID",
+        "result_validation": "NOT_EVALUATED",
+    }
+    assert secret_marker not in failed_path.read_text()
 
 
 def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:

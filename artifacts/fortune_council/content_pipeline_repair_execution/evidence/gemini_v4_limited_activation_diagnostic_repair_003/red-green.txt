@@ -1,0 +1,46 @@
+Gemini V4 limited activation diagnostic Repair-3 RED/GREEN
+=========================================================
+
+Initial RED command
+-------------------
+<repo-venv>/bin/python -m pytest -q \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_reports_bounded_schema_keyword_and_defined_path_without_values \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_schema_diagnostics_do_not_retain_unknown_property_names \
+  tests/test_agy_gemini_v4_broker.py::test_single_shot_schema_diagnostics_are_bounded_to_three \
+  tests/test_agy_gemini_outbox.py::test_runner_persists_only_closed_schema_diagnostics
+
+Initial RED result
+------------------
+4 failed in 1.61s
+
+All four failures proved production had no SchemaDiagnostic /
+BrokerResult.schema_diagnostics and runner did not persist a closed path.
+
+Initial GREEN result
+--------------------
+4 passed in 1.34s
+
+Bounded integer RED
+-------------------
+Forged schema path ("items", 10**1000) entered failed record.
+
+Result:
+1 failed in 0.06s
+
+Bounded integer GREEN
+---------------------
+Runner rejects negative or greater-than-bounded array indexes before
+persistence.
+
+Result:
+1 passed in 0.04s
+
+Final focused result
+--------------------
+Broker / runner:
+76 passed in 8.06s
+
+External target invocation
+--------------------------
+Gemini / agy invocation: 0
+Retry of Activation-003: 0

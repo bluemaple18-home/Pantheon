@@ -1,0 +1,199 @@
+Gemini V4 structured-envelope size Repair-2 independent re-review
+==================================================================
+
+Identity / startup gate
+-----------------------
+candidate:
+bccd800ebf06348449d718c33036ad1c712dbef7
+
+candidate parent / Repair-2 provisioning:
+87b1cd488d12e8df2a3bb9aa4656ac22fa1d786f
+
+Review-2 provisioning commit:
+d7b3b976a392b54b5e60405921f340dda0c2b5a5
+
+prior Review NO_GO evidence:
+8d0932ec37c6ca0c3a1c549f4223c23dfd21a3d5
+
+HEAD equals Review-2 provisioning commit: PASS
+worktree initially clean: PASS
+index.lock absent: PASS
+Review-2 provisioning parent equals candidate: PASS
+candidate parent equals Repair-2 provisioning: PASS
+candidate / Review-2 merge-base equals candidate: PASS
+Review-2 provisioning diff adds only Review-2 card: PASS
+
+Candidate scope
+---------------
+Production:
+- scripts/agy_gemini_v4_broker.py
+
+Tests:
+- tests/test_agy_gemini_outbox.py
+- tests/test_agy_gemini_v4_broker.py
+
+Documentation:
+- docs/pantheon_gemini_reviewer_v4_architecture.md
+- docs/pantheon_gemini_v4_agy_cli_compatibility.md
+
+Remaining candidate paths are the Repair-2 card and its dedicated evidence.
+Runner / outbox / SEO pipeline production changes: 0
+Process / ledger / anchor / replay / flag logic changes: 0
+Publisher / article / registry / automation production changes: 0
+
+Size constants
+--------------
+outbox max task: 262144 bytes
+outbox max schema: 65536 bytes
+closed envelope overhead budget: 65536 bytes
+broker effective-prompt ceiling: 393216 bytes
+outbox limits unchanged: PASS
+
+Prior P2 reproduction
+---------------------
+raw task bytes: 262144
+rendered effective prompt bytes: 262509
+broker accepts on Repair-2: true
+Result: PASS / prior P2 closed
+
+Maximum legal task + schema
+---------------------------
+task bytes: 262144
+schema bytes: 65536
+role: reviewer
+rendered effective prompt bytes: 327955
+rendered prompt <= broker ceiling: true
+Result: PASS
+
+Exact ceiling / ARG_MAX
+-----------------------
+host: Darwin 25.5.0 arm64
+production ARG_MAX: 1048576 bytes
+broker ceiling: 393216 bytes
+ceiling < ARG_MAX: true
+
+Exact 393216-byte broker probe:
+accepted: true
+synthetic target spawned: true
+ledger present: true
+process count: 1
+
+This verifies an actual argv spawn under the current allowlisted environment, not
+only an arithmetic constant comparison.
+
+Preflight negative probes
+-------------------------
+393217-byte prompt:
+- accepted: false
+- error: agy prompt size is invalid
+- ledger present: false
+- target spawned: false
+
+Empty prompt:
+- accepted: false
+- error: agy prompt size is invalid
+- ledger present: false
+- target spawned: false
+
+Privacy patterns:
+- outbox and broker parity cases: 8
+- all rejected: true
+- ledger present: false
+- target spawned: false
+
+Covered patterns:
+- absolute private paths
+- .work path
+- GEMINI_API_KEY
+- x-goog-api-key
+- Authorization Bearer
+- Google API key marker
+- private key marker
+- GitHub token marker
+
+Affected test matrix
+--------------------
+V4:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_outbox.py \
+  tests/test_agy_gemini_v4_broker.py \
+  tests/test_agy_gemini_v4_architecture_probe.py -q
+Result: 82 passed in 30.29s
+
+Legacy:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_seo_copy_pipeline.py -q
+Result: 57 passed in 29.43s
+
+Coordinator:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_gemini_coordinator.py -q
+Result: 6 passed in 0.12s
+
+Content publisher:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_agy_content_publisher.py -q
+Result: 5 passed in 0.04s
+
+Web:
+<repo-venv>/bin/python -B -m pytest -p no:cacheprovider \
+  tests/test_web.py -q
+Result: 63 passed, 2 warnings in 13.24s
+
+Unique pytest total: 213 passed
+
+Focused size / structured envelope
+----------------------------------
+Coverage:
+- broker ceiling formula and privacy parity
+- maximum valid task/schema
+- writer and reviewer envelope
+- flag-off renderer bypass
+
+Result: 5 passed in 0.07s
+
+Focused behavioral boundaries
+-----------------------------
+Coverage:
+- success
+- nonzero
+- timeout
+- existing operation no resend
+- flag-off legacy
+- flag-on no fallback
+- receipt mismatch
+- unreadable replay anchor / control failure
+
+Result: 10 passed in 1.89s
+
+Static / scope / privacy
+------------------------
+py_compile broker and changed tests: PASS
+candidate git diff --check: PASS
+production write allowlist: PASS
+added debug-marker scan: PASS
+credential-value scan: PASS
+process / ledger / anchor / replay changed-line scan: 0 hits / PASS
+runner / outbox / SEO pipeline candidate diff: empty / PASS
+
+Privacy conclusion:
+PASS — privacy pattern parity is unchanged and all patterns reject before ledger
+or target fork. No effective prompt, raw stdout/stderr, response body, credential
+or full environment retention was introduced.
+
+Behavioral conclusion
+---------------------
+flag-on fail-closed: PASS
+flag-on no legacy fallback: PASS
+flag-off legacy bypass: PASS
+existing operation no resend: PASS
+exactly-once ledger / anchor / replay unchanged: PASS
+Gemini / agy invocation during Review: 0
+retry of Activation-001 / 002: 0
+third real payload: 0
+merge / push / deploy / publish / promotion / removal: 0
+
+Warnings
+--------
+tests/test_web.py retains one existing invalid-escape warning and one dependency
+deprecation warning. Neither is introduced by this candidate.

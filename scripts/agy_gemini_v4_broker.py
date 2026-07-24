@@ -22,7 +22,10 @@ COMMAND_SCHEMA_VERSION: Final = 2
 EVENT_SCHEMA_VERSION: Final = 2
 MAX_FRAME_BYTES: Final = 64 * 1024
 MAX_RESULT_BYTES: Final = 2 * 1024 * 1024
-MAX_AGY_PROMPT_BYTES: Final = 256 * 1024
+MAX_AGY_ENVELOPE_OVERHEAD_BYTES: Final = 64 * 1024
+MAX_AGY_PROMPT_BYTES: Final = 384 * 1024
+MAX_SCHEMA_DIAGNOSTICS: Final = 3
+MAX_SCHEMA_DIAGNOSTIC_DEPTH: Final = 8
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EVENT_TYPES: Final = {
@@ -84,6 +87,24 @@ RAW_STDIN_PROFILE: Final = "raw_stdin_v1"
 ANTIGRAVITY_CLI_PROFILE: Final = "antigravity_cli_v1"
 PUBLIC_SANITIZED: Final = "PUBLIC_SANITIZED"
 SYNTHETIC_TEST: Final = "SYNTHETIC_TEST"
+RESULT_VALIDATION_STATES: Final = frozenset({
+    "NOT_EVALUATED",
+    "JSON_INVALID",
+    "NOT_OBJECT",
+    "SCHEMA_MISMATCH",
+    "VALID",
+})
+SCHEMA_DIAGNOSTIC_KEYWORDS: Final = frozenset({
+    "additionalProperties",
+    "enum",
+    "maxItems",
+    "maxLength",
+    "minItems",
+    "minLength",
+    "required",
+    "schema",
+    "type",
+})
 AGY_MODEL_LABELS: Final = {
     "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
     "gemini-3.1-pro-preview": "Gemini 3.1 Pro (Low)",
@@ -121,6 +142,14 @@ class V4BrokerFailure(RuntimeError):
 
 
 ProcessCount = int | Literal["UNKNOWN"]
+JsonDiagnostic = Literal[
+    "EMPTY",
+    "UTF8_INVALID",
+    "MARKDOWN_FENCE",
+    "WRAPPED_JSON",
+    "PARSE_ERROR_AT_END",
+    "PARSE_ERROR_OTHER",
+]
 
 
 def canonical_json(value: object) -> bytes:
@@ -276,6 +305,40 @@ class ExecutionReceipt:
 
 
 @dataclass(frozen=True)
+class SchemaDiagnostic:
+    keyword: str
+    path: tuple[str | int, ...]
+
+
+def _diagnose_json_invalid(
+    raw: bytes,
+    error: json.JSONDecodeError | UnicodeDecodeError,
+) -> JsonDiagnostic:
+    if not raw.strip():
+        return "EMPTY"
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "UTF8_INVALID"
+    stripped = text.strip()
+    if stripped.startswith("```") or stripped.endswith("```"):
+        return "MARKDOWN_FENCE"
+    first_object = text.find("{")
+    last_object = text.rfind("}")
+    if first_object >= 0 and last_object > first_object:
+        try:
+            embedded = json.loads(text[first_object:last_object + 1])
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        else:
+            if isinstance(embedded, dict):
+                return "WRAPPED_JSON"
+    if isinstance(error, json.JSONDecodeError) and error.pos >= len(text.rstrip()):
+        return "PARSE_ERROR_AT_END"
+    return "PARSE_ERROR_OTHER"
+
+
+@dataclass(frozen=True)
 class BrokerResult:
     replay_status: str
     process_count: ProcessCount
@@ -290,6 +353,9 @@ class BrokerResult:
     result_json: bytes | None
     errors: tuple[str, ...]
     automatic_resend_allowed: bool = False
+    result_validation: str = "NOT_EVALUATED"
+    schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
+    json_diagnostic: JsonDiagnostic | None = None
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -309,6 +375,7 @@ class BrokerResult:
             "byte_count": self.byte_count,
             "receipt": self.receipt.__dict__,
             "caller_contract_satisfied": self.caller_contract_satisfied,
+            "result_validation": self.result_validation,
             "result": self.result,
             "errors": list(self.errors),
             "automatic_resend_allowed": self.automatic_resend_allowed,
@@ -744,8 +811,27 @@ def _validate_control(payload: object) -> dict[str, object]:
 
 
 def _validate_json_schema(value: object, schema: object) -> bool:
+    return not _diagnose_json_schema(value, schema)
+
+
+def _diagnose_json_schema(
+    value: object,
+    schema: object,
+    path: tuple[str | int, ...] = (),
+) -> tuple[SchemaDiagnostic, ...]:
+    diagnostics: list[SchemaDiagnostic] = []
+
+    def add(keyword: str, diagnostic_path: tuple[str | int, ...]) -> None:
+        if len(diagnostics) >= MAX_SCHEMA_DIAGNOSTICS:
+            return
+        if len(diagnostic_path) > MAX_SCHEMA_DIAGNOSTIC_DEPTH:
+            keyword = "schema"
+            diagnostic_path = diagnostic_path[:MAX_SCHEMA_DIAGNOSTIC_DEPTH]
+        diagnostics.append(SchemaDiagnostic(keyword, diagnostic_path))
+
     if not isinstance(schema, dict) or type(schema.get("type")) is not str:
-        return False
+        add("schema", path)
+        return tuple(diagnostics)
     expected_type = schema["type"]
     type_ok = {
         "object": isinstance(value, dict),
@@ -758,31 +844,65 @@ def _validate_json_schema(value: object, schema: object) -> bool:
     }.get(expected_type, False)
     enum = schema.get("enum")
     if "enum" in schema and not isinstance(enum, list):
-        return False
-    if not type_ok or (enum is not None and value not in enum):
-        return False
+        add("schema", path)
+        return tuple(diagnostics)
+    if not type_ok:
+        add("type", path)
+        return tuple(diagnostics)
+    if enum is not None and value not in enum:
+        add("enum", path)
+        return tuple(diagnostics)
     if expected_type == "object":
         properties = schema.get("properties")
         required = schema.get("required", [])
         if not isinstance(properties, dict) or not isinstance(required, list) or not all(type(item) is str for item in required):
-            return False
+            add("schema", path)
+            return tuple(diagnostics)
         assert isinstance(value, dict)
-        if not set(required) <= set(value):
-            return False
+        for key in required:
+            if key not in value:
+                add("required", path + (key,))
         if schema.get("additionalProperties") is False and not set(value) <= set(properties):
-            return False
-        return all(key not in properties or _validate_json_schema(item, properties[key]) for key, item in value.items())
+            add("additionalProperties", path)
+        for key in sorted(value):
+            if key not in properties or len(diagnostics) >= MAX_SCHEMA_DIAGNOSTICS:
+                continue
+            diagnostics.extend(
+                _diagnose_json_schema(value[key], properties[key], path + (key,))[
+                    : MAX_SCHEMA_DIAGNOSTICS - len(diagnostics)
+                ]
+            )
+        return tuple(diagnostics)
     if expected_type == "array":
         assert isinstance(value, list)
         minimum, maximum = schema.get("minItems", 0), schema.get("maxItems", MAX_RESULT_BYTES)
-        return type(minimum) is int and type(maximum) is int and minimum <= len(value) <= maximum and all(
-            _validate_json_schema(item, schema.get("items")) for item in value
-        )
+        if type(minimum) is not int or type(maximum) is not int:
+            add("schema", path)
+            return tuple(diagnostics)
+        if len(value) < minimum:
+            add("minItems", path)
+        if len(value) > maximum:
+            add("maxItems", path)
+        for index, item in enumerate(value):
+            if len(diagnostics) >= MAX_SCHEMA_DIAGNOSTICS:
+                break
+            diagnostics.extend(
+                _diagnose_json_schema(item, schema.get("items"), path + (index,))[
+                    : MAX_SCHEMA_DIAGNOSTICS - len(diagnostics)
+                ]
+            )
+        return tuple(diagnostics)
     if expected_type == "string":
         assert isinstance(value, str)
         minimum, maximum = schema.get("minLength", 0), schema.get("maxLength", MAX_RESULT_BYTES)
-        return type(minimum) is int and type(maximum) is int and minimum <= len(value) <= maximum
-    return True
+        if type(minimum) is not int or type(maximum) is not int:
+            add("schema", path)
+            return tuple(diagnostics)
+        if len(value) < minimum:
+            add("minLength", path)
+        if len(value) > maximum:
+            add("maxLength", path)
+    return tuple(diagnostics)
 
 
 def _failure_result(receipt: ExecutionReceipt, replay: ReplayResult, anchor: str | None) -> BrokerResult:
@@ -870,8 +990,16 @@ def run_single_shot(
     try:
         ledger_fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        replay = replay_ledger(ledger_path, binding, anchor_store.load(operation_id, attempt_id))
-        return _failure_result(receipt, replay, existing_anchor)
+        try:
+            replay_anchor = anchor_store.load(operation_id, attempt_id)
+        except AnchorError:
+            return _failure_result(
+                receipt,
+                ReplayResult("INVALID", "UNKNOWN", False, ("EXTERNAL_ANCHOR_INVALID",)),
+                None,
+            )
+        replay = replay_ledger(ledger_path, binding, replay_anchor)
+        return _failure_result(receipt, replay, replay_anchor)
     command_read, command_write = os.pipe()
     result_read, result_write = os.pipe()
     anchor_parent, anchor_child = socket.socketpair()
@@ -985,13 +1113,25 @@ def run_single_shot(
         return _failure_result(receipt, ReplayResult("INVALID", "UNKNOWN", False, replay.errors + ("CONTROL_REPLAY_MISMATCH",)), final_anchor)
     parsed: dict[str, Any] | None = None
     caller_ok = False
+    result_validation = "NOT_EVALUATED"
+    schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
+    json_diagnostic: JsonDiagnostic | None = None
     if replay.status == "COMPLETE" and replay.process_count == 1 and control["outcome"] == "SUCCESS":
         try:
             candidate = json.loads(raw_result)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            candidate = None
-        if isinstance(candidate, dict) and _validate_json_schema(candidate, response_schema):
-            parsed, caller_ok = candidate, True
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            result_validation = "JSON_INVALID"
+            json_diagnostic = _diagnose_json_invalid(raw_result, error)
+        else:
+            if not isinstance(candidate, dict):
+                result_validation = "NOT_OBJECT"
+            else:
+                schema_diagnostics = _diagnose_json_schema(candidate, response_schema)
+                if schema_diagnostics:
+                    result_validation = "SCHEMA_MISMATCH"
+                else:
+                    result_validation = "VALID"
+                    parsed, caller_ok = candidate, True
     return BrokerResult(
         replay.status,
         replay.process_count,
@@ -1003,8 +1143,11 @@ def run_single_shot(
         final_anchor,
         receipt,
         caller_ok,
-        canonical_json(parsed) if parsed is not None else None,
+        raw_result if parsed is not None else None,
         replay.errors,
+        result_validation=result_validation,
+        schema_diagnostics=schema_diagnostics,
+        json_diagnostic=json_diagnostic,
     )
 
 

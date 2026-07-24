@@ -15,7 +15,7 @@ agy
 --sandbox
 --log-file <operation-local temporary path>
 --print-timeout <bounded seconds>
---print <PUBLIC_SANITIZED UTF-8 prompt>
+--print <PUBLIC_SANITIZED UTF-8 effective prompt>
 ```
 
 模型映射只有：
@@ -25,9 +25,42 @@ agy
 
 未知模型在 ledger 建立與 target fork 前拒絕。CommandFrame v2 綁定 profile、CLI model label、payload class、prompt SHA-256、prompt byte length、executable digest 與 timeout；production receipt 另綁定 operation、item、attempt、外部 request SHA-256、request model、`antigravity_cli_v1` profile 與 trusted executable digest，runner 只接受完全相符的 receipt。
 
+production runner 不得直接把 outbox 的 user task 當成 effective prompt。Flag-on
+路徑必須以 closed role map deterministic 渲染：
+
+```text
+<writer 或 reviewer role instruction>
+禁止使用任何工具或讀取工作區。
+輸出必須是單一 JSON object，不得有 Markdown code fence。
+JSON Schema：<ensure_ascii=false、sort_keys=true、compact JSON>
+
+任務：
+<sanitized user task>
+```
+
+CommandFrame 的 prompt SHA-256 與 byte length 綁定上述完整 UTF-8 effective
+prompt；production receipt 的 request SHA-256 仍綁定原始 outbox request。兩個
+digest 各自證明 transport bytes 與 queue identity，不得互相替代。Flag-off legacy
+路徑不經過 V4 renderer。
+
+Size contract 固定為：
+
+- sanitized user task：
+  `256 KiB`
+- canonical response schema：
+  `64 KiB`
+- closed role／instruction envelope budget：
+  `64 KiB`
+- broker effective-prompt ceiling：
+  `384 KiB`
+
+這個 ceiling 低於目前 production target 的 `ARG_MAX=1 MiB`；超過 384 KiB 仍在
+target fork 前 fail closed。Outbox 的既有 raw task／schema public limits不縮減。
+
 ## 資料與程序邊界
 
-- prompt 進入 argv 是 `agy --print` 的產品限制，因此此 profile 僅允許公開且已清理的 outbox prompt。
+- effective prompt 進入 argv 是 `agy --print` 的產品限制，因此 role instruction、
+  canonical schema 與 user task 都必須是 closed／公開且已清理的資料。
 - 禁止本機絕對私密路徑、`.work/`、API key、Bearer token、Google key、private key 與 GitHub token marker；驗證失敗時 target process count 為 0。
 - prompt 不寫入 command frame、ledger、anchor、control frame或證據摘要；這些位置只保存 hash、byte count 與 payload classification。
 - `--log-file` 使用 broker process 內的 operation-local temporary directory，target 結束後立即清理，不作為交付證據。
@@ -43,4 +76,30 @@ agy
 
 ## Canary 邊界
 
-本變更只允許 fake CLI 驗證，不呼叫 Gemini。獨立 reviewer 明確 GO 後，真 canary 必須另卡執行：只送一個合成公開 JSON request、最多一個 target process、無 retry／fallback、不得讀寫文章或發布資料。任何 nonzero、timeout、JSON/schema、ledger/replay 或 binding 失敗都立即停止。
+`CARD-CONTENT-GEMINI-V4-MAINLINE-001` 在 fake CLI synthetic matrix 全綠後，依獨立主線授權執行了一次真實 `agy 1.1.5` canary。輸入是單一合成公開 JSON request；結果為 durable `COMPLETE/1`、一個 `EXEC_CONFIRMED`、strict schema通過，且沒有 retry、fallback、failed record、文章或發布資料讀寫。
+
+遮蔽 evidence 位於 `artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/real-canary.json`。這個結果只證明本機 trusted transport completion 與 ledger/anchor/replay binding，不提升 provider internal call provenance，也不授權把 V4 切為預設 transport。
+
+Activation-002 以真實文章 payload 得到 durable `COMPLETE/1` 與
+`PROCESS_TERMINAL/SUCCESS`，但 caller diagnostic 是 `JSON_INVALID`。根因是當時
+runner 只傳 user task，遺失 legacy CLI 的 role／JSON-only／schema envelope。
+Structured-envelope Repair 只以 synthetic runner seam 與既有 broker digest tests
+驗證；本文件不授權第三次真實外呼。
+
+Activation-004 在 structured envelope 與 schema diagnostic Repair 通過獨立 Review
+後，仍得到 durable `COMPLETE/1`、`PROCESS_TERMINAL/SUCCESS` 與
+`JSON_INVALID`。由於同一路徑也曾得到 `VALID` 與 `SCHEMA_MISMATCH`，不能假設
+agy 固定加入同一種 wrapper，也不得在沒有證據時自動剝除 code fence 或前後文字。
+
+`JSON_INVALID` 只允許 broker 產生一個 value-free closed diagnostic：
+
+- `EMPTY`
+- `UTF8_INVALID`
+- `MARKDOWN_FENCE`
+- `WRAPPED_JSON`
+- `PARSE_ERROR_AT_END`
+- `PARSE_ERROR_OTHER`
+
+runner 以獨立 allowlist 二次過濾，且只在 `result_validation=JSON_INVALID` 時保存該
+enum。不得保存 raw bytes、文字片段、parser message、offset 或未知字串。這項診斷
+不放寬嚴格 `json.loads`／schema 契約、不自動修復輸出，也不授權新外呼。

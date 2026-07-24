@@ -1,0 +1,59 @@
+Gemini V4 limited activation-003 dry-run verification
+=====================================================
+
+Card Gate 1: PASS
+Fresh repo-external runtime: PASS
+Fresh run identity / namespace / job ID / request digest: PASS
+Prior blocked jobs reused: false
+Prior runtimes reused: false
+Outbox tick pending exit 75: PASS
+Pending request count: 1
+Strict request rebuild / digest validation: PASS
+Public-data filter: PASS
+Closed writer role: PASS
+No-tool / no-workspace: PASS
+Single JSON object / no Markdown code fence: PASS
+Canonical schema present: PASS
+Sanitized task exact suffix: PASS
+Effective prompt bytes / ceiling: 4028 / 393216
+Effective prompt size gate: PASS
+Executable digest match: PASS
+Prompt / schema saved in evidence: false
+Raw response saved in evidence: false
+Credential / full environment / executable path saved: false
+Ledger / anchor / inbox / archive / failed record present: false
+Gemini / agy invocation: 0
+Retry / fallback / automatic resend: 0
+Publisher / publish / deploy / promotion: 0
+Dry-run decision: AWAITING_EXTERNAL_CONFIRMATION
+
+Real canary verification
+========================
+
+User final payload confirmation: PASS
+External agy / Gemini invocation count: 1
+Runner status: failed
+Runner error type: V4BrokerFailure
+Durable replay status: COMPLETE
+Durable process count: 1
+Ledger event count: 5
+EXEC_CONFIRMED count: 1
+PROCESS_TERMINAL count: 1
+PROCESS_TERMINAL outcome: SUCCESS
+Replay errors: 0
+Result validation: SCHEMA_MISMATCH
+Ledger present: true
+Anchor present: true
+Archive present: true
+Failed record present: true
+Inbox present: false
+Retry count: 0
+Legacy fallback count: 0
+Second process-once count: 0
+Pipeline continuation count: 0
+Publisher / publish / deploy / promotion: 0
+Prompt / raw response / credential / CLI log saved: false
+Focused V4 tests: 45 passed
+Affected V4 tests: 97 passed
+git diff --check: PASS
+Decision: BLOCKED

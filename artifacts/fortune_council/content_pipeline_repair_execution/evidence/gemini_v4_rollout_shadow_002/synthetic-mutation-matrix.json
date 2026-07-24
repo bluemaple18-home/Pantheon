@@ -1,0 +1,86 @@
+{
+  "cases": [
+    {
+      "error": "output encoding is not precommitted",
+      "rejected": true,
+      "scenario": "unknown_encoding",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result byte count mismatch",
+      "rejected": true,
+      "scenario": "wrong_whitespace",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result digest mismatch",
+      "rejected": true,
+      "scenario": "wrong_key_order",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result byte count mismatch",
+      "rejected": true,
+      "scenario": "extra_newline",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result digest mismatch",
+      "rejected": true,
+      "scenario": "stdout_digest",
+      "status": "PASS"
+    },
+    {
+      "error": "execution result byte count mismatch",
+      "rejected": true,
+      "scenario": "stdout_length",
+      "status": "PASS"
+    },
+    {
+      "error": "result schema differs from trusted contract",
+      "rejected": true,
+      "scenario": "result_schema",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger must contain five closed events",
+      "rejected": true,
+      "scenario": "partial_ledger",
+      "status": "PASS"
+    },
+    {
+      "error": "ledger anchor mismatch",
+      "rejected": true,
+      "scenario": "wrong_anchor",
+      "status": "PASS"
+    },
+    {
+      "error": "receipt item is invalid",
+      "rejected": true,
+      "scenario": "receipt_binding",
+      "status": "PASS"
+    },
+    {
+      "error": "execution process count is not one",
+      "rejected": true,
+      "scenario": "process_count",
+      "status": "PASS"
+    },
+    {
+      "error": "fallback was invoked",
+      "rejected": true,
+      "scenario": "fallback_count",
+      "status": "PASS"
+    },
+    {
+      "error": "bundle fields are not closed",
+      "rejected": true,
+      "scenario": "extra_top_level_field",
+      "status": "PASS"
+    }
+  ],
+  "rejected": 13,
+  "schema_version": 1,
+  "status": "PASS",
+  "total": 13
+}

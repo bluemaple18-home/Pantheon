@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "authorization_state": "awaiting_final_payload_confirmation",
+  "runtime_id": "pantheon-v4-activation-003.QlfanG",
+  "source": {
+    "path": "artifacts/fortune_council/content_seo_execution/evidence/daily_publishing/daily-20260723-repair-01/brief.json",
+    "sha256": "209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c",
+    "mode": "create",
+    "article_count": 1
+  },
+  "request": {
+    "schema_version": 1,
+    "namespace": "da002eb9f94052331f210932",
+    "role": "writer",
+    "model": "gemini-3.5-flash",
+    "thinking_level": "LOW",
+    "operation_level": "external_generation",
+    "job_id": "35b808faa055a70ba92d40f5186535de6ea5590f",
+    "request_sha256": "35b808faa055a70ba92d40f5186535de6ea5590fc3ee3d0d8b3164c00976e46b",
+    "prompt_sha256": "15f031649594c55a6f6fc389a00e6cf03c446004bf1453e2194e3c6a5b0063c7",
+    "schema_sha256": "fb499dbe0020b429754b769a19173dc138d08069c43a5616ebdb989f1334f6a2",
+    "effective_prompt_sha256": "1317321d6b33be04da71a547c14acb1c6e52f9e5c7fed78528777113bccd48be",
+    "prompt_bytes": 2555,
+    "schema_bytes": 1211,
+    "effective_prompt_bytes": 4028,
+    "effective_prompt_ceiling_bytes": 393216,
+    "prompt_same_as_activation_001_002": true,
+    "request_identity_same_as_prior_activations": false,
+    "structured_envelope_present": true,
+    "prompt_saved_in_evidence": false
+  },
+  "target": {
+    "label": "local-agy-snapshot",
+    "prior_verified_version": "1.1.5",
+    "executable_sha256": "6509d6ca54a66e3eaf61dfe35308ba1dfa1e6b552ef5c4f5f861562c6811ecaf",
+    "profile": "antigravity_cli_v1",
+    "model_label": "Gemini 3.5 Flash (Low)",
+    "timeout_milliseconds": 120000,
+    "maximum_process_count": 1
+  },
+  "external_invocation_count": 0,
+  "retry_allowed": false,
+  "fallback_allowed": false,
+  "automatic_resend_allowed": false,
+  "publishing_allowed": false
+}

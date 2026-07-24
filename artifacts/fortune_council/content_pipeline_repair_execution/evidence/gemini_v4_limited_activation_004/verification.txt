@@ -1,0 +1,43 @@
+Gemini V4 limited activation-004 verification
+=============================================
+
+Card Gate 1: PASS
+Repair-3 independent Review: DELIVERED_CANDIDATE / GO
+Fresh repo-external runtime: PASS
+Fresh run identity / namespace / job ID / request digest: PASS
+Prior blocked jobs reused: false
+Outbox tick pending exit 75: PASS
+Pending request count: 1
+Strict request rebuild / digest validation: PASS
+Public-data filter: PASS
+Closed writer role: PASS
+No-tool / no-workspace: PASS
+Single JSON object / no Markdown code fence: PASS
+Canonical schema present: PASS
+Sanitized task exact suffix: PASS
+Effective prompt bytes / ceiling: 4028 / 393216
+Effective prompt size gate: PASS
+Safe schema diagnostic boundary: PASS
+Executable digest match: PASS
+Prompt / schema saved in evidence: false
+Raw response / instance value saved in evidence: false
+Validator message / credential / full environment / CLI log saved: false
+Explicit user confirmation for a520fbf4: PASS
+Mutable launcher target drift detected before execution: true
+Changed executable rejected: PASS
+Executed retained bytes matched disclosed digest: PASS
+Ledger / anchor / inbox / archive / failed record present: true / true / false / true / true
+Ledger terminal sequence: 5
+Durable process count: 1
+Replay status: COMPLETE
+Process outcome: SUCCESS
+Result validation: JSON_INVALID
+Gemini / agy invocation: 1
+Retry / fallback / automatic resend: 0
+Publisher / publish / deploy / promotion: 0
+Raw response read or saved in repo evidence: false
+Post-activation focused V4 tests: 87 passed
+Evidence JSON parse: PASS
+Privacy pattern scan: PASS
+git diff --check: PASS
+Decision: BLOCKED
