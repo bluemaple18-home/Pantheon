@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-20260724
-status: CARD_DRAFTED
+status: RUNNING
 type: implementation-repair
 project: Pantheon
 chain_id: pantheon-publisher-deadlock-repair-20260724
@@ -126,3 +126,26 @@ Evidence path：
 - 無法保存現有 v0.3.59 candidate 或 queue/ledger 證據時停止。
 - 修復需要 allowlist 外共享生成檔、外部控制面或 destructive cleanup 時停止並回報 mainline。
 
+## Dispatch receipt
+
+- provisioning source SHA：`41522076fccbe0406fb4d270d138368ce5c0395f`
+- source branch/ref：Pantheon project default branch
+- source clean：PASS
+- Git metadata：worktree gitdir 可讀，`index.lock` 不存在
+- unrelated dirty paths：`[]`
+- formal thread ID：`019f9420-3ece-7cf2-84ee-66ebb64e0820`
+- title：`Pantheon｜修復 Publisher Deadlock｜CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-20260724`
+- thread status：`active / inProgress`
+- sidebar/list visibility：PASS
+- worktree cwd：`<codex-home>/worktrees/5d1f427e-e5c9-4c99-a501-a32aad1fe502/Pantheon`
+- worktree exists：PASS
+- worktree clean：PASS
+- worktree HEAD：`41522076fccbe0406fb4d270d138368ce5c0395f`
+- worktree 與 main cwd 不同：PASS
+- runtime model override：依 `create_thread` 契約，使用者未指定模型，未強制覆寫；卡片保留 strict 建議跑道與 high-risk 理由
+- Gate 1 card contract：PASS
+- Gate 2 visible thread：PASS
+- Gate 3 candidate delivery：PENDING
+- Gate 4 independent review：PENDING
+- Gate 5 mainline acceptance：PENDING
+- workflow：`RUNNING`
