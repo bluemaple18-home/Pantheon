@@ -1,6 +1,6 @@
 ---
 card_id: CARD-CONTENT-MULTILINGUAL-AUTOPUBLISH-001
-status: IN_PROGRESS
+status: ACCEPTED
 type: implementation
 project: Pantheon
 created_at: 2026-07-24
@@ -71,4 +71,5 @@ owner: mainline
 - focused content pipeline：`89 passed`。
 - full pytest：`384 passed, 1 warning`。
 - `git diff --check`：PASS。
-- runtime：待主線整合後更新 publisher actor 並恢復 launchd。
+- runtime：`origin/main`、publisher actor 均為 `2b5da2f0`。
+- launchd：coordinator 60 秒、publisher 300 秒；首輪皆 `last exit code = 0`。
