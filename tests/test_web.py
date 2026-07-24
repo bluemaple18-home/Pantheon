@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLE
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-auto-new-v1-20260724-005-02"
+ARTICLE_CACHE_TOKEN = "agy-auto-new-v1-20260724-006-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -295,6 +295,9 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/personality/personality-0110",
     "/articles/personality/personality-0143",
     "/articles/personality/personality-0144",
+    "/articles/personality/personality-0177",
+    "/articles/personality/personality-0178",
+    "/articles/personality/personality-0179",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
@@ -460,7 +463,7 @@ console.log(JSON.stringify({
         "fortune",
     ]
     assert [record["path"] for record in data["records"]] == [
-        "/articles/personality/personality-0144",
+        "/articles/personality/personality-0179",
         "/articles/tarot/tarot-0080",
         "/articles/fortune/fortune-0044",
         "/articles/astrology/astrology-0180",
@@ -469,7 +472,7 @@ console.log(JSON.stringify({
         "/articles/interpersonal/interpersonal-0012",
         "/articles/wealth/wealth-0012",
         "/articles/life-direction/life-direction-0012",
-        "/articles/personality/personality-0143",
+        "/articles/personality/personality-0178",
         "/articles/tarot/tarot-0079",
         "/articles/fortune/fortune-0043",
     ]
