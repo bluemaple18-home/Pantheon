@@ -186,6 +186,9 @@ def write_json(path: Path, data: object) -> None:
 
 
 def capture_with_playwright(urls: list[str]) -> list[dict]:
+    from scripts.browser_runtime_check import configure_playwright_browsers_path
+
+    configure_playwright_browsers_path()
     from playwright.sync_api import sync_playwright
 
     captures: list[dict] = []

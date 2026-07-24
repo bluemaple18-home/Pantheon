@@ -5,18 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from scripts.gsc_client import GscReadonlyClient, access_token
 
-GSC_API = "https://www.googleapis.com/webmasters/v3"
+
 MAX_GSC_PAGES = 5
 MAX_BRIEF_BYTES = 8192
 
@@ -98,72 +96,6 @@ def select_opportunities(
         )
     limit = min(max_pages, MAX_GSC_PAGES)
     return sorted(opportunities, key=lambda item: (-item["opportunity_score"], -item["impressions"], item["page"]))[:limit]
-
-
-def _access_token() -> str:
-    token = os.environ.get("GSC_ACCESS_TOKEN", "").strip()
-    if token:
-        return token
-    try:
-        result = subprocess.run(
-            [
-                "gcloud",
-                "auth",
-                "application-default",
-                "print-access-token",
-                "--scopes=https://www.googleapis.com/auth/webmasters.readonly",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError) as error:
-        raise RuntimeError("missing GSC_ACCESS_TOKEN or usable gcloud application-default credentials") from error
-    token = result.stdout.strip()
-    if not token:
-        raise RuntimeError("gcloud returned an empty access token")
-    return token
-
-
-class GscReadonlyClient:
-    def __init__(self, access_token: str, timeout: float = 30.0) -> None:
-        self.access_token = access_token
-        self.timeout = timeout
-
-    def _request(self, method: str, url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        data = compact_json_bytes(payload) if payload is not None else None
-        request = urllib.request.Request(
-            url,
-            data=data,
-            method=method,
-            headers={
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json",
-            },
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")[:500]
-            raise RuntimeError(f"GSC HTTP {error.code}: {detail}") from error
-
-    def list_properties(self) -> list[dict[str, Any]]:
-        return list(self._request("GET", f"{GSC_API}/sites").get("siteEntry") or [])
-
-    def query(self, property_url: str, start_date: str, end_date: str, row_limit: int = 25000) -> list[dict[str, Any]]:
-        encoded = urllib.parse.quote(property_url, safe="")
-        payload = {
-            "startDate": start_date,
-            "endDate": end_date,
-            "dimensions": ["page", "query"],
-            "dimensionFilterGroups": [
-                {"filters": [{"dimension": "page", "operator": "contains", "expression": "/articles/"}]}
-            ],
-            "rowLimit": row_limit,
-            "dataState": "final",
-        }
-        return list(self._request("POST", f"{GSC_API}/sites/{encoded}/searchAnalytics/query", payload).get("rows") or [])
 
 
 def load_article_inventory(repo_root: Path) -> list[dict[str, Any]]:
@@ -258,7 +190,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
-    client = GscReadonlyClient(_access_token())
+    client = GscReadonlyClient(access_token())
     property_url = choose_single_property(client.list_properties())
     rows = client.query(property_url, args.start_date, args.end_date)
     selected = select_opportunities(rows, min_impressions=args.min_impressions, max_ctr=args.max_ctr)
