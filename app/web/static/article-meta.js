@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-rewrite-20260724-02";
+} from "./article-registry.js?v=agy-auto-new-v1-20260724-002-01";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -217,7 +217,10 @@ import { AGY_HARNESS_NEW_20260723_70_ARTICLE_BODY_LIBRARY } from "./article-expa
 
 import { AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260724-02.js?v=agy-rewrite-20260724-02";
 
+import { AGY_AUTO_NEW_V1_20260724_002_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260724-002-01.js?v=agy-auto-new-v1-20260724-002-01";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_AUTO_NEW_V1_20260724_002_01_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_70_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_83_ARTICLE_BODY_LIBRARY,
   ...AGY_HARNESS_NEW_20260723_42_ARTICLE_BODY_LIBRARY,
