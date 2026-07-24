@@ -111,6 +111,19 @@ message、credential、完整 environment、executable path 或 CLI log。
 
 ## Decision
 
-`AWAITING_EXTERNAL_CONFIRMATION`
+`BLOCKED`
 
-Final payload confirmation 前不得執行 runner。
+## Execution preflight
+
+- user confirmation:
+  explicit confirmation for job prefix `a520fbf4`
+- executable drift:
+  the mutable launcher target changed after the dry-run
+- fail-closed handling:
+  the changed executable was not used
+- executed bytes:
+  the retained local executable whose SHA-256 exactly matched the disclosed digest
+- login／credential／global configuration／launcher changes:
+  `0 / 0 / 0 / 0`
+
+唯一一次 runner 已執行；最終 durable 結果見 `real-activation.json`。
