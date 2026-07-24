@@ -29,6 +29,8 @@
   <dict>
     <key>AGY_GEMINI_CLI</key>
     <string>__AGY_GEMINI_CLI__</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 
   <key>StartInterval</key>
