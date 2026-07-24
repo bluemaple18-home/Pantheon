@@ -269,6 +269,68 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
 
 
+def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue_root = tmp_path / "queue"
+    for locale, verdict in [("en", "APPROVE"), ("ja", "REJECT")]:
+        run_id = f"translate-{locale}"
+        run_dir = tmp_path / "runs" / run_id
+        article = {
+            "article_id": f"AUTO-001:{locale}",
+            "locale": locale,
+            "source_article_id": "AUTO-001",
+        }
+        _write_json(
+            run_dir / "brief.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "mode": "translate_existing",
+                "articles": [{"source_article_id": "AUTO-001", "source_sha256": "same"}],
+            },
+        )
+        _write_json(run_dir / "candidate.json", {"run_id": run_id, "mode": "translate_existing", "articles": [article]})
+        _write_json(
+            run_dir / "review.json",
+            {
+                "run_id": run_id,
+                "articles": [
+                    {
+                        "article_id": article["article_id"],
+                        "verdict": verdict,
+                        "hard_failure": verdict != "APPROVE",
+                        "findings": [] if verdict == "APPROVE" else [{"code": "reject", "message": "退件"}],
+                    }
+                ],
+            },
+        )
+        _write_json(
+            queue_root / "runs" / f"{run_id}.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "run_dir": str(run_dir),
+                "status": "complete",
+                "result": {"candidate": str(run_dir / "candidate.json")},
+            },
+        )
+    monkeypatch.setattr(publisher.multilingual, "validate_translation_candidate", lambda _brief, _candidate: None)
+    monkeypatch.setattr(publisher.pipeline, "validate_review", lambda _review, _articles: None)
+    monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda _brief, _articles: [])
+    monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda _repo, _article_id: {"source": "same"})
+    monkeypatch.setattr(publisher.multilingual, "source_sha256", lambda _source: "same")
+
+    state_root = tmp_path / "state"
+    assert publisher.collect_ready_runs(queue_root, state_root, limit=10) == []
+    ready = publisher.collect_ready_translation_runs(tmp_path, queue_root, state_root, limit=10)
+
+    assert [state["run_id"] for state, _, _, _ in ready] == ["translate-en"]
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert ledger["translation_deferred_runs"][0]["run_id"] == "translate-ja"
+    assert ledger["quarantined_runs"] == []
+
+
 def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = tmp_path
     queue_root = tmp_path / "queue"
@@ -286,6 +348,13 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     monkeypatch.setattr(publisher.pipeline, "_registry_inventory", lambda _repo: [])
     monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    seeded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "enqueue_article_translations",
+        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        or [{"run_id": f"{article_id}-en", "locale": "en", "run_dir": "/tmp/en"}],
+    )
     git_calls: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -306,6 +375,10 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     assert (run_dir / "approval.json").exists()
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
     assert "## [0.3.1]" in (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert seeded == [("run-approved", "AUTO-001")]
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert ledger["published_runs"][0]["translation_seed_status"] == "seeded"
+    assert ledger["published_runs"][0]["translation_run_ids"] == ["AUTO-001-en"]
 
 
 def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -580,7 +653,7 @@ def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:
         publisher.publish_ready_runs(tmp_path, tmp_path / "queue", tmp_path / "state", git=fake_git, run_tests=False, release_gate=False)
 
 
-def test_publish_ready_all_runs_create_then_rewrite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_publish_ready_all_runs_create_then_rewrite_then_translation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, bool, bool, bool]] = []
 
     def fake_create(
@@ -619,8 +692,27 @@ def test_publish_ready_all_runs_create_then_rewrite(tmp_path: Path, monkeypatch:
         assert git is publisher.run_git
         return {"schema_version": 1, "status": "idle_rejects_only", "rewritten": 0}
 
+    def fake_translation(
+        _repo_root: Path,
+        _queue_root: Path,
+        _state_root: Path,
+        *,
+        max_runs: int,
+        dry_run: bool,
+        push: bool,
+        run_tests: bool,
+        release_gate: bool,
+        git: publisher.GitRunner,
+    ) -> dict[str, object]:
+        calls.append(("translation", push, run_tests, release_gate))
+        assert max_runs == 3
+        assert dry_run is True
+        assert git is publisher.run_git
+        return {"schema_version": 1, "status": "idle", "translated": 0}
+
     monkeypatch.setattr(publisher, "publish_ready_runs", fake_create)
     monkeypatch.setattr(publisher, "publish_ready_rewrite_runs", fake_rewrite)
+    monkeypatch.setattr(publisher, "publish_ready_translation_runs", fake_translation)
 
     result = publisher.publish_ready_all(
         tmp_path,
@@ -634,7 +726,11 @@ def test_publish_ready_all_runs_create_then_rewrite(tmp_path: Path, monkeypatch:
     )
 
     assert result["status"] == "ok"
-    assert calls == [("create", True, False, False), ("rewrite", True, False, False)]
+    assert calls == [
+        ("create", True, False, False),
+        ("rewrite", True, False, False),
+        ("translation", True, False, False),
+    ]
 
 
 def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() -> None:

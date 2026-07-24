@@ -407,3 +407,53 @@ def test_apply_translation_fails_closed_when_source_changed(tmp_path: Path) -> N
             approval,
             source_loader=lambda _repo, _article_id: changed_source,
         )
+
+
+def test_enqueue_article_translations_creates_three_independent_idempotent_runs(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+
+    first = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    second = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+
+    assert first == second
+    assert {item["locale"] for item in first} == {"en", "ja", "ko"}
+    assert len(list((queue_root / "runs").glob("*.json"))) == 3
+    for item in first:
+        brief = json.loads((Path(item["run_dir"]) / "brief.json").read_text(encoding="utf-8"))
+        assert brief["mode"] == "translate_existing"
+        assert len(brief["articles"]) == 1
+        assert brief["articles"][0]["locale"] == item["locale"]
+
+
+def test_enqueue_article_translations_does_not_overwrite_registered_source(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    changed = source_article()
+    changed["title"] = "來源文章已更新"
+
+    with pytest.raises(ValueError, match="source drift"):
+        multilingual.enqueue_article_translations(
+            tmp_path,
+            queue_root,
+            source_run_id="source-run-001",
+            article_id="TEST-001",
+            source_loader=lambda _repo, _article_id: changed,
+        )

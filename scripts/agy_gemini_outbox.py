@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
 
 
@@ -255,7 +256,8 @@ def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     run_id = str(brief["run_id"])
     namespace = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     client = OutboxGeminiClient(queue_root, namespace=namespace)
-    candidate, review = pipeline.run_writer_reviewer(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)
+    runner = multilingual.run_writer_reviewer if brief.get("mode") == "translate_existing" else pipeline.run_writer_reviewer
+    candidate, review = runner(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)
     return {
         "status": "complete",
         "run_id": run_id,

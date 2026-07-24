@@ -13,6 +13,7 @@ import subprocess
 import sys
 from typing import Any, Callable
 
+from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
 
 
@@ -22,8 +23,17 @@ PUBLISHER_ID = "agy-content-publisher"
 LEGACY_ARTICLE_COUNT_CUTOFF = 353
 LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
 GitRunner = Callable[[Path, list[str], str | None], str]
-TEST_COMMAND = [sys.executable, "-m", "pytest", "tests/test_web.py", "tests/test_agy_seo_copy_pipeline.py", "tests/test_release_record.py", "-q"]
-SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "idle_rejects_only", "busy", "dry-run"}
+TEST_COMMAND = [
+    sys.executable,
+    "-m",
+    "pytest",
+    "tests/test_web.py",
+    "tests/test_agy_seo_copy_pipeline.py",
+    "tests/test_agy_multilingual_pipeline.py",
+    "tests/test_release_record.py",
+    "-q",
+]
+SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION", "idle", "idle_rejects_only", "busy", "dry-run"}
 
 
 class PublishBlocked(ValueError):
@@ -82,14 +92,31 @@ def _ledger_path(state_root: Path) -> Path:
 def _load_ledger(state_root: Path) -> dict[str, Any]:
     path = _ledger_path(state_root)
     if not path.exists():
-        return {"schema_version": SCHEMA_VERSION, "published_runs": [], "quarantined_runs": [], "rewrite_released_runs": []}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "published_runs": [],
+            "quarantined_runs": [],
+            "rewrite_released_runs": [],
+            "translation_published_runs": [],
+            "translation_deferred_runs": [],
+        }
     ledger = _read_json(path)
     if ledger.get("schema_version") != SCHEMA_VERSION:
         raise PublishBlocked("publisher ledger schema is invalid")
     ledger.setdefault("published_runs", [])
     ledger.setdefault("quarantined_runs", [])
     ledger.setdefault("rewrite_released_runs", [])
+    ledger.setdefault("translation_published_runs", [])
+    ledger.setdefault("translation_deferred_runs", [])
     return ledger
+
+
+def _record_translation_deferred(state_root: Path, run_id: str, reason: str) -> None:
+    ledger = _load_ledger(state_root)
+    existing = {(str(item.get("run_id")), str(item.get("reason"))) for item in ledger["translation_deferred_runs"]}
+    if run_id and (run_id, reason) not in existing:
+        ledger["translation_deferred_runs"].append({"run_id": run_id, "reason": reason, "recorded_at": _now()})
+        _write_json(_ledger_path(state_root), ledger)
 
 
 def _record_quarantine(state_root: Path, state: dict[str, Any], reason: str) -> None:
@@ -123,8 +150,15 @@ def _load_completed_run(state_path: Path) -> tuple[dict[str, Any], dict[str, Any
     review = _read_json(review_path)
     if candidate.get("run_id") != state.get("run_id") or review.get("run_id") != state.get("run_id"):
         raise PublishBlocked("run id drift between state, candidate, and review")
-    pipeline.validate_candidate(candidate)
-    pipeline.validate_review(review, candidate["articles"])
+    try:
+        if candidate.get("mode") == "translate_existing":
+            brief = _read_json(run_dir / "brief.json")
+            multilingual.validate_translation_candidate(brief, candidate)
+        else:
+            pipeline.validate_candidate(candidate)
+        pipeline.validate_review(review, candidate["articles"])
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        raise PublishBlocked(f"run payload validation failed: {type(error).__name__}") from error
     return state, candidate, review
 
 
@@ -180,6 +214,8 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
         run_id = str(state["run_id"])
         if run_id in published or run_id in quarantined:
             continue
+        if candidate.get("mode") == "translate_existing":
+            continue
         if candidate.get("mode") != "create":
             _record_quarantine(state_root, state, "publisher only supports create mode")
             continue
@@ -194,6 +230,73 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
         if len(ready) >= limit:
             break
     _assert_batch_unique([candidate for _, candidate, _ in ready])
+    return ready
+
+
+def collect_ready_translation_runs(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    limit: int = DEFAULT_MAX_RUNS,
+) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    """只收乾淨通過的單語 run；其餘保留並移入待修清單。"""
+    ledger = _load_ledger(state_root)
+    published = {str(item.get("run_id")) for item in ledger["translation_published_runs"]}
+    deferred = {str(item.get("run_id")) for item in ledger["translation_deferred_runs"]}
+    ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    for state_path in _run_files(queue_root):
+        try:
+            state = _read_json(state_path)
+            run_id = str(state.get("run_id") or "")
+            run_dir = Path(str(state.get("run_dir") or ""))
+            brief_path = run_dir / "brief.json"
+            if not run_id or not brief_path.is_file():
+                continue
+            brief = _read_json(brief_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if brief.get("mode") != "translate_existing" or run_id in published or run_id in deferred:
+            continue
+        if state.get("status") == "failed":
+            _record_translation_deferred(state_root, run_id, f"run failed: {state.get('error_type') or 'unknown'}")
+            continue
+        if state.get("status") != "complete":
+            continue
+        try:
+            result = state.get("result") if isinstance(state.get("result"), dict) else {}
+            candidate_path = Path(str(result.get("candidate") or run_dir / "candidate.json"))
+            candidate = _read_json(candidate_path)
+            review = _read_json(run_dir / "review.json")
+            if candidate.get("run_id") != run_id or review.get("run_id") != run_id:
+                raise ValueError("translation run id drift")
+            multilingual.validate_translation_candidate(brief, candidate)
+            pipeline.validate_review(review, candidate["articles"])
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            _record_translation_deferred(state_root, run_id, f"invalid translation result: {type(error).__name__}")
+            continue
+        if not _review_is_clean_approve(review):
+            _record_translation_deferred(state_root, run_id, "translation reviewer did not cleanly approve")
+            continue
+        findings = multilingual.translation_findings(brief, candidate["articles"])
+        if findings:
+            _record_translation_deferred(state_root, run_id, f"translation deterministic findings: {len(findings)}")
+            continue
+        source_current = True
+        try:
+            for target in brief["articles"]:
+                current = multilingual.load_source_article(repo_root, str(target["source_article_id"]))
+                if multilingual.source_sha256(current) != target["source_sha256"]:
+                    source_current = False
+                    break
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            source_current = False
+        if not source_current:
+            _record_translation_deferred(state_root, run_id, "translation source drift")
+            continue
+        ready.append((state, brief, candidate, review))
+        if len(ready) >= limit:
+            break
     return ready
 
 
@@ -509,6 +612,61 @@ def _prepend_rewrite_changelog(repo_root: Path, *, version: str, article_count: 
     changelog.write_text(body.replace("\n## [", "\n" + section + "\n## [", 1), encoding="utf-8")
 
 
+def _prepend_translation_changelog(
+    repo_root: Path,
+    *,
+    version: str,
+    article_count: int,
+    run_ids: list[str],
+    locales: list[str],
+    evidence_path: str,
+) -> None:
+    changelog = repo_root / "CHANGELOG.md"
+    body = changelog.read_text(encoding="utf-8")
+    today = date.today().isoformat()
+    section = "\n".join(
+        [
+            f"## [{version}] - {today}",
+            "",
+            f"- Release tag：`v{version}`",
+            f"- 公開文章總數：{article_count}（新增多語版本，不新增繁中 registry 條目）",
+            f"- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 {len(run_ids)} 個 run；語系：{', '.join(locales)}；run_id：{', '.join(run_ids)}。",
+            "- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。",
+            f"- 證據：`{evidence_path}`",
+            "",
+        ]
+    )
+    changelog.write_text(body.replace("\n## [", "\n" + section + "\n## [", 1), encoding="utf-8")
+
+
+def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Path) -> list[str]:
+    """補建已發布、但上次尚未完成登記的多語 run。"""
+    ledger = _load_ledger(state_root)
+    seeded_run_ids: list[str] = []
+    changed = False
+    for item in ledger["published_runs"]:
+        if item.get("translation_seed_status") != "pending":
+            continue
+        translation_runs: list[dict[str, str]] = []
+        for article_id in item.get("article_ids", []):
+            translation_runs.extend(
+                multilingual.enqueue_article_translations(
+                    repo_root,
+                    queue_root,
+                    source_run_id=str(item["run_id"]),
+                    article_id=str(article_id),
+                )
+            )
+        item["translation_seed_status"] = "seeded"
+        item["translation_seeded_at"] = _now()
+        item["translation_run_ids"] = [run["run_id"] for run in translation_runs]
+        seeded_run_ids.extend(item["translation_run_ids"])
+        changed = True
+    if changed:
+        _write_json(_ledger_path(state_root), ledger)
+    return seeded_run_ids
+
+
 def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, articles: list[dict[str, Any]]) -> Path:
     test_path = repo_root / "tests/test_web.py"
     text = test_path.read_text(encoding="utf-8")
@@ -701,9 +859,16 @@ def publish_ready_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
         base_sha = _assert_clean_origin_head(repo_root, git)
+        recovered_translation_runs = [] if dry_run else _seed_pending_translations(repo_root, queue_root, state_root)
         ready = collect_ready_runs(queue_root, state_root, limit=max_runs)
         if not ready:
-            return {"schema_version": SCHEMA_VERSION, "status": "idle", "published": 0, "base_sha": base_sha}
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "idle",
+                "published": 0,
+                "base_sha": base_sha,
+                "seeded_translation_runs": recovered_translation_runs,
+            }
         run_ids = [str(state["run_id"]) for state, _, _ in ready]
         if dry_run:
             return {"schema_version": SCHEMA_VERSION, "status": "dry-run", "published": 0, "ready_runs": run_ids, "base_sha": base_sha}
@@ -734,9 +899,26 @@ def publish_ready_runs(
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(repo_root, version, git, push=push, release_gate=release_gate)
         ledger = _load_ledger(state_root)
+        articles_by_run = {
+            str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
+            for state, candidate, _ in ready
+        }
         for run_id in run_ids:
-            ledger["published_runs"].append({"run_id": run_id, "version": version, "commit_sha": commit_sha, "published_at": _now()})
+            ledger["published_runs"].append(
+                {
+                    "run_id": run_id,
+                    "version": version,
+                    "commit_sha": commit_sha,
+                    "published_at": _now(),
+                    "article_ids": articles_by_run[run_id],
+                    "translation_seed_status": "pending",
+                }
+            )
         _write_json(_ledger_path(state_root), ledger)
+        seeded_translation_runs = [
+            *recovered_translation_runs,
+            *_seed_pending_translations(repo_root, queue_root, state_root),
+        ]
         evidence = {
             "schema_version": SCHEMA_VERSION,
             "status": "PUBLISHED",
@@ -746,6 +928,7 @@ def publish_ready_runs(
             "run_ids": run_ids,
             "changed": sorted(set(changed)),
             "public_article_count": article_count,
+            "seeded_translation_runs": seeded_translation_runs,
             "pushed": push,
         }
         _write_json(evidence_dir / "publish-evidence.json", evidence)
@@ -858,6 +1041,127 @@ def publish_ready_rewrite_runs(
         return evidence
 
 
+def publish_ready_translation_runs(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    max_runs: int = DEFAULT_MAX_RUNS,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+    git: GitRunner = run_git,
+) -> dict[str, Any]:
+    """發布所有已通過的單語 run；退件留待最後修復且不阻塞通過者。"""
+    state_root.mkdir(parents=True, exist_ok=True)
+    lock_path = state_root / "publisher.lock"
+    with lock_path.open("a+") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"schema_version": SCHEMA_VERSION, "status": "busy", "translated": 0}
+        base_sha = _assert_clean_origin_head(repo_root, git)
+        ready = collect_ready_translation_runs(repo_root, queue_root, state_root, limit=max_runs)
+        if not ready:
+            ledger = _load_ledger(state_root)
+            status = "idle_rejects_only" if ledger["translation_deferred_runs"] else "idle"
+            return {"schema_version": SCHEMA_VERSION, "status": status, "translated": 0, "base_sha": base_sha}
+        ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "translated": 0,
+                "ready_runs": ready_run_ids,
+                "base_sha": base_sha,
+            }
+
+        changed: list[str] = []
+        published: list[tuple[str, str, str]] = []
+        for state, _brief, candidate, _review in ready:
+            run_id = str(state["run_id"])
+            locale = str(candidate["articles"][0]["locale"])
+            article_id = str(candidate["articles"][0]["source_article_id"])
+            try:
+                paths = multilingual.approve_and_apply_translation_run(
+                    repo_root,
+                    Path(str(state["run_dir"])),
+                    PUBLISHER_ID,
+                )
+            except ValueError as error:
+                _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
+                continue
+            changed.extend(str(path.relative_to(repo_root)) for path in paths)
+            published.append((run_id, locale, article_id))
+        if not published:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "idle_rejects_only",
+                "translated": 0,
+                "base_sha": base_sha,
+            }
+
+        run_ids = [item[0] for item in published]
+        locales = [item[1] for item in published]
+        article_ids = [item[2] for item in published]
+        version = _bump_patch_version(repo_root)
+        evidence_dir = state_root / "evidence" / f"translation-{version}"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
+        article_count = _public_article_count(repo_root)
+        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=f"agy-i18n-{version.replace('.', '-')}")
+        changed.append(str(fixture_path.relative_to(repo_root)))
+        _run_prerender(repo_root)
+        _run_feed(repo_root)
+        _prepend_translation_changelog(
+            repo_root,
+            version=version,
+            article_count=article_count,
+            run_ids=run_ids,
+            locales=locales,
+            evidence_path=evidence_rel,
+        )
+        if run_tests:
+            _run_checked(repo_root, TEST_COMMAND)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            push=push,
+            release_gate=release_gate,
+            message=f"chore(content): publish multilingual release v{version}",
+        )
+        ledger = _load_ledger(state_root)
+        for run_id, locale, article_id in published:
+            ledger["translation_published_runs"].append(
+                {
+                    "run_id": run_id,
+                    "locale": locale,
+                    "article_id": article_id,
+                    "version": version,
+                    "commit_sha": commit_sha,
+                    "published_at": _now(),
+                }
+            )
+        _write_json(_ledger_path(state_root), ledger)
+        evidence = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "PUBLISHED_TRANSLATION",
+            "base_sha": base_sha,
+            "commit_sha": commit_sha,
+            "version": version,
+            "run_ids": run_ids,
+            "locales": locales,
+            "article_ids": article_ids,
+            "changed": sorted(set(changed)),
+            "public_article_count": article_count,
+            "pushed": push,
+        }
+        _write_json(evidence_dir / "translation-evidence.json", evidence)
+        return evidence
+
+
 def publish_ready_all(
     repo_root: Path,
     queue_root: Path,
@@ -870,7 +1174,7 @@ def publish_ready_all(
     release_gate: bool = True,
     git: GitRunner = run_git,
 ) -> dict[str, Any]:
-    """同一輪 publisher tick 依序處理新文與舊文 rewrite。"""
+    """同一輪先處理新文、舊文，再發布已通過的多語版本。"""
     create_result = publish_ready_runs(
         repo_root,
         queue_root,
@@ -893,13 +1197,26 @@ def publish_ready_all(
         release_gate=release_gate,
         git=git,
     )
+    translation_result = publish_ready_translation_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=max_runs,
+        dry_run=dry_run,
+        push=push,
+        run_tests=run_tests,
+        release_gate=release_gate,
+        git=git,
+    )
     create_ok = create_result.get("status") in SUCCESS_STATUSES
     rewrite_ok = rewrite_result.get("status") in SUCCESS_STATUSES
+    translation_ok = translation_result.get("status") in SUCCESS_STATUSES
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "ok" if create_ok and rewrite_ok else "failed",
+        "status": "ok" if create_ok and rewrite_ok and translation_ok else "failed",
         "create": create_result,
         "rewrite": rewrite_result,
+        "translation": translation_result,
     }
 
 

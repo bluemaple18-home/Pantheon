@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 from typing import Any, Callable
 
 from scripts import agy_seo_copy_pipeline as pipeline
@@ -64,6 +67,16 @@ SourceLoader = Callable[[Path, str], dict[str, Any]]
 
 def compact_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _atomic_write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(compact_json_bytes(payload) + b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
 
 
 def source_sha256(source: dict[str, Any]) -> str:
@@ -339,6 +352,62 @@ def prepare_translation_run(
     path = output_root / run_id / "brief.json"
     pipeline.write_json(path, brief)
     return path
+
+
+def enqueue_article_translations(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    source_run_id: str,
+    article_id: str,
+    source_loader: SourceLoader = load_source_article,
+) -> list[dict[str, str]]:
+    """為已發布新文建立英、日、韓三個互不阻塞的翻譯 run。"""
+    if not source_run_id.strip() or not article_id.strip():
+        raise ValueError("source run id and article id must be non-empty")
+    queue_root = queue_root.resolve()
+    records: list[dict[str, str]] = []
+    for locale in ["en", "ja", "ko"]:
+        identity = f"{source_run_id}\0{article_id}\0{locale}"
+        digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        run_id = f"auto-i18n-{locale}-{digest[:20]}"
+        run_dir = queue_root / "translation-runs" / run_id
+        state_path = queue_root / "runs" / f"{hashlib.sha256(run_id.encode('utf-8')).hexdigest()[:24]}.json"
+        resolved_run_dir = run_dir.resolve()
+        if state_path.exists():
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            if state.get("run_id") != run_id or state.get("run_dir") != str(resolved_run_dir):
+                raise ValueError("translation run identity collision")
+            brief_path = run_dir / "brief.json"
+            if not brief_path.is_file():
+                raise ValueError("registered translation run brief is missing")
+            existing_brief = json.loads(brief_path.read_text(encoding="utf-8"))
+            current_source = source_loader(repo_root, article_id)
+            if existing_brief["articles"][0]["source_sha256"] != source_sha256(current_source):
+                raise ValueError("registered translation run source drift")
+        else:
+            prepare_translation_run(
+                repo_root,
+                run_id,
+                article_id,
+                [locale],
+                queue_root / "translation-runs",
+                source_loader=source_loader,
+            )
+            now = datetime.now().astimezone().isoformat(timespec="seconds")
+            _atomic_write_json(
+                state_path,
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "run_dir": str(resolved_run_dir),
+                    "status": "active",
+                    "registered_at": now,
+                    "updated_at": now,
+                },
+            )
+        records.append({"run_id": run_id, "locale": locale, "run_dir": str(resolved_run_dir)})
+    return records
 
 
 def _external_candidate_schema() -> dict[str, Any]:

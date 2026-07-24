@@ -1056,6 +1056,34 @@ def test_pipeline_tick_reserves_one_bounded_final_content_repair(
     assert observed == [2]
 
 
+def test_pipeline_tick_routes_translation_brief_to_multilingual_pipeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "brief.json").write_text(
+        json.dumps({"run_id": "translate-en-001", "mode": "translate_existing"}),
+        encoding="utf-8",
+    )
+    observed: list[int] = []
+
+    def fake_run_writer_reviewer(_run_dir: Path, _client: object, max_repairs: int = 2):
+        observed.append(max_repairs)
+        return {"articles": []}, {"articles": []}
+
+    monkeypatch.setattr(outbox.multilingual, "run_writer_reviewer", fake_run_writer_reviewer)
+    monkeypatch.setattr(
+        outbox.pipeline,
+        "run_writer_reviewer",
+        lambda *_args, **_kwargs: pytest.fail("translation must not use the create pipeline"),
+    )
+
+    result = run_pipeline_tick(run_dir, tmp_path / "queue")
+
+    assert result["status"] == "complete"
+    assert observed == [2]
+
+
 def test_outbox_client_retries_json_decode_with_new_job_identity(tmp_path: Path) -> None:
     client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-json")
     first = outbox.create_external_request(
