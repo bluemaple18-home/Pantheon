@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
@@ -15,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any, Callable
 
 from scripts import agy_multilingual_pipeline as multilingual
@@ -319,6 +322,43 @@ def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
     if local != remote:
         raise PublishBlocked(f"local HEAD differs from origin/main: {local[:12]} != {remote[:12]}")
     return local
+
+
+@contextmanager
+def _isolated_transaction_worktree(
+    repo_root: Path,
+    state_root: Path,
+    git: GitRunner = run_git,
+) -> Iterator[Path]:
+    """從最新 origin/main 建立單輪隔離 worktree，正式 actor 全程唯讀。"""
+    state_root.mkdir(parents=True, exist_ok=True)
+    git(repo_root, ["fetch", "origin", "main"], None)
+    if not _repo_clean(repo_root, git):
+        raise PublishBlocked("publisher actor worktree is not clean")
+    remote_sha = git(repo_root, ["rev-parse", "origin/main"], None)
+    transaction_parent = Path(tempfile.mkdtemp(prefix="transaction-", dir=state_root))
+    transaction_root = transaction_parent / "repo"
+    added = False
+    try:
+        git(
+            repo_root,
+            ["worktree", "add", "--detach", str(transaction_root), remote_sha],
+            None,
+        )
+        added = True
+        actor_node_modules = repo_root / "node_modules"
+        transaction_node_modules = transaction_root / "node_modules"
+        if actor_node_modules.is_dir() and not transaction_node_modules.exists():
+            transaction_node_modules.symlink_to(actor_node_modules, target_is_directory=True)
+        yield transaction_root
+    finally:
+        if added:
+            try:
+                git(repo_root, ["worktree", "remove", "--force", str(transaction_root)], None)
+            except Exception:
+                shutil.rmtree(transaction_root, ignore_errors=True)
+                git(repo_root, ["worktree", "prune"], None)
+        shutil.rmtree(transaction_parent, ignore_errors=True)
 
 
 def _git_paths(repo_root: Path, git: GitRunner, args: list[str]) -> list[str]:
@@ -1916,16 +1956,32 @@ def main() -> int:
         publisher_fn = publish_ready_rewrite_runs
     else:
         publisher_fn = publish_ready_runs
-    result = publisher_fn(
-        repo_root,
-        args.queue_root.resolve(),
-        (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve(),
-        max_runs=args.max_runs,
-        dry_run=args.dry_run,
-        push=args.push,
-        run_tests=not args.skip_tests,
-        release_gate=not args.skip_release_gate,
-    )
+    queue_root = args.queue_root.resolve()
+    state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
+    state_root.mkdir(parents=True, exist_ok=True)
+    if args.dry_run:
+        result = publisher_fn(
+            repo_root,
+            queue_root,
+            state_root,
+            max_runs=args.max_runs,
+            dry_run=True,
+            push=args.push,
+            run_tests=not args.skip_tests,
+            release_gate=not args.skip_release_gate,
+        )
+    else:
+        with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
+            result = publisher_fn(
+                transaction_root,
+                queue_root,
+                state_root,
+                max_runs=args.max_runs,
+                dry_run=False,
+                push=args.push,
+                run_tests=not args.skip_tests,
+                release_gate=not args.skip_release_gate,
+            )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {*SUCCESS_STATUSES, "ok"} else 1
 

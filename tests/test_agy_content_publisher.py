@@ -1571,3 +1571,96 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
     assert 'ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-59"' in (test_dir / "test_web.py").read_text(encoding="utf-8")
     assert "static/article.js?v=agy-i18n-0-3-59" in (web_dir / "article.html").read_text(encoding="utf-8")
     assert "static/articles.js?v=agy-i18n-0-3-59" in (web_dir / "articles.html").read_text(encoding="utf-8")
+
+
+def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Path) -> None:
+    remote = tmp_path / "remote.git"
+    seed = tmp_path / "seed"
+    actor = tmp_path / "actor"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=seed, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=seed, check=True)
+    target = seed / "app/web/owned.txt"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"base\n")
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True)
+    subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=seed, check=True)
+    subprocess.run(["git", "clone", "-q", "-b", "main", str(remote), str(actor)], check=True)
+
+    state_root = actor / ".work/content-publisher"
+    state_root.mkdir(parents=True)
+    actor_target = actor / "app/web/owned.txt"
+    with publisher._isolated_transaction_worktree(actor, state_root) as transaction_root:
+        assert transaction_root != actor
+        assert (transaction_root / "app/web/owned.txt").read_bytes() == b"base\n"
+        actor_target.write_bytes(b"concurrent-user\n")
+        (transaction_root / "app/web/owned.txt").write_bytes(b"publisher\n")
+
+    assert actor_target.read_bytes() == b"concurrent-user\n"
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=actor,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "M app/web/owned.txt"
+    assert not list(state_root.glob("transaction-*"))
+
+
+def test_main_runs_real_publish_in_isolated_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "remote.git"
+    seed = tmp_path / "seed"
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = actor / ".work/content-publisher"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=seed, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=seed, check=True)
+    target = seed / "app/web/owned.txt"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"base\n")
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True)
+    subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=seed, check=True)
+    subprocess.run(["git", "clone", "-q", "-b", "main", str(remote), str(actor)], check=True)
+
+    transaction_roots: list[Path] = []
+
+    def fake_publish(repo_root: Path, *_args: object, **_kwargs: object) -> dict[str, object]:
+        transaction_roots.append(repo_root)
+        (actor / "app/web/owned.txt").write_bytes(b"concurrent-user\n")
+        (repo_root / "app/web/owned.txt").write_bytes(b"publisher\n")
+        return {"schema_version": publisher.SCHEMA_VERSION, "status": "idle", "published": 0}
+
+    monkeypatch.setattr(
+        publisher,
+        "parse_args",
+        lambda: publisher.argparse.Namespace(
+            repo_root=actor,
+            queue_root=queue_root,
+            state_root=state_root,
+            max_runs=1,
+            dry_run=False,
+            rewrite_release=False,
+            include_rewrites=False,
+            legacy_report=False,
+            push=False,
+            skip_tests=True,
+            skip_release_gate=True,
+        ),
+    )
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+
+    assert publisher.main() == 0
+    assert len(transaction_roots) == 1
+    assert transaction_roots[0] != actor
+    assert not transaction_roots[0].exists()
+    assert (actor / "app/web/owned.txt").read_bytes() == b"concurrent-user\n"
