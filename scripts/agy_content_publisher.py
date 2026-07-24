@@ -283,7 +283,7 @@ def summarize_legacy_rewrite_backlog(
             run_dir = Path(str(raw_state.get("run_dir") or ""))
             try:
                 brief = _load_rewrite_brief(run_dir, run_id)
-            except PublishBlocked:
+            except (PublishBlocked, ValueError):
                 continue
             brief_article_ids = {str(article["article_id"]) for article in brief["articles"]}
             if not brief_article_ids <= allowed_article_ids:
@@ -299,7 +299,7 @@ def summarize_legacy_rewrite_backlog(
             run_dir = Path(str(raw_state.get("run_dir") or ""))
             try:
                 brief = _load_rewrite_brief(run_dir, run_id)
-            except PublishBlocked:
+            except (PublishBlocked, ValueError):
                 continue
             brief_article_ids = {str(article["article_id"]) for article in brief["articles"]}
             if not brief_article_ids <= allowed_article_ids:

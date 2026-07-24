@@ -206,6 +206,28 @@ def _write_active_rewrite_run(queue_root: Path, run_dir: Path, article: dict[str
     )
 
 
+def _write_active_create_run(queue_root: Path, run_dir: Path, article_id: str = "V2-NEW-001") -> None:
+    _write_json(
+        run_dir / "brief.json",
+        {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "mode": "create",
+            "articles": [{"target": {"id": article_id}}],
+        },
+    )
+    _write_json(
+        queue_root / "runs" / f"{run_dir.name}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "run_dir": str(run_dir),
+            "status": "active",
+            "last_job_id": "pending-create-job",
+        },
+    )
+
+
 def _minimal_article_static(repo_root: Path) -> None:
     static = repo_root / "app" / "web" / "static"
     static.mkdir(parents=True)
@@ -367,6 +389,27 @@ def test_legacy_rewrite_backlog_counts_active_runs_as_attempted(tmp_path: Path) 
     assert summary["unattempted"] == 0
     assert summary["active_or_incomplete"] == 1
     assert summary["repair_rejects_allowed"] is False
+
+
+def test_legacy_rewrite_backlog_ignores_active_create_runs(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    active = make_rewrite_article("LEGACY-ACTIVE", "legacy-active")
+    _write_active_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-active", active)
+    _write_active_create_run(queue_root, tmp_path / "runs" / "create-active")
+    legacy_records = [{"id": "LEGACY-ACTIVE", "serial": "astrology-0001", "articleCategory": "astrology"}]
+
+    summary = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={"LEGACY-ACTIVE"},
+        legacy_records=legacy_records,
+    )
+
+    assert summary["attempted"] == 1
+    assert summary["unattempted"] == 0
+    assert summary["active_or_incomplete"] == 1
+    assert summary["non_legacy"] == 0
 
 
 def test_legacy_rewrite_backlog_allows_reject_repair_after_all_legacy_attempted(tmp_path: Path) -> None:
