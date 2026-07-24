@@ -30,3 +30,14 @@ sanitizer，讓下一次結果能區分六種格式類別；它不自動修正 G
 - rollout：`DO_NOT_PROMOTE_DEFAULT`
 - legacy default：維持
 - next external canary：必須重新揭露 payload 並取得明確確認
+
+## Canary-005 preflight decision
+
+獨立 `gpt-5.5 / medium` Review 對 diagnostic candidate 回報 `GO`，沒有 P0–P3
+finding。全新 job、request digest、namespace 與 repo 外 queue 已建立，generation
+invocation 仍為 0。
+
+目前 local updater 已把 executable 更新為 `agy 1.1.6`，因此下一次明確確認必須
+包含新版本與新 digest。確認前主卡仍為 `BLOCKED`；這份 preflight 只進入
+`AWAITING_EXTERNAL_CONFIRMATION`，不授權 retry、fallback、pipeline continuation、
+publisher、publish、promotion 或 legacy removal。
