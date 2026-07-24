@@ -6,7 +6,7 @@
 - strictness: `strict`
 - risk: `high`
 - status: `IN_PROGRESS`
-- decision: `PENDING_DRY_RUN`
+- decision: `AWAITING_EXTERNAL_CONFIRMATION`
 
 ## 基準
 
@@ -94,3 +94,32 @@ keyword／schema-defined path，不保存 raw response 或 instance value。
 - `BLOCKED`
 
 本卡不代表上線、預設 promotion、legacy removal 或文章發布。
+
+## 離線 Gate 結果
+
+- source brief SHA-256:
+  `209ee6b4a8c2233620b6c98b15c63c712ca96297c10b3dc85ca6160bb345582c`
+- staged brief SHA-256:
+  `2c1d4dbdeaf8df739e8060c7d1ebfa8d646efe5dad5a59825949c47b2a4da0fe`
+- staged job ID:
+  `a520fbf466d750acec225d77f129151affd4e04b`
+- namespace:
+  `bbf1402b3f1a178f09e02f61`
+- prior blocked jobs reused:
+  `false`
+- role / model:
+  `writer / gemini-3.5-flash`
+- user task / schema / effective prompt bytes:
+  `2555 / 1211 / 4028`
+- effective prompt ceiling:
+  `393216`
+- structured envelope／sanitized request validation:
+  `PASS / PASS`
+- safe schema diagnostics Review:
+  `DELIVERED_CANDIDATE / GO`
+- current external invocation:
+  `0`
+- current ledger / anchor / inbox / archive / failed record:
+  `absent`
+- decision:
+  `AWAITING_EXTERNAL_CONFIRMATION`
