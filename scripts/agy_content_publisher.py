@@ -275,8 +275,38 @@ def summarize_legacy_rewrite_backlog(
     attempted_article_ids: set[str] = set()
     for state_path in _run_files(queue_root):
         try:
+            raw_state = _read_json(state_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if raw_state.get("status") != "complete":
+            run_id = str(raw_state.get("run_id") or "")
+            run_dir = Path(str(raw_state.get("run_dir") or ""))
+            try:
+                brief = _load_rewrite_brief(run_dir, run_id)
+            except PublishBlocked:
+                continue
+            brief_article_ids = {str(article["article_id"]) for article in brief["articles"]}
+            if not brief_article_ids <= allowed_article_ids:
+                summary["non_legacy"] += 1
+                continue
+            attempted_article_ids.update(brief_article_ids)
+            summary["active_or_incomplete"] += 1
+            continue
+        try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
+            run_id = str(raw_state.get("run_id") or "")
+            run_dir = Path(str(raw_state.get("run_dir") or ""))
+            try:
+                brief = _load_rewrite_brief(run_dir, run_id)
+            except PublishBlocked:
+                continue
+            brief_article_ids = {str(article["article_id"]) for article in brief["articles"]}
+            if not brief_article_ids <= allowed_article_ids:
+                summary["non_legacy"] += 1
+                continue
+            attempted_article_ids.update(brief_article_ids)
+            summary["active_or_incomplete"] += 1
             continue
         if candidate.get("mode") != "rewrite_existing_body":
             continue

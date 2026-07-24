@@ -165,6 +165,47 @@ def _write_rewrite_run(queue_root: Path, run_dir: Path, article: dict[str, objec
     )
 
 
+def _write_active_rewrite_run(queue_root: Path, run_dir: Path, article: dict[str, object]) -> None:
+    brief = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "mode": "rewrite_existing_body",
+        "articles": [
+            {
+                "slot": "article-01",
+                "article_id": article["article_id"],
+                "identity": article["identity"],
+                "immutable_fields": {
+                    **article["identity"],
+                    "description": "原 description",
+                    "answer": "原 answer",
+                    "faq": [{"question": "原問題？", "answer": "原回答。"}],
+                    "tags": ["測試"],
+                    "published": "2026-07-01",
+                    "updated": "2026-07-01",
+                    "urlSlug": article["identity"]["slug"],
+                },
+                "current_body": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
+                "current_body_sha256": article["current_body_sha256"],
+                "rewrite_brief": ["改得更口語，但保留使用者情境與限制。"],
+                "source_file": "app/web/static/article-meta.js",
+                "body_source": "ARTICLE_BODY_LIBRARY",
+            }
+        ],
+    }
+    _write_json(run_dir / "brief.json", brief)
+    _write_json(
+        queue_root / "runs" / f"{run_dir.name}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "run_dir": str(run_dir),
+            "status": "active",
+            "last_job_id": "pending-job",
+        },
+    )
+
+
 def _minimal_article_static(repo_root: Path) -> None:
     static = repo_root / "app" / "web" / "static"
     static.mkdir(parents=True)
@@ -300,6 +341,31 @@ def test_legacy_rewrite_backlog_blocks_reject_repair_until_all_legacy_attempted(
     assert summary["attempted"] == 1
     assert summary["unattempted"] == 1
     assert summary["unattempted_articles"][0]["serial"] == "astrology-0002"
+    assert summary["repair_rejects_allowed"] is False
+
+
+def test_legacy_rewrite_backlog_counts_active_runs_as_attempted(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    rejected = make_rewrite_article("LEGACY-REJECTED", "legacy-rejected")
+    active = make_rewrite_article("LEGACY-ACTIVE", "legacy-active")
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-rejected", rejected, verdict="REJECT")
+    _write_active_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-active", active)
+    legacy_records = [
+        {"id": "LEGACY-REJECTED", "serial": "astrology-0001", "articleCategory": "astrology"},
+        {"id": "LEGACY-ACTIVE", "serial": "astrology-0002", "articleCategory": "astrology"},
+    ]
+
+    summary = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={"LEGACY-REJECTED", "LEGACY-ACTIVE"},
+        legacy_records=legacy_records,
+    )
+
+    assert summary["attempted"] == 2
+    assert summary["unattempted"] == 0
+    assert summary["active_or_incomplete"] == 1
     assert summary["repair_rejects_allowed"] is False
 
 
