@@ -978,6 +978,7 @@ def _init_recovery_repo(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     owned = repo_root / "app/web/owned.txt"
     owned.parent.mkdir(parents=True)
     owned.write_bytes(b"base\n")
+    (repo_root / "app/web/untouched.txt").write_bytes(b"untouched\n")
     subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
@@ -1018,8 +1019,9 @@ def test_transaction_preserves_owned_change_between_clean_check_and_mutation(
         assert _transaction_base_sha == base_sha
         assert _mutation_journal is not None
         _mutation_journal.begin()
-        (repo / "app/web/owned.txt").write_bytes(b"publisher\n")
-        _mutation_journal.checkpoint(["app/web/owned.txt"])
+        _mutation_journal.capture(
+            lambda: (repo / "app/web/owned.txt").write_bytes(b"publisher\n")
+        )
         raise RuntimeError("candidate-specific failure")
 
     with pytest.raises(publisher.PublishBlocked, match="did not restore a clean repo"):
@@ -1060,6 +1062,39 @@ def test_recovery_never_overwrites_concurrent_post_image_bytes(
     assert owned.read_bytes() == b"concurrent-after-mutation\n"
     failure = json.loads(next((state_root / "evidence").glob("failed-create-*/failure.json")).read_text(encoding="utf-8"))
     assert failure["concurrent_write_conflicts"] == ["app/web/owned.txt"]
+
+
+def test_recovery_preserves_concurrent_owned_write_before_unattributed_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    owned = repo_root / "app/web/owned.txt"
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
+
+    @publisher._recoverable_publish("create", "published")
+    def failing_publish(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _mutation_journal is not None
+        _mutation_journal.begin()
+        (repo / "app/web/owned.txt").write_bytes(b"publisher\n")
+        (repo / "app/web/owned.txt").write_bytes(b"concurrent-before-checkpoint\n")
+        _mutation_journal.checkpoint(["app/web/owned.txt"])
+        raise RuntimeError("candidate-specific failure")
+
+    with pytest.raises(publisher.PublishBlocked, match="did not restore a clean repo"):
+        failing_publish(repo_root, queue_root, state_root)
+
+    assert owned.read_bytes() == b"concurrent-before-checkpoint\n"
+    failure = json.loads(next((state_root / "evidence").glob("failed-create-*/failure.json")).read_text(encoding="utf-8"))
+    assert failure["concurrent_write_conflicts"] == ["app/web/owned.txt"]
+    assert failure["repo_recovered"] is False
 
 
 @pytest.mark.parametrize(
@@ -1128,6 +1163,74 @@ def test_atomic_push_exception_reconciles_remote_matrix(
             release_gate=False,
             outcome_evidence_dir=evidence_dir,
         ) == candidate
+
+
+def test_unresolved_push_record_blocks_next_full_publish_before_clean_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate = "c" * 40
+    base = "b" * 40
+    state_root = tmp_path / "state"
+    evidence_dir = state_root / "evidence" / "publish-0.3.59"
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args[:2] == ["push", "--atomic"]:
+            raise subprocess.CalledProcessError(1, args)
+        if args == ["rev-parse", "HEAD"]:
+            return candidate
+        if args == ["rev-parse", "origin/main"]:
+            return candidate
+        if args[:2] == ["ls-remote", "origin"]:
+            return ""
+        if args == ["rev-parse", "--git-common-dir"]:
+            return str(tmp_path / "git-common")
+        return ""
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    with pytest.raises(publisher.PushOutcomeUnknown):
+        publisher._stage_commit_tag_push(
+            tmp_path,
+            "0.3.59",
+            fake_git,
+            push=True,
+            release_gate=False,
+            outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="create",
+            run_ids=["run-failed"],
+        )
+
+    control_path = publisher._unresolved_push_path(state_root)
+    control = json.loads(control_path.read_text(encoding="utf-8"))
+    assert control["status"] == "PUSH_OUTCOME_UNKNOWN"
+    assert control["candidate_sha"] == candidate
+    assert control["remote_main"] == candidate
+    assert control["remote_tag"] is None
+
+    clean_origin_called = False
+
+    def fail_if_clean_origin_runs(_repo: Path, _git: publisher.GitRunner) -> str:
+        nonlocal clean_origin_called
+        clean_origin_called = True
+        raise AssertionError("clean-origin must not run while push control is unresolved")
+
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", fail_if_clean_origin_runs)
+    with pytest.raises(publisher.PublishBlocked, match="unresolved push"):
+        publisher.publish_ready_runs(
+            tmp_path,
+            tmp_path / "queue",
+            state_root,
+            git=fake_git,
+            push=False,
+            run_tests=False,
+            release_gate=False,
+        )
+
+    assert clean_origin_called is False
+    assert control_path.is_file()
+    with pytest.raises(publisher.PublishBlocked, match="remote refs have not converged"):
+        publisher._reconcile_unresolved_push(tmp_path, state_root, fake_git)
+    assert control_path.is_file()
 
 
 def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
@@ -1246,6 +1349,107 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
     assert result["status"] == "PUBLISHED"
     assert result["run_ids"] == ["run-good"]
     assert published_path.read_text(encoding="utf-8") == "run-good\n"
+
+
+def test_recovery_retry_uses_collector_selected_run_and_leaves_third_publishable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    repo_root = tmp_path / "repo"
+    target = repo_root / "app/web/published.txt"
+    target.parent.mkdir(parents=True)
+    target.write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    run_ids = ("run-published", "run-failing", "run-healthy")
+    completed: dict[str, tuple[dict[str, object], dict[str, object], dict[str, object]]] = {}
+    for index, run_id in enumerate(run_ids, start=1):
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        _write_json(run_dir / "brief.json", {"run_id": run_id, "mode": "create"})
+        state = {"run_id": run_id, "run_dir": str(run_dir), "status": "complete"}
+        candidate = {
+            "run_id": run_id,
+            "mode": "create",
+            "articles": [
+                {
+                    "id": f"AUTO-{index:03d}",
+                    "serial": f"astrology-{index:04d}",
+                    "urlSlug": f"queue-{index}",
+                    "bodySections": [],
+                }
+            ],
+        }
+        review = {"run_id": run_id, "articles": []}
+        completed[run_id] = (state, candidate, review)
+        _write_json(queue_root / "runs" / f"{index:02d}-{run_id}.json", state)
+
+    _write_json(
+        publisher._ledger_path(state_root),
+        {
+            **publisher._load_ledger(state_root),
+            "published_runs": [
+                {
+                    "run_id": "run-published",
+                    "version": "0.3.58",
+                    "commit_sha": base_sha,
+                    "published_at": "2026-07-24T00:00:00+08:00",
+                }
+            ],
+        },
+    )
+
+    def load_completed(path: Path) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        run_id = path.stem.split("-", 1)[1]
+        return completed[run_id]
+
+    monkeypatch.setattr(publisher, "_load_completed_run", load_completed)
+    monkeypatch.setattr(publisher, "_review_is_clean_approve", lambda _review: True)
+    monkeypatch.setattr(publisher.pipeline, "quality_findings", lambda _articles: [])
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
+    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *_args, **_kwargs: {"status": "approved"})
+
+    def fail_selected(repo: Path, run_id: str, *_args: object, **_kwargs: object) -> list[Path]:
+        assert run_id == "run-failing"
+        changed = repo / "app/web/published.txt"
+        changed.write_text("run-failing\n", encoding="utf-8")
+        raise RuntimeError("selected candidate failed")
+
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", fail_selected)
+
+    result = publisher.publish_ready_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=1,
+        push=False,
+        run_tests=False,
+        release_gate=False,
+    )
+
+    assert result["status"] == "failed_recovered"
+    assert not publisher._retry_path(state_root, "create", "run-published").exists()
+    retry = publisher._read_json(publisher._retry_path(state_root, "create", "run-failing"))
+    assert retry["run_id"] == "run-failing"
+    assert target.read_text(encoding="utf-8") == "base\n"
+    failure = json.loads(Path(str(result["evidence"])).read_text(encoding="utf-8"))
+    assert failure["run_ids"] == ["run-failing"]
+
+    ready = publisher.collect_ready_runs(queue_root, state_root, limit=1)
+    assert [state["run_id"] for state, _candidate, _review in ready] == ["run-healthy"]
 
 
 @pytest.mark.parametrize(

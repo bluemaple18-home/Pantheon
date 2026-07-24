@@ -58,6 +58,8 @@ class MutationJournal:
         self.git = git
         self.pre_images: dict[str, bytes | None] = {}
         self.expected_post_images: dict[str, bytes | None] = {}
+        self.unattributed_paths: set[str] = set()
+        self.selected_run_ids: list[str] = []
         self.mutation_started = False
 
     def _owned_files(self) -> set[str]:
@@ -72,16 +74,46 @@ class MutationJournal:
         if self.mutation_started:
             return
         self.pre_images = {relative: self._read(relative) for relative in self._owned_files()}
+        self.expected_post_images = dict(self.pre_images)
         self.mutation_started = True
 
-    def checkpoint(self, paths: list[str] | None = None) -> None:
+    def checkpoint(self, post_images: dict[str, bytes | None] | list[str] | None = None) -> None:
         if not self.mutation_started:
             return
-        write_set = set(paths or self._owned_files()) | set(self.pre_images)
-        for relative in write_set:
+        if not isinstance(post_images, dict):
+            paths = post_images or sorted(self._owned_files())
+            for relative in paths:
+                if _publisher_owned_path(relative):
+                    self.pre_images.setdefault(relative, None)
+                    self.unattributed_paths.add(relative)
+            return
+        for relative, post_image in post_images.items():
             if _publisher_owned_path(relative):
                 self.pre_images.setdefault(relative, None)
-                self.expected_post_images[relative] = self._read(relative)
+                self.expected_post_images[relative] = post_image
+                self.unattributed_paths.discard(relative)
+
+    def capture(self, mutation: Callable[[], Any]) -> Any:
+        """在單一 publisher helper 邊界內捕捉可歸因的 before/after image。"""
+        if not self.mutation_started:
+            return mutation()
+        before_paths = self._owned_files() | set(self.pre_images)
+        before = {relative: self._read(relative) for relative in before_paths}
+        try:
+            return mutation()
+        finally:
+            after_paths = self._owned_files() | set(before)
+            after = {relative: self._read(relative) for relative in after_paths}
+            self.checkpoint(
+                {
+                    relative: after.get(relative)
+                    for relative in before_paths | after_paths
+                    if before.get(relative) != after.get(relative)
+                }
+            )
+
+    def select_runs(self, run_ids: list[str]) -> None:
+        self.selected_run_ids = list(run_ids)
 
     def image_metadata(self) -> dict[str, dict[str, str | bool | None]]:
         relatives = sorted(set(self.pre_images) | set(self.expected_post_images))
@@ -91,8 +123,9 @@ class MutationJournal:
                 "pre_sha256": _bytes_sha256(self.pre_images.get(relative)),
                 "expected_post_exists": self.expected_post_images.get(relative) is not None,
                 "expected_post_sha256": _bytes_sha256(self.expected_post_images.get(relative)),
+                "attributed": relative not in self.unattributed_paths,
             }
-            for relative in relatives
+            for relative in sorted(set(relatives) | self.unattributed_paths)
         }
 
 
@@ -133,6 +166,89 @@ def _repo_lock_path(repo_root: Path, git: GitRunner) -> Path:
 def _retry_path(state_root: Path, phase: str, run_id: str) -> Path:
     safe_run_id = re.sub(r"[^A-Za-z0-9._-]+", "-", run_id).strip("-") or "unknown"
     return state_root / "retry" / phase / f"{safe_run_id}.json"
+
+
+def _unresolved_push_path(state_root: Path) -> Path:
+    return state_root / "push-outcome-unresolved.json"
+
+
+def _assert_no_unresolved_push(state_root: Path) -> None:
+    path = _unresolved_push_path(state_root)
+    if path.is_file():
+        raise PublishBlocked(f"unresolved push control record blocks publisher mutation: {path}")
+
+
+def _reconcile_unresolved_push(repo_root: Path, state_root: Path, git: GitRunner) -> dict[str, Any]:
+    """只在 remote、ledger 與 publish evidence 全部收斂後清除 push control。"""
+    path = _unresolved_push_path(state_root)
+    if not path.is_file():
+        raise PublishBlocked("no unresolved push control record to reconcile")
+    control = _read_json(path)
+    candidate_sha = str(control.get("candidate_sha") or "")
+    version = str(control.get("version") or "")
+    phase = str(control.get("phase") or "")
+    run_ids = [str(run_id) for run_id in control.get("run_ids", [])]
+    if not candidate_sha or not version or phase not in {"create", "rewrite", "translation"} or not run_ids:
+        raise PublishBlocked("unresolved push control record is invalid")
+
+    git(repo_root, ["fetch", "origin", "main"], None)
+    remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
+    remote_tags = git(
+        repo_root,
+        ["ls-remote", "origin", f"refs/tags/v{version}", f"refs/tags/v{version}^{{}}"],
+        None,
+    )
+    reconcile_ref = f"refs/agy-publisher-reconcile/v{version}"
+    remote_tag = ""
+    if remote_tags.strip():
+        try:
+            git(repo_root, ["fetch", "--force", "origin", f"refs/tags/v{version}:{reconcile_ref}"], None)
+            remote_tag = git(repo_root, ["rev-parse", f"{reconcile_ref}^{{}}"], None)
+        finally:
+            git(repo_root, ["update-ref", "-d", reconcile_ref], None)
+    if remote_main != candidate_sha or remote_tag != candidate_sha:
+        raise PublishBlocked("unresolved push remote refs have not converged")
+
+    ledger_key = {
+        "create": "published_runs",
+        "rewrite": "rewrite_released_runs",
+        "translation": "translation_published_runs",
+    }[phase]
+    ledger = _load_ledger(state_root)
+    converged_runs = {
+        str(item.get("run_id"))
+        for item in ledger[ledger_key]
+        if item.get("version") == version and item.get("commit_sha") == candidate_sha
+    }
+    if not set(run_ids).issubset(converged_runs):
+        raise PublishBlocked("unresolved push ledger has not converged")
+
+    evidence_path = Path(str(control.get("publish_evidence") or ""))
+    if not evidence_path.is_file():
+        raise PublishBlocked("unresolved push publish evidence has not converged")
+    evidence = _read_json(evidence_path)
+    expected_status = {
+        "create": "PUBLISHED",
+        "rewrite": "PUBLISHED_REWRITE",
+        "translation": "PUBLISHED_TRANSLATION",
+    }[phase]
+    if (
+        evidence.get("status") != expected_status
+        or evidence.get("commit_sha") != candidate_sha
+        or evidence.get("version") != version
+        or not set(run_ids).issubset({str(run_id) for run_id in evidence.get("run_ids", [])})
+    ):
+        raise PublishBlocked("unresolved push publish evidence has not converged")
+
+    path.unlink()
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "PUSH_OUTCOME_RECONCILED",
+        "candidate_sha": candidate_sha,
+        "version": version,
+        "phase": phase,
+        "run_ids": run_ids,
+    }
 
 
 def _retry_eligible(state_root: Path, phase: str, run_id: str) -> bool:
@@ -216,33 +332,6 @@ def _publisher_owned_path(relative: str) -> bool:
         "pyproject.toml",
         "tests/test_web.py",
     }
-
-
-def _queued_run_ids(queue_root: Path, state_root: Path, phase: str, limit: int) -> list[str]:
-    expected_mode = {
-        "create": "create",
-        "rewrite": "rewrite_existing_body",
-        "translation": "translate_existing",
-    }[phase]
-    run_ids: list[str] = []
-    for state_path in _run_files(queue_root):
-        try:
-            state = _read_json(state_path)
-            run_dir = Path(str(state.get("run_dir") or ""))
-            brief = _read_json(run_dir / "brief.json")
-        except (OSError, json.JSONDecodeError):
-            continue
-        run_id = str(state.get("run_id") or "")
-        if (
-            state.get("status") == "complete"
-            and brief.get("mode") == expected_mode
-            and run_id
-            and _retry_eligible(state_root, phase, run_id)
-        ):
-            run_ids.append(run_id)
-        if len(run_ids) >= limit:
-            break
-    return [run_id for run_id in run_ids if run_id]
 
 
 def _recover_failed_publish(
@@ -347,8 +436,13 @@ def _recover_failed_publish(
     restored: list[str] = []
     try:
         if journal and journal.mutation_started:
-            for relative in sorted(set(journal.pre_images) | set(journal.expected_post_images)):
+            for relative in sorted(
+                set(journal.pre_images) | set(journal.expected_post_images) | journal.unattributed_paths
+            ):
                 current = journal._read(relative)
+                if relative in journal.unattributed_paths:
+                    conflicts.append(relative)
+                    continue
                 expected = journal.expected_post_images.get(relative)
                 if current != expected:
                     conflicts.append(relative)
@@ -453,13 +547,8 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
+                _assert_no_unresolved_push(state_root)
                 base_sha = _assert_clean_origin_head(repo_root, git)
-                run_ids = _queued_run_ids(
-                    queue_root,
-                    state_root,
-                    phase,
-                    int(kwargs.get("max_runs", DEFAULT_MAX_RUNS)),
-                )
                 journal = MutationJournal(repo_root, git)
                 kwargs["_transaction_base_sha"] = base_sha
                 kwargs["_mutation_journal"] = journal
@@ -475,12 +564,18 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         state_root,
                         base_sha=base_sha,
                         phase=phase,
-                        run_ids=run_ids,
+                        run_ids=journal.selected_run_ids,
                         error=error,
                         git=git,
                         journal=journal,
                     )
-                    _record_retry_failure(state_root, phase, run_ids, error, evidence_path)
+                    _record_retry_failure(
+                        state_root,
+                        phase,
+                        journal.selected_run_ids,
+                        error,
+                        evidence_path,
+                    )
                     return {
                         "schema_version": SCHEMA_VERSION,
                         "status": "failed_recovered",
@@ -1178,6 +1273,9 @@ def _stage_commit_tag_push(
     message: str | None = None,
     extra_add_paths: list[str] | None = None,
     outcome_evidence_dir: Path | None = None,
+    state_root: Path | None = None,
+    phase: str | None = None,
+    run_ids: list[str] | None = None,
 ) -> str:
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
@@ -1217,21 +1315,37 @@ def _stage_commit_tag_push(
                 raise push_error
             evidence_dir = outcome_evidence_dir or repo_root / ".git"
             evidence_path = evidence_dir / "push-outcome-unknown.json"
-            _atomic_write_json(
-                evidence_path,
-                {
-                    "schema_version": SCHEMA_VERSION,
-                    "status": "PUSH_OUTCOME_UNKNOWN",
-                    "version": version,
-                    "candidate_sha": commit_sha,
-                    "remote_main": remote_main,
-                    "remote_tag": remote_tag or None,
-                    "remote_tag_lines": remote_tags.splitlines(),
-                    "error_type": type(push_error).__name__,
-                    "error": str(push_error),
-                    "recorded_at": _now(),
-                },
-            )
+            outcome = {
+                "schema_version": SCHEMA_VERSION,
+                "status": "PUSH_OUTCOME_UNKNOWN",
+                "version": version,
+                "candidate_sha": commit_sha,
+                "remote_main": remote_main,
+                "remote_tag": remote_tag or None,
+                "remote_tag_lines": remote_tags.splitlines(),
+                "error_type": type(push_error).__name__,
+                "error": str(push_error),
+                "recorded_at": _now(),
+            }
+            if state_root is not None:
+                if phase not in {"create", "rewrite", "translation"} or not run_ids:
+                    raise PublishBlocked("push control context is incomplete") from push_error
+                evidence_name = {
+                    "create": "publish-evidence.json",
+                    "rewrite": "rewrite-evidence.json",
+                    "translation": "translation-evidence.json",
+                }[phase]
+                _atomic_write_json(
+                    _unresolved_push_path(state_root),
+                    {
+                        **outcome,
+                        "phase": phase,
+                        "run_ids": list(run_ids),
+                        "outcome_evidence": str(evidence_path),
+                        "publish_evidence": str(evidence_dir / evidence_name),
+                    },
+                )
+            _atomic_write_json(evidence_path, outcome)
             raise PushOutcomeUnknown(f"atomic push outcome is inconsistent; evidence: {evidence_path}") from push_error
     return commit_sha
 
@@ -1343,10 +1457,11 @@ def publish_ready_runs(
                 "seeded_translation_runs": recovered_translation_runs,
             }
         run_ids = [str(state["run_id"]) for state, _, _ in ready]
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(run_ids)
         if dry_run:
             return {"schema_version": SCHEMA_VERSION, "status": "dry-run", "published": 0, "ready_runs": run_ids, "base_sha": base_sha}
 
-        journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.begin()
         changed: list[str] = []
         approved_articles: list[dict[str, Any]] = []
@@ -1356,22 +1471,43 @@ def publish_ready_runs(
             approval = pipeline.build_approval(str(candidate["run_id"]), candidate["articles"], review, decisions, PUBLISHER_ID)
             run_dir = Path(str(state["run_dir"]))
             _write_json(run_dir / "approval.json", approval)
-            changed.extend(str(path.relative_to(repo_root)) for path in pipeline.apply_approved_candidates(repo_root, str(candidate["run_id"]), candidate["articles"], review, approval))
-            journal.checkpoint(changed)
+            applied_paths = journal.capture(
+                lambda: pipeline.apply_approved_candidates(
+                    repo_root,
+                    str(candidate["run_id"]),
+                    candidate["articles"],
+                    review,
+                    approval,
+                )
+            )
+            changed.extend(str(path.relative_to(repo_root)) for path in applied_paths)
             approved_articles.extend(candidate["articles"])
             cache_token = f"agy-{pipeline._safe_identifier(str(candidate['run_id']))[0]}"
 
-        version = _bump_patch_version(repo_root)
+        version = journal.capture(lambda: _bump_patch_version(repo_root))
         evidence_dir = state_root / "evidence" / f"publish-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
-        fixture_path = _sync_web_test_release_fixture(repo_root, cache_token=cache_token, articles=approved_articles)
+        fixture_path = journal.capture(
+            lambda: _sync_web_test_release_fixture(
+                repo_root,
+                cache_token=cache_token,
+                articles=approved_articles,
+            )
+        )
         changed.append(str(fixture_path.relative_to(repo_root)))
-        _run_prerender(repo_root)
-        _run_feed(repo_root)
-        _prepend_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, evidence_path=evidence_rel)
-        journal.checkpoint()
+        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(lambda: _run_feed(repo_root))
+        journal.capture(
+            lambda: _prepend_changelog(
+                repo_root,
+                version=version,
+                article_count=article_count,
+                run_ids=run_ids,
+                evidence_path=evidence_rel,
+            )
+        )
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(
@@ -1381,6 +1517,9 @@ def publish_ready_runs(
             push=push,
             release_gate=release_gate,
             outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="create",
+            run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
         articles_by_run = {
@@ -1471,6 +1610,8 @@ def publish_ready_rewrite_runs(
         run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
         candidates = [candidate for _, candidate, _, _ in ready]
         article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(run_ids)
         if dry_run:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -1483,22 +1624,31 @@ def publish_ready_rewrite_runs(
                 "legacy_rewrite_backlog": backlog_summary,
             }
 
-        journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.begin()
         release_id = f"agy-rewrite-{date.today().strftime('%Y%m%d')}-{len(run_ids):02d}"
-        changed = [str(path.relative_to(repo_root)) for path in apply_rewrite_release(repo_root, release_id, candidates)]
-        journal.checkpoint(changed)
-        version = _bump_patch_version(repo_root)
+        changed = [
+            str(path.relative_to(repo_root))
+            for path in journal.capture(lambda: apply_rewrite_release(repo_root, release_id, candidates))
+        ]
+        version = journal.capture(lambda: _bump_patch_version(repo_root))
         evidence_dir = state_root / "evidence" / f"rewrite-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
-        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=release_id)
+        fixture_path = journal.capture(lambda: _sync_web_test_cache_token(repo_root, cache_token=release_id))
         changed.append(str(fixture_path.relative_to(repo_root)))
-        _run_prerender(repo_root)
-        _run_feed(repo_root)
-        _prepend_rewrite_changelog(repo_root, version=version, article_count=article_count, run_ids=run_ids, article_ids=article_ids, evidence_path=evidence_rel)
-        journal.checkpoint()
+        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(lambda: _run_feed(repo_root))
+        journal.capture(
+            lambda: _prepend_rewrite_changelog(
+                repo_root,
+                version=version,
+                article_count=article_count,
+                run_ids=run_ids,
+                article_ids=article_ids,
+                evidence_path=evidence_rel,
+            )
+        )
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(
@@ -1510,6 +1660,9 @@ def publish_ready_rewrite_runs(
             message=f"chore(content): publish Gemini rewrite release v{version}",
             extra_add_paths=["scripts/agy_content_publisher.py"],
             outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="rewrite",
+            run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
         for run_id in run_ids:
@@ -1563,6 +1716,8 @@ def publish_ready_translation_runs(
             status = "idle_rejects_only" if ledger["translation_deferred_runs"] else "idle"
             return {"schema_version": SCHEMA_VERSION, "status": status, "translated": 0, "base_sha": base_sha}
         ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(ready_run_ids)
         if dry_run:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -1572,7 +1727,6 @@ def publish_ready_translation_runs(
                 "base_sha": base_sha,
             }
 
-        journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.begin()
         changed: list[str] = []
         published: list[tuple[str, str, str]] = []
@@ -1581,16 +1735,17 @@ def publish_ready_translation_runs(
             locale = str(candidate["articles"][0]["locale"])
             article_id = str(candidate["articles"][0]["source_article_id"])
             try:
-                paths = multilingual.approve_and_apply_translation_run(
-                    repo_root,
-                    Path(str(state["run_dir"])),
-                    PUBLISHER_ID,
+                paths = journal.capture(
+                    lambda: multilingual.approve_and_apply_translation_run(
+                        repo_root,
+                        Path(str(state["run_dir"])),
+                        PUBLISHER_ID,
+                    )
                 )
             except ValueError as error:
                 _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
                 continue
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
-            journal.checkpoint(changed)
             published.append((run_id, locale, article_id))
         if not published:
             return {
@@ -1603,26 +1758,30 @@ def publish_ready_translation_runs(
         run_ids = [item[0] for item in published]
         locales = [item[1] for item in published]
         article_ids = [item[2] for item in published]
-        version = _bump_patch_version(repo_root)
+        version = journal.capture(lambda: _bump_patch_version(repo_root))
         evidence_dir = state_root / "evidence" / f"translation-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
         article_count = _public_article_count(repo_root)
         cache_token = f"agy-i18n-{version.replace('.', '-')}"
-        changed.extend(str(path.relative_to(repo_root)) for path in pipeline._bump_article_cache_queries(repo_root, cache_token))
-        fixture_path = _sync_web_test_cache_token(repo_root, cache_token=cache_token)
-        changed.append(str(fixture_path.relative_to(repo_root)))
-        _run_prerender(repo_root)
-        _run_feed(repo_root)
-        _prepend_translation_changelog(
-            repo_root,
-            version=version,
-            article_count=article_count,
-            run_ids=run_ids,
-            locales=locales,
-            evidence_path=evidence_rel,
+        changed.extend(
+            str(path.relative_to(repo_root))
+            for path in journal.capture(lambda: pipeline._bump_article_cache_queries(repo_root, cache_token))
         )
-        journal.checkpoint()
+        fixture_path = journal.capture(lambda: _sync_web_test_cache_token(repo_root, cache_token=cache_token))
+        changed.append(str(fixture_path.relative_to(repo_root)))
+        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(lambda: _run_feed(repo_root))
+        journal.capture(
+            lambda: _prepend_translation_changelog(
+                repo_root,
+                version=version,
+                article_count=article_count,
+                run_ids=run_ids,
+                locales=locales,
+                evidence_path=evidence_rel,
+            )
+        )
         if run_tests:
             _run_checked(repo_root, TEST_COMMAND)
         commit_sha = _stage_commit_tag_push(
@@ -1633,6 +1792,9 @@ def publish_ready_translation_runs(
             release_gate=release_gate,
             message=f"chore(content): publish multilingual release v{version}",
             outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="translation",
+            run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
         for run_id, locale, article_id in published:
