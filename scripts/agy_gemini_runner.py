@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Final
@@ -22,6 +23,7 @@ from scripts.agy_gemini_v4_broker import (
     FileAnchorStore,
     V4BrokerFailure,
     RESULT_VALIDATION_STATES,
+    SchemaDiagnostic,
     run_single_shot,
 )
 
@@ -39,6 +41,21 @@ OUTCOME_STATES = frozenset({
     "CLI_NONZERO",
     "CLI_TIMEOUT",
 })
+SCHEMA_DIAGNOSTIC_KEYWORDS = frozenset({
+    "additionalProperties",
+    "enum",
+    "maxItems",
+    "maxLength",
+    "minItems",
+    "minLength",
+    "required",
+    "schema",
+    "type",
+})
+SAFE_SCHEMA_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+MAX_SCHEMA_DIAGNOSTICS = 3
+MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
+MAX_SCHEMA_ARRAY_INDEX = 1_048_576
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -87,7 +104,65 @@ def _claim_next(queue_root: Path) -> Path | None:
     return None
 
 
-def _closed_broker_diagnostic(broker_result: object) -> dict[str, object]:
+def _schema_path_is_closed(
+    response_schema: object,
+    path: tuple[str | int, ...],
+) -> bool:
+    current = response_schema
+    for token in path:
+        if not isinstance(current, dict):
+            return False
+        if type(token) is str:
+            if SAFE_SCHEMA_PATH_TOKEN.fullmatch(token) is None or current.get("type") != "object":
+                return False
+            properties = current.get("properties")
+            if not isinstance(properties, dict) or token not in properties:
+                return False
+            current = properties[token]
+        elif type(token) is int:
+            if (
+                token < 0
+                or token > MAX_SCHEMA_ARRAY_INDEX
+                or current.get("type") != "array"
+            ):
+                return False
+            current = current.get("items")
+        else:
+            return False
+    return isinstance(current, dict)
+
+
+def _closed_schema_diagnostics(
+    broker_result: object,
+    response_schema: object,
+) -> list[dict[str, object]]:
+    if getattr(broker_result, "result_validation", None) != "SCHEMA_MISMATCH":
+        return []
+    diagnostics = getattr(broker_result, "schema_diagnostics", None)
+    if type(diagnostics) is not tuple:
+        return []
+    closed: list[dict[str, object]] = []
+    for diagnostic in diagnostics:
+        if len(closed) >= MAX_SCHEMA_DIAGNOSTICS or type(diagnostic) is not SchemaDiagnostic:
+            break
+        keyword = diagnostic.keyword
+        path = diagnostic.path
+        if (
+            type(keyword) is not str
+            or keyword not in SCHEMA_DIAGNOSTIC_KEYWORDS
+            or type(path) is not tuple
+            or len(path) > MAX_SCHEMA_DIAGNOSTIC_DEPTH
+            or not _schema_path_is_closed(response_schema, path)
+        ):
+            continue
+        closed.append({"keyword": keyword, "path": list(path)})
+    return closed
+
+
+def _closed_broker_diagnostic(
+    broker_result: object,
+    response_schema: object,
+) -> dict[str, object]:
     replay_status = getattr(broker_result, "replay_status", None)
     if type(replay_status) is not str or replay_status not in REPLAY_STATUS_STATES:
         replay_status = "INVALID"
@@ -108,12 +183,16 @@ def _closed_broker_diagnostic(broker_result: object) -> dict[str, object]:
     if type(result_validation) is not str or result_validation not in RESULT_VALIDATION_STATES:
         result_validation = "NOT_EVALUATED"
 
-    return {
+    diagnostic: dict[str, object] = {
         "replay_status": replay_status,
         "process_count": process_count,
         "outcome": outcome,
         "result_validation": result_validation,
     }
+    schema_diagnostics = _closed_schema_diagnostics(broker_result, response_schema)
+    if schema_diagnostics:
+        diagnostic["schema_diagnostics"] = schema_diagnostics
+    return diagnostic
 
 
 def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, str]:
@@ -166,7 +245,10 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 or not broker_result.caller_contract_satisfied
                 or broker_result.result is None
             ):
-                broker_diagnostic = _closed_broker_diagnostic(broker_result)
+                broker_diagnostic = _closed_broker_diagnostic(
+                    broker_result,
+                    request["response_schema"],
+                )
                 raise V4BrokerFailure(
                     f"V4 fail closed: {broker_diagnostic['replay_status']}/"
                     f"{broker_diagnostic['process_count']}"

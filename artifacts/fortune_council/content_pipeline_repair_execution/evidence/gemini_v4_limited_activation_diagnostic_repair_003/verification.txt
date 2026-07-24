@@ -1,0 +1,77 @@
+Gemini V4 limited activation diagnostic Repair-3 verification
+=============================================================
+
+CodeGraph
+---------
+Initial index: PASS
+Files indexed: 129
+Nodes: 2154
+Edges: 4482
+Backend: native
+Final status: up to date
+Broker validation impact inspected: PASS
+Runner failed-record impact inspected: PASS
+Production writer / reviewer schema names inspected: PASS
+Observed production schema path depth / limit: 6 / 8
+
+Focused diagnostics
+-------------------
+type keyword and nested schema-defined path: PASS
+unknown additional property name retained: false
+instance value retained: false
+maximum diagnostic count / observed: 3 / 3
+over-depth path bounded to ancestor schema diagnostic: PASS
+unsafe / unknown schema path rejected by runner: PASS
+container path token rejected by runner: PASS
+over-depth forged path rejected by runner: PASS
+over-length schema token rejected by runner: PASS
+oversized array index rejected by runner: PASS
+non-schema broker fields remain closed: PASS
+flag-on malformed result has no legacy fallback: PASS
+
+Affected test matrix
+--------------------
+Broker / runner focused:
+76 passed
+
+V4:
+102 passed in 31.66s
+
+Legacy publishing:
+57 passed in 28.73s
+
+Coordinator / content publisher / web:
+74 passed, 2 warnings in 13.21s
+
+Unique pytest total:
+233 passed
+
+Static / privacy
+----------------
+py_compile broker, runner and changed tests: PASS
+git diff --check: PASS
+[DBG-*] marker absent: PASS
+production hardcoded local path / private-key pattern absent: PASS
+prompt retained in failed diagnostic: false
+raw stdout retained in failed diagnostic: false
+raw stderr retained in failed diagnostic: false
+response body / instance value retained in failed diagnostic: false
+validator message retained in failed diagnostic: false
+credential / full environment retained: false
+
+Behavioral boundary
+-------------------
+AGY_GEMINI_V4_BROKER=1 remains the only V4 opt-in: PASS
+flag off remains legacy: PASS
+flag on failure remains no-fallback: PASS
+exactly-once ledger / anchor implementation changed: false
+response schema / structured envelope changed: false
+publisher / article / registry / automation code changed: false
+Gemini / agy invocation during repair: 0
+retry of blocked real job: 0
+push / deploy / publish / activation / default promotion: 0
+
+Warnings
+--------
+tests/test_web.py retains one existing invalid-escape SyntaxWarning and one dependency
+deprecation warning. Neither is introduced by this repair.
