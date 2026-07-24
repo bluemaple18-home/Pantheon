@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-01-20260724
-status: REPAIR_READY
+status: RUNNING
 type: repair
 project: Pantheon
 chain_id: pantheon-publisher-deadlock-repair-20260724
@@ -164,3 +164,28 @@ re-review；禁止換 Reviewer。
 - 無法保留 concurrent bytes、queue/ledger/candidate 或 failure evidence 時停止。
 - 需要 allowlist 外共享生成檔、外部控制面或 destructive cleanup 時停止。
 
+## Dispatch receipt
+
+- mainline dispatcher thread：`019f935b-5af7-7902-b429-e11a5613d4bb`
+- parent implementation thread：`019f9420-3ece-7cf2-84ee-66ebb64e0820`
+- original Reviewer thread：`019f9497-d801-7183-b4a9-9c9388aadd15`
+- Repair-1 thread：`019f94a8-6021-7480-8dda-48f83fc4349b`
+- Repair-1 title：`Pantheon｜Repair-1 修復 Publisher Deadlock Findings｜CARD-PANTHEON-PUBLISHER-DEADLOCK-REPAIR-01-20260724`
+- source kind：candidate commit
+- source SHA：`21dab0283f5a6690d1d4cd1631efe1354955818e`
+- source ref：`codex/publisher-deadlock-candidate-20260724`
+- source clean：PASS
+- unrelated dirty paths：`[]`
+- worktree cwd：`<codex-home>/worktrees/0b8c798b-15f1-4b69-b823-d58dd45c2177/Pantheon`
+- worktree exists：PASS
+- worktree HEAD：`21dab0283f5a6690d1d4cd1631efe1354955818e`
+- worktree clean：PASS
+- worktree 與 implementation/Reviewer/mainline 均不同：PASS
+- `index.lock`：不存在
+- runtime model override：依 `create_thread` 契約，使用者未指定模型，未強制覆寫；卡片保留 strict/high 建議與理由
+- Gate 1 card contract：PASS
+- Gate 2 visible thread：PASS
+- Gate 3 Repair candidate delivery：PENDING
+- Gate 4 original Reviewer re-review：PENDING
+- Gate 5 mainline acceptance：PENDING
+- workflow：`RUNNING`
