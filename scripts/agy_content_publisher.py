@@ -19,6 +19,8 @@ from scripts import agy_seo_copy_pipeline as pipeline
 SCHEMA_VERSION = 1
 DEFAULT_MAX_RUNS = 1
 PUBLISHER_ID = "agy-content-publisher"
+LEGACY_ARTICLE_COUNT_CUTOFF = 353
+LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
 GitRunner = Callable[[Path, list[str], str | None], str]
 TEST_COMMAND = [sys.executable, "-m", "pytest", "tests/test_web.py", "tests/test_agy_seo_copy_pipeline.py", "tests/test_release_record.py", "-q"]
 
@@ -207,6 +209,7 @@ def collect_ready_rewrite_runs(
     state_root: Path,
     *,
     limit: int = DEFAULT_MAX_RUNS,
+    allowed_article_ids: set[str] | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
@@ -220,6 +223,9 @@ def collect_ready_rewrite_runs(
             continue
         run_id = str(state["run_id"])
         if run_id in released or candidate.get("mode") != "rewrite_existing_body":
+            continue
+        candidate_article_ids = {str(article["article_id"]) for article in candidate["articles"]}
+        if allowed_article_ids is not None and not candidate_article_ids <= allowed_article_ids:
             continue
         if not _review_is_clean_approve(review):
             continue
@@ -242,6 +248,54 @@ def collect_ready_rewrite_runs(
         if len(ready) >= limit:
             break
     return ready
+
+
+def summarize_legacy_rewrite_backlog(
+    queue_root: Path,
+    state_root: Path,
+    *,
+    allowed_article_ids: set[str],
+) -> dict[str, Any]:
+    ledger = _load_ledger(state_root)
+    released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
+    summary = {
+        "released": 0,
+        "clean_approve": 0,
+        "reject": 0,
+        "active_or_incomplete": 0,
+        "non_legacy": 0,
+        "clean_approve_run_ids": [],
+        "reject_run_ids": [],
+    }
+    for state_path in _run_files(queue_root):
+        try:
+            state, candidate, review = _load_completed_run(state_path)
+        except PublishBlocked:
+            continue
+        if candidate.get("mode") != "rewrite_existing_body":
+            continue
+        run_id = str(state["run_id"])
+        candidate_article_ids = {str(article["article_id"]) for article in candidate["articles"]}
+        if not candidate_article_ids <= allowed_article_ids:
+            summary["non_legacy"] += 1
+            continue
+        if run_id in released:
+            summary["released"] += 1
+            continue
+        run_dir = Path(str(state["run_dir"]))
+        try:
+            brief = _load_rewrite_brief(run_dir, run_id)
+        except PublishBlocked:
+            summary["active_or_incomplete"] += 1
+            continue
+        if _review_is_clean_approve(review) and not _rewrite_findings_for_run(candidate, brief):
+            summary["clean_approve"] += 1
+            summary["clean_approve_run_ids"].append(run_id)
+        else:
+            summary["reject"] += 1
+            summary["reject_run_ids"].append(run_id)
+    summary["repair_rejects_allowed"] = summary["clean_approve"] == 0 and summary["reject"] > 0
+    return summary
 
 
 def _current_version(repo_root: Path) -> tuple[int, int, int]:
@@ -269,6 +323,59 @@ def _bump_patch_version(repo_root: Path) -> str:
 
 def _public_article_count(repo_root: Path) -> int:
     return len(pipeline._registry_inventory(repo_root))
+
+
+def _serial_sort_key(record: dict[str, Any]) -> tuple[str, int, str]:
+    serial = _record_serial(record)
+    match = re.fullmatch(r"(.+)-(\d+)", serial)
+    if not match:
+        return serial, 0, str(record.get("id") or "")
+    return match.group(1), int(match.group(2)), str(record.get("id") or "")
+
+
+def _record_serial(record: dict[str, Any]) -> str:
+    if record.get("serial"):
+        return str(record["serial"])
+    path = str(record.get("path") or "")
+    if path:
+        return path.rstrip("/").rsplit("/", 1)[-1]
+    return str(record.get("id") or "")
+
+
+def _record_category(record: dict[str, Any]) -> str:
+    if record.get("articleCategory") or record.get("product"):
+        return str(record.get("articleCategory") or record.get("product"))
+    path = str(record.get("path") or "")
+    parts = [part for part in path.split("/") if part]
+    if len(parts) >= 3 and parts[0] == "articles":
+        return parts[1]
+    return "unknown"
+
+
+def legacy_article_records(repo_root: Path) -> list[dict[str, Any]]:
+    records = pipeline._registry_inventory(repo_root)
+    if len(records) < LEGACY_ARTICLE_COUNT_CUTOFF:
+        raise PublishBlocked(f"registry has fewer articles than legacy cutoff: {len(records)} < {LEGACY_ARTICLE_COUNT_CUTOFF}")
+    return sorted(records[:LEGACY_ARTICLE_COUNT_CUTOFF], key=_serial_sort_key)
+
+
+def legacy_article_ids(repo_root: Path) -> set[str]:
+    return {str(record["id"]) for record in legacy_article_records(repo_root)}
+
+
+def legacy_serial_report(repo_root: Path) -> dict[str, Any]:
+    records = legacy_article_records(repo_root)
+    by_category: dict[str, list[str]] = {}
+    for record in records:
+        by_category.setdefault(_record_category(record), []).append(_record_serial(record))
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "LEGACY_SERIAL_REPORT",
+        "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+        "legacy_cutoff_reason": LEGACY_CUTOFF_REASON,
+        "legacy_article_count": len(records),
+        "serials_by_category": {key: sorted(value, key=lambda serial: _serial_sort_key({"serial": serial, "id": serial})) for key, value in sorted(by_category.items())},
+    }
 
 
 def _prepend_changelog(repo_root: Path, *, version: str, article_count: int, run_ids: list[str], evidence_path: str) -> None:
@@ -572,9 +679,19 @@ def publish_ready_rewrite_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "rewritten": 0}
         base_sha = _assert_clean_origin_head(repo_root, git)
-        ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs)
+        allowed_article_ids = legacy_article_ids(repo_root)
+        backlog_summary = summarize_legacy_rewrite_backlog(queue_root, state_root, allowed_article_ids=allowed_article_ids)
+        ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs, allowed_article_ids=allowed_article_ids)
         if not ready:
-            return {"schema_version": SCHEMA_VERSION, "status": "idle", "rewritten": 0, "base_sha": base_sha}
+            status = "idle_rejects_only" if backlog_summary["repair_rejects_allowed"] else "idle"
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": status,
+                "rewritten": 0,
+                "base_sha": base_sha,
+                "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+                "legacy_rewrite_backlog": backlog_summary,
+            }
         run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
         candidates = [candidate for _, candidate, _, _ in ready]
         article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
@@ -586,6 +703,8 @@ def publish_ready_rewrite_runs(
                 "ready_runs": run_ids,
                 "article_ids": article_ids,
                 "base_sha": base_sha,
+                "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+                "legacy_rewrite_backlog": backlog_summary,
             }
 
         release_id = f"agy-rewrite-{date.today().strftime('%Y%m%d')}-{len(run_ids):02d}"
@@ -625,6 +744,8 @@ def publish_ready_rewrite_runs(
             "article_ids": article_ids,
             "changed": sorted(set(changed)),
             "public_article_count": article_count,
+            "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+            "legacy_rewrite_backlog": backlog_summary,
             "pushed": push,
         }
         _write_json(evidence_dir / "rewrite-evidence.json", evidence)
@@ -634,11 +755,12 @@ def publish_ready_rewrite_runs(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--queue-root", type=Path, required=True)
+    parser.add_argument("--queue-root", type=Path)
     parser.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
+    parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--skip-release-gate", action="store_true")
@@ -647,11 +769,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    repo_root = args.repo_root.resolve()
+    if args.legacy_report:
+        print(json.dumps(legacy_serial_report(repo_root), ensure_ascii=False))
+        return 0
+    if args.queue_root is None:
+        raise SystemExit("--queue-root is required unless --legacy-report is set")
     publisher_fn = publish_ready_rewrite_runs if args.rewrite_release else publish_ready_runs
     result = publisher_fn(
-        args.repo_root.resolve(),
+        repo_root,
         args.queue_root.resolve(),
-        (args.repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve(),
+        (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve(),
         max_runs=args.max_runs,
         dry_run=args.dry_run,
         push=args.push,
@@ -659,7 +787,7 @@ def main() -> int:
         release_gate=not args.skip_release_gate,
     )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") in {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "busy", "dry-run"} else 1
+    return 0 if result.get("status") in {"PUBLISHED", "PUBLISHED_REWRITE", "idle", "idle_rejects_only", "busy", "dry-run"} else 1
 
 
 if __name__ == "__main__":

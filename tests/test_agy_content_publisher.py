@@ -267,6 +267,32 @@ def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_pat
     assert [state["run_id"] for state, _, _, _ in ready] == ["rewrite-approved"]
 
 
+def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-newer", make_rewrite_article("NEW-AUTO-001", "new-auto-001"))
+    monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
+
+    ready = publisher.collect_ready_rewrite_runs(queue_root, state_root, limit=10, allowed_article_ids={"LEGACY-001"})
+
+    assert ready == []
+
+
+def test_legacy_serial_report_uses_pre_automated_gemini_cutoff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    records = [
+        {"id": f"OLD-{index}", "serial": f"astrology-{index:04d}", "articleCategory": "astrology"}
+        for index in range(1, publisher.LEGACY_ARTICLE_COUNT_CUTOFF + 1)
+    ]
+    records.append({"id": "NEW-001", "serial": "astrology-0999", "articleCategory": "astrology"})
+    monkeypatch.setattr(publisher.pipeline, "_registry_inventory", lambda _repo: records)
+
+    report = publisher.legacy_serial_report(tmp_path)
+
+    assert report["legacy_article_count"] == publisher.LEGACY_ARTICLE_COUNT_CUTOFF
+    assert "astrology-0001" in report["serials_by_category"]["astrology"]
+    assert "astrology-0999" not in report["serials_by_category"]["astrology"]
+
+
 def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = tmp_path
     queue_root = tmp_path / "queue"
@@ -282,6 +308,7 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     run_dir = tmp_path / "runs" / "rewrite-approved"
     _write_rewrite_run(queue_root, run_dir, article)
     monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
     monkeypatch.setattr(
         publisher.pipeline,
         "_existing_rewrite_inventory",
