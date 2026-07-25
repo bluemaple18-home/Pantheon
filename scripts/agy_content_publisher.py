@@ -58,13 +58,35 @@ PREFLIGHT_TEST_COMMAND = [
     "tests/test_web.py::test_public_articles_follow_latest_publication_standard",
     "-q",
 ]
-SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION", "idle", "idle_rejects_only", "busy", "dry-run"}
+SUCCESS_STATUSES = {
+    "PUBLISHED",
+    "PUBLISHED_REWRITE",
+    "PUBLISHED_TRANSLATION",
+    "idle",
+    "idle_rejects_only",
+    "busy",
+    "dry-run",
+    "policy_rejected",
+}
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
 
 
 class PublishBlocked(ValueError):
     """發布 gate fail-closed。"""
+
+
+class PolicyRejected(PublishBlocked):
+    """Required policy finding；屬 terminal content state，不是 transport failure。"""
+
+    def __init__(self, findings: list[dict[str, Any]]) -> None:
+        self.findings = pipeline.required_policy_findings(findings)
+        codes = sorted(
+            {str(finding.get("code") or "unknown") for finding in self.findings}
+        )
+        super().__init__(
+            "policy v2 required rejection: " + ",".join(codes or ["unknown"])
+        )
 
 
 class PushOutcomeUnknown(PublishBlocked):
@@ -236,6 +258,64 @@ def _record_policy_rejection(
         f"policy_v2_required:{','.join(payload['failure_codes'])}",
     )
     return path
+
+
+def _record_runtime_policy_rejections(
+    queue_root: Path,
+    state_root: Path,
+    phase: str,
+    run_ids: list[str],
+    error: PolicyRejected,
+) -> list[Path]:
+    """把 mutation 後的 prerender policy failure 綁回 candidate run。"""
+    states: dict[str, dict[str, Any]] = {}
+    for state_path in _run_files(queue_root):
+        try:
+            state = _read_json(state_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        run_id = str(state.get("run_id") or "")
+        if run_id in run_ids:
+            states[run_id] = state
+    recorded: list[Path] = []
+    for run_id in run_ids:
+        state = states.get(run_id)
+        if state is None:
+            raise PublishBlocked(
+                f"policy rejection state missing for runtime run: {run_id}"
+            ) from error
+        run_dir = Path(str(state.get("run_dir") or ""))
+        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        candidate_path = Path(
+            str(result.get("candidate") or run_dir / "candidate.json")
+        )
+        candidate = _read_json(candidate_path)
+        article_ids = {
+            str(article.get("id") or article.get("article_id") or "")
+            for article in candidate.get("articles") or []
+            if isinstance(article, dict)
+        }
+        findings = [
+            finding
+            for finding in error.findings
+            if str(finding.get("article_id") or "") in article_ids
+        ]
+        if not findings:
+            continue
+        recorded.append(
+            _record_policy_rejection(
+                state_root,
+                phase,
+                state,
+                candidate,
+                findings,
+            )
+        )
+    if not recorded:
+        raise PublishBlocked(
+            "runtime policy rejection did not match any selected candidate"
+        ) from error
+    return recorded
 
 
 def _unresolved_push_path(state_root: Path) -> Path:
@@ -686,6 +766,45 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     return function(repo_root, queue_root, state_root, *args, **kwargs)
                 except PushOutcomeUnknown:
                     raise
+                except PolicyRejected as error:
+                    if not journal.mutation_started:
+                        raise
+                    recovery_path = _recover_failed_publish(
+                        repo_root,
+                        state_root,
+                        base_sha=base_sha,
+                        phase=phase,
+                        run_ids=journal.selected_run_ids,
+                        error=error,
+                        git=git,
+                        journal=journal,
+                    )
+                    rejection_paths = _record_runtime_policy_rejections(
+                        queue_root,
+                        state_root,
+                        phase,
+                        journal.selected_run_ids,
+                        error,
+                    )
+                    return {
+                        "schema_version": SCHEMA_VERSION,
+                        "status": "policy_rejected",
+                        count_key: 0,
+                        "base_sha": base_sha,
+                        "policy_version": pipeline.publication_policy_version(),
+                        "validator_result": "FAIL",
+                        "failure_codes": sorted(
+                            {
+                                str(finding.get("code") or "unknown")
+                                for finding in error.findings
+                            }
+                        ),
+                        "retry_eligible": False,
+                        "evidence": str(recovery_path),
+                        "policy_rejection_evidence": [
+                            str(path) for path in rejection_paths
+                        ],
+                    }
                 except Exception as error:
                     if not journal.mutation_started:
                         raise
@@ -1502,11 +1621,33 @@ console.log(JSON.stringify(selected.map((article) => ({
     return list(json.loads(result.stdout))
 
 
-def _run_prerender(repo_root: Path, *, required_article_ids: list[str] | None = None) -> None:
+def _run_prerender(
+    repo_root: Path,
+    *,
+    required_article_modes: dict[str, str] | None = None,
+) -> None:
     command = [sys.executable, "scripts/prerender_article_shells.py"]
-    for article_id in required_article_ids or []:
-        command.extend(["--required-article-id", article_id])
-    _run_checked(repo_root, command)
+    for article_id, mode in sorted((required_article_modes or {}).items()):
+        command.extend(["--required-article-mode", f"{article_id}={mode}"])
+    with tempfile.TemporaryDirectory(prefix="agy-prerender-policy-") as temp_dir:
+        failure_path = Path(temp_dir) / "failure.json"
+        command.extend(["--policy-failure-output", str(failure_path)])
+        try:
+            _run_checked(repo_root, command)
+        except subprocess.CalledProcessError as error:
+            if not failure_path.is_file():
+                raise
+            payload = _read_json(failure_path)
+            findings = [
+                pipeline._policy_finding(
+                    str(article_id),
+                    str(code),
+                    "prerender acceptance required policy finding",
+                )
+                for article_id in payload.get("article_ids") or []
+                for code in payload.get("failure_codes") or []
+            ]
+            raise PolicyRejected(findings) from error
 
 
 def _run_feed(repo_root: Path) -> None:
@@ -1683,6 +1824,7 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
             policy_article = {
                 **article["identity"],
                 "id": article["article_id"],
+                "current_body_sha256": article["current_body_sha256"],
                 "bodySections": article["bodySections"],
                 "publicationPolicy": article["publicationPolicy"],
             }
@@ -1824,10 +1966,10 @@ def publish_ready_runs(
         journal.capture(
             lambda: _run_prerender(
                 repo_root,
-                required_article_ids=[
-                    str(article["id"])
+                required_article_modes={
+                    str(article["id"]): "create"
                     for article in approved_articles
-                ],
+                },
             )
         )
         journal.capture(lambda: _run_feed(repo_root))
@@ -1991,7 +2133,10 @@ def publish_ready_rewrite_runs(
         journal.capture(
             lambda: _run_prerender(
                 repo_root,
-                required_article_ids=article_ids,
+                required_article_modes={
+                    article_id: "rewrite_existing_body"
+                    for article_id in article_ids
+                },
             )
         )
         journal.capture(lambda: _run_feed(repo_root))

@@ -53,12 +53,17 @@ approve、apply 與 publish；一般 override 不得放行。
 - 正文要有明確限制或反例；禁止結果保證，也不得把文章寫成醫療、法律或投資專業意見的替代品。
 - 可見署名與編輯責任必須可識別。Article JSON-LD author 使用穩定 URL 或 `@id`，並與可見署名一致。
 - `published` / `modified` 只取自真實資料；缺欄時不得用 fallback 日期掩蓋。只有實質內容變更才更新 `modified`。
+  Rewrite 必須以 canonical current body SHA-256 比對 proposed body；內容相同時，即使自報
+  `substantive_rewrite` 也必須 fail closed，不能更新 `modified`。
 - answer、重要正文與文章專屬 FAQ 必須存在 initial HTML，不得只靠 client hydration。
 - structured data 必須和 initial / rendered visible content 一致。
 - 可驗證事實、研究、統計與方法主張要有文章級來源，逐項寫明來源支持的主張。純文化或反思內容使用
-  `cultural_reflection` disclosure，不得為了過 gate 虛構引用。
+  `cultural_reflection` disclosure，不得為了過 gate 虛構引用。Deterministic marker 只用來判定「需要
+  evidence」，不判定主張真偽；candidate 可刪除可驗證主張或補上真實來源，不得編造來源。
 - create 與 `rewrite_existing_body` 都要和 full-corpus reference 比對，不只檢查 candidate batch。
 - policy rejection 是 terminal content state：留下 evidence、退出 transport retry，不得 busy loop。
+- 全量 audit 必須以完整 inventory 做 cross-corpus 比對；artifact 缺檔、duplicate ID、duplicate route
+  與重複內容都要綁回文章級 migration item，不能只累計全域數字。
 
 下列項目屬 `recommended`：代表性圖片、多尺寸 image schema、作者或編輯政策頁、清楚小標或必要表格、
 可見來源列表。`llms.txt` / `ai.txt` 只能當站方政策或 discovery 輔助，不能寫成 Google AI 功能的
@@ -174,6 +179,17 @@ Pantheon 的文章要像一個冷靜、懂命理、但不替讀者下判決的�
 下表的精確字數、段落數與題數都是 **Pantheon internal presentation constraint**，用來維持版面、
 可讀性與產製穩定；不是 Google、Bing、AI Overviews、AI Mode 或 citation 的 ranking / eligibility
 requirement。搜尋引擎沒有承諾偏好這些固定數字。
+
+Machine-readable policy 以 profile 區分：
+
+| Profile | 正文 | 節數 | 每節段數 | 每段 |
+|---|---:|---:|---:|---:|
+| `create` | 1,300–2,000 字 | 至少 5 節 | 2–4 段 | 80–160 字 |
+| `rewrite_existing_body` | 1,300–2,000 字 | 恰好 5 節 | 恰好 3 段 | 90–130 字 |
+
+Validator、writer/reviewer public contract 與 publisher gate 都從
+`app/core/article_publication_policy_v2.json` 載入上述 profile；本文件中的數字只供閱讀，
+不得成為第二份執行真相來源。
 
 每篇文章上稿前都要有這些欄位：
 

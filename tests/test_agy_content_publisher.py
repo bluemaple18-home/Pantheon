@@ -376,6 +376,131 @@ def test_policy_v2_required_finding_cannot_use_publisher_override() -> None:
         publisher.pipeline.validate_apply_gate([article], review, approval)
 
 
+def test_policy_v2_run_prerender_passes_explicit_rewrite_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        publisher,
+        "_run_checked",
+        lambda _repo, command: commands.append(command),
+    )
+
+    publisher._run_prerender(
+        tmp_path,
+        required_article_modes={"LEGACY-001": "rewrite_existing_body"},
+    )
+
+    assert len(commands) == 1
+    assert "--required-article-mode" in commands[0]
+    assert "LEGACY-001=rewrite_existing_body" in commands[0]
+
+
+def test_policy_v2_noop_rewrite_apply_fails_before_modified_is_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article = make_rewrite_article("LEGACY-NOOP")
+    article["current_body_sha256"] = body_sha256(article["bodySections"])
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-noop",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    monkeypatch.setattr(publisher, "_assert_rewrite_source_matches", lambda *_args: None)
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="no_substantive_change"):
+        publisher.apply_rewrite_release(tmp_path, "rewrite-noop", [candidate])
+
+    assert not (tmp_path / "app/web/static").exists()
+
+
+def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    run_id = "rewrite-prerender-policy-reject"
+    run_dir = tmp_path / "runs" / run_id
+    candidate = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "rewrite_existing_body",
+        "articles": [make_rewrite_article("LEGACY-PRERENDER-REJECT")],
+    }
+    _write_json(run_dir / "candidate.json", candidate)
+    _write_json(
+        queue_root / "runs" / f"{run_id}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+            "result": {"candidate": str(run_dir / "candidate.json")},
+        },
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_assert_clean_origin_head",
+        lambda _repo, _git: base_sha,
+    )
+
+    @publisher._recoverable_publish("rewrite", "rewritten")
+    def failing_rewrite(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _mutation_journal is not None
+        _mutation_journal.select_runs([run_id])
+        _mutation_journal.begin()
+        _mutation_journal.capture(
+            lambda: (repo / "app/web/owned.txt").write_text(
+                "rewrite mutation\n",
+                encoding="utf-8",
+            )
+        )
+        raise publisher.PolicyRejected(
+            [
+                publisher.pipeline._policy_finding(
+                    "LEGACY-PRERENDER-REJECT",
+                    "initial_html_complete",
+                    "rewrite prerender policy rejection",
+                )
+            ]
+        )
+
+    result = failing_rewrite(repo_root, queue_root, state_root)
+
+    assert result["status"] == "policy_rejected"
+    assert result["status"] in publisher.SUCCESS_STATUSES
+    assert result["retry_eligible"] is False
+    rejection = publisher._read_json(
+        publisher._policy_rejection_path(state_root, "rewrite", run_id)
+    )
+    assert rejection["terminal"] is True
+    assert rejection["failure_codes"] == ["initial_html_complete"]
+    assert not publisher._retry_path(state_root, "rewrite", run_id).exists()
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+
+
 def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -853,7 +978,12 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         },
     )
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 353)
-    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
+    prerender_commands: list[list[str]] = []
+    monkeypatch.setattr(
+        publisher,
+        "_run_checked",
+        lambda _repo, command: prerender_commands.append(command),
+    )
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     seeded: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -898,6 +1028,10 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         "LEGACY-001-ja",
         "LEGACY-001-ko",
     ]
+    assert any(
+        "LEGACY-001=rewrite_existing_body" in command
+        for command in prerender_commands
+    )
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
 
 

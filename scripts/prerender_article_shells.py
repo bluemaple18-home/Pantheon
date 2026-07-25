@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import hashlib
 import html
 from pathlib import Path
@@ -569,10 +570,26 @@ def render_article_specific_shell(article: dict[str, Any]) -> str:
 def prerender_artifact_findings(
     article: dict[str, Any],
     markup: str,
+    *,
+    mode: str | None = None,
+    reference_articles: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
+    policy_mode = mode
+    if policy_mode is None:
+        change_type = (
+            article.get("publicationPolicy") or {}
+        ).get("changeType")
+        policy_mode = (
+            "rewrite_existing_body"
+            if change_type == "substantive_rewrite"
+            else "create"
+        )
+    if policy_mode not in {"create", "rewrite_existing_body"}:
+        raise ValueError(f"unsupported prerender policy mode: {policy_mode}")
     findings = pipeline.article_publication_policy_findings(
         article,
-        mode="create",
+        mode=policy_mode,
+        reference_articles=reference_articles,
     )
     article_id = str(article["id"])
 
@@ -601,8 +618,12 @@ def prerender_artifact_findings(
     if not article_match or not faq_match:
         add("structured_visible_match", "Article/FAQ JSON-LD 缺失")
         return findings
-    article_jsonld = json.loads(article_match.group(1))
-    faq_jsonld = json.loads(faq_match.group(1))
+    try:
+        article_jsonld = json.loads(article_match.group(1))
+        faq_jsonld = json.loads(faq_match.group(1))
+    except json.JSONDecodeError:
+        add("structured_visible_match", "Article/FAQ JSON-LD 不是有效 JSON")
+        return findings
     if article_jsonld.get("url") != article["canonical"] or article_jsonld.get("mainEntityOfPage") != article["canonical"]:
         add("canonical_jsonld_consistency", "Article JSON-LD URL 與 canonical 不一致")
     expected_author = pipeline.load_article_publication_policy()["identity"]
@@ -642,23 +663,59 @@ def prerender_artifact_findings(
 
 
 def build_policy_v2_audit(articles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    inventory = articles or PRERENDER_ARTICLES
+    inventory = PRERENDER_ARTICLES if articles is None else articles
     ids = [str(article["id"]) for article in inventory]
     routes = [str(article["route"]) for article in inventory]
+    id_counts = Counter(ids)
+    route_counts = Counter(routes)
     sitemap_text = SITEMAP_PATH.read_text(encoding="utf-8") if SITEMAP_PATH.is_file() else ""
     migration: list[dict[str, Any]] = []
     failure_counts: dict[str, int] = {}
+    artifact_hashes: list[str | None] = []
     compliant = 0
-    for article in inventory:
+    canonical_routes = set(routes)
+    for inventory_index, article in enumerate(inventory):
+        article_id = str(article["id"])
         artifact_path = WEB_DIR / str(article["target"])
-        markup = (
-            artifact_path.read_text(encoding="utf-8")
-            if artifact_path.is_file()
-            else render_article_specific_shell(article)
+        artifact_exists = artifact_path.is_file()
+        markup = artifact_path.read_text(encoding="utf-8") if artifact_exists else ""
+        artifact_hashes.append(
+            hashlib.sha256(markup.encode("utf-8")).hexdigest()
+            if artifact_exists
+            else None
         )
         findings = pipeline.required_policy_findings(
-            prerender_artifact_findings(article, markup)
+            prerender_artifact_findings(
+                article,
+                markup,
+                reference_articles=inventory,
+            )
         )
+        if not artifact_exists:
+            findings.append(
+                pipeline._policy_finding(
+                    article_id,
+                    "initial_html_artifact_missing",
+                    f"initial HTML artifact 缺檔：{article['target']}",
+                )
+            )
+        if id_counts[article_id] > 1:
+            findings.append(
+                pipeline._policy_finding(
+                    article_id,
+                    "unique_identity",
+                    f"article id 在 inventory 重複 {id_counts[article_id]} 次",
+                )
+            )
+        route = str(article["route"])
+        if route_counts[route] > 1:
+            findings.append(
+                pipeline._policy_finding(
+                    article_id,
+                    "canonical_consistency",
+                    f"article route 在 inventory 重複 {route_counts[route]} 次",
+                )
+            )
         if f"<loc>{article['canonical']}</loc>" not in sitemap_text:
             findings.append(
                 pipeline._policy_finding(
@@ -697,7 +754,6 @@ def build_policy_v2_audit(articles: list[dict[str, Any]] | None = None) -> dict[
                     "sitemap lastmod 與文章 updated 不一致",
                 )
             )
-        canonical_routes = set(routes)
         for link in article.get("internal_links") or []:
             href = str(link.get("href") or "")
             if href.startswith("/articles/") and href.count("/") >= 3 and href not in canonical_routes:
@@ -711,28 +767,39 @@ def build_policy_v2_audit(articles: list[dict[str, Any]] | None = None) -> dict[
                 break
         if findings:
             codes = sorted({str(finding["code"]) for finding in findings})
-            migration.append({"article_id": article["id"], "route": article["route"], "failure_codes": codes})
+            migration.append(
+                {
+                    "inventory_index": inventory_index,
+                    "article_id": article["id"],
+                    "route": article["route"],
+                    "failure_codes": codes,
+                }
+            )
             for code in codes:
                 failure_counts[code] = failure_counts.get(code, 0) + 1
         else:
             compliant += 1
-    if len(ids) != len(set(ids)):
-        failure_counts["unique_identity"] = len(ids) - len(set(ids))
-    if len(routes) != len(set(routes)):
-        failure_counts["canonical_consistency"] = len(routes) - len(set(routes))
     input_hash = hashlib.sha256(
         pipeline.compact_json_bytes(
-            [
-                {
-                    "id": article["id"],
-                    "route": article["route"],
-                    "published": article["published"],
-                    "updated": article["updated"],
-                    "publicationPolicy": article["publicationPolicy"],
-                    "bodySections": article["bodySections"],
-                }
-                for article in inventory
-            ]
+            {
+                "policy": pipeline.load_article_publication_policy(),
+                "sitemap_sha256": hashlib.sha256(
+                    sitemap_text.encode("utf-8")
+                ).hexdigest(),
+                "inventory": [
+                    {
+                        "inventory_index": index,
+                        "id": article["id"],
+                        "route": article["route"],
+                        "published": article["published"],
+                        "updated": article["updated"],
+                        "publicationPolicy": article["publicationPolicy"],
+                        "bodySections": article["bodySections"],
+                        "artifact_sha256": artifact_hashes[index],
+                    }
+                    for index, article in enumerate(inventory)
+                ],
+            }
         )
     ).hexdigest()
     return {
@@ -749,7 +816,16 @@ def build_policy_v2_audit(articles: list[dict[str, Any]] | None = None) -> dict[
     }
 
 
-def prerender(*, required_article_ids: set[str] | None = None) -> list[Path]:
+def prerender(
+    *,
+    required_article_modes: dict[str, str] | None = None,
+    required_article_ids: set[str] | None = None,
+) -> list[Path]:
+    modes = dict(required_article_modes or {})
+    for article_id in required_article_ids or set():
+        modes.setdefault(article_id, "create")
+    required_ids = set(modes)
+    seen_required_ids: set[str] = set()
     written: list[Path] = []
     for page in PRERENDER_PAGES:
         target = page["target"]
@@ -757,9 +833,14 @@ def prerender(*, required_article_ids: set[str] | None = None) -> list[Path]:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if page["content_type"] == "Article":
             markup = render_article_specific_shell(page)
-            if page["id"] in (required_article_ids or set()):
+            if page["id"] in required_ids:
+                seen_required_ids.add(str(page["id"]))
                 findings = pipeline.required_policy_findings(
-                    prerender_artifact_findings(page, markup)
+                    prerender_artifact_findings(
+                        page,
+                        markup,
+                        mode=modes[str(page["id"])],
+                    )
                 )
                 if findings:
                     codes = ",".join(sorted({str(finding["code"]) for finding in findings}))
@@ -768,6 +849,12 @@ def prerender(*, required_article_ids: set[str] | None = None) -> list[Path]:
             markup = render_article_shell_from_meta(page).body.decode("utf-8")
         output_path.write_text(markup, encoding="utf-8")
         written.append(output_path)
+    missing_ids = sorted(required_ids - seen_required_ids)
+    if missing_ids:
+        raise ValueError(
+            "policy v2 prerender acceptance missing required article ids: "
+            + ",".join(missing_ids)
+        )
     update_redirects()
     update_sitemap()
     return written
@@ -776,6 +863,8 @@ def prerender(*, required_article_ids: set[str] | None = None) -> list[Path]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--required-article-id", action="append", default=[])
+    parser.add_argument("--required-article-mode", action="append", default=[])
+    parser.add_argument("--policy-failure-output", type=Path)
     parser.add_argument("--audit-output", type=Path)
     parser.add_argument("--audit-only", action="store_true")
     return parser.parse_args()
@@ -793,8 +882,59 @@ def main() -> None:
         if args.audit_only:
             print(args.audit_output)
             return
-    for output_path in prerender(required_article_ids=set(args.required_article_id)):
-        print(output_path)
+    required_modes = {
+        str(article_id): "create"
+        for article_id in args.required_article_id
+    }
+    for value in args.required_article_mode:
+        article_id, separator, mode = str(value).partition("=")
+        if (
+            not separator
+            or not article_id
+            or mode not in {"create", "rewrite_existing_body"}
+        ):
+            raise ValueError(
+                "--required-article-mode must use "
+                "ARTICLE_ID=create|rewrite_existing_body"
+            )
+        required_modes[article_id] = mode
+    try:
+        for output_path in prerender(required_article_modes=required_modes):
+            print(output_path)
+    except ValueError as error:
+        match = re.search(
+            r"policy v2 prerender acceptance blocked ([^:]+): ([a-z0-9_,]+)",
+            str(error),
+        )
+        missing_match = re.search(
+            r"policy v2 prerender acceptance missing required article ids: (.+)",
+            str(error),
+        )
+        if args.policy_failure_output and (match or missing_match):
+            article_ids = (
+                [match.group(1)]
+                if match
+                else [
+                    article_id
+                    for article_id in missing_match.group(1).split(",")
+                    if article_id
+                ]
+            )
+            failure_codes = (
+                sorted(set(match.group(2).split(",")))
+                if match
+                else ["initial_html_artifact_missing"]
+            )
+            pipeline.write_json(
+                args.policy_failure_output,
+                {
+                    "policy_version": pipeline.publication_policy_version(),
+                    "validator_result": "FAIL",
+                    "article_ids": article_ids,
+                    "failure_codes": failure_codes,
+                },
+            )
+        raise
 
 
 if __name__ == "__main__":

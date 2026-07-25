@@ -37,7 +37,9 @@
       "author_visible_jsonld_match",
       "truthful_dates",
       "substantive_modified_date",
+      "no_substantive_change",
       "initial_html_complete",
+      "initial_html_artifact_missing",
       "structured_visible_match"
     ],
     "evidence_and_originality": [
@@ -78,37 +80,67 @@
   },
   "presentation_constraints": {
     "classification": "Pantheon internal presentation constraint; not a search ranking or eligibility requirement.",
-    "title_characters": {
-      "minimum": 20,
-      "maximum": 45,
-      "preferred_minimum": 28,
-      "preferred_maximum": 36
-    },
-    "description_characters": {
-      "minimum": 70,
-      "maximum": 95
-    },
-    "answer_characters": {
-      "maximum": 50
-    },
-    "faq_items": {
-      "minimum": 3,
-      "maximum": 5
-    },
-    "body_characters": {
-      "minimum": 1300,
-      "maximum": 2000
-    },
-    "body_sections": {
-      "minimum": 5
-    },
-    "paragraphs_per_section": {
-      "minimum": 2,
-      "maximum": 4
-    },
-    "paragraph_characters": {
-      "minimum": 80,
-      "maximum": 160
+    "profiles": {
+      "create": {
+        "title_characters": {
+          "minimum": 20,
+          "maximum": 45,
+          "preferred_minimum": 28,
+          "preferred_maximum": 36
+        },
+        "description_characters": {
+          "minimum": 70,
+          "maximum": 95
+        },
+        "answer_characters": {
+          "maximum": 50
+        },
+        "faq_items": {
+          "minimum": 3,
+          "maximum": 5
+        },
+        "body_characters": {
+          "minimum": 1300,
+          "maximum": 2000,
+          "preferred_minimum": 1500,
+          "preferred_maximum": 1800
+        },
+        "body_sections": {
+          "minimum": 5
+        },
+        "paragraphs_per_section": {
+          "minimum": 2,
+          "maximum": 4
+        },
+        "paragraph_characters": {
+          "minimum": 80,
+          "maximum": 160,
+          "preferred_minimum": 95,
+          "preferred_maximum": 110
+        }
+      },
+      "rewrite_existing_body": {
+        "body_characters": {
+          "minimum": 1300,
+          "maximum": 2000,
+          "preferred_minimum": 1500,
+          "preferred_maximum": 1800
+        },
+        "body_sections": {
+          "minimum": 5,
+          "maximum": 5
+        },
+        "paragraphs_per_section": {
+          "minimum": 3,
+          "maximum": 3
+        },
+        "paragraph_characters": {
+          "minimum": 90,
+          "maximum": 130,
+          "preferred_minimum": 95,
+          "preferred_maximum": 110
+        }
+      }
     }
   },
   "evidence_modes": {
@@ -120,6 +152,15 @@
       "requires_sources": false,
       "requires_disclosure": true
     }
+  },
+  "verifiable_claim_detection": {
+    "semantics": "Markers only determine that article-level evidence is required; they do not determine whether a claim is true.",
+    "patterns": [
+      "研究(?:顯示|指出|發現|證實)",
+      "(?:調查|統計(?:資料)?|實驗|資料)(?:顯示|指出|證明)",
+      "\\d+(?:\\.\\d+)?\\s*(?:%|％)",
+      "(?:方法|練習|模型|工具).{0,12}(?:已被證實|能夠?|可以).{0,12}(?:提高|降低|改善|增加|減少)"
+    ]
   },
   "forbidden_claims": {
     "outcome_guarantees": [

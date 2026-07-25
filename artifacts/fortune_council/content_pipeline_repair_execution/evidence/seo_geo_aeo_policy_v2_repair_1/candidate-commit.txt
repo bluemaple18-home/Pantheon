@@ -1,0 +1,8 @@
+candidate_ref=HEAD
+base_sha=20b1c20f0ef892af98773f03630d095d4c5c6cd9
+status=CANDIDATE_ONLY
+review_go=false
+accepted=false
+integrated=false
+deployed=false
+production_fixed=false

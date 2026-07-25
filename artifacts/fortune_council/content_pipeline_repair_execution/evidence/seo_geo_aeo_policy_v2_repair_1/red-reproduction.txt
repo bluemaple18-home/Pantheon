@@ -1,0 +1,21 @@
+base_sha=20b1c20f0ef892af98773f03630d095d4c5c6cd9
+result=9 failed
+
+P1-001:
+- _run_prerender rejected required_article_modes with TypeError.
+- prerender_artifact_findings rejected mode with TypeError.
+
+P1-002:
+- 3 cultural_reflection claim cases did not raise article_level_evidence.
+
+P1-003:
+- no-op validate_candidate did not raise.
+- publisher apply reached filesystem write instead of no_substantive_change.
+
+P2-001:
+- audit lacked initial_html_artifact_missing and article-bound duplicate findings.
+
+P2-002:
+- machine policy had no create/rewrite presentation profiles.
+
+The same regression node IDs are recorded in targeted-tests.txt after repair.

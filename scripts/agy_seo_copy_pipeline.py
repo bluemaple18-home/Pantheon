@@ -307,6 +307,7 @@ def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
         "migration_only",
         "presentation_constraints",
         "evidence_modes",
+        "verifiable_claim_detection",
         "forbidden_claims",
     }
     if set(payload) != required_top:
@@ -315,6 +316,33 @@ def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
         raise CandidateValidationError("unsupported article publication policy version")
     if set(payload["levels"]) != {"required", "recommended", "measured", "migration_only"}:
         raise CandidateValidationError("article publication policy levels are incomplete")
+    presentation = payload.get("presentation_constraints")
+    if (
+        not isinstance(presentation, dict)
+        or set(presentation) != {"classification", "profiles"}
+        or set(presentation.get("profiles") or {})
+        != {"create", "rewrite_existing_body"}
+    ):
+        raise CandidateValidationError(
+            "article publication policy presentation profiles are incomplete"
+        )
+    claim_detection = payload.get("verifiable_claim_detection")
+    if (
+        not isinstance(claim_detection, dict)
+        or set(claim_detection) != {"semantics", "patterns"}
+        or not isinstance(claim_detection.get("patterns"), list)
+        or not claim_detection["patterns"]
+    ):
+        raise CandidateValidationError(
+            "article publication policy verifiable claim detection is invalid"
+        )
+    try:
+        for pattern in claim_detection["patterns"]:
+            re.compile(str(pattern))
+    except re.error as error:
+        raise CandidateValidationError(
+            "article publication policy verifiable claim pattern is invalid"
+        ) from error
     if path is None:
         _POLICY_V2_CACHE = payload
     return payload
@@ -322,6 +350,111 @@ def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
 
 def publication_policy_version() -> str:
     return str(load_article_publication_policy()["policy_version"])
+
+
+def publication_presentation_profile(mode: str) -> dict[str, Any]:
+    profiles = load_article_publication_policy()["presentation_constraints"][
+        "profiles"
+    ]
+    if mode not in profiles:
+        raise CandidateValidationError(
+            f"unsupported article publication presentation profile: {mode}"
+        )
+    profile = profiles[mode]
+    if not isinstance(profile, dict):
+        raise CandidateValidationError(
+            f"invalid article publication presentation profile: {mode}"
+        )
+    return profile
+
+
+def _range_bounds(
+    profile: dict[str, Any],
+    field: str,
+) -> tuple[int, int]:
+    value = profile.get(field)
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get("minimum"), int)
+        or not isinstance(value.get("maximum"), int)
+        or value["minimum"] > value["maximum"]
+    ):
+        raise CandidateValidationError(
+            f"invalid article publication presentation constraint: {field}"
+        )
+    return int(value["minimum"]), int(value["maximum"])
+
+
+def _maximum_bound(profile: dict[str, Any], field: str) -> int:
+    value = profile.get(field)
+    if not isinstance(value, dict) or not isinstance(value.get("maximum"), int):
+        raise CandidateValidationError(
+            f"invalid article publication presentation constraint: {field}"
+        )
+    return int(value["maximum"])
+
+
+def _preferred_bounds(
+    profile: dict[str, Any],
+    field: str,
+) -> tuple[int, int]:
+    value = profile.get(field)
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get("preferred_minimum"), int)
+        or not isinstance(value.get("preferred_maximum"), int)
+        or value["preferred_minimum"] > value["preferred_maximum"]
+    ):
+        raise CandidateValidationError(
+            f"invalid article publication preferred constraint: {field}"
+        )
+    return int(value["preferred_minimum"]), int(value["preferred_maximum"])
+
+
+def _constraint_phrase(
+    profile: dict[str, Any],
+    field: str,
+    unit: str,
+) -> str:
+    value = profile.get(field)
+    if not isinstance(value, dict):
+        raise CandidateValidationError(
+            f"invalid article publication presentation constraint: {field}"
+        )
+    minimum = value.get("minimum")
+    maximum = value.get("maximum")
+    if isinstance(minimum, int) and isinstance(maximum, int):
+        if minimum == maximum:
+            return f"恰好 {minimum}{unit}"
+        return f"{minimum} 到 {maximum}{unit}"
+    if isinstance(minimum, int):
+        return f"至少 {minimum}{unit}"
+    if isinstance(maximum, int):
+        return f"最多 {maximum}{unit}"
+    raise CandidateValidationError(
+        f"invalid article publication presentation constraint: {field}"
+    )
+
+
+def publication_presentation_instruction(mode: str) -> str:
+    profile = publication_presentation_profile(mode)
+    return "；".join(
+        [
+            f"正文{_constraint_phrase(profile, 'body_characters', '字')}",
+            _constraint_phrase(profile, "body_sections", "節"),
+            f"每節{_constraint_phrase(profile, 'paragraphs_per_section', '段')}",
+            f"每段{_constraint_phrase(profile, 'paragraph_characters', '字')}",
+        ]
+    )
+
+
+def _verifiable_claim_markers(text: str) -> list[str]:
+    detection = load_article_publication_policy()["verifiable_claim_detection"]
+    return [
+        str(pattern)
+        for pattern in detection["patterns"]
+        if re.search(str(pattern), text)
+    ]
 
 
 def _policy_finding(
@@ -514,6 +647,32 @@ def article_publication_policy_findings(
     expected_change = "substantive_rewrite" if mode == "rewrite_existing_body" else "created"
     if contract.get("changeType") != expected_change:
         findings.append(_policy_finding(article_id, "substantive_modified_date", f"{mode} 必須標記 changeType={expected_change}"))
+    current_body_hash = str(article.get("current_body_sha256") or "")
+    if (
+        mode == "rewrite_existing_body"
+        and re.fullmatch(r"[0-9a-f]{64}", current_body_hash)
+        and body_sha256(article.get("bodySections") or []) == current_body_hash
+    ):
+        findings.append(
+            _policy_finding(
+                article_id,
+                "no_substantive_change",
+                "rewrite 正文與 canonical current body 相同；不得更新 modified",
+            )
+        )
+
+    paragraphs = [
+        str(paragraph)
+        for section in article.get("bodySections") or []
+        if isinstance(section, dict)
+        for paragraph in section.get("paragraphs") or []
+    ]
+    title = str(article.get("title") or article.get("identity", {}).get("title") or "")
+    description = str(article.get("description") or "")
+    answer = str(article.get("answer") or "")
+    primary_keyword = str(article.get("primaryKeyword") or article.get("identity", {}).get("primaryKeyword") or "")
+    opening = paragraphs[0] if paragraphs else ""
+    text = "".join([title, description, answer, *paragraphs])
 
     evidence = contract["evidence"]
     evidence_mode = evidence.get("mode")
@@ -533,20 +692,19 @@ def article_publication_policy_findings(
     elif evidence_mode == "cultural_reflection":
         if sources or not disclosure:
             findings.append(_policy_finding(article_id, "cultural_reflection_disclosure", "文化/反思內容必須明確 disclosure 且不得虛構來源"))
+        claim_markers = _verifiable_claim_markers(text)
+        if claim_markers:
+            findings.append(
+                _policy_finding(
+                    article_id,
+                    "article_level_evidence",
+                    "文化/反思內容偵測到需 evidence 的研究、統計、百分比或方法主張；"
+                    "請移除可驗證主張或提供真實來源，不得虛構引用",
+                )
+            )
     else:
         findings.append(_policy_finding(article_id, "article_level_evidence", "evidence mode 必須為 sources 或 cultural_reflection"))
 
-    paragraphs = [
-        str(paragraph)
-        for section in article.get("bodySections") or []
-        if isinstance(section, dict)
-        for paragraph in section.get("paragraphs") or []
-    ]
-    title = str(article.get("title") or article.get("identity", {}).get("title") or "")
-    description = str(article.get("description") or "")
-    answer = str(article.get("answer") or "")
-    primary_keyword = str(article.get("primaryKeyword") or article.get("identity", {}).get("primaryKeyword") or "")
-    opening = paragraphs[0] if paragraphs else ""
     if primary_keyword and _intent_overlap(primary_keyword, title) < 0.5:
         findings.append(_policy_finding(article_id, "title_primary_intent", "H1/title 必須回答並包含 primary intent"))
     if primary_keyword and _intent_overlap(primary_keyword, opening[:160]) < 0.7:
@@ -556,7 +714,6 @@ def article_publication_policy_findings(
             findings.append(_policy_finding(article_id, "description_context_and_limit", "description 必須包含適用情境與限制"))
         if not answer or len(answer) < 12:
             findings.append(_policy_finding(article_id, "standalone_answer", "answer 必須可獨立理解"))
-    text = "".join([title, description, answer, *paragraphs])
     if not _has_boundary_statement(text):
         findings.append(_policy_finding(article_id, "explicit_limit_or_counterexample", "正文必須有明確限制或反例"))
     for phrase in policy["forbidden_claims"]["outcome_guarantees"]:
@@ -702,8 +859,20 @@ def validate_rewrite_brief(brief: dict[str, Any]) -> None:
 def _validate_body_sections(value: object, *, exact_shape: bool) -> None:
     if not isinstance(value, list) or not value:
         raise CandidateValidationError("bodySections must be a non-empty list")
-    if exact_shape and len(value) != 5:
-        raise CandidateValidationError("rewrite bodySections must contain exactly 5 sections")
+    rewrite_profile = publication_presentation_profile("rewrite_existing_body")
+    section_minimum, section_maximum = _range_bounds(
+        rewrite_profile,
+        "body_sections",
+    )
+    paragraph_minimum, paragraph_maximum = _range_bounds(
+        rewrite_profile,
+        "paragraphs_per_section",
+    )
+    if exact_shape and not section_minimum <= len(value) <= section_maximum:
+        raise CandidateValidationError(
+            "rewrite bodySections must contain "
+            f"{section_minimum} to {section_maximum} sections"
+        )
     for section in value:
         if not isinstance(section, dict) or set(section) != {"heading", "paragraphs"}:
             raise CandidateValidationError("body sections require only heading and paragraphs")
@@ -711,8 +880,11 @@ def _validate_body_sections(value: object, *, exact_shape: bool) -> None:
         paragraphs = section.get("paragraphs")
         if not isinstance(paragraphs, list) or not paragraphs:
             raise CandidateValidationError("body section paragraphs must be non-empty")
-        if exact_shape and len(paragraphs) != 3:
-            raise CandidateValidationError("rewrite body section must contain exactly 3 paragraphs")
+        if exact_shape and not paragraph_minimum <= len(paragraphs) <= paragraph_maximum:
+            raise CandidateValidationError(
+                "rewrite body section must contain "
+                f"{paragraph_minimum} to {paragraph_maximum} paragraphs"
+            )
         for paragraph in paragraphs:
             _ensure_string(paragraph, "bodySections.paragraph")
 
@@ -729,8 +901,14 @@ def _validate_create_article(article: dict[str, Any]) -> None:
     for field in ["secondaryKeywords", "tags", "faq", "bodySections"]:
         if not isinstance(article.get(field), list) or not article[field]:
             raise CandidateValidationError(f"{field} must be a non-empty list")
-    if not 3 <= len(article["faq"]) <= 5:
-        raise CandidateValidationError("faq must contain 3 to 5 items")
+    faq_minimum, faq_maximum = _range_bounds(
+        publication_presentation_profile("create"),
+        "faq_items",
+    )
+    if not faq_minimum <= len(article["faq"]) <= faq_maximum:
+        raise CandidateValidationError(
+            f"faq must contain {faq_minimum} to {faq_maximum} items"
+        )
     for item in article["faq"]:
         if not isinstance(item, dict) or set(item) != {"question", "answer"}:
             raise CandidateValidationError("faq items require only question and answer")
@@ -766,6 +944,10 @@ def _validate_rewrite_article(article: dict[str, Any]) -> None:
     if not re.fullmatch(r"[0-9a-f]{64}", str(article.get("current_body_sha256") or "")):
         raise CandidateValidationError("rewrite current body SHA-256 is invalid")
     _validate_body_sections(article.get("bodySections"), exact_shape=True)
+    if body_sha256(article["bodySections"]) == article["current_body_sha256"]:
+        raise CandidateValidationError(
+            f"policy v2 required finding for {article_id}: no_substantive_change"
+        )
     _validate_publication_contract_shape(article["publicationPolicy"])
 
 
@@ -833,6 +1015,7 @@ def validate_candidate(
                 policy_article = {
                     **article["identity"],
                     "id": article_id,
+                    "current_body_sha256": article["current_body_sha256"],
                     "bodySections": article["bodySections"],
                     "publicationPolicy": article["publicationPolicy"],
                 }
@@ -860,6 +1043,23 @@ def quality_findings(
 ) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     sentence_owners: dict[str, set[str]] = {}
+    profile = publication_presentation_profile("create")
+    description_minimum, description_maximum = _range_bounds(
+        profile,
+        "description_characters",
+    )
+    answer_maximum = _maximum_bound(profile, "answer_characters")
+    body_minimum, body_maximum = _range_bounds(profile, "body_characters")
+    section_minimum = int(profile["body_sections"]["minimum"])
+    paragraph_minimum, paragraph_maximum = _range_bounds(
+        profile,
+        "paragraphs_per_section",
+    )
+    paragraph_char_minimum, paragraph_char_maximum = _range_bounds(
+        profile,
+        "paragraph_characters",
+    )
+    title_minimum, title_maximum = _range_bounds(profile, "title_characters")
     for article in articles:
         article_id = _candidate_id(article)
         if "bodySections" in article:
@@ -876,26 +1076,26 @@ def quality_findings(
         else:
             paragraphs = [str(item) for section in article["bodySections"] for item in section["paragraphs"]]
             text = f"{article['title']}{article['description']}{article['answer']}{''.join(paragraphs)}"
-            if not 70 <= len(str(article["description"])) <= 95:
-                findings.append({"article_id": article_id, "code": "description_length", "message": "meta description 必須為 70 到 95 字"})
+            if not description_minimum <= len(str(article["description"])) <= description_maximum:
+                findings.append({"article_id": article_id, "code": "description_length", "message": f"meta description 必須為 {description_minimum} 到 {description_maximum} 字"})
             if not _has_boundary_statement(str(article["description"])):
                 findings.append({"article_id": article_id, "code": "description_boundary", "message": "meta description 本身必須包含明確限制"})
-            if len(str(article["answer"])) > 50:
-                findings.append({"article_id": article_id, "code": "answer_length", "message": "answer 必須在 50 字內"})
+            if len(str(article["answer"])) > answer_maximum:
+                findings.append({"article_id": article_id, "code": "answer_length", "message": f"answer 必須在 {answer_maximum} 字內"})
             body_length = len("".join(paragraphs))
-            if not 1300 <= body_length <= 2000:
-                findings.append({"article_id": article_id, "code": "body_length", "message": "單主題新文章正文必須為 1300 到 2000 字"})
-            if len(article["bodySections"]) < 5:
-                findings.append({"article_id": article_id, "code": "section_count", "message": "正文至少需要 5 個 H2 段落"})
+            if not body_minimum <= body_length <= body_maximum:
+                findings.append({"article_id": article_id, "code": "body_length", "message": f"單主題新文章正文必須為 {body_minimum} 到 {body_maximum} 字"})
+            if len(article["bodySections"]) < section_minimum:
+                findings.append({"article_id": article_id, "code": "section_count", "message": f"正文至少需要 {section_minimum} 個 H2 段落"})
             for section_index, section in enumerate(article["bodySections"], start=1):
                 section_paragraphs = section["paragraphs"]
-                if not 2 <= len(section_paragraphs) <= 4:
-                    findings.append({"article_id": article_id, "code": "paragraph_count", "message": f"第 {section_index} 節必須有 2 到 4 段"})
+                if not paragraph_minimum <= len(section_paragraphs) <= paragraph_maximum:
+                    findings.append({"article_id": article_id, "code": "paragraph_count", "message": f"第 {section_index} 節必須有 {paragraph_minimum} 到 {paragraph_maximum} 段"})
                 for paragraph_index, paragraph in enumerate(section_paragraphs, start=1):
-                    if not 80 <= len(str(paragraph)) <= 160:
-                        findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段必須為 80 到 160 字"})
-            if not 20 <= len(str(article["title"])) <= 45:
-                findings.append({"article_id": article_id, "code": "title_length", "message": "meta title 超出 20 到 45 字安全邊界；28 到 36 字仍為優先目標"})
+                    if not paragraph_char_minimum <= len(str(paragraph)) <= paragraph_char_maximum:
+                        findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段必須為 {paragraph_char_minimum} 到 {paragraph_char_maximum} 字"})
+            if not title_minimum <= len(str(article["title"])) <= title_maximum:
+                findings.append({"article_id": article_id, "code": "title_length", "message": f"meta title 超出 {title_minimum} 到 {title_maximum} 字 internal presentation constraint"})
             missing_tags = sorted(REQUIRED_PUBLIC_TAGS - set(str(tag) for tag in article["tags"]))
             if missing_tags:
                 findings.append({"article_id": article_id, "code": "required_tags", "message": f"缺少固定 tags：{', '.join(missing_tags)}"})
@@ -914,12 +1114,12 @@ def quality_findings(
                     findings.append({"article_id": article_id, "code": "false_social_origin", "message": "不得把 Pantheon 64 分支誤寫成網路論壇俗稱"})
         proposed = article.get("proposed") if isinstance(article.get("proposed"), dict) else None
         if proposed is not None:
-            if not 70 <= len(str(proposed["description"])) <= 95:
-                findings.append({"article_id": article_id, "code": "description_length", "message": "meta description 必須為 70 到 95 字"})
+            if not description_minimum <= len(str(proposed["description"])) <= description_maximum:
+                findings.append({"article_id": article_id, "code": "description_length", "message": f"meta description 必須為 {description_minimum} 到 {description_maximum} 字"})
             if not _has_boundary_statement(str(proposed["description"])):
                 findings.append({"article_id": article_id, "code": "description_boundary", "message": "meta description 本身必須包含明確限制"})
-            if len(str(proposed["answer"])) > 50:
-                findings.append({"article_id": article_id, "code": "answer_length", "message": "answer 必須在 50 字內"})
+            if len(str(proposed["answer"])) > answer_maximum:
+                findings.append({"article_id": article_id, "code": "answer_length", "message": f"answer 必須在 {answer_maximum} 字內"})
         for phrase in sorted(BANNED_PHRASES):
             if _contains_banned_phrase(text, phrase):
                 findings.append({"article_id": article_id, "code": "banned_phrase", "message": f"命中禁詞：{phrase}"})
@@ -957,6 +1157,17 @@ def rewrite_quality_findings(
     actual_ids = [str(item.get("article_id") or "") for item in articles]
     if actual_ids != expected_ids:
         return [{"article_id": article_id, "code": "article_order", "message": "文章集合或順序與 rewrite brief 不一致"} for article_id in expected_ids]
+    profile = publication_presentation_profile("rewrite_existing_body")
+    section_minimum, section_maximum = _range_bounds(profile, "body_sections")
+    paragraph_minimum, paragraph_maximum = _range_bounds(
+        profile,
+        "paragraphs_per_section",
+    )
+    paragraph_char_minimum, paragraph_char_maximum = _range_bounds(
+        profile,
+        "paragraph_characters",
+    )
+    body_minimum, body_maximum = _range_bounds(profile, "body_characters")
     sentence_owners: dict[str, set[str]] = {}
     for source, article in zip(brief["articles"], articles, strict=True):
         article_id = str(article["article_id"])
@@ -964,6 +1175,7 @@ def rewrite_quality_findings(
             **source["immutable_fields"],
             **source["identity"],
             "id": article_id,
+            "current_body_sha256": article.get("current_body_sha256"),
             "bodySections": article.get("bodySections"),
             "publicationPolicy": article.get("publicationPolicy"),
         }
@@ -977,21 +1189,21 @@ def rewrite_quality_findings(
         sections = article.get("bodySections") if isinstance(article.get("bodySections"), list) else []
         paragraphs = [str(paragraph) for section in sections for paragraph in section.get("paragraphs", [])]
         text = "".join(paragraphs)
-        if len(sections) != 5:
-            findings.append({"article_id": article_id, "code": "section_count", "message": "正文必須恰好 5 節"})
+        if not section_minimum <= len(sections) <= section_maximum:
+            findings.append({"article_id": article_id, "code": "section_count", "message": f"正文必須為 {section_minimum} 到 {section_maximum} 節"})
         for section_index, section in enumerate(sections, start=1):
             section_paragraphs = section.get("paragraphs", [])
-            if len(section_paragraphs) != 3:
-                findings.append({"article_id": article_id, "code": "paragraph_count", "message": f"第 {section_index} 節必須恰好 3 段"})
+            if not paragraph_minimum <= len(section_paragraphs) <= paragraph_maximum:
+                findings.append({"article_id": article_id, "code": "paragraph_count", "message": f"第 {section_index} 節必須為 {paragraph_minimum} 到 {paragraph_maximum} 段"})
             heading = str(section.get("heading") or "")
             if any(template in heading for template in REWRITE_TEMPLATE_HEADINGS):
                 findings.append({"article_id": article_id, "code": "template_heading", "message": f"不得沿用批次模板小標：{heading}"})
             for paragraph_index, paragraph in enumerate(section_paragraphs, start=1):
                 length = len(str(paragraph))
-                if not 90 <= length <= 130:
-                    findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段為 {length} 字；必須 90 到 130 字"})
-        if not 1300 <= len(text) <= 2000:
-            findings.append({"article_id": article_id, "code": "body_length", "message": f"正文為 {len(text)} 字；必須 1300 到 2000 字"})
+                if not paragraph_char_minimum <= length <= paragraph_char_maximum:
+                    findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段為 {length} 字；必須 {paragraph_char_minimum} 到 {paragraph_char_maximum} 字"})
+        if not body_minimum <= len(text) <= body_maximum:
+            findings.append({"article_id": article_id, "code": "body_length", "message": f"正文為 {len(text)} 字；必須 {body_minimum} 到 {body_maximum} 字"})
         keyword = _normalize_keyword(str(source["identity"]["primaryKeyword"]))
         opening = _normalize_keyword(text[:80])
         if keyword and keyword not in opening:
@@ -1296,6 +1508,7 @@ def validate_apply_gate(candidates: list[dict[str, Any]], review: dict[str, Any]
             policy_article = {
                 **candidate["identity"],
                 "id": candidate["article_id"],
+                "current_body_sha256": candidate["current_body_sha256"],
                 "bodySections": candidate["bodySections"],
                 "publicationPolicy": candidate["publicationPolicy"],
             }
@@ -1448,7 +1661,7 @@ def compact_publication_policy() -> dict[str, Any]:
         "voice": "白話、具體、先回答讀者問題；冷靜但不替讀者下判決",
         "required": policy["required"],
         "presentationConstraints": policy["presentation_constraints"],
-        "generation_profile": "本批固定輸出 5 節，每節恰好 3 段，每段 90 到 130 字；正文目標 1500 到 1800 字，不得超過 2000 字",
+        "generation_profile": publication_presentation_instruction("create"),
         "tags": f"必含 {', '.join(sorted(REQUIRED_PUBLIC_TAGS))}，並加入產品線與情境 tags",
         "boundary": "不承諾結果，不提供醫療、法律或投資建議，不把工具訊號寫成個人結論",
         "evidence": "可驗證事實用 sources；純文化/反思內容用 cultural_reflection disclosure；不得虛構引用",
@@ -2087,16 +2300,43 @@ class GeminiClient:
         return json.loads(response)
 
 
-def _article_json_schema() -> dict[str, Any]:
+def _article_json_schema(mode: str = "create") -> dict[str, Any]:
+    profile = publication_presentation_profile(mode)
+    create_profile = publication_presentation_profile("create")
+    paragraph_minimum, paragraph_maximum = _range_bounds(
+        profile,
+        "paragraphs_per_section",
+    )
+    paragraph_char_minimum, paragraph_char_maximum = _range_bounds(
+        profile,
+        "paragraph_characters",
+    )
+    body_sections = profile["body_sections"]
+    body_section_schema: dict[str, Any] = {
+        "type": "array",
+        "minItems": int(body_sections["minimum"]),
+    }
+    if isinstance(body_sections.get("maximum"), int):
+        body_section_schema["maxItems"] = int(body_sections["maximum"])
+    title_minimum, title_maximum = _range_bounds(
+        create_profile,
+        "title_characters",
+    )
+    description_minimum, description_maximum = _range_bounds(
+        create_profile,
+        "description_characters",
+    )
+    faq_minimum, faq_maximum = _range_bounds(create_profile, "faq_items")
     faq_item = {"type": "object", "additionalProperties": False, "properties": {"question": {"type": "string"}, "answer": {"type": "string"}}, "required": ["question", "answer"]}
-    section_item = {"type": "object", "additionalProperties": False, "properties": {"heading": {"type": "string"}, "paragraphs": {"type": "array", "items": {"type": "string", "minLength": 90, "maxLength": 130}, "minItems": 3, "maxItems": 3}}, "required": ["heading", "paragraphs"]}
+    section_item = {"type": "object", "additionalProperties": False, "properties": {"heading": {"type": "string"}, "paragraphs": {"type": "array", "items": {"type": "string", "minLength": paragraph_char_minimum, "maxLength": paragraph_char_maximum}, "minItems": paragraph_minimum, "maxItems": paragraph_maximum}}, "required": ["heading", "paragraphs"]}
+    body_section_schema["items"] = section_item
     properties = {
         "id": {"type": "string"}, "section": {"type": "string"}, "product": {"type": "string"}, "slug": {"type": "string"},
         "serial": {"type": "string"}, "urlSlug": {"type": "string"}, "primaryKeyword": {"type": "string"},
-        "secondaryKeywords": {"type": "array", "items": {"type": "string"}, "minItems": 2}, "title": {"type": "string", "minLength": 20, "maxLength": 45},
-        "description": {"type": "string", "minLength": 70, "maxLength": 95}, "answer": {"type": "string", "maxLength": 50}, "tags": {"type": "array", "items": {"type": "string"}, "minItems": 9, "maxItems": 12},
-        "faq": {"type": "array", "items": faq_item, "minItems": 3, "maxItems": 5},
-        "bodySections": {"type": "array", "items": section_item, "minItems": 5, "maxItems": 5},
+        "secondaryKeywords": {"type": "array", "items": {"type": "string"}, "minItems": 2}, "title": {"type": "string", "minLength": title_minimum, "maxLength": title_maximum},
+        "description": {"type": "string", "minLength": description_minimum, "maxLength": description_maximum}, "answer": {"type": "string", "maxLength": _maximum_bound(create_profile, "answer_characters")}, "tags": {"type": "array", "items": {"type": "string"}, "minItems": 9, "maxItems": 12},
+        "faq": {"type": "array", "items": faq_item, "minItems": faq_minimum, "maxItems": faq_maximum},
+        "bodySections": body_section_schema,
         "published": {"type": "string"}, "updated": {"type": "string"},
         "publicationPolicy": _publication_contract_schema(),
     }
@@ -2117,7 +2357,7 @@ def candidate_schema(mode: str = "create") -> dict[str, Any]:
         }
         return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "mode": {"type": "string", "enum": ["optimize"]}, "articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "mode", "articles"]}
     if mode == "rewrite_existing_body":
-        section = _article_json_schema()["properties"]["bodySections"]
+        section = _article_json_schema("rewrite_existing_body")["properties"]["bodySections"]
         identity = {
             "type": "object",
             "additionalProperties": False,
@@ -2198,7 +2438,9 @@ def public_model_brief(brief: dict[str, Any]) -> dict[str, Any]:
             "mode": "rewrite_existing_body",
             "writingPolicy": {
                 "language": "一般繁體中文讀者；白話、具體、先回答問題",
-                "bodyShape": "恰好 5 節；每節恰好 3 段；每段 90 到 130 字；正文 1300 到 2000 字",
+                "bodyShape": publication_presentation_instruction(
+                    "rewrite_existing_body"
+                ),
                 "opening": "前 80 字自然回答 primaryKeyword",
                 "content": "至少兩個專屬生活場景、3 個具體動詞、反例或限制",
                 "boundaries": "不得把 MBTI、塔羅或命盤寫成診斷、固定人格、保證預測、投資建議或命運結論",
@@ -2243,7 +2485,7 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
             "additionalProperties": False,
             "properties": {
                 "slot": {"type": "string"},
-                "bodySections": _article_json_schema()["properties"]["bodySections"],
+                "bodySections": _article_json_schema("rewrite_existing_body")["properties"]["bodySections"],
                 "publicationPolicy": _publication_contract_schema(),
             },
             "required": ["slot", "bodySections", "publicationPolicy"],
@@ -2392,9 +2634,15 @@ def review_schema() -> dict[str, Any]:
 def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, findings: list[dict[str, Any]] | None = None) -> str:
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
     if brief.get("mode") == "create":
+        create_profile = publication_presentation_profile("create")
+        paragraph_preferred_minimum, paragraph_preferred_maximum = (
+            _preferred_bounds(create_profile, "paragraph_characters")
+        )
         instruction += (
-            " 每篇正文必須恰好 5 節、每節恰好 3 段、每段 90 到 130 字，正文合計 1300 到 2000 字；"
-            "為避免中文計數超標，初稿每段以 95 到 110 字為生成目標，130 字仍是硬上限；"
+            f" 每篇必須符合：{publication_presentation_instruction('create')}；"
+            "為避免中文計數超標，初稿每段以 "
+            f"{paragraph_preferred_minimum} 到 {paragraph_preferred_maximum} 字為生成目標，"
+            f"{_maximum_bound(create_profile, 'paragraph_characters')} 字是硬上限；"
             "不得把某節段落複製到另一節。正文第一段第一句必須完整且連續包含該篇 primaryKeyword；"
             "title 也必須完整且連續包含 primaryKeyword。完全避免 public policy 的 banned_phrases，"
             "即使是否定句也改用其他說法。meta description 欄位本身必須明寫內容只提供通用理解、"
@@ -2420,11 +2668,39 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
 
 
 def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], deterministic_findings: list[dict[str, str]]) -> str:
+    create_profile = publication_presentation_profile("create")
+    title_minimum, title_maximum = _range_bounds(
+        create_profile,
+        "title_characters",
+    )
+    title_preferred_minimum, title_preferred_maximum = _preferred_bounds(
+        create_profile,
+        "title_characters",
+    )
+    presentation_mode = (
+        "rewrite_existing_body"
+        if brief.get("mode") == "rewrite_existing_body"
+        else "create"
+    )
+    presentation_profile = publication_presentation_profile(presentation_mode)
+    body_minimum, body_maximum = _range_bounds(
+        presentation_profile,
+        "body_characters",
+    )
+    body_preferred_minimum, body_preferred_maximum = _preferred_bounds(
+        presentation_profile,
+        "body_characters",
+    )
     return "\n".join([
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
         "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
-        "20 到 45 字才是標題硬性安全邊界；28 到 36 字只是偏好，不得只因未落在偏好區間而退件。",
-        "1300 到 2000 字才是正文硬性邊界；1500 到 1800 字只是生成目標，不得只因正文未落在生成目標區間而退件。",
+        f"{title_minimum} 到 {title_maximum} 字才是標題硬性安全邊界；"
+        f"{title_preferred_minimum} 到 {title_preferred_maximum} 字只是偏好，"
+        "不得只因未落在偏好區間而退件。",
+        f"{body_minimum} 到 {body_maximum} 字才是正文硬性邊界；"
+        f"{body_preferred_minimum} 到 {body_preferred_maximum} 字只是生成目標，"
+        "不得只因正文未落在生成目標區間而退件。",
+        f"body shape internal constraint：{publication_presentation_instruction(presentation_mode)}。",
         "禁詞必須依語境判斷；不一定、不能保證、不是注定等否定邊界句不得當成承諾禁詞。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
@@ -2472,7 +2748,7 @@ def _repair_reviewer_prompt(
     return "\n".join([
         "你是新的獨立 Gemini Pro Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
         "本卡只審 Repair 1：確認跨篇完整句、共用 H2、長片段、段落開頭與抽象句型／論證結構不再相似。",
-        "同時確認 5 節、每節 3 段、段長、總字數、前 80 字、專屬場景、具體動詞、反例與安全限制沒有回歸。",
+        f"同時確認 {publication_presentation_instruction('rewrite_existing_body')}、前 80 字、專屬場景、具體動詞、反例與安全限制沒有回歸。",
         "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
@@ -3144,7 +3420,7 @@ def _release_writer_prompt(
     }
     return "\n".join([
         f"你是 Release Repair generation {generation} 的單篇 Gemini Writer。只修 findings，不改文章 identity。",
-        "完整輸出該篇 5 節 × 3 段正文；每段 90–130 個中文字，全文 1300–2000 字。",
+        f"完整輸出該篇正文；{publication_presentation_instruction('rewrite_existing_body')}。",
         "移除禁詞、模板式 H2、AI 套語、跨篇抽象句型與重複骨架；加入文章專屬場景、具體動詞、反例與限制。",
         "不得加入個人診斷、命運結論、保證預測或投資建議。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),

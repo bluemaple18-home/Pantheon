@@ -477,6 +477,31 @@ def test_policy_v2_positive_create_and_cultural_disclosure_pass() -> None:
     assert article["publicationPolicy"]["evidence"]["sources"] == []
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "某項研究顯示，採用這個方法的人有 73％表示壓力降低。",
+        "統計資料指出，這套練習能提高判斷正確率。",
+        "這套方法已被證實能降低焦慮並改善決策品質。",
+    ],
+)
+def test_policy_v2_cultural_reflection_with_verifiable_claim_requires_real_source(
+    claim: str,
+) -> None:
+    article = make_article("POLICY-CULTURE-CLAIM")
+    article["bodySections"][0]["paragraphs"].append(claim)
+
+    with pytest.raises(CandidateValidationError, match="article_level_evidence"):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": "policy-culture-claim",
+                "mode": "create",
+                "articles": [article],
+            }
+        )
+
+
 def test_policy_v2_positive_rewrite_passes_same_validator() -> None:
     brief = make_rewrite_brief("POLICY-REWRITE-001")
     source = brief["articles"][0]
@@ -495,6 +520,90 @@ def test_policy_v2_positive_rewrite_passes_same_validator() -> None:
             "articles": [article],
         }
     )
+
+
+def test_policy_v2_noop_rewrite_fails_even_when_declared_substantive() -> None:
+    brief = make_rewrite_brief("POLICY-NOOP")
+    source = brief["articles"][0]
+    current_body = make_rewrite_sections(variant="原")
+    source["current_body"] = current_body
+    source["current_body_sha256"] = body_sha256(current_body)
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": current_body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+
+    with pytest.raises(CandidateValidationError, match="no_substantive_change"):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": "policy-noop",
+                "mode": "rewrite_existing_body",
+                "articles": [article],
+            }
+        )
+
+
+def test_policy_v2_presentation_constraints_are_loaded_for_create_and_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = json.loads(
+        json.dumps(pipeline.load_article_publication_policy(), ensure_ascii=False)
+    )
+    create_profile = policy["presentation_constraints"]["profiles"]["create"]
+    create_profile.update(
+        {
+            "title_characters": {"minimum": 1, "maximum": 1000},
+            "description_characters": {"minimum": 1, "maximum": 1000},
+            "answer_characters": {"maximum": 1000},
+            "faq_items": {"minimum": 1, "maximum": 10},
+            "body_characters": {"minimum": 1, "maximum": 10000},
+            "body_sections": {"minimum": 1},
+            "paragraphs_per_section": {"minimum": 1, "maximum": 10},
+            "paragraph_characters": {"minimum": 1, "maximum": 1000},
+        }
+    )
+    policy["presentation_constraints"]["profiles"]["rewrite_existing_body"][
+        "paragraph_characters"
+    ] = {"minimum": 1, "maximum": 100}
+    monkeypatch.setattr(pipeline, "_POLICY_V2_CACHE", policy)
+
+    create_codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings([make_article("POLICY-PROFILE-CREATE")])
+    }
+    assert not create_codes & {
+        "title_length",
+        "description_length",
+        "answer_length",
+        "body_length",
+        "section_count",
+        "paragraph_count",
+        "paragraph_length",
+    }
+
+    brief = make_rewrite_brief("POLICY-PROFILE-REWRITE")
+    source = brief["articles"][0]
+    rewrite = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    rewrite_codes = {
+        finding["code"]
+        for finding in pipeline.rewrite_quality_findings(brief, [rewrite])
+    }
+    assert "paragraph_length" in rewrite_codes
+    rewrite_schema = pipeline.candidate_schema("rewrite_existing_body")
+    paragraph_schema = rewrite_schema["properties"]["articles"]["items"][
+        "properties"
+    ]["bodySections"]["items"]["properties"]["paragraphs"]
+    assert paragraph_schema["items"]["maxLength"] == 100
 
 
 @pytest.mark.parametrize(
@@ -813,7 +922,8 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "meta description 欄位本身必須明寫" in prompt
     assert "不得只把限制放在正文" in prompt
     assert "正文第一段第一句必須完整且連續包含該篇 primaryKeyword" in prompt
-    assert "每篇正文必須恰好 5 節、每節恰好 3 段" in prompt
+    assert pipeline.publication_presentation_instruction("create") in prompt
+    assert "每節2 到 4段" in prompt
     assert "初稿每段以 95 到 110 字為生成目標" in prompt
     assert "即使是否定句也改用其他說法" in prompt
 
@@ -1324,9 +1434,10 @@ def test_publication_quality_gate_uses_full_standard_and_humanizer_rules() -> No
     assert external_article["properties"]["description"]["minLength"] == 70
     assert external_article["properties"]["description"]["maxLength"] == 95
     body = external_article["properties"]["bodySections"]
-    assert (body["minItems"], body["maxItems"]) == (5, 5)
+    assert body["minItems"] == 5
+    assert "maxItems" not in body
     paragraphs = body["items"]["properties"]["paragraphs"]
-    assert (paragraphs["minItems"], paragraphs["maxItems"]) == (3, 3)
+    assert (paragraphs["minItems"], paragraphs["maxItems"]) == (2, 4)
 
 
 def test_reviewer_prompt_distinguishes_hard_boundaries_from_preferences() -> None:
