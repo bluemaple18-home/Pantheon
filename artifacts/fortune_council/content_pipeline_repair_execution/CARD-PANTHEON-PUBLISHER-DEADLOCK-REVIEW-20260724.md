@@ -99,4 +99,3 @@ Reviewer 只可新增或更新：
 - base/candidate SHA 不一致立即停止。
 - candidate worktree 有 implementation dirty changes立即停止。
 - 同一 blocker 三次即停，不做第四次。
-
