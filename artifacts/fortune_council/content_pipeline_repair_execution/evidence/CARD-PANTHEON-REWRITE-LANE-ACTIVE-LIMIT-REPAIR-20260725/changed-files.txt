@@ -1,0 +1,6 @@
+artifacts/fortune_council/content_pipeline_repair_execution/CARD-PANTHEON-REWRITE-LANE-ACTIVE-LIMIT-REPAIR-20260725.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-REWRITE-LANE-ACTIVE-LIMIT-REPAIR-20260725/changed-files.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-REWRITE-LANE-ACTIVE-LIMIT-REPAIR-20260725/red-green.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-REWRITE-LANE-ACTIVE-LIMIT-REPAIR-20260725/verification.md
+scripts/agy_gemini_coordinator.py
+tests/test_agy_gemini_coordinator.py

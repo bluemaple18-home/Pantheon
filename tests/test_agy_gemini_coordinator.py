@@ -307,6 +307,79 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(tmp_path: Path, monkeypatch) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    record = {
+        "id": "LEGACY-003",
+        "product": "tarot",
+        "articleCategory": "tarot",
+        "serial": "tarot-003",
+        "slug": "legacy-three",
+        "urlSlug": "legacy-three",
+        "primaryKeyword": "塔羅舊文三",
+        "title": "塔羅舊文三",
+        "description": "描述三",
+        "answer": "答案三",
+        "faq": [{"question": "問三", "answer": "答三"}],
+        "tags": ["塔羅"],
+        "path": "articles/tarot/tarot-003",
+    }
+    current_body = [{"heading": "現況", "paragraphs": ["這是一段舊文內容，等待改得更貼近讀者生活。"]}]
+    active_briefs = {
+        "create-active": {"mode": "create", "articles": []},
+        "translate-active": {
+            "mode": "translate_existing",
+            "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
+        },
+        "rewrite-active": {
+            "mode": "rewrite_existing_body",
+            "articles": [{"article_id": "LEGACY-OTHER"}],
+        },
+    }
+    for run_id, payload in active_briefs.items():
+        active_run_dir = tmp_path / "active-runs" / run_id
+        active_run_dir.mkdir(parents=True)
+        (active_run_dir / "brief.json").write_text(
+            json.dumps({"schema_version": 1, "run_id": run_id, **payload}),
+            encoding="utf-8",
+        )
+        register_run(active_run_dir, queue_root)
+
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: [record])
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: {
+            "LEGACY-003": {
+                "id": "LEGACY-003",
+                "record": record,
+                "canonicalPath": "/articles/tarot/tarot-003",
+                "currentBody": current_body,
+                "published": "2026-01-01",
+                "updated": "2026-01-01",
+            }
+        },
+    )
+
+    summary = seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        max_new_runs=2,
+        max_active_runs=2,
+        source_commit="c" * 40,
+    )
+
+    assert summary["status"] == "seeded"
+    assert summary["created"] == 1
+    assert summary["created_run_ids"] == ["legacy-auto-sweep-v1-tarot-003-legacy-003"]
+
+
 def test_cycle_legacy_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
