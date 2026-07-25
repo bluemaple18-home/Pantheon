@@ -38,6 +38,8 @@ MATRIX_V2_PLAN = Path(
     "artifacts/fortune_council/content_seo_execution/evidence/content_matrix_v2/content-matrix-v2.json"
 )
 PUBLICATION_STANDARD = Path("docs/pantheon_article_publication_standard.md")
+POLICY_V2_PATH = Path("app/core/article_publication_policy_v2.json")
+_POLICY_V2_CACHE: dict[str, Any] | None = None
 
 ARTICLE_FIELDS = {
     "id",
@@ -56,6 +58,7 @@ ARTICLE_FIELDS = {
     "bodySections",
     "published",
     "updated",
+    "publicationPolicy",
 }
 REQUIRED_ARTICLE_FIELDS = ARTICLE_FIELDS
 OPTIMIZE_FIELDS = {"title", "description", "answer"}
@@ -74,7 +77,7 @@ REWRITE_IMMUTABLE_FIELDS = {
     "urlSlug",
     "primaryKeyword",
 }
-REWRITE_ARTICLE_FIELDS = {"article_id", "identity", "current_body_sha256", "bodySections"}
+REWRITE_ARTICLE_FIELDS = {"article_id", "identity", "current_body_sha256", "bodySections", "publicationPolicy"}
 REWRITE_IDENTITY_FIELDS = {"id", "product", "category", "serial", "slug", "primaryKeyword", "title"}
 REWRITE_ACTION_VERBS = {
     "安排",
@@ -285,6 +288,305 @@ class CandidateValidationError(ValueError):
     """候選稿 schema 不符合契約。"""
 
 
+def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
+    """載入唯一 policy v2 契約；格式漂移時 fail closed。"""
+    global _POLICY_V2_CACHE
+    if path is None and _POLICY_V2_CACHE is not None:
+        return _POLICY_V2_CACHE
+    source = path or (Path(__file__).resolve().parents[1] / POLICY_V2_PATH)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    required_top = {
+        "policy_version",
+        "effective_date",
+        "site_origin",
+        "identity",
+        "levels",
+        "required",
+        "recommended",
+        "measured",
+        "migration_only",
+        "presentation_constraints",
+        "evidence_modes",
+        "forbidden_claims",
+    }
+    if set(payload) != required_top:
+        raise CandidateValidationError("article publication policy v2 top-level fields are strict")
+    if payload.get("policy_version") != "pantheon-article-publication-v2.0.0":
+        raise CandidateValidationError("unsupported article publication policy version")
+    if set(payload["levels"]) != {"required", "recommended", "measured", "migration_only"}:
+        raise CandidateValidationError("article publication policy levels are incomplete")
+    if path is None:
+        _POLICY_V2_CACHE = payload
+    return payload
+
+
+def publication_policy_version() -> str:
+    return str(load_article_publication_policy()["policy_version"])
+
+
+def _policy_finding(
+    article_id: str,
+    code: str,
+    message: str,
+    *,
+    severity: str = "required",
+) -> dict[str, str]:
+    return {
+        "article_id": article_id,
+        "code": code,
+        "message": message,
+        "severity": severity,
+        "policy_version": publication_policy_version(),
+    }
+
+
+def required_policy_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [finding for finding in findings if finding.get("severity", "required") == "required"]
+
+
+def policy_validation_evidence(
+    candidate: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    required = required_policy_findings(findings)
+    return {
+        "policy_version": publication_policy_version(),
+        "validator_result": "FAIL" if required else "PASS",
+        "article_ids": [
+            _candidate_id(article)
+            for article in candidate.get("articles") or []
+            if isinstance(article, dict)
+        ],
+        "failure_codes": sorted({str(finding.get("code") or "unknown") for finding in required}),
+        "input_hash": hashlib.sha256(compact_json_bytes(candidate)).hexdigest(),
+    }
+
+
+def _iso_date(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _article_route(article: dict[str, Any]) -> str:
+    if article.get("canonical_path"):
+        return str(article["canonical_path"])
+    serial = str(article.get("serial") or "")
+    category = serial.rsplit("-", 1)[0] if "-" in serial else str(article.get("product") or "")
+    url_slug = str(article.get("urlSlug") or article.get("slug") or "")
+    return f"/articles/{category}/{url_slug}" if category and url_slug else ""
+
+
+def _intent_overlap(primary_keyword: str, value: str) -> float:
+    keyword_chars = set(_normalize_keyword(primary_keyword))
+    value_chars = set(_normalize_keyword(value))
+    if not keyword_chars:
+        return 1.0
+    return len(keyword_chars & value_chars) / len(keyword_chars)
+
+
+def _publication_contract_schema() -> dict[str, Any]:
+    source = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "title": {"type": "string"},
+            "url": {"type": "string"},
+            "supports": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        },
+        "required": ["title", "url", "supports"],
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "policyVersion": {"type": "string", "enum": [publication_policy_version()]},
+            "canonical": {"type": "string"},
+            "author": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "url": {"type": "string"},
+                    "id": {"type": "string"},
+                },
+                "required": ["name", "url", "id"],
+            },
+            "editorialResponsibility": {"type": "string"},
+            "evidence": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "mode": {"type": "string", "enum": ["sources", "cultural_reflection"]},
+                    "sources": {"type": "array", "items": source},
+                    "disclosure": {"type": "string"},
+                },
+                "required": ["mode", "sources", "disclosure"],
+            },
+            "published": {"type": "string"},
+            "modified": {"type": "string"},
+            "changeType": {"type": "string", "enum": ["created", "substantive_rewrite"]},
+        },
+        "required": [
+            "policyVersion",
+            "canonical",
+            "author",
+            "editorialResponsibility",
+            "evidence",
+            "published",
+            "modified",
+            "changeType"
+        ],
+    }
+
+
+def _validate_publication_contract_shape(value: object) -> None:
+    if not isinstance(value, dict):
+        raise CandidateValidationError("publicationPolicy must be an object")
+    expected = set(_publication_contract_schema()["required"])
+    if set(value) != expected:
+        raise CandidateValidationError(f"publicationPolicy fields must be {sorted(expected)}")
+    author = value.get("author")
+    if not isinstance(author, dict) or set(author) != {"name", "url", "id"}:
+        raise CandidateValidationError("publicationPolicy author fields are strict")
+    evidence = value.get("evidence")
+    if not isinstance(evidence, dict) or set(evidence) != {"mode", "sources", "disclosure"}:
+        raise CandidateValidationError("publicationPolicy evidence fields are strict")
+    if not isinstance(evidence.get("sources"), list):
+        raise CandidateValidationError("publicationPolicy evidence sources must be a list")
+    for source in evidence["sources"]:
+        if not isinstance(source, dict) or set(source) != {"title", "url", "supports"}:
+            raise CandidateValidationError("publicationPolicy source fields are strict")
+        if not isinstance(source.get("supports"), list) or not source["supports"]:
+            raise CandidateValidationError("publicationPolicy source supports must be non-empty")
+
+
+def article_publication_policy_findings(
+    article: dict[str, Any],
+    *,
+    mode: str,
+    reference_articles: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """同一 required validator，供 create、rewrite、publisher 與 prerender 使用。"""
+    policy = load_article_publication_policy()
+    article_id = _candidate_id(article)
+    findings: list[dict[str, str]] = []
+    contract = article.get("publicationPolicy")
+    if not isinstance(contract, dict):
+        return [_policy_finding(article_id, "missing_policy_contract", "缺少 publicationPolicy v2 契約")]
+    try:
+        _validate_publication_contract_shape(contract)
+    except CandidateValidationError as error:
+        return [_policy_finding(article_id, "invalid_policy_contract", str(error))]
+    if contract.get("policyVersion") != policy["policy_version"]:
+        findings.append(_policy_finding(article_id, "policy_version", "candidate policy_version 與目前 validator 不一致"))
+
+    route = _article_route(article)
+    canonical = f"{policy['site_origin']}{route}" if route else ""
+    if not route or contract.get("canonical") != canonical:
+        findings.append(_policy_finding(article_id, "canonical_consistency", "canonical 必須與 id/route 契約一致"))
+
+    author = contract["author"]
+    identity = policy["identity"]
+    if (
+        author.get("name") != identity["author_name"]
+        or author.get("url") != identity["author_url"]
+        or author.get("id") != identity["author_id"]
+        or contract.get("editorialResponsibility") != identity["editorial_responsibility"]
+    ):
+        findings.append(_policy_finding(article_id, "author_identity", "作者與編輯責任必須使用穩定且可識別的 policy identity"))
+
+    published = _iso_date(contract.get("published"))
+    modified = _iso_date(contract.get("modified"))
+    article_published = _iso_date(article.get("published"))
+    article_updated = _iso_date(article.get("updated"))
+    if published is None or modified is None or modified < published:
+        findings.append(_policy_finding(article_id, "truthful_dates", "published/modified 必須為真實 ISO 日期且 modified 不早於 published"))
+    if article_published and published != article_published:
+        findings.append(_policy_finding(article_id, "truthful_dates", "publicationPolicy published 與文章資料不一致"))
+    if mode == "create" and (article_published is None or article_updated is None):
+        findings.append(_policy_finding(article_id, "truthful_dates", "文章缺少真實 published/updated；不得以 fallback 日期補值"))
+    if mode != "rewrite_existing_body" and article_updated and modified != article_updated:
+        findings.append(_policy_finding(article_id, "truthful_dates", "publicationPolicy modified 與文章資料不一致"))
+    if mode == "rewrite_existing_body" and article_updated and modified and modified < article_updated:
+        findings.append(_policy_finding(article_id, "substantive_modified_date", "實質重寫的 modified 不得早於目前 updated"))
+    expected_change = "substantive_rewrite" if mode == "rewrite_existing_body" else "created"
+    if contract.get("changeType") != expected_change:
+        findings.append(_policy_finding(article_id, "substantive_modified_date", f"{mode} 必須標記 changeType={expected_change}"))
+
+    evidence = contract["evidence"]
+    evidence_mode = evidence.get("mode")
+    sources = evidence.get("sources")
+    disclosure = str(evidence.get("disclosure") or "").strip()
+    if evidence_mode == "sources":
+        if not sources:
+            findings.append(_policy_finding(article_id, "article_level_evidence", "可驗證事實/研究/統計/方法主張必須有文章級來源"))
+        for source in sources or []:
+            if (
+                not str(source.get("title") or "").strip()
+                or not re.fullmatch(r"https://[^\s]+", str(source.get("url") or ""))
+                or not all(str(claim).strip() for claim in source.get("supports") or [])
+            ):
+                findings.append(_policy_finding(article_id, "article_level_evidence", "來源必須包含 https URL、標題與所支持主張"))
+                break
+    elif evidence_mode == "cultural_reflection":
+        if sources or not disclosure:
+            findings.append(_policy_finding(article_id, "cultural_reflection_disclosure", "文化/反思內容必須明確 disclosure 且不得虛構來源"))
+    else:
+        findings.append(_policy_finding(article_id, "article_level_evidence", "evidence mode 必須為 sources 或 cultural_reflection"))
+
+    paragraphs = [
+        str(paragraph)
+        for section in article.get("bodySections") or []
+        if isinstance(section, dict)
+        for paragraph in section.get("paragraphs") or []
+    ]
+    title = str(article.get("title") or article.get("identity", {}).get("title") or "")
+    description = str(article.get("description") or "")
+    answer = str(article.get("answer") or "")
+    primary_keyword = str(article.get("primaryKeyword") or article.get("identity", {}).get("primaryKeyword") or "")
+    opening = paragraphs[0] if paragraphs else ""
+    if primary_keyword and _intent_overlap(primary_keyword, title) < 0.5:
+        findings.append(_policy_finding(article_id, "title_primary_intent", "H1/title 必須回答並包含 primary intent"))
+    if primary_keyword and _intent_overlap(primary_keyword, opening[:160]) < 0.7:
+        findings.append(_policy_finding(article_id, "opening_primary_intent", "第一段必須直接回答 primary intent"))
+    if mode == "create":
+        if not description or not _has_boundary_statement(description):
+            findings.append(_policy_finding(article_id, "description_context_and_limit", "description 必須包含適用情境與限制"))
+        if not answer or len(answer) < 12:
+            findings.append(_policy_finding(article_id, "standalone_answer", "answer 必須可獨立理解"))
+    text = "".join([title, description, answer, *paragraphs])
+    if not _has_boundary_statement(text):
+        findings.append(_policy_finding(article_id, "explicit_limit_or_counterexample", "正文必須有明確限制或反例"))
+    for phrase in policy["forbidden_claims"]["outcome_guarantees"]:
+        if phrase in text:
+            findings.append(_policy_finding(article_id, "no_outcome_guarantee", f"禁止結果保證：{phrase}"))
+    for phrase in policy["forbidden_claims"]["professional_substitution"]:
+        if phrase in text:
+            findings.append(_policy_finding(article_id, "no_professional_advice_substitution", f"禁止專業替代建議：{phrase}"))
+
+    owners: dict[str, set[str]] = {}
+    for reference in reference_articles or []:
+        owner_id = _candidate_id(reference)
+        if owner_id == article_id:
+            continue
+        for section in reference.get("bodySections") or []:
+            for paragraph in section.get("paragraphs") or []:
+                for sentence in re.split(r"[。！？]", str(paragraph)):
+                    normalized = re.sub(r"\s+", "", sentence)
+                    if len(normalized) >= 24:
+                        owners.setdefault(normalized, set()).add(owner_id)
+    for paragraph in paragraphs:
+        for sentence in re.split(r"[。！？]", paragraph):
+            normalized = re.sub(r"\s+", "", sentence)
+            if len(normalized) >= 24 and normalized in owners:
+                owner = sorted(owners[normalized])[0]
+                findings.append(_policy_finding(article_id, "cross_corpus_originality", f"完整句與既有文章 {owner} 重複"))
+                return findings
+    return findings
+
+
 def compact_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -435,6 +737,7 @@ def _validate_create_article(article: dict[str, Any]) -> None:
         _ensure_string(item.get("question"), "faq.question")
         _ensure_string(item.get("answer"), "faq.answer")
     _validate_body_sections(article["bodySections"], exact_shape=False)
+    _validate_publication_contract_shape(article["publicationPolicy"])
 
 
 def _validate_optimize_article(article: dict[str, Any]) -> None:
@@ -463,9 +766,14 @@ def _validate_rewrite_article(article: dict[str, Any]) -> None:
     if not re.fullmatch(r"[0-9a-f]{64}", str(article.get("current_body_sha256") or "")):
         raise CandidateValidationError("rewrite current body SHA-256 is invalid")
     _validate_body_sections(article.get("bodySections"), exact_shape=True)
+    _validate_publication_contract_shape(article["publicationPolicy"])
 
 
-def validate_candidate(candidate: dict[str, Any]) -> None:
+def validate_candidate(
+    candidate: dict[str, Any],
+    *,
+    enforce_policy: bool = True,
+) -> None:
     if candidate.get("schema_version") != SCHEMA_VERSION:
         raise CandidateValidationError("unsupported candidate schema version")
     _ensure_string(candidate.get("run_id"), "run_id")
@@ -488,11 +796,53 @@ def validate_candidate(candidate: dict[str, Any]) -> None:
             _validate_optimize_article(article)
             article_id = str(article["article_id"])
         else:
-            _validate_rewrite_article(article)
+            if enforce_policy:
+                _validate_rewrite_article(article)
+            else:
+                legacy_fields = REWRITE_ARTICLE_FIELDS - {"publicationPolicy"}
+                actual_fields = set(article)
+                if actual_fields != REWRITE_ARTICLE_FIELDS and actual_fields != legacy_fields:
+                    raise CandidateValidationError(
+                        f"legacy rewrite article fields must be {sorted(legacy_fields)}"
+                    )
+                if "publicationPolicy" in article:
+                    _validate_rewrite_article(article)
+                else:
+                    _validate_rewrite_article(
+                        {
+                            **article,
+                            "publicationPolicy": {
+                                "policyVersion": publication_policy_version(),
+                                "canonical": "migration-only",
+                                "author": {"name": "migration-only", "url": "migration-only", "id": "migration-only"},
+                                "editorialResponsibility": "migration-only",
+                                "evidence": {"mode": "cultural_reflection", "sources": [], "disclosure": "migration-only"},
+                                "published": "1970-01-01",
+                                "modified": "1970-01-01",
+                                "changeType": "substantive_rewrite",
+                            },
+                        }
+                    )
             article_id = str(article["article_id"])
         if article_id in ids:
             raise CandidateValidationError(f"duplicate article id: {article_id}")
         ids.add(article_id)
+        if enforce_policy and mode in {"create", "rewrite_existing_body"}:
+            policy_article = article
+            if mode == "rewrite_existing_body":
+                policy_article = {
+                    **article["identity"],
+                    "id": article_id,
+                    "bodySections": article["bodySections"],
+                    "publicationPolicy": article["publicationPolicy"],
+                }
+            findings = required_policy_findings(
+                article_publication_policy_findings(policy_article, mode=mode)
+            )
+            if findings:
+                raise CandidateValidationError(
+                    f"policy v2 required finding for {article_id}: {findings[0]['code']}"
+                )
 
 
 def _candidate_id(article: dict[str, Any]) -> str:
@@ -503,11 +853,23 @@ def _has_boundary_statement(text: str) -> bool:
     return bool(re.search(r"不能|不代表|不適合|不是|無法|並非|不得|僅供|只供|只提供", text))
 
 
-def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
+def quality_findings(
+    articles: list[dict[str, Any]],
+    *,
+    reference_articles: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     sentence_owners: dict[str, set[str]] = {}
     for article in articles:
         article_id = _candidate_id(article)
+        if "bodySections" in article:
+            findings.extend(
+                article_publication_policy_findings(
+                    article,
+                    mode="create",
+                    reference_articles=reference_articles,
+                )
+            )
         if "bodySections" not in article:
             text = "".join(str(article.get("proposed", {}).get(field, "")) for field in OPTIMIZE_FIELDS)
             paragraphs: list[str] = []
@@ -573,10 +935,22 @@ def quality_findings(articles: list[dict[str, Any]]) -> list[dict[str, str]]:
         if len(owners) > 3:
             for article_id in owners:
                 findings.append({"article_id": article_id, "code": "repeated_sentence", "message": f"同批完整句重複超過三篇：{sentence}"})
-    return findings
+    return [
+        {
+            **finding,
+            "severity": finding.get("severity", "required"),
+            "policy_version": finding.get("policy_version", publication_policy_version()),
+        }
+        for finding in findings
+    ]
 
 
-def rewrite_quality_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> list[dict[str, str]]:
+def rewrite_quality_findings(
+    brief: dict[str, Any],
+    articles: list[dict[str, Any]],
+    *,
+    reference_articles: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
     """本卡正文改寫的 deterministic gate；不以 Reviewer 主觀判斷取代。"""
     findings: list[dict[str, str]] = []
     expected_ids = [str(item["article_id"]) for item in brief["articles"]]
@@ -586,6 +960,20 @@ def rewrite_quality_findings(brief: dict[str, Any], articles: list[dict[str, Any
     sentence_owners: dict[str, set[str]] = {}
     for source, article in zip(brief["articles"], articles, strict=True):
         article_id = str(article["article_id"])
+        policy_article = {
+            **source["immutable_fields"],
+            **source["identity"],
+            "id": article_id,
+            "bodySections": article.get("bodySections"),
+            "publicationPolicy": article.get("publicationPolicy"),
+        }
+        findings.extend(
+            article_publication_policy_findings(
+                policy_article,
+                mode="rewrite_existing_body",
+                reference_articles=reference_articles,
+            )
+        )
         sections = article.get("bodySections") if isinstance(article.get("bodySections"), list) else []
         paragraphs = [str(paragraph) for section in sections for paragraph in section.get("paragraphs", [])]
         text = "".join(paragraphs)
@@ -635,7 +1023,14 @@ def rewrite_quality_findings(brief: dict[str, Any], articles: list[dict[str, Any
         if len(owners) >= 2:
             for article_id in sorted(owners):
                 findings.append({"article_id": article_id, "code": "cross_article_sentence", "message": f"不得跨篇共用完整句：{sentence}"})
-    return findings
+    return [
+        {
+            **finding,
+            "severity": finding.get("severity", "required"),
+            "policy_version": finding.get("policy_version", publication_policy_version()),
+        }
+        for finding in findings
+    ]
 
 
 def _canonical_rewrite_text(text: str, keyword: str) -> str:
@@ -743,8 +1138,20 @@ def rewrite_uniqueness_findings(
     return findings
 
 
-def rewrite_aggregate_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    return rewrite_quality_findings(brief, articles), rewrite_uniqueness_findings(brief, articles)
+def rewrite_aggregate_findings(
+    brief: dict[str, Any],
+    articles: list[dict[str, Any]],
+    *,
+    reference_articles: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    return (
+        rewrite_quality_findings(
+            brief,
+            articles,
+            reference_articles=reference_articles,
+        ),
+        rewrite_uniqueness_findings(brief, articles),
+    )
 
 
 def invalid_review_payload(run_id: str, articles: list[dict[str, Any]], reason: str, hard_failure: bool = True) -> dict[str, Any]:
@@ -880,6 +1287,26 @@ def build_approval(
 
 def validate_apply_gate(candidates: list[dict[str, Any]], review: dict[str, Any], approval: dict[str, Any]) -> list[dict[str, Any]]:
     validate_review(review, candidates)
+    for candidate in candidates:
+        if "proposed" in candidate:
+            continue
+        mode = "rewrite_existing_body" if "identity" in candidate else "create"
+        policy_article = candidate
+        if mode == "rewrite_existing_body":
+            policy_article = {
+                **candidate["identity"],
+                "id": candidate["article_id"],
+                "bodySections": candidate["bodySections"],
+                "publicationPolicy": candidate["publicationPolicy"],
+            }
+        findings = required_policy_findings(
+            article_publication_policy_findings(policy_article, mode=mode)
+        )
+        if findings:
+            raise ValueError(
+                f"policy v2 required finding cannot be overridden for {_candidate_id(candidate)}: "
+                f"{findings[0]['code']}"
+            )
     by_id = {_candidate_id(article): article for article in candidates}
     reviews = {str(item["article_id"]): item for item in review["articles"]}
     approved: list[dict[str, Any]] = []
@@ -959,6 +1386,39 @@ console.log(JSON.stringify(listArticleRecords().map((article) => ({
     return list(json.loads(result.stdout))
 
 
+def load_publication_reference_corpus(repo_root: Path) -> list[dict[str, Any]]:
+    """載入全量可見正文，讓新文與重寫不只和當批比較。"""
+    script = """
+import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
+import { buildArticleContent } from './app/web/static/article-meta.js';
+const origin = 'https://mysticpantheon.com';
+console.log(JSON.stringify(listArticleRecords().map((article) => {
+  const path = getArticlePath(article);
+  const content = buildArticleContent(path, origin, {author: 'Pantheon 編輯部', updated: article.updated || ''});
+  return {
+    id: article.id || '',
+    path,
+    title: article.title || '',
+    description: article.description || '',
+    answer: content.answer || article.answer || '',
+    primaryKeyword: article.primaryKeyword || '',
+    bodySections: content.bodySections || [],
+  };
+})));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(result.stdout)
+    if not isinstance(payload, list):
+        raise CandidateValidationError("publication reference corpus must be a list")
+    return payload
+
+
 def _row_is_present(row: dict[str, str], inventory: list[dict[str, Any]]) -> bool:
     if any(record.get("id") == row["id"] for record in inventory):
         return True
@@ -980,17 +1440,18 @@ def build_matrix_backlog(repo_root: Path) -> list[dict[str, str]]:
 
 
 def compact_publication_policy() -> dict[str, Any]:
+    policy = load_article_publication_policy()
     return {
+        "policyVersion": policy["policy_version"],
+        "levels": policy["levels"],
         "language": "繁體中文",
         "voice": "白話、具體、先回答讀者問題；冷靜但不替讀者下判決",
-        "title": "20 到 45 字為硬性安全邊界；28 到 36 個中文字為偏好，且須含主關鍵字",
-        "description": "70 到 95 字，包含適用情境與限制",
-        "answer": "50 字內",
-        "faq": "3 到 5 題真實問答",
-        "body": "單主題文章 1300 到 2000 字；至少 5 節，每節 2 到 4 段，每段 80 到 160 字；至少兩個專屬生活場景、3 個具體動詞、反例與不能代表什麼",
+        "required": policy["required"],
+        "presentationConstraints": policy["presentation_constraints"],
         "generation_profile": "本批固定輸出 5 節，每節恰好 3 段，每段 90 到 130 字；正文目標 1500 到 1800 字，不得超過 2000 字",
         "tags": f"必含 {', '.join(sorted(REQUIRED_PUBLIC_TAGS))}，並加入產品線與情境 tags",
         "boundary": "不承諾結果，不提供醫療、法律或投資建議，不把工具訊號寫成個人結論",
+        "evidence": "可驗證事實用 sources；純文化/反思內容用 cultural_reflection disclosure；不得虛構引用",
         "banned_phrases": sorted(BANNED_PHRASES),
         "banned_phrase_context": "一定、保證、注定只禁止正向結果承諾；不一定、不能保證、不是注定等否定邊界句不算命中",
         "avoid_generic_phrases": sorted(GENERIC_AI_PHRASES),
@@ -1319,7 +1780,7 @@ def prepare_rewrite_repair(
     source_candidate = json.loads((source_run_dir / "candidate.json").read_text(encoding="utf-8"))
     source_review = json.loads((source_run_dir / "review.json").read_text(encoding="utf-8"))
     validate_rewrite_brief(source_brief)
-    validate_candidate(source_candidate)
+    validate_candidate(source_candidate, enforce_policy=False)
     validate_review(source_review, source_candidate["articles"])
     article_ids = tuple(str(item["article_id"]) for item in source_brief["articles"])
     if article_ids != REWRITE_REPAIR_ARTICLE_IDS:
@@ -1637,6 +2098,7 @@ def _article_json_schema() -> dict[str, Any]:
         "faq": {"type": "array", "items": faq_item, "minItems": 3, "maxItems": 5},
         "bodySections": {"type": "array", "items": section_item, "minItems": 5, "maxItems": 5},
         "published": {"type": "string"}, "updated": {"type": "string"},
+        "publicationPolicy": _publication_contract_schema(),
     }
     return {"type": "object", "additionalProperties": False, "properties": properties, "required": sorted(REQUIRED_ARTICLE_FIELDS)}
 
@@ -1670,6 +2132,7 @@ def candidate_schema(mode: str = "create") -> dict[str, Any]:
                 "identity": identity,
                 "current_body_sha256": {"type": "string"},
                 "bodySections": section,
+                "publicationPolicy": _publication_contract_schema(),
             },
             "required": sorted(REWRITE_ARTICLE_FIELDS),
         }
@@ -1685,6 +2148,7 @@ PUBLIC_CREATE_FIELDS = {
     "tags",
     "faq",
     "bodySections",
+    "publicationPolicy",
 }
 EXTERNAL_CREATE_FIELDS = PUBLIC_CREATE_FIELDS | {"primaryKeyword"}
 
@@ -1739,6 +2203,10 @@ def public_model_brief(brief: dict[str, Any]) -> dict[str, Any]:
                 "content": "至少兩個專屬生活場景、3 個具體動詞、反例或限制",
                 "boundaries": "不得把 MBTI、塔羅或命盤寫成診斷、固定人格、保證預測、投資建議或命運結論",
                 "uniqueness": "不得使用批次模板小標，不得跨篇共用完整句型",
+                "publicationPolicy": (
+                    f"必須輸出 {publication_policy_version()}；canonical、作者 identity、真實日期與 article-level evidence/disclosure "
+                    "都要逐篇明列。可驗證事實用 sources；純文化/反思內容用 cultural_reflection disclosure，不得虛構來源"
+                ),
                 "bannedPhrases": sorted(BANNED_PHRASES | GENERIC_AI_PHRASES),
             },
             "immutableFields": sorted(REWRITE_IMMUTABLE_FIELDS),
@@ -1776,8 +2244,9 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
             "properties": {
                 "slot": {"type": "string"},
                 "bodySections": _article_json_schema()["properties"]["bodySections"],
+                "publicationPolicy": _publication_contract_schema(),
             },
-            "required": ["slot", "bodySections"],
+            "required": ["slot", "bodySections", "publicationPolicy"],
         }
     else:
         full = _article_json_schema()
@@ -1825,14 +2294,15 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
                 | {"proposed": generated["proposed"]}
             )
         else:
-            if set(generated) != {"slot", "bodySections"}:
-                raise CandidateValidationError("external rewrite fields must contain only slot and bodySections")
+            if set(generated) != {"slot", "bodySections", "publicationPolicy"}:
+                raise CandidateValidationError("external rewrite fields must contain only slot, bodySections, and publicationPolicy")
             articles.append(
                 {
                     "article_id": source["article_id"],
                     "identity": source["identity"],
                     "current_body_sha256": source["current_body_sha256"],
                     "bodySections": generated["bodySections"],
+                    "publicationPolicy": generated["publicationPolicy"],
                 }
             )
     candidate = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "mode": mode, "articles": articles}
@@ -1863,6 +2333,7 @@ def public_model_candidate(brief: dict[str, Any], candidate: dict[str, Any]) -> 
                     "slot": _slot(index),
                     "identity": article["identity"],
                     "bodySections": article["bodySections"],
+                    "publicationPolicy": article["publicationPolicy"],
                 }
             )
     return {"mode": mode, "articles": public_articles}
@@ -1932,7 +2403,11 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"
     elif brief.get("mode") == "rewrite_existing_body":
-        instruction = "只輸出各 slot 的完整 bodySections；不得輸出或改動任何 identity、metadata、FAQ、tag、日期或 URL 欄位。"
+        instruction = (
+            "只輸出各 slot 的完整 bodySections 與 publicationPolicy；不得輸出或改動 identity、FAQ、tag 或 URL 欄位。"
+            " publicationPolicy 的 modified 必須是這次實質正文改寫的真實日期，published 必須沿用 brief 的真實資料；"
+            "可驗證事實要列來源，純文化/反思內容要明示 disclosure，不得虛構來源。"
+        )
     if prior is not None:
         instruction = "請只修正 findings 指出的問題，保留候選稿中正確且具體的內容；仍須輸出完整 candidate。"
     return "\n".join([
@@ -2208,6 +2683,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             "article_sha256": {_candidate_id(article): article_sha256(article) for article in candidate["articles"]},
             "approval_created": False,
             "apply_executed": False,
+            **policy_validation_evidence(candidate, deterministic),
         },
     )
     return candidate, review
@@ -2423,6 +2899,10 @@ def run_rewrite_repair(
             "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
             "approval_created": False,
             "apply_executed": False,
+            **policy_validation_evidence(
+                candidate,
+                [*final_quality, *final_uniqueness],
+            ),
         },
     )
     return candidate, review
@@ -2614,7 +3094,7 @@ def prepare_rewrite_release_generation(
     candidate = json.loads((source_dir / "candidate.json").read_text(encoding="utf-8"))
     review = json.loads((source_dir / "review.json").read_text(encoding="utf-8"))
     validate_rewrite_brief(brief)
-    validate_candidate(candidate)
+    validate_candidate(candidate, enforce_policy=False)
     validate_review(review, candidate["articles"])
     article_ids = [str(item["article_id"]) for item in brief["articles"]]
     if len(article_ids) != MAX_RUN_ARTICLES:
@@ -2685,7 +3165,7 @@ def run_rewrite_release_generation(
     source_review = json.loads((run_dir / "source-review.json").read_text(encoding="utf-8"))
     contract = json.loads((run_dir / "release-contract.json").read_text(encoding="utf-8"))
     validate_rewrite_brief(brief)
-    validate_candidate(source_candidate)
+    validate_candidate(source_candidate, enforce_policy=False)
     validate_review(source_review, source_candidate["articles"])
     article_ids = [str(item["article_id"]) for item in brief["articles"]]
     if article_ids != [str(value) for value in contract.get("article_order", [])]:
@@ -3557,12 +4037,28 @@ def _apply_optimize_candidates(repo_root: Path, run_id: str, approved: list[dict
     else:
         block = f"export const ARTICLE_SEO_COPY_OVERRIDES = {json.dumps(overrides, ensure_ascii=False, indent=2, sort_keys=True)};\n\n"
         registry = _insert_once(registry, "export const ARTICLE_REGISTRY = [", block)
-    old = "return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy(article, getArticleSectionRecord(article.section)));"
-    new = "return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy({ ...article, ...(ARTICLE_SEO_COPY_OVERRIDES[article.id] || {}) }, getArticleSectionRecord(article.section)));"
-    if old in registry:
-        registry = registry.replace(old, new, 1)
-    elif new not in registry:
+    list_marker = "return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy("
+    argument_start = registry.find(list_marker)
+    if argument_start < 0:
         raise ValueError("listArticleRecords override marker not found")
+    argument_start += len(list_marker)
+    argument_end = registry.find(
+        ", getArticleSectionRecord(article.section)));",
+        argument_start,
+    )
+    if argument_end < 0:
+        raise ValueError("listArticleRecords override argument not found")
+    current_argument = registry[argument_start:argument_end]
+    override_token = "ARTICLE_SEO_COPY_OVERRIDES[article.id]"
+    if override_token not in current_argument:
+        updated_argument = (
+            f"{{ ...({current_argument}), ...({override_token} || {{}}) }}"
+        )
+        registry = (
+            registry[:argument_start]
+            + updated_argument
+            + registry[argument_end:]
+        )
     registry_path.write_text(registry, encoding="utf-8")
     _, slug_identifier = _safe_identifier(run_id)
     return [registry_path, *_bump_article_cache_queries(repo_root, f"agy-{slug_identifier.lower().replace('_', '-')}")]
@@ -3592,6 +4088,20 @@ def apply_approved_candidates(repo_root: Path, run_id: str, candidates: list[dic
         raise ValueError("rewrite_existing_body apply is disabled; candidate and review only")
     if "bodySections" not in approved[0]:
         return _apply_optimize_candidates(repo_root, run_id, approved)
+    reference_articles = load_publication_reference_corpus(repo_root)
+    for article in approved:
+        findings = required_policy_findings(
+            article_publication_policy_findings(
+                article,
+                mode="create",
+                reference_articles=reference_articles,
+            )
+        )
+        if findings:
+            raise ValueError(
+                f"policy v2 publisher apply blocked {article['id']}: "
+                f"{','.join(sorted({finding['code'] for finding in findings}))}"
+            )
     slug, identifier = _safe_identifier(run_id)
     static = repo_root / "app/web/static"
     module = static / f"article-expansion-agy-{slug}.js"

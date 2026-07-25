@@ -1,13 +1,19 @@
+import argparse
+import hashlib
+import html
 from pathlib import Path
 import json
+import re
 import subprocess
 import sys
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, article_updated_date, render_article_shell_from_meta  # noqa: E402
+from scripts import agy_seo_copy_pipeline as pipeline  # noqa: E402
 
 
 WEB_DIR = Path("app/web")
@@ -35,24 +41,40 @@ MIN_CITABILITY_DESCRIPTION_LEN = 50
 MAX_CITABILITY_DESCRIPTION_LEN = 160
 
 
-def registry_articles() -> list[dict[str, str]]:
+def registry_articles() -> list[dict[str, Any]]:
     script = """
 import { listArticleRecords, getArticlePath, getArticleSectionRecord } from './app/web/static/article-registry.js';
-const records = listArticleRecords().map((article) => ({
-  path: getArticlePath(article),
-  legacyPaths: [...new Set([
-    `/articles/${article.articleCategory || article.product}/${article.slug}`,
-    `/articles/${article.product}/${article.slug}`,
-  ])],
-  title: article.title || '',
-  description: article.description || '',
-  productLabel: getArticleSectionRecord(article.section)?.label || article.articleCategory || article.product || '文章',
-  productHub: getArticleSectionRecord(article.section)?.product || article.product || article.articleCategory || 'fortune',
-  articleCategory: article.articleCategory || article.product || '',
-  contentType: 'Article',
-  published: article.published || '',
-  updated: article.updated || '',
-}));
+import { buildArticleContent } from './app/web/static/article-meta.js';
+const records = listArticleRecords().map((article) => {
+  const path = getArticlePath(article);
+  const content = buildArticleContent(path, 'https://mysticpantheon.com', {
+    author: 'Pantheon 編輯部',
+    updated: article.updated || '',
+  });
+  return {
+    id: article.id || '',
+    path,
+    legacyPaths: [...new Set([
+      `/articles/${article.articleCategory || article.product}/${article.slug}`,
+      `/articles/${article.product}/${article.slug}`,
+    ])],
+    serial: article.serial || '',
+    urlSlug: article.urlSlug || '',
+    primaryKeyword: article.primaryKeyword || '',
+    title: article.title || '',
+    description: article.description || '',
+    answer: content.answer || article.answer || '',
+    faq: content.faq || article.faq || [],
+    bodySections: content.bodySections || [],
+    publicationPolicy: article.publicationPolicy || null,
+    productLabel: getArticleSectionRecord(article.section)?.label || article.articleCategory || article.product || '文章',
+    productHub: getArticleSectionRecord(article.section)?.product || article.product || article.articleCategory || 'fortune',
+    articleCategory: article.articleCategory || article.product || '',
+    contentType: 'Article',
+    published: article.published || '',
+    updated: article.updated || '',
+  };
+});
 console.log(JSON.stringify(records));
 """
     result = subprocess.run(
@@ -199,7 +221,7 @@ def build_topic_visible_links(topic: dict) -> list[dict[str, str]]:
     return [{**link, "kind": "相關文章"} for link in links]
 
 
-def build_prerender_articles() -> list[dict[str, str]]:
+def build_prerender_articles() -> list[dict[str, Any]]:
     articles = []
     for record in registry_articles():
         route = record["path"]
@@ -218,8 +240,16 @@ def build_prerender_articles() -> list[dict[str, str]]:
                 "product_label": record["productLabel"],
                 "product_hub": record["productHub"],
                 "content_type": record["contentType"],
-                "published": record["published"] or ARTICLE_PUBLISHED_DATE,
-                "updated": record["updated"] or article_updated_date(route),
+                "id": record["id"],
+                "serial": record["serial"],
+                "urlSlug": record["urlSlug"],
+                "primaryKeyword": record["primaryKeyword"],
+                "answer": record["answer"],
+                "faq": record["faq"],
+                "bodySections": record["bodySections"],
+                "publicationPolicy": record["publicationPolicy"],
+                "published": record["published"],
+                "updated": record["updated"],
             }
         )
     for article in articles:
@@ -388,22 +418,382 @@ def update_sitemap() -> None:
     SITEMAP_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def prerender() -> list[Path]:
+def _json_script(payload: object) -> str:
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+def _replace_section(markup: str, data_attribute: str, replacement: str) -> str:
+    pattern = rf'<section\b[^>]*\b{re.escape(data_attribute)}\b[^>]*>.*?</section>'
+    updated, count = re.subn(pattern, replacement, markup, count=1, flags=re.S)
+    if count != 1:
+        raise ValueError(f"prerender section marker missing: {data_attribute}")
+    return updated
+
+
+def render_article_specific_shell(article: dict[str, Any]) -> str:
+    """把 answer、正文與文章專屬 FAQ 放進 initial HTML，不依賴 hydration。"""
+    markup = render_article_shell_from_meta(article).body.decode("utf-8")
+    policy = pipeline.load_article_publication_policy()
+    identity = policy["identity"]
+    author_name = html.escape(identity["author_name"], quote=False)
+    author_url = html.escape(identity["author_url"], quote=True)
+    author_id = identity["author_id"]
+    markup = re.sub(
+        r'<span data-article-author>.*?</span>',
+        f'<span data-article-author><a href="{author_url}">{author_name}</a></span>',
+        markup,
+        count=1,
+        flags=re.S,
+    )
+
+    answer_markup = (
+        '<section class="article-answer-summary ui-panel" aria-label="重點答案" data-answer-summary>'
+        "<h2>重點答案</h2>"
+        f'<p data-answer-text>{html.escape(str(article["answer"]), quote=False)}</p>'
+        "</section>"
+    )
+    markup = _replace_section(markup, "data-answer-summary", answer_markup)
+    body_rows = []
+    for section in article["bodySections"]:
+        body_rows.append(f"<h2>{html.escape(str(section['heading']), quote=False)}</h2>")
+        body_rows.extend(
+            f"<p>{html.escape(str(paragraph), quote=False)}</p>"
+            for paragraph in section["paragraphs"]
+        )
+    body_markup = (
+        '<section class="article-body" aria-label="文章內容" data-article-body>'
+        f"{''.join(body_rows)}"
+        "</section>"
+    )
+    markup = _replace_section(markup, "data-article-body", body_markup)
+    faq_rows = [
+        "<details>"
+        f"<summary>{html.escape(str(item['question']), quote=False)}</summary>"
+        f"<p>{html.escape(str(item['answer']), quote=False)}</p>"
+        "</details>"
+        for item in article["faq"]
+    ]
+    faq_markup = (
+        '<section class="article-faq ui-panel" aria-label="常見問題" data-article-faq>'
+        "<h2>常見問題</h2>"
+        f"{''.join(faq_rows)}"
+        "</section>"
+    )
+    markup = _replace_section(markup, "data-article-faq", faq_markup)
+
+    main_jsonld: dict[str, Any] = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": article["title"],
+        "description": article["description"],
+        "inLanguage": "zh-Hant-TW",
+        "url": article["canonical"],
+        "mainEntityOfPage": article["canonical"],
+        "image": f"{SITE_ORIGIN}/static/pantheon-orb-alpha-poster.webp",
+        "author": {
+            "@type": "Organization",
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "@id": author_id,
+        },
+        "publisher": {"@id": f"{SITE_ORIGIN}/#organization"},
+        "isPartOf": {"@id": f"{SITE_ORIGIN}/#website"},
+        "articleSection": article["product_label"],
+        "articleBody": "\n".join(
+            str(paragraph)
+            for section in article["bodySections"]
+            for paragraph in section["paragraphs"]
+        ),
+    }
+    if article.get("published"):
+        main_jsonld["datePublished"] = article["published"]
+    if article.get("updated"):
+        main_jsonld["dateModified"] = article["updated"]
+    faq_jsonld = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": item["question"],
+                "acceptedAnswer": {"@type": "Answer", "text": item["answer"]},
+            }
+            for item in article["faq"]
+        ],
+    }
+    markup = re.sub(
+        r'(<script type="application/ld\+json" id="article-jsonld">).*?(</script>)',
+        lambda match: f"{match.group(1)}{_json_script(main_jsonld)}{match.group(2)}",
+        markup,
+        count=1,
+        flags=re.S,
+    )
+    markup = re.sub(
+        r'(<script type="application/ld\+json" id="faq-jsonld">).*?(</script>)',
+        lambda match: f"{match.group(1)}{_json_script(faq_jsonld)}{match.group(2)}",
+        markup,
+        count=1,
+        flags=re.S,
+    )
+    if article.get("published"):
+        markup = re.sub(
+            r'(<meta property="article:published_time" content=")[^"]*(" />)',
+            lambda match: f"{match.group(1)}{html.escape(str(article['published']), quote=True)}{match.group(2)}",
+            markup,
+            count=1,
+        )
+    else:
+        markup = re.sub(
+            r'\s*<meta property="article:published_time"[^>]*>',
+            "",
+            markup,
+            count=1,
+        )
+    if not article.get("updated"):
+        markup = re.sub(
+            r"<span>更新：<time\b[^>]*data-article-updated[^>]*>.*?</time></span>",
+            '<span data-article-date-missing>更新日期待真實資料補齊</span>',
+            markup,
+            count=1,
+            flags=re.S,
+        )
+        markup = re.sub(
+            r'\s*<meta property="article:modified_time"[^>]*>',
+            "",
+            markup,
+            count=1,
+        )
+    return markup
+
+
+def prerender_artifact_findings(
+    article: dict[str, Any],
+    markup: str,
+) -> list[dict[str, str]]:
+    findings = pipeline.article_publication_policy_findings(
+        article,
+        mode="create",
+    )
+    article_id = str(article["id"])
+
+    def add(code: str, message: str) -> None:
+        findings.append(pipeline._policy_finding(article_id, code, message))
+
+    if "這篇文章會先回答核心問題" in markup or "最新文章會把命盤" in markup:
+        add("initial_html_complete", "initial HTML 仍含通用 placeholder")
+    if html.escape(str(article["answer"]), quote=False) not in markup:
+        add("initial_html_complete", "answer 未出現在 initial HTML")
+    for section in article["bodySections"]:
+        for paragraph in section["paragraphs"]:
+            if html.escape(str(paragraph), quote=False) not in markup:
+                add("initial_html_complete", "重要正文未完整出現在 initial HTML")
+                break
+    article_match = re.search(
+        r'<script type="application/ld\+json" id="article-jsonld">(.*?)</script>',
+        markup,
+        flags=re.S,
+    )
+    faq_match = re.search(
+        r'<script type="application/ld\+json" id="faq-jsonld">(.*?)</script>',
+        markup,
+        flags=re.S,
+    )
+    if not article_match or not faq_match:
+        add("structured_visible_match", "Article/FAQ JSON-LD 缺失")
+        return findings
+    article_jsonld = json.loads(article_match.group(1))
+    faq_jsonld = json.loads(faq_match.group(1))
+    if article_jsonld.get("url") != article["canonical"] or article_jsonld.get("mainEntityOfPage") != article["canonical"]:
+        add("canonical_jsonld_consistency", "Article JSON-LD URL 與 canonical 不一致")
+    expected_author = pipeline.load_article_publication_policy()["identity"]
+    author = article_jsonld.get("author") or {}
+    if (
+        author.get("name") != expected_author["author_name"]
+        or author.get("url") != expected_author["author_url"]
+        or author.get("@id") != expected_author["author_id"]
+        or expected_author["author_name"] not in markup
+    ):
+        add("author_visible_jsonld_match", "可見署名與 Article JSON-LD author identity 不一致")
+    actual_faq = [
+        {
+            "question": item.get("name"),
+            "answer": (item.get("acceptedAnswer") or {}).get("text"),
+        }
+        for item in faq_jsonld.get("mainEntity") or []
+    ]
+    expected_faq = [
+        {"question": item["question"], "answer": item["answer"]}
+        for item in article["faq"]
+    ]
+    if actual_faq != expected_faq:
+        add("faq_visible_jsonld_match", "FAQ JSON-LD 數量或內容與文章 FAQ 不一致")
+    for item in expected_faq:
+        if (
+            html.escape(str(item["question"]), quote=False) not in markup
+            or html.escape(str(item["answer"]), quote=False) not in markup
+        ):
+            add("faq_visible_jsonld_match", "FAQ JSON-LD 內容未全部顯示於 initial HTML")
+            break
+    if not article.get("published") and "datePublished" in article_jsonld:
+        add("truthful_dates", "缺 published 資料時不得輸出 fallback datePublished")
+    if not article.get("updated") and "dateModified" in article_jsonld:
+        add("truthful_dates", "缺 updated 資料時不得輸出 fallback dateModified")
+    return findings
+
+
+def build_policy_v2_audit(articles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    inventory = articles or PRERENDER_ARTICLES
+    ids = [str(article["id"]) for article in inventory]
+    routes = [str(article["route"]) for article in inventory]
+    sitemap_text = SITEMAP_PATH.read_text(encoding="utf-8") if SITEMAP_PATH.is_file() else ""
+    migration: list[dict[str, Any]] = []
+    failure_counts: dict[str, int] = {}
+    compliant = 0
+    for article in inventory:
+        artifact_path = WEB_DIR / str(article["target"])
+        markup = (
+            artifact_path.read_text(encoding="utf-8")
+            if artifact_path.is_file()
+            else render_article_specific_shell(article)
+        )
+        findings = pipeline.required_policy_findings(
+            prerender_artifact_findings(article, markup)
+        )
+        if f"<loc>{article['canonical']}</loc>" not in sitemap_text:
+            findings.append(
+                pipeline._policy_finding(
+                    str(article["id"]),
+                    "canonical_sitemap_consistency",
+                    "canonical 未出現在 sitemap",
+                )
+            )
+        sitemap_entry = re.search(
+            rf"<url>\s*<loc>{re.escape(str(article['canonical']))}</loc>(.*?)</url>",
+            sitemap_text,
+            flags=re.S,
+        )
+        sitemap_lastmod = (
+            re.search(r"<lastmod>([^<]+)</lastmod>", sitemap_entry.group(1))
+            if sitemap_entry
+            else None
+        )
+        if not article.get("updated") and sitemap_lastmod:
+            findings.append(
+                pipeline._policy_finding(
+                    str(article["id"]),
+                    "truthful_dates",
+                    "缺真實 updated 的舊文 sitemap 不得保留 fallback lastmod",
+                )
+            )
+        if (
+            article.get("updated")
+            and sitemap_lastmod
+            and sitemap_lastmod.group(1) != str(article["updated"])
+        ):
+            findings.append(
+                pipeline._policy_finding(
+                    str(article["id"]),
+                    "canonical_sitemap_consistency",
+                    "sitemap lastmod 與文章 updated 不一致",
+                )
+            )
+        canonical_routes = set(routes)
+        for link in article.get("internal_links") or []:
+            href = str(link.get("href") or "")
+            if href.startswith("/articles/") and href.count("/") >= 3 and href not in canonical_routes:
+                findings.append(
+                    pipeline._policy_finding(
+                        str(article["id"]),
+                        "canonical_internal_link_consistency",
+                        f"站內連結不是已知 canonical route：{href}",
+                    )
+                )
+                break
+        if findings:
+            codes = sorted({str(finding["code"]) for finding in findings})
+            migration.append({"article_id": article["id"], "route": article["route"], "failure_codes": codes})
+            for code in codes:
+                failure_counts[code] = failure_counts.get(code, 0) + 1
+        else:
+            compliant += 1
+    if len(ids) != len(set(ids)):
+        failure_counts["unique_identity"] = len(ids) - len(set(ids))
+    if len(routes) != len(set(routes)):
+        failure_counts["canonical_consistency"] = len(routes) - len(set(routes))
+    input_hash = hashlib.sha256(
+        pipeline.compact_json_bytes(
+            [
+                {
+                    "id": article["id"],
+                    "route": article["route"],
+                    "published": article["published"],
+                    "updated": article["updated"],
+                    "publicationPolicy": article["publicationPolicy"],
+                    "bodySections": article["bodySections"],
+                }
+                for article in inventory
+            ]
+        )
+    ).hexdigest()
+    return {
+        "policy_version": pipeline.publication_policy_version(),
+        "validator_result": "PASS" if not migration else "MIGRATION_REQUIRED",
+        "audit_mode": "read_only",
+        "article_count": len(inventory),
+        "compliant_count": compliant,
+        "migration_count": len(migration),
+        "failure_code_counts": dict(sorted(failure_counts.items())),
+        "input_hash": input_hash,
+        "migration_queue": migration,
+        "measured_not_locally_proven": pipeline.load_article_publication_policy()["measured"],
+    }
+
+
+def prerender(*, required_article_ids: set[str] | None = None) -> list[Path]:
     written: list[Path] = []
     for page in PRERENDER_PAGES:
         target = page["target"]
         output_path = WEB_DIR / target
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        response = render_article_shell_from_meta(page)
-        output_path.write_text(response.body.decode("utf-8"), encoding="utf-8")
+        if page["content_type"] == "Article":
+            markup = render_article_specific_shell(page)
+            if page["id"] in (required_article_ids or set()):
+                findings = pipeline.required_policy_findings(
+                    prerender_artifact_findings(page, markup)
+                )
+                if findings:
+                    codes = ",".join(sorted({str(finding["code"]) for finding in findings}))
+                    raise ValueError(f"policy v2 prerender acceptance blocked {page['id']}: {codes}")
+        else:
+            markup = render_article_shell_from_meta(page).body.decode("utf-8")
+        output_path.write_text(markup, encoding="utf-8")
         written.append(output_path)
     update_redirects()
     update_sitemap()
     return written
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--required-article-id", action="append", default=[])
+    parser.add_argument("--audit-output", type=Path)
+    parser.add_argument("--audit-only", action="store_true")
+    return parser.parse_args()
+
+
 def main() -> None:
-    for output_path in prerender():
+    args = parse_args()
+    if args.audit_output:
+        audit = build_policy_v2_audit()
+        args.audit_output.parent.mkdir(parents=True, exist_ok=True)
+        args.audit_output.write_text(
+            json.dumps(audit, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        if args.audit_only:
+            print(args.audit_output)
+            return
+    for output_path in prerender(required_article_ids=set(args.required_article_id)):
         print(output_path)
 
 

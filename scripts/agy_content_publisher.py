@@ -31,9 +31,11 @@ LEGACY_ARTICLE_COUNT_CUTOFF = 353
 LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
 GitRunner = Callable[[Path, list[str], str | None], str]
 TRANSACTION_RUNTIME_PATHS = (
+    "app/core/article_publication_policy_v2.json",
     "scripts/agy_content_publisher.py",
     "scripts/agy_seo_copy_pipeline.py",
     "scripts/agy_multilingual_pipeline.py",
+    "scripts/prerender_article_shells.py",
     "pnpm-lock.yaml",
     "uv.lock",
 )
@@ -185,6 +187,55 @@ def _repo_lock_path(repo_root: Path, git: GitRunner) -> Path:
 def _retry_path(state_root: Path, phase: str, run_id: str) -> Path:
     safe_run_id = re.sub(r"[^A-Za-z0-9._-]+", "-", run_id).strip("-") or "unknown"
     return state_root / "retry" / phase / f"{safe_run_id}.json"
+
+
+def _policy_rejection_path(state_root: Path, phase: str, run_id: str) -> Path:
+    safe_run_id = re.sub(r"[^0-9A-Za-z._-]+", "-", run_id).strip("-") or "unknown"
+    return state_root / "policy-rejections" / phase / f"{safe_run_id}.json"
+
+
+def _record_policy_rejection(
+    state_root: Path,
+    phase: str,
+    state: dict[str, Any],
+    candidate: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> Path:
+    """Policy rejection 是 terminal content state，不建立 transport retry。"""
+    run_id = str(state.get("run_id") or candidate.get("run_id") or "unknown")
+    article_ids = [
+        str(article.get("id") or article.get("article_id") or "")
+        for article in candidate.get("articles") or []
+        if isinstance(article, dict)
+    ]
+    required = pipeline.required_policy_findings(findings)
+    input_hash = hashlib.sha256(pipeline.compact_json_bytes(candidate)).hexdigest()
+    path = _policy_rejection_path(state_root, phase, run_id)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "POLICY_REJECTED",
+        "terminal": True,
+        "retry_eligible": False,
+        "policy_version": pipeline.publication_policy_version(),
+        "validator_result": "FAIL",
+        "run_id": run_id,
+        "article_ids": article_ids,
+        "failure_codes": sorted({str(item.get("code") or "unknown") for item in required}),
+        "findings": required,
+        "input_hash": input_hash,
+        "recorded_at": _now(),
+    }
+    if path.is_file():
+        existing = _read_json(path)
+        if existing.get("input_hash") == input_hash:
+            return path
+    _atomic_write_json(path, payload)
+    _record_quarantine(
+        state_root,
+        state,
+        f"policy_v2_required:{','.join(payload['failure_codes'])}",
+    )
+    return path
 
 
 def _unresolved_push_path(state_root: Path) -> Path:
@@ -767,6 +818,37 @@ def _load_completed_run(state_path: Path) -> tuple[dict[str, Any], dict[str, Any
     return state, candidate, review
 
 
+def _record_invalid_candidate_policy_rejection(
+    state_root: Path,
+    phase: str,
+    state_path: Path,
+) -> Path | None:
+    """只把已存在但不合 policy/schema 的 candidate 收斂為 terminal rejection。"""
+    try:
+        state = _read_json(state_path)
+        if state.get("status") != "complete":
+            return None
+        run_dir = Path(str(state.get("run_dir") or ""))
+        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        candidate_path = Path(str(result.get("candidate") or run_dir / "candidate.json"))
+        if not candidate_path.is_file():
+            return None
+        candidate = _read_json(candidate_path)
+        pipeline.validate_candidate(candidate)
+    except pipeline.CandidateValidationError as error:
+        match = re.search(r": ([a-z0-9_]+)$", str(error))
+        code = match.group(1) if match else "invalid_candidate_contract"
+        finding = pipeline._policy_finding(
+            str(candidate.get("run_id") or state.get("run_id") or ""),
+            code,
+            str(error),
+        )
+        return _record_policy_rejection(state_root, phase, state, candidate, [finding])
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return None
+
+
 def _review_is_clean_approve(review: dict[str, Any]) -> bool:
     for item in review["articles"]:
         if item.get("verdict") != "APPROVE" or item.get("hard_failure") is True:
@@ -806,15 +888,27 @@ def _assert_batch_unique(candidates: list[dict[str, Any]]) -> None:
                     paragraph_owners[normalized] = article_id
 
 
-def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAULT_MAX_RUNS) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+def collect_ready_runs(
+    queue_root: Path,
+    state_root: Path,
+    *,
+    limit: int = DEFAULT_MAX_RUNS,
+    repo_root: Path | None = None,
+) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
     ledger = _load_ledger(state_root)
     published = {str(item.get("run_id")) for item in ledger["published_runs"]}
     quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    reference_articles = (
+        pipeline.load_publication_reference_corpus(repo_root)
+        if repo_root is not None
+        else None
+    )
     for state_path in _fresh_first_run_files(queue_root, state_root, "create"):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
+            _record_invalid_candidate_policy_rejection(state_root, "create", state_path)
             continue
         run_id = str(state["run_id"])
         if run_id in published or run_id in quarantined:
@@ -829,9 +923,16 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
         if not _review_is_clean_approve(review):
             _record_quarantine(state_root, state, "reviewer did not cleanly approve every article")
             continue
-        findings = pipeline.quality_findings(candidate["articles"])
+        findings = (
+            pipeline.quality_findings(
+                candidate["articles"],
+                reference_articles=reference_articles,
+            )
+            if reference_articles
+            else pipeline.quality_findings(candidate["articles"])
+        )
         if findings:
-            _record_quarantine(state_root, state, f"deterministic findings: {len(findings)}")
+            _record_policy_rejection(state_root, "create", state, candidate, findings)
             continue
         ready.append((state, candidate, review))
         if len(ready) >= limit:
@@ -920,8 +1021,23 @@ def _load_rewrite_brief(run_dir: Path, run_id: str) -> dict[str, Any]:
     return brief
 
 
-def _rewrite_findings_for_run(candidate: dict[str, Any], brief: dict[str, Any]) -> list[dict[str, str]]:
-    quality, uniqueness = pipeline.rewrite_aggregate_findings(brief, candidate["articles"])
+def _rewrite_findings_for_run(
+    candidate: dict[str, Any],
+    brief: dict[str, Any],
+    *,
+    reference_articles: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    if not reference_articles:
+        quality, uniqueness = pipeline.rewrite_aggregate_findings(
+            brief,
+            candidate["articles"],
+        )
+    else:
+        quality, uniqueness = pipeline.rewrite_aggregate_findings(
+            brief,
+            candidate["articles"],
+            reference_articles=reference_articles,
+        )
     return [*quality, *uniqueness]
 
 
@@ -931,6 +1047,7 @@ def collect_ready_rewrite_runs(
     *,
     limit: int = DEFAULT_MAX_RUNS,
     allowed_article_ids: set[str] | None = None,
+    repo_root: Path | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
@@ -938,10 +1055,16 @@ def collect_ready_rewrite_runs(
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     seen_article_ids: set[str] = set()
     seen_body_hashes: dict[str, str] = {}
+    reference_articles = (
+        pipeline.load_publication_reference_corpus(repo_root)
+        if repo_root is not None
+        else None
+    )
     for state_path in _fresh_first_run_files(queue_root, state_root, "rewrite"):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
+            _record_invalid_candidate_policy_rejection(state_root, "rewrite", state_path)
             continue
         run_id = str(state["run_id"])
         if run_id in released or run_id in quarantined or candidate.get("mode") != "rewrite_existing_body":
@@ -955,8 +1078,13 @@ def collect_ready_rewrite_runs(
             continue
         run_dir = Path(str(state["run_dir"]))
         brief = _load_rewrite_brief(run_dir, run_id)
-        findings = _rewrite_findings_for_run(candidate, brief)
+        findings = _rewrite_findings_for_run(
+            candidate,
+            brief,
+            reference_articles=reference_articles,
+        )
         if findings:
+            _record_policy_rejection(state_root, "rewrite", state, candidate, findings)
             continue
         for article in candidate["articles"]:
             article_id = str(article["article_id"])
@@ -1374,8 +1502,11 @@ console.log(JSON.stringify(selected.map((article) => ({
     return list(json.loads(result.stdout))
 
 
-def _run_prerender(repo_root: Path) -> None:
-    _run_checked(repo_root, [sys.executable, "scripts/prerender_article_shells.py"])
+def _run_prerender(repo_root: Path, *, required_article_ids: list[str] | None = None) -> None:
+    command = [sys.executable, "scripts/prerender_article_shells.py"]
+    for article_id in required_article_ids or []:
+        command.extend(["--required-article-id", article_id])
+    _run_checked(repo_root, command)
 
 
 def _run_feed(repo_root: Path) -> None:
@@ -1523,22 +1654,69 @@ def _update_rewrite_body_override_lookup(meta_path: Path, export_name: str) -> N
     meta_path.write_text(text, encoding="utf-8")
 
 
+def _update_rewrite_policy_override_lookup(registry_path: Path, export_name: str) -> None:
+    text = registry_path.read_text(encoding="utf-8")
+    marker = "return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy("
+    start = text.find(marker)
+    if start < 0:
+        raise PublishBlocked("article registry listArticleRecords policy marker not found")
+    argument_start = start + len(marker)
+    argument_end = text.find(", getArticleSectionRecord(article.section)));", argument_start)
+    if argument_end < 0:
+        raise PublishBlocked("article registry listArticleRecords policy argument not found")
+    token = f"{export_name}[article.id]"
+    current = text[argument_start:argument_end]
+    if token in current:
+        return
+    updated = f"{{ ...({current}), ...({token} || {{}}) }}"
+    text = text[:argument_start] + updated + text[argument_end:]
+    registry_path.write_text(text, encoding="utf-8")
+
+
 def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dict[str, Any]]) -> list[Path]:
     if not candidates:
         return []
     _assert_rewrite_source_matches(repo_root, candidates)
+    reference_articles = pipeline.load_publication_reference_corpus(repo_root)
+    for candidate in candidates:
+        for article in candidate["articles"]:
+            policy_article = {
+                **article["identity"],
+                "id": article["article_id"],
+                "bodySections": article["bodySections"],
+                "publicationPolicy": article["publicationPolicy"],
+            }
+            findings = pipeline.required_policy_findings(
+                pipeline.article_publication_policy_findings(
+                    policy_article,
+                    mode="rewrite_existing_body",
+                    reference_articles=reference_articles,
+                )
+            )
+            if findings:
+                raise PublishBlocked(
+                    f"policy v2 rewrite apply blocked {article['article_id']}: "
+                    f"{','.join(sorted({finding['code'] for finding in findings}))}"
+                )
     file_slug, identifier = pipeline._safe_identifier(release_id)
     export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
+    policy_export_name = f"AGY_{identifier}_REWRITE_POLICY_OVERRIDES"
     module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
     bodies: dict[str, list[dict[str, Any]]] = {}
+    policies: dict[str, dict[str, Any]] = {}
     for candidate in candidates:
         for article in candidate["articles"]:
             slug = str(article["identity"]["slug"])
             if slug in bodies:
                 raise PublishBlocked(f"duplicate rewrite slug in release batch: {slug}")
             bodies[slug] = article["bodySections"]
+            policies[str(article["article_id"])] = {
+                "updated": article["publicationPolicy"]["modified"],
+                "publicationPolicy": article["publicationPolicy"],
+            }
     module.write_text(
-        f"export const {export_name} = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n",
+        f"export const {export_name} = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n\n"
+        f"export const {policy_export_name} = {json.dumps(policies, ensure_ascii=False, indent=2)};\n",
         encoding="utf-8",
     )
     meta_path = repo_root / "app/web/static/article-meta.js"
@@ -1547,7 +1725,19 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     meta = pipeline._insert_once(meta, "const ARTICLE_BODY_LIBRARY = {", import_line + "\n")
     meta_path.write_text(meta, encoding="utf-8")
     _update_rewrite_body_override_lookup(meta_path, export_name)
-    changed = [module, meta_path]
+    registry_path = repo_root / "app/web/static/article-registry.js"
+    registry_import = (
+        f'import {{ {policy_export_name} }} from "./{module.name}?v={release_id}";\n'
+    )
+    registry = registry_path.read_text(encoding="utf-8")
+    registry = pipeline._insert_once(
+        registry,
+        "export const ARTICLE_REGISTRY = [",
+        registry_import + "\n",
+    )
+    registry_path.write_text(registry, encoding="utf-8")
+    _update_rewrite_policy_override_lookup(registry_path, policy_export_name)
+    changed = [module, meta_path, registry_path]
     changed.extend(pipeline._bump_article_cache_queries(repo_root, release_id))
     return changed
 
@@ -1576,7 +1766,12 @@ def publish_ready_runs(
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         recovered_translation_runs = [] if dry_run else _seed_pending_translations(repo_root, queue_root, state_root)
-        ready = collect_ready_runs(queue_root, state_root, limit=max_runs)
+        ready = collect_ready_runs(
+            queue_root,
+            state_root,
+            limit=max_runs,
+            repo_root=repo_root,
+        )
         if not ready:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -1626,7 +1821,15 @@ def publish_ready_runs(
             )
         )
         changed.append(str(fixture_path.relative_to(repo_root)))
-        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(
+            lambda: _run_prerender(
+                repo_root,
+                required_article_ids=[
+                    str(article["id"])
+                    for article in approved_articles
+                ],
+            )
+        )
         journal.capture(lambda: _run_feed(repo_root))
         journal.capture(
             lambda: _prepend_changelog(
@@ -1682,6 +1885,19 @@ def publish_ready_runs(
             "public_article_count": article_count,
             "seeded_translation_runs": seeded_translation_runs,
             "pushed": push,
+            "policy_version": pipeline.publication_policy_version(),
+            "validator_result": "PASS",
+            "article_ids": sorted(
+                str(article["id"])
+                for candidate in [candidate for _, candidate, _ in ready]
+                for article in candidate["articles"]
+            ),
+            "failure_codes": [],
+            "input_hash": hashlib.sha256(
+                pipeline.compact_json_bytes(
+                    [candidate for _, candidate, _ in ready]
+                )
+            ).hexdigest(),
         }
         _write_json(evidence_dir / "publish-evidence.json", evidence)
         return evidence
@@ -1718,7 +1934,13 @@ def publish_ready_rewrite_runs(
             allowed_article_ids=allowed_article_ids,
             legacy_records=legacy_records,
         )
-        ready = collect_ready_rewrite_runs(queue_root, state_root, limit=max_runs, allowed_article_ids=allowed_article_ids)
+        ready = collect_ready_rewrite_runs(
+            queue_root,
+            state_root,
+            limit=max_runs,
+            allowed_article_ids=allowed_article_ids,
+            repo_root=repo_root,
+        )
         ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
         if not ready:
             backlog_summary = summarize_legacy_rewrite_backlog(
@@ -1766,7 +1988,12 @@ def publish_ready_rewrite_runs(
         article_count = _public_article_count(repo_root)
         fixture_path = journal.capture(lambda: _sync_web_test_cache_token(repo_root, cache_token=release_id))
         changed.append(str(fixture_path.relative_to(repo_root)))
-        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(
+            lambda: _run_prerender(
+                repo_root,
+                required_article_ids=article_ids,
+            )
+        )
         journal.capture(lambda: _run_feed(repo_root))
         journal.capture(
             lambda: _prepend_rewrite_changelog(
@@ -1826,6 +2053,12 @@ def publish_ready_rewrite_runs(
             "legacy_rewrite_backlog": backlog_summary,
             "seeded_translation_runs": seeded_translation_runs,
             "pushed": push,
+            "policy_version": pipeline.publication_policy_version(),
+            "validator_result": "PASS",
+            "failure_codes": [],
+            "input_hash": hashlib.sha256(
+                pipeline.compact_json_bytes(candidates)
+            ).hexdigest(),
         }
         _write_json(evidence_dir / "rewrite-evidence.json", evidence)
         return evidence
