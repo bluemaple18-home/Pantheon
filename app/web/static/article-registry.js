@@ -599,6 +599,8 @@ import { AGY_AUTO_NEW_V1_20260725_019_01_ARTICLE_RECORDS } from "./article-expan
 
 import { AGY_AUTO_NEW_V1_20260725_032_02_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260725-032-02.js?v=agy-auto-new-v1-20260725-032-02";
 
+import { AGY_AUTO_NEW_V1_20260725_037_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260725-037-01.js?v=agy-auto-new-v1-20260725-037-01";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2631,6 +2633,7 @@ export const ARTICLE_REGISTRY = [
   ...AGY_AUTO_NEW_V1_20260725_001_02_ARTICLE_RECORDS,
   ...AGY_AUTO_NEW_V1_20260725_019_01_ARTICLE_RECORDS,
   ...AGY_AUTO_NEW_V1_20260725_032_02_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260725_037_01_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {
