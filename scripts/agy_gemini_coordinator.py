@@ -471,7 +471,7 @@ def seed_legacy_rewrite_runs(
     if max_new_runs <= 0:
         return {"status": "disabled", "created": 0, "created_run_ids": []}
 
-    active_count = len(_active_states(queue_root))
+    active_count = _active_count_by_mode(queue_root, "rewrite_existing_body")
     if active_count >= max_active_runs:
         return {"status": "active_limit", "created": 0, "created_run_ids": [], "active": active_count}
 
