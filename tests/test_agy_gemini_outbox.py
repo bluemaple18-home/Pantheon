@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_gemini_outbox as outbox
 import scripts.agy_gemini_runner as runner
+import scripts.agy_seo_copy_pipeline as pipeline
 from scripts import agy_gemini_v4_broker as broker
 from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
@@ -247,6 +248,104 @@ def test_runner_processes_one_job_and_archives_request(tmp_path: Path) -> None:
     response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
     assert response["request_sha256"] == request["request_sha256"]
     assert response["result"] == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code"),
+    [
+        ("nonzero", "CLI_NONZERO"),
+        ("timeout", "CLI_TIMEOUT"),
+        ("not-found", "CLI_NOT_FOUND"),
+        ("envelope", "CLI_ENVELOPE_ERROR"),
+    ],
+)
+def test_runner_failure_receipt_persists_only_closed_error_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected_code: str,
+) -> None:
+    private_detail = "/Users/example/private prompt GEMINI_API_KEY=must-not-persist raw stderr"
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-closed-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(args, timeout=1, stderr=private_detail)
+        if failure == "not-found":
+            raise FileNotFoundError(private_detail)
+        if failure == "nonzero":
+            return subprocess.CompletedProcess(args, 7, "", private_detail)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            json.dumps({"error": private_detail}),
+            "",
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/gemini")
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
+    result = process_once(tmp_path)
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text(encoding="utf-8"))
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "GeminiCliFailure",
+        "error_code": expected_code,
+    }
+    assert failed["error_code"] == expected_code
+    assert set(failed) == {
+        "schema_version",
+        "job_id",
+        "request_sha256",
+        "error_type",
+        "error_code",
+        "completed_at",
+    }
+    persisted = failed_path.read_text(encoding="utf-8")
+    for forbidden in ("prompt", "response", "stdout", "stderr", "GEMINI_API_KEY", "/Users/"):
+        assert forbidden not in persisted
+
+
+def test_outbox_failure_preserves_closed_error_code(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-code-consumer",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": request["job_id"],
+                "request_sha256": request["request_sha256"],
+                "error_type": "RuntimeError",
+                "error_code": "CLI_TIMEOUT",
+                "completed_at": "2026-07-25T23:00:00+08:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "RuntimeError"
+    assert raised.value.error_code == "CLI_TIMEOUT"
 
 
 def test_runner_requeues_stale_processing_job_after_interrupted_worker(tmp_path: Path) -> None:

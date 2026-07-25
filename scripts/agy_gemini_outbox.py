@@ -20,6 +20,7 @@ SCHEMA_VERSION = 1
 OUTBOX_MAX_REPAIRS = 2
 OUTBOX_MAX_TRANSPORT_RETRIES = 2
 RETRYABLE_EXTERNAL_ERRORS = {"JSONDecodeError"}
+CLOSED_EXTERNAL_ERROR_CODES = pipeline.CLOSED_GEMINI_ERROR_CODES
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -46,9 +47,10 @@ class ExternalJobPending(RuntimeError):
 class ExternalJobFailed(RuntimeError):
     """外部 runner 已記錄失敗。"""
 
-    def __init__(self, job_id: str, error_type: str) -> None:
+    def __init__(self, job_id: str, error_type: str, error_code: str | None = None) -> None:
         self.job_id = job_id
         self.error_type = error_type
+        self.error_code = error_code if error_code in CLOSED_EXTERNAL_ERROR_CODES else None
         super().__init__(f"external job failed: {job_id} ({error_type})")
 
 
@@ -194,7 +196,11 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
     failed_path = queue_root / "failed" / f"{job_id}.json"
     if failed_path.exists():
         failure = json.loads(failed_path.read_text(encoding="utf-8"))
-        raise ExternalJobFailed(job_id, str(failure.get("error_type", "unknown")))
+        raise ExternalJobFailed(
+            job_id,
+            str(failure.get("error_type", "unknown")),
+            failure.get("error_code") if type(failure.get("error_code")) is str else None,
+        )
     response_path = queue_root / "inbox" / f"{job_id}.json"
     if not response_path.exists():
         raise ExternalJobPending(job_id)
@@ -311,7 +317,10 @@ def main() -> int:
         print(json.dumps({"status": "pending", "job_id": pending.job_id}, ensure_ascii=False))
         return 75
     except ExternalJobFailed as failed:
-        print(json.dumps({"status": "failed", "job_id": failed.job_id, "error_type": failed.error_type}, ensure_ascii=False))
+        result = {"status": "failed", "job_id": failed.job_id, "error_type": failed.error_type}
+        if failed.error_code is not None:
+            result["error_code"] = failed.error_code
+        print(json.dumps(result, ensure_ascii=False))
         return 1
     print(json.dumps(result, ensure_ascii=False))
     return 0

@@ -223,6 +223,41 @@ def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) ->
     assert "invalid candidate" not in state
 
 
+def test_cycle_preserves_closed_code_and_failed_run_does_not_block_next(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    first_run = tmp_path / "runs" / "run-001"
+    second_run = tmp_path / "runs" / "run-002"
+    _write_brief(first_run, "run-001")
+    _write_brief(second_run, "run-002")
+    register_run(first_run, queue_root)
+    register_run(second_run, queue_root)
+
+    def mixed_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        if run_dir == first_run.resolve():
+            raise coordinator.ExternalJobFailed(
+                "public-job-failed",
+                "RuntimeError",
+                "CLI_NONZERO",
+            )
+        return {"status": "complete", "run_id": "run-002"}
+
+    summary = cycle_once(
+        queue_root,
+        tick=mixed_tick,
+        process=lambda _root: {"status": "idle"},
+    )
+    first_state = read_run_state(first_run, queue_root)
+    second_state = read_run_state(second_run, queue_root)
+
+    assert summary["failed"] == 1
+    assert summary["complete"] == 1
+    assert first_state["status"] == "failed"
+    assert first_state["error_code"] == "CLI_NONZERO"
+    assert second_state["status"] == "complete"
+
+
 def test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "run-malformed-json"
     queue_root = tmp_path / "queue"

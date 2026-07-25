@@ -17,7 +17,7 @@ from scripts.agy_gemini_outbox import (
     atomic_write_json,
     validate_external_request,
 )
-from scripts.agy_seo_copy_pipeline import GeminiClient
+from scripts.agy_seo_copy_pipeline import CLOSED_GEMINI_ERROR_CODES, GeminiClient
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
     ExecutionReceipt,
@@ -236,6 +236,13 @@ def _closed_broker_diagnostic(
     return diagnostic
 
 
+def _closed_error_code(error: BaseException) -> str | None:
+    error_code = getattr(error, "error_code", None)
+    if type(error_code) is str and error_code in CLOSED_GEMINI_ERROR_CODES:
+        return error_code
+    return None
+
+
 def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, str]:
     claimed = _claim_next(queue_root)
     if claimed is None:
@@ -324,12 +331,18 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             "error_type": type(error).__name__,
             "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         }
+        error_code = _closed_error_code(error)
+        if error_code is not None:
+            failed_record["error_code"] = error_code
         if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
             failed_record["broker_diagnostic"] = broker_diagnostic
         atomic_write_json(queue_root / "failed" / f"{job_id}.json", failed_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
-        return {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
+        result = {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
+        if error_code is not None:
+            result["error_code"] = error_code
+        return result
 
 
 def parse_args() -> argparse.Namespace:
