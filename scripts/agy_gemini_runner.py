@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Final
@@ -64,6 +65,7 @@ SAFE_SCHEMA_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MAX_SCHEMA_DIAGNOSTICS = 3
 MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
+STALE_PROCESSING_SECONDS = 10 * 60
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -98,7 +100,31 @@ def _render_v4_effective_prompt(
     ).encode("utf-8")
 
 
+def _requeue_stale_processing(queue_root: Path) -> None:
+    """回收 worker 中斷後遺留的 processing 工作。"""
+    processing = queue_root / "processing"
+    outbox = queue_root / "outbox"
+    if not processing.exists():
+        return
+    cutoff = time.time() - STALE_PROCESSING_SECONDS
+    for source in sorted(processing.glob("*.json")):
+        try:
+            if source.stat().st_mtime > cutoff:
+                continue
+        except FileNotFoundError:
+            continue
+        target = outbox / source.name
+        if target.exists():
+            continue
+        outbox.mkdir(parents=True, exist_ok=True)
+        try:
+            os.replace(source, target)
+        except FileNotFoundError:
+            continue
+
+
 def _claim_next(queue_root: Path) -> Path | None:
+    _requeue_stale_processing(queue_root)
     outbox = queue_root / "outbox"
     processing = queue_root / "processing"
     processing.mkdir(parents=True, exist_ok=True)

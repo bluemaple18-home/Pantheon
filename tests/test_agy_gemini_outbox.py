@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import plistlib
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -212,6 +214,49 @@ def test_runner_processes_one_job_and_archives_request(tmp_path: Path) -> None:
     response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
     assert response["request_sha256"] == request["request_sha256"]
     assert response["result"] == {"ok": True}
+
+
+def test_runner_requeues_stale_processing_job_after_interrupted_worker(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-stale-processing",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="產生公開 candidate",
+        response_schema=SCHEMA,
+    )
+    outbox_path = tmp_path / "outbox" / f"{request['job_id']}.json"
+    processing_path = tmp_path / "processing" / outbox_path.name
+    processing_path.parent.mkdir()
+    os.replace(outbox_path, processing_path)
+    stale_time = time.time() - runner.STALE_PROCESSING_SECONDS - 1
+    os.utime(processing_path, (stale_time, stale_time))
+
+    result = process_once(tmp_path, generate_json=lambda *_args: {"ok": True})
+
+    assert result == {"status": "processed", "job_id": request["job_id"]}
+    assert not processing_path.exists()
+    assert (tmp_path / "archive" / processing_path.name).exists()
+
+
+def test_runner_does_not_requeue_fresh_processing_job(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-live-processing",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="產生公開 candidate",
+        response_schema=SCHEMA,
+    )
+    outbox_path = tmp_path / "outbox" / f"{request['job_id']}.json"
+    processing_path = tmp_path / "processing" / outbox_path.name
+    processing_path.parent.mkdir()
+    os.replace(outbox_path, processing_path)
+
+    result = process_once(tmp_path, generate_json=lambda *_args: {"ok": True})
+
+    assert result == {"status": "idle"}
+    assert processing_path.exists()
 
 
 def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -100,6 +100,30 @@ def test_cycle_processes_one_external_job_then_completes_run(tmp_path: Path) -> 
     assert state["result"]["approved_by_reviewer"] == 2
 
 
+def test_cycle_advances_oldest_active_runs_instead_of_state_filename_order(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    expected = [f"run-{index:03d}" for index in range(5)]
+    for index in range(8):
+        run_id = f"run-{index:03d}"
+        run_dir = tmp_path / "runs" / run_id
+        _write_brief(run_dir, run_id)
+        register_run(run_dir, queue_root)
+        state_path = coordinator._state_path(run_id, queue_root)
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["updated_at"] = f"2026-07-25T10:{index:02d}:00+08:00"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    cycle_once(queue_root, tick=pending_tick, process=lambda _root: {"status": "idle"})
+
+    assert advanced == expected
+
+
 def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "run-001"
     queue_root = tmp_path / "queue"

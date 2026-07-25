@@ -127,7 +127,14 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("status") == "active":
             states.append(state)
-    return states[:MAX_ACTIVE_RUNS_PER_CYCLE]
+    return sorted(
+        states,
+        key=lambda state: (
+            str(state.get("updated_at") or ""),
+            str(state.get("registered_at") or ""),
+            str(state.get("run_id") or ""),
+        ),
+    )
 
 
 def _read_run_brief_from_state(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -470,7 +477,7 @@ def cycle_once(
                 max_new_runs=legacy_max_new_runs_per_cycle,
             )
 
-        states = _active_states(root)
+        states = _active_states(root)[:MAX_ACTIVE_RUNS_PER_CYCLE]
         pending = 0
         completed = 0
         failed = 0
