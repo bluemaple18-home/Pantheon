@@ -745,6 +745,16 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 353)
     monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    seeded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "enqueue_article_translations",
+        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        or [
+            {"run_id": f"{article_id}-{locale}", "locale": locale, "run_dir": f"/tmp/{locale}"}
+            for locale in ("en", "ja", "ko")
+        ],
+    )
     git_calls: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -765,7 +775,68 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     assert "REWRITE_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug]" in meta
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["rewrite_released_runs"][0]["run_id"] == "rewrite-approved"
+    assert ledger["rewrite_released_runs"][0]["article_ids"] == ["LEGACY-001"]
+    assert ledger["rewrite_released_runs"][0]["translation_seed_status"] == "seeded"
+    assert ledger["rewrite_released_runs"][0]["translation_run_ids"] == [
+        "LEGACY-001-en",
+        "LEGACY-001-ja",
+        "LEGACY-001-ko",
+    ]
+    assert seeded == [("rewrite-approved", "LEGACY-001")]
+    assert result["seeded_translation_runs"] == [
+        "LEGACY-001-en",
+        "LEGACY-001-ja",
+        "LEGACY-001-ko",
+    ]
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
+
+
+def test_seed_pending_translations_backfills_recovered_rewrite_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-recovered"
+    _write_rewrite_run(queue_root, run_dir, make_rewrite_article("LEGACY-RECOVERED"))
+    _write_json(
+        state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [],
+            "quarantined_runs": [],
+            "rewrite_released_runs": [
+                {
+                    "run_id": "rewrite-recovered",
+                    "recovered_from": "CHANGELOG.md",
+                }
+            ],
+            "translation_published_runs": [],
+            "translation_deferred_runs": [],
+        },
+    )
+    seeded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "enqueue_article_translations",
+        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        or [
+            {"run_id": f"{article_id}-{locale}", "locale": locale, "run_dir": f"/tmp/{locale}"}
+            for locale in ("en", "ja", "ko")
+        ],
+    )
+
+    run_ids = publisher._seed_pending_translations(tmp_path, queue_root, state_root)
+
+    assert seeded == [("rewrite-recovered", "LEGACY-RECOVERED")]
+    assert run_ids == [
+        "LEGACY-RECOVERED-en",
+        "LEGACY-RECOVERED-ja",
+        "LEGACY-RECOVERED-ko",
+    ]
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    rewrite = ledger["rewrite_released_runs"][0]
+    assert rewrite["article_ids"] == ["LEGACY-RECOVERED"]
+    assert rewrite["translation_seed_status"] == "seeded"
 
 
 def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:

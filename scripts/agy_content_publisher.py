@@ -1250,12 +1250,43 @@ def _prepend_translation_changelog(
     changelog.write_text(body.replace("\n## [", "\n" + section + "\n## [", 1), encoding="utf-8")
 
 
+def _rewrite_release_article_ids(queue_root: Path, run_id: str) -> list[str]:
+    """從保留的 rewrite candidate 回溯舊 release 的文章 ID。"""
+    for state_path in _run_files(queue_root):
+        try:
+            state = _read_json(state_path)
+            if str(state.get("run_id") or "") != run_id:
+                continue
+            run_dir = Path(str(state["run_dir"]))
+            candidate = _read_json(run_dir / "candidate.json")
+        except (OSError, KeyError, json.JSONDecodeError):
+            continue
+        return [
+            str(article["article_id"])
+            for article in candidate.get("articles", [])
+            if str(article.get("article_id") or "").strip()
+        ]
+    return []
+
+
 def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Path) -> list[str]:
-    """補建已發布、但上次尚未完成登記的多語 run。"""
+    """補建已發布新文與成功改寫舊文尚未登記的多語 run。"""
     ledger = _load_ledger(state_root)
     seeded_run_ids: list[str] = []
     changed = False
-    for item in ledger["published_runs"]:
+    for item in ledger["rewrite_released_runs"]:
+        if item.get("translation_seed_status") == "seeded":
+            continue
+        if not item.get("article_ids"):
+            article_ids = _rewrite_release_article_ids(queue_root, str(item.get("run_id") or ""))
+            if not article_ids:
+                continue
+            item["article_ids"] = article_ids
+            changed = True
+        if item.get("translation_seed_status") != "pending":
+            item["translation_seed_status"] = "pending"
+            changed = True
+    for item in [*ledger["published_runs"], *ledger["rewrite_released_runs"]]:
         if item.get("translation_seed_status") != "pending":
             continue
         translation_runs: list[dict[str, str]] = []
@@ -1764,8 +1795,23 @@ def publish_ready_rewrite_runs(
         )
         ledger = _load_ledger(state_root)
         for run_id in run_ids:
-            ledger["rewrite_released_runs"].append({"run_id": run_id, "version": version, "commit_sha": commit_sha, "published_at": _now()})
+            ledger["rewrite_released_runs"].append(
+                {
+                    "run_id": run_id,
+                    "version": version,
+                    "commit_sha": commit_sha,
+                    "published_at": _now(),
+                    "article_ids": [
+                        str(article["article_id"])
+                        for candidate in candidates
+                        for article in candidate["articles"]
+                        if str(candidate["run_id"]) == run_id
+                    ],
+                    "translation_seed_status": "pending",
+                }
+            )
         _write_json(_ledger_path(state_root), ledger)
+        seeded_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
         evidence = {
             "schema_version": SCHEMA_VERSION,
             "status": "PUBLISHED_REWRITE",
@@ -1778,6 +1824,7 @@ def publish_ready_rewrite_runs(
             "public_article_count": article_count,
             "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
             "legacy_rewrite_backlog": backlog_summary,
+            "seeded_translation_runs": seeded_translation_runs,
             "pushed": push,
         }
         _write_json(evidence_dir / "rewrite-evidence.json", evidence)

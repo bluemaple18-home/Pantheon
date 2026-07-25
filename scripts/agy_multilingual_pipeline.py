@@ -362,7 +362,7 @@ def enqueue_article_translations(
     article_id: str,
     source_loader: SourceLoader = load_source_article,
 ) -> list[dict[str, str]]:
-    """為已發布新文建立英、日、韓三個互不阻塞的翻譯 run。"""
+    """為已發布新文或成功改寫舊文建立英、日、韓三個互不阻塞的翻譯 run。"""
     if not source_run_id.strip() or not article_id.strip():
         raise ValueError("source run id and article id must be non-empty")
     queue_root = queue_root.resolve()
