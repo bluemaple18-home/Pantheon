@@ -52,6 +52,12 @@ def _failure_receipt(
     return receipt
 
 
+def _deep_failure_json(marker: str, depth: int = 20_000) -> str:
+    payload = "[" * depth + json.dumps(marker) + "]" * depth
+    assert len(payload.encode("utf-8")) < outbox.MAX_FAILURE_RECEIPT_BYTES
+    return payload
+
+
 def _broker_result(
     status: str,
     receipt: ExecutionReceipt,
@@ -489,6 +495,90 @@ def test_failure_consumer_closes_invalid_json_without_echoing_payload(
 
     assert raised.value.error_type == "InvalidFailureReceipt"
     assert "PRIVATE_PATH_MARKER" not in str(raised.value)
+
+
+def test_failure_consumer_closes_deep_valid_json_recursion(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-deep-json-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(_deep_failure_json(marker), encoding="utf-8")
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "InvalidFailureReceipt"
+    assert marker not in str(raised.value)
+    assert raised.value.__cause__ is None
+
+
+def test_deep_failure_json_does_not_leak_to_cli_or_operation_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-run-deep-json-cli",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(_deep_failure_json(marker), encoding="utf-8")
+
+    class ConsumerClient:
+        writer_model = "gemini-test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            return consume_external_response(queue_root, request)
+
+    operation_receipt = tmp_path / "writer-operation.json"
+    with pytest.raises(outbox.ExternalJobFailed):
+        pipeline._generate_with_receipt(
+            ConsumerClient(),
+            "writer",
+            "public prompt",
+            SCHEMA,
+            operation_receipt,
+        )
+    assert marker not in operation_receipt.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        outbox,
+        "run_pipeline_tick",
+        lambda *_args: consume_external_response(queue_root, request),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agy_gemini_outbox", "tick", str(run_dir), "--queue-root", str(queue_root)],
+    )
+    assert outbox.main() == 1
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert marker not in combined
+    assert "Traceback" not in combined
+    assert str(tmp_path) not in combined
+    assert json.loads(captured.out)["error_type"] == "InvalidFailureReceipt"
 
 
 def test_invalid_failure_receipt_does_not_leak_to_cli_stdout_or_operation_receipt(

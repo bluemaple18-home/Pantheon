@@ -362,7 +362,7 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
             if failed_path.stat().st_size > MAX_FAILURE_RECEIPT_BYTES:
                 raise ValueError("failure receipt exceeds closed size")
             failure = json.loads(failed_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+        except (OSError, UnicodeError, json.JSONDecodeError, RecursionError, ValueError):
             raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT) from None
         if not _failure_receipt_is_valid(failure, request):
             raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT)

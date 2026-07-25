@@ -295,6 +295,40 @@ def test_cycle_closes_untrusted_failure_receipt_error_type(tmp_path: Path) -> No
     assert marker not in json.dumps(state)
 
 
+def test_cycle_closes_deep_failure_json_without_state_leak(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "run-deep-failure"
+    _write_brief(run_dir, "run-deep-failure")
+    register_run(run_dir, queue_root)
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-coordinator-deep-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema={"type": "object"},
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    depth = 20_000
+    payload = "[" * depth + json.dumps(marker) + "]" * depth
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(payload, encoding="utf-8")
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args: consume_external_response(queue_root, request),
+        process=lambda _root: {"status": "idle"},
+    )
+    state = read_run_state(run_dir, queue_root)
+
+    assert summary["failed"] == 1
+    assert state["error_type"] == "InvalidFailureReceipt"
+    serialized = json.dumps(state)
+    assert marker not in serialized
+    assert "RecursionError" not in serialized
+
+
 def test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "run-malformed-json"
     queue_root = tmp_path / "queue"
