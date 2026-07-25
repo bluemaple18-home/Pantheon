@@ -719,8 +719,9 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
     assert tarot_visible
     assert 6 <= tarot_visible.group(1).count("<li>") <= 12
     assert 'data-topic-visible-links hidden' in tarot_html
-    assert 'href="/articles/tarot/tarot-0001"' in tarot_html
-    assert 'href="/articles/tarot/tarot-0080"' in tarot_html
+    tarot_routes = [article["route"] for article in PRERENDER_ARTICLES if article["product_hub"] == "tarot"]
+    assert f'href="{tarot_routes[0]}"' in tarot_html
+    assert f'href="{tarot_routes[-1]}"' in tarot_html
     assert 'href="/articles/love/love-0012"' in tarot_html
     astro_html = Path("app/web/seo/articles/astro/index.html").read_text()
     assert 'href="/articles/astrology/astrology-0001"' in astro_html
@@ -729,13 +730,17 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
 def test_tarot_hub_reading_guide_is_scanable() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { listArticleRecords } from "./app/web/static/article-registry.js";
 
 const content = buildArticleContent("/articles/tarot", "https://mysticpantheon.com", {});
 const guide = content.bodySections.find((section) => section.heading === "這裡先讀哪幾篇塔羅文章？");
+const tarotCount = listArticleRecords()
+  .filter((item) => item.product === "tarot" || item.articleCategory === "tarot")
+  .length;
 console.log(JSON.stringify({
   paragraphCount: guide?.paragraphs.length || 0,
   maxParagraphChars: Math.max(...(guide?.paragraphs || []).map((paragraph) => [...paragraph].length)),
-  hasCount: guide?.paragraphs[0]?.includes("目前收錄 92 篇塔羅文章"),
+  hasCount: guide?.paragraphs[0]?.includes(`目前收錄 ${tarotCount} 篇塔羅文章`),
   hasDefinitionPath: guide?.paragraphs.some((paragraph) => paragraph.includes("塔羅牌意思總覽") && paragraph.includes("塔羅牌正位逆位")),
   hasLovePath: guide?.paragraphs.some((paragraph) => paragraph.includes("感情塔羅怎麼問") && paragraph.includes("曖昧")),
   hasFullTitleDump: (guide?.paragraphs.join("") || "").length > 1400,

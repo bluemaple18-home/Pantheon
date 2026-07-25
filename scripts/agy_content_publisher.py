@@ -47,6 +47,15 @@ TEST_COMMAND = [
     "tests/test_release_record.py",
     "-q",
 ]
+PREFLIGHT_TEST_COMMAND = [
+    sys.executable,
+    "-m",
+    "pytest",
+    "tests/test_web.py::test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs",
+    "tests/test_web.py::test_tarot_hub_reading_guide_is_scanable",
+    "tests/test_web.py::test_public_articles_follow_latest_publication_standard",
+    "-q",
+]
 SUCCESS_STATUSES = {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION", "idle", "idle_rejects_only", "busy", "dry-run"}
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
@@ -1346,6 +1355,12 @@ def _run_checked(repo_root: Path, args: list[str]) -> None:
     subprocess.run(args, cwd=repo_root, check=True)
 
 
+def _run_release_tests(repo_root: Path) -> None:
+    """先跑快速結構檢查，通過後才進完整 release gate。"""
+    _run_checked(repo_root, PREFLIGHT_TEST_COMMAND)
+    _run_checked(repo_root, TEST_COMMAND)
+
+
 def _stage_commit_tag_push(
     repo_root: Path,
     version: str,
@@ -1592,7 +1607,7 @@ def publish_ready_runs(
             )
         )
         if run_tests:
-            _run_checked(repo_root, TEST_COMMAND)
+            _run_release_tests(repo_root)
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,
@@ -1733,7 +1748,7 @@ def publish_ready_rewrite_runs(
             )
         )
         if run_tests:
-            _run_checked(repo_root, TEST_COMMAND)
+            _run_release_tests(repo_root)
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,
@@ -1866,7 +1881,7 @@ def publish_ready_translation_runs(
             )
         )
         if run_tests:
-            _run_checked(repo_root, TEST_COMMAND)
+            _run_release_tests(repo_root)
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,

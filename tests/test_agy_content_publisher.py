@@ -1579,6 +1579,34 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
     assert "static/articles.js?v=agy-i18n-0-3-59" in (web_dir / "articles.html").read_text(encoding="utf-8")
 
 
+def test_run_release_tests_runs_fast_preflight_before_full_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: calls.append(args))
+
+    publisher._run_release_tests(tmp_path)
+
+    assert calls == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND]
+
+
+def test_run_release_tests_skips_full_gate_when_preflight_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def fail_preflight(_repo: Path, args: list[str]) -> None:
+        calls.append(args)
+        raise subprocess.CalledProcessError(1, args)
+
+    monkeypatch.setattr(publisher, "_run_checked", fail_preflight)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        publisher._run_release_tests(tmp_path)
+
+    assert calls == [publisher.PREFLIGHT_TEST_COMMAND]
+
+
 def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Path) -> None:
     remote = tmp_path / "remote.git"
     seed = tmp_path / "seed"
