@@ -1,0 +1,40 @@
+Gemini V4 shadow daemon verification
+Date: 2026-07-25
+
+base:
+  4ca327bf8b2a27dfad0132c6585855c55aeabe66
+
+tests:
+  focused shadow: 6 passed in 0.53s
+  affected suites: 235 passed in 66.11s
+
+static:
+  py_compile: PASS
+  bash -n: PASS
+  plist lint: PASS
+  installer check: PASS
+  git diff --check: PASS
+
+runtime:
+  label: com.pantheon.agy-gemini-v4-shadow
+  start interval: 21600 seconds
+  run at load: true
+  separate state/queue/lock/log: PASS
+  existing coordinator modified: false
+  first slot: account-1
+  first replay: COMPLETE/1
+  first outcome: CLI_NONZERO
+  closed diagnostic: PROVIDER_UNAVAILABLE
+  automatic resend allowed: false
+  same bucket cached: true
+  external operations in first bucket: 1
+
+boundaries:
+  article read/write: 0
+  publish/deploy: 0
+  formal transport promotion: 0
+  retry/fallback/within-operation key switch: 0
+  credential in repo/evidence: false
+
+decision:
+  KEEP_ACTIVE_SHADOW_OBSERVE

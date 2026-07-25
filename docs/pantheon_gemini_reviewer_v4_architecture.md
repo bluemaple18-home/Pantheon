@@ -233,3 +233,14 @@ ADC migration只可替換authentication header來源，不得改寫schema、prov
 payload、單次HTTP、no-retry、no-redirect、ledger、receipt或fail-closed契約。
 放量決策維持「不切預設」；後續shadow run或migration必須另卡、另證據、另
 commit。
+
+### 常駐 shadow 邊界
+
+`scripts.agy_gemini_v4_shadow`只建立固定公開health-check payload，並以UTC
+六小時bucket形成deterministic operation identity。每個bucket使用獨立queue
+子目錄與既有V4 durable ledger／anchor；同一bucket重入時只讀既有結果，不重送。
+
+LaunchAgent label為`com.pantheon.agy-gemini-v4-shadow`，不得與正式
+`com.pantheon.agy-gemini-coordinator`或publisher共用queue、state、lock或log。
+預設頻率為每六小時一筆、每日最多四筆。Shadow失敗只更新closed observation，
+不得阻擋文章、觸發fallback或提升V4為預設transport。

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "activated_at_utc": "2026-07-25T12:07:11+00:00",
+  "service_label": "com.pantheon.agy-gemini-v4-shadow",
+  "start_interval_seconds": 21600,
+  "maximum_operations_per_utc_day": 4,
+  "run_at_load": true,
+  "launchd_runs_observed": 1,
+  "launchd_last_exit_code": 1,
+  "first_observation": {
+    "bucket": "20260725T120000Z",
+    "job_id": "326f69a78293e6b1d2a8e522c62f186f08764ef6",
+    "slot_id": "account-1",
+    "credential_selected_count": 1,
+    "replay_status": "COMPLETE",
+    "process_count": 1,
+    "outcome": "CLI_NONZERO",
+    "target_diagnostic": "PROVIDER_UNAVAILABLE",
+    "result_validation": "NOT_EVALUATED",
+    "automatic_resend_allowed": false,
+    "same_bucket_cached": true
+  },
+  "privacy": {
+    "article_content_saved": false,
+    "credential_saved": false,
+    "prompt_saved_in_evidence": false,
+    "provider_body_saved": false,
+    "full_environment_saved": false,
+    "local_absolute_path_saved": false
+  },
+  "formal_content_transport_changed": false,
+  "publisher_changed": false,
+  "existing_coordinator_changed": false
+}

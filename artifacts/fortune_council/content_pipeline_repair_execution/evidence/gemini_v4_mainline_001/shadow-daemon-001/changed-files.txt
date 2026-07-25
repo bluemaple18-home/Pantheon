@@ -1,0 +1,13 @@
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/CARD-CONTENT-GEMINI-V4-SHADOW-DAEMON-001.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/activation.json
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/changed-files.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/decision.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/red-green.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/root-cause.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/shadow-daemon-001/verification.txt
+docs/pantheon_gemini_outbox_runner.md
+docs/pantheon_gemini_reviewer_v4_architecture.md
+ops/launchd/com.pantheon.agy-gemini-v4-shadow.plist.example
+scripts/agy_gemini_v4_shadow.py
+scripts/install_agy_gemini_v4_shadow_launchd.sh
+tests/test_agy_gemini_v4_shadow.py

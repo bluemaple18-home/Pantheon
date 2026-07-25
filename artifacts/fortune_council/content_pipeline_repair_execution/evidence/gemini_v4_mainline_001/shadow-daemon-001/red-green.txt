@@ -1,0 +1,28 @@
+Gemini V4 shadow daemon RED/GREEN
+Date: 2026-07-25
+
+RED:
+  pytest tests/test_agy_gemini_v4_shadow.py
+  result: collection error
+  cause: scripts.agy_gemini_v4_shadow absent
+
+GREEN focused:
+  result: 6 passed in 0.53s
+  coverage:
+    deterministic six-hour UTC buckets
+    maximum four buckets per UTC day
+    public fixed closed payload
+    same-bucket durable deduplication
+    terminal failure without retry
+    three-slot synthetic integration with one target process
+    independent launchd contract
+
+GREEN affected suites:
+  result: 235 passed in 66.11s
+  suites:
+    tests/test_agy_gemini_v4_shadow.py
+    tests/test_agy_gemini_v4_structured_target.py
+    tests/test_agy_gemini_v4_broker.py
+    tests/test_agy_gemini_outbox.py
+    tests/test_agy_gemini_v4_architecture_probe.py
+    tests/test_agy_seo_copy_pipeline.py

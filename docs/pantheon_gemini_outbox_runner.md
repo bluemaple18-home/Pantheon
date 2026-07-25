@@ -126,3 +126,38 @@ Installer 會拒絕與舊版 standalone runner 同時啟用，避免兩個程序
 ## 回復
 
 尚未啟用時只需不執行 installer；repo 內檔案不會啟動任何服務。若日後已安裝，先停止 `com.pantheon.agy-gemini-coordinator`，再移除使用者 LaunchAgents 內的同名 plist；`.work/gemini-runner/` 保留作稽核，不由程式自動刪除。
+
+## Gemini V4 常駐 shadow
+
+V4 shadow使用獨立的`com.pantheon.agy-gemini-v4-shadow` LaunchAgent、
+state root、lock與log；不得復用產文coordinator queue。預設每21600秒喚醒
+一次，以UTC六小時bucket收斂為每天最多四筆公開合成health check。
+
+同一bucket的request identity固定。若LaunchAgent重入、電腦重啟或程序在結果
+落盤前中斷，後續只讀既有outbox／archive／ledger／anchor狀態，不建立第二個
+operation，也不因429、timeout或transport error換key重送。下一個六小時bucket
+是新的觀察operation，不是前一筆retry。
+
+安裝前可只做本機render與權限檢查：
+
+```bash
+bash scripts/install_agy_gemini_v4_shadow_launchd.sh check
+```
+
+啟用、查詢與停止：
+
+```bash
+bash scripts/install_agy_gemini_v4_shadow_launchd.sh install
+bash scripts/install_agy_gemini_v4_shadow_launchd.sh status
+bash scripts/install_agy_gemini_v4_shadow_launchd.sh stop
+```
+
+移除LaunchAgent但保留state與log：
+
+```bash
+bash scripts/install_agy_gemini_v4_shadow_launchd.sh uninstall
+```
+
+Shadow只驗證V4 transport、credential pool、ledger、anchor、schema與replay；
+不讀文章、不建立approval、不apply、不push、不deploy，也不改變
+`AGY_GEMINI_TRANSPORT=cli`的正式產文預設。
