@@ -159,6 +159,39 @@ def test_outbox_client_returns_pending_then_consumes_bound_response(tmp_path: Pa
     assert client.generate_json("writer", "公開 prompt", SCHEMA) == {"ok": True}
 
 
+def test_lane_client_consumes_existing_response_from_legacy_shared_queue(tmp_path: Path) -> None:
+    legacy_root = tmp_path / "shared"
+    lane_root = legacy_root / "lanes" / "new"
+    request = create_external_request(
+        legacy_root,
+        namespace="opaque-lane-fallback",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    response = {
+        "schema_version": 1,
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "model": request["model"],
+        "completed_at": "2026-07-25T20:00:00+08:00",
+        "result": {"ok": True},
+    }
+    inbox = legacy_root / "inbox" / f"{request['job_id']}.json"
+    inbox.parent.mkdir()
+    inbox.write_text(json.dumps(response), encoding="utf-8")
+    client = OutboxGeminiClient(
+        lane_root,
+        legacy_queue_root=legacy_root,
+        namespace="opaque-lane-fallback",
+        writer_model="gemini-test-writer",
+    )
+
+    assert client.generate_json("writer", "公開 prompt", SCHEMA) == {"ok": True}
+    assert not list((lane_root / "outbox").glob("*.json"))
+
+
 def test_response_hash_mismatch_is_rejected(tmp_path: Path) -> None:
     request = create_external_request(
         tmp_path,

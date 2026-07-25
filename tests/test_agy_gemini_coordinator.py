@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scripts import agy_gemini_coordinator as coordinator
 from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
-from scripts.agy_gemini_outbox import ExternalJobPending
+from scripts.agy_gemini_outbox import ExternalJobPending, create_external_request
 
 
 def _write_brief(run_dir: Path, run_id: str = "private-run-001") -> None:
@@ -122,6 +122,87 @@ def test_cycle_advances_oldest_active_runs_instead_of_state_filename_order(tmp_p
     cycle_once(queue_root, tick=pending_tick, process=lambda _root: {"status": "idle"})
 
     assert advanced == expected
+
+
+def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch) -> None:
+    queue_root = tmp_path / "queue"
+    briefs = {
+        "new-run": {"mode": "create", "articles": []},
+        "rewrite-run": {
+            "mode": "rewrite_existing_body",
+            "articles": [{"article_id": "LEGACY-001"}],
+        },
+        "i18n-new-run": {
+            "mode": "translate_existing",
+            "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
+        },
+        "i18n-rewrite-run": {
+            "mode": "translate_existing",
+            "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}],
+        },
+    }
+    for run_id, payload in briefs.items():
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps({"schema_version": 1, "run_id": run_id, **payload}),
+            encoding="utf-8",
+        )
+        register_run(run_dir, queue_root)
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
+    routed: dict[str, str] = {}
+
+    def pending_tick(run_dir: Path, job_queue_root: Path) -> dict[str, object]:
+        routed[run_dir.name] = str(job_queue_root.relative_to(queue_root))
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda _root: {"status": "idle"},
+        repo_root=tmp_path,
+        lane_mode=True,
+    )
+
+    assert routed == {
+        "new-run": "lanes/new",
+        "rewrite-run": "lanes/rewrite",
+        "i18n-new-run": "lanes/i18n-new",
+        "i18n-rewrite-run": "lanes/i18n-rewrite",
+    }
+    assert summary["lanes"] == {
+        "new": {"active": 1, "queued": 0, "processing": 0},
+        "rewrite": {"active": 1, "queued": 0, "processing": 0},
+        "i18n-new": {"active": 1, "queued": 0, "processing": 0},
+        "i18n-rewrite": {"active": 1, "queued": 0, "processing": 0},
+    }
+
+
+def test_lane_mode_migrates_shared_pending_jobs_by_run_namespace(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "new-run"
+    _write_brief(run_dir, "new-run")
+    state = register_run(run_dir, queue_root)
+    namespace = coordinator._state_path(str(state["run_id"]), queue_root).stem
+    request = create_external_request(
+        queue_root,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開新文 prompt",
+        response_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+        },
+    )
+
+    result = coordinator._migrate_pending_jobs(queue_root, [state], set())
+
+    assert result == {"new": 1, "rewrite": 0, "i18n-new": 0, "i18n-rewrite": 0}
+    assert not (queue_root / "outbox" / f"{request['job_id']}.json").exists()
+    assert (queue_root / "lanes/new/outbox" / f"{request['job_id']}.json").exists()
 
 
 def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) -> None:
@@ -396,9 +477,13 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     plist = plistlib.loads(
         (repo_root / "ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example").read_bytes()
     )
+    lane_plist = plistlib.loads(
+        (repo_root / "ops/launchd/com.pantheon.agy-gemini-lane.plist.example").read_bytes()
+    )
     arguments = plist["ProgramArguments"]
 
     assert arguments[1:3] == ["-m", "scripts.agy_gemini_coordinator"]
+    assert "--lane-mode" in arguments
     assert "--new-matrix-sweep" in arguments
     assert "--new-matrix-run-root" in arguments
     assert "--legacy-sweep" in arguments
@@ -406,6 +491,10 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert "--legacy-run-root" in arguments
     assert arguments[-1] == "cycle"
     assert plist["RunAtLoad"] is True
+    assert lane_plist["ProgramArguments"][1:3] == ["-m", "scripts.agy_gemini_runner"]
+    assert lane_plist["ProgramArguments"][-1] == "process-once"
+    assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
+    assert 'LANE_LABEL="com.pantheon.agy-gemini-${LANE}"' in installer
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     completed = subprocess.run(

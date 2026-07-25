@@ -211,6 +211,13 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
     return response["result"]
 
 
+def _request_is_known(queue_root: Path, job_id: str) -> bool:
+    return any(
+        (queue_root / directory / f"{job_id}.json").exists()
+        for directory in ("outbox", "processing", "archive", "inbox", "failed")
+    )
+
+
 class OutboxGeminiClient:
     """只寫 sanitized request；不持有憑證，也不直接呼叫外部服務。"""
 
@@ -218,11 +225,13 @@ class OutboxGeminiClient:
         self,
         queue_root: Path,
         *,
+        legacy_queue_root: Path | None = None,
         namespace: str,
         writer_model: str = pipeline.DEFAULT_WRITER_MODEL,
         reviewer_model: str = pipeline.DEFAULT_REVIEWER_MODEL,
     ) -> None:
         self.queue_root = queue_root
+        self.legacy_queue_root = legacy_queue_root
         self.namespace = namespace
         self.writer_model = writer_model
         self.reviewer_model = reviewer_model
@@ -235,8 +244,21 @@ class OutboxGeminiClient:
         model = self.writer_model if role == "writer" else self.reviewer_model
         for retry_index in range(OUTBOX_MAX_TRANSPORT_RETRIES + 1):
             namespace = self.namespace if retry_index == 0 else f"{self.namespace}-r{retry_index}"
+            expected = build_external_request(
+                namespace=namespace,
+                role=role,
+                model=model,
+                prompt=prompt,
+                response_schema=schema,
+            )
+            request_root = self.queue_root
+            if (
+                self.legacy_queue_root is not None
+                and _request_is_known(self.legacy_queue_root, str(expected["job_id"]))
+            ):
+                request_root = self.legacy_queue_root
             request = create_external_request(
-                self.queue_root,
+                request_root,
                 namespace=namespace,
                 role=role,
                 model=model,
@@ -244,7 +266,7 @@ class OutboxGeminiClient:
                 response_schema=schema,
             )
             try:
-                return consume_external_response(self.queue_root, request)
+                return consume_external_response(request_root, request)
             except ExternalJobFailed as failed:
                 if failed.error_type not in RETRYABLE_EXTERNAL_ERRORS or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES:
                     raise
@@ -255,7 +277,12 @@ def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     run_id = str(brief["run_id"])
     namespace = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
-    client = OutboxGeminiClient(queue_root, namespace=namespace)
+    legacy_queue_root = queue_root.parent.parent if queue_root.parent.name == "lanes" else None
+    client = OutboxGeminiClient(
+        queue_root,
+        legacy_queue_root=legacy_queue_root,
+        namespace=namespace,
+    )
     runner = multilingual.run_writer_reviewer if brief.get("mode") == "translate_existing" else pipeline.run_writer_reviewer
     candidate, review = runner(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)
     return {

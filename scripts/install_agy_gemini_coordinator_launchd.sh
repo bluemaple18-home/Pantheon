@@ -14,6 +14,7 @@ LOG_DIR="${USER_HOME_DIR}/Library/Logs/Pantheon"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example"
+LANE_TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-lane.plist.example"
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
 
 cleanup() {
@@ -53,7 +54,30 @@ launchctl bootout "gui/${USER_ID}" "${TARGET_PLIST}" >/dev/null 2>&1 || true
 install -m 600 "${TEMP_PLIST}" "${TARGET_PLIST}"
 launchctl bootstrap "gui/${USER_ID}" "${TARGET_PLIST}"
 
+for LANE in new rewrite i18n-new i18n-rewrite; do
+  LANE_LABEL="com.pantheon.agy-gemini-${LANE}"
+  LANE_TARGET_PLIST="${LAUNCH_AGENTS_DIR}/${LANE_LABEL}.plist"
+  LANE_TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-${LANE}.XXXXXX")"
+  cp "${LANE_TEMPLATE_PLIST}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :Label ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:4 ${QUEUE_ROOT}/lanes/${LANE}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
+  plutil -lint "${LANE_TEMP_PLIST}" >/dev/null
+  launchctl bootout "gui/${USER_ID}" "${LANE_TARGET_PLIST}" >/dev/null 2>&1 || true
+  install -m 600 "${LANE_TEMP_PLIST}" "${LANE_TARGET_PLIST}"
+  rm -f "${LANE_TEMP_PLIST}"
+  launchctl bootstrap "gui/${USER_ID}" "${LANE_TARGET_PLIST}"
+done
+
 echo "Pantheon Gemini coordinator 已啟用。"
+echo "四條 lane runner 已啟用：new、rewrite、i18n-new、i18n-rewrite。"
 echo "Queue root：${QUEUE_ROOT}"
 echo "狀態：launchctl print gui/${USER_ID}/com.pantheon.agy-gemini-coordinator"
 echo "停止：launchctl bootout gui/${USER_ID} ${TARGET_PLIST}"
+echo "Lane 狀態：launchctl print gui/${USER_ID}/com.pantheon.agy-gemini-{new,rewrite,i18n-new,i18n-rewrite}"
+echo "Lane plist：${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-{new,rewrite,i18n-new,i18n-rewrite}.plist"
