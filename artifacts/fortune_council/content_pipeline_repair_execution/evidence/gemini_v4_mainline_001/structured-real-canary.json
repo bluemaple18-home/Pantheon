@@ -1,0 +1,42 @@
+{
+  "automatic_resend_allowed": false,
+  "caller_contract_satisfied": true,
+  "canary_attempts": 1,
+  "candidate_sha": "df6a33a8ce4af784ca6bfe6c2453de6eb7355f94",
+  "completed_at_utc": "2026-07-25T10:28:57+00:00",
+  "errors": [],
+  "event_types": [
+    "OPERATION_CREATED",
+    "BROKER_ATTEMPTED",
+    "FORK_ATTEMPTED",
+    "EXEC_CONFIRMED",
+    "PROCESS_TERMINAL"
+  ],
+  "exec_confirmed_count": 1,
+  "exit_status": 0,
+  "final_anchor": "46524c4d0f77edc5e31f8bcbd5277e806416770910ee993da0fff79d813f09a1",
+  "ledger_sha256": "642a8b9ca17a8ba9145e286b823a93a48eaa14564e5899fa8dd0c2d3fbb2edce",
+  "model": "gemini-3.5-flash",
+  "operation_id": "structured-canary-20260725-001",
+  "outcome": "SUCCESS",
+  "privacy": {
+    "credential_saved": false,
+    "credential_value_logged": false,
+    "full_environment_saved": false,
+    "prompt_saved": false,
+    "provider_body_saved": false
+  },
+  "process_count": 1,
+  "replay_status": "COMPLETE",
+  "request_sha256": "d324afefb1993127c1273d90bb23ca800c1549ff93927b995ff32bea207763ac",
+  "result": {
+    "ok": true,
+    "transport": "gemini-v4-structured-canary"
+  },
+  "result_validation": "VALID",
+  "schema_version": 1,
+  "started_at_utc": "2026-07-25T10:28:53+00:00",
+  "target_diagnostic": null,
+  "target_executable_sha256": "059f540eaf2093afc717d8efb234780fd23bda9ade1c3a7b31828315208e700f",
+  "target_profile": "gemini_structured_api_v1"
+}
