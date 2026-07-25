@@ -170,3 +170,24 @@ Gemini Developer API OAuth／ADC與Vertex AI ADC是正式的未來migration path
 Google control-plane identity，故型別記為`UNKNOWN`。依Google截至
 2026-07-25的官方key政策，standard key在2026年9月前必須遷移；在確認
 authorization key或完成ADC migration前，V4不得切為default transport。
+
+## Cross-operation quota sharding
+
+若operator提供不同Google Cloud project的credential，可明確設定owner-only
+pool manifest。Runner不使用失敗驅動的key rotation；它以`pool_id`與
+`operation_id` deterministic選擇一個slot，broker再把非敏感slot identity綁入
+receipt與durable ledger。
+
+不可變限制：
+
+- 同一operation只使用一個slot與一個target process；
+- 429／timeout／nonzero不改選其他slot；
+- durable replay不讀manifest或credential；
+- single-key `AGY_GEMINI_V4_CREDENTIAL_FILE`保持相容；
+- single-key與pool設定同時存在時fail closed；
+- manifest、credential file任一不是owner-only regular non-symlink即拒絕；
+- pool只在不同project之間分攤quota；同project多key不增加quota。
+
+Local三slot manifest已完成不發request的dry-run，300個synthetic operation分布
+為108／103／89，三個slot均被選到；這不是real API acceptance，也不授權
+activation、publish或default promotion。

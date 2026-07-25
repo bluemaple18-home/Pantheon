@@ -183,6 +183,31 @@ allowlist；unknown stderr、response body、prompt、credential與parser文字�
 provider已接收 request之後，而 generateContent沒有 broker可驗證的 idempotency
 key。此時 operation fail closed且禁止自動重送，publish count仍為 0。
 
+## Cross-operation credential pool candidate
+
+Quota sharding candidate新增明確opt-in
+`AGY_GEMINI_V4_CREDENTIAL_POOL_FILE`，與既有
+`AGY_GEMINI_V4_CREDENTIAL_FILE`互斥。Local owner-only manifest只含
+`pool_id`、stable `slot_id`與各credential file path；key value仍分別存在
+owner-only regular file，不進manifest、argv、environment、ledger或evidence。
+
+選擇規則固定為：
+
+1. 對slots依`slot_id` canonical sort；
+2. 以`SHA-256(pool_id + NUL + operation_id)`選擇slot；
+3. 同一operation永遠得到同一slot，不使用mutable round-robin cursor；
+4. manifest與selected credential只在broker確認不是durable replay後lazy開啟；
+5. new structured operation把非敏感`pool_id`、`slot_id`與manifest digest寫入
+   receipt及恰一個`CREDENTIAL_SELECTED` ledger event；
+6. target仍只收到一個credential FD與一次model POST。
+
+429、timeout、transport error與nonzero都是同一operation的terminal結果；禁止
+改選第二slot、retry或fallback。下一個新operation可由deterministic selection
+選到不同project。舊ledger沒有`CREDENTIAL_SELECTED`仍保持replay相容。
+
+這個pool只分攤不同Google Cloud project的quota；同project內多把key仍共享quota。
+Local pool準備完成不代表activation或default promotion。
+
 ## Post-review and authentication boundary
 
 Structured candidate `df6a33a8ce4af784ca6bfe6c2453de6eb7355f94` 已通過獨立

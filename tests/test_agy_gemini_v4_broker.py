@@ -181,7 +181,7 @@ def _ledger(path: Path, binding: broker.Binding, definitions: list[tuple[str, di
 
 def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
     command = broker.CommandFrame(
-        schema_version=2,
+        schema_version=3,
         operation_id="operation-001",
         item_id="item-001",
         attempt_id="attempt-1",
@@ -192,6 +192,9 @@ def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
         target_profile=broker.RAW_STDIN_PROFILE,
         model_label="synthetic-model",
         payload_class=broker.SYNTHETIC_TEST,
+        credential_pool_id=None,
+        credential_slot_id=None,
+        credential_pool_sha256=None,
     )
     encoded = broker.encode_frame(command.to_dict())
     assert int.from_bytes(encoded[:4], "big") == len(encoded) - 4
@@ -201,6 +204,43 @@ def test_command_frame_is_length_prefixed_versioned_and_closed() -> None:
         broker.decode_command_frame(broker.encode_frame(payload))
     with pytest.raises(broker.FrameError):
         broker.decode_command_frame(encoded[:-1])
+
+
+def test_structured_source_fd_closes_when_command_validation_fails(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(tmp_path / "structured-target")
+    descriptor = os.open(tmp_path / "credential", os.O_RDWR | os.O_CREAT, 0o600)
+
+    def open_source() -> broker.CredentialSource:
+        return broker.CredentialSource(
+            descriptor=descriptor,
+            pool_id="pool-v1",
+            slot_id="account-1",
+            pool_sha256="a" * 64,
+        )
+
+    with pytest.raises(broker.FrameError, match="timeout is invalid"):
+        broker.run_single_shot(
+            operation_id="operation-001",
+            item_id="item-001",
+            attempt_id="attempt-1",
+            request_sha256="b" * 64,
+            model="gemini-3.5-flash",
+            executable=target,
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+            expected_executable_digest=hashlib.sha256(target.read_bytes()).hexdigest(),
+            raw_request=b'{"prompt":"public"}',
+            response_schema=SCHEMA,
+            timeout_milliseconds=0,
+            ledger_path=tmp_path / "ledger.jsonl",
+            anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+            credential_source_opener=open_source,
+        )
+
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+    assert not (tmp_path / "ledger.jsonl").exists()
 
 
 @pytest.mark.parametrize(
@@ -336,6 +376,87 @@ def test_structured_profile_requires_credential_before_ledger_creation(tmp_path:
 
     assert not (tmp_path / "ledger.jsonl").exists()
     assert not target.with_suffix(".trace").exists()
+
+
+def test_structured_pool_records_one_selected_slot_and_does_not_fallback(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(
+        tmp_path / "structured-target",
+        failure_code="RATE_LIMITED",
+    )
+    opens = 0
+
+    def open_selected_source() -> broker.CredentialSource:
+        nonlocal opens
+        opens += 1
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, b"synthetic-api-key-with-safe-length")
+        os.close(write_fd)
+        return broker.CredentialSource(
+            descriptor=read_fd,
+            pool_id="pantheon-pool-v1",
+            slot_id="account-2",
+            pool_sha256="c" * 64,
+        )
+
+    raw_request = broker.canonical_json(
+        {
+            "schema_version": 1,
+            "role": "writer",
+            "prompt": "公開文章任務",
+            "response_schema": SCHEMA,
+        }
+    )
+    result = broker.run_single_shot(
+        operation_id="operation-001",
+        item_id="item-001",
+        attempt_id="attempt-1",
+        request_sha256="a" * 64,
+        model="gemini-3.5-flash",
+        executable=target,
+        target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+        expected_executable_digest=broker._sha256(target.read_bytes()),
+        raw_request=raw_request,
+        response_schema=SCHEMA,
+        timeout_milliseconds=1500,
+        ledger_path=tmp_path / "ledger.jsonl",
+        anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+        credential_source_opener=open_selected_source,
+    )
+
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "ledger.jsonl").read_text().splitlines()
+    ]
+    selected = [
+        event for event in events if event["event_type"] == "CREDENTIAL_SELECTED"
+    ]
+    assert opens == 1
+    assert len(selected) == 1
+    assert selected[0] == {
+        **{
+            key: selected[0][key]
+            for key in (
+                "schema_version",
+                "sequence",
+                "parent_sha256",
+                "event_type",
+                "operation_id",
+                "item_id",
+                "attempt_id",
+            )
+        },
+        "pool_id": "pantheon-pool-v1",
+        "slot_id": "account-2",
+        "pool_sha256": "c" * 64,
+    }
+    assert result.receipt.pool_id == "pantheon-pool-v1"
+    assert result.receipt.slot_id == "account-2"
+    assert result.receipt.pool_sha256 == "c" * 64
+    assert result.target_diagnostic == "RATE_LIMITED"
+    assert result.process_count == 1
+    assert result.automatic_resend_allowed is False
 
 
 def test_existing_structured_operation_replays_without_credential_or_target_process(

@@ -266,6 +266,10 @@ def test_runner_flag_on_defaults_new_operation_to_structured_profile(
 
     def fake_broker(**kwargs: object) -> BrokerResult:
         broker_calls.append(kwargs)
+        credential_source_opener = kwargs["credential_source_opener"]
+        assert callable(credential_source_opener)
+        source = credential_source_opener()
+        os.close(source.descriptor)
         return _broker_result(
             "COMPLETE",
             ExecutionReceipt(
@@ -276,6 +280,9 @@ def test_runner_flag_on_defaults_new_operation_to_structured_profile(
                 request["model"],
                 broker.GEMINI_STRUCTURED_API_PROFILE,
                 executable_digest,
+                source.pool_id,
+                source.slot_id,
+                source.pool_sha256,
             ),
             result={"ok": True},
         )
@@ -544,9 +551,10 @@ def test_runner_structured_profile_uses_credential_fd_and_native_request(
     def fake_broker(**kwargs: object) -> BrokerResult:
         nonlocal observed_fd
         broker_calls.append(kwargs)
-        credential_fd_opener = kwargs["credential_fd_opener"]
-        assert callable(credential_fd_opener)
-        observed_fd = credential_fd_opener()
+        credential_source_opener = kwargs["credential_source_opener"]
+        assert callable(credential_source_opener)
+        source = credential_source_opener()
+        observed_fd = source.descriptor
         try:
             assert os.read(observed_fd, 4096) == b"synthetic-api-key-with-safe-length\n"
         finally:
@@ -561,6 +569,9 @@ def test_runner_structured_profile_uses_credential_fd_and_native_request(
                 request["model"],
                 "gemini_structured_api_v1",
                 executable_digest,
+                source.pool_id,
+                source.slot_id,
+                source.pool_sha256,
             ),
             result={"ok": True},
         )
@@ -579,6 +590,153 @@ def test_runner_structured_profile_uses_credential_fd_and_native_request(
     assert observed_fd is not None
     with pytest.raises(OSError):
         os.fstat(observed_fd)
+
+
+def test_runner_credential_pool_selects_deterministically_and_opens_only_selected_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    slots = []
+    expected_values: dict[str, bytes] = {}
+    for index in range(3):
+        slot_id = f"account-{index + 1}"
+        credential_path = tmp_path / f"{slot_id}.key"
+        credential_value = f"synthetic-api-key-for-{slot_id}".encode()
+        credential_path.write_bytes(credential_value)
+        credential_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        slots.append(
+            {
+                "slot_id": slot_id,
+                "credential_file": str(credential_path),
+            }
+        )
+        expected_values[slot_id] = credential_value
+    manifest_path = tmp_path / "credential-pool.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pool_id": "pantheon-pool-v1",
+                "slots": list(reversed(slots)),
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    monkeypatch.delenv("AGY_GEMINI_V4_CREDENTIAL_FILE", raising=False)
+    monkeypatch.setenv("AGY_GEMINI_V4_CREDENTIAL_POOL_FILE", str(manifest_path))
+
+    observed: dict[str, str] = {}
+    for operation_index in range(100):
+        operation_id = f"operation-{operation_index:03d}"
+        source = runner._open_credential_source(operation_id)
+        try:
+            assert os.read(source.descriptor, 4096) == expected_values[source.slot_id]
+        finally:
+            os.close(source.descriptor)
+        assert source.pool_id == "pantheon-pool-v1"
+        assert len(source.pool_sha256) == 64
+        if operation_id in observed:
+            assert observed[operation_id] == source.slot_id
+        observed[operation_id] = source.slot_id
+
+    assert set(observed.values()) == set(expected_values)
+    repeated = runner._open_credential_source("operation-042")
+    try:
+        assert repeated.slot_id == observed["operation-042"]
+    finally:
+        os.close(repeated.descriptor)
+
+
+def test_runner_credential_pool_rejects_ambiguous_or_unsafe_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credential_path = tmp_path / "account-1.key"
+    credential_path.write_text("synthetic-api-key-with-safe-length", encoding="utf-8")
+    credential_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    manifest_path = tmp_path / "credential-pool.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pool_id": "pantheon-pool-v1",
+                "slots": [
+                    {
+                        "slot_id": "account-1",
+                        "credential_file": str(credential_path),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path.chmod(0o644)
+    monkeypatch.setenv("AGY_GEMINI_V4_CREDENTIAL_FILE", str(credential_path))
+    monkeypatch.setenv("AGY_GEMINI_V4_CREDENTIAL_POOL_FILE", str(manifest_path))
+    with pytest.raises(ValueError, match="ambiguous"):
+        runner._open_credential_source("operation-001")
+
+    monkeypatch.delenv("AGY_GEMINI_V4_CREDENTIAL_FILE")
+    with pytest.raises(ValueError, match="owner-only"):
+        runner._open_credential_source("operation-001")
+
+
+def test_runner_structured_pool_replay_does_not_read_missing_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "structured-target"
+    executable.write_bytes(b"trusted structured target fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_PROFILE", broker.GEMINI_STRUCTURED_API_PROFILE)
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    monkeypatch.delenv("AGY_GEMINI_V4_CREDENTIAL_FILE", raising=False)
+    monkeypatch.setenv(
+        "AGY_GEMINI_V4_CREDENTIAL_POOL_FILE",
+        str(tmp_path / "missing-pool.json"),
+    )
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-structured-pool-replay",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開文章任務",
+        response_schema=SCHEMA,
+    )
+    ledger_path = tmp_path / "v4" / "ledger" / f"{request['job_id']}.jsonl"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text("existing durable operation\n", encoding="utf-8")
+    broker_calls: list[dict[str, object]] = []
+
+    def fake_broker(**kwargs: object) -> BrokerResult:
+        broker_calls.append(kwargs)
+        return _broker_result(
+            "COMPLETE",
+            ExecutionReceipt(
+                request["job_id"],
+                request["namespace"],
+                "attempt-1",
+                request["request_sha256"],
+                request["model"],
+                broker.GEMINI_STRUCTURED_API_PROFILE,
+                executable_digest,
+            ),
+        )
+
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: pytest.fail("legacy fallback"),
+    )
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "V4BrokerFailure"
+    assert len(broker_calls) == 1
+    opener = broker_calls[0]["credential_source_opener"]
+    assert callable(opener)
 
 
 def test_runner_structured_replay_does_not_open_missing_credential(
@@ -719,9 +877,9 @@ def test_runner_structured_profile_rejects_non_private_credential_file_before_le
 
     def fake_broker(**kwargs: object) -> None:
         broker_calls.append(kwargs)
-        credential_fd_opener = kwargs["credential_fd_opener"]
-        assert callable(credential_fd_opener)
-        credential_fd_opener()
+        credential_source_opener = kwargs["credential_source_opener"]
+        assert callable(credential_source_opener)
+        credential_source_opener()
 
     monkeypatch.setattr(runner, "run_single_shot", fake_broker)
 

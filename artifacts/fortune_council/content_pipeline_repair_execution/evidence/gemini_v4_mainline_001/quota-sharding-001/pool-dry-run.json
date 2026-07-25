@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-07-25",
+  "pool_id": "pantheon-gemini-v1",
+  "slot_count": 3,
+  "synthetic_operation_count": 300,
+  "distribution": {
+    "account-1": 108,
+    "account-2": 103,
+    "account-3": 89
+  },
+  "distinct_pool_digest_count": 1,
+  "credential_values_read": false,
+  "external_requests": 0,
+  "activated": false
+}

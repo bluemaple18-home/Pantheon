@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -20,6 +21,7 @@ from scripts.agy_gemini_outbox import (
 from scripts.agy_seo_copy_pipeline import GeminiClient
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
+    CredentialSource,
     GEMINI_STRUCTURED_API_PROFILE,
     ExecutionReceipt,
     FileAnchorStore,
@@ -69,6 +71,9 @@ SAFE_SCHEMA_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MAX_SCHEMA_DIAGNOSTICS = 3
 MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
+MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
+MAX_CREDENTIAL_POOL_SLOTS = 16
+SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 STRUCTURED_TARGET_DIAGNOSTICS = frozenset({
     "AUTH_FAILED",
     "CREDENTIAL_INVALID",
@@ -149,6 +154,185 @@ def _open_private_credential_file(path: Path) -> int:
         os.close(descriptor)
         raise
     return descriptor
+
+
+def _read_private_credential_pool(path: Path) -> tuple[dict[str, Any], str]:
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ValueError("V4 credential pool is unavailable") from error
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o077
+        or not 2 <= before.st_size <= MAX_CREDENTIAL_POOL_BYTES
+    ):
+        raise ValueError("V4 credential pool must be owner-only regular file")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError("V4 credential pool cannot be opened") from error
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+            or after.st_uid != os.getuid()
+            or after.st_mode & 0o077
+            or not 2 <= after.st_size <= MAX_CREDENTIAL_POOL_BYTES
+        ):
+            raise ValueError("V4 credential pool changed during validation")
+        chunks = bytearray()
+        while len(chunks) <= MAX_CREDENTIAL_POOL_BYTES:
+            chunk = os.read(
+                descriptor,
+                min(
+                    4096,
+                    MAX_CREDENTIAL_POOL_BYTES + 1 - len(chunks),
+                ),
+            )
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        encoded = bytes(chunks)
+    finally:
+        os.close(descriptor)
+    if len(encoded) != after.st_size:
+        raise ValueError("V4 credential pool size is invalid")
+    try:
+        payload = json.loads(
+            encoded,
+            parse_constant=lambda _value: (_ for _ in ()).throw(
+                ValueError("non-finite JSON constant")
+            ),
+        )
+    except (ValueError, UnicodeDecodeError) as error:
+        raise ValueError("V4 credential pool JSON is invalid") from error
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema_version",
+        "pool_id",
+        "slots",
+    }:
+        raise ValueError("V4 credential pool schema is invalid")
+    pool_id = payload.get("pool_id")
+    slots = payload.get("slots")
+    if (
+        payload.get("schema_version") != 1
+        or type(pool_id) is not str
+        or SAFE_CREDENTIAL_ID.fullmatch(pool_id) is None
+        or not isinstance(slots, list)
+        or not 1 <= len(slots) <= MAX_CREDENTIAL_POOL_SLOTS
+    ):
+        raise ValueError("V4 credential pool schema is invalid")
+    slot_ids: set[str] = set()
+    credential_paths: set[str] = set()
+    for slot in slots:
+        if not isinstance(slot, dict) or set(slot) != {
+            "slot_id",
+            "credential_file",
+        }:
+            raise ValueError("V4 credential pool slot is invalid")
+        slot_id = slot.get("slot_id")
+        credential_file = slot.get("credential_file")
+        if (
+            type(slot_id) is not str
+            or SAFE_CREDENTIAL_ID.fullmatch(slot_id) is None
+            or type(credential_file) is not str
+            or not Path(credential_file).is_absolute()
+            or slot_id in slot_ids
+            or credential_file in credential_paths
+        ):
+            raise ValueError("V4 credential pool slot is invalid")
+        slot_ids.add(slot_id)
+        credential_paths.add(credential_file)
+    canonical = json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return payload, hashlib.sha256(canonical).hexdigest()
+
+
+def _open_credential_source(operation_id: str) -> CredentialSource:
+    if SAFE_CREDENTIAL_ID.fullmatch(operation_id) is None:
+        raise ValueError("V4 operation id is invalid")
+    credential_file = os.environ.get("AGY_GEMINI_V4_CREDENTIAL_FILE")
+    pool_file = os.environ.get("AGY_GEMINI_V4_CREDENTIAL_POOL_FILE")
+    if bool(credential_file) == bool(pool_file):
+        raise ValueError("V4 credential configuration is ambiguous")
+    if credential_file:
+        return CredentialSource(
+            descriptor=_open_private_credential_file(Path(credential_file)),
+            pool_id="single-key-v1",
+            slot_id="single",
+            pool_sha256=hashlib.sha256(b"single-key-v1").hexdigest(),
+        )
+    assert pool_file is not None
+    payload, pool_sha256 = _read_private_credential_pool(Path(pool_file))
+    slots = sorted(payload["slots"], key=lambda slot: slot["slot_id"])
+    selection_digest = hashlib.sha256(
+        f"{payload['pool_id']}\0{operation_id}".encode("utf-8")
+    ).digest()
+    selected = slots[int.from_bytes(selection_digest[:8], "big") % len(slots)]
+    return CredentialSource(
+        descriptor=_open_private_credential_file(
+            Path(selected["credential_file"])
+        ),
+        pool_id=str(payload["pool_id"]),
+        slot_id=str(selected["slot_id"]),
+        pool_sha256=pool_sha256,
+    )
+
+
+def _receipt_matches(
+    receipt: object,
+    *,
+    operation_id: str,
+    item_id: str,
+    attempt_id: str,
+    request_sha256: str,
+    model: str,
+    target_profile: str,
+    executable_digest: str,
+) -> bool:
+    if type(receipt) is not ExecutionReceipt:
+        return False
+    if (
+        receipt.operation_id,
+        receipt.item_id,
+        receipt.attempt_id,
+        receipt.request_sha256,
+        receipt.model,
+        receipt.target_profile,
+        receipt.executable_digest,
+    ) != (
+        operation_id,
+        item_id,
+        attempt_id,
+        request_sha256,
+        model,
+        target_profile,
+        executable_digest,
+    ):
+        return False
+    if target_profile != GEMINI_STRUCTURED_API_PROFILE:
+        return (
+            receipt.pool_id,
+            receipt.slot_id,
+            receipt.pool_sha256,
+        ) == (None, None, None)
+    return (
+        type(receipt.pool_id) is str
+        and SAFE_CREDENTIAL_ID.fullmatch(receipt.pool_id) is not None
+        and type(receipt.slot_id) is str
+        and SAFE_CREDENTIAL_ID.fullmatch(receipt.slot_id) is not None
+        and type(receipt.pool_sha256) is str
+        and re.fullmatch(r"[0-9a-f]{64}", receipt.pool_sha256) is not None
+    )
 
 
 def _claim_next(queue_root: Path) -> Path | None:
@@ -296,10 +480,9 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             )
             credential_fd: int | None = None
             credential_fd_opener: Callable[[], int] | None = None
+            credential_source_opener: Callable[[], CredentialSource] | None = None
             if target_profile == GEMINI_STRUCTURED_API_PROFILE:
-                credential_fd_opener = lambda: _open_private_credential_file(
-                    Path(os.environ["AGY_GEMINI_V4_CREDENTIAL_FILE"])
-                )
+                credential_source_opener = lambda: _open_credential_source(job_id)
                 raw_request = encode_target_request(
                     str(request["role"]),
                     str(request["prompt"]),
@@ -332,21 +515,22 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                     anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
                     credential_fd=credential_fd,
                     credential_fd_opener=credential_fd_opener,
+                    credential_source_opener=credential_source_opener,
                 )
             finally:
                 if credential_fd is not None:
                     os.close(credential_fd)
-            expected_receipt = ExecutionReceipt(
-                job_id,
-                str(request["namespace"]),
-                "attempt-1",
-                str(request["request_sha256"]),
-                str(request["model"]),
-                target_profile,
-                expected_executable_digest,
-            )
             if (
-                broker_result.receipt != expected_receipt
+                not _receipt_matches(
+                    broker_result.receipt,
+                    operation_id=job_id,
+                    item_id=str(request["namespace"]),
+                    attempt_id="attempt-1",
+                    request_sha256=str(request["request_sha256"]),
+                    model=str(request["model"]),
+                    target_profile=target_profile,
+                    executable_digest=expected_executable_digest,
+                )
                 or not broker_result.caller_contract_satisfied
                 or broker_result.result is None
             ):

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Final, Literal, NoReturn, Protocol
 
 
-COMMAND_SCHEMA_VERSION: Final = 2
+COMMAND_SCHEMA_VERSION: Final = 3
 EVENT_SCHEMA_VERSION: Final = 2
 MAX_FRAME_BYTES: Final = 64 * 1024
 MAX_RESULT_BYTES: Final = 2 * 1024 * 1024
@@ -31,6 +31,7 @@ IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EVENT_TYPES: Final = {
     "OPERATION_CREATED",
+    "CREDENTIAL_SELECTED",
     "PREFLIGHT_REJECTED",
     "BROKER_ATTEMPTED",
     "BROKER_ABORTED",
@@ -50,6 +51,11 @@ BASE_FIELDS: Final = {
 }
 EVENT_FIELDS: Final = {
     "OPERATION_CREATED": {},
+    "CREDENTIAL_SELECTED": {
+        "pool_id": str,
+        "slot_id": str,
+        "pool_sha256": str,
+    },
     "PREFLIGHT_REJECTED": {"outcome": str},
     "BROKER_ATTEMPTED": {"broker_attempt": int},
     "BROKER_ABORTED": {"outcome": str},
@@ -296,6 +302,9 @@ class CommandFrame:
     target_profile: str
     model_label: str
     payload_class: str
+    credential_pool_id: str | None
+    credential_slot_id: str | None
+    credential_pool_sha256: str | None
 
     def validate(self) -> None:
         Binding(self.operation_id, self.item_id, self.attempt_id).validate()
@@ -329,6 +338,20 @@ class CommandFrame:
             and self.model_label not in API_MODEL_LABELS.values()
         ):
             raise FrameError("Gemini API model label is invalid")
+        credential_identity = (
+            self.credential_pool_id,
+            self.credential_slot_id,
+            self.credential_pool_sha256,
+        )
+        if self.target_profile == GEMINI_STRUCTURED_API_PROFILE:
+            if (
+                not _valid_identifier(self.credential_pool_id)
+                or not _valid_identifier(self.credential_slot_id)
+                or not _valid_sha256(self.credential_pool_sha256)
+            ):
+                raise FrameError("structured credential identity is invalid")
+        elif credential_identity != (None, None, None):
+            raise FrameError("non-structured target has credential identity")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -343,6 +366,9 @@ class CommandFrame:
             "target_profile": self.target_profile,
             "model_label": self.model_label,
             "payload_class": self.payload_class,
+            "credential_pool_id": self.credential_pool_id,
+            "credential_slot_id": self.credential_slot_id,
+            "credential_pool_sha256": self.credential_pool_sha256,
         }
 
 
@@ -376,6 +402,27 @@ class ExecutionReceipt:
     model: str
     target_profile: str
     executable_digest: str
+    pool_id: str | None = None
+    slot_id: str | None = None
+    pool_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class CredentialSource:
+    descriptor: int
+    pool_id: str
+    slot_id: str
+    pool_sha256: str
+
+    def validate(self) -> None:
+        if type(self.descriptor) is not int or self.descriptor < 3:
+            raise ValueError("structured credential descriptor is invalid")
+        if (
+            not _valid_identifier(self.pool_id)
+            or not _valid_identifier(self.slot_id)
+            or not _valid_sha256(self.pool_sha256)
+        ):
+            raise ValueError("structured credential identity is invalid")
 
 
 @dataclass(frozen=True)
@@ -549,6 +596,13 @@ def _schema_errors(event: dict[str, object]) -> list[str]:
             errors.append(f"{field.upper()}_TYPE")
     if kind == "EXEC_CONFIRMED" and type(event.get("pid")) is int and int(event["pid"]) <= 0:
         errors.append("PID_VALUE")
+    if kind == "CREDENTIAL_SELECTED":
+        if not _valid_identifier(event.get("pool_id")):
+            errors.append("POOL_ID_VALUE")
+        if not _valid_identifier(event.get("slot_id")):
+            errors.append("SLOT_ID_VALUE")
+        if not _valid_sha256(event.get("pool_sha256")):
+            errors.append("POOL_SHA256_VALUE")
     if event.get("broker_attempt") not in {None, 1}:
         errors.append("BROKER_ATTEMPT_VALUE")
     if event.get("process_ordinal") not in {None, 1}:
@@ -599,7 +653,17 @@ def replay_ledger(path: Path, expected: Binding, external_anchor: str | None) ->
     elif external_anchor is not None and parent != external_anchor:
         errors.append("EXTERNAL_ANCHOR_MISMATCH")
     types = tuple(str(event.get("event_type")) for event in events)
-    state = LEGAL_REPLAY_STATES.get(types)
+    selected_indexes = [
+        index for index, event_type in enumerate(types)
+        if event_type == "CREDENTIAL_SELECTED"
+    ]
+    if selected_indexes and selected_indexes != [1]:
+        errors.append("CREDENTIAL_SELECTION_ORDER")
+    normalized_types = tuple(
+        event_type for event_type in types
+        if event_type != "CREDENTIAL_SELECTED"
+    )
+    state = LEGAL_REPLAY_STATES.get(normalized_types)
     if state is None:
         status: str = "INVALID"
         count: ProcessCount = "UNKNOWN"
@@ -812,6 +876,13 @@ def _broker_entry(
         binding = Binding(command.operation_id, command.item_id, command.attempt_id)
         writer = _LedgerWriter(ledger_fd, anchor_socket, binding)
         writer.append("OPERATION_CREATED")
+        if command.target_profile == GEMINI_STRUCTURED_API_PROFILE:
+            writer.append(
+                "CREDENTIAL_SELECTED",
+                pool_id=command.credential_pool_id,
+                slot_id=command.credential_slot_id,
+                pool_sha256=command.credential_pool_sha256,
+            )
         if not executable.exists() or not os.access(executable, os.X_OK):
             writer.append("PREFLIGHT_REJECTED", outcome="CLI_NOT_FOUND")
             _emit_broker_result(anchor_socket, result_fd, _control("COMPLETE", 0, "CLI_NOT_FOUND", None, b"", b"", writer.anchor), b"")
@@ -1117,6 +1188,7 @@ def run_single_shot(
     anchor_store: AnchorStore,
     credential_fd: int | None = None,
     credential_fd_opener: Callable[[], int] | None = None,
+    credential_source_opener: Callable[[], CredentialSource] | None = None,
 ) -> BrokerResult:
     """執行恰一次 target；既有 ledger 一律只 replay，不補事件或重送。"""
     binding = Binding(operation_id, item_id, attempt_id)
@@ -1135,7 +1207,11 @@ def run_single_shot(
         _validate_public_prompt(raw_request)
         target_profile = ANTIGRAVITY_CLI_PROFILE
         payload_class = PUBLIC_SANITIZED
-        if credential_fd is not None or credential_fd_opener is not None:
+        if (
+            credential_fd is not None
+            or credential_fd_opener is not None
+            or credential_source_opener is not None
+        ):
             raise ValueError("agy profile must not receive credential fd")
     elif target_profile == GEMINI_STRUCTURED_API_PROFILE:
         try:
@@ -1143,14 +1219,25 @@ def run_single_shot(
         except KeyError as error:
             raise ValueError("Gemini API model is not approved") from error
         _validate_public_prompt(raw_request)
-        if credential_fd is not None and credential_fd_opener is not None:
+        if sum(
+            source is not None
+            for source in (
+                credential_fd,
+                credential_fd_opener,
+                credential_source_opener,
+            )
+        ) > 1:
             raise ValueError("structured target credential source is ambiguous")
         target_profile = GEMINI_STRUCTURED_API_PROFILE
         payload_class = PUBLIC_STRUCTURED
     elif target_profile == RAW_STDIN_PROFILE:
         model_label = model
         payload_class = SYNTHETIC_TEST
-        if credential_fd is not None or credential_fd_opener is not None:
+        if (
+            credential_fd is not None
+            or credential_fd_opener is not None
+            or credential_source_opener is not None
+        ):
             raise ValueError("synthetic profile must not receive credential fd")
     else:
         raise ValueError("target profile is invalid")
@@ -1167,20 +1254,6 @@ def run_single_shot(
         target_profile,
         executable_digest,
     )
-    command = CommandFrame(
-        COMMAND_SCHEMA_VERSION,
-        operation_id,
-        item_id,
-        attempt_id,
-        executable_digest,
-        _sha256(raw_request),
-        len(raw_request),
-        timeout_milliseconds,
-        target_profile,
-        model_label,
-        payload_class,
-    )
-    command.validate()
     try:
         existing_anchor = anchor_store.load(operation_id, attempt_id)
     except AnchorError:
@@ -1191,12 +1264,37 @@ def run_single_shot(
     if existing_anchor is not None:
         return _failure_result(receipt, ReplayResult("INVALID", "UNKNOWN", False, ("LEDGER_MISSING",)), existing_anchor)
     owns_credential_fd = False
+    credential_pool_id: str | None = None
+    credential_slot_id: str | None = None
+    credential_pool_sha256: str | None = None
     if target_profile == GEMINI_STRUCTURED_API_PROFILE:
-        if credential_fd is None:
+        if credential_source_opener is not None:
+            source = credential_source_opener()
+            if type(source) is not CredentialSource:
+                raise ValueError("structured credential source is invalid")
+            try:
+                source.validate()
+            except Exception:
+                if type(source.descriptor) is int and source.descriptor >= 3:
+                    os.close(source.descriptor)
+                raise
+            credential_fd = source.descriptor
+            credential_pool_id = source.pool_id
+            credential_slot_id = source.slot_id
+            credential_pool_sha256 = source.pool_sha256
+            owns_credential_fd = True
+        elif credential_fd is None:
             if credential_fd_opener is None:
                 raise ValueError("structured target credential fd is invalid")
             credential_fd = credential_fd_opener()
             owns_credential_fd = True
+            credential_pool_id = "single-key-v1"
+            credential_slot_id = "single"
+            credential_pool_sha256 = _sha256(b"single-key-v1")
+        else:
+            credential_pool_id = "direct-fd-v1"
+            credential_slot_id = "direct"
+            credential_pool_sha256 = _sha256(b"direct-fd-v1")
         if type(credential_fd) is not int or credential_fd < 3:
             if (
                 owns_credential_fd
@@ -1214,6 +1312,43 @@ def run_single_shot(
                 except OSError:
                     pass
             raise ValueError("structured target credential fd is invalid") from error
+        receipt = ExecutionReceipt(
+            operation_id,
+            item_id,
+            attempt_id,
+            request_sha256,
+            model,
+            target_profile,
+            executable_digest,
+            credential_pool_id,
+            credential_slot_id,
+            credential_pool_sha256,
+        )
+    command = CommandFrame(
+        COMMAND_SCHEMA_VERSION,
+        operation_id,
+        item_id,
+        attempt_id,
+        executable_digest,
+        _sha256(raw_request),
+        len(raw_request),
+        timeout_milliseconds,
+        target_profile,
+        model_label,
+        payload_class,
+        credential_pool_id,
+        credential_slot_id,
+        credential_pool_sha256,
+    )
+    try:
+        command.validate()
+    except Exception:
+        if owns_credential_fd and credential_fd is not None:
+            try:
+                os.close(credential_fd)
+            except OSError:
+                pass
+        raise
     try:
         ledger_path.parent.mkdir(parents=True, exist_ok=True)
     except Exception:

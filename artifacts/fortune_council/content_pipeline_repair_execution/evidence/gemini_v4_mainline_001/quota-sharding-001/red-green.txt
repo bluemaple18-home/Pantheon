@@ -1,0 +1,42 @@
+Gemini V4 quota sharding RED/GREEN
+Date: 2026-07-25
+
+RED:
+command:
+  pytest focused manifest, replay and durable-selection cases
+result:
+  4 failed
+failures:
+  runner._open_credential_source absent
+  credential_source_opener absent
+  CredentialSource absent
+
+GREEN focused:
+result:
+  4 passed in 0.52s
+coverage:
+  deterministic 3-slot selection
+  ambiguous single+pool rejection
+  unsafe manifest rejection
+  missing-manifest replay laziness
+  one selected slot on RATE_LIMITED
+
+GREEN broker + runner:
+result:
+  126 passed in 11.78s
+
+GREEN affected suites:
+result:
+  229 passed in 67.40s
+suites:
+  tests/test_agy_gemini_v4_structured_target.py
+  tests/test_agy_gemini_v4_broker.py
+  tests/test_agy_gemini_outbox.py
+  tests/test_agy_gemini_v4_architecture_probe.py
+  tests/test_agy_seo_copy_pipeline.py
+
+FINAL resource-boundary regression:
+result:
+  1 passed in 0.05s
+coverage:
+  selected credential FD closes when command validation fails

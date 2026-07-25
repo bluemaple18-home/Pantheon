@@ -1,0 +1,50 @@
+Gemini V4 quota sharding verification
+Date: 2026-07-25
+
+base candidate:
+  5e3939ba46ed37f96a8cc915feacaab1a6ab5015
+
+focused RED:
+  4 failed as expected
+
+focused GREEN:
+  4 passed in 0.52s
+
+broker + runner:
+  126 passed in 11.78s
+
+affected suites:
+  229 passed in 67.40s
+
+resource-boundary regression:
+  selected credential FD closes on command validation failure: PASS
+
+static verification:
+  py_compile: PASS
+  JSON evidence parse: PASS
+  changed-files allowlist: PASS
+  privacy scan: PASS
+  git diff --check: PASS
+
+local pool:
+  slots: 3
+  key files: owner-only 0600
+  manifest: owner-only 0600
+  source modified: false
+  activated: false
+  300-operation dry-run: account-1=108, account-2=103, account-3=89
+  external request: 0
+
+contract:
+  single-key compatibility: PASS
+  deterministic selection: PASS
+  ambiguous single+pool: FAIL CLOSED
+  unsafe manifest: FAIL CLOSED
+  durable CREDENTIAL_SELECTED count: 1
+  RATE_LIMITED fallback count: 0
+  legacy replay compatibility: PASS
+  credential value in repo/evidence: false
+  deploy/publish/default promotion: 0
+
+decision:
+  READY_FOR_REVIEW

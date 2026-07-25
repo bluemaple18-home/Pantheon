@@ -1,0 +1,13 @@
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/CARD-CONTENT-GEMINI-V4-QUOTA-SHARDING-001.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/changed-files.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/decision.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/pool-dry-run.json
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/red-green.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/root-cause.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/quota-sharding-001/verification.txt
+docs/pantheon_gemini_reviewer_v4_architecture.md
+docs/pantheon_gemini_v4_agy_cli_compatibility.md
+scripts/agy_gemini_runner.py
+scripts/agy_gemini_v4_broker.py
+tests/test_agy_gemini_outbox.py
+tests/test_agy_gemini_v4_broker.py
