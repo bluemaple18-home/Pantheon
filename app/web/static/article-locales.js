@@ -180,10 +180,13 @@ import { I18N_NATIVE_TAROT_JA_0002_ARTICLE_LOCALES } from "./article-locale-i18n
 
 import { I18N_NATIVE_TAROT_KO_0002_ARTICLE_LOCALES } from "./article-locale-i18n-native-tarot-ko-0002.js?v=i18n-native-tarot-ko-0002";
 
+import { AUTO_I18N_KO_4C30845DD81A6F69B994_ARTICLE_LOCALES } from "./article-locale-auto-i18n-ko-4c30845dd81a6f69b994.js?v=auto-i18n-ko-4c30845dd81a6f69b994";
+
 export const ARTICLE_LOCALE_REGISTRY = [
   ...I18N_NATIVE_TAROT_EN_0006_ARTICLE_LOCALES,
   ...I18N_NATIVE_TAROT_JA_0002_ARTICLE_LOCALES,
   ...I18N_NATIVE_TAROT_KO_0002_ARTICLE_LOCALES,
+  ...AUTO_I18N_KO_4C30845DD81A6F69B994_ARTICLE_LOCALES,
 ];
 
 export function listArticleLocaleRecords() {
