@@ -1,0 +1,44 @@
+REPAIR-2 RED / GREEN
+
+IDENTITY
+provisioning: 40357e17856ea17fad312fa701adef5621e82c5f
+parent candidate: 878ad3872e2fbf8bf135ddbff2a6fb596e7c96df
+generation: Repair-2 (final repair)
+
+CODEGRAPH
+status: unavailable in this worktree
+fallback: one recorded failure, then narrow rg / sed source inspection
+
+F002 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py::test_provider_schema_projection_rejects_invalid_typed_subset_before_http tests/test_agy_gemini_v4_structured_target.py::test_provider_schema_projection_accepts_closed_typed_subset -q
+exit: 1
+result: 7 failed, 1 passed
+symptom: all invalid typed schemas reached the synthetic HTTP opener instead of failing closed
+
+F002 GREEN
+focused result: 12 passed
+final expanded typed-contract result: 14 passed
+two affected suites: 78 passed
+covered: Reviewer three counterexamples, wrong enum types, bool/integer separation,
+non-finite enum and bound, exact integer bound, closed string format, legal typed subset,
+caller-only string length preservation and current article schemas
+
+F003 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py::test_canonical_json_rejects_nonfinite_numbers tests/test_agy_gemini_v4_structured_target.py::test_provider_json_boundaries_reject_nonfinite_constants tests/test_agy_gemini_v4_broker.py::test_numeric_schema_rejects_nested_nonfinite_values tests/test_agy_gemini_v4_broker.py::test_numeric_schema_rejects_nonfinite_bounds tests/test_agy_gemini_v4_broker.py::test_broker_canonical_json_rejects_nonfinite_numbers tests/test_agy_gemini_v4_broker.py::test_target_stdout_rejects_nonfinite_json_constants -q
+exit: 1
+result: 22 failed
+symptom: NaN / Infinity / -Infinity were serialized, parsed or marked VALID
+
+F003 GREEN
+focused result: 24 passed
+two affected suites: 99 passed
+covered: provider envelope and provider text, both canonical serializers, broker stdout,
+nested numeric value, non-finite schema bounds and finite inclusive boundaries
+
+FULL AFFECTED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py tests/test_agy_seo_copy_pipeline.py -q
+exit: 0
+result: 224 passed in 65.94s
+
+EXTERNAL GENERATION / RETRY / FALLBACK / PUBLISH
+0 / 0 / 0 / 0

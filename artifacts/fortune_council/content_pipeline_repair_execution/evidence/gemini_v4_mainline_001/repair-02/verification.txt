@@ -1,0 +1,51 @@
+REPAIR-2 VERIFICATION
+
+IDENTITY
+parent candidate: 878ad3872e2fbf8bf135ddbff2a6fb596e7c96df
+provisioning / start HEAD: 40357e17856ea17fad312fa701adef5621e82c5f
+unique parent / independent detached worktree / clean start / index.lock absent: PASS
+Reviewer thread: 019f9548-1dba-7781-9890-5dd54f669419
+generation: Repair-2 (final repair)
+
+CODEGRAPH
+status: unavailable in this worktree
+fallback: one recorded failure, then narrow rg / sed source inspection
+
+FOCUSED RED / GREEN
+F002: RED 7 failed / 1 passed -> GREEN 12 passed; expanded final contract 14 passed
+F003: RED 22 failed -> GREEN 24 passed
+
+TWO-SUITE CHECKPOINTS
+F002 structured target + outbox: 78 passed
+F003 structured target + broker: 99 passed
+
+FULL AFFECTED SUITE
+structured target + broker + outbox + architecture probe + legacy SEO pipeline
+final source-state result: 224 passed in 65.94s
+
+PY_COMPILE
+scope: two modified production modules, runner regression boundary and all five required test modules
+result: PASS
+
+ALLOWLIST / FORBIDDEN SCOPE
+result: PASS
+scripts/agy_gemini_runner.py: unchanged
+scripts/agy_gemini_outbox.py: unchanged
+scripts/agy_seo_copy_pipeline.py: unchanged
+app/** / manifests / dependency files: unchanged
+
+PRIVACY / SECRET / DEBUG
+added-diff secret and debug marker scan: PASS
+credential content read by repair executor: 0
+provider body / prompt / full environment saved in repair evidence: 0
+
+DIFF CHECK
+git diff --check: PASS
+
+EXTERNAL ACTIONS
+real Gemini / API / agy generation: 0
+retry / fallback: 0 / 0
+merge / push / deploy / publish / activation / promotion: 0
+
+STATUS
+REPAIR_READY_FOR_REVIEW

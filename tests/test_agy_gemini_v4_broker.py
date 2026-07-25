@@ -52,6 +52,9 @@ def _write_target(path: Path, mode: str) -> Path:
         "{'ok':True,'must-not-persist':'secret-value'},sort_keys=True))\n"
         "elif mode=='many-schema-mismatches': print(json.dumps("
         "{'a':'x','b':'x','c':'x','d':'x'},sort_keys=True))\n"
+        "elif mode=='json-nan': print('{\"score\":NaN}')\n"
+        "elif mode=='json-infinity': print('{\"score\":Infinity}')\n"
+        "elif mode=='json-negative-infinity': print('{\"score\":-Infinity}')\n"
         "elif mode=='nonzero': print('non-json-output'); sys.exit(7)\n"
         "elif mode=='timeout': time.sleep(10)\n",
         encoding="utf-8",
@@ -719,6 +722,86 @@ def test_numeric_schema_bounds_accept_inclusive_boundaries_and_reject_bool(
     assert broker._diagnose_json_schema(True, schema) == (
         broker.SchemaDiagnostic("type", ()),
     )
+
+
+@pytest.mark.parametrize(
+    "value",
+    (float("nan"), float("inf"), float("-inf")),
+    ids=("nan", "infinity", "negative-infinity"),
+)
+def test_numeric_schema_rejects_nested_nonfinite_values(value: float) -> None:
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+            }
+        },
+        "required": ["score"],
+    }
+
+    assert broker._diagnose_json_schema({"score": value}, schema) == (
+        broker.SchemaDiagnostic("type", ("score",)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("schema_type", "constraint"),
+    (
+        ("number", {"minimum": float("nan")}),
+        ("number", {"maximum": float("inf")}),
+        ("number", {"minimum": float("-inf")}),
+        ("integer", {"maximum": float("inf")}),
+    ),
+)
+def test_numeric_schema_rejects_nonfinite_bounds(
+    schema_type: str,
+    constraint: dict[str, float],
+) -> None:
+    assert broker._diagnose_json_schema(
+        0,
+        {"type": schema_type, **constraint},
+    ) == (broker.SchemaDiagnostic("schema", ()),)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (float("nan"), float("inf"), float("-inf")),
+    ids=("nan", "infinity", "negative-infinity"),
+)
+def test_broker_canonical_json_rejects_nonfinite_numbers(value: float) -> None:
+    with pytest.raises(ValueError):
+        broker.canonical_json({"nested": {"value": value}})
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ("json-nan", "json-infinity", "json-negative-infinity"),
+)
+def test_target_stdout_rejects_nonfinite_json_constants(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    target = _write_target(tmp_path / "fake-target", mode)
+    response_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"score": {"type": "number"}},
+        "required": ["score"],
+    }
+
+    result = _run(
+        tmp_path,
+        target,
+        response_schema=response_schema,
+    )
+
+    assert result.result_validation == "JSON_INVALID"
+    assert result.caller_contract_satisfied is False
+    assert result.result is None
 
 
 def test_oversized_array_stops_before_child_traversal() -> None:

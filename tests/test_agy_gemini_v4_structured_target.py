@@ -33,6 +33,11 @@ class FakeResponse:
         return self.body[:amount]
 
 
+class RawResponse(FakeResponse):
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+
+
 def _provider_response(*, text: str = '{"ok":true}', finish_reason: str = "STOP") -> dict[str, Any]:
     return {
         "candidates": [
@@ -140,6 +145,131 @@ def test_provider_schema_projection_is_versioned_and_keeps_full_caller_schema_lo
     }
 
 
+@pytest.mark.parametrize(
+    "child_schema",
+    (
+        {"type": "boolean", "enum": [True]},
+        {"type": "string", "minimum": 0},
+        {"type": "number", "format": "date-time"},
+        {"type": "string", "enum": [1]},
+        {"type": "integer", "enum": [True]},
+        {"type": "number", "enum": [float("inf")]},
+        {"type": "number", "minimum": float("nan")},
+        {"type": "integer", "minimum": 0.5},
+        {"type": "string", "format": "email"},
+    ),
+    ids=(
+        "boolean-enum",
+        "string-minimum",
+        "number-format",
+        "string-wrong-enum",
+        "integer-bool-enum",
+        "number-nonfinite-enum",
+        "number-nonfinite-bound",
+        "integer-nonintegral-bound",
+        "string-unsupported-format",
+    ),
+)
+def test_provider_schema_projection_rejects_invalid_typed_subset_before_http(
+    child_schema: dict[str, object],
+) -> None:
+    calls = 0
+
+    def opener(_request: object, *, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        assert timeout == 30
+        return FakeResponse(_provider_response(text='{"value":null}'))
+
+    caller_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"value": child_schema},
+        "required": ["value"],
+    }
+
+    with pytest.raises(ValueError):
+        raw_request = target.encode_target_request(
+            "writer",
+            "公開文章任務",
+            caller_schema,
+        )
+        target.execute_single_request(
+            raw_request,
+            model="gemini-3.5-flash",
+            credential="synthetic-api-key-with-safe-length",
+            timeout_seconds=30,
+            opener=opener,
+        )
+
+    assert calls == 0
+
+
+def test_provider_schema_projection_accepts_closed_typed_subset() -> None:
+    caller_schema = {
+        "type": "object",
+        "title": "typed provider schema",
+        "description": "closed supported subset",
+        "additionalProperties": False,
+        "properties": {
+            "published_at": {
+                "type": "string",
+                "enum": ["2026-07-25T00:00:00Z"],
+                "format": "date-time",
+                "minLength": 1,
+                "maxLength": 64,
+            },
+            "ratio": {
+                "type": "number",
+                "enum": [0, 0.5, 1],
+                "minimum": 0,
+                "maximum": 1,
+            },
+            "count": {
+                "type": "integer",
+                "enum": [1, 2],
+                "minimum": 1,
+                "maximum": 2,
+            },
+            "flags": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "items": {"type": "boolean"},
+            },
+            "nothing": {"type": "null"},
+        },
+        "required": ["published_at", "ratio", "count", "flags", "nothing"],
+    }
+
+    projection = target.project_provider_schema(caller_schema)
+
+    assert projection["properties"]["published_at"] == {
+        "type": "string",
+        "enum": ["2026-07-25T00:00:00Z"],
+        "format": "date-time",
+    }
+    assert projection["properties"]["ratio"] == {
+        "type": "number",
+        "enum": [0, 0.5, 1],
+        "minimum": 0,
+        "maximum": 1,
+    }
+    assert projection["properties"]["count"] == {
+        "type": "integer",
+        "enum": [1, 2],
+        "minimum": 1,
+        "maximum": 2,
+    }
+    assert projection["properties"]["flags"] == {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 2,
+        "items": {"type": "boolean"},
+    }
+    assert projection["properties"]["nothing"] == {"type": "null"}
+
+
 @pytest.mark.parametrize("finish_reason", ("MAX_TOKENS", "SAFETY", "OTHER"))
 def test_non_stop_finish_reason_fails_closed_without_returning_partial_text(
     finish_reason: str,
@@ -215,6 +345,54 @@ def test_malformed_provider_envelope_fails_closed(response: object) -> None:
             credential="synthetic-api-key-with-safe-length",
             timeout_seconds=30,
             opener=lambda _request, timeout: FakeResponse(response),
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    (float("nan"), float("inf"), float("-inf")),
+    ids=("nan", "infinity", "negative-infinity"),
+)
+def test_canonical_json_rejects_nonfinite_numbers(value: float) -> None:
+    with pytest.raises(ValueError):
+        target.canonical_json({"nested": {"value": value}})
+
+
+@pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
+@pytest.mark.parametrize("boundary", ("provider-envelope", "provider-text"))
+def test_provider_json_boundaries_reject_nonfinite_constants(
+    constant: str,
+    boundary: str,
+) -> None:
+    caller_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"score": {"type": "number"}},
+        "required": ["score"],
+    }
+    if boundary == "provider-envelope":
+        body = (
+            '{"candidates":[{"finishReason":"STOP","content":{"parts":'
+            '[{"text":"{\\"score\\":0}"}]}}],"nonfinite":'
+            f"{constant}"
+            "}"
+        ).encode()
+    else:
+        body = target.canonical_json(
+            _provider_response(text=f'{{"score":{constant}}}')
+        )
+
+    with pytest.raises(target.TargetFailure, match="ENVELOPE_INVALID"):
+        target.execute_single_request(
+            target.encode_target_request(
+                "writer",
+                "公開文章任務",
+                caller_schema,
+            ),
+            model="gemini-3.5-flash",
+            credential="synthetic-api-key-with-safe-length",
+            timeout_seconds=30,
+            opener=lambda _request, timeout: RawResponse(body),
         )
 
 

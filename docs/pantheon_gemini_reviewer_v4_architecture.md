@@ -157,10 +157,18 @@ receipt boundary，但把 target改成 digest-pinned獨立 adapter：
 - structured target environment不含 `HOME`；
 - provider payload使用 `responseMimeType=application/json` 與
   versioned deterministic provider-schema projection v1 作
-  `responseJsonSchema`，移除官方不支援的 `minLength/maxLength`，並固定
-  `maxOutputTokens=32768`；
+  `responseJsonSchema`；projection依 schema type限制 object／array／string／
+  number／integer／boolean／null各自可用關鍵字，string `format`只接受
+  `date/date-time/time`，enum值必須符合type且bool不冒充integer，numeric
+  enum與bounds必須有限，integer enum與bounds固定為exact integer；
+  caller-only `minLength/maxLength`保留在完整caller schema但不送provider；
+  `maxOutputTokens`固定為32768；
 - 一個 process只有一次 non-redirecting HTTP open，不 retry；
 - 只接受 one candidate、`finishReason=STOP`與 one non-thought JSON object；
+- target request、provider envelope、provider text及broker target stdout的JSON
+  boundary都拒絕 `NaN/Infinity/-Infinity`，canonical serializer使用
+  `allow_nan=False`；broker numeric gate也明確要求value與bounds有限，不轉
+  `null`、不clamp、不容錯解析；
 - adapter canonicalize後由 broker以完整 caller schema再次驗證；number／integer
   的 `minimum/maximum`由本地 gate強制，oversized array在 `maxItems` diagnostic
   後停止 child traversal。

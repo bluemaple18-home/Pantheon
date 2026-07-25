@@ -7,6 +7,7 @@ import argparse
 import errno
 import hashlib
 import json
+import math
 import os
 import re
 import socket
@@ -15,7 +16,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Final, Literal, Protocol
+from typing import Any, Callable, Final, Literal, NoReturn, Protocol
 
 
 COMMAND_SCHEMA_VERSION: Final = 2
@@ -187,7 +188,33 @@ JsonDiagnostic = Literal[
 
 
 def canonical_json(value: object) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _reject_nonfinite_constant(_constant: str) -> NoReturn:
+    raise ValueError("non-finite JSON constant is invalid")
+
+
+def _strict_json_loads(value: str | bytes | bytearray) -> Any:
+    return json.loads(value, parse_constant=_reject_nonfinite_constant)
+
+
+def _is_finite_json_number(value: object) -> bool:
+    return type(value) is int or (
+        type(value) is float and math.isfinite(value)
+    )
+
+
+def _is_valid_numeric_bound(value: object, schema_type: str) -> bool:
+    if schema_type == "integer":
+        return type(value) is int
+    return _is_finite_json_number(value)
 
 
 def _sha256(value: bytes) -> str:
@@ -216,8 +243,8 @@ def _decode_frame(encoded: bytes) -> object:
     if length < 1 or length > MAX_FRAME_BYTES or len(encoded) != length + 4:
         raise FrameError("frame length is invalid")
     try:
-        return json.loads(encoded[4:])
-    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        return _strict_json_loads(encoded[4:])
+    except (ValueError, UnicodeDecodeError) as error:
         raise FrameError("frame JSON is invalid") from error
 
 
@@ -359,7 +386,7 @@ class SchemaDiagnostic:
 
 def _diagnose_json_invalid(
     raw: bytes,
-    error: json.JSONDecodeError | UnicodeDecodeError,
+    error: ValueError | UnicodeDecodeError,
 ) -> JsonDiagnostic:
     if not raw.strip():
         return "EMPTY"
@@ -374,8 +401,8 @@ def _diagnose_json_invalid(
     last_object = text.rfind("}")
     if first_object >= 0 and last_object > first_object:
         try:
-            embedded = json.loads(text[first_object:last_object + 1])
-        except (json.JSONDecodeError, UnicodeDecodeError):
+            embedded = _strict_json_loads(text[first_object:last_object + 1])
+        except (ValueError, UnicodeDecodeError):
             pass
         else:
             if isinstance(embedded, dict):
@@ -409,7 +436,7 @@ class BrokerResult:
     def result(self) -> dict[str, Any] | None:
         if self.result_json is None:
             return None
-        decoded = json.loads(self.result_json)
+        decoded = _strict_json_loads(self.result_json)
         return decoded if isinstance(decoded, dict) else None
 
     def normalized_trace(self) -> dict[str, object]:
@@ -452,8 +479,8 @@ class FileAnchorStore:
         if not path.exists():
             return None
         try:
-            payload = json.loads(path.read_bytes())
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as error:
+            payload = _strict_json_loads(path.read_bytes())
+        except (ValueError, UnicodeDecodeError, OSError) as error:
             raise AnchorError("anchor cannot be loaded") from error
         expected = {"schema_version", "operation_id", "attempt_id", "anchor"}
         if (
@@ -549,8 +576,8 @@ def replay_ledger(path: Path, expected: Binding, external_anchor: str | None) ->
         if not frame.endswith(b"\n"):
             continue
         try:
-            event = json.loads(frame)
-        except (json.JSONDecodeError, UnicodeDecodeError):
+            event = _strict_json_loads(frame)
+        except (ValueError, UnicodeDecodeError):
             errors.append("INVALID_JSON")
             continue
         if not isinstance(event, dict):
@@ -974,7 +1001,7 @@ def _diagnose_json_schema(
         "string": type(value) is str,
         "boolean": type(value) is bool,
         "integer": type(value) is int,
-        "number": type(value) in {int, float},
+        "number": _is_finite_json_number(value),
         "null": value is None,
     }.get(expected_type, False)
     enum = schema.get("enum")
@@ -1043,8 +1070,19 @@ def _diagnose_json_schema(
         minimum = schema.get("minimum")
         maximum = schema.get("maximum")
         if (
-            ("minimum" in schema and type(minimum) not in {int, float})
-            or ("maximum" in schema and type(maximum) not in {int, float})
+            (
+                "minimum" in schema
+                and not _is_valid_numeric_bound(minimum, expected_type)
+            )
+            or (
+                "maximum" in schema
+                and not _is_valid_numeric_bound(maximum, expected_type)
+            )
+            or (
+                minimum is not None
+                and maximum is not None
+                and minimum > maximum
+            )
         ):
             add("schema", path)
             return tuple(diagnostics)
@@ -1341,8 +1379,8 @@ def run_single_shot(
     json_diagnostic: JsonDiagnostic | None = None
     if replay.status == "COMPLETE" and replay.process_count == 1 and control["outcome"] == "SUCCESS":
         try:
-            candidate = json.loads(raw_result)
-        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            candidate = _strict_json_loads(raw_result)
+        except (ValueError, UnicodeDecodeError) as error:
             result_validation = "JSON_INVALID"
             json_diagnostic = _diagnose_json_invalid(raw_result, error)
         else:

@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Callable, Final, Protocol
+from typing import Any, Callable, Final, NoReturn, Protocol
 
 
 SCHEMA_VERSION: Final = 1
@@ -25,29 +26,31 @@ MAX_CREDENTIAL_BYTES: Final = 512
 MAX_OUTPUT_TOKENS: Final = 32_768
 PROVIDER_SCHEMA_PROJECTION_VERSION: Final = 1
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,512}$")
-CALLER_SCHEMA_KEYWORDS: Final = frozenset(
-    {
-        "additionalProperties",
-        "description",
-        "enum",
-        "format",
-        "items",
-        "maximum",
-        "maxItems",
-        "maxLength",
-        "minimum",
-        "minItems",
-        "minLength",
-        "properties",
-        "required",
-        "title",
-        "type",
-    }
+PROVIDER_SCHEMA_COMMON_KEYWORDS: Final = frozenset(
+    {"description", "title", "type"}
 )
-PROVIDER_SCHEMA_KEYWORDS: Final = CALLER_SCHEMA_KEYWORDS - {
-    "maxLength",
-    "minLength",
+PROVIDER_SCHEMA_KEYWORDS_BY_TYPE: Final = {
+    "object": PROVIDER_SCHEMA_COMMON_KEYWORDS
+    | {"additionalProperties", "properties", "required"},
+    "array": PROVIDER_SCHEMA_COMMON_KEYWORDS | {"items", "maxItems", "minItems"},
+    "string": PROVIDER_SCHEMA_COMMON_KEYWORDS | {"enum", "format"},
+    "number": PROVIDER_SCHEMA_COMMON_KEYWORDS | {"enum", "maximum", "minimum"},
+    "integer": PROVIDER_SCHEMA_COMMON_KEYWORDS | {"enum", "maximum", "minimum"},
+    "boolean": PROVIDER_SCHEMA_COMMON_KEYWORDS,
+    "null": PROVIDER_SCHEMA_COMMON_KEYWORDS,
 }
+PROVIDER_SCHEMA_KEYWORDS: Final = frozenset().union(
+    *PROVIDER_SCHEMA_KEYWORDS_BY_TYPE.values()
+)
+CALLER_SCHEMA_KEYWORDS_BY_TYPE: Final = {
+    **PROVIDER_SCHEMA_KEYWORDS_BY_TYPE,
+    "string": PROVIDER_SCHEMA_KEYWORDS_BY_TYPE["string"]
+    | {"maxLength", "minLength"},
+}
+CALLER_SCHEMA_KEYWORDS: Final = frozenset().union(
+    *CALLER_SCHEMA_KEYWORDS_BY_TYPE.values()
+)
+SUPPORTED_STRING_FORMATS: Final = frozenset({"date", "date-time", "time"})
 MAX_SCHEMA_DEPTH: Final = 16
 ROLE_INSTRUCTIONS: Final = {
     "writer": (
@@ -101,20 +104,40 @@ def _open_without_redirect(
 def canonical_json(value: object) -> bytes:
     return json.dumps(
         value,
+        allow_nan=False,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
 
 
+def _reject_nonfinite_constant(_constant: str) -> NoReturn:
+    raise ValueError("non-finite JSON constant is invalid")
+
+
+def _strict_json_loads(value: str | bytes | bytearray) -> Any:
+    return json.loads(value, parse_constant=_reject_nonfinite_constant)
+
+
+def _is_finite_schema_number(value: object, schema_type: str) -> bool:
+    if schema_type == "integer":
+        return type(value) is int
+    return type(value) is int or (
+        type(value) is float and math.isfinite(value)
+    )
+
+
 def _validate_caller_schema(schema: object, depth: int = 0) -> None:
     if depth > MAX_SCHEMA_DEPTH or not isinstance(schema, dict):
         raise ValueError("structured target schema is invalid")
-    if not set(schema) <= CALLER_SCHEMA_KEYWORDS:
-        raise ValueError("structured target schema keyword is unsupported")
     schema_type = schema.get("type")
-    if schema_type not in {"object", "array", "string", "boolean", "integer", "number", "null"}:
+    if schema_type not in CALLER_SCHEMA_KEYWORDS_BY_TYPE:
         raise ValueError("structured target schema type is unsupported")
+    if not set(schema) <= CALLER_SCHEMA_KEYWORDS_BY_TYPE[schema_type]:
+        raise ValueError("structured target schema keyword is unsupported")
+    for keyword in ("description", "title"):
+        if keyword in schema and type(schema[keyword]) is not str:
+            raise ValueError("structured target schema description is invalid")
     if schema_type == "object":
         if schema.get("additionalProperties") is not False:
             raise ValueError("structured target object schema must be closed")
@@ -131,12 +154,69 @@ def _validate_caller_schema(schema: object, depth: int = 0) -> None:
         for child in properties.values():
             _validate_caller_schema(child, depth + 1)
     elif schema_type == "array":
+        for keyword in ("minItems", "maxItems"):
+            if (
+                keyword in schema
+                and (
+                    type(schema[keyword]) is not int
+                    or schema[keyword] < 0
+                )
+            ):
+                raise ValueError("structured target array bound is invalid")
+        if (
+            "minItems" in schema
+            and "maxItems" in schema
+            and schema["minItems"] > schema["maxItems"]
+        ):
+            raise ValueError("structured target array bounds are invalid")
         _validate_caller_schema(schema.get("items"), depth + 1)
-    if "enum" in schema and (
-        not isinstance(schema["enum"], list)
-        or not schema["enum"]
-    ):
-        raise ValueError("structured target enum is invalid")
+    elif schema_type == "string":
+        for keyword in ("minLength", "maxLength"):
+            if (
+                keyword in schema
+                and (
+                    type(schema[keyword]) is not int
+                    or schema[keyword] < 0
+                )
+            ):
+                raise ValueError("structured target string bound is invalid")
+        if (
+            "minLength" in schema
+            and "maxLength" in schema
+            and schema["minLength"] > schema["maxLength"]
+        ):
+            raise ValueError("structured target string bounds are invalid")
+        if (
+            "format" in schema
+            and schema["format"] not in SUPPORTED_STRING_FORMATS
+        ):
+            raise ValueError("structured target string format is unsupported")
+    elif schema_type in {"number", "integer"}:
+        for keyword in ("minimum", "maximum"):
+            if (
+                keyword in schema
+                and not _is_finite_schema_number(schema[keyword], schema_type)
+            ):
+                raise ValueError("structured target numeric bound is invalid")
+        if (
+            "minimum" in schema
+            and "maximum" in schema
+            and schema["minimum"] > schema["maximum"]
+        ):
+            raise ValueError("structured target numeric bounds are invalid")
+    if "enum" in schema:
+        enum = schema["enum"]
+        if (
+            not isinstance(enum, list)
+            or not enum
+            or not all(
+                type(value) is str
+                if schema_type == "string"
+                else _is_finite_schema_number(value, schema_type)
+                for value in enum
+            )
+        ):
+            raise ValueError("structured target enum is invalid")
 
 
 def project_provider_schema(response_schema: dict[str, Any]) -> dict[str, Any]:
@@ -145,8 +225,9 @@ def project_provider_schema(response_schema: dict[str, Any]) -> dict[str, Any]:
 
     def project(schema: dict[str, Any]) -> dict[str, Any]:
         projected: dict[str, Any] = {}
+        supported = PROVIDER_SCHEMA_KEYWORDS_BY_TYPE[schema["type"]]
         for keyword in sorted(schema):
-            if keyword not in PROVIDER_SCHEMA_KEYWORDS:
+            if keyword not in supported:
                 continue
             value = schema[keyword]
             if keyword == "properties":
@@ -192,8 +273,8 @@ def _decode_target_request(raw_request: bytes) -> dict[str, Any]:
     if not raw_request or len(raw_request) > MAX_REQUEST_BYTES:
         raise TargetFailure("REQUEST_INVALID")
     try:
-        payload = json.loads(raw_request)
-    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        payload = _strict_json_loads(raw_request)
+    except (ValueError, UnicodeDecodeError) as error:
         raise TargetFailure("REQUEST_INVALID") from error
     required = {"schema_version", "role", "prompt", "response_schema"}
     if not isinstance(payload, dict) or set(payload) != required:
@@ -277,8 +358,8 @@ def _extract_structured_result(payload: object) -> bytes:
     if len(text_parts) != 1:
         raise TargetFailure("ENVELOPE_INVALID")
     try:
-        result = json.loads(text_parts[0])
-    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        result = _strict_json_loads(text_parts[0])
+    except (ValueError, UnicodeDecodeError) as error:
         raise TargetFailure("ENVELOPE_INVALID") from error
     if not isinstance(result, dict):
         raise TargetFailure("ENVELOPE_INVALID")
@@ -328,8 +409,8 @@ def execute_single_request(
     if len(encoded_response) > MAX_PROVIDER_RESPONSE_BYTES:
         raise TargetFailure("ENVELOPE_INVALID")
     try:
-        response_payload = json.loads(encoded_response)
-    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        response_payload = _strict_json_loads(encoded_response)
+    except (ValueError, UnicodeDecodeError) as error:
         raise TargetFailure("ENVELOPE_INVALID") from error
     return _extract_structured_result(response_payload)
 

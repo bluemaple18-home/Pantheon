@@ -132,7 +132,13 @@ architecture；目前 legacy 維持預設。
 target。此 profile重用既有 production API payload的
 `responseMimeType=application/json`，並以 provider-schema projection v1產生
 `responseJsonSchema`：完整 caller schema仍綁入target request與broker local
-validation，provider只接收官方支援subset；`minLength/maxLength`不送往provider。
+validation；projection依type只保留官方subset，string `format`封閉為
+`date/date-time/time`，enum值必須符合type且bool不等於integer，number值與bounds
+必須有限，integer enum／bounds必須是exact integer。caller-only
+`minLength/maxLength`不送往provider，但仍留在完整caller schema由broker驗證。
+target request、provider envelope／text及broker target stdout一律strict parse並
+拒絕`NaN/Infinity/-Infinity`；兩端canonical serializer都使用`allow_nan=False`，
+不轉null、不clamp、不tolerant parse。
 此 profile移除 legacy 429/503 retry並加上：
 
 - digest-pinned adapter
