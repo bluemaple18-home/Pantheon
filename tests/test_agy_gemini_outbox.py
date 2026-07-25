@@ -1013,10 +1013,15 @@ def test_broker_classifies_json_invalid_without_retaining_output(
     assert result.result_validation == "JSON_INVALID"
     assert result.json_diagnostic == expected_diagnostic
     assert result.result_json is None
-    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
+    trace = result.normalized_trace()
+    assert trace["stdout_sha256"] == hashlib.sha256(raw_output).hexdigest()
+    untrusted_output = json.dumps(
+        {"result": trace["result"], "errors": trace["errors"]},
+        ensure_ascii=False,
+    )
     if raw_output:
-        assert raw_output.hex() not in serialized
-    assert "result:" not in serialized
+        assert raw_output.decode("utf-8", errors="replace") not in untrusted_output
+    assert "result:" not in untrusted_output
 
 
 @pytest.mark.parametrize(
