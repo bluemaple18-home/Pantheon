@@ -7,6 +7,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import os
 import re
 import subprocess
 from datetime import datetime
@@ -30,6 +31,7 @@ DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS = 2
 DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE = 1
 DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN = 5
 DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
+CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
 
@@ -95,9 +97,15 @@ def _write_state(queue_root: Path, state: dict[str, Any]) -> None:
     atomic_write_json(_state_path(str(state["run_id"]), queue_root), state)
 
 
-def _advance(queue_root: Path, state: dict[str, Any], tick: Tick) -> str:
+def _advance(
+    queue_root: Path,
+    state: dict[str, Any],
+    tick: Tick,
+    *,
+    job_queue_root: Path | None = None,
+) -> str:
     try:
-        result = tick(Path(str(state["run_dir"])), queue_root)
+        result = tick(Path(str(state["run_dir"])), job_queue_root or queue_root)
     except ExternalJobPending as pending:
         state["status"] = "active"
         state["last_job_id"] = pending.job_id
@@ -135,6 +143,97 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
             str(state.get("run_id") or ""),
         ),
     )
+
+
+def _lane_queue_root(queue_root: Path, lane: str) -> Path:
+    if lane not in CONTENT_LANES:
+        raise ValueError(f"unknown content lane: {lane}")
+    return queue_root / "lanes" / lane
+
+
+def _lane_for_state(state: dict[str, Any], legacy_article_ids: set[str]) -> str:
+    brief = _read_run_brief_from_state(state)
+    if not isinstance(brief, dict):
+        raise ValueError("active run brief is unavailable")
+    mode = brief.get("mode")
+    if mode == "create":
+        return "new"
+    if mode == "rewrite_existing_body":
+        return "rewrite"
+    if mode != "translate_existing":
+        raise ValueError(f"unsupported active run mode: {mode}")
+    articles = brief.get("articles")
+    if not isinstance(articles, list) or not articles or not isinstance(articles[0], dict):
+        raise ValueError("translation run has no source article")
+    source_article_id = str(articles[0].get("source_article_id") or "")
+    return "i18n-rewrite" if source_article_id in legacy_article_ids else "i18n-new"
+
+
+def _select_lane_states(
+    states: list[dict[str, Any]],
+    legacy_article_ids: set[str],
+) -> list[dict[str, Any]]:
+    selected: dict[str, dict[str, Any]] = {}
+    for state in states:
+        lane = _lane_for_state(state, legacy_article_ids)
+        selected.setdefault(lane, state)
+        if len(selected) == len(CONTENT_LANES):
+            break
+    return [selected[lane] for lane in CONTENT_LANES if lane in selected]
+
+
+def _lane_summary(
+    queue_root: Path,
+    states: list[dict[str, Any]],
+    legacy_article_ids: set[str],
+) -> dict[str, dict[str, int]]:
+    counts = {lane: 0 for lane in CONTENT_LANES}
+    for state in states:
+        counts[_lane_for_state(state, legacy_article_ids)] += 1
+    return {
+        lane: {
+            "active": counts[lane],
+            "queued": len(list((_lane_queue_root(queue_root, lane) / "outbox").glob("*.json"))),
+            "processing": len(list((_lane_queue_root(queue_root, lane) / "processing").glob("*.json"))),
+        }
+        for lane in CONTENT_LANES
+    }
+
+
+def _migrate_pending_jobs(
+    queue_root: Path,
+    states: list[dict[str, Any]],
+    legacy_article_ids: set[str],
+) -> dict[str, int]:
+    """把舊 shared outbox 的 pending job 原子搬到對應 lane。"""
+    lane_by_namespace = {
+        hashlib.sha256(str(state["run_id"]).encode("utf-8")).hexdigest()[:24]: _lane_for_state(
+            state,
+            legacy_article_ids,
+        )
+        for state in states
+    }
+    moved = {lane: 0 for lane in CONTENT_LANES}
+    outbox = queue_root / "outbox"
+    for source in sorted(outbox.glob("*.json")) if outbox.exists() else []:
+        try:
+            request = json.loads(source.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        namespace = re.sub(r"-r[0-9]+$", "", str(request.get("namespace") or ""))
+        lane = lane_by_namespace.get(namespace)
+        if lane is None:
+            continue
+        target = _lane_queue_root(queue_root, lane) / "outbox" / source.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            raise ValueError(f"lane job collision: {source.name}")
+        try:
+            os.replace(source, target)
+        except FileNotFoundError:
+            continue
+        moved[lane] += 1
+    return moved
 
 
 def _read_run_brief_from_state(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -444,8 +543,9 @@ def cycle_once(
     legacy_state_root: Path | None = None,
     legacy_run_root: Path | None = None,
     legacy_max_new_runs_per_cycle: int = DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE,
+    lane_mode: bool = False,
 ) -> dict[str, Any]:
-    """每輪最多執行一個外部 job；完成後再 tick 一次寫入下一個狀態。"""
+    """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
     root = queue_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / "coordinator.lock"
@@ -477,12 +577,29 @@ def cycle_once(
                 max_new_runs=legacy_max_new_runs_per_cycle,
             )
 
-        states = _active_states(root)[:MAX_ACTIVE_RUNS_PER_CYCLE]
+        active_states = _active_states(root)
+        legacy_article_ids = publisher.legacy_article_ids(resolved_repo) if lane_mode else set()
+        migrated_jobs = (
+            _migrate_pending_jobs(root, active_states, legacy_article_ids)
+            if lane_mode
+            else None
+        )
+        states = (
+            _select_lane_states(active_states, legacy_article_ids)
+            if lane_mode
+            else active_states[:MAX_ACTIVE_RUNS_PER_CYCLE]
+        )
         pending = 0
         completed = 0
         failed = 0
         for state in states:
-            outcome = _advance(root, state, tick)
+            lane = _lane_for_state(state, legacy_article_ids) if lane_mode else None
+            outcome = _advance(
+                root,
+                state,
+                tick,
+                job_queue_root=_lane_queue_root(root, lane) if lane is not None else None,
+            )
             pending += outcome == "pending"
             completed += outcome == "complete"
             failed += outcome == "failed"
@@ -499,14 +616,14 @@ def cycle_once(
                 runner = {"status": "failed", "job_id": job_id, "error_type": "JSONDecodeError"}
             if runner.get("status") == "failed":
                 failed += 1
-            elif runner.get("status") == "processed":
-                for state in _active_states(root):
+            elif runner.get("status") == "processed" and not lane_mode:
+                for state in _active_states(root)[:MAX_ACTIVE_RUNS_PER_CYCLE]:
                     outcome = _advance(root, state, tick)
                     completed += outcome == "complete"
                     failed += outcome == "failed"
 
         remaining = len(_active_states(root))
-        return {
+        summary = {
             "status": "ok" if failed == 0 else "failed",
             "active": remaining,
             "complete": completed,
@@ -515,6 +632,10 @@ def cycle_once(
             "new_matrix_sweep": new_matrix_summary,
             "legacy_sweep": legacy_summary,
         }
+        if lane_mode:
+            summary["lanes"] = _lane_summary(root, _active_states(root), legacy_article_ids)
+            summary["migrated_jobs"] = migrated_jobs
+        return summary
 
 
 def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
@@ -539,6 +660,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--legacy-run-root", type=Path, default=Path(".work/gsc-copy"))
     parser.add_argument("--legacy-sweep", action="store_true")
     parser.add_argument("--legacy-max-new-runs-per-cycle", type=int, default=DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE)
+    parser.add_argument("--lane-mode", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
     register = subparsers.add_parser("register")
     register.add_argument("run_dir", type=Path)
@@ -572,6 +694,7 @@ def main() -> int:
             legacy_state_root=args.legacy_state_root,
             legacy_run_root=args.legacy_run_root,
             legacy_max_new_runs_per_cycle=args.legacy_max_new_runs_per_cycle,
+            lane_mode=args.lane_mode,
         )
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result.get("status") == "failed" else 0

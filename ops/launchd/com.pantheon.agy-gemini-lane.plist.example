@@ -3,27 +3,16 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.pantheon.agy-gemini-coordinator</string>
+  <string>__LABEL__</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>__PYTHON__</string>
     <string>-m</string>
-    <string>scripts.agy_gemini_coordinator</string>
+    <string>scripts.agy_gemini_runner</string>
     <string>--queue-root</string>
-    <string>__REPO_ROOT__/.work/gemini-runner</string>
-    <string>--repo-root</string>
-    <string>__REPO_ROOT__</string>
-    <string>--new-matrix-run-root</string>
-    <string>__REPO_ROOT__/.work/gsc-copy</string>
-    <string>--new-matrix-sweep</string>
-    <string>--legacy-state-root</string>
-    <string>__REPO_ROOT__/.work/content-publisher</string>
-    <string>--legacy-run-root</string>
-    <string>__REPO_ROOT__/.work/gsc-copy</string>
-    <string>--legacy-sweep</string>
-    <string>--lane-mode</string>
-    <string>cycle</string>
+    <string>__QUEUE_ROOT__</string>
+    <string>process-once</string>
   </array>
 
   <key>WorkingDirectory</key>
@@ -47,8 +36,8 @@
   <integer>30</integer>
 
   <key>StandardOutPath</key>
-  <string>__LOG_DIR__/agy-gemini-coordinator.stdout.log</string>
+  <string>__STDOUT__</string>
   <key>StandardErrorPath</key>
-  <string>__LOG_DIR__/agy-gemini-coordinator.stderr.log</string>
+  <string>__STDERR__</string>
 </dict>
 </plist>
