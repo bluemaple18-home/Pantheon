@@ -1,0 +1,42 @@
+Gemini V4 authentication hardening verification
+Date: 2026-07-25
+
+candidate fast-forward:
+  from: c01cfba1650a7cd6d666deb6b715d3d435694972
+  to: 3cb36a175146d217346609b2c54d59d2eed3c5fd
+  mode: --ff-only
+  merge commit: none
+
+reviewed code:
+  code candidate: df6a33a8ce4af784ca6bfe6c2453de6eb7355f94
+  independent review: GO
+  affected suites: 224 passed
+  real structured canary: COMPLETE/1/SUCCESS/VALID
+
+credential inventory:
+  source key count: 3
+  source mode: 0600
+  source modified: false
+  Pantheon dedicated credential: created, owner-only 0600
+  Pantheon credential activated: false
+  credential value saved in evidence: false
+
+control-plane inventory:
+  gcloud installed: true
+  active gcloud account count: 0
+  configured project: false
+  ADC available: false
+  google-auth runtime: absent
+  existing key type: UNKNOWN
+
+external activity in this hardening slice:
+  Google API request: 0
+  login/OAuth/IAM/project mutation: 0
+  deploy/publish/default promotion: 0
+
+fresh verification:
+  affected suites: 224 passed in 67.19s
+  evidence JSON parse: PASS
+  credential/token/absolute-path privacy scan: PASS
+  git diff --check: PASS
+  production code changed: false

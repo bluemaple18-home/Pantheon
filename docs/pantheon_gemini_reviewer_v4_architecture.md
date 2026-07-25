@@ -154,6 +154,9 @@ receipt boundary，但把 target改成 digest-pinned獨立 adapter：
 - broker先判定既有 ledger／anchor；純 replay不讀credential也不啟動target；
 - 新 operation才呼叫runner提供的lazy opener，驗證owner-only file後以 inherited
   FD傳入；credential不進environment；
+- 目前reviewed profile只接受單一owner-only API key檔；不解析key pool、不輪替、
+  不fallback。Pantheon專用檔案使用deploy-time
+  `AGY_GEMINI_V4_CREDENTIAL_FILE`指向，不把本機絕對路徑寫入共享設定；
 - structured target environment不含 `HOME`；
 - provider payload使用 `responseMimeType=application/json` 與
   versioned deterministic provider-schema projection v1 作
@@ -180,6 +183,28 @@ allowlist；unknown stderr、response body、prompt、credential與parser文字�
 provider已接收 request之後，而 generateContent沒有 broker可驗證的 idempotency
 key。此時 operation fail closed且禁止自動重送，publish count仍為 0。
 
-## Remaining review boundary
+## Post-review and authentication boundary
 
-本 candidate 仍需獨立 Review；implementation owner 不自審 GO。真實 canary 只能證明 trusted executable snapshot 的 transport completion、local ledger/anchor/replay accounting 與 strict caller result，不能證明 provider internal model-call provenance。放量決策維持「不切預設」；後續若要 shadow run 或 migration，必須另卡、另證據、另 commit。
+Structured candidate `df6a33a8ce4af784ca6bfe6c2453de6eb7355f94` 已通過獨立
+Review；evidence commit `3cb36a175146d217346609b2c54d59d2eed3c5fd`
+記錄唯一一次 real structured canary：
+`COMPLETE/1/SUCCESS/VALID`。這只證明 trusted executable snapshot 的 transport
+completion、local ledger/anchor/replay accounting 與 strict caller result，
+不能證明 provider internal model-call provenance。
+
+截至 2026-07-25，Google官方文件已提供 Gemini Developer API OAuth／ADC與
+Vertex AI ADC路徑；但本candidate尚未實作ADC，本機也沒有active gcloud
+identity、configured project或ADC。現有API key僅能由Google control plane
+判斷standard或authorization key，`AIza...`前綴不足以判定，因此型別固定記為
+`UNKNOWN`，不得猜測。
+
+Google官方API key文件並指出standard key將於2026年9月停止接受。default
+promotion前必須完成下列其中一項：
+
+1. 由正式control-plane證據確認使用authorization key；或
+2. 另卡實作並Review Pantheon專用OAuth／ADC或Vertex workload identity。
+
+ADC migration只可替換authentication header來源，不得改寫schema、provider
+payload、單次HTTP、no-retry、no-redirect、ledger、receipt或fail-closed契約。
+放量決策維持「不切預設」；後續shadow run或migration必須另卡、另證據、另
+commit。

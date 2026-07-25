@@ -1,0 +1,7 @@
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/CARD-CONTENT-GEMINI-V4-AUTH-HARDENING-001.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/auth-hardening-001/changed-files.txt
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/auth-hardening-001/decision.md
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/auth-hardening-001/inventory.json
+artifacts/fortune_council/content_pipeline_repair_execution/evidence/gemini_v4_mainline_001/auth-hardening-001/verification.txt
+docs/pantheon_gemini_reviewer_v4_architecture.md
+docs/pantheon_gemini_v4_agy_cli_compatibility.md

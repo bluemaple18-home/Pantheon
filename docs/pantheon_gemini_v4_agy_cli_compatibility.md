@@ -151,4 +151,22 @@ target request、provider envelope／text及broker target stdout一律strict par
 - closed target diagnostics
 
 `antigravity_cli_v1` 保留既有 ledger／receipt replay相容性與 synthetic regression，
-但在 structured real canary通過前不得再用來主張長文章可放量。
+但不得再用來主張長文章structured-output可放量。
+
+## Authentication stability
+
+Structured candidate已通過獨立Review與唯一一次real canary：
+`COMPLETE/1/SUCCESS/VALID`。目前穩定認證仍是單一owner-only API key檔，以
+inherited FD傳入；不讀取agy／Gemini CLI私有OAuth session，不接受key pool，
+不輪替、不retry、不fallback，也不把credential放入argv、environment、log或
+evidence。
+
+Gemini Developer API OAuth／ADC與Vertex AI ADC是正式的未來migration path，
+但不是重用CLI登入。本candidate沒有ADC runtime或production activation；缺少
+正式Google Cloud project、identity、quota project與credential lifecycle證據時，
+狀態必須維持未啟用。
+
+現有key的standard／authorization型別無法由key字串外觀判斷。目前沒有可用的
+Google control-plane identity，故型別記為`UNKNOWN`。依Google截至
+2026-07-25的官方key政策，standard key在2026年9月前必須遷移；在確認
+authorization key或完成ADC migration前，V4不得切為default transport。
