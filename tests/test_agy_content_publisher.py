@@ -866,9 +866,11 @@ def test_publish_ready_all_runs_create_then_rewrite_then_translation(tmp_path: P
 
 def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    installer = (repo_root / "scripts/install_agy_content_publisher_launchd.sh").read_text(encoding="utf-8")
     plist = plistlib.loads((repo_root / "ops/launchd/com.pantheon.agy-content-publisher.plist.example").read_bytes())
     arguments = plist["ProgramArguments"]
 
+    assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-1}"' in installer
     assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
     assert arguments[3:11] == [
         "--repo-root",
@@ -1284,6 +1286,10 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
     failure_evidence = state_root / "evidence" / "failed-run-bad" / "failure.json"
     _write_json(failure_evidence, {"status": "FAILED_RECOVERED"})
     publisher._record_retry_failure(state_root, "create", ["run-bad"], RuntimeError("bad candidate"), failure_evidence)
+    retry_path = publisher._retry_path(state_root, "create", "run-bad")
+    retry_state = publisher._read_json(retry_path)
+    retry_state["next_eligible_at"] = "2000-01-01T00:00:00+08:00"
+    _write_json(retry_path, retry_state)
 
     ready = publisher.collect_ready_runs(queue_root, state_root, limit=1)
 

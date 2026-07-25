@@ -668,6 +668,19 @@ def _run_files(queue_root: Path) -> list[Path]:
     return sorted(runs_dir.glob("*.json"), key=lambda path: path.name)
 
 
+def _fresh_first_run_files(queue_root: Path, state_root: Path, phase: str) -> list[Path]:
+    """未失敗候選優先；已有 retry 記錄者排到 fresh queue 之後。"""
+
+    def priority(path: Path) -> tuple[bool, str]:
+        try:
+            run_id = str(_read_json(path).get("run_id") or "")
+        except (OSError, json.JSONDecodeError):
+            run_id = ""
+        return (bool(run_id and _retry_path(state_root, phase, run_id).is_file()), path.name)
+
+    return sorted(_run_files(queue_root), key=priority)
+
+
 def _ledger_path(state_root: Path) -> Path:
     return state_root / "ledger.json"
 
@@ -789,7 +802,7 @@ def collect_ready_runs(queue_root: Path, state_root: Path, *, limit: int = DEFAU
     published = {str(item.get("run_id")) for item in ledger["published_runs"]}
     quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
-    for state_path in _run_files(queue_root):
+    for state_path in _fresh_first_run_files(queue_root, state_root, "create"):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
@@ -830,7 +843,7 @@ def collect_ready_translation_runs(
     published = {str(item.get("run_id")) for item in ledger["translation_published_runs"]}
     deferred = {str(item.get("run_id")) for item in ledger["translation_deferred_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
-    for state_path in _run_files(queue_root):
+    for state_path in _fresh_first_run_files(queue_root, state_root, "translation"):
         try:
             state = _read_json(state_path)
             run_id = str(state.get("run_id") or "")
@@ -916,7 +929,7 @@ def collect_ready_rewrite_runs(
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     seen_article_ids: set[str] = set()
     seen_body_hashes: dict[str, str] = {}
-    for state_path in _run_files(queue_root):
+    for state_path in _fresh_first_run_files(queue_root, state_root, "rewrite"):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
