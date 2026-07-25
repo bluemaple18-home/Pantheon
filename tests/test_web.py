@@ -25,7 +25,7 @@ from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLE
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-61"
+ARTICLE_CACHE_TOKEN = "agy-auto-new-v1-20260724-018-02"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -312,6 +312,8 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/personality/personality-0243",
     "/articles/personality/personality-0278",
     "/articles/personality/personality-0279",
+    "/articles/personality/personality-0273",
+    "/articles/personality/personality-0274",
 ]
 
 PUBLIC_ARTICLE_PATHS = [
