@@ -368,6 +368,7 @@ def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path,
 
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    installer = (repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh").read_text(encoding="utf-8")
     plist = plistlib.loads(
         (repo_root / "ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example").read_bytes()
     )
@@ -381,6 +382,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert "--legacy-run-root" in arguments
     assert arguments[-1] == "cycle"
     assert plist["RunAtLoad"] is True
+    assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
+    assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_gemini_coordinator_launchd.sh"],
         cwd=repo_root,
