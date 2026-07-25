@@ -55,8 +55,10 @@ JSON_DIAGNOSTIC_STATES = frozenset({
 SCHEMA_DIAGNOSTIC_KEYWORDS = frozenset({
     "additionalProperties",
     "enum",
+    "maximum",
     "maxItems",
     "maxLength",
+    "minimum",
     "minItems",
     "minLength",
     "required",
@@ -287,20 +289,25 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
             expected_executable_digest = os.environ["AGY_GEMINI_V4_EXECUTABLE_SHA256"]
+            ledger_path = queue_root / "v4" / "ledger" / f"{job_id}.jsonl"
             target_profile = os.environ.get(
                 "AGY_GEMINI_V4_PROFILE",
-                ANTIGRAVITY_CLI_PROFILE,
+                GEMINI_STRUCTURED_API_PROFILE,
             )
             credential_fd: int | None = None
+            credential_fd_opener: Callable[[], int] | None = None
             if target_profile == GEMINI_STRUCTURED_API_PROFILE:
-                credential_path = Path(os.environ["AGY_GEMINI_V4_CREDENTIAL_FILE"])
-                credential_fd = _open_private_credential_file(credential_path)
+                credential_fd_opener = lambda: _open_private_credential_file(
+                    Path(os.environ["AGY_GEMINI_V4_CREDENTIAL_FILE"])
+                )
                 raw_request = encode_target_request(
                     str(request["role"]),
                     str(request["prompt"]),
                     request["response_schema"],
                 )
             elif target_profile == ANTIGRAVITY_CLI_PROFILE:
+                if not ledger_path.exists():
+                    raise ValueError("legacy V4 profile is replay-only")
                 raw_request = _render_v4_effective_prompt(
                     str(request["role"]),
                     str(request["prompt"]),
@@ -321,9 +328,10 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                     raw_request=raw_request,
                     response_schema=request["response_schema"],
                     timeout_milliseconds=120_000,
-                    ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",
+                    ledger_path=ledger_path,
                     anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
                     credential_fd=credential_fd,
+                    credential_fd_opener=credential_fd_opener,
                 )
             finally:
                 if credential_fd is not None:

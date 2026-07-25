@@ -1,0 +1,74 @@
+REPAIR-1 RED / GREEN
+
+BASELINE
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py tests/test_agy_seo_copy_pipeline.py -q
+first sandbox attempt: exit 2; shared uv cache access denied, not a code failure
+approved rerun: exit 0; 179 passed in 64.31s
+
+F001 RED
+command: uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_runner_flag_on_defaults_new_operation_to_structured_profile tests/test_agy_gemini_outbox.py::test_runner_flag_on_rejects_new_explicit_legacy_profile_without_broker_process -q
+exit: 1
+result: 2 failed
+symptom: missing profile selected legacy; explicit legacy new job entered broker
+
+F001 GREEN
+command: uv run --frozen pytest tests/test_agy_gemini_outbox.py::test_runner_flag_off_preserves_single_legacy_call tests/test_agy_gemini_outbox.py::test_runner_flag_on_defaults_new_operation_to_structured_profile tests/test_agy_gemini_outbox.py::test_runner_flag_on_rejects_new_explicit_legacy_profile_without_broker_process tests/test_agy_gemini_outbox.py::test_runner_flag_on_uses_only_broker_and_writes_bound_result -q
+exit: 0
+result: 5 passed
+
+F002 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py::test_provider_schema_projection_is_versioned_and_keeps_full_caller_schema_local -q
+exit: 1
+result: 1 failed
+symptom: provider projection version absent and full caller schema sent unchanged
+
+F002 GREEN
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py tests/test_agy_gemini_outbox.py::test_current_article_schemas_fit_structured_target_contract -q
+exit: 0
+result: 18 passed
+
+F003 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py::test_numeric_schema_bounds_reject_out_of_range_values tests/test_agy_gemini_v4_broker.py::test_numeric_schema_bounds_accept_inclusive_boundaries_and_reject_bool -q
+exit: 1
+result: 4 failed, 2 passed
+symptom: number and integer values outside minimum / maximum were accepted
+
+F003 GREEN
+same command
+exit: 0
+result: 6 passed
+
+F005 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py::test_oversized_array_stops_before_child_traversal -q
+exit: 1
+result: 1 failed; 100000 child iterations observed
+
+F005 GREEN
+same command
+exit: 0
+result: 1 passed; 0 child iterations
+
+F004 RED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py::test_existing_structured_operation_replays_without_credential_or_target_process tests/test_agy_gemini_outbox.py::test_runner_structured_replay_does_not_open_missing_credential -q
+exit: 1
+result: 2 failed
+symptom: broker required credential before ledger replay and runner opened it first
+
+F004 GREEN
+command: uv run --frozen pytest tests/test_agy_gemini_v4_broker.py::test_existing_structured_operation_replays_without_credential_or_target_process tests/test_agy_gemini_outbox.py::test_runner_structured_replay_does_not_open_missing_credential tests/test_agy_gemini_v4_broker.py::test_structured_profile_requires_credential_before_ledger_creation -q
+exit: 0
+result: 3 passed
+
+DIRECT REGRESSION
+first run: exit 1; 119 passed, 4 obsolete eager-credential test-seam failures
+test seam updated to invoke the lazy opener at the broker boundary
+final run: exit 0; 123 passed in 10.46s
+
+FULL AFFECTED
+command: uv run --frozen pytest tests/test_agy_gemini_v4_structured_target.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_outbox.py tests/test_agy_gemini_v4_architecture_probe.py tests/test_agy_seo_copy_pipeline.py -q
+exit: 0
+first complete run: 191 passed in 63.48s
+final source-state rerun after anchor-only replay coverage: 192 passed in 65.01s
+
+EXTERNAL GENERATION / RETRY / FALLBACK / PUBLISH
+0 / 0 / 0 / 0

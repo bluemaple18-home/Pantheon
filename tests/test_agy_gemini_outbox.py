@@ -239,6 +239,97 @@ def test_runner_flag_off_preserves_single_legacy_call(tmp_path: Path, monkeypatc
     assert json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())["result"] == {"ok": True}
 
 
+def test_runner_flag_on_defaults_new_operation_to_structured_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "structured-target"
+    executable.write_bytes(b"trusted structured target fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    credential_path = tmp_path / "gemini.key"
+    credential_path.write_text("synthetic-api-key-with-safe-length\n", encoding="utf-8")
+    credential_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.delenv("AGY_GEMINI_V4_PROFILE", raising=False)
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    monkeypatch.setenv("AGY_GEMINI_V4_CREDENTIAL_FILE", str(credential_path))
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-structured-default",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開文章任務",
+        response_schema=SCHEMA,
+    )
+    broker_calls: list[dict[str, object]] = []
+
+    def fake_broker(**kwargs: object) -> BrokerResult:
+        broker_calls.append(kwargs)
+        return _broker_result(
+            "COMPLETE",
+            ExecutionReceipt(
+                request["job_id"],
+                request["namespace"],
+                "attempt-1",
+                request["request_sha256"],
+                request["model"],
+                broker.GEMINI_STRUCTURED_API_PROFILE,
+                executable_digest,
+            ),
+            result={"ok": True},
+        )
+
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: pytest.fail("legacy fallback"),
+    )
+
+    assert result["status"] == "processed"
+    assert len(broker_calls) == 1
+    assert broker_calls[0]["target_profile"] == broker.GEMINI_STRUCTURED_API_PROFILE
+
+
+def test_runner_flag_on_rejects_new_explicit_legacy_profile_without_broker_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "agy-current"
+    executable.write_bytes(b"trusted agy fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_PROFILE", broker.ANTIGRAVITY_CLI_PROFILE)
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-explicit-legacy-new-operation",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開文章任務",
+        response_schema=SCHEMA,
+    )
+    broker_calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        runner,
+        "run_single_shot",
+        lambda **kwargs: broker_calls.append(kwargs),
+    )
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: pytest.fail("legacy fallback"),
+    )
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "ValueError"
+    assert broker_calls == []
+    assert not (tmp_path / "v4" / "ledger" / f"{request['job_id']}.jsonl").exists()
+
+
 @pytest.mark.parametrize(
     ("role", "expected_role_instruction", "forbidden_role_instruction"),
     (
@@ -264,6 +355,7 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(
     executable = tmp_path / "agy-current"
     executable.write_bytes(b"trusted agy fixture")
     monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_PROFILE", broker.ANTIGRAVITY_CLI_PROFILE)
     monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
     monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", hashlib.sha256(executable.read_bytes()).hexdigest())
     request = create_external_request(
@@ -274,6 +366,9 @@ def test_runner_flag_on_uses_only_broker_and_writes_bound_result(
         prompt="公開 V4 prompt",
         response_schema=SCHEMA,
     )
+    ledger_path = tmp_path / "v4" / "ledger" / f"{request['job_id']}.jsonl"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text("existing durable operation\n", encoding="utf-8")
     legacy_calls: list[str] = []
     broker_calls: list[dict[str, object]] = []
 
@@ -352,8 +447,38 @@ def test_current_article_schemas_fit_structured_target_contract(mode: str) -> No
     candidate = pipeline.external_candidate_schema(mode)
     review = pipeline.external_review_schema()
 
-    assert structured_target.encode_target_request("writer", "公開文章任務", candidate)
-    assert structured_target.encode_target_request("reviewer", "公開審查任務", review)
+    def schema_keywords(schema: dict[str, object]) -> set[str]:
+        keywords = set(schema)
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            for child in properties.values():
+                keywords.update(schema_keywords(child))
+        items = schema.get("items")
+        if isinstance(items, dict):
+            keywords.update(schema_keywords(items))
+        return keywords
+
+    for role, prompt, caller_schema in (
+        ("writer", "公開文章任務", candidate),
+        ("reviewer", "公開審查任務", review),
+    ):
+        encoded = structured_target.encode_target_request(
+            role,
+            prompt,
+            caller_schema,
+        )
+        projection = structured_target.project_provider_schema(caller_schema)
+
+        assert json.loads(encoded)["response_schema"] == caller_schema
+        assert structured_target.canonical_json(projection) == (
+            structured_target.canonical_json(
+                structured_target.project_provider_schema(caller_schema)
+            )
+        )
+        assert schema_keywords(projection) <= structured_target.PROVIDER_SCHEMA_KEYWORDS
+        assert not {"minLength", "maxLength"} & schema_keywords(projection)
+    if mode == "create":
+        assert {"minLength", "maxLength"} & schema_keywords(candidate)
 
 
 def test_production_runner_rejects_unapproved_profile_before_broker(
@@ -419,8 +544,13 @@ def test_runner_structured_profile_uses_credential_fd_and_native_request(
     def fake_broker(**kwargs: object) -> BrokerResult:
         nonlocal observed_fd
         broker_calls.append(kwargs)
-        observed_fd = int(kwargs["credential_fd"])
-        assert os.read(observed_fd, 4096) == b"synthetic-api-key-with-safe-length\n"
+        credential_fd_opener = kwargs["credential_fd_opener"]
+        assert callable(credential_fd_opener)
+        observed_fd = credential_fd_opener()
+        try:
+            assert os.read(observed_fd, 4096) == b"synthetic-api-key-with-safe-length\n"
+        finally:
+            os.close(observed_fd)
         return _broker_result(
             "COMPLETE",
             ExecutionReceipt(
@@ -449,6 +579,68 @@ def test_runner_structured_profile_uses_credential_fd_and_native_request(
     assert observed_fd is not None
     with pytest.raises(OSError):
         os.fstat(observed_fd)
+
+
+def test_runner_structured_replay_does_not_open_missing_credential(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "structured-target"
+    executable.write_bytes(b"trusted structured target fixture")
+    executable_digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    missing_credential = tmp_path / "missing-gemini.key"
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("AGY_GEMINI_V4_PROFILE", broker.GEMINI_STRUCTURED_API_PROFILE)
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", str(executable))
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE_SHA256", executable_digest)
+    monkeypatch.setenv("AGY_GEMINI_V4_CREDENTIAL_FILE", str(missing_credential))
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-structured-replay",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開文章任務",
+        response_schema=SCHEMA,
+    )
+    ledger_path = tmp_path / "v4" / "ledger" / f"{request['job_id']}.jsonl"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text("existing durable operation\n", encoding="utf-8")
+    credential_open_count = 0
+    broker_calls: list[dict[str, object]] = []
+
+    def forbidden_credential_open(_path: Path) -> int:
+        nonlocal credential_open_count
+        credential_open_count += 1
+        raise AssertionError("replay must not open credential")
+
+    def fake_broker(**kwargs: object) -> BrokerResult:
+        broker_calls.append(kwargs)
+        return _broker_result(
+            "COMPLETE",
+            ExecutionReceipt(
+                request["job_id"],
+                request["namespace"],
+                "attempt-1",
+                request["request_sha256"],
+                request["model"],
+                broker.GEMINI_STRUCTURED_API_PROFILE,
+                executable_digest,
+            ),
+        )
+
+    monkeypatch.setattr(runner, "_open_private_credential_file", forbidden_credential_open)
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: pytest.fail("legacy fallback"),
+    )
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "V4BrokerFailure"
+    assert credential_open_count == 0
+    assert len(broker_calls) == 1
+    assert broker_calls[0]["credential_fd"] is None
 
 
 def test_runner_persists_only_allowlisted_structured_target_diagnostic() -> None:
@@ -500,7 +692,7 @@ def test_runner_persists_only_allowlisted_structured_target_diagnostic() -> None
 
 
 @pytest.mark.parametrize("mode", (0o644, 0o640, 0o666))
-def test_runner_structured_profile_rejects_non_private_credential_file_before_broker(
+def test_runner_structured_profile_rejects_non_private_credential_file_before_ledger(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mode: int,
@@ -524,13 +716,20 @@ def test_runner_structured_profile_rejects_non_private_credential_file_before_br
         response_schema=SCHEMA,
     )
     broker_calls: list[object] = []
-    monkeypatch.setattr(runner, "run_single_shot", lambda **kwargs: broker_calls.append(kwargs))
+
+    def fake_broker(**kwargs: object) -> None:
+        broker_calls.append(kwargs)
+        credential_fd_opener = kwargs["credential_fd_opener"]
+        assert callable(credential_fd_opener)
+        credential_fd_opener()
+
+    monkeypatch.setattr(runner, "run_single_shot", fake_broker)
 
     result = process_once(tmp_path, generate_json=lambda *_args: pytest.fail("legacy fallback"))
 
     assert result["status"] == "failed"
     assert result["error_type"] == "ValueError"
-    assert broker_calls == []
+    assert len(broker_calls) == 1
     assert not (tmp_path / "v4" / "ledger" / f"{request['job_id']}.jsonl").exists()
 
 

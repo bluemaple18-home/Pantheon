@@ -23,8 +23,9 @@ MAX_REQUEST_BYTES: Final = 384 * 1024
 MAX_PROVIDER_RESPONSE_BYTES: Final = 4 * 1024 * 1024
 MAX_CREDENTIAL_BYTES: Final = 512
 MAX_OUTPUT_TOKENS: Final = 32_768
+PROVIDER_SCHEMA_PROJECTION_VERSION: Final = 1
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,512}$")
-SCHEMA_KEYWORDS: Final = frozenset(
+CALLER_SCHEMA_KEYWORDS: Final = frozenset(
     {
         "additionalProperties",
         "description",
@@ -43,6 +44,10 @@ SCHEMA_KEYWORDS: Final = frozenset(
         "type",
     }
 )
+PROVIDER_SCHEMA_KEYWORDS: Final = CALLER_SCHEMA_KEYWORDS - {
+    "maxLength",
+    "minLength",
+}
 MAX_SCHEMA_DEPTH: Final = 16
 ROLE_INSTRUCTIONS: Final = {
     "writer": (
@@ -102,10 +107,10 @@ def canonical_json(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def _validate_provider_schema(schema: object, depth: int = 0) -> None:
+def _validate_caller_schema(schema: object, depth: int = 0) -> None:
     if depth > MAX_SCHEMA_DEPTH or not isinstance(schema, dict):
         raise ValueError("structured target schema is invalid")
-    if not set(schema) <= SCHEMA_KEYWORDS:
+    if not set(schema) <= CALLER_SCHEMA_KEYWORDS:
         raise ValueError("structured target schema keyword is unsupported")
     schema_type = schema.get("type")
     if schema_type not in {"object", "array", "string", "boolean", "integer", "number", "null"}:
@@ -124,14 +129,38 @@ def _validate_provider_schema(schema: object, depth: int = 0) -> None:
         ):
             raise ValueError("structured target object schema is invalid")
         for child in properties.values():
-            _validate_provider_schema(child, depth + 1)
+            _validate_caller_schema(child, depth + 1)
     elif schema_type == "array":
-        _validate_provider_schema(schema.get("items"), depth + 1)
+        _validate_caller_schema(schema.get("items"), depth + 1)
     if "enum" in schema and (
         not isinstance(schema["enum"], list)
         or not schema["enum"]
     ):
         raise ValueError("structured target enum is invalid")
+
+
+def project_provider_schema(response_schema: dict[str, Any]) -> dict[str, Any]:
+    """投影為 Gemini responseJsonSchema 官方支援的 deterministic v1 subset。"""
+    _validate_caller_schema(response_schema)
+
+    def project(schema: dict[str, Any]) -> dict[str, Any]:
+        projected: dict[str, Any] = {}
+        for keyword in sorted(schema):
+            if keyword not in PROVIDER_SCHEMA_KEYWORDS:
+                continue
+            value = schema[keyword]
+            if keyword == "properties":
+                projected[keyword] = {
+                    name: project(child)
+                    for name, child in sorted(value.items())
+                }
+            elif keyword == "items":
+                projected[keyword] = project(value)
+            else:
+                projected[keyword] = value
+        return projected
+
+    return project(response_schema)
 
 
 def encode_target_request(
@@ -145,7 +174,7 @@ def encode_target_request(
         raise ValueError("structured target prompt is invalid")
     if not isinstance(response_schema, dict) or response_schema.get("type") != "object":
         raise ValueError("structured target schema must describe an object")
-    _validate_provider_schema(response_schema)
+    _validate_caller_schema(response_schema)
     encoded = canonical_json(
         {
             "schema_version": SCHEMA_VERSION,
@@ -197,7 +226,9 @@ def _provider_payload(request: dict[str, Any]) -> dict[str, Any]:
         "generationConfig": {
             "temperature": 0.45 if role == "writer" else 0.1,
             "responseMimeType": "application/json",
-            "responseJsonSchema": request["response_schema"],
+            "responseJsonSchema": project_provider_schema(
+                request["response_schema"],
+            ),
             "thinkingConfig": {"thinkingLevel": "LOW"},
             "maxOutputTokens": MAX_OUTPUT_TOKENS,
         },

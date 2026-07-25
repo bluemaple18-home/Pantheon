@@ -15,7 +15,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Literal, Protocol
+from typing import Any, Callable, Final, Literal, Protocol
 
 
 COMMAND_SCHEMA_VERSION: Final = 2
@@ -100,8 +100,10 @@ RESULT_VALIDATION_STATES: Final = frozenset({
 SCHEMA_DIAGNOSTIC_KEYWORDS: Final = frozenset({
     "additionalProperties",
     "enum",
+    "maximum",
     "maxItems",
     "maxLength",
+    "minimum",
     "minItems",
     "minLength",
     "required",
@@ -1016,6 +1018,7 @@ def _diagnose_json_schema(
             add("minItems", path)
         if len(value) > maximum:
             add("maxItems", path)
+            return tuple(diagnostics)
         for index, item in enumerate(value):
             if len(diagnostics) >= MAX_SCHEMA_DIAGNOSTICS:
                 break
@@ -1035,6 +1038,20 @@ def _diagnose_json_schema(
             add("minLength", path)
         if len(value) > maximum:
             add("maxLength", path)
+    if expected_type in {"number", "integer"}:
+        assert type(value) in {int, float}
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        if (
+            ("minimum" in schema and type(minimum) not in {int, float})
+            or ("maximum" in schema and type(maximum) not in {int, float})
+        ):
+            add("schema", path)
+            return tuple(diagnostics)
+        if minimum is not None and value < minimum:
+            add("minimum", path)
+        if maximum is not None and value > maximum:
+            add("maximum", path)
     return tuple(diagnostics)
 
 
@@ -1061,6 +1078,7 @@ def run_single_shot(
     ledger_path: Path,
     anchor_store: AnchorStore,
     credential_fd: int | None = None,
+    credential_fd_opener: Callable[[], int] | None = None,
 ) -> BrokerResult:
     """執行恰一次 target；既有 ledger 一律只 replay，不補事件或重送。"""
     binding = Binding(operation_id, item_id, attempt_id)
@@ -1079,7 +1097,7 @@ def run_single_shot(
         _validate_public_prompt(raw_request)
         target_profile = ANTIGRAVITY_CLI_PROFILE
         payload_class = PUBLIC_SANITIZED
-        if credential_fd is not None:
+        if credential_fd is not None or credential_fd_opener is not None:
             raise ValueError("agy profile must not receive credential fd")
     elif target_profile == GEMINI_STRUCTURED_API_PROFILE:
         try:
@@ -1087,18 +1105,14 @@ def run_single_shot(
         except KeyError as error:
             raise ValueError("Gemini API model is not approved") from error
         _validate_public_prompt(raw_request)
-        if type(credential_fd) is not int or credential_fd < 3:
-            raise ValueError("structured target credential fd is invalid")
-        try:
-            os.fstat(credential_fd)
-        except OSError as error:
-            raise ValueError("structured target credential fd is invalid") from error
+        if credential_fd is not None and credential_fd_opener is not None:
+            raise ValueError("structured target credential source is ambiguous")
         target_profile = GEMINI_STRUCTURED_API_PROFILE
         payload_class = PUBLIC_STRUCTURED
     elif target_profile == RAW_STDIN_PROFILE:
         model_label = model
         payload_class = SYNTHETIC_TEST
-        if credential_fd is not None:
+        if credential_fd is not None or credential_fd_opener is not None:
             raise ValueError("synthetic profile must not receive credential fd")
     else:
         raise ValueError("target profile is invalid")
@@ -1138,10 +1152,41 @@ def run_single_shot(
         return _failure_result(receipt, replay, existing_anchor)
     if existing_anchor is not None:
         return _failure_result(receipt, ReplayResult("INVALID", "UNKNOWN", False, ("LEDGER_MISSING",)), existing_anchor)
-    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    owns_credential_fd = False
+    if target_profile == GEMINI_STRUCTURED_API_PROFILE:
+        if credential_fd is None:
+            if credential_fd_opener is None:
+                raise ValueError("structured target credential fd is invalid")
+            credential_fd = credential_fd_opener()
+            owns_credential_fd = True
+        if type(credential_fd) is not int or credential_fd < 3:
+            if (
+                owns_credential_fd
+                and type(credential_fd) is int
+                and credential_fd >= 3
+            ):
+                os.close(credential_fd)
+            raise ValueError("structured target credential fd is invalid")
+        try:
+            os.fstat(credential_fd)
+        except OSError as error:
+            if owns_credential_fd:
+                try:
+                    os.close(credential_fd)
+                except OSError:
+                    pass
+            raise ValueError("structured target credential fd is invalid") from error
+    try:
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        if owns_credential_fd and credential_fd is not None:
+            os.close(credential_fd)
+        raise
     try:
         ledger_fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
+        if owns_credential_fd and credential_fd is not None:
+            os.close(credential_fd)
         try:
             replay_anchor = anchor_store.load(operation_id, attempt_id)
         except AnchorError:
@@ -1152,6 +1197,13 @@ def run_single_shot(
             )
         replay = replay_ledger(ledger_path, binding, replay_anchor)
         return _failure_result(receipt, replay, replay_anchor)
+    except Exception:
+        if owns_credential_fd and credential_fd is not None:
+            try:
+                os.close(credential_fd)
+            except OSError:
+                pass
+        raise
     command_read, command_write = os.pipe()
     result_read, result_write = os.pipe()
     anchor_parent, anchor_child = socket.socketpair()
@@ -1192,6 +1244,10 @@ def run_single_shot(
             close_fds=True,
             pass_fds=tuple(broker_pass_fds),
         )
+        if owns_credential_fd and credential_fd is not None:
+            os.close(credential_fd)
+            credential_fd = None
+            owns_credential_fd = False
         os.close(ledger_fd)
         ledger_fd = -1
         os.close(command_read)
@@ -1254,6 +1310,11 @@ def run_single_shot(
         if snapshot_directory is not None:
             os.chmod(snapshot_directory.name, 0o700)
             snapshot_directory.cleanup()
+        if owns_credential_fd and credential_fd is not None:
+            try:
+                os.close(credential_fd)
+            except OSError:
+                pass
     try:
         final_anchor = anchor_store.load(operation_id, attempt_id)
     except AnchorError:

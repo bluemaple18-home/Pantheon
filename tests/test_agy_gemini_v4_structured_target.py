@@ -80,6 +80,66 @@ def test_single_request_uses_native_schema_and_returns_canonical_object() -> Non
     assert payload["systemInstruction"]["parts"][0]["text"] == target.ROLE_INSTRUCTIONS["writer"]
 
 
+def test_provider_schema_projection_is_versioned_and_keeps_full_caller_schema_local() -> None:
+    caller_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "title": {"type": "string", "minLength": 1, "maxLength": 120},
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "tags": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {"type": "string", "enum": ["a", "b"]},
+            },
+        },
+        "required": ["title", "score", "tags"],
+    }
+    raw_request = target.encode_target_request(
+        "writer",
+        "公開文章任務",
+        caller_schema,
+    )
+    calls: list[object] = []
+
+    def opener(request: object, *, timeout: float) -> FakeResponse:
+        calls.append(request)
+        assert timeout == 120
+        return FakeResponse(
+            _provider_response(
+                text='{"title":"x","score":1,"tags":["a"]}',
+            )
+        )
+
+    target.execute_single_request(
+        raw_request,
+        model="gemini-3.5-flash",
+        credential="synthetic-api-key-with-safe-length",
+        timeout_seconds=120,
+        opener=opener,
+    )
+
+    assert target.PROVIDER_SCHEMA_PROJECTION_VERSION == 1
+    assert json.loads(raw_request)["response_schema"] == caller_schema
+    provider_schema = json.loads(calls[0].data)["generationConfig"]["responseJsonSchema"]
+    assert provider_schema == {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "title": {"type": "string"},
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "tags": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {"type": "string", "enum": ["a", "b"]},
+            },
+        },
+        "required": ["title", "score", "tags"],
+    }
+
+
 @pytest.mark.parametrize("finish_reason", ("MAX_TOKENS", "SAFETY", "OTHER"))
 def test_non_stop_finish_reason_fails_closed_without_returning_partial_text(
     finish_reason: str,

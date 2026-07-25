@@ -6,7 +6,13 @@
 
 ## 封閉介面
 
-production runner 固定且顯式選擇 `antigravity_cli_v1`，不以 executable basename 推論安全等級。runner 必須提供部署時配置的 trusted executable SHA-256；未知 profile、缺少或不相符的 digest 一律在 target fork 前 fail closed。`raw_stdin_v1` 只可由明確的 synthetic/test caller 使用，production runner 不讀取 profile override，因此 production 設定無法抵達 synthetic profile。
+production runner 的 flag-on新 operation固定選擇
+`gemini_structured_api_v1`，不以 executable basename推論安全等級。
+`antigravity_cli_v1` 只保留既有 durable ledger replay相容性；顯式指定它但沒有
+既有 ledger時，runner在 broker process前 fail closed。所有 profile仍必須提供
+部署時配置的 trusted executable SHA-256；未知 profile、缺少或不相符的 digest
+一律在 target fork前 fail closed。`raw_stdin_v1` 只可由明確的 synthetic/test
+caller使用，production設定無法抵達 synthetic profile。
 
 ```text
 agy
@@ -124,11 +130,13 @@ architecture；目前 legacy 維持預設。
 
 長文章候選改用 `gemini_structured_api_v1`，不再把 `agy --print` 當 promotion
 target。此 profile重用既有 production API payload的
-`responseMimeType=application/json`／`responseJsonSchema`，但移除 legacy
-429/503 retry並加上：
+`responseMimeType=application/json`，並以 provider-schema projection v1產生
+`responseJsonSchema`：完整 caller schema仍綁入target request與broker local
+validation，provider只接收官方支援subset；`minLength/maxLength`不送往provider。
+此 profile移除 legacy 429/503 retry並加上：
 
 - digest-pinned adapter
-- credential FD（禁止 argv/env）
+- new operation lazy credential FD（禁止 argv/env；durable replay不讀credential）
 - fixed endpoint與model allowlist
 - `maxOutputTokens=32768`
 - redirect refusal

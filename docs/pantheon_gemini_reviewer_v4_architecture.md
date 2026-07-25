@@ -95,12 +95,12 @@ anchor_store.compare_and_swap(operation_id, attempt_id, previous_anchor, next_an
 
 目前只接一條 caller：`scripts/agy_gemini_runner.py:process_once` 由 `AGY_GEMINI_V4_BROKER=1` 選入 `scripts.agy_gemini_v4_broker:run_single_shot`。`scripts/agy_seo_copy_pipeline.py:GeminiClient._cli_transport`、HTTP transport、outbox enqueue、coordinator、其他 `_generate_with_receipt(...)` callsites全部維持原狀。
 
-Flag-on runner 必須先把 validated outbox 的 `role / prompt / response_schema`
-渲染成 deterministic effective prompt：closed role instruction、禁止工具／讀取
-工作區、JSON-only／no-code-fence、canonical compact schema與 sanitized user
-task。broker 的 CommandFrame prompt digest／byte count 綁定 effective prompt；
-receipt 的 external request SHA-256 綁定原 outbox request。Flag-off legacy 不經過
-此 renderer。
+Flag-on 新 operation 固定選 `gemini_structured_api_v1`，canonical target request
+保留完整 validated `role / prompt / response_schema`，CommandFrame digest／byte
+count也綁定這份完整 request。顯式 `antigravity_cli_v1` 只允許讀取既有 ledger 做
+replay；新 operation 在 broker process前 fail closed。舊 ledger replay仍使用原有
+deterministic effective prompt重建 receipt identity。Flag-off legacy不經過任何
+V4 renderer。
 
 Effective-prompt ceiling 是 `384 KiB`：涵蓋 outbox 的 `256 KiB` task、
 `64 KiB` schema與 `64 KiB` closed envelope budget，且低於目前 production
@@ -151,13 +151,19 @@ operation identity、ledger／anchor與 deterministic assembly contract。兩者
 receipt boundary，但把 target改成 digest-pinned獨立 adapter：
 
 - public role／prompt／schema 以 canonical JSON走 stdin，不進 argv；
-- credential只由 owner-only file開啟後透過 inherited FD傳入，不進 environment；
+- broker先判定既有 ledger／anchor；純 replay不讀credential也不啟動target；
+- 新 operation才呼叫runner提供的lazy opener，驗證owner-only file後以 inherited
+  FD傳入；credential不進environment；
 - structured target environment不含 `HOME`；
 - provider payload使用 `responseMimeType=application/json` 與
-  `responseJsonSchema`，並固定 `maxOutputTokens=32768`；
+  versioned deterministic provider-schema projection v1 作
+  `responseJsonSchema`，移除官方不支援的 `minLength/maxLength`，並固定
+  `maxOutputTokens=32768`；
 - 一個 process只有一次 non-redirecting HTTP open，不 retry；
 - 只接受 one candidate、`finishReason=STOP`與 one non-thought JSON object；
-- adapter canonicalize後由 broker再次執行 caller schema validation。
+- adapter canonicalize後由 broker以完整 caller schema再次驗證；number／integer
+  的 `minimum/maximum`由本地 gate強制，oversized array在 `maxItems` diagnostic
+  後停止 child traversal。
 
 Provider／HTTP失敗只允許 closed `target_diagnostic`。broker與runner各自持有
 allowlist；unknown stderr、response body、prompt、credential與parser文字都不保存。

@@ -1,0 +1,54 @@
+REPAIR-1 VERIFICATION
+
+IDENTITY
+implementation base: d5e19971614669665a7fbe0710fab7fcb1a0b883
+parent code candidate: 748c10f13e597ad74b16ecf2914fc388ed0f07de
+review provisioning: b600df18868e4af75a823d17daaa387f58c64b2c
+repair start: c01cfba1650a7cd6d666deb6b715d3d435694972
+ancestry / independent worktree / clean start / index.lock absent: PASS
+
+CODEGRAPH
+status: unavailable in this worktree
+fallback: one recorded failure, then narrow rg / sed source inspection
+
+FOCUSED RED / GREEN
+F001: RED 2 failed -> GREEN 5 passed
+F002: RED 1 failed -> GREEN 18 passed
+F003: RED 4 failed / 2 passed -> GREEN 6 passed
+F004: RED 2 failed -> GREEN 3 passed
+F005: RED 1 failed with 100000 iterations -> GREEN 1 passed with 0 iterations
+
+DIRECT AFFECTED SUITES
+structured target + broker + outbox: 123 passed in 10.46s
+
+FULL AFFECTED SUITE
+structured target + broker + outbox + architecture probe + legacy SEO pipeline
+final source-state result: 192 passed in 65.01s
+
+PY_COMPILE
+scope: three modified production modules, architecture probe and all five required test modules
+result: PASS
+
+ALLOWLIST / FORBIDDEN SCOPE
+result: PASS
+scripts/agy_seo_copy_pipeline.py: unchanged
+scripts/agy_gemini_outbox.py: unchanged
+app/** / manifests / dependency files: unchanged
+
+PRIVACY / SECRET / DEBUG
+added-diff secret and debug marker scan: PASS
+whole-file marker scan matched one pre-existing negative-test private-key fixture;
+the repair base contains the identical fixture
+credential content read by repair executor: 0
+provider body / prompt / full environment saved in repair evidence: 0
+
+DIFF CHECK
+git diff --check: PASS
+
+EXTERNAL ACTIONS
+real Gemini / API / agy generation: 0
+retry / fallback: 0 / 0
+merge / push / deploy / publish / activation / promotion: 0
+
+STATUS
+REPAIR_READY_FOR_REVIEW

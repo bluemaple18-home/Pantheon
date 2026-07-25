@@ -335,6 +335,73 @@ def test_structured_profile_requires_credential_before_ledger_creation(tmp_path:
     assert not target.with_suffix(".trace").exists()
 
 
+def test_existing_structured_operation_replays_without_credential_or_target_process(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(tmp_path / "structured-target")
+    raw_request = broker.canonical_json(
+        {
+            "schema_version": 1,
+            "role": "writer",
+            "prompt": "公開文章任務",
+            "response_schema": SCHEMA,
+        }
+    )
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"synthetic-api-key-with-safe-length")
+    os.close(write_fd)
+    try:
+        first = _run(
+            tmp_path,
+            target,
+            model="gemini-3.5-flash",
+            raw_request=raw_request,
+            target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+            credential_fd=read_fd,
+        )
+    finally:
+        os.close(read_fd)
+    target.with_suffix(".trace").unlink()
+
+    replay = _run(
+        tmp_path,
+        target,
+        model="gemini-3.5-flash",
+        raw_request=raw_request,
+        target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+    )
+
+    assert (first.replay_status, first.process_count) == ("COMPLETE", 1)
+    assert (replay.replay_status, replay.process_count) == ("COMPLETE", 1)
+    assert replay.caller_contract_satisfied is False
+    assert not target.with_suffix(".trace").exists()
+
+
+def test_structured_anchor_without_ledger_is_invalid_without_credential_or_target(
+    tmp_path: Path,
+) -> None:
+    target = _write_fake_structured_target(tmp_path / "structured-target")
+    anchor_store = broker.FileAnchorStore(tmp_path / "anchors")
+    assert anchor_store.compare_and_swap(
+        "operation-001",
+        "attempt-1",
+        None,
+        "a" * 64,
+    )
+
+    result = _run(
+        tmp_path,
+        target,
+        model="gemini-3.5-flash",
+        raw_request=b'{"schema_version":1}',
+        target_profile=broker.GEMINI_STRUCTURED_API_PROFILE,
+    )
+
+    assert (result.replay_status, result.process_count) == ("INVALID", "UNKNOWN")
+    assert result.errors == ("LEDGER_MISSING",)
+    assert not target.with_suffix(".trace").exists()
+
+
 def test_structured_profile_persists_only_closed_target_diagnostic(
     tmp_path: Path,
 ) -> None:
@@ -616,6 +683,71 @@ def test_schema_diagnostic_path_is_bounded_when_mismatch_is_deeper_than_limit() 
             tuple(f"level{index}" for index in range(8)),
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("schema_type", "value", "constraint", "expected_keyword"),
+    (
+        ("number", 0, {"minimum": 1}, "minimum"),
+        ("number", 2, {"maximum": 1}, "maximum"),
+        ("integer", 0, {"minimum": 1}, "minimum"),
+        ("integer", 2, {"maximum": 1}, "maximum"),
+    ),
+)
+def test_numeric_schema_bounds_reject_out_of_range_values(
+    schema_type: str,
+    value: int,
+    constraint: dict[str, int],
+    expected_keyword: str,
+) -> None:
+    diagnostics = broker._diagnose_json_schema(
+        value,
+        {"type": schema_type, **constraint},
+    )
+
+    assert diagnostics == (broker.SchemaDiagnostic(expected_keyword, ()),)
+
+
+@pytest.mark.parametrize("schema_type", ("number", "integer"))
+def test_numeric_schema_bounds_accept_inclusive_boundaries_and_reject_bool(
+    schema_type: str,
+) -> None:
+    schema = {"type": schema_type, "minimum": 1, "maximum": 2}
+
+    assert broker._diagnose_json_schema(1, schema) == ()
+    assert broker._diagnose_json_schema(2, schema) == ()
+    assert broker._diagnose_json_schema(True, schema) == (
+        broker.SchemaDiagnostic("type", ()),
+    )
+
+
+def test_oversized_array_stops_before_child_traversal() -> None:
+    class CountingList(list[bool]):
+        iterations = 0
+
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            for item in super().__iter__():
+                self.iterations += 1
+                yield item
+
+    oversized = CountingList([True] * 100_000)
+    schema = {
+        "type": "array",
+        "maxItems": 1,
+        "items": {"type": "boolean"},
+    }
+
+    assert broker._diagnose_json_schema(oversized, schema) == (
+        broker.SchemaDiagnostic("maxItems", ()),
+    )
+    assert oversized.iterations == 0
+    assert broker._diagnose_json_schema(
+        ["child-would-fail", "child-would-fail"],
+        {"type": "array", "maxItems": 1, "items": {"type": "boolean"}},
+    ) == (broker.SchemaDiagnostic("maxItems", ()),)
+    legal = CountingList([True])
+    assert broker._diagnose_json_schema(legal, schema) == ()
+    assert legal.iterations == 1
 
 
 @pytest.mark.parametrize(
