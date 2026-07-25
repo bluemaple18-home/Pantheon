@@ -1964,7 +1964,7 @@ def _generate_with_receipt(
         receipt["status"] = "pending" if type(error).__name__ == "ExternalJobPending" else "error"
         receipt["error_type"] = type(error).__name__
         error_code = getattr(error, "error_code", None)
-        if error_code in CLOSED_GEMINI_ERROR_CODES:
+        if type(error_code) is str and error_code in CLOSED_GEMINI_ERROR_CODES:
             receipt["error_code"] = error_code
         receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         write_json(receipt_path, receipt)

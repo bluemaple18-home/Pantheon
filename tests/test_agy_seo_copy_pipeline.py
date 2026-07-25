@@ -1435,6 +1435,50 @@ def test_operation_receipt_persists_closed_cli_code_without_exception_text(
         assert forbidden not in persisted
 
 
+@pytest.mark.parametrize(
+    "unsafe_error_code",
+    [
+        ["CLI_TIMEOUT"],
+        {"error_code": "CLI_TIMEOUT"},
+        7,
+        None,
+        "UNKNOWN_ERROR_CODE",
+    ],
+)
+def test_operation_receipt_ignores_non_string_unhashable_or_unknown_error_code(
+    tmp_path: Path,
+    unsafe_error_code: object,
+) -> None:
+    original_error = RuntimeError("synthetic closed failure")
+    original_error.error_code = unsafe_error_code  # type: ignore[attr-defined]
+
+    class FailedClient:
+        writer_model = "test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise original_error
+
+    receipt_path = tmp_path / "writer-operation.json"
+    with pytest.raises(RuntimeError) as raised:
+        pipeline._generate_with_receipt(
+            FailedClient(),
+            "writer",
+            "public prompt",
+            {"type": "object"},
+            receipt_path,
+        )
+
+    assert raised.value is original_error
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["error_type"] == "RuntimeError"
+    assert "error_code" not in receipt
+
+
 def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Path) -> None:
     run_dir = tmp_path / "schema-budget"
     run_dir.mkdir()

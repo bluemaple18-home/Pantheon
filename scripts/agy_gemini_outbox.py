@@ -9,6 +9,7 @@ import json
 import os
 import re
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +22,69 @@ OUTBOX_MAX_REPAIRS = 2
 OUTBOX_MAX_TRANSPORT_RETRIES = 2
 RETRYABLE_EXTERNAL_ERRORS = {"JSONDecodeError"}
 CLOSED_EXTERNAL_ERROR_CODES = pipeline.CLOSED_GEMINI_ERROR_CODES
+INVALID_FAILURE_RECEIPT = "InvalidFailureReceipt"
+CLOSED_EXTERNAL_ERROR_TYPES = frozenset({
+    "GeminiCliFailure",
+    INVALID_FAILURE_RECEIPT,
+    "JSONDecodeError",
+    "RuntimeError",
+    "V4BrokerFailure",
+    "ValueError",
+})
+FAILURE_RECEIPT_BASE_FIELDS = frozenset({
+    "schema_version",
+    "job_id",
+    "request_sha256",
+    "error_type",
+    "completed_at",
+})
+FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({"error_code", "broker_diagnostic"})
+FAILURE_TIMESTAMP_PATTERN = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$"
+)
+BROKER_REPLAY_STATES = frozenset({"COMPLETE", "BLOCKED", "AMBIGUOUS", "INVALID"})
+BROKER_PROCESS_COUNTS = frozenset({0, 1, "UNKNOWN"})
+BROKER_OUTCOMES = frozenset({
+    None,
+    "CLI_NOT_FOUND",
+    "CRASH_BEFORE_FORK",
+    "PERMISSION_DENIED",
+    "EXEC_FORMAT",
+    "EXEC_RACE",
+    "SUCCESS",
+    "CLI_NONZERO",
+    "CLI_TIMEOUT",
+})
+BROKER_RESULT_VALIDATIONS = frozenset({
+    "NOT_EVALUATED",
+    "JSON_INVALID",
+    "NOT_OBJECT",
+    "SCHEMA_MISMATCH",
+    "VALID",
+})
+BROKER_JSON_DIAGNOSTICS = frozenset({
+    "EMPTY",
+    "UTF8_INVALID",
+    "MARKDOWN_FENCE",
+    "WRAPPED_JSON",
+    "PARSE_ERROR_AT_END",
+    "PARSE_ERROR_OTHER",
+})
+BROKER_SCHEMA_KEYWORDS = frozenset({
+    "additionalProperties",
+    "enum",
+    "maxItems",
+    "maxLength",
+    "minItems",
+    "minLength",
+    "required",
+    "schema",
+    "type",
+})
+SAFE_DIAGNOSTIC_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
+MAX_FAILURE_RECEIPT_BYTES = 64 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 FORBIDDEN_EXTERNAL_PATTERNS = (
     re.compile(r"/(?:Users|home|private|var|tmp)/"),
@@ -49,9 +111,17 @@ class ExternalJobFailed(RuntimeError):
 
     def __init__(self, job_id: str, error_type: str, error_code: str | None = None) -> None:
         self.job_id = job_id
-        self.error_type = error_type
-        self.error_code = error_code if error_code in CLOSED_EXTERNAL_ERROR_CODES else None
-        super().__init__(f"external job failed: {job_id} ({error_type})")
+        self.error_type = (
+            error_type
+            if type(error_type) is str and error_type in CLOSED_EXTERNAL_ERROR_TYPES
+            else INVALID_FAILURE_RECEIPT
+        )
+        self.error_code = (
+            error_code
+            if type(error_code) is str and error_code in CLOSED_EXTERNAL_ERROR_CODES
+            else None
+        )
+        super().__init__(f"external job failed: {job_id} ({self.error_type})")
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -190,15 +260,115 @@ def create_external_request(
     return request
 
 
+def _broker_diagnostic_is_closed(value: object) -> bool:
+    if type(value) is not dict:
+        return False
+    required = {"replay_status", "process_count", "outcome", "result_validation"}
+    optional = {"json_diagnostic", "schema_diagnostics"}
+    if not required <= set(value) or not set(value) <= required | optional:
+        return False
+    replay_status = value.get("replay_status")
+    process_count = value.get("process_count")
+    outcome = value.get("outcome")
+    result_validation = value.get("result_validation")
+    if (
+        type(replay_status) is not str
+        or replay_status not in BROKER_REPLAY_STATES
+        or type(process_count) not in {int, str}
+        or type(process_count) is bool
+        or process_count not in BROKER_PROCESS_COUNTS
+        or (outcome is not None and type(outcome) is not str)
+        or outcome not in BROKER_OUTCOMES
+        or type(result_validation) is not str
+        or result_validation not in BROKER_RESULT_VALIDATIONS
+    ):
+        return False
+    if "json_diagnostic" in value:
+        json_diagnostic = value.get("json_diagnostic")
+        if type(json_diagnostic) is not str or json_diagnostic not in BROKER_JSON_DIAGNOSTICS:
+            return False
+    diagnostics = value.get("schema_diagnostics", [])
+    if type(diagnostics) is not list or len(diagnostics) > 3:
+        return False
+    for diagnostic in diagnostics:
+        if type(diagnostic) is not dict or set(diagnostic) != {"keyword", "path"}:
+            return False
+        keyword = diagnostic.get("keyword")
+        if type(keyword) is not str or keyword not in BROKER_SCHEMA_KEYWORDS:
+            return False
+        path = diagnostic.get("path")
+        if type(path) is not list or len(path) > 8:
+            return False
+        for token in path:
+            if type(token) is str:
+                if SAFE_DIAGNOSTIC_PATH_TOKEN.fullmatch(token) is None:
+                    return False
+            elif type(token) is int:
+                if token < 0 or token > 1_048_576:
+                    return False
+            else:
+                return False
+    return True
+
+
+def _failure_receipt_is_valid(
+    failure: object,
+    request: dict[str, Any],
+) -> bool:
+    if type(failure) is not dict:
+        return False
+    fields = set(failure)
+    if (
+        not FAILURE_RECEIPT_BASE_FIELDS <= fields
+        or not fields <= FAILURE_RECEIPT_BASE_FIELDS | FAILURE_RECEIPT_OPTIONAL_FIELDS
+        or type(failure.get("schema_version")) is not int
+        or failure.get("schema_version") != SCHEMA_VERSION
+        or failure.get("job_id") != request["job_id"]
+        or failure.get("request_sha256") != request["request_sha256"]
+        or type(failure.get("error_type")) is not str
+        or failure.get("error_type") not in CLOSED_EXTERNAL_ERROR_TYPES
+        or not _failure_timestamp_is_valid(failure.get("completed_at"))
+    ):
+        return False
+    error_code = failure.get("error_code")
+    if "error_code" in failure and (
+        failure.get("error_type") != "GeminiCliFailure"
+        or type(error_code) is not str
+        or error_code not in CLOSED_EXTERNAL_ERROR_CODES
+    ):
+        return False
+    broker_diagnostic = failure.get("broker_diagnostic")
+    if ("broker_diagnostic" in failure) != (failure.get("error_type") == "V4BrokerFailure"):
+        return False
+    return "broker_diagnostic" not in failure or _broker_diagnostic_is_closed(broker_diagnostic)
+
+
+def _failure_timestamp_is_valid(value: object) -> bool:
+    if type(value) is not str or FAILURE_TIMESTAMP_PATTERN.fullmatch(value) is None:
+        return False
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict[str, Any]:
     validate_external_request(request)
     job_id = str(request["job_id"])
     failed_path = queue_root / "failed" / f"{job_id}.json"
     if failed_path.exists():
-        failure = json.loads(failed_path.read_text(encoding="utf-8"))
+        try:
+            if failed_path.stat().st_size > MAX_FAILURE_RECEIPT_BYTES:
+                raise ValueError("failure receipt exceeds closed size")
+            failure = json.loads(failed_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+            raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT) from None
+        if not _failure_receipt_is_valid(failure, request):
+            raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT)
         raise ExternalJobFailed(
             job_id,
-            str(failure.get("error_type", "unknown")),
+            failure["error_type"],
             failure.get("error_code") if type(failure.get("error_code")) is str else None,
         )
     response_path = queue_root / "inbox" / f"{job_id}.json"
