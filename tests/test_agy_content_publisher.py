@@ -870,7 +870,8 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     plist = plistlib.loads((repo_root / "ops/launchd/com.pantheon.agy-content-publisher.plist.example").read_bytes())
     arguments = plist["ProgramArguments"]
 
-    assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-1}"' in installer
+    assert publisher.DEFAULT_MAX_RUNS == 3
+    assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
     assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
     assert arguments[3:11] == [
         "--repo-root",
@@ -884,6 +885,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     ]
     assert arguments[-2:] == ["--include-rewrites", "--push"]
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
+    assert plist["StartInterval"] == 60
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],
         cwd=repo_root,
