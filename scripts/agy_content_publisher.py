@@ -374,7 +374,12 @@ def _isolated_transaction_worktree(
         actor_node_modules = repo_root / "node_modules"
         transaction_node_modules = transaction_root / "node_modules"
         if actor_node_modules.is_dir() and not transaction_node_modules.exists():
-            transaction_node_modules.symlink_to(actor_node_modules, target_is_directory=True)
+            transaction_node_modules.mkdir()
+            for dependency in actor_node_modules.iterdir():
+                (transaction_node_modules / dependency.name).symlink_to(
+                    dependency,
+                    target_is_directory=dependency.is_dir(),
+                )
         yield transaction_root
     finally:
         if added:
