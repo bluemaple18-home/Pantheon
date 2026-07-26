@@ -19,6 +19,74 @@ SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 
 
+def _open_allocator_directory(path: Path) -> int:
+    label = "production allocator state directory"
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ValueError(f"{label} is unavailable") from error
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISDIR(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o022
+    ):
+        raise ValueError(f"{label} is unsafe")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError(f"{label} cannot be opened") from error
+    after = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(after.st_mode)
+        or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+        or after.st_uid != os.getuid()
+        or after.st_mode & 0o022
+    ):
+        os.close(descriptor)
+        raise ValueError(f"{label} changed during validation")
+    return descriptor
+
+
+def _assert_path_identity(path: Path, descriptor: int, *, label: str) -> tuple[int, int]:
+    try:
+        current = path.lstat()
+        opened = os.fstat(descriptor)
+    except OSError as error:
+        raise ValueError(f"{label} changed during allocation") from error
+    if (
+        stat.S_ISLNK(current.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino)
+    ):
+        raise ValueError(f"{label} changed during allocation")
+    return opened.st_dev, opened.st_ino
+
+
+def _assert_directory_identity(path: Path, descriptor: int) -> None:
+    try:
+        current = path.lstat()
+        opened = os.fstat(descriptor)
+    except OSError as error:
+        raise ValueError(
+            "production allocator state directory changed during allocation"
+        ) from error
+    if (
+        stat.S_ISLNK(current.st_mode)
+        or not stat.S_ISDIR(current.st_mode)
+        or (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino)
+    ):
+        raise ValueError(
+            "production allocator state directory changed during allocation"
+        )
+
+
 def _private_state_stat(path: Path, *, minimum_size: int) -> os.stat_result:
     try:
         current = path.lstat()
@@ -122,16 +190,52 @@ def _open_allocator_lock(path: Path) -> int:
     return descriptor
 
 
+def _open_existing_allocator_lock(path: Path) -> int:
+    label = "production allocator lock file"
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ValueError(f"{label} is unavailable") from error
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o077
+        or before.st_size != 0
+    ):
+        raise ValueError(f"{label} must be owner-only regular file")
+    flags = (
+        os.O_RDWR
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError(f"{label} cannot be opened") from error
+    after = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(after.st_mode)
+        or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+        or after.st_uid != os.getuid()
+        or after.st_mode & 0o077
+        or after.st_size != 0
+    ):
+        os.close(descriptor)
+        raise ValueError(f"{label} changed during validation")
+    return descriptor
+
+
 def _read_state(
     path: Path,
     *,
     pool_id: str,
     manifest_sha256: str,
-) -> tuple[int, tuple[int, int] | None]:
+) -> tuple[int, tuple[int, int] | None, tuple[int, int] | None]:
     try:
         path.lstat()
     except FileNotFoundError:
-        return 0, None
+        return 0, None, None
     except OSError as error:
         raise ValueError("production allocator state file is unavailable") from error
     descriptor = _open_private_state(path)
@@ -156,12 +260,16 @@ def _read_state(
         raise ValueError("production allocator state JSON is invalid") from error
     if not isinstance(payload, dict) or set(payload) != {
         "last_ordinal",
+        "lock_device",
+        "lock_inode",
         "manifest_sha256",
         "pool_id",
         "schema_version",
     }:
         raise ValueError("production allocator state schema is invalid")
     last_ordinal = payload.get("last_ordinal")
+    lock_device = payload.get("lock_device")
+    lock_inode = payload.get("lock_inode")
     if (
         type(payload.get("schema_version")) is not int
         or payload.get("schema_version") != 1
@@ -171,13 +279,21 @@ def _read_state(
         or SAFE_SHA256.fullmatch(payload["manifest_sha256"]) is None
         or type(last_ordinal) is not int
         or not 1 <= last_ordinal <= MAX_ALLOCATION_ORDINAL
+        or type(lock_device) is not int
+        or lock_device < 0
+        or type(lock_inode) is not int
+        or lock_inode <= 0
     ):
         raise ValueError("production allocator state schema is invalid")
     if payload["pool_id"] != pool_id:
         raise ValueError("production allocator state pool mismatch")
     if payload["manifest_sha256"] != manifest_sha256:
         raise ValueError("production allocator state manifest mismatch")
-    return last_ordinal, (current.st_dev, current.st_ino)
+    return (
+        last_ordinal,
+        (current.st_dev, current.st_ino),
+        (lock_device, lock_inode),
+    )
 
 
 def _commit_state(
@@ -187,6 +303,7 @@ def _commit_state(
     manifest_sha256: str,
     ordinal: int,
     previous_identity: tuple[int, int] | None,
+    lock_identity: tuple[int, int],
 ) -> None:
     encoded = (
         json.dumps(
@@ -195,6 +312,8 @@ def _commit_state(
                 "pool_id": pool_id,
                 "manifest_sha256": manifest_sha256,
                 "last_ordinal": ordinal,
+                "lock_device": lock_identity[0],
+                "lock_inode": lock_identity[1],
             },
             allow_nan=False,
             ensure_ascii=False,
@@ -279,25 +398,92 @@ def allocate_production_slot(
     if not state_path.is_absolute():
         raise ValueError("production allocator state path must be absolute")
     lock_path = state_path.with_name(f"{state_path.name}.lock")
-    lock_descriptor = _open_allocator_lock(lock_path)
+    directory_descriptor = _open_allocator_directory(state_path.parent)
     try:
-        fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
-        last_ordinal, previous_identity = _read_state(
-            state_path,
-            pool_id=pool_id,
-            manifest_sha256=manifest_sha256,
-        )
-        if last_ordinal >= MAX_ALLOCATION_ORDINAL:
-            raise ValueError("production allocator ordinal is exhausted")
-        ordinal = last_ordinal + 1
-        _commit_state(
-            state_path,
-            pool_id=pool_id,
-            manifest_sha256=manifest_sha256,
-            ordinal=ordinal,
-            previous_identity=previous_identity,
-        )
+        fcntl.flock(directory_descriptor, fcntl.LOCK_EX)
+        lock_descriptor = _open_allocator_lock(lock_path)
+        try:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+            lock_identity = _assert_path_identity(
+                lock_path,
+                lock_descriptor,
+                label="production allocator lock file",
+            )
+            last_ordinal, previous_identity, expected_lock_identity = _read_state(
+                state_path,
+                pool_id=pool_id,
+                manifest_sha256=manifest_sha256,
+            )
+            if (
+                expected_lock_identity is not None
+                and expected_lock_identity != lock_identity
+            ):
+                raise ValueError(
+                    "production allocator lock file changed during allocation"
+                )
+            if last_ordinal >= MAX_ALLOCATION_ORDINAL:
+                raise ValueError("production allocator ordinal is exhausted")
+            ordinal = last_ordinal + 1
+            _commit_state(
+                state_path,
+                pool_id=pool_id,
+                manifest_sha256=manifest_sha256,
+                ordinal=ordinal,
+                previous_identity=previous_identity,
+                lock_identity=lock_identity,
+            )
+            _assert_path_identity(
+                lock_path,
+                lock_descriptor,
+                label="production allocator lock file",
+            )
+            _assert_directory_identity(state_path.parent, directory_descriptor)
+        finally:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+            os.close(lock_descriptor)
     finally:
-        fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
-        os.close(lock_descriptor)
+        fcntl.flock(directory_descriptor, fcntl.LOCK_UN)
+        os.close(directory_descriptor)
     return ordinal, PRODUCTION_SLOT_IDS[(ordinal - 1) % len(PRODUCTION_SLOT_IDS)]
+
+
+def validate_production_allocator_installation(
+    state_path: Path,
+    *,
+    pool_id: str,
+    manifest_sha256: str,
+) -> None:
+    """只驗 allocator metadata 與 identity，不建立 state/lock。"""
+    if not state_path.is_absolute():
+        raise ValueError("production allocator state path must be absolute")
+    directory_descriptor = _open_allocator_directory(state_path.parent)
+    lock_path = state_path.with_name(f"{state_path.name}.lock")
+    state_exists = state_path.exists() or state_path.is_symlink()
+    lock_exists = lock_path.exists() or lock_path.is_symlink()
+    try:
+        if state_exists and not lock_exists:
+            raise ValueError("production allocator lock file is unavailable")
+        if not lock_exists:
+            return
+        lock_descriptor = _open_existing_allocator_lock(lock_path)
+        try:
+            lock_identity = _assert_path_identity(
+                lock_path,
+                lock_descriptor,
+                label="production allocator lock file",
+            )
+            if state_exists:
+                _last_ordinal, _state_identity, expected_lock_identity = _read_state(
+                    state_path,
+                    pool_id=pool_id,
+                    manifest_sha256=manifest_sha256,
+                )
+                if expected_lock_identity != lock_identity:
+                    raise ValueError(
+                        "production allocator lock file changed during allocation"
+                    )
+            _assert_directory_identity(state_path.parent, directory_descriptor)
+        finally:
+            os.close(lock_descriptor)
+    finally:
+        os.close(directory_descriptor)

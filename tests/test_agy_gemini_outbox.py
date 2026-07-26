@@ -116,6 +116,10 @@ def _write_allocator_state(
     manifest_sha256: str,
     last_ordinal: int,
 ) -> None:
+    lock_path = path.with_name(f"{path.name}.lock")
+    if not lock_path.exists():
+        lock_path.touch(mode=0o600)
+    lock_stat = lock_path.stat()
     path.write_text(
         json.dumps(
             {
@@ -123,6 +127,8 @@ def _write_allocator_state(
                 "pool_id": pool_id,
                 "manifest_sha256": manifest_sha256,
                 "last_ordinal": last_ordinal,
+                "lock_device": lock_stat.st_dev,
+                "lock_inode": lock_stat.st_ino,
             }
         ),
         encoding="utf-8",
@@ -246,6 +252,88 @@ def test_production_pool_four_process_stress_has_no_ordinal_gap_or_duplicate(
         "account-2": 100,
         "account-3": 100,
     }
+
+
+def test_allocator_lock_path_replacement_cannot_create_parallel_critical_section(
+    tmp_path: Path,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    committed = tmp_path / "committed"
+    release = tmp_path / "release"
+    repo_root = Path(__file__).resolve().parents[1]
+    worker_a = (
+        "import pathlib,sys,time;"
+        "from scripts import agy_gemini_allocator as a;"
+        "state=pathlib.Path(sys.argv[1]);"
+        "committed=pathlib.Path(sys.argv[4]);release=pathlib.Path(sys.argv[5]);"
+        "original=a._commit_state;"
+        "\ndef wrapped(*args,**kwargs):"
+        "\n original(*args,**kwargs);committed.touch()"
+        "\n while not release.exists(): time.sleep(0.01)"
+        "\na._commit_state=wrapped"
+        "\ntry:"
+        "\n print(a.allocate_production_slot(state,pool_id=sys.argv[2],manifest_sha256=sys.argv[3]))"
+        "\nexcept Exception as error:"
+        "\n print(type(error).__name__,str(error));raise SystemExit(17)"
+    )
+    worker_b = (
+        "import pathlib,sys;"
+        "from scripts.agy_gemini_allocator import allocate_production_slot;"
+        "\ntry:"
+        "\n print(allocate_production_slot(pathlib.Path(sys.argv[1]),pool_id=sys.argv[2],manifest_sha256=sys.argv[3]))"
+        "\nexcept Exception as error:"
+        "\n print(type(error).__name__,str(error));raise SystemExit(19)"
+    )
+    first = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            worker_a,
+            str(state),
+            str(payload["pool_id"]),
+            manifest_sha256,
+            str(committed),
+            str(release),
+        ],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 5
+    while not committed.exists() and first.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert committed.exists(), first.communicate(timeout=1)
+
+    lock_path = state.with_name(f"{state.name}.lock")
+    lock_path.unlink()
+    lock_path.touch(mode=0o600)
+    second = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            worker_b,
+            str(state),
+            str(payload["pool_id"]),
+            manifest_sha256,
+        ],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    time.sleep(0.1)
+    assert second.poll() is None
+    release.touch()
+    first_stdout, first_stderr = first.communicate(timeout=5)
+    second_stdout, second_stderr = second.communicate(timeout=5)
+
+    assert second.returncode == 19, second_stdout + second_stderr
+    assert "lock file changed" in second_stdout
+    assert first.returncode == 17, first_stdout + first_stderr
+    assert "lock file changed" in first_stdout
 
 
 def test_production_pool_commit_survives_worker_crash_before_provider(
@@ -593,8 +681,6 @@ def test_production_pool_state_rejects_wrong_owner_before_credential_open(
         manifest_sha256=manifest_sha256,
         last_ordinal=1,
     )
-    lock_path = tmp_path / "test.lock"
-    lock_path.touch(mode=0o600)
     monkeypatch.setattr(
         runner,
         "_read_production_pool",
@@ -603,7 +689,12 @@ def test_production_pool_state_rejects_wrong_owner_before_credential_open(
     monkeypatch.setattr(
         allocator,
         "_open_allocator_lock",
-        lambda _path: os.open(lock_path, os.O_RDWR),
+        lambda path: os.open(path, os.O_RDWR),
+    )
+    monkeypatch.setattr(
+        allocator,
+        "_open_allocator_directory",
+        lambda path: os.open(path, os.O_RDONLY),
     )
     real_uid = os.getuid()
     monkeypatch.setattr(allocator.os, "getuid", lambda: real_uid + 1)
@@ -1389,6 +1480,101 @@ def test_runner_requeues_stale_processing_job_after_interrupted_worker(tmp_path:
     assert result == {"status": "processed", "job_id": request["job_id"]}
     assert not processing_path.exists()
     assert (tmp_path / "archive" / processing_path.name).exists()
+
+
+@pytest.mark.parametrize(
+    "crash_point",
+    ["before-provider", "during-provider", "after-response"],
+)
+def test_production_pool_stale_recovery_never_retries_consumed_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_point: str,
+) -> None:
+    class SimulatedCrash(BaseException):
+        pass
+
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace=f"production-stale-{crash_point}",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    provider_calls = 0
+    crash_enabled = True
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"candidates":[{"content":{"parts":[{"text":"{\\"ok\\":true}"}]}}]}'
+
+    def provider(*_args: object, **_kwargs: object) -> FakeResponse:
+        nonlocal provider_calls
+        provider_calls += 1
+        if crash_enabled and crash_point == "during-provider":
+            raise SimulatedCrash
+        return FakeResponse()
+
+    real_read_api_key = runner._read_production_api_key
+    real_atomic_write = runner.atomic_write_json
+
+    def read_api_key(descriptor: int) -> str:
+        if crash_enabled and crash_point == "before-provider":
+            raise SimulatedCrash
+        return real_read_api_key(descriptor)
+
+    def atomic_write(path: Path, payload: dict[str, object]) -> None:
+        real_atomic_write(path, payload)
+        if (
+            crash_enabled
+            and crash_point == "after-response"
+            and path.parent.name == "inbox"
+        ):
+            raise SimulatedCrash
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner, "_read_production_api_key", read_api_key)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
+    monkeypatch.setattr(runner, "atomic_write_json", atomic_write)
+
+    with pytest.raises(SimulatedCrash):
+        process_once(queue_root)
+
+    processing_path = queue_root / "processing" / f"{request['job_id']}.json"
+    stale_time = time.time() - runner.STALE_PROCESSING_SECONDS - 1
+    os.utime(processing_path, (stale_time, stale_time))
+    calls_after_crash = provider_calls
+
+    crash_enabled = False
+    monkeypatch.setattr(runner, "_read_production_api_key", real_read_api_key)
+    monkeypatch.setattr(runner, "atomic_write_json", real_atomic_write)
+    result = process_once(queue_root)
+
+    assert result == {"status": "idle"}
+    assert provider_calls == calls_after_crash
+    assert not (queue_root / "outbox" / processing_path.name).exists()
+    assert not processing_path.exists()
+    assert (queue_root / "archive" / processing_path.name).exists()
+    if crash_point == "after-response":
+        assert (queue_root / "inbox" / processing_path.name).exists()
+        assert not (queue_root / "failed" / processing_path.name).exists()
+    else:
+        failed = json.loads(
+            (queue_root / "failed" / processing_path.name).read_text(encoding="utf-8")
+        )
+        assert failed["error_type"] == "RuntimeError"
 
 
 def test_runner_does_not_requeue_fresh_processing_job(tmp_path: Path) -> None:

@@ -7,7 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts import agy_gemini_coordinator as coordinator
+from scripts import agy_gemini_runner as runner
 from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
 
@@ -780,9 +783,7 @@ def test_installer_rejects_relative_allocator_state_before_install_side_effects(
     fake_bin = tmp_path / "bin"
     fake_home = tmp_path / "home"
     fake_bin.mkdir()
-    pool_file = tmp_path / "production-pool.json"
-    pool_file.write_text("{}\n", encoding="utf-8")
-    pool_file.chmod(0o600)
+    pool_file, _manifest_sha256 = _write_installer_pool(tmp_path)
     cli_path = tmp_path / "agy"
     cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     cli_path.chmod(0o700)
@@ -826,6 +827,191 @@ def test_installer_rejects_relative_allocator_state_before_install_side_effects(
     assert not launchctl_log.exists()
 
 
+def _write_installer_pool(tmp_path: Path) -> tuple[Path, str]:
+    slots = []
+    for index, slot_id in enumerate(("account-1", "account-2", "account-3"), 1):
+        credential = tmp_path / f"credential-{index}"
+        credential.write_text(
+            f"synthetic-installer-credential-{index}-value\n",
+            encoding="utf-8",
+        )
+        credential.chmod(0o600)
+        slots.append({"slot_id": slot_id, "credential_file": str(credential)})
+    payload = {
+        "schema_version": 1,
+        "pool_id": "pantheon-production-v1",
+        "slots": slots,
+    }
+    pool = tmp_path / "production-pool.json"
+    pool.write_text(json.dumps(payload), encoding="utf-8")
+    pool.chmod(0o600)
+    _payload, manifest_sha256 = runner._read_production_pool(pool)
+    return pool, manifest_sha256
+
+
+def _write_installer_state(
+    path: Path,
+    manifest_sha256: str,
+    *,
+    pool_id: str = "pantheon-production-v1",
+) -> Path:
+    lock = path.with_name(f"{path.name}.lock")
+    lock.touch(mode=0o600)
+    lock_stat = lock.stat()
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pool_id": pool_id,
+                "manifest_sha256": manifest_sha256,
+                "last_ordinal": 1,
+                "lock_device": lock_stat.st_dev,
+                "lock_inode": lock_stat.st_ino,
+            }
+        ),
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    return lock
+
+
+def _installer_test_env(
+    tmp_path: Path,
+    *,
+    pool: Path,
+    state: Path,
+    fail_plutil_call: int | None = None,
+) -> tuple[dict[str, str], Path, Path]:
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    fake_bin.mkdir(exist_ok=True)
+    cli_path = tmp_path / "agy"
+    cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    cli_path.chmod(0o700)
+    dscl = fake_bin / "dscl"
+    dscl.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+        encoding="utf-8",
+    )
+    dscl.chmod(0o700)
+    mutation_log = tmp_path / "launchctl-mutations.log"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    if fail_plutil_call is not None:
+        counter = tmp_path / "plutil-count"
+        plutil = fake_bin / "plutil"
+        plutil.write_text(
+            "#!/bin/sh\n"
+            f"count=$(cat '{counter}' 2>/dev/null || printf 0)\n"
+            "count=$((count + 1))\n"
+            f"printf '%s' \"$count\" > '{counter}'\n"
+            f"if [ \"$count\" -eq {fail_plutil_call} ]; then exit 1; fi\n"
+            "exec /usr/bin/plutil \"$@\"\n",
+            encoding="utf-8",
+        )
+        plutil.chmod(0o700)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool),
+            "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state),
+            "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+    return env, fake_home, mutation_log
+
+
+@pytest.mark.parametrize(
+    "failure_class",
+    [
+        "pool-corrupt",
+        "state-corrupt",
+        "pool-mismatch",
+        "lock-nonempty",
+        "state-parent-unsafe",
+    ],
+)
+def test_installer_metadata_failure_has_zero_target_or_control_side_effects(
+    tmp_path: Path,
+    failure_class: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, manifest_sha256 = _write_installer_pool(tmp_path)
+    state_parent = tmp_path / "state"
+    state_parent.mkdir(mode=0o700)
+    state = state_parent / "round-robin-state.json"
+    lock = _write_installer_state(state, manifest_sha256)
+    if failure_class == "pool-corrupt":
+        pool.write_text("{broken\n", encoding="utf-8")
+    elif failure_class == "state-corrupt":
+        state.write_text("{broken\n", encoding="utf-8")
+    elif failure_class == "pool-mismatch":
+        _write_installer_state(state, manifest_sha256, pool_id="other-pool")
+    elif failure_class == "lock-nonempty":
+        lock.write_text("unexpected", encoding="utf-8")
+    else:
+        state.unlink()
+        lock.unlink()
+        state_parent.chmod(0o777)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
+
+
+@pytest.mark.parametrize("fail_plutil_call", [1, 2, 3, 4, 5])
+def test_installer_builds_and_lints_every_plist_before_any_mutation(
+    tmp_path: Path,
+    fail_plutil_call: int,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+        fail_plutil_call=fail_plutil_call,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
+
+
 def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     tmp_path: Path,
 ) -> None:
@@ -833,9 +1019,7 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     fake_bin = tmp_path / "bin"
     fake_home = tmp_path / "home"
     fake_bin.mkdir()
-    pool_file = tmp_path / "production-pool.json"
-    pool_file.write_text("{}\n", encoding="utf-8")
-    pool_file.chmod(0o600)
+    pool_file, _manifest_sha256 = _write_installer_pool(tmp_path)
     state_file = tmp_path / "round-robin-state.json"
     cli_path = tmp_path / "agy"
     cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")

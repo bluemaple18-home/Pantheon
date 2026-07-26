@@ -92,9 +92,17 @@ State 不存在時，第一個 allocation 會以 `0600` 安全初始化；既有
   "schema_version": 1,
   "pool_id": "pantheon-production-v1",
   "manifest_sha256": "<canonical-manifest-sha256>",
-  "last_ordinal": 1
+  "last_ordinal": 1,
+  "lock_device": 16777234,
+  "lock_inode": 12345678
 }
 ```
+
+State parent 必須已存在、由目前使用者擁有、不是 symlink，且不得開放
+group/other 寫入。Allocator 同時鎖定 state directory fd 與 `.lock` fd，
+state 會綁定 lock inode identity；取得 lock 後與 durable commit 後都會核對
+fd/path identity。Lock pathname 被 unlink、replace 或改指向第二 inode 時，
+本次與後續 allocation 都會在 credential open 前 fail closed。
 
 每個新 allocation 的選槽規則固定：
 
@@ -106,6 +114,12 @@ State 不存在時，第一個 allocation 會以 `0600` 安全初始化；既有
 5. Commit 後的 crash、`429`、其他 HTTP failure、timeout、transport error
    或 provider output invalid 都已消耗 ordinal；不回滾、不換 key、不 retry、
    不 fallback，也不重送既有 failed job。
+
+Production attempt 在 allocation 前會先留下 owner-only durable per-job marker。
+若 worker 在 ordinal commit 後、credential/provider 期間或 inbox response
+落盤後中斷，stale recovery 只會將原 job terminalize/archive；不搬回 outbox，
+不取得第二個 slot，也不做第二次 provider attempt。未啟用 production pool
+且沒有 marker 的 legacy stale recovery 維持原行為。
 
 Corrupt/truncated、symlink、wrong owner/mode、relative path、pool/manifest
 mismatch 或 open-time replacement 都會在 credential value 與 provider request
@@ -191,6 +205,12 @@ key value 加入 environment、argv 或 plist。若未明確提供 state path，
 預設為 absolute queue root 下的
 `production-credential-pool-state.json`。未提供 production pool flag 時，
 lane plist 不會出現 pool 或 allocator state flag。
+
+Installer 會先完成 pool schema、三個 credential file metadata（不讀 key
+value）、state/lock/parent/identity 驗證，再於 TMPDIR 建構並 lint coordinator
+與四條 lane 的全部 plist。只有五份 plist 全數通過後，才會建立 target
+LaunchAgents/log directories，並執行 bootout、plist install 與 bootstrap；
+任一 preflight/build/lint failure 都不修改 target plist 或 launchd 狀態。
 
 Installer 會解析並驗證以下 placeholder：
 

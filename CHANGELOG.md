@@ -9,6 +9,9 @@
 - Corrupt、truncated、symlink、wrong owner/mode、relative path、pool/manifest mismatch 與 TOCTOU state 會在 credential value/provider 前 fail closed。
 - Inbox／failed receipt 仍精確只保存匿名 pool／slot／manifest digest；不保存 ordinal、state path 或 credential path/value。Flag-off CLI 與所有 V4 broker／target／shadow 行為維持不變。
 - Launchd installer 僅在明確 opt-in 時，把 production pool manifest path 與同一個 absolute allocator state path 加入四條 content lane plist，且所有 preflight 早於 plist/control-plane write。
+- Production stale recovery 以 durable per-job attempt marker 防止 ordinal commit 後的 crash 重送；provider 前、provider 中與 response 落盤後中斷都會 terminalize/archive，同 job 不再取得 slot 或發出第二次 request，flag-off legacy recovery 不變。
+- Allocator 以 state directory fd 序列化並把 lock device/inode identity 綁入 durable state；acquire 與 commit 後均核對 fd/path，lock pathname unlink/replace 會在 credential open 前 fail closed。
+- Installer preflight 會完整驗證 pool schema、credential file metadata、state/lock/parent/identity，並先建構、lint coordinator 與四 lane 的全部 temp plist；全通過後才允許 target plist 或 launchd mutation。
 
 ## [0.3.80] - 2026-07-25
 

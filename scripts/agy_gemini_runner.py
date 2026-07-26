@@ -9,6 +9,7 @@ import json
 import os
 import re
 import stat
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,7 +21,10 @@ from scripts.agy_gemini_outbox import (
     atomic_write_json,
     validate_external_request,
 )
-from scripts.agy_gemini_allocator import allocate_production_slot
+from scripts.agy_gemini_allocator import (
+    allocate_production_slot,
+    validate_production_allocator_installation,
+)
 from scripts.agy_seo_copy_pipeline import CLOSED_GEMINI_ERROR_CODES, GeminiClient
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
@@ -280,6 +284,19 @@ def _read_production_api_key(descriptor: int) -> str:
     return api_key
 
 
+def validate_production_installation(
+    manifest_path: Path,
+    state_path: Path,
+) -> None:
+    """安裝前只驗 pool/state/lock 與 credential file metadata。"""
+    payload, manifest_sha256 = _read_production_pool(manifest_path)
+    validate_production_allocator_installation(
+        state_path,
+        pool_id=str(payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+    )
+
+
 def _cli_generate_json(role: str, model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
     client = GeminiClient(writer_model=model if role == "writer" else None, reviewer_model=model if role == "reviewer" else None)
     client.transport = client._cli_transport
@@ -321,6 +338,32 @@ def _requeue_stale_processing(queue_root: Path) -> None:
                 continue
         except FileNotFoundError:
             continue
+        attempt_marker = _production_attempt_marker(queue_root, source.stem)
+        if attempt_marker.exists():
+            inbox_path = queue_root / "inbox" / source.name
+            failed_path = queue_root / "failed" / source.name
+            if not inbox_path.exists() and not failed_path.exists():
+                request = json.loads(source.read_text(encoding="utf-8"))
+                atomic_write_json(
+                    failed_path,
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "job_id": source.stem,
+                        "request_sha256": request.get("request_sha256"),
+                        "error_type": "RuntimeError",
+                        "completed_at": datetime.now().astimezone().isoformat(
+                            timespec="seconds"
+                        ),
+                    },
+                )
+            archive_path = queue_root / "archive" / source.name
+            archive_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.replace(source, archive_path)
+            except FileNotFoundError:
+                continue
+            _remove_production_attempt_marker(attempt_marker)
+            continue
         target = outbox / source.name
         if target.exists():
             continue
@@ -344,6 +387,70 @@ def _claim_next(queue_root: Path) -> Path | None:
             continue
         return target
     return None
+
+
+def _production_attempt_marker(queue_root: Path, job_id: str) -> Path:
+    return queue_root / "production-attempts" / f"{job_id}.attempt"
+
+
+def _create_production_attempt_marker(queue_root: Path, request: dict[str, Any]) -> Path:
+    marker = _production_attempt_marker(queue_root, str(request["job_id"]))
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(marker, flags, 0o600)
+    except OSError as error:
+        raise ValueError("production attempt marker cannot be created") from error
+    encoded = (
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": request["job_id"],
+                "request_sha256": request["request_sha256"],
+            },
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+    try:
+        offset = 0
+        while offset < len(encoded):
+            written = os.write(descriptor, encoded[offset:])
+            if written <= 0:
+                raise ValueError("production attempt marker write failed")
+            offset += written
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    directory_descriptor = os.open(
+        marker.parent,
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+    return marker
+
+
+def _remove_production_attempt_marker(marker: Path | None) -> None:
+    if marker is None:
+        return
+    try:
+        marker.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _schema_path_is_closed(
@@ -461,6 +568,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
     request: dict[str, Any] = {}
     broker_diagnostic: dict[str, object] | None = None
     credential_pool: dict[str, str] | None = None
+    production_attempt_marker: Path | None = None
     try:
         request = json.loads(processing_path.read_text(encoding="utf-8"))
         validate_external_request(request)
@@ -518,6 +626,10 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             ).strip()
             if not state_file:
                 raise ValueError("production allocator state path is required")
+            production_attempt_marker = _create_production_attempt_marker(
+                queue_root,
+                request,
+            )
             source = _allocate_production_credential_source(
                 Path(pool_file),
                 Path(state_file),
@@ -562,6 +674,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         atomic_write_json(queue_root / "inbox" / f"{job_id}.json", response_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
+        _remove_production_attempt_marker(production_attempt_marker)
         processed: dict[str, Any] = {"status": "processed", "job_id": job_id}
         if credential_pool is not None:
             processed["credential_pool"] = credential_pool
@@ -584,6 +697,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         atomic_write_json(queue_root / "failed" / f"{job_id}.json", failed_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
+        _remove_production_attempt_marker(production_attempt_marker)
         result = {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
         if error_code is not None:
             result["error_code"] = error_code
@@ -597,6 +711,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("process-once")
+    validate = subparsers.add_parser("validate-production-installation")
+    validate.add_argument("--pool-file", type=Path, required=True)
+    validate.add_argument("--state-file", type=Path, required=True)
     drain = subparsers.add_parser("drain")
     drain.add_argument("--max-jobs", type=int, default=5)
     return parser.parse_args()
@@ -605,6 +722,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     queue_root = args.queue_root.resolve()
+    if args.command == "validate-production-installation":
+        try:
+            validate_production_installation(args.pool_file, args.state_file)
+        except ValueError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        print('{"status":"valid"}')
+        return 0
     if args.command == "process-once":
         result = process_once(queue_root)
         print(json.dumps(result, ensure_ascii=False))
