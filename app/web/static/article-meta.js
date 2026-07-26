@@ -883,19 +883,16 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       : route.product
         ? `${productTheme.label}文章`
         : "最新文章";
-  const localeProductLabel = locale !== DEFAULT_ARTICLE_LOCALE && route.slug
-    ? uiMessages.latestArticles
-    : route.intent
+  const localeProductLabel = route.intent
       ? "搜尋意圖"
       : productTheme.label;
-  const localeProductHref = route.slug && locale !== DEFAULT_ARTICLE_LOCALE
-    ? "/articles"
+  const localeProductPath = managedArticle.product
+    ? `/articles/${managedArticle.product}`
     : route.product
       ? `/articles/${route.product}`
       : "/articles";
-  const localeProductSchemaHref = route.product
-    ? localizedArticlePath(`/articles/${route.product}`, locale)
-    : localizedArticlePath("/articles", locale);
+  const localeProductHref = localeProductPath;
+  const localeProductSchemaHref = localeProductPath;
   const localeDisplayTags = localeRecord?.tags?.length
     ? uniqueList(localeRecord.tags).slice(0, 8)
     : buildDisplayTags(article, managedArticle, productTheme);
@@ -933,9 +930,9 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     published: article?.published || defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
     sectionDescription: localeRecord?.description || buildSectionDescription(route, section, intent, productTheme),
     productTheme: isLatestHub ? "latest" : managedArticle.productTheme,
-    productThemeLabel: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.latestArticles : productTheme.label,
-    productThemeGlyph: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.articleGlyph : productTheme.glyph,
-    productThemeDescription: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.latestDescription : productTheme.description,
+    productThemeLabel: productTheme.label,
+    productThemeGlyph: productTheme.glyph,
+    productThemeDescription: productTheme.description,
     intent: route.intent || managedArticle.intent,
     keywords: localeRecord?.tags?.length
       ? uniqueList(["Pantheon", title, ...localeRecord.tags])

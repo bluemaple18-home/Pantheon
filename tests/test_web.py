@@ -2344,11 +2344,13 @@ console.log(JSON.stringify({
     assert data["article"]["url"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
     assert data["article"]["mainEntityOfPage"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
     assert data["article"]["author"]["name"] == "Pantheon 編集部"
+    assert data["article"]["articleSection"] == "星座"
     breadcrumb_items = data["breadcrumb"]["itemListElement"]
     assert breadcrumb_items[0]["item"] == "https://mysticpantheon.com/ja/articles"
     assert breadcrumb_items[1]["item"] == "https://mysticpantheon.com/ja/articles"
     assert breadcrumb_items[1]["name"] == "最新記事"
-    assert breadcrumb_items[2]["item"] == "https://mysticpantheon.com/ja/articles/astro"
+    assert breadcrumb_items[2]["name"] == "星座"
+    assert breadcrumb_items[2]["item"] == "https://mysticpantheon.com/articles/astro"
     assert breadcrumb_items[3]["item"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
 
 
