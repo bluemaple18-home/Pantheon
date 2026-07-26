@@ -4,6 +4,9 @@ from pathlib import Path
 import re
 import subprocess
 
+import pytest
+
+from scripts import agy_seo_copy_pipeline as pipeline
 from main import (
     ARTICLE_CONTENT_REFRESH_DATE,
     ARTICLE_PUBLISHED_DATE,
@@ -21,7 +24,17 @@ from main import (
     article_updated_date,
 )
 from scripts.competitor_seo_tool import endpoint_label
-from scripts.prerender_article_shells import LEGACY_REDIRECTS, PRERENDER_ARTICLES, PRERENDER_HUBS, PRERENDER_ROUTES, PRERENDER_TOPICS, redirect_target
+from scripts.prerender_article_shells import (
+    LEGACY_REDIRECTS,
+    PRERENDER_ARTICLES,
+    PRERENDER_HUBS,
+    PRERENDER_ROUTES,
+    PRERENDER_TOPICS,
+    build_policy_v2_audit,
+    prerender_artifact_findings,
+    redirect_target,
+    render_article_specific_shell,
+)
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
@@ -851,6 +864,201 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
 def test_prerender_article_descriptions_meet_citability_length_gate() -> None:
     for article in PRERENDER_ARTICLES:
         assert 50 <= len(article["description"]) <= 160, article["route"]
+
+
+def test_policy_v2_prerender_initial_html_contains_specific_answer_body_faq_and_author() -> None:
+    article = next(item for item in PRERENDER_ARTICLES if item["published"] and item["updated"])
+    markup = render_article_specific_shell(article)
+
+    assert "這篇文章會先回答核心問題" not in markup
+    assert article["answer"] in markup
+    assert article["bodySections"][0]["paragraphs"][0] in markup
+    assert article["faq"][0]["question"] in markup
+    assert article["faq"][0]["answer"] in markup
+    assert "https://mysticpantheon.com/#organization" in markup
+
+
+def test_policy_v2_prerender_rejects_placeholder_and_faq_jsonld_visible_mismatch() -> None:
+    article = next(item for item in PRERENDER_ARTICLES if item["published"] and item["updated"])
+    markup = render_article_specific_shell(article)
+    placeholder_markup = markup.replace(
+        "</article>",
+        "<p>這篇文章會先回答核心問題，再補充通用內容。</p></article>",
+        1,
+    )
+    mismatch_markup = markup.replace(str(article["faq"][0]["answer"]), "被竄改的可見答案", 1)
+    malformed_markup = re.sub(
+        r'(<script type="application/ld\+json" id="article-jsonld">).*?(</script>)',
+        r"\1{\2",
+        markup,
+        count=1,
+        flags=re.S,
+    )
+
+    placeholder_codes = {
+        finding["code"]
+        for finding in prerender_artifact_findings(article, placeholder_markup)
+    }
+    mismatch_codes = {
+        finding["code"]
+        for finding in prerender_artifact_findings(article, mismatch_markup)
+    }
+    malformed_codes = {
+        finding["code"]
+        for finding in prerender_artifact_findings(article, malformed_markup)
+    }
+
+    assert "initial_html_complete" in placeholder_codes
+    assert "faq_visible_jsonld_match" in mismatch_codes
+    assert "structured_visible_match" in malformed_codes
+
+
+def test_policy_v2_prerender_never_emits_fallback_dates_for_legacy_missing_data() -> None:
+    article = next(item for item in PRERENDER_ARTICLES if not item["published"] and not item["updated"])
+    markup = render_article_specific_shell(article)
+    article_json = re.search(r'id="article-jsonld">(.*?)</script>', markup, re.S)
+
+    assert article_json
+    payload = json.loads(article_json.group(1))
+    assert "datePublished" not in payload
+    assert "dateModified" not in payload
+    assert "更新日期待真實資料補齊" in markup
+    assert "2026-07-10" not in markup
+
+
+def test_policy_v2_prerender_substantive_rewrite_uses_rewrite_mode() -> None:
+    article = json.loads(
+        json.dumps(
+            next(item for item in PRERENDER_ARTICLES if item["published"] and item["updated"]),
+            ensure_ascii=False,
+        )
+    )
+    identity = pipeline.load_article_publication_policy()["identity"]
+    article["publicationPolicy"] = {
+        "policyVersion": pipeline.publication_policy_version(),
+        "canonical": article["canonical"],
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": {
+            "mode": "sources",
+            "sources": [
+                {
+                    "title": "測試來源",
+                    "url": "https://example.com/source",
+                    "supports": ["文章內容"],
+                }
+            ],
+            "disclosure": "",
+        },
+        "published": article["published"],
+        "modified": article["updated"],
+        "changeType": "substantive_rewrite",
+    }
+
+    findings = prerender_artifact_findings(
+        article,
+        render_article_specific_shell(article),
+        mode="rewrite_existing_body",
+    )
+
+    assert "substantive_modified_date" not in {
+        finding["code"] for finding in findings
+    }
+
+
+def test_policy_v2_audit_binds_missing_artifact_and_inventory_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.prerender_article_shells as prerenderer
+
+    seed = json.loads(
+        json.dumps(
+            next(item for item in PRERENDER_ARTICLES if item["published"] and item["updated"]),
+            ensure_ascii=False,
+        )
+    )
+    identity = pipeline.load_article_publication_policy()["identity"]
+
+    def clone(article_id: str, serial: str, *, target: str, route: str) -> dict:
+        article = json.loads(json.dumps(seed, ensure_ascii=False))
+        article["id"] = article_id
+        article["serial"] = serial
+        article["urlSlug"] = route.rsplit("/", 1)[-1]
+        article["route"] = route
+        article["canonical"] = f"https://mysticpantheon.com{route}"
+        article["target"] = target
+        article["publicationPolicy"] = {
+            "policyVersion": pipeline.publication_policy_version(),
+            "canonical": article["canonical"],
+            "author": {
+                "name": identity["author_name"],
+                "url": identity["author_url"],
+                "id": identity["author_id"],
+            },
+            "editorialResponsibility": identity["editorial_responsibility"],
+            "evidence": {
+                "mode": "sources",
+                "sources": [
+                    {
+                        "title": "測試來源",
+                        "url": "https://example.com/source",
+                        "supports": ["測試文章"],
+                    }
+                ],
+                "disclosure": "",
+            },
+            "published": article["published"],
+            "modified": article["updated"],
+            "changeType": "created",
+        }
+        return article
+
+    inventory = [
+        clone("AUDIT-DUP-ID", "personality-9101", target="one.html", route="/articles/personality/audit-one"),
+        clone("AUDIT-DUP-ID", "personality-9102", target="two.html", route="/articles/personality/audit-two"),
+        clone("AUDIT-DUP-ROUTE", "personality-9103", target="three.html", route="/articles/personality/audit-two"),
+        clone("AUDIT-MISSING", "personality-9104", target="missing.html", route="/articles/personality/audit-missing"),
+    ]
+    web_dir = tmp_path / "web"
+    web_dir.mkdir()
+    for article in inventory[:-1]:
+        (web_dir / article["target"]).write_text(
+            render_article_specific_shell(article),
+            encoding="utf-8",
+        )
+    sitemap = tmp_path / "sitemap.xml"
+    sitemap.write_text(
+        "<urlset>"
+        + "".join(
+            f"<url><loc>{article['canonical']}</loc><lastmod>{article['updated']}</lastmod></url>"
+            for article in inventory
+        )
+        + "</urlset>",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(prerenderer, "WEB_DIR", web_dir)
+    monkeypatch.setattr(prerenderer, "SITEMAP_PATH", sitemap)
+
+    audit = build_policy_v2_audit(inventory)
+
+    assert audit["validator_result"] == "MIGRATION_REQUIRED"
+    assert audit["migration_count"] == len(inventory)
+    assert audit["failure_code_counts"]["initial_html_artifact_missing"] == 1
+    assert audit["failure_code_counts"]["unique_identity"] == 2
+    assert audit["failure_code_counts"]["canonical_consistency"] == 2
+    assert audit["failure_code_counts"]["cross_corpus_originality"] == len(inventory)
+    missing = next(
+        item
+        for item in audit["migration_queue"]
+        if item["article_id"] == "AUDIT-MISSING"
+    )
+    assert "initial_html_artifact_missing" in missing["failure_codes"]
+    assert all("inventory_index" in item for item in audit["migration_queue"])
 
 
 def test_prerender_articles_have_non_visible_internal_link_clusters() -> None:
@@ -2745,10 +2953,13 @@ def test_article_robots_and_sitemap_are_served() -> None:
     assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
 
     sitemap_lastmods = re.findall(r"<lastmod>([^<]+)</lastmod>", sitemap.text)
-    assert len(sitemap_lastmods) == len(PRERENDER_ARTICLES)
+    assert len(sitemap_lastmods) <= len(PRERENDER_ARTICLES)
     for article in PRERENDER_ARTICLES:
-        entry = f"<loc>https://mysticpantheon.com{article['route']}</loc>\n    <lastmod>{article['updated']}</lastmod>"
-        assert entry in sitemap.text
+        loc = f"<loc>https://mysticpantheon.com{article['route']}</loc>"
+        assert loc in sitemap.text
+        if article["updated"]:
+            entry = f"{loc}\n    <lastmod>{article['updated']}</lastmod>"
+            assert entry in sitemap.text
 
 
 def test_foundation_ai_and_feed_endpoints_are_served() -> None:

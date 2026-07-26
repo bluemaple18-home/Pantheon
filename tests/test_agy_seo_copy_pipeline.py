@@ -88,6 +88,49 @@ DAILY_QUEUE_IDS = {
 V2_MATRIX_IDS = {row["id"] for row in build_matrix_v2_rows()}
 
 
+def make_publication_policy(
+    *,
+    canonical: str = "https://mysticpantheon.com/articles/personality/personality-9999",
+    published: str = "2026-07-17",
+    modified: str = "2026-07-17",
+    change_type: str = "created",
+    evidence_mode: str = "cultural_reflection",
+) -> dict[str, object]:
+    identity = pipeline.load_article_publication_policy()["identity"]
+    return {
+        "policyVersion": pipeline.publication_policy_version(),
+        "canonical": canonical,
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": {
+            "mode": evidence_mode,
+            "sources": (
+                [
+                    {
+                        "title": "測試方法來源",
+                        "url": "https://example.com/source",
+                        "supports": ["測試方法的定義"],
+                    }
+                ]
+                if evidence_mode == "sources"
+                else []
+            ),
+            "disclosure": (
+                "本文屬文化脈絡與反思整理，不主張可驗證的預測結果。"
+                if evidence_mode == "cultural_reflection"
+                else ""
+            ),
+        },
+        "published": published,
+        "modified": modified,
+        "changeType": change_type,
+    }
+
+
 def test_content_matrix_v2_has_1720_atomic_unique_topics() -> None:
     payload = build_matrix_v2_payload()
     rows = payload["rows"]
@@ -128,7 +171,7 @@ def test_content_matrix_v2_has_1720_atomic_unique_topics() -> None:
 
 
 def make_article(article_id: str = "TEST-001") -> dict[str, object]:
-    return {
+    article = {
         "id": article_id,
         "section": "mbti",
         "product": "personality",
@@ -152,7 +195,7 @@ def make_article(article_id: str = "TEST-001") -> dict[str, object]:
             {
                 "heading": "測試關鍵字先看什麼",
                 "paragraphs": [
-                    "收到合作邀請時，先確認期限、責任與退出條件，再決定是否答應。",
+                    "測試關鍵字先用來整理眼前選項；收到合作邀請時，先確認期限、責任與退出條件，再決定是否答應。",
                     "如果對方沒有回覆，先記錄已知事實，不把沉默直接解讀成拒絕。",
                 ],
             },
@@ -165,6 +208,8 @@ def make_article(article_id: str = "TEST-001") -> dict[str, object]:
             },
         ],
     }
+    article["publicationPolicy"] = make_publication_policy()
+    return article
 
 
 def test_create_candidate_serialization_is_stable_across_python_hash_seeds() -> None:
@@ -278,6 +323,20 @@ def make_rewrite_brief(article_id: str = "REWRITE-001") -> dict[str, object]:
     }
 
 
+def make_rewrite_publication_policy(source: dict[str, object]) -> dict[str, object]:
+    identity = source["identity"]
+    immutable = source["immutable_fields"]
+    return make_publication_policy(
+        canonical=(
+            "https://mysticpantheon.com/articles/"
+            f"{identity['category']}/{identity['slug']}"
+        ),
+        published=str(immutable["published"]),
+        modified="2026-07-25",
+        change_type="substantive_rewrite",
+    )
+
+
 def make_repair_brief() -> dict[str, object]:
     brief = make_rewrite_brief(pipeline.REWRITE_REPAIR_ARTICLE_IDS[0])
     articles = []
@@ -289,11 +348,13 @@ def make_repair_brief() -> dict[str, object]:
         item["identity"]["serial"] = f"personality-{index:04d}"
         item["identity"]["slug"] = f"personality-{index:04d}"
         item["identity"]["primaryKeyword"] = f"測試關鍵字{index}"
+        item["identity"]["title"] = f"測試關鍵字{index}的既有標題"
         item["immutable_fields"]["id"] = article_id
         item["immutable_fields"]["serial"] = f"personality-{index:04d}"
         item["immutable_fields"]["slug"] = f"personality-{index:04d}"
         item["immutable_fields"]["urlSlug"] = f"personality-{index:04d}"
         item["immutable_fields"]["primaryKeyword"] = f"測試關鍵字{index}"
+        item["immutable_fields"]["title"] = f"測試關鍵字{index}的既有標題"
         articles.append(item)
     brief["run_id"] = "gemini_rewrite_batch_001_repair_001"
     brief["articles"] = articles
@@ -400,6 +461,218 @@ def test_candidate_is_strict_and_hash_changes_after_tampering() -> None:
     article["unexpected"] = "not allowed"
     with pytest.raises(CandidateValidationError, match="unexpected"):
         validate_candidate({"schema_version": 1, "run_id": "run", "mode": "create", "articles": [article]})
+
+
+def test_policy_v2_positive_create_and_cultural_disclosure_pass() -> None:
+    article = make_article("POLICY-CULTURE-001")
+    validate_candidate(
+        {
+            "schema_version": 1,
+            "run_id": "policy-culture-create",
+            "mode": "create",
+            "articles": [article],
+        }
+    )
+    assert article["publicationPolicy"]["evidence"]["mode"] == "cultural_reflection"
+    assert article["publicationPolicy"]["evidence"]["sources"] == []
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "某項研究顯示，採用這個方法的人有 73％表示壓力降低。",
+        "統計資料指出，這套練習能提高判斷正確率。",
+        "這套方法已被證實能降低焦慮並改善決策品質。",
+    ],
+)
+def test_policy_v2_cultural_reflection_with_verifiable_claim_requires_real_source(
+    claim: str,
+) -> None:
+    article = make_article("POLICY-CULTURE-CLAIM")
+    article["bodySections"][0]["paragraphs"].append(claim)
+
+    with pytest.raises(CandidateValidationError, match="article_level_evidence"):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": "policy-culture-claim",
+                "mode": "create",
+                "articles": [article],
+            }
+        )
+
+
+def test_policy_v2_positive_rewrite_passes_same_validator() -> None:
+    brief = make_rewrite_brief("POLICY-REWRITE-001")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    validate_candidate(
+        {
+            "schema_version": 1,
+            "run_id": "policy-rewrite",
+            "mode": "rewrite_existing_body",
+            "articles": [article],
+        }
+    )
+
+
+def test_policy_v2_noop_rewrite_fails_even_when_declared_substantive() -> None:
+    brief = make_rewrite_brief("POLICY-NOOP")
+    source = brief["articles"][0]
+    current_body = make_rewrite_sections(variant="原")
+    source["current_body"] = current_body
+    source["current_body_sha256"] = body_sha256(current_body)
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": current_body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+
+    with pytest.raises(CandidateValidationError, match="no_substantive_change"):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": "policy-noop",
+                "mode": "rewrite_existing_body",
+                "articles": [article],
+            }
+        )
+
+
+def test_policy_v2_presentation_constraints_are_loaded_for_create_and_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = json.loads(
+        json.dumps(pipeline.load_article_publication_policy(), ensure_ascii=False)
+    )
+    create_profile = policy["presentation_constraints"]["profiles"]["create"]
+    create_profile.update(
+        {
+            "title_characters": {"minimum": 1, "maximum": 1000},
+            "description_characters": {"minimum": 1, "maximum": 1000},
+            "answer_characters": {"maximum": 1000},
+            "faq_items": {"minimum": 1, "maximum": 10},
+            "body_characters": {"minimum": 1, "maximum": 10000},
+            "body_sections": {"minimum": 1},
+            "paragraphs_per_section": {"minimum": 1, "maximum": 10},
+            "paragraph_characters": {"minimum": 1, "maximum": 1000},
+        }
+    )
+    policy["presentation_constraints"]["profiles"]["rewrite_existing_body"][
+        "paragraph_characters"
+    ] = {"minimum": 1, "maximum": 100}
+    monkeypatch.setattr(pipeline, "_POLICY_V2_CACHE", policy)
+
+    create_codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings([make_article("POLICY-PROFILE-CREATE")])
+    }
+    assert not create_codes & {
+        "title_length",
+        "description_length",
+        "answer_length",
+        "body_length",
+        "section_count",
+        "paragraph_count",
+        "paragraph_length",
+    }
+
+    brief = make_rewrite_brief("POLICY-PROFILE-REWRITE")
+    source = brief["articles"][0]
+    rewrite = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    rewrite_codes = {
+        finding["code"]
+        for finding in pipeline.rewrite_quality_findings(brief, [rewrite])
+    }
+    assert "paragraph_length" in rewrite_codes
+    rewrite_schema = pipeline.candidate_schema("rewrite_existing_body")
+    paragraph_schema = rewrite_schema["properties"]["articles"]["items"][
+        "properties"
+    ]["bodySections"]["items"]["properties"]["paragraphs"]
+    assert paragraph_schema["items"]["maxLength"] == 100
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("author", "author_identity"),
+        ("fallback_date", "truthful_dates"),
+        ("fact_without_source", "article_level_evidence"),
+    ],
+)
+def test_policy_v2_required_negative_contracts_fail_closed(
+    mutation: str,
+    expected_code: str,
+) -> None:
+    article = make_article(f"POLICY-NEG-{mutation}")
+    if mutation == "author":
+        article["publicationPolicy"]["author"]["name"] = "無法識別的作者"
+    elif mutation == "fallback_date":
+        article["updated"] = "fallback-date"
+        article["publicationPolicy"]["modified"] = "2026-07-10"
+    else:
+        article["publicationPolicy"]["evidence"] = {
+            "mode": "sources",
+            "sources": [],
+            "disclosure": "",
+        }
+    with pytest.raises(CandidateValidationError, match=expected_code):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": f"policy-neg-{mutation}",
+                "mode": "create",
+                "articles": [article],
+            }
+        )
+
+
+def test_policy_v2_cross_corpus_duplicate_is_required() -> None:
+    article = make_article("POLICY-NEW")
+    reference = json.loads(json.dumps(article, ensure_ascii=False))
+    reference["id"] = "POLICY-EXISTING"
+    reference["urlSlug"] = "personality-8888"
+    reference["serial"] = "personality-8888"
+    findings = pipeline.article_publication_policy_findings(
+        article,
+        mode="create",
+        reference_articles=[reference],
+    )
+    assert "cross_corpus_originality" in {finding["code"] for finding in findings}
+
+
+def test_policy_v2_rewrite_cannot_bypass_publication_contract() -> None:
+    brief = make_rewrite_brief("POLICY-BYPASS")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(),
+    }
+    with pytest.raises(CandidateValidationError, match="publicationPolicy"):
+        validate_candidate(
+            {
+                "schema_version": 1,
+                "run_id": "policy-bypass",
+                "mode": "rewrite_existing_body",
+                "articles": [article],
+            }
+        )
 
 
 def test_invalid_reviewer_json_becomes_deterministic_rejection() -> None:
@@ -649,7 +922,8 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "meta description 欄位本身必須明寫" in prompt
     assert "不得只把限制放在正文" in prompt
     assert "正文第一段第一句必須完整且連續包含該篇 primaryKeyword" in prompt
-    assert "每篇正文必須恰好 5 節、每節恰好 3 段" in prompt
+    assert pipeline.publication_presentation_instruction("create") in prompt
+    assert "每節2 到 4段" in prompt
     assert "初稿每段以 95 到 110 字為生成目標" in prompt
     assert "即使是否定句也改用其他說法" in prompt
 
@@ -720,20 +994,37 @@ def test_rewrite_public_brief_keeps_content_contract_but_drops_private_paths_and
 def test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity() -> None:
     brief = make_rewrite_brief()
     body = make_rewrite_sections()
-    external = {"articles": [{"slot": "article-01", "bodySections": body}]}
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "bodySections": body,
+                "publicationPolicy": make_rewrite_publication_policy(brief["articles"][0]),
+            }
+        ]
+    }
 
     schema_fields = set(pipeline.external_candidate_schema("rewrite_existing_body")["properties"]["articles"]["items"]["properties"])
     candidate = pipeline.hydrate_candidate(brief, external)
 
-    assert schema_fields == {"slot", "bodySections"}
+    assert schema_fields == {"slot", "bodySections", "publicationPolicy"}
     assert candidate["mode"] == "rewrite_existing_body"
     assert candidate["articles"][0]["identity"] == brief["articles"][0]["identity"]
     assert candidate["articles"][0]["current_body_sha256"] == brief["articles"][0]["current_body_sha256"]
     assert candidate["articles"][0]["bodySections"] == body
-    with pytest.raises(CandidateValidationError, match="slot and bodySections"):
+    with pytest.raises(CandidateValidationError, match="slot, bodySections"):
         pipeline.hydrate_candidate(
             brief,
-            {"articles": [{"slot": "article-01", "bodySections": body, "title": "企圖改標題"}]},
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "bodySections": body,
+                        "publicationPolicy": make_rewrite_publication_policy(brief["articles"][0]),
+                        "title": "企圖改標題",
+                    }
+                ]
+            },
         )
 
 
@@ -833,6 +1124,7 @@ def test_prepare_rewrite_repair_locks_source_finding_and_fixed_order(tmp_path: P
                 "identity": source["identity"],
                 "current_body_sha256": source["current_body_sha256"],
                 "bodySections": make_rewrite_sections(str(source["identity"]["primaryKeyword"]), chr(0x7532 + index)),
+                "publicationPolicy": make_rewrite_publication_policy(source),
             }
         )
     candidate = {"schema_version": 1, "run_id": "previous-run", "mode": "rewrite_existing_body", "articles": candidate_articles}
@@ -895,7 +1187,19 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
             if role == "writer":
                 self.writer_prompts.append(prompt)
                 index = len(self.writer_prompts)
-                return {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections(f"測試關鍵字{min(index, 5)}", f"稿{index}")}]}
+                source = brief["articles"][0 if index > 5 else index - 1]
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": make_rewrite_sections(
+                                str(source["identity"]["primaryKeyword"]),
+                                f"稿{index}",
+                            ),
+                            "publicationPolicy": make_rewrite_publication_policy(source),
+                        }
+                    ]
+                }
             self.reviewer_calls += 1
             return {
                 "articles": [
@@ -951,7 +1255,16 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
             if role == "writer":
                 self.writer_prompts.append(prompt)
                 keyword = pipeline.REWRITE_BATCH_002_ARTICLES[len(self.writer_prompts) - 1][6]
-                return {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections(keyword, f"稿{len(self.writer_prompts)}")}]}
+                source = brief["articles"][len(self.writer_prompts) - 1]
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": make_rewrite_sections(keyword, f"稿{len(self.writer_prompts)}"),
+                            "publicationPolicy": make_rewrite_publication_policy(source),
+                        }
+                    ]
+                }
             return {"articles": [{"slot": f"article-{index:02d}", "verdict": "APPROVE", "findings": []} for index in range(1, 6)]}
 
     client = RecordingClient()
@@ -973,6 +1286,7 @@ def test_rewrite_repair_closure_changes_only_two_authorized_paragraphs_and_never
                 "identity": source["identity"],
                 "current_body_sha256": source["current_body_sha256"],
                 "bodySections": make_rewrite_sections(str(source["identity"]["primaryKeyword"]), f"稿{index}"),
+                "publicationPolicy": make_rewrite_publication_policy(source),
             }
         )
     candidate_articles[0]["bodySections"][4]["paragraphs"][1] = pipeline.REWRITE_CLOSURE_EDITS[("MBTI-BASE-01", 5, 2)][0]
@@ -1041,7 +1355,15 @@ def test_rewrite_apply_is_disabled_even_with_approval() -> None:
     brief = make_rewrite_brief()
     article = pipeline.hydrate_candidate(
         brief,
-        {"articles": [{"slot": "article-01", "bodySections": make_rewrite_sections()}]},
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "bodySections": make_rewrite_sections(),
+                    "publicationPolicy": make_rewrite_publication_policy(brief["articles"][0]),
+                }
+            ]
+        },
     )["articles"][0]
     review = {
         "schema_version": 1,
@@ -1112,9 +1434,10 @@ def test_publication_quality_gate_uses_full_standard_and_humanizer_rules() -> No
     assert external_article["properties"]["description"]["minLength"] == 70
     assert external_article["properties"]["description"]["maxLength"] == 95
     body = external_article["properties"]["bodySections"]
-    assert (body["minItems"], body["maxItems"]) == (5, 5)
+    assert body["minItems"] == 5
+    assert "maxItems" not in body
     paragraphs = body["items"]["properties"]["paragraphs"]
-    assert (paragraphs["minItems"], paragraphs["maxItems"]) == (3, 3)
+    assert (paragraphs["minItems"], paragraphs["maxItems"]) == (2, 4)
 
 
 def test_reviewer_prompt_distinguishes_hard_boundaries_from_preferences() -> None:
@@ -1593,24 +1916,14 @@ def test_prepare_rewrite_release_targets_only_rejected_articles(tmp_path: Path) 
     assert second_contract["variation_contracts"] == contract["variation_contracts"]
 
 
-def test_release_batch1_local_closure_clears_locked_uniqueness_findings(tmp_path: Path) -> None:
+def test_release_batch1_local_closure_rejects_pre_v2_candidate_without_policy_contract(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     source_dir = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_release_001/batch_001/generation_03"
     run_dir = tmp_path / "batch_001" / "generation_04"
     pipeline.prepare_rewrite_release_generation(source_dir, run_dir, 1, 4)
 
-    candidate, review = pipeline.run_release_batch1_local_closure(run_dir)
-
-    assert candidate["run_id"].endswith("generation-04")
-    assert all(item["verdict"] == "REJECT" for item in review["articles"])
-    assert json.loads((run_dir / "deterministic-quality-findings.json").read_text(encoding="utf-8")) == []
-    assert json.loads((run_dir / "uniqueness-findings.json").read_text(encoding="utf-8")) == []
-    closure = json.loads((run_dir / "local-closure-01.json").read_text(encoding="utf-8"))
-    assert len(closure["changed_locations"]) == 5
-    fallback = pipeline.release_fallback_review(run_dir)
-    assert all(item["verdict"] == "APPROVE" for item in fallback["articles"])
-    fallback_evidence = json.loads((run_dir / "fallback-review-evidence.json").read_text(encoding="utf-8"))
-    assert fallback_evidence["gemini_approval_claimed"] is False
+    with pytest.raises(CandidateValidationError, match="publicationPolicy"):
+        pipeline.run_release_batch1_local_closure(run_dir)
 
 
 def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None:
@@ -1647,6 +1960,7 @@ def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path,
     )
     article = make_article()
     monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: [])
+    monkeypatch.setattr(pipeline, "load_publication_reference_corpus", lambda _: [])
     review = {
         "schema_version": 1,
         "run_id": "run-one",

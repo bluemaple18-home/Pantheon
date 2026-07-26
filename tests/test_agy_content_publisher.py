@@ -11,6 +11,34 @@ from scripts import agy_content_publisher as publisher
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
+def make_publication_policy(
+    *,
+    canonical: str,
+    published: str,
+    modified: str,
+    change_type: str,
+) -> dict[str, object]:
+    identity = publisher.pipeline.load_article_publication_policy()["identity"]
+    return {
+        "policyVersion": publisher.pipeline.publication_policy_version(),
+        "canonical": canonical,
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": {
+            "mode": "cultural_reflection",
+            "sources": [],
+            "disclosure": "本文屬文化脈絡與反思整理，不主張可驗證的預測結果。",
+        },
+        "published": published,
+        "modified": modified,
+        "changeType": change_type,
+    }
+
+
 def _long(text: str) -> str:
     value = text
     while len(value) < 96:
@@ -21,7 +49,7 @@ def _long(text: str) -> str:
 def make_publishable_article(article_id: str = "AUTO-001") -> dict[str, object]:
     keyword = "測試關鍵字"
     paragraphs = [_long(f"{keyword}在第{index + 1}個場景中，先整理事實、限制與可行選項。") for index in range(15)]
-    return {
+    article = {
         "id": article_id,
         "section": "mbti",
         "product": "personality",
@@ -46,6 +74,13 @@ def make_publishable_article(article_id: str = "AUTO-001") -> dict[str, object]:
             for section in range(5)
         ],
     }
+    article["publicationPolicy"] = make_publication_policy(
+        canonical=f"https://mysticpantheon.com/articles/personality/{article['urlSlug']}",
+        published=str(article["published"]),
+        modified=str(article["updated"]),
+        change_type="created",
+    )
+    return article
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -90,6 +125,9 @@ def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001
         }
         for section in range(5)
     ]
+    body_sections[0]["paragraphs"][0] = _long(
+        "舊文測試先回答讀者的問題：這份文化反思不能取代個人判斷，仍要回到具體情境。"
+    )
     return {
         "article_id": article_id,
         "identity": {
@@ -103,6 +141,12 @@ def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001
         },
         "current_body_sha256": body_sha256([{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}]),
         "bodySections": body_sections,
+        "publicationPolicy": make_publication_policy(
+            canonical=f"https://mysticpantheon.com/articles/astrology/{slug}",
+            published="2026-07-01",
+            modified="2026-07-25",
+            change_type="substantive_rewrite",
+        ),
     }
 
 
@@ -232,7 +276,12 @@ def _minimal_article_static(repo_root: Path) -> None:
     static = repo_root / "app" / "web" / "static"
     static.mkdir(parents=True)
     (static / "article-registry.js").write_text(
-        'export const ARTICLE_REGISTRY = [\n];\nfunction listArticleRecords() { return []; }\n',
+        "export const ARTICLE_REGISTRY = [\n];\n"
+        "function getArticleSectionRecord() { return {}; }\n"
+        "function enforceArticlePolicy(article) { return article; }\n"
+        "export function listArticleRecords() {\n"
+        "  return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy(article, getArticleSectionRecord(article.section)));\n"
+        "}\n",
         encoding="utf-8",
     )
     (static / "article-meta.js").write_text(
@@ -267,6 +316,189 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ready == []
     ledger = json.loads((tmp_path / "state" / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
+
+
+def test_policy_v2_scheduler_rejection_is_terminal_and_never_enters_retry_loop(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "policy-reject"
+    article = make_publishable_article("POLICY-REJECT")
+    _write_run(queue_root, run_dir, article)
+    candidate_path = run_dir / "candidate.json"
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    candidate["articles"][0]["publicationPolicy"]["author"]["name"] = "不明作者"
+    _write_json(candidate_path, candidate)
+
+    assert publisher.collect_ready_runs(queue_root, state_root) == []
+    evidence_path = publisher._policy_rejection_path(state_root, "create", "policy-reject")
+    first = evidence_path.read_bytes()
+    assert publisher.collect_ready_runs(queue_root, state_root) == []
+
+    evidence = json.loads(first)
+    assert evidence["status"] == "POLICY_REJECTED"
+    assert evidence["terminal"] is True
+    assert evidence["retry_eligible"] is False
+    assert evidence["policy_version"] == publisher.pipeline.publication_policy_version()
+    assert evidence["validator_result"] == "FAIL"
+    assert evidence["article_ids"] == ["POLICY-REJECT"]
+    assert evidence["input_hash"]
+    assert evidence_path.read_bytes() == first
+    assert not publisher._retry_path(state_root, "create", "policy-reject").exists()
+
+
+def test_policy_v2_required_finding_cannot_use_publisher_override() -> None:
+    article = make_publishable_article("POLICY-OVERRIDE")
+    article["publicationPolicy"]["author"]["url"] = "https://example.com/untrusted"
+    review = {
+        "schema_version": 1,
+        "run_id": "policy-override",
+        "articles": [
+            {
+                "article_id": article["id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "REJECT",
+                "findings": [{"code": "author_identity", "message": "作者 identity 不一致"}],
+            }
+        ],
+    }
+    approval = publisher.pipeline.build_approval(
+        "policy-override",
+        [article],
+        review,
+        {str(article["id"]): "OVERRIDE_APPROVE"},
+        "publisher-test",
+        {str(article["id"]): "人工 override"},
+    )
+
+    with pytest.raises(ValueError, match="cannot be overridden"):
+        publisher.pipeline.validate_apply_gate([article], review, approval)
+
+
+def test_policy_v2_run_prerender_passes_explicit_rewrite_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        publisher,
+        "_run_checked",
+        lambda _repo, command: commands.append(command),
+    )
+
+    publisher._run_prerender(
+        tmp_path,
+        required_article_modes={"LEGACY-001": "rewrite_existing_body"},
+    )
+
+    assert len(commands) == 1
+    assert "--required-article-mode" in commands[0]
+    assert "LEGACY-001=rewrite_existing_body" in commands[0]
+
+
+def test_policy_v2_noop_rewrite_apply_fails_before_modified_is_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article = make_rewrite_article("LEGACY-NOOP")
+    article["current_body_sha256"] = body_sha256(article["bodySections"])
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-noop",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    monkeypatch.setattr(publisher, "_assert_rewrite_source_matches", lambda *_args: None)
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="no_substantive_change"):
+        publisher.apply_rewrite_release(tmp_path, "rewrite-noop", [candidate])
+
+    assert not (tmp_path / "app/web/static").exists()
+
+
+def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    run_id = "rewrite-prerender-policy-reject"
+    run_dir = tmp_path / "runs" / run_id
+    candidate = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "rewrite_existing_body",
+        "articles": [make_rewrite_article("LEGACY-PRERENDER-REJECT")],
+    }
+    _write_json(run_dir / "candidate.json", candidate)
+    _write_json(
+        queue_root / "runs" / f"{run_id}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+            "result": {"candidate": str(run_dir / "candidate.json")},
+        },
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_assert_clean_origin_head",
+        lambda _repo, _git: base_sha,
+    )
+
+    @publisher._recoverable_publish("rewrite", "rewritten")
+    def failing_rewrite(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _mutation_journal is not None
+        _mutation_journal.select_runs([run_id])
+        _mutation_journal.begin()
+        _mutation_journal.capture(
+            lambda: (repo / "app/web/owned.txt").write_text(
+                "rewrite mutation\n",
+                encoding="utf-8",
+            )
+        )
+        raise publisher.PolicyRejected(
+            [
+                publisher.pipeline._policy_finding(
+                    "LEGACY-PRERENDER-REJECT",
+                    "initial_html_complete",
+                    "rewrite prerender policy rejection",
+                )
+            ]
+        )
+
+    result = failing_rewrite(repo_root, queue_root, state_root)
+
+    assert result["status"] == "policy_rejected"
+    assert result["status"] in publisher.SUCCESS_STATUSES
+    assert result["retry_eligible"] is False
+    rejection = publisher._read_json(
+        publisher._policy_rejection_path(state_root, "rewrite", run_id)
+    )
+    assert rejection["terminal"] is True
+    assert rejection["failure_codes"] == ["initial_html_complete"]
+    assert not publisher._retry_path(state_root, "rewrite", run_id).exists()
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
 
 
 def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
@@ -400,7 +632,7 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
 
     monkeypatch.setattr(publisher.multilingual, "approve_and_apply_translation_run", apply_translation)
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 440)
-    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     monkeypatch.setattr(
         publisher,
@@ -477,7 +709,8 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     run_dir = tmp_path / "runs" / "run-approved"
     _write_run(queue_root, run_dir, article)
     monkeypatch.setattr(publisher.pipeline, "_registry_inventory", lambda _repo: [])
-    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     seeded: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -546,6 +779,7 @@ def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, mo
 
 
 def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
     article = make_rewrite_article("LEGACY-001", "legacy-001")
@@ -709,6 +943,7 @@ def test_legacy_serial_report_uses_pre_automated_gemini_cutoff(tmp_path: Path, m
 
 
 def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     repo_root = tmp_path
     queue_root = tmp_path / "queue"
     state_root = tmp_path / ".work" / "content-publisher"
@@ -743,7 +978,12 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         },
     )
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 353)
-    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    prerender_commands: list[list[str]] = []
+    monkeypatch.setattr(
+        publisher,
+        "_run_checked",
+        lambda _repo, command: prerender_commands.append(command),
+    )
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     seeded: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -788,6 +1028,10 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         "LEGACY-001-ja",
         "LEGACY-001-ko",
     ]
+    assert any(
+        "LEGACY-001=rewrite_existing_body" in command
+        for command in prerender_commands
+    )
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
 
 
@@ -1311,6 +1555,7 @@ def test_unresolved_push_record_blocks_next_full_publish_before_clean_origin(
 def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
     run_dirs: dict[str, Path] = {}
@@ -1409,7 +1654,7 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
     monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", apply_good)
     monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo: "0.3.59")
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
-    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     monkeypatch.setattr(publisher, "_prepend_changelog", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(publisher, "_sync_web_test_release_fixture", lambda *_args, **_kwargs: repo_root / "tests/test_web.py")
@@ -1433,6 +1678,11 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
 def test_recovery_retry_uses_collector_selected_run_and_leaves_third_publishable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
     repo_root = tmp_path / "repo"

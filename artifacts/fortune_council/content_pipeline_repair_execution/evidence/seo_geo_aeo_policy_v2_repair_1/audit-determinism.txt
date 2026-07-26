@@ -1,0 +1,6 @@
+command=run audit twice and compare bytes
+result=PASS
+article_count=454
+migration_count=454
+input_hash=e540a6093b5dfed685ac8bd46f8bf104c4fd8e9c03cd59bb700ce73abfb35a4c
+audit_file_sha256=aae81242e462d056924a4ef9e8ac46ab86e474c26640a91885dacae32dfa33cd

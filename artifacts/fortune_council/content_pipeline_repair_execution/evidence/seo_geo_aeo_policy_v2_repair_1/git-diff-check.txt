@@ -1,0 +1,8 @@
+command=git diff --check
+result=PASS
+
+command=git diff --cached --check
+result=PASS
+
+command=git diff --check 20b1c20f0ef892af98773f03630d095d4c5c6cd9..HEAD
+result=PASS

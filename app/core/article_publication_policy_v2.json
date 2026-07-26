@@ -1,0 +1,184 @@
+{
+  "policy_version": "pantheon-article-publication-v2.0.0",
+  "effective_date": "2026-07-25",
+  "site_origin": "https://mysticpantheon.com",
+  "identity": {
+    "author_name": "Pantheon 編輯部",
+    "author_url": "https://mysticpantheon.com/#organization",
+    "author_id": "https://mysticpantheon.com/#organization",
+    "editorial_responsibility": "Pantheon 編輯部"
+  },
+  "levels": {
+    "required": "發布前 fail closed；不得用一般 override 放行。",
+    "recommended": "有官方或產品理由，但不保證排名、索引、rich result 或引用。",
+    "measured": "只能用外部搜尋與 citation evidence 驗證，本地 schema 不得自證。",
+    "migration_only": "只建立舊文 repair queue；不等同發布、接受或通過 required。"
+  },
+  "required": {
+    "identity_and_urls": [
+      "unique_identity",
+      "canonical_consistency",
+      "canonical_sitemap_consistency",
+      "canonical_internal_link_consistency",
+      "canonical_jsonld_consistency"
+    ],
+    "intent_and_boundaries": [
+      "title_primary_intent",
+      "opening_primary_intent",
+      "description_context_and_limit",
+      "standalone_answer",
+      "explicit_limit_or_counterexample",
+      "no_outcome_guarantee",
+      "no_professional_advice_substitution"
+    ],
+    "visible_and_structured": [
+      "faq_visible_jsonld_match",
+      "author_identity",
+      "author_visible_jsonld_match",
+      "truthful_dates",
+      "substantive_modified_date",
+      "no_substantive_change",
+      "initial_html_complete",
+      "initial_html_artifact_missing",
+      "structured_visible_match"
+    ],
+    "evidence_and_originality": [
+      "article_level_evidence",
+      "cultural_reflection_disclosure",
+      "cross_corpus_originality"
+    ],
+    "release_evidence": [
+      "policy_version",
+      "validator_result",
+      "article_ids",
+      "failure_codes",
+      "input_hash"
+    ]
+  },
+  "recommended": [
+    "representative_image",
+    "multi_size_image_schema",
+    "author_or_editorial_policy_page",
+    "clear_subheadings_or_tables",
+    "visible_source_list",
+    "llms_txt_or_ai_txt_as_site_policy_or_discovery_aid"
+  ],
+  "measured": [
+    "google_indexed",
+    "google_selected_canonical",
+    "google_ai_overview_or_mode_visibility",
+    "bing_citations",
+    "bing_grounding_queries",
+    "search_ctr",
+    "conversion"
+  ],
+  "migration_only": {
+    "queue_name": "article_publication_policy_v2_migration",
+    "auto_apply": false,
+    "blocks_existing_publication": false,
+    "blocks_new_or_rewritten_candidate": true
+  },
+  "presentation_constraints": {
+    "classification": "Pantheon internal presentation constraint; not a search ranking or eligibility requirement.",
+    "profiles": {
+      "create": {
+        "title_characters": {
+          "minimum": 20,
+          "maximum": 45,
+          "preferred_minimum": 28,
+          "preferred_maximum": 36
+        },
+        "description_characters": {
+          "minimum": 70,
+          "maximum": 95
+        },
+        "answer_characters": {
+          "maximum": 50
+        },
+        "faq_items": {
+          "minimum": 3,
+          "maximum": 5
+        },
+        "body_characters": {
+          "minimum": 1300,
+          "maximum": 2000,
+          "preferred_minimum": 1500,
+          "preferred_maximum": 1800
+        },
+        "body_sections": {
+          "minimum": 5
+        },
+        "paragraphs_per_section": {
+          "minimum": 2,
+          "maximum": 4
+        },
+        "paragraph_characters": {
+          "minimum": 80,
+          "maximum": 160,
+          "preferred_minimum": 95,
+          "preferred_maximum": 110
+        }
+      },
+      "rewrite_existing_body": {
+        "body_characters": {
+          "minimum": 1300,
+          "maximum": 2000,
+          "preferred_minimum": 1500,
+          "preferred_maximum": 1800
+        },
+        "body_sections": {
+          "minimum": 5,
+          "maximum": 5
+        },
+        "paragraphs_per_section": {
+          "minimum": 3,
+          "maximum": 3
+        },
+        "paragraph_characters": {
+          "minimum": 90,
+          "maximum": 130,
+          "preferred_minimum": 95,
+          "preferred_maximum": 110
+        }
+      }
+    }
+  },
+  "evidence_modes": {
+    "sources": {
+      "requires_sources": true,
+      "requires_disclosure": false
+    },
+    "cultural_reflection": {
+      "requires_sources": false,
+      "requires_disclosure": true
+    }
+  },
+  "verifiable_claim_detection": {
+    "semantics": "Markers only determine that article-level evidence is required; they do not determine whether a claim is true.",
+    "patterns": [
+      "研究(?:顯示|指出|發現|證實)",
+      "(?:調查|統計(?:資料)?|實驗|資料)(?:顯示|指出|證明)",
+      "\\d+(?:\\.\\d+)?\\s*(?:%|％)",
+      "(?:方法|練習|模型|工具).{0,12}(?:已被證實|能夠?|可以).{0,12}(?:提高|降低|改善|增加|減少)"
+    ]
+  },
+  "forbidden_claims": {
+    "outcome_guarantees": [
+      "保證成功",
+      "一定成功",
+      "注定成功",
+      "保證復合",
+      "一定復合",
+      "保證賺錢",
+      "一定賺錢"
+    ],
+    "professional_substitution": [
+      "取代醫療建議",
+      "取代法律建議",
+      "取代投資建議",
+      "可作為醫療診斷",
+      "可作為法律意見",
+      "可作為投資建議"
+    ]
+  }
+}

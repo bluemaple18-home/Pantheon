@@ -1,4 +1,4 @@
-# Pantheon 公開文章展出規範
+# Pantheon 公開文章展出規範（Policy v2）
 
 ## 1. 定位
 
@@ -29,6 +29,67 @@ Pantheon 的公開文章不是傳統運勢新聞，也不是完整個人命書�
 問題先於工具。
 個人判讀要回到讀者自己的資料與情境。
 ```
+
+### 1.1 單一 policy v2 與 fail-closed 邊界
+
+本文件是 human-readable standard；machine-readable source of truth 是
+`app/core/article_publication_policy_v2.json`，目前版本固定為
+`pantheon-article-publication-v2.0.0`。新文、舊文實質重寫、publisher apply 與
+prerender acceptance 必須呼叫同一版 validator。任何 `required` finding 都阻擋
+approve、apply 與 publish；一般 override 不得放行。
+
+| 等級 | 意義 | 能否由本機 schema 自證 |
+|---|---|---|
+| `required` | 發布前 hard gate；不合即 fail closed，保留 policy version、article IDs、failure codes 與 input hash | 只證明本地契約是否通過，不證明搜尋成效 |
+| `recommended` | 有官方或產品理由，但沒有排名、索引、rich result 或 citation 保證 | 否 |
+| `measured` | 只能用 GSC、Bing Webmaster Tools、分析或轉換資料驗證 | 否 |
+| `migration_only` | 舊文唯讀 audit 與 repair queue；不是 published、accepted 或 required pass | 否 |
+
+`required` 最小契約：
+
+- ID、route 與 canonical 唯一；canonical、sitemap、站內連結及 Article JSON-LD URL 使用同一路徑。
+- H1/title 與第一段直接回答 primary intent；description 說明適用情境與限制；answer 離開上下文仍可理解。
+- FAQ 必須是可見正文，題數、問題與答案和 FAQ JSON-LD 完全一致；不得宣稱一般內容站因此取得 FAQ rich result。
+- 正文要有明確限制或反例；禁止結果保證，也不得把文章寫成醫療、法律或投資專業意見的替代品。
+- 可見署名與編輯責任必須可識別。Article JSON-LD author 使用穩定 URL 或 `@id`，並與可見署名一致。
+- `published` / `modified` 只取自真實資料；缺欄時不得用 fallback 日期掩蓋。只有實質內容變更才更新 `modified`。
+  Rewrite 必須以 canonical current body SHA-256 比對 proposed body；內容相同時，即使自報
+  `substantive_rewrite` 也必須 fail closed，不能更新 `modified`。
+- answer、重要正文與文章專屬 FAQ 必須存在 initial HTML，不得只靠 client hydration。
+- structured data 必須和 initial / rendered visible content 一致。
+- 可驗證事實、研究、統計與方法主張要有文章級來源，逐項寫明來源支持的主張。純文化或反思內容使用
+  `cultural_reflection` disclosure，不得為了過 gate 虛構引用。Deterministic marker 只用來判定「需要
+  evidence」，不判定主張真偽；candidate 可刪除可驗證主張或補上真實來源，不得編造來源。
+- create 與 `rewrite_existing_body` 都要和 full-corpus reference 比對，不只檢查 candidate batch。
+- policy rejection 是 terminal content state：留下 evidence、退出 transport retry，不得 busy loop。
+- 全量 audit 必須以完整 inventory 做 cross-corpus 比對；artifact 缺檔、duplicate ID、duplicate route
+  與重複內容都要綁回文章級 migration item，不能只累計全域數字。
+
+下列項目屬 `recommended`：代表性圖片、多尺寸 image schema、作者或編輯政策頁、清楚小標或必要表格、
+可見來源列表。`llms.txt` / `ai.txt` 只能當站方政策或 discovery 輔助，不能寫成 Google AI 功能的
+必要條件。
+
+下列項目屬 `measured`：Google indexed、Google selected canonical、AI Overviews / AI Mode 可見度、
+Bing citations、grounding queries、CTR 與轉換。這些只能以外部 evidence 判定；本地 JSON-LD、
+FAQPage 或 audit pass 都不得自證。
+
+### 1.2 官方依據與不保證事項（核對日：2026-07-25）
+
+- [Google：AI features and your website](https://developers.google.com/search/docs/appearance/ai-features)：
+  AI Overviews / AI Mode 沒有額外 technical requirement、特殊 schema、AI text file 或 markup；既有
+  SEO fundamentals、可索引文字、內鏈及 structured data / visible text 一致仍是主體。
+- [Google：People-first content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content)：
+  強調原創、完整、來源、作者責任與真實更新；Google 沒有偏好的固定字數，也不應在內容未實質變更時改日期。
+- [Google：structured data guidelines](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)：
+  markup 必須代表主要可見內容；正確 structured data 仍不保證 rich result。
+- [Google：FAQ / HowTo rich result changes](https://developers.google.com/search/blog/2023/08/howto-faq-changes)：
+  FAQ rich results 主要限於知名政府與健康網站；Pantheon 保留 FAQ 的理由是讀者可讀性與內容一致性，
+  不是 rich result 保證。
+- [Google：canonical consolidation](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)：
+  canonical、sitemap 與 internal links 應使用一致的偏好 URL，但 canonical selection 仍由 Google 測量。
+- [Bing：AI Performance](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)：
+  citation、cited pages 與 grounding queries 是量測；清楚結構、深度、證據、引用及更新正確性是改善方向，
+  不是 citation 或排名保證。
 
 ## 2. 可借鑑 Click108 的部分
 
@@ -115,6 +176,21 @@ Pantheon 的文章要像一個冷靜、懂命理、但不替讀者下判決的�
 
 ## 4. SEO / AEO / GEO 必備欄位
 
+下表的精確字數、段落數與題數都是 **Pantheon internal presentation constraint**，用來維持版面、
+可讀性與產製穩定；不是 Google、Bing、AI Overviews、AI Mode 或 citation 的 ranking / eligibility
+requirement。搜尋引擎沒有承諾偏好這些固定數字。
+
+Machine-readable policy 以 profile 區分：
+
+| Profile | 正文 | 節數 | 每節段數 | 每段 |
+|---|---:|---:|---:|---:|
+| `create` | 1,300–2,000 字 | 至少 5 節 | 2–4 段 | 80–160 字 |
+| `rewrite_existing_body` | 1,300–2,000 字 | 恰好 5 節 | 恰好 3 段 | 90–130 字 |
+
+Validator、writer/reviewer public contract 與 publisher gate 都從
+`app/core/article_publication_policy_v2.json` 載入上述 profile；本文件中的數字只供閱讀，
+不得成為第二份執行真相來源。
+
 每篇文章上稿前都要有這些欄位：
 
 | 欄位 | 規範 |
@@ -191,6 +267,8 @@ FAQ: 3 到 5 題短問短答
 ```
 
 文章長度：
+
+以下長度同樣只屬 Pantheon internal presentation constraint，不得對外寫成 SEO / AEO / GEO 排名公式。
 
 - 基礎概念文：1,200 到 1,800 字。
 - 單牌、單宮位、單人格文：1,300 到 2,000 字。

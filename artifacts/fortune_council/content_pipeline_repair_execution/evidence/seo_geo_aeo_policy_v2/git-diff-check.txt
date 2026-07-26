@@ -1,0 +1,5 @@
+command=git diff --check
+result=PASS
+
+command=git diff --cached --check
+result=PASS
