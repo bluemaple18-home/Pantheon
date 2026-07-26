@@ -1,0 +1,123 @@
+{
+  "batch_id": "codex_emergency_content_20260726_batch_a",
+  "card_id": "CARD-PANTHEON-CODEX-EMERGENCY-CONTENT-BATCH-A-20260726",
+  "created_date": "2026-07-26",
+  "ownership": "new_articles_a_and_en_ja_ko_translations",
+  "thickness": "standard",
+  "model": "gpt-5.5 medium",
+  "output_root": "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/",
+  "constraints": {
+    "artifact_only": true,
+    "no_app_changes": true,
+    "no_registry_changes": true,
+    "no_sitemap_changes": true,
+    "no_feed_changes": true,
+    "no_redirect_changes": true,
+    "no_publisher_changes": true,
+    "no_queue_changes": true,
+    "no_ledger_changes": true,
+    "no_launchd_changes": true,
+    "no_v4_changes": true,
+    "no_production_changes": true,
+    "no_publish": true,
+    "no_push": true,
+    "no_merge": true,
+    "no_gemini": true,
+    "no_external_api": true,
+    "no_5_6": true
+  },
+  "preflight": {
+    "worktree_root": "Pantheon",
+    "base_head": "5ee733697727512e9c7bddb0572eedff4dd691c1",
+    "registry_uniqueness_scan": {
+      "command": "rg -n \"天頂星座職涯定位|midheaven-career-positioning-visible-work-role|第十一宮團隊人際|eleventh-house-team-relationships-community-role|天頂星座怎麼看職涯定位|第十一宮怎麼看團隊人際\" app artifacts docs -g '*.js' -g '*.json' -g '*.md' -g '*.html'",
+      "result": "Only matched files inside this batch output directory after creation; no prior app/docs/artifacts title, slug, or primary-keyword duplicate found."
+    }
+  },
+  "sources": [
+    {
+      "id": "codex-emergency-new-a-001",
+      "source_kind": "new",
+      "language": "zh-Hant",
+      "path": "zh-Hant/codex-emergency-new-a-001.md",
+      "title": "天頂星座怎麼看職涯定位？先整理你想被看見的方式",
+      "slug": "midheaven-career-positioning-visible-work-role",
+      "primary_keyword": "天頂星座職涯定位",
+      "search_intent": "想用天頂星座整理工作角色、被看見方式與職涯溝通策略，但不想被星座直接決定職業選擇。",
+      "topic": "astrology x career",
+      "sha256": "69d0ef42b2bdf46176a8b4eba86ee110766026345653d08f8981243ff8a01bba"
+    },
+    {
+      "id": "codex-emergency-new-a-002",
+      "source_kind": "new",
+      "language": "zh-Hant",
+      "path": "zh-Hant/codex-emergency-new-a-002.md",
+      "title": "第十一宮怎麼看團隊人際？先分清朋友、同事與社群角色",
+      "slug": "eleventh-house-team-relationships-community-role",
+      "primary_keyword": "第十一宮團隊人際",
+      "search_intent": "想用星盤第十一宮整理團隊、朋友、社群與合作關係中的角色距離，而不是控制他人的反應。",
+      "topic": "astrology x interpersonal",
+      "sha256": "682321ac41e689c6fcf02b510ff596130c94ac85c4d79c0f1692dc93d51615ff"
+    }
+  ],
+  "translations": [
+    {
+      "id": "codex-emergency-new-a-001-en",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-001",
+      "language": "en",
+      "path": "en/codex-emergency-new-a-001.md",
+      "sha256": "deb2a41da60cfd734a926bed74fd20800112449f2af48ec0041204483d106d1f"
+    },
+    {
+      "id": "codex-emergency-new-a-002-en",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-002",
+      "language": "en",
+      "path": "en/codex-emergency-new-a-002.md",
+      "sha256": "4ec86be699d56c98809283ce3fbef28bf3b8ac3404827222fd2e008fb09d01ab"
+    },
+    {
+      "id": "codex-emergency-new-a-001-ja",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-001",
+      "language": "ja",
+      "path": "ja/codex-emergency-new-a-001.md",
+      "sha256": "5c6b84a99b7061bec240fd2993f6225136b85e566f2143adf6df3d5c780ae0d7"
+    },
+    {
+      "id": "codex-emergency-new-a-002-ja",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-002",
+      "language": "ja",
+      "path": "ja/codex-emergency-new-a-002.md",
+      "sha256": "fa44fda5ff90a4d8280d10418d066c9e782c3b28754adb6e6e3698153581ee1e"
+    },
+    {
+      "id": "codex-emergency-new-a-001-ko",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-001",
+      "language": "ko",
+      "path": "ko/codex-emergency-new-a-001.md",
+      "sha256": "60dfae8959b151c4152f60c444e6ca4b223d7700bcfc14c99bd7e2d2626cbfb0"
+    },
+    {
+      "id": "codex-emergency-new-a-002-ko",
+      "source_kind": "new",
+      "source_id": "codex-emergency-new-a-002",
+      "language": "ko",
+      "path": "ko/codex-emergency-new-a-002.md",
+      "sha256": "84afae937f8f58feccf2cfcd16bf53f1ace3b47f42624223d69df6392daffcea"
+    }
+  ],
+  "counts": {
+    "new_zh_hant": 2,
+    "old": 0,
+    "en": 2,
+    "en_new": 2,
+    "ja": 2,
+    "ja_new": 2,
+    "ko": 2,
+    "ko_new": 2
+  }
+}

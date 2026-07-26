@@ -245,7 +245,12 @@ import { AGY_AUTO_NEW_V1_20260725_032_02_ARTICLE_BODY_LIBRARY } from "./article-
 
 import { AGY_AUTO_NEW_V1_20260725_037_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260725-037-01.js?v=agy-auto-new-v1-20260725-037-01";
 
+import { AGY_CODEX_EMERGENCY_CONTENT_INTEGRATION_20260726_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-codex-emergency-content-integration-20260726.js?v=agy-codex-emergency-content-integration-20260726";
+
+import { AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260726-emergency-codex.js?v=agy-rewrite-20260726-emergency-codex";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_CODEX_EMERGENCY_CONTENT_INTEGRATION_20260726_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260725_037_01_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260725_032_02_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260725_019_01_ARTICLE_BODY_LIBRARY,
@@ -1132,7 +1137,7 @@ function buildProductHubReadingGuide(label, articleCount) {
 
 function buildArticleBody(article, productTheme, managedArticle) {
   const cardFaceSections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
-  const customBody = AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
+  const customBody = AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
   if (customBody) {
     const body = isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
     return [...cardFaceSections, ...body];

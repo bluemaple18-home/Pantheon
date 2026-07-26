@@ -1,0 +1,204 @@
+{
+  "source_artifact_sha256": {
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/en/codex-emergency-new-a-001.md": "deb2a41da60cfd734a926bed74fd20800112449f2af48ec0041204483d106d1f",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/en/codex-emergency-new-a-002.md": "4ec86be699d56c98809283ce3fbef28bf3b8ac3404827222fd2e008fb09d01ab",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/ja/codex-emergency-new-a-001.md": "5c6b84a99b7061bec240fd2993f6225136b85e566f2143adf6df3d5c780ae0d7",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/ja/codex-emergency-new-a-002.md": "fa44fda5ff90a4d8280d10418d066c9e782c3b28754adb6e6e3698153581ee1e",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/ko/codex-emergency-new-a-001.md": "60dfae8959b151c4152f60c444e6ca4b223d7700bcfc14c99bd7e2d2626cbfb0",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/ko/codex-emergency-new-a-002.md": "84afae937f8f58feccf2cfcd16bf53f1ace3b47f42624223d69df6392daffcea",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/quality-report.md": "64d2a5e6cab4e8451f570956e3c8c1523bec91bdaef02f07fc5a77c6d6f5220d",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/zh-Hant/codex-emergency-new-a-001.md": "69d0ef42b2bdf46176a8b4eba86ee110766026345653d08f8981243ff8a01bba",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/zh-Hant/codex-emergency-new-a-002.md": "682321ac41e689c6fcf02b510ff596130c94ac85c4d79c0f1692dc93d51615ff",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/articles/zh-Hant/codex-emergency-new-b-001.md": "68c91604f39ba9b6fa506d9256b036c36dd07aa98c02d59585082e7870ff6ff6",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/articles/zh-Hant/codex-emergency-new-b-002.md": "7dbc9c1b899486d727433d1511f083f9f84a4067402c258ed9e5b58c1c8f010b",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/quality-report.md": "efa7ae3c69a9ace1230fafb957f137245d2b0b9c3eeecf287c7cfeb682fae692",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/en/codex-emergency-new-b-001.md": "dca25923a4e98ba148dec91ac30dbdae938c152cb2902f5afe5ac392fbb361e8",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/en/codex-emergency-new-b-002.md": "7470b54ad29a8eee9a9002e9a6f96911bca67dcb31122843c5a6f1f8eeaad1d1",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/ja/codex-emergency-new-b-001.md": "7fce90dbd10847bdbb0e6c703bf4febff328eb2c66c7153e706fe1bbce86c070",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/ja/codex-emergency-new-b-002.md": "96cce3a63f848e6f45a5c7a82ae75a5f12a4d5d9d5afabb0e6717ccd3e7a5c3d",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/ko/codex-emergency-new-b-001.md": "0ae4c2caba9ad70791f17f0cab39ddb74ecfd62be297e7b6d2831e5861718b8e",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/translations/ko/codex-emergency-new-b-002.md": "893bd130fbe598d2a5328a1d89afdec548a4273e6f059d9f1e6a3f3c31357ff4",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/quality-report.md": "acc280a6bec9d0785b088adc992d04189c95afdd630cd5e2f0cc21201a8419e7",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-001.en.md": "14386f32c8c651e34d27cd5afd469e0916f30eb3e55857dda6429388ccf2c016",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-001.ja.md": "deb3a5c939d5c0c74b58b43f4b10280cc34b251fc9e5c61b849bce7d615894bf",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-001.ko.md": "cb7054bc53cf28ebecd864369e9876c0ba00dc976fa0dc80feadc8fc991f4096",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-001.zh-TW.md": "461f8845b2a1b25c987b6dcd317adbff40c02a8e5a8734fa1369f11fc17cca77",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-002.en.md": "9cb35e16dad38ac2383b3f28568de93dca4ebf968220690c069393a921b7b894",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-002.ja.md": "3df143917f773f4fc9d7baa3c80c793a83c8301311c7a592711609c185f4ce57",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-002.ko.md": "d8123bf9177d2f07ea85654e66aa2ddfa319f447e20f6f6f1393e6ee993027c6",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/rewrite-c-002.zh-TW.md": "59157cd1c2607361596a4ca235e045969504b09da9c6d500c7e3582b091958f0",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_a/manifest.json": "abdfb73c4af8b10f262f804bc6715ac9057fe0699b4d745ebbd11a06080f8241",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/manifest.json": "0360fba553b1778338fd85cd0ec01810606be3e164f718936dc4eee1143b11ec",
+    "artifacts/fortune_council/codex_emergency_content_20260726/batch_c/manifest.json": "aa02098cf06ad407e22aa9166cb4c0d4f0e4f01dd748d4bda1e7050b993177a4"
+  },
+  "new_articles": [
+    {
+      "id": "CODEX-EMERGENCY-NEW-A-001",
+      "serial": "astrology-0181",
+      "slug": "midheaven-career-positioning-visible-work-role",
+      "urlSlug": "astrology-0181"
+    },
+    {
+      "id": "CODEX-EMERGENCY-NEW-A-002",
+      "serial": "astrology-0182",
+      "slug": "eleventh-house-team-relationships-community-role",
+      "urlSlug": "astrology-0182"
+    },
+    {
+      "id": "CODEX-EMERGENCY-NEW-B-001",
+      "serial": "tarot-0394",
+      "slug": "tarot-mbti-evening-review-method",
+      "urlSlug": "tarot-0394"
+    },
+    {
+      "id": "CODEX-EMERGENCY-NEW-B-002",
+      "serial": "tarot-0395",
+      "slug": "three-card-life-direction-weekend-reset",
+      "urlSlug": "tarot-0395"
+    }
+  ],
+  "rewrites": [
+    {
+      "article_id": "ASTRO-BASE-02",
+      "identity": {
+        "id": "ASTRO-BASE-02",
+        "product": "astro",
+        "category": "astrology",
+        "serial": "astrology-0002",
+        "slug": "astrology-0002",
+        "primaryKeyword": "上升星座是什麼",
+        "title": "上升星座是什麼？它和太陽星座差在哪"
+      },
+      "current_body_sha256": "0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449"
+    },
+    {
+      "article_id": "ASTRO-BASE-03",
+      "identity": {
+        "id": "ASTRO-BASE-03",
+        "product": "astro",
+        "category": "astrology",
+        "serial": "astrology-0003",
+        "slug": "astrology-0003",
+        "primaryKeyword": "月亮星座是什麼",
+        "title": "月亮星座是什麼？情緒與安全感怎麼看"
+      },
+      "current_body_sha256": "883e9709871eeb073d6cf094c8c37471e71181407e5a76df944ef3ba7bc6dfdb"
+    }
+  ],
+  "translations": [
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-001",
+      "locale": "en",
+      "sourcePath": "/articles/astrology/astrology-0181",
+      "sourceSha256": "3df0ff77a20416bb3c66c6cf67b28cac45e9c063e0b9e4387808c096725cb22a"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-001",
+      "locale": "ja",
+      "sourcePath": "/articles/astrology/astrology-0181",
+      "sourceSha256": "3df0ff77a20416bb3c66c6cf67b28cac45e9c063e0b9e4387808c096725cb22a"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-001",
+      "locale": "ko",
+      "sourcePath": "/articles/astrology/astrology-0181",
+      "sourceSha256": "3df0ff77a20416bb3c66c6cf67b28cac45e9c063e0b9e4387808c096725cb22a"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-002",
+      "locale": "en",
+      "sourcePath": "/articles/astrology/astrology-0182",
+      "sourceSha256": "94b8b24e89d3da062787e3a7e926c46d9423a77d4b76ff6be7ab40ef99a33b6b"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-002",
+      "locale": "ja",
+      "sourcePath": "/articles/astrology/astrology-0182",
+      "sourceSha256": "94b8b24e89d3da062787e3a7e926c46d9423a77d4b76ff6be7ab40ef99a33b6b"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-A-002",
+      "locale": "ko",
+      "sourcePath": "/articles/astrology/astrology-0182",
+      "sourceSha256": "94b8b24e89d3da062787e3a7e926c46d9423a77d4b76ff6be7ab40ef99a33b6b"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-001",
+      "locale": "en",
+      "sourcePath": "/articles/tarot/tarot-0394",
+      "sourceSha256": "ec5e293d0ea49d82425291d6d3c060854b70f85668ff2ad14f2ce76cf6b45af2"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-001",
+      "locale": "ja",
+      "sourcePath": "/articles/tarot/tarot-0394",
+      "sourceSha256": "ec5e293d0ea49d82425291d6d3c060854b70f85668ff2ad14f2ce76cf6b45af2"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-001",
+      "locale": "ko",
+      "sourcePath": "/articles/tarot/tarot-0394",
+      "sourceSha256": "ec5e293d0ea49d82425291d6d3c060854b70f85668ff2ad14f2ce76cf6b45af2"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-002",
+      "locale": "en",
+      "sourcePath": "/articles/tarot/tarot-0395",
+      "sourceSha256": "27c459bea139ed37dfbe461d93a99be671b7f72152c72d64962bae9f5e5f0767"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-002",
+      "locale": "ja",
+      "sourcePath": "/articles/tarot/tarot-0395",
+      "sourceSha256": "27c459bea139ed37dfbe461d93a99be671b7f72152c72d64962bae9f5e5f0767"
+    },
+    {
+      "article_id": "CODEX-EMERGENCY-NEW-B-002",
+      "locale": "ko",
+      "sourcePath": "/articles/tarot/tarot-0395",
+      "sourceSha256": "27c459bea139ed37dfbe461d93a99be671b7f72152c72d64962bae9f5e5f0767"
+    },
+    {
+      "article_id": "ASTRO-BASE-02",
+      "locale": "en",
+      "sourcePath": "/articles/astrology/astrology-0002",
+      "sourceSha256": "22631685f2939de7a4cf2e2d5aabb2221bc60ae5e9827e2a4f97daebc8b2756f"
+    },
+    {
+      "article_id": "ASTRO-BASE-02",
+      "locale": "ja",
+      "sourcePath": "/articles/astrology/astrology-0002",
+      "sourceSha256": "22631685f2939de7a4cf2e2d5aabb2221bc60ae5e9827e2a4f97daebc8b2756f"
+    },
+    {
+      "article_id": "ASTRO-BASE-02",
+      "locale": "ko",
+      "sourcePath": "/articles/astrology/astrology-0002",
+      "sourceSha256": "22631685f2939de7a4cf2e2d5aabb2221bc60ae5e9827e2a4f97daebc8b2756f"
+    },
+    {
+      "article_id": "ASTRO-BASE-03",
+      "locale": "en",
+      "sourcePath": "/articles/astrology/astrology-0003",
+      "sourceSha256": "5a85b2c48e4a640ca0240f5537b3dde2c399200ff884ba2395c17d60a0bef824"
+    },
+    {
+      "article_id": "ASTRO-BASE-03",
+      "locale": "ja",
+      "sourcePath": "/articles/astrology/astrology-0003",
+      "sourceSha256": "5a85b2c48e4a640ca0240f5537b3dde2c399200ff884ba2395c17d60a0bef824"
+    },
+    {
+      "article_id": "ASTRO-BASE-03",
+      "locale": "ko",
+      "sourcePath": "/articles/astrology/astrology-0003",
+      "sourceSha256": "5a85b2c48e4a640ca0240f5537b3dde2c399200ff884ba2395c17d60a0bef824"
+    }
+  ],
+  "counts": {
+    "new": 4,
+    "rewrite": 2,
+    "translations": 18
+  },
+  "before_article_count": 454
+}
