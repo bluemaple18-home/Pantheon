@@ -32,6 +32,27 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+NORMALIZED_TRACE_KEYS = frozenset(
+    {
+        "replay_status",
+        "process_count",
+        "outcome",
+        "exit_status",
+        "stdout_sha256",
+        "stderr_sha256",
+        "byte_count",
+        "receipt",
+        "caller_contract_satisfied",
+        "result_validation",
+        "result",
+        "errors",
+        "automatic_resend_allowed",
+    }
+)
+
+
+def _assert_normalized_trace_schema(trace: dict[str, object]) -> None:
+    assert frozenset(trace) == NORMALIZED_TRACE_KEYS, "normalized trace schema changed"
 
 
 def _failure_receipt(
@@ -1014,14 +1035,40 @@ def test_broker_classifies_json_invalid_without_retaining_output(
     assert result.json_diagnostic == expected_diagnostic
     assert result.result_json is None
     trace = result.normalized_trace()
-    assert trace["stdout_sha256"] == hashlib.sha256(raw_output).hexdigest()
-    untrusted_output = json.dumps(
-        {"result": trace["result"], "errors": trace["errors"]},
-        ensure_ascii=False,
-    )
-    if raw_output:
-        assert raw_output.decode("utf-8", errors="replace") not in untrusted_output
-    assert "result:" not in untrusted_output
+    _assert_normalized_trace_schema(trace)
+    assert trace == {
+        "replay_status": "COMPLETE",
+        "process_count": 1,
+        "outcome": "SUCCESS",
+        "exit_status": 0,
+        "stdout_sha256": hashlib.sha256(raw_output).hexdigest(),
+        "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+        "byte_count": len(raw_output),
+        "receipt": {
+            "operation_id": f"operation-{expected_diagnostic.lower()}",
+            "item_id": "item-json-invalid",
+            "attempt_id": "attempt-1",
+            "request_sha256": "a" * 64,
+            "model": "synthetic-model",
+            "target_profile": broker.RAW_STDIN_PROFILE,
+            "executable_digest": executable_digest,
+        },
+        "caller_contract_satisfied": False,
+        "result_validation": "JSON_INVALID",
+        "result": None,
+        "errors": [],
+        "automatic_resend_allowed": False,
+    }
+
+
+def test_normalized_trace_schema_rejects_invalid_raw_stdout_bytes() -> None:
+    trace = dict.fromkeys(NORMALIZED_TRACE_KEYS)
+    trace["stdout_sha256"] = hashlib.sha256(b"\xff").hexdigest()
+    _assert_normalized_trace_schema(trace)
+
+    trace["raw_stdout"] = b"\xff"
+    with pytest.raises(AssertionError, match="normalized trace schema changed"):
+        _assert_normalized_trace_schema(trace)
 
 
 @pytest.mark.parametrize(
