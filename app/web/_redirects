@@ -516,6 +516,9 @@
 /articles/astrology/astrology-0182 /seo/articles/astrology/astrology-0182/ 200
 /articles/tarot/tarot-0394 /seo/articles/tarot/tarot-0394/ 200
 /articles/tarot/tarot-0395 /seo/articles/tarot/tarot-0395/ 200
+/en/articles/* /article.html 200
+/ja/articles/* /article.html 200
+/ko/articles/* /article.html 200
 /articles /articles 200
 /robots.txt /robots.txt 200
 /sitemap.xml /sitemap.xml 200

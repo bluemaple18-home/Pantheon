@@ -994,8 +994,13 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "if (content.redirectTo)" in article_js
     assert "window.location.replace(content.redirectTo)" in article_js
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
+    assert "document.body.dataset.locale = content.locale || \"zh-Hant\"" in article_js
     assert "getArticleSectionRecord(route.product)" in article_meta_js
     assert "getArticleRecord(route.product, route.slug)" in article_meta_js
+    assert "parseArticleLocalePath(pathname)" in article_meta_js
+    assert "getArticleLocaleRecord(article.id, locale)" in article_meta_js
+    assert "buildArticleLanguageLinks(article.id, sourcePath)" in article_meta_js
+    assert "localizedArticlePath(sourcePath, locale)" in article_meta_js
     assert "DEFAULT_ARTICLE_PUBLISHED_DATE = \"2026-07-10\"" in article_meta_js
     assert "DEFAULT_ARTICLE_UPDATED_DATE = \"2026-07-12\"" in article_meta_js
     assert "new Date().toISOString().slice(0, 10)" not in article_meta_js
@@ -1030,8 +1035,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "(content.navigationLinks || []).forEach(addLink)" not in article_js
     assert article_js.index("href: content.productHref") < article_js.index("(content.relatedLinks || []).forEach(addLink)")
     assert "article-sequence-button-${direction}" in article_js
-    assert "\"← 上一篇\"" in article_js
-    assert "\"下一篇 →\"" in article_js
+    assert 'messages.previous || "上一篇"' in article_js
+    assert 'messages.next || "下一篇"' in article_js
     assert "INLINE_TOPIC_MAX_LINKS = 8" in article_js
     assert "buildInlineTopicState(content)" in article_js
     assert "buildInlineTermsFromTag(tag)" in article_js
@@ -1055,7 +1060,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
     assert article_html.index("data-article-navigation") < article_html.index("data-article-faq")
     assert article_html.index("data-article-faq") < article_html.index("data-article-related")
-    assert "bodySections: buildBodySections" in article_meta_js
+    assert "bodySections: localeRecord?.bodySections || buildBodySections" in article_meta_js
     assert "HUB_VISIBLE_MAX_LINKS = 12" in article_meta_js
     assert "hubVisibleLinks: buildHubVisibleLinks(route" in article_meta_js
     assert "function buildHubVisibleLinks" in article_meta_js
@@ -1078,7 +1083,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "buildArticleFaq(route, article, productTheme)" in article_meta_js
     assert "cleanFaqTopic(primary)" in article_meta_js
     assert "想看自己的狀況，應該先整理什麼？" in article_meta_js
-    assert "displayTags: buildDisplayTags" in article_meta_js
+    assert "displayTags: localeDisplayTags" in article_meta_js
     assert "INTERNAL_DISPLAY_TAGS" in article_meta_js
     assert "content.displayTags || content.tags || []" in article_js
     assert "content.displayTagLinks" in article_js
@@ -1134,7 +1139,12 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert ".article-cta-actions" in styles_css
     assert ".article-inline-topic-link" in styles_css
     assert "document.title = content.pageTitle" in article_seo_js
+    assert "document.documentElement.lang = content.htmlLang || \"zh-Hant\"" in article_seo_js
     assert "dom.keywords.content = content.keywords.join" in article_seo_js
+    assert "meta[property='og:locale']" in article_seo_js
+    assert "link[rel='alternate'][hreflang]" in article_seo_js
+    assert "content.articlesHubPath || \"/articles\"" in article_seo_js
+    assert "content.inLanguage || \"zh-Hant-TW\"" in article_seo_js
     assert "keywords: content.keywords.join" in article_seo_js
     assert "const organizationRef = { \"@id\": `${origin}/#organization` }" in article_seo_js
     assert "const websiteRef = { \"@id\": `${origin}/#website` }" in article_seo_js
@@ -1143,8 +1153,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "image," in article_seo_js
     assert "about: (content.displayTags || content.tags || []).map" in article_seo_js
     assert "\"@type\": \"Article\"" not in article_js
-    assert "{ name: \"Pantheon\", item: `${origin}/articles` }" in article_seo_js
-    assert "{ name: \"最新文章\", item: `${origin}/articles` }" in article_seo_js
+    assert "const articlesHubPath = content.articlesHubPath || \"/articles\"" in article_seo_js
+    assert "{ name: \"Pantheon\", item: `${origin}${articlesHubPath}` }" in article_seo_js
+    assert "{ name: latestArticlesLabel, item: `${origin}${articlesHubPath}` }" in article_seo_js
     assert "export function applyArticleSeo" in article_seo_js
     assert "\"@type\": \"Article\"" in article_seo_js
     assert "\"@type\": \"BreadcrumbList\"" in article_seo_js
@@ -1194,6 +1205,9 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/strategy.html /articles 302" in redirects
     assert "/articles/astro/12-zodiac-signs /articles/astro 302" in redirects
     assert "/articles /articles 200" in redirects
+    assert "/en/articles/* /article.html 200" in redirects
+    assert "/ja/articles/* /article.html 200" in redirects
+    assert "/ko/articles/* /article.html 200" in redirects
     assert "/articles/* /article 200" not in redirects
     assert "/topics/* /article 200" not in redirects
     assert "/robots.txt /robots.txt 200" in redirects
@@ -2191,6 +2205,153 @@ console.log(JSON.stringify(content));
         text=True,
     )
     assert json.loads(result.stdout) == {"redirectTo": "/articles/astro"}
+
+
+def test_locale_article_runtime_uses_translation_records_and_fails_closed() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+
+const origin = "https://mysticpantheon.com";
+const defaults = {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-26",
+};
+
+const en = buildArticleContent("/en/articles/astrology/astrology-0181", origin, defaults);
+const ja = buildArticleContent("/ja/articles/astrology/astrology-0181", origin, defaults);
+const ko = buildArticleContent("/ko/articles/astrology/astrology-0181", origin, defaults);
+const zh = buildArticleContent("/articles/astrology/astrology-0181", origin, defaults);
+const missing = buildArticleContent("/en/articles/astrology/astrology-0180", origin, defaults);
+
+console.log(JSON.stringify({
+  en: {
+    title: en.title,
+    htmlLang: en.htmlLang,
+    canonicalPath: en.canonicalPath,
+    sourcePath: en.sourcePath,
+    localeSourcePath: en.localeSourcePath,
+    answer: en.answer,
+    firstHeading: en.bodySections[0]?.heading || "",
+    faqQuestion: en.faq[0]?.question || "",
+    author: en.author,
+    languageLinks: en.languageLinks,
+  },
+  ja: {
+    title: ja.title,
+    htmlLang: ja.htmlLang,
+    canonicalPath: ja.canonicalPath,
+    sourcePath: ja.sourcePath,
+    answer: ja.answer,
+    firstHeading: ja.bodySections[0]?.heading || "",
+    author: ja.author,
+  },
+  ko: {
+    title: ko.title,
+    htmlLang: ko.htmlLang,
+    canonicalPath: ko.canonicalPath,
+    sourcePath: ko.sourcePath,
+    answer: ko.answer,
+    firstHeading: ko.bodySections[0]?.heading || "",
+    author: ko.author,
+  },
+  zh: {
+    title: zh.title,
+    htmlLang: zh.htmlLang,
+    canonicalPath: zh.canonicalPath,
+    sourcePath: zh.sourcePath,
+    answer: zh.answer,
+    firstHeading: zh.bodySections[0]?.heading || "",
+    author: zh.author,
+  },
+  missing,
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["en"]["title"] == "How to Use the Midheaven for Career Positioning: Start with How You Want to Be Seen"
+    assert data["en"]["htmlLang"] == "en"
+    assert data["en"]["canonicalPath"] == "/en/articles/astrology/astrology-0181"
+    assert data["en"]["sourcePath"] == "/articles/astrology/astrology-0181"
+    assert data["en"]["localeSourcePath"] == "/articles/astrology/astrology-0181"
+    assert "career positioning" in data["en"]["answer"]
+    assert data["en"]["firstHeading"] == "What This Question Is Usually Asking"
+    assert data["en"]["faqQuestion"] == "Can the Midheaven decide what job suits me?"
+    assert data["en"]["author"] == "Pantheon Editorial Team"
+    assert [item["hreflang"] for item in data["en"]["languageLinks"]] == ["zh-Hant", "en", "ja", "ko"]
+    assert [item["href"] for item in data["en"]["languageLinks"]] == [
+        "/articles/astrology/astrology-0181",
+        "/en/articles/astrology/astrology-0181",
+        "/ja/articles/astrology/astrology-0181",
+        "/ko/articles/astrology/astrology-0181",
+    ]
+    assert data["ja"]["title"] == "MCでキャリア定位を見るには？まず「どう見られたいか」を整理する"
+    assert data["ja"]["htmlLang"] == "ja"
+    assert data["ja"]["canonicalPath"] == "/ja/articles/astrology/astrology-0181"
+    assert data["ja"]["sourcePath"] == "/articles/astrology/astrology-0181"
+    assert data["ja"]["firstHeading"] == "MCが見せてくれること"
+    assert data["ja"]["author"] == "Pantheon 編集部"
+    assert data["ko"]["title"] == "미드헤븐으로 커리어 포지셔닝을 보는 법: 먼저 어떻게 보이고 싶은지 정리하기"
+    assert data["ko"]["htmlLang"] == "ko"
+    assert data["ko"]["canonicalPath"] == "/ko/articles/astrology/astrology-0181"
+    assert data["ko"]["sourcePath"] == "/articles/astrology/astrology-0181"
+    assert data["ko"]["firstHeading"] == "이 질문이 보통 묻는 것"
+    assert data["ko"]["author"] == "Pantheon 편집팀"
+    assert data["zh"]["title"] == "天頂星座職涯定位怎麼看？整理被看見的方式"
+    assert data["zh"]["htmlLang"] == "zh-Hant"
+    assert data["zh"]["canonicalPath"] == "/articles/astrology/astrology-0181"
+    assert data["zh"]["sourcePath"] == "/articles/astrology/astrology-0181"
+    assert data["zh"]["firstHeading"] == "這個問題通常在問什麼"
+    assert data["zh"]["author"] == "Pantheon 編輯部"
+    assert data["missing"] == {"redirectTo": "/articles/astro"}
+
+
+def test_locale_article_jsonld_uses_locale_paths() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "./app/web/static/article-seo.js";
+
+const origin = "https://mysticpantheon.com";
+const content = buildArticleContent("/ja/articles/astrology/astrology-0181", origin, {
+  author: "Pantheon 編輯部",
+  updated: "2026-07-26",
+});
+
+console.log(JSON.stringify({
+  htmlLang: content.htmlLang,
+  ogLocale: content.ogLocale,
+  canonicalPath: content.canonicalPath,
+  article: buildArticleJsonLd(content, origin),
+  breadcrumb: buildBreadcrumbJsonLd(content, origin),
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["htmlLang"] == "ja"
+    assert data["ogLocale"] == "ja_JP"
+    assert data["canonicalPath"] == "/ja/articles/astrology/astrology-0181"
+    assert data["article"]["@type"] == "Article"
+    assert data["article"]["inLanguage"] == "ja"
+    assert data["article"]["url"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
+    assert data["article"]["mainEntityOfPage"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
+    assert data["article"]["author"]["name"] == "Pantheon 編集部"
+    assert data["article"]["articleSection"] == "星座"
+    breadcrumb_items = data["breadcrumb"]["itemListElement"]
+    assert breadcrumb_items[0]["item"] == "https://mysticpantheon.com/ja/articles"
+    assert breadcrumb_items[1]["item"] == "https://mysticpantheon.com/ja/articles"
+    assert breadcrumb_items[1]["name"] == "最新記事"
+    assert breadcrumb_items[2]["name"] == "星座"
+    assert breadcrumb_items[2]["item"] == "https://mysticpantheon.com/articles/astro"
+    assert breadcrumb_items[3]["item"] == "https://mysticpantheon.com/ja/articles/astrology/astrology-0181"
 
 
 def test_legacy_article_slug_redirects_to_serial_url() -> None:
