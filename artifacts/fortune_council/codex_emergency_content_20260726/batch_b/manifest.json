@@ -1,0 +1,105 @@
+{
+  "card_id": "CARD-PANTHEON-CODEX-EMERGENCY-CONTENT-BATCH-B-20260726",
+  "batch": "codex_emergency_content_20260726_batch_b",
+  "created_at": "2026-07-26",
+  "ownership": "新文 B 與英日韓翻譯",
+  "model": "gpt-5.5 medium",
+  "thickness": "standard",
+  "output_root": "artifacts/fortune_council/codex_emergency_content_20260726/batch_b/",
+  "preflight": {
+    "worktree_capability": "passed",
+    "write_scope": "artifacts-only",
+    "forbidden_scope_touched": false,
+    "registry_scan": {
+      "checked_sources": [
+        "app/web/static/article-registry.js",
+        "app/web/static/article-*.js",
+        "app/web/seo/articles/**/index.html",
+        "artifacts/fortune_council/content_*"
+      ],
+      "existing_intents_observed": [
+        "塔羅牌義與正逆位",
+        "MBTI 類型基礎介紹",
+        "星座/人格在感情、工作、人際、金錢、低潮中的表現",
+        "人生方向迷惘、時機問題、年度人生方向報告"
+      ],
+      "new_intent_rationale": "本批聚焦晚間復盤與週末生活方向清單，避開既有單牌牌義、單一 MBTI 類型解析與年度報告意圖。"
+    }
+  },
+  "articles": [
+    {
+      "id": "codex-emergency-new-b-001",
+      "source_kind": "new",
+      "locale": "zh-Hant",
+      "path": "articles/zh-Hant/codex-emergency-new-b-001.md",
+      "slug": "tarot-mbti-evening-review-method",
+      "title": "下班後還在消耗？用塔羅與 MBTI 做晚間復盤",
+      "search_intent": "塔羅 MBTI 晚間復盤 生活方向",
+      "translations": [
+        {
+          "locale": "en",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-001",
+          "path": "translations/en/codex-emergency-new-b-001.md"
+        },
+        {
+          "locale": "ja",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-001",
+          "path": "translations/ja/codex-emergency-new-b-001.md"
+        },
+        {
+          "locale": "ko",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-001",
+          "path": "translations/ko/codex-emergency-new-b-001.md"
+        }
+      ]
+    },
+    {
+      "id": "codex-emergency-new-b-002",
+      "source_kind": "new",
+      "locale": "zh-Hant",
+      "path": "articles/zh-Hant/codex-emergency-new-b-002.md",
+      "slug": "three-card-life-direction-weekend-reset",
+      "title": "週末不知道要整理什麼？三張牌建立生活方向清單",
+      "search_intent": "三張牌 生活方向 週末整理 MBTI",
+      "translations": [
+        {
+          "locale": "en",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-002",
+          "path": "translations/en/codex-emergency-new-b-002.md"
+        },
+        {
+          "locale": "ja",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-002",
+          "path": "translations/ja/codex-emergency-new-b-002.md"
+        },
+        {
+          "locale": "ko",
+          "source_kind": "new",
+          "source_id": "codex-emergency-new-b-002",
+          "path": "translations/ko/codex-emergency-new-b-002.md"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "new_zh_hant": 2,
+    "old_zh_hant": 0,
+    "en": {
+      "total": 2,
+      "new": 2
+    },
+    "ja": {
+      "total": 2,
+      "new": 2
+    },
+    "ko": {
+      "total": 2,
+      "new": 2
+    }
+  }
+}

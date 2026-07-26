@@ -326,6 +326,13 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/tarot/tarot-0393",
 ]
 
+CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS = [
+    "/articles/astrology/astrology-0181",
+    "/articles/astrology/astrology-0182",
+    "/articles/tarot/tarot-0394",
+    "/articles/tarot/tarot-0395",
+]
+
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
     *EXTRA_PUBLIC_ARTICLE_PATHS,
@@ -342,6 +349,7 @@ PUBLIC_ARTICLE_PATHS = [
     *AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS,
     *EXPANSION_50E_PUBLIC_ARTICLE_PATHS,
     *DAILY_PUBLIC_ARTICLE_PATHS,
+    *CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS,
 ]
 
 def test_home_redirects_to_latest_articles() -> None:
@@ -490,16 +498,16 @@ console.log(JSON.stringify({
     ]
     assert [record["path"] for record in data["records"]] == [
         "/articles/personality/personality-0279",
-        "/articles/tarot/tarot-0393",
+        "/articles/tarot/tarot-0395",
         "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0180",
+        "/articles/astrology/astrology-0182",
         "/articles/love/love-0012",
         "/articles/career/career-0012",
         "/articles/interpersonal/interpersonal-0012",
         "/articles/wealth/wealth-0012",
         "/articles/life-direction/life-direction-0012",
         "/articles/personality/personality-0278",
-        "/articles/tarot/tarot-0392",
+        "/articles/tarot/tarot-0394",
         "/articles/fortune/fortune-0043",
     ]
     assert data["adjacentSameCategory"] is False
