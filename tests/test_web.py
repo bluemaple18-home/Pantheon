@@ -1205,11 +1205,11 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "/strategy.html /articles 302" in redirects
     assert "/articles/astro/12-zodiac-signs /articles/astro 302" in redirects
     assert "/articles /articles 200" in redirects
-    assert "/en/articles/* /article.html 200" in redirects
-    assert "/ja/articles/* /article.html 200" in redirects
-    assert "/ko/articles/* /article.html 200" in redirects
-    assert "/articles/* /article 200" not in redirects
-    assert "/topics/* /article 200" not in redirects
+    assert "/en/articles/* /article 200" in redirects
+    assert "/ja/articles/* /article 200" in redirects
+    assert "/ko/articles/* /article 200" in redirects
+    assert "/articles/* /article 200" not in redirects.splitlines()
+    assert "/topics/* /article 200" not in redirects.splitlines()
     assert "/robots.txt /robots.txt 200" in redirects
     assert "/sitemap.xml /sitemap.xml 200" in redirects
     assert "/llms.txt /llms.txt 200" in redirects
