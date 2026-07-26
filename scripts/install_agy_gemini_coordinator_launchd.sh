@@ -32,6 +32,10 @@ if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   exit 1
 fi
 if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
+  if [[ "${PRODUCTION_POOL_FILE}" != /* ]]; then
+    echo "Production Gemini credential pool 必須使用 absolute path。" >&2
+    exit 1
+  fi
   if [[ ! -f "${PRODUCTION_POOL_FILE}" || -L "${PRODUCTION_POOL_FILE}" ]]; then
     echo "Production Gemini credential pool 必須是 regular non-symlink file。" >&2
     exit 1

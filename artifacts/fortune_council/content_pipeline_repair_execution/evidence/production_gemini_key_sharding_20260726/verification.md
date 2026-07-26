@@ -7,6 +7,30 @@
 - Root question: production 新文、舊文改寫、英／日／韓 lane 是否能對每個新 job deterministic 選擇三個 owner-only credential slot 之一，同時保持 V4 shadow 與 flag-off CLI 不變。
 - Result: implementation 與本機測試通過；未 activation、未 live request、未 deploy。
 
+## Repair 2 (final)
+
+- Parent: `76fede6d87b85778fde4abf3aeeabe4c2bbd4e9f`
+- RED:
+  - Relative installer pool path 指向 cwd 中既有 owner-only file 時，會通過 `-f`、symlink、owner、mode，繼續進入模擬安裝流程。
+  - 新 regression 首跑：`1 failed`；沒有得到 absolute-path error。
+- GREEN:
+  - `PRODUCTION_POOL_FILE` 非空時，第一個 pool preflight 現在先拒絕非 absolute path，才執行 regular file、symlink、owner、mode 檢查。
+  - Regression 使用 pytest 暫存 fake home、synthetic manifest 與 fake `dscl`/`launchctl`；相對路徑被拒，fake home 與 launchctl log 均不存在。
+  - Relative installer regression：`1 passed in 0.36s`。
+  - Coordinator focused：`19 passed in 0.45s`。
+  - Production-pool focused：`21 passed, 159 deselected in 0.50s`。
+  - 核心三檔：`180 passed in 48.51s`。
+  - Publisher + multilingual：`59 passed in 2.91s`。
+  - Full pytest 首跑因乾淨 worktree 缺少 `node_modules/iztro`，結果為 `475 passed, 2 failed, 2 warnings`；兩個 failure 均為既有 Ziwei provider fallback，與本次 diff 無關。
+  - 暫時連結主工作區既有 `node_modules` 後，full pytest：`477 passed, 1 warning in 102.11s`；測試後連結已移除。
+- Static gates:
+  - Installer `bash -n`、coordinator/lane plist lint、Python compile、`git diff --check`：pass。
+  - 本次新增行 secret pattern 與本機 absolute path scan：pass。
+  - Parent 到 Repair 2 的 V4 path diff：empty。
+- Boundary:
+  - 未讀取或輸出真實 credential。
+  - 未建立 PR、未 merge、未 deploy、未修改 live plist，且未觸及 production queue/ledger。
+
 ## Repair 1
 
 - Candidate repaired: `7a99579310d4ed6140117464db524e495efd471e`

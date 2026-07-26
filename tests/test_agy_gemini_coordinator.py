@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import plistlib
 import subprocess
 import sys
@@ -704,3 +705,50 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     )
     assert smoke.returncode == 0
     assert json.loads(smoke.stdout)["runner"] == {"status": "idle"}
+
+
+def test_installer_rejects_relative_production_pool_before_install_side_effects(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    fake_bin.mkdir()
+    pool_file = tmp_path / "relative-production-pool.json"
+    pool_file.write_text("{}\n", encoding="utf-8")
+    pool_file.chmod(0o600)
+    cli_path = tmp_path / "agy"
+    cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    cli_path.chmod(0o700)
+    dscl = fake_bin / "dscl"
+    dscl.write_text(f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n", encoding="utf-8")
+    dscl.chmod(0o700)
+    launchctl_log = tmp_path / "launchctl.log"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{launchctl_log}'\nexit 1\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_CREDENTIAL_POOL_FILE": pool_file.name,
+            "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "absolute path" in completed.stderr
+    assert not fake_home.exists()
+    assert not launchctl_log.exists()
