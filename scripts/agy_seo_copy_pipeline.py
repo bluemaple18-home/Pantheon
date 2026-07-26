@@ -1357,6 +1357,24 @@ def prepare_rewrite_repair(
     return run_dir / "brief.json"
 
 
+CLOSED_GEMINI_ERROR_CODES = frozenset({
+    "CLI_ENVELOPE_ERROR",
+    "CLI_NONZERO",
+    "CLI_NOT_FOUND",
+    "CLI_TIMEOUT",
+})
+
+
+class GeminiCliFailure(RuntimeError):
+    """不攜帶 CLI 原始輸出的封閉失敗分類。"""
+
+    def __init__(self, error_code: str) -> None:
+        if error_code not in CLOSED_GEMINI_ERROR_CODES:
+            raise ValueError("Gemini CLI error code is not closed")
+        self.error_code = error_code
+        super().__init__(error_code)
+
+
 class GeminiClient:
     """Stateless Gemini JSON client；每次呼叫只傳單次 contents。"""
 
@@ -1447,7 +1465,7 @@ class GeminiClient:
                 executable = str(local_candidates[0]) if local_candidates else ""
             command = [executable] if executable else []
         if not command:
-            raise RuntimeError("Gemini/Antigravity CLI not found; set AGY_GEMINI_CLI")
+            raise GeminiCliFailure("CLI_NOT_FOUND")
         generation = payload["generationConfig"]
         role_prompt = payload["systemInstruction"]["parts"][0]["text"]
         user_prompt = payload["contents"][0]["parts"][0]["text"]
@@ -1507,18 +1525,17 @@ class GeminiClient:
                     check=False,
                 )
             except FileNotFoundError as error:
-                raise RuntimeError(
-                    "Gemini CLI not found; set AGY_GEMINI_CLI to the executable or full command"
-                ) from error
+                raise GeminiCliFailure("CLI_NOT_FOUND") from error
+            except subprocess.TimeoutExpired as error:
+                raise GeminiCliFailure("CLI_TIMEOUT") from error
         if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout).strip()[:1000]
-            raise RuntimeError(f"Gemini CLI exited {completed.returncode}: {detail}")
+            raise GeminiCliFailure("CLI_NONZERO")
         output = completed.stdout.strip()
         if is_antigravity:
             return json.loads(output)
         envelope = json.loads(output)
         if envelope.get("error"):
-            raise RuntimeError(f"Gemini CLI error: {envelope['error']}")
+            raise GeminiCliFailure("CLI_ENVELOPE_ERROR")
         response = envelope.get("response")
         if not isinstance(response, str) or not response.strip():
             raise ValueError("Gemini CLI response missing response text")
@@ -1946,6 +1963,9 @@ def _generate_with_receipt(
     except Exception as error:
         receipt["status"] = "pending" if type(error).__name__ == "ExternalJobPending" else "error"
         receipt["error_type"] = type(error).__name__
+        error_code = getattr(error, "error_code", None)
+        if type(error_code) is str and error_code in CLOSED_GEMINI_ERROR_CODES:
+            receipt["error_code"] = error_code
         receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         write_json(receipt_path, receipt)
         raise

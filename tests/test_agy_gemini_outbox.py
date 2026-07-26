@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_gemini_outbox as outbox
 import scripts.agy_gemini_runner as runner
+import scripts.agy_seo_copy_pipeline as pipeline
 from scripts import agy_gemini_v4_broker as broker
 from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
@@ -31,6 +32,51 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+NORMALIZED_TRACE_KEYS = frozenset(
+    {
+        "replay_status",
+        "process_count",
+        "outcome",
+        "exit_status",
+        "stdout_sha256",
+        "stderr_sha256",
+        "byte_count",
+        "receipt",
+        "caller_contract_satisfied",
+        "result_validation",
+        "result",
+        "errors",
+        "automatic_resend_allowed",
+    }
+)
+
+
+def _assert_normalized_trace_schema(trace: dict[str, object]) -> None:
+    assert frozenset(trace) == NORMALIZED_TRACE_KEYS, "normalized trace schema changed"
+
+
+def _failure_receipt(
+    request: dict[str, object],
+    *,
+    error_type: object,
+    error_code: object = None,
+) -> dict[str, object]:
+    receipt: dict[str, object] = {
+        "schema_version": 1,
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "error_type": error_type,
+        "completed_at": "2026-07-26T00:30:00+08:00",
+    }
+    if error_code is not None:
+        receipt["error_code"] = error_code
+    return receipt
+
+
+def _deep_failure_json(marker: str, depth: int = 20_000) -> str:
+    payload = "[" * depth + json.dumps(marker) + "]" * depth
+    assert len(payload.encode("utf-8")) < outbox.MAX_FAILURE_RECEIPT_BYTES
+    return payload
 
 
 def _broker_result(
@@ -247,6 +293,375 @@ def test_runner_processes_one_job_and_archives_request(tmp_path: Path) -> None:
     response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
     assert response["request_sha256"] == request["request_sha256"]
     assert response["result"] == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code"),
+    [
+        ("nonzero", "CLI_NONZERO"),
+        ("timeout", "CLI_TIMEOUT"),
+        ("not-found", "CLI_NOT_FOUND"),
+        ("envelope", "CLI_ENVELOPE_ERROR"),
+    ],
+)
+def test_runner_failure_receipt_persists_only_closed_error_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected_code: str,
+) -> None:
+    private_detail = "/Users/example/private prompt GEMINI_API_KEY=must-not-persist raw stderr"
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-closed-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(args, timeout=1, stderr=private_detail)
+        if failure == "not-found":
+            raise FileNotFoundError(private_detail)
+        if failure == "nonzero":
+            return subprocess.CompletedProcess(args, 7, "", private_detail)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            json.dumps({"error": private_detail}),
+            "",
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/gemini")
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
+    result = process_once(tmp_path)
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text(encoding="utf-8"))
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "GeminiCliFailure",
+        "error_code": expected_code,
+    }
+    assert failed["error_code"] == expected_code
+    assert set(failed) == {
+        "schema_version",
+        "job_id",
+        "request_sha256",
+        "error_type",
+        "error_code",
+        "completed_at",
+    }
+    persisted = failed_path.read_text(encoding="utf-8")
+    for forbidden in ("prompt", "response", "stdout", "stderr", "GEMINI_API_KEY", "/Users/"):
+        assert forbidden not in persisted
+
+
+def test_outbox_failure_preserves_closed_error_code(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-code-consumer",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": request["job_id"],
+                "request_sha256": request["request_sha256"],
+                "error_type": "GeminiCliFailure",
+                "error_code": "CLI_TIMEOUT",
+                "completed_at": "2026-07-25T23:00:00+08:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "GeminiCliFailure"
+    assert raised.value.error_code == "CLI_TIMEOUT"
+
+
+@pytest.mark.parametrize(
+    "unsafe_error_type",
+    [
+        "PRIVATE_PATH_MARKER/CREDENTIAL_MARKER",
+        "X" * 10_000,
+        ["PRIVATE_PATH_MARKER"],
+        {"credential": "CREDENTIAL_MARKER"},
+        7,
+        None,
+    ],
+)
+def test_failure_consumer_closes_untrusted_error_type(
+    tmp_path: Path,
+    unsafe_error_type: object,
+) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-invalid-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{request['job_id']}.json",
+        _failure_receipt(request, error_type=unsafe_error_type),
+    )
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "InvalidFailureReceipt"
+    assert "PRIVATE_PATH_MARKER" not in str(raised.value)
+    assert "CREDENTIAL_MARKER" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    "malformation",
+    [
+        "job-id",
+        "request-hash",
+        "extra-field",
+        "missing-field",
+        "invalid-code",
+        "invalid-broker",
+        "unhashable-broker",
+        "invalid-timestamp",
+        "non-object",
+    ],
+)
+def test_failure_consumer_rejects_misbound_or_malformed_receipt(
+    tmp_path: Path,
+    malformation: str,
+) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-malformed-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    receipt: object = _failure_receipt(request, error_type="RuntimeError")
+    assert isinstance(receipt, dict)
+    if malformation == "job-id":
+        receipt["job_id"] = "0" * 40
+    elif malformation == "request-hash":
+        receipt["request_sha256"] = "0" * 64
+    elif malformation == "extra-field":
+        receipt["message"] = "PRIVATE_PATH_MARKER"
+    elif malformation == "missing-field":
+        receipt.pop("completed_at")
+    elif malformation == "invalid-code":
+        receipt["error_type"] = "GeminiCliFailure"
+        receipt["error_code"] = ["CLI_TIMEOUT"]
+    elif malformation == "invalid-broker":
+        receipt["error_type"] = "V4BrokerFailure"
+        receipt["broker_diagnostic"] = {"message": "CREDENTIAL_MARKER"}
+    elif malformation == "unhashable-broker":
+        receipt["error_type"] = "V4BrokerFailure"
+        receipt["broker_diagnostic"] = {
+            "replay_status": ["PRIVATE_PATH_MARKER"],
+            "process_count": {"credential": "CREDENTIAL_MARKER"},
+            "outcome": [],
+            "result_validation": {},
+        }
+    elif malformation == "invalid-timestamp":
+        receipt["completed_at"] = "2026-99-99T99:99:99+08:00"
+    else:
+        receipt = ["PRIVATE_PATH_MARKER", "CREDENTIAL_MARKER"]
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{request['job_id']}.json",
+        receipt,
+    )
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "InvalidFailureReceipt"
+    assert "PRIVATE_PATH_MARKER" not in str(raised.value)
+    assert "CREDENTIAL_MARKER" not in str(raised.value)
+
+
+def test_failure_consumer_closes_invalid_json_without_echoing_payload(
+    tmp_path: Path,
+) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-invalid-json-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text('{"error_type":"PRIVATE_PATH_MARKER"', encoding="utf-8")
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "InvalidFailureReceipt"
+    assert "PRIVATE_PATH_MARKER" not in str(raised.value)
+
+
+def test_failure_consumer_closes_deep_valid_json_recursion(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="opaque-run-deep-json-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(_deep_failure_json(marker), encoding="utf-8")
+
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        consume_external_response(tmp_path, request)
+
+    assert raised.value.error_type == "InvalidFailureReceipt"
+    assert marker not in str(raised.value)
+    assert raised.value.__cause__ is None
+
+
+def test_deep_failure_json_does_not_leak_to_cli_or_operation_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-run-deep-json-cli",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(_deep_failure_json(marker), encoding="utf-8")
+
+    class ConsumerClient:
+        writer_model = "gemini-test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            return consume_external_response(queue_root, request)
+
+    operation_receipt = tmp_path / "writer-operation.json"
+    with pytest.raises(outbox.ExternalJobFailed):
+        pipeline._generate_with_receipt(
+            ConsumerClient(),
+            "writer",
+            "public prompt",
+            SCHEMA,
+            operation_receipt,
+        )
+    assert marker not in operation_receipt.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        outbox,
+        "run_pipeline_tick",
+        lambda *_args: consume_external_response(queue_root, request),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agy_gemini_outbox", "tick", str(run_dir), "--queue-root", str(queue_root)],
+    )
+    assert outbox.main() == 1
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert marker not in combined
+    assert "Traceback" not in combined
+    assert str(tmp_path) not in combined
+    assert json.loads(captured.out)["error_type"] == "InvalidFailureReceipt"
+
+
+def test_invalid_failure_receipt_does_not_leak_to_cli_stdout_or_operation_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-run-cli-invalid-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker = "PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    outbox.atomic_write_json(
+        queue_root / "failed" / f"{request['job_id']}.json",
+        _failure_receipt(request, error_type=marker),
+    )
+
+    class ConsumerClient:
+        writer_model = "gemini-test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            return consume_external_response(queue_root, request)
+
+    operation_receipt = tmp_path / "writer-operation.json"
+    with pytest.raises(outbox.ExternalJobFailed) as raised:
+        pipeline._generate_with_receipt(
+            ConsumerClient(),
+            "writer",
+            "public prompt",
+            SCHEMA,
+            operation_receipt,
+        )
+    persisted = operation_receipt.read_text(encoding="utf-8")
+    assert marker not in str(raised.value)
+    assert marker not in persisted
+
+    monkeypatch.setattr(
+        outbox,
+        "run_pipeline_tick",
+        lambda *_args: consume_external_response(queue_root, request),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agy_gemini_outbox", "tick", str(run_dir), "--queue-root", str(queue_root)],
+    )
+    assert outbox.main() == 1
+    stdout = capsys.readouterr().out
+    assert marker not in stdout
+    assert json.loads(stdout)["error_type"] == "InvalidFailureReceipt"
 
 
 def test_runner_requeues_stale_processing_job_after_interrupted_worker(tmp_path: Path) -> None:
@@ -619,10 +1034,41 @@ def test_broker_classifies_json_invalid_without_retaining_output(
     assert result.result_validation == "JSON_INVALID"
     assert result.json_diagnostic == expected_diagnostic
     assert result.result_json is None
-    serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
-    if raw_output:
-        assert raw_output.hex() not in serialized
-    assert "result:" not in serialized
+    trace = result.normalized_trace()
+    _assert_normalized_trace_schema(trace)
+    assert trace == {
+        "replay_status": "COMPLETE",
+        "process_count": 1,
+        "outcome": "SUCCESS",
+        "exit_status": 0,
+        "stdout_sha256": hashlib.sha256(raw_output).hexdigest(),
+        "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+        "byte_count": len(raw_output),
+        "receipt": {
+            "operation_id": f"operation-{expected_diagnostic.lower()}",
+            "item_id": "item-json-invalid",
+            "attempt_id": "attempt-1",
+            "request_sha256": "a" * 64,
+            "model": "synthetic-model",
+            "target_profile": broker.RAW_STDIN_PROFILE,
+            "executable_digest": executable_digest,
+        },
+        "caller_contract_satisfied": False,
+        "result_validation": "JSON_INVALID",
+        "result": None,
+        "errors": [],
+        "automatic_resend_allowed": False,
+    }
+
+
+def test_normalized_trace_schema_rejects_invalid_raw_stdout_bytes() -> None:
+    trace = dict.fromkeys(NORMALIZED_TRACE_KEYS)
+    trace["stdout_sha256"] = hashlib.sha256(b"\xff").hexdigest()
+    _assert_normalized_trace_schema(trace)
+
+    trace["raw_stdout"] = b"\xff"
+    with pytest.raises(AssertionError, match="normalized trace schema changed"):
+        _assert_normalized_trace_schema(trace)
 
 
 @pytest.mark.parametrize(
@@ -1174,7 +1620,7 @@ def test_outbox_client_retries_json_decode_with_new_job_identity(tmp_path: Path)
     )
     outbox.atomic_write_json(
         tmp_path / "failed" / f"{first['job_id']}.json",
-        {"error_type": "JSONDecodeError"},
+        _failure_receipt(first, error_type="JSONDecodeError"),
     )
 
     with pytest.raises(ExternalJobPending) as pending:
@@ -1202,7 +1648,7 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
         failed_job_ids.append(request["job_id"])
         outbox.atomic_write_json(
             tmp_path / "failed" / f"{request['job_id']}.json",
-            {"error_type": "JSONDecodeError"},
+            _failure_receipt(request, error_type="JSONDecodeError"),
         )
 
     with pytest.raises(outbox.ExternalJobFailed) as failure:

@@ -517,6 +517,47 @@ def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: p
     assert calls[0][0] == "/opt/tools/agy-1.1.3"
 
 
+@pytest.mark.parametrize(
+    ("failure", "expected_code"),
+    [
+        ("nonzero", "CLI_NONZERO"),
+        ("timeout", "CLI_TIMEOUT"),
+        ("not-found", "CLI_NOT_FOUND"),
+        ("envelope", "CLI_ENVELOPE_ERROR"),
+    ],
+)
+def test_cli_transport_exposes_only_closed_failure_code(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected_code: str,
+) -> None:
+    private_detail = "/Users/example/private prompt GEMINI_API_KEY=must-not-persist"
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(args, timeout=1, stderr=private_detail)
+        if failure == "not-found":
+            raise FileNotFoundError(private_detail)
+        if failure == "nonzero":
+            return pipeline.subprocess.CompletedProcess(args, 7, "", private_detail)
+        return pipeline.subprocess.CompletedProcess(
+            args,
+            0,
+            json.dumps({"error": private_detail}),
+            "",
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/gemini")
+    monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
+    client = GeminiClient.from_environment()
+
+    with pytest.raises(RuntimeError) as raised:
+        client.generate_json("writer", private_detail, {"type": "object"})
+
+    assert getattr(raised.value, "error_code", None) == expected_code
+    assert private_detail not in str(raised.value)
+
+
 def test_external_model_brief_excludes_private_repo_metadata() -> None:
     brief = {
         "schema_version": 1,
@@ -1358,6 +1399,84 @@ def test_runtime_retry_preserves_failed_operation_receipt(tmp_path: Path) -> Non
     assert receipt.read_bytes() == original
     retry = json.loads((tmp_path / "writer-operation-runtime-retry-01.json").read_text(encoding="utf-8"))
     assert retry["status"] == "success"
+
+
+def test_operation_receipt_persists_closed_cli_code_without_exception_text(
+    tmp_path: Path,
+) -> None:
+    private_detail = "/Users/example/private GEMINI_API_KEY=must-not-persist raw stderr"
+
+    class FailedClient:
+        writer_model = "test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise pipeline.GeminiCliFailure("CLI_TIMEOUT") from RuntimeError(private_detail)
+
+    receipt_path = tmp_path / "writer-operation.json"
+    with pytest.raises(pipeline.GeminiCliFailure):
+        pipeline._generate_with_receipt(
+            FailedClient(),
+            "writer",
+            "public prompt",
+            {"type": "object"},
+            receipt_path,
+        )
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["error_type"] == "GeminiCliFailure"
+    assert receipt["error_code"] == "CLI_TIMEOUT"
+    persisted = receipt_path.read_text(encoding="utf-8")
+    for forbidden in ("response", "stdout", "stderr", "GEMINI_API_KEY", "/Users/"):
+        assert forbidden not in persisted
+
+
+@pytest.mark.parametrize(
+    "unsafe_error_code",
+    [
+        ["CLI_TIMEOUT"],
+        {"error_code": "CLI_TIMEOUT"},
+        7,
+        None,
+        "UNKNOWN_ERROR_CODE",
+    ],
+)
+def test_operation_receipt_ignores_non_string_unhashable_or_unknown_error_code(
+    tmp_path: Path,
+    unsafe_error_code: object,
+) -> None:
+    original_error = RuntimeError("synthetic closed failure")
+    original_error.error_code = unsafe_error_code  # type: ignore[attr-defined]
+
+    class FailedClient:
+        writer_model = "test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise original_error
+
+    receipt_path = tmp_path / "writer-operation.json"
+    with pytest.raises(RuntimeError) as raised:
+        pipeline._generate_with_receipt(
+            FailedClient(),
+            "writer",
+            "public prompt",
+            {"type": "object"},
+            receipt_path,
+        )
+
+    assert raised.value is original_error
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["error_type"] == "RuntimeError"
+    assert "error_code" not in receipt
 
 
 def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Path) -> None:

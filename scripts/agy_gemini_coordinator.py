@@ -109,22 +109,29 @@ def _advance(
     except ExternalJobPending as pending:
         state["status"] = "active"
         state["last_job_id"] = pending.job_id
+        state.pop("error_code", None)
         _write_state(queue_root, state)
         return "pending"
     except ExternalJobFailed as failed:
         state["status"] = "failed"
         state["last_job_id"] = failed.job_id
         state["error_type"] = failed.error_type
+        if failed.error_code is not None:
+            state["error_code"] = failed.error_code
+        else:
+            state.pop("error_code", None)
         _write_state(queue_root, state)
         return "failed"
     except Exception as error:
         state["status"] = "failed"
         state["error_type"] = type(error).__name__
+        state.pop("error_code", None)
         _write_state(queue_root, state)
         return "failed"
     state["status"] = "complete"
     state["result"] = result
     state.pop("error_type", None)
+    state.pop("error_code", None)
     _write_state(queue_root, state)
     return "complete"
 
@@ -642,6 +649,7 @@ def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     state = read_run_state(run_dir, queue_root)
     state["status"] = "active"
     state.pop("error_type", None)
+    state.pop("error_code", None)
     state.pop("result", None)
     _write_state(queue_root.resolve(), state)
     return state

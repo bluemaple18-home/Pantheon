@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scripts import agy_gemini_coordinator as coordinator
 from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
-from scripts.agy_gemini_outbox import ExternalJobPending, create_external_request
+from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
 
 
 def _write_brief(run_dir: Path, run_id: str = "private-run-001") -> None:
@@ -221,6 +221,112 @@ def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) ->
     assert state["status"] == "failed"
     assert state["error_type"] == "ValueError"
     assert "invalid candidate" not in state
+
+
+def test_cycle_preserves_closed_code_and_failed_run_does_not_block_next(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    first_run = tmp_path / "runs" / "run-001"
+    second_run = tmp_path / "runs" / "run-002"
+    _write_brief(first_run, "run-001")
+    _write_brief(second_run, "run-002")
+    register_run(first_run, queue_root)
+    register_run(second_run, queue_root)
+
+    def mixed_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        if run_dir == first_run.resolve():
+            raise coordinator.ExternalJobFailed(
+                "public-job-failed",
+                "RuntimeError",
+                "CLI_NONZERO",
+            )
+        return {"status": "complete", "run_id": "run-002"}
+
+    summary = cycle_once(
+        queue_root,
+        tick=mixed_tick,
+        process=lambda _root: {"status": "idle"},
+    )
+    first_state = read_run_state(first_run, queue_root)
+    second_state = read_run_state(second_run, queue_root)
+
+    assert summary["failed"] == 1
+    assert summary["complete"] == 1
+    assert first_state["status"] == "failed"
+    assert first_state["error_code"] == "CLI_NONZERO"
+    assert second_state["status"] == "complete"
+
+
+def test_cycle_closes_untrusted_failure_receipt_error_type(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "run-invalid-failure"
+    _write_brief(run_dir, "run-invalid-failure")
+    register_run(run_dir, queue_root)
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-coordinator-invalid-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema={"type": "object"},
+    )
+    marker = "PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    coordinator.atomic_write_json(
+        queue_root / "failed" / f"{request['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": request["job_id"],
+            "request_sha256": request["request_sha256"],
+            "error_type": marker,
+            "completed_at": "2026-07-26T00:30:00+08:00",
+        },
+    )
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args: consume_external_response(queue_root, request),
+        process=lambda _root: {"status": "idle"},
+    )
+    state = read_run_state(run_dir, queue_root)
+
+    assert summary["failed"] == 1
+    assert state["error_type"] == "InvalidFailureReceipt"
+    assert marker not in json.dumps(state)
+
+
+def test_cycle_closes_deep_failure_json_without_state_leak(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "run-deep-failure"
+    _write_brief(run_dir, "run-deep-failure")
+    register_run(run_dir, queue_root)
+    request = create_external_request(
+        queue_root,
+        namespace="opaque-coordinator-deep-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema={"type": "object"},
+    )
+    marker = "/Users/PRIVATE_PATH_MARKER/CREDENTIAL_MARKER"
+    depth = 20_000
+    payload = "[" * depth + json.dumps(marker) + "]" * depth
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed_path.parent.mkdir()
+    failed_path.write_text(payload, encoding="utf-8")
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args: consume_external_response(queue_root, request),
+        process=lambda _root: {"status": "idle"},
+    )
+    state = read_run_state(run_dir, queue_root)
+
+    assert summary["failed"] == 1
+    assert state["error_type"] == "InvalidFailureReceipt"
+    serialized = json.dumps(state)
+    assert marker not in serialized
+    assert "RecursionError" not in serialized
 
 
 def test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable(tmp_path: Path) -> None:
