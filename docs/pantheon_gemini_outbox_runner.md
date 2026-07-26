@@ -2,7 +2,7 @@
 
 ## 狀態與邊界
 
-本文件描述本機使用者擁有的整合。Repo 只提供 queue、coordinator 與 launchd installer；不自動安裝、不登入 Gemini、不讀取或寫入 token。使用者完成一次性啟用後，coordinator 才會在本機背景處理已明確登記的 run。
+本文件描述本機使用者擁有的整合。Repo 只提供 queue、coordinator 與 launchd installer；不自動安裝、不登入 Gemini，也不寫入 token。預設 CLI 路徑不讀取 API key；只有使用者明確設定 production credential pool 時，lane runner 才會從被選中的 owner-only credential file 讀取一次 API key。使用者完成一次性啟用後，coordinator 才會在本機背景處理已明確登記的 run。
 
 內容產文與 V4 broker 的放量決策已分離，完整邊界見
 [`pantheon_content_transport_decoupling.md`](pantheon_content_transport_decoupling.md)。
@@ -51,6 +51,45 @@ Runner 只讀 `.work/gemini-runner/outbox/`，完成後：
 - request 移到 `archive/`。
 - 成功或格式錯誤的模型 JSON 都寫入 `inbox/`，並綁定 request SHA；格式錯誤由既有 Reviewer gate 產生正式 REJECT。
 - 失敗只在 `failed/` 留下 job ID、request SHA 與錯誤類型，不保存 CLI stderr 或憑證內容。
+
+## Production credential pool（明確 opt-in）
+
+四條 production lane 可共同設定 `AGY_GEMINI_CREDENTIAL_POOL_FILE`。這個 flag 與 `AGY_GEMINI_V4_CREDENTIAL_POOL_FILE` 完全分離，不啟用、不沿用也不升級 V4 broker／target／shadow transport。未設定 production flag 時，runner 維持既有 `AGY_GEMINI_CLI`。
+
+Manifest 必須是目前使用者擁有、group/other 無權限、regular、non-symlink 的 JSON file；三個 credential file 也必須符合相同檔案安全條件。Manifest 固定只有三槽，schema 如下：
+
+```json
+{
+  "schema_version": 1,
+  "pool_id": "pantheon-production-v1",
+  "slots": [
+    {
+      "slot_id": "account-1",
+      "credential_file": "<user-config>/pantheon/gemini-api-key-1"
+    },
+    {
+      "slot_id": "account-2",
+      "credential_file": "<user-config>/pantheon/gemini-api-key-2"
+    },
+    {
+      "slot_id": "account-3",
+      "credential_file": "<user-config>/pantheon/gemini-api-key-3"
+    }
+  ]
+}
+```
+
+每個 credential file 只放一個 ASCII API key，可有結尾換行。Manifest 與三個 credential file 都應設為 `0600`；credential path 必須是絕對路徑，但不得把實際本機路徑提交到 repo。
+
+每個新 job 的選槽規則固定：
+
+1. 對三個 slot 依 `slot_id` canonical sort。
+2. 計算 `SHA-256(pool_id + NUL + job_id)`，以前 8 bytes 的 big-endian 整數對三取模。
+3. 同一 job 永遠選到同一 slot，不使用 mutable cursor。
+4. Runner 只開啟被選中的 credential file，並且只送出一次 provider POST。
+5. `429`、其他 HTTP failure、timeout、transport error、provider output invalid 都是 terminal；不換 key、不 retry、不 fallback，也不重送既有 failed job。
+
+成功 inbox、失敗 receipt 與 runner stdout 只可帶 `pool_id`、`slot_id`、canonical manifest SHA-256；consumer 會 strict validate。它們不得帶 credential path、credential value、provider response body 或 exception detail。Queue、archive、failed、deferred、quarantine 與既有 V4 ledger 行為不因 production pool 改寫或清除。
 
 `AGY_GEMINI_V4_BROKER=1` 只供獨立 V4 canary／shadow 驗證。受監督產文不得
 因環境中殘留該 flag 而誤入 V4；直接內容 pipeline 固定以
@@ -113,6 +152,15 @@ Coordinator 的完成條件只代表已產生 candidate 與 review；它不建�
 ```bash
 bash scripts/install_agy_gemini_coordinator_launchd.sh
 ```
+
+若要明確啟用三槽 production pool，先在本機準備 owner-only manifest 與 credential files，再只對這次 installer 執行提供：
+
+```bash
+AGY_GEMINI_CREDENTIAL_POOL_FILE="<user-config>/pantheon/production-gemini-pool.json" \
+  bash scripts/install_agy_gemini_coordinator_launchd.sh
+```
+
+Installer 只會把 production pool manifest path 加入 `new`、`rewrite`、`i18n-new`、`i18n-rewrite` 四條 lane plist；不會把 key value 加入 environment、argv 或 plist。未提供該變數時，lane plist 不會出現 production pool flag。
 
 Installer 會解析並驗證以下 placeholder：
 

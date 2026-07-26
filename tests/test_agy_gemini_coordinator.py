@@ -676,6 +676,10 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'LANE_LABEL="com.pantheon.agy-gemini-${LANE}"' in installer
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
+    assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
+    assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in lane_plist["EnvironmentVariables"]
+    assert "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string" in installer
+    assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_gemini_coordinator_launchd.sh"],
         cwd=repo_root,

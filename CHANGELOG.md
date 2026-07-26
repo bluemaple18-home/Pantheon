@@ -2,6 +2,13 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [Unreleased]
+
+- 新增 production-only `AGY_GEMINI_CREDENTIAL_POOL_FILE` opt-in，讓新文、舊文改寫與英／日／韓 lane 依 `SHA-256(pool_id + NUL + job_id)` deterministic 分流三個 owner-only Gemini credential slot。
+- Pool transport 每個 job 僅允許一次 provider request；429、HTTP/timeout/transport/output failure 一律 terminal，不換 key、不 retry、不 fallback。
+- Inbox／failed receipt 僅保存 strict validated 的匿名 pool／slot／manifest digest；不保存 credential path/value。Flag-off CLI 與所有 V4 broker／target／shadow 行為維持不變。
+- Launchd installer 僅在明確 opt-in 時，把 production pool manifest path 加入四條 content lane plist。
+
 ## [0.3.80] - 2026-07-25
 
 - Release tag：`v0.3.80`

@@ -517,6 +517,22 @@ def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: p
     assert calls[0][0] == "/opt/tools/agy-1.1.3"
 
 
+def test_production_single_request_transport_disables_redirects() -> None:
+    handler = pipeline._NoRedirectHandler()
+
+    assert (
+        handler.redirect_request(
+            pipeline.urllib.request.Request("https://example.invalid"),
+            None,
+            302,
+            "must not follow",
+            {},
+            "https://redirect.invalid",
+        )
+        is None
+    )
+
+
 @pytest.mark.parametrize(
     ("failure", "expected_code"),
     [

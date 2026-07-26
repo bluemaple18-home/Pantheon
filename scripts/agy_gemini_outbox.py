@@ -24,6 +24,7 @@ RETRYABLE_EXTERNAL_ERRORS = {"JSONDecodeError"}
 CLOSED_EXTERNAL_ERROR_CODES = pipeline.CLOSED_GEMINI_ERROR_CODES
 INVALID_FAILURE_RECEIPT = "InvalidFailureReceipt"
 CLOSED_EXTERNAL_ERROR_TYPES = frozenset({
+    "GeminiApiFailure",
     "GeminiCliFailure",
     INVALID_FAILURE_RECEIPT,
     "JSONDecodeError",
@@ -38,7 +39,11 @@ FAILURE_RECEIPT_BASE_FIELDS = frozenset({
     "error_type",
     "completed_at",
 })
-FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({"error_code", "broker_diagnostic"})
+FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({
+    "broker_diagnostic",
+    "credential_pool",
+    "error_code",
+})
 FAILURE_TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$"
 )
@@ -82,6 +87,8 @@ BROKER_SCHEMA_KEYWORDS = frozenset({
     "type",
 })
 SAFE_DIAGNOSTIC_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 MAX_FAILURE_RECEIPT_BYTES = 64 * 1024
@@ -311,6 +318,23 @@ def _broker_diagnostic_is_closed(value: object) -> bool:
     return True
 
 
+def _credential_pool_identity_is_closed(value: object) -> bool:
+    if type(value) is not dict or set(value) != {
+        "manifest_sha256",
+        "pool_id",
+        "slot_id",
+    }:
+        return False
+    return (
+        type(value.get("pool_id")) is str
+        and SAFE_CREDENTIAL_ID.fullmatch(value["pool_id"]) is not None
+        and type(value.get("slot_id")) is str
+        and SAFE_CREDENTIAL_ID.fullmatch(value["slot_id"]) is not None
+        and type(value.get("manifest_sha256")) is str
+        and SHA256_PATTERN.fullmatch(value["manifest_sha256"]) is not None
+    )
+
+
 def _failure_receipt_is_valid(
     failure: object,
     request: dict[str, Any],
@@ -332,7 +356,7 @@ def _failure_receipt_is_valid(
         return False
     error_code = failure.get("error_code")
     if "error_code" in failure and (
-        failure.get("error_type") != "GeminiCliFailure"
+        failure.get("error_type") not in {"GeminiApiFailure", "GeminiCliFailure"}
         or type(error_code) is not str
         or error_code not in CLOSED_EXTERNAL_ERROR_CODES
     ):
@@ -340,7 +364,14 @@ def _failure_receipt_is_valid(
     broker_diagnostic = failure.get("broker_diagnostic")
     if ("broker_diagnostic" in failure) != (failure.get("error_type") == "V4BrokerFailure"):
         return False
-    return "broker_diagnostic" not in failure or _broker_diagnostic_is_closed(broker_diagnostic)
+    credential_pool = failure.get("credential_pool")
+    return (
+        ("broker_diagnostic" not in failure or _broker_diagnostic_is_closed(broker_diagnostic))
+        and (
+            "credential_pool" not in failure
+            or _credential_pool_identity_is_closed(credential_pool)
+        )
+    )
 
 
 def _failure_timestamp_is_valid(value: object) -> bool:
@@ -376,7 +407,16 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
         raise ExternalJobPending(job_id)
     response = json.loads(response_path.read_text(encoding="utf-8"))
     required = {"schema_version", "job_id", "request_sha256", "model", "completed_at", "result"}
-    if set(response) != required or response.get("schema_version") != SCHEMA_VERSION:
+    optional = {"credential_pool"}
+    if (
+        not required <= set(response)
+        or not set(response) <= required | optional
+        or response.get("schema_version") != SCHEMA_VERSION
+        or (
+            "credential_pool" in response
+            and not _credential_pool_identity_is_closed(response["credential_pool"])
+        )
+    ):
         raise ValueError("external response fields are strict")
     if response["job_id"] != job_id:
         raise ValueError("response job id mismatch")

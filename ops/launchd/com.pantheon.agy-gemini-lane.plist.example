@@ -20,6 +20,7 @@
 
   <key>EnvironmentVariables</key>
   <dict>
+    <!-- Installer 只在明確 opt-in 時加入 AGY_GEMINI_CREDENTIAL_POOL_FILE。 -->
     <key>AGY_GEMINI_CLI</key>
     <string>__AGY_GEMINI_CLI__</string>
     <key>PATH</key>

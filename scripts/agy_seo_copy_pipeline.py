@@ -1358,6 +1358,11 @@ def prepare_rewrite_repair(
 
 
 CLOSED_GEMINI_ERROR_CODES = frozenset({
+    "API_HTTP_ERROR",
+    "API_RATE_LIMITED",
+    "API_RESPONSE_INVALID",
+    "API_TIMEOUT",
+    "API_TRANSPORT_ERROR",
     "CLI_ENVELOPE_ERROR",
     "CLI_NONZERO",
     "CLI_NOT_FOUND",
@@ -1373,6 +1378,42 @@ class GeminiCliFailure(RuntimeError):
             raise ValueError("Gemini CLI error code is not closed")
         self.error_code = error_code
         super().__init__(error_code)
+
+
+class GeminiApiFailure(RuntimeError):
+    """不攜帶 HTTP response、request header 或 credential 的封閉失敗分類。"""
+
+    def __init__(self, error_code: str) -> None:
+        if error_code not in CLOSED_GEMINI_ERROR_CODES or not error_code.startswith("API_"):
+            raise ValueError("Gemini API error code is not closed")
+        self.error_code = error_code
+        super().__init__(error_code)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Production 單次 transport 禁止把 3xx 轉成第二個 provider request。"""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+def _single_request_urlopen(
+    request: urllib.request.Request,
+    *,
+    timeout: float,
+) -> Any:
+    return urllib.request.build_opener(_NoRedirectHandler).open(
+        request,
+        timeout=timeout,
+    )
 
 
 class GeminiClient:
@@ -1453,6 +1494,49 @@ class GeminiClient:
         if not text:
             raise ValueError("Gemini response missing JSON text")
         return json.loads(text)
+
+    def _single_request_http_transport(self, model: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Production pool 專用單次 POST；任何 transport/provider 錯誤都 terminal。"""
+        url = GEMINI_ENDPOINT.format(model=urllib.parse.quote(model, safe=""))
+        request = urllib.request.Request(
+            url,
+            data=compact_json_bytes(payload),
+            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+            method="POST",
+        )
+        try:
+            with _single_request_urlopen(
+                request,
+                timeout=float(os.environ.get("AGY_GEMINI_TIMEOUT", "120")),
+            ) as response:
+                encoded = response.read()
+        except urllib.error.HTTPError as error:
+            code = "API_RATE_LIMITED" if error.code == 429 else "API_HTTP_ERROR"
+            raise GeminiApiFailure(code) from None
+        except urllib.error.URLError as error:
+            code = "API_TIMEOUT" if isinstance(error.reason, TimeoutError) else "API_TRANSPORT_ERROR"
+            raise GeminiApiFailure(code) from None
+        except TimeoutError:
+            raise GeminiApiFailure("API_TIMEOUT") from None
+        except OSError:
+            raise GeminiApiFailure("API_TRANSPORT_ERROR") from None
+        try:
+            response_payload = json.loads(encoded.decode("utf-8"))
+            candidates = response_payload.get("candidates") or []
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text = "".join(
+                str(part.get("text", ""))
+                for part in parts
+                if not part.get("thought")
+            ).strip()
+            if not text:
+                raise ValueError("missing JSON text")
+            result = json.loads(text)
+            if not isinstance(result, dict):
+                raise ValueError("result is not an object")
+            return result
+        except (AttributeError, IndexError, KeyError, TypeError, UnicodeError, ValueError):
+            raise GeminiApiFailure("API_RESPONSE_INVALID") from None
 
     def _cli_transport(self, model: str, payload: dict[str, Any]) -> dict[str, Any]:
         configured = os.environ.get("AGY_GEMINI_CLI", "").strip()

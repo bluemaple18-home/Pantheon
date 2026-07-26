@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import stat
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Final
@@ -66,10 +69,179 @@ MAX_SCHEMA_DIAGNOSTICS = 3
 MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
 STALE_PROCESSING_SECONDS = 10 * 60
+MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
+SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+SAFE_JOB_ID = re.compile(r"^[0-9a-f]{40}$")
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
 }
+
+
+@dataclass(frozen=True)
+class ProductionCredentialSource:
+    descriptor: int
+    pool_id: str
+    slot_id: str
+    manifest_sha256: str
+
+
+def _private_file_stat(path: Path, *, minimum_size: int, maximum_size: int) -> os.stat_result:
+    try:
+        current = path.lstat()
+    except OSError as error:
+        raise ValueError("production credential file is unavailable") from error
+    if (
+        stat.S_ISLNK(current.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or current.st_uid != os.getuid()
+        or current.st_mode & 0o077
+        or not minimum_size <= current.st_size <= maximum_size
+    ):
+        raise ValueError("production credential file must be owner-only regular file")
+    return current
+
+
+def _open_private_file(path: Path, *, minimum_size: int, maximum_size: int) -> int:
+    before = _private_file_stat(
+        path,
+        minimum_size=minimum_size,
+        maximum_size=maximum_size,
+    )
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError("production credential file cannot be opened") from error
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+            or after.st_uid != os.getuid()
+            or after.st_mode & 0o077
+            or not minimum_size <= after.st_size <= maximum_size
+        ):
+            raise ValueError("production credential file changed during validation")
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _read_descriptor(descriptor: int, *, expected_size: int, maximum_size: int) -> bytes:
+    chunks = bytearray()
+    while len(chunks) <= maximum_size:
+        chunk = os.read(descriptor, min(4096, maximum_size + 1 - len(chunks)))
+        if not chunk:
+            break
+        chunks.extend(chunk)
+    encoded = bytes(chunks)
+    if len(encoded) != expected_size:
+        raise ValueError("production credential file size changed")
+    return encoded
+
+
+def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
+    descriptor = _open_private_file(path, minimum_size=2, maximum_size=MAX_CREDENTIAL_POOL_BYTES)
+    try:
+        size = os.fstat(descriptor).st_size
+        encoded = _read_descriptor(
+            descriptor,
+            expected_size=size,
+            maximum_size=MAX_CREDENTIAL_POOL_BYTES,
+        )
+    finally:
+        os.close(descriptor)
+    try:
+        payload = json.loads(
+            encoded,
+            parse_constant=lambda _value: (_ for _ in ()).throw(
+                ValueError("non-finite JSON constant")
+            ),
+        )
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ValueError("production credential pool JSON is invalid") from error
+    if not isinstance(payload, dict) or set(payload) != {
+        "pool_id",
+        "schema_version",
+        "slots",
+    }:
+        raise ValueError("production credential pool schema is invalid")
+    pool_id = payload.get("pool_id")
+    slots = payload.get("slots")
+    if (
+        payload.get("schema_version") != 1
+        or type(pool_id) is not str
+        or SAFE_CREDENTIAL_ID.fullmatch(pool_id) is None
+        or not isinstance(slots, list)
+        or len(slots) != 3
+    ):
+        raise ValueError("production credential pool schema is invalid")
+    slot_ids: set[str] = set()
+    credential_paths: set[str] = set()
+    for slot in slots:
+        if not isinstance(slot, dict) or set(slot) != {"credential_file", "slot_id"}:
+            raise ValueError("production credential pool slot is invalid")
+        slot_id = slot.get("slot_id")
+        credential_file = slot.get("credential_file")
+        if (
+            type(slot_id) is not str
+            or SAFE_CREDENTIAL_ID.fullmatch(slot_id) is None
+            or type(credential_file) is not str
+            or not Path(credential_file).is_absolute()
+            or slot_id in slot_ids
+            or credential_file in credential_paths
+        ):
+            raise ValueError("production credential pool slot is invalid")
+        _private_file_stat(Path(credential_file), minimum_size=20, maximum_size=512)
+        slot_ids.add(slot_id)
+        credential_paths.add(credential_file)
+    canonical = json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return payload, hashlib.sha256(canonical).hexdigest()
+
+
+def _open_production_credential_source(
+    manifest_path: Path,
+    job_id: str,
+) -> ProductionCredentialSource:
+    if SAFE_JOB_ID.fullmatch(job_id) is None:
+        raise ValueError("production credential job id is invalid")
+    payload, manifest_sha256 = _read_production_pool(manifest_path)
+    slots = sorted(payload["slots"], key=lambda slot: slot["slot_id"])
+    digest = hashlib.sha256(f"{payload['pool_id']}\0{job_id}".encode("utf-8")).digest()
+    selected = slots[int.from_bytes(digest[:8], "big") % len(slots)]
+    return ProductionCredentialSource(
+        descriptor=_open_private_file(
+            Path(selected["credential_file"]),
+            minimum_size=20,
+            maximum_size=512,
+        ),
+        pool_id=str(payload["pool_id"]),
+        slot_id=str(selected["slot_id"]),
+        manifest_sha256=manifest_sha256,
+    )
+
+
+def _read_production_api_key(descriptor: int) -> str:
+    size = os.fstat(descriptor).st_size
+    encoded = _read_descriptor(descriptor, expected_size=size, maximum_size=512)
+    try:
+        api_key = encoded.decode("ascii").strip()
+    except UnicodeDecodeError as error:
+        raise ValueError("production credential value is invalid") from error
+    if (
+        not 20 <= len(api_key) <= 512
+        or re.fullmatch(r"[A-Za-z0-9_-]+", api_key) is None
+    ):
+        raise ValueError("production credential value is invalid")
+    return api_key
 
 
 def _cli_generate_json(role: str, model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -243,7 +415,7 @@ def _closed_error_code(error: BaseException) -> str | None:
     return None
 
 
-def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, str]:
+def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, Any]:
     claimed = _claim_next(queue_root)
     if claimed is None:
         return {"status": "idle"}
@@ -252,6 +424,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
     archive_path = queue_root / "archive" / f"{job_id}.json"
     request: dict[str, Any] = {}
     broker_diagnostic: dict[str, object] | None = None
+    credential_pool: dict[str, str] | None = None
     try:
         request = json.loads(processing_path.read_text(encoding="utf-8"))
         validate_external_request(request)
@@ -302,6 +475,28 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                     f"{broker_diagnostic['process_count']}"
                 )
             result = broker_result.result
+        elif pool_file := os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip():
+            source = _open_production_credential_source(Path(pool_file), job_id)
+            credential_pool = {
+                "pool_id": source.pool_id,
+                "slot_id": source.slot_id,
+                "manifest_sha256": source.manifest_sha256,
+            }
+            try:
+                api_key = _read_production_api_key(source.descriptor)
+            finally:
+                os.close(source.descriptor)
+            client = GeminiClient(
+                api_key,
+                writer_model=str(request["model"]) if request["role"] == "writer" else None,
+                reviewer_model=str(request["model"]) if request["role"] == "reviewer" else None,
+            )
+            client.transport = client._single_request_http_transport
+            result = client.generate_json(
+                str(request["role"]),
+                str(request["prompt"]),
+                request["response_schema"],
+            )
         else:
             result = generate_json(
                 str(request["role"]),
@@ -309,20 +504,23 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 str(request["prompt"]),
                 request["response_schema"],
             )
-        atomic_write_json(
-            queue_root / "inbox" / f"{job_id}.json",
-            {
-                "schema_version": SCHEMA_VERSION,
-                "job_id": job_id,
-                "request_sha256": request["request_sha256"],
-                "model": request["model"],
-                "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                "result": result,
-            },
-        )
+        response_record = {
+            "schema_version": SCHEMA_VERSION,
+            "job_id": job_id,
+            "request_sha256": request["request_sha256"],
+            "model": request["model"],
+            "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "result": result,
+        }
+        if credential_pool is not None:
+            response_record["credential_pool"] = credential_pool
+        atomic_write_json(queue_root / "inbox" / f"{job_id}.json", response_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
-        return {"status": "processed", "job_id": job_id}
+        processed: dict[str, Any] = {"status": "processed", "job_id": job_id}
+        if credential_pool is not None:
+            processed["credential_pool"] = credential_pool
+        return processed
     except Exception as error:
         failed_record: dict[str, object] = {
             "schema_version": SCHEMA_VERSION,
@@ -336,12 +534,16 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             failed_record["error_code"] = error_code
         if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
             failed_record["broker_diagnostic"] = broker_diagnostic
+        if credential_pool is not None:
+            failed_record["credential_pool"] = credential_pool
         atomic_write_json(queue_root / "failed" / f"{job_id}.json", failed_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
         result = {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
         if error_code is not None:
             result["error_code"] = error_code
+        if credential_pool is not None:
+            result["credential_pool"] = credential_pool
         return result
 
 
