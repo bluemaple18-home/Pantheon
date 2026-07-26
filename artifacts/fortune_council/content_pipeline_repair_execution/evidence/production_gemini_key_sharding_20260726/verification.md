@@ -7,6 +7,31 @@
 - Root question: production 新文、舊文改寫、英／日／韓 lane 是否能對每個新 job deterministic 選擇三個 owner-only credential slot 之一，同時保持 V4 shadow 與 flag-off CLI 不變。
 - Result: implementation 與本機測試通過；未 activation、未 live request、未 deploy。
 
+## Repair 1
+
+- Candidate repaired: `7a99579310d4ed6140117464db524e495efd471e`
+- RED：
+  - relative manifest path 在 absolute-path gate 前會進入 `_open_private_file`。
+  - JSON boolean `true` 會因 Python `bool`/`int` 相容性通過 `schema_version == 1`。
+  - 相同 pool 與相同三槽只改輸入排列時，`manifest_sha256` 不同。
+  - 三個 regression tests 首跑結果：`3 failed, 90 deselected`。
+- GREEN：
+  - manifest path 在任何 production manifest open 前要求 absolute。
+  - `schema_version` 要求 exact `int` 且值為 `1`。
+  - 驗證完成後，以 `slot_id` 排序的 canonical manifest projection 計算 SHA-256；projection 只含 manifest identity/path 欄位，不讀取 credential value。
+  - 三個 regression tests：`3 passed, 90 deselected`。
+  - production pool focused：`20 passed, 73 deselected`。
+  - outbox + SEO copy + coordinator：`179 passed in 48.64s`。
+  - publisher + multilingual：`59 passed in 3.14s`。
+  - full pytest（完整 dependencies）：`476 passed, 1 warning in 102.33s`。
+- Fixed-base comparison：
+  - 沒有 `node_modules/iztro` 時，Repair 1 full pytest 為 `474 passed, 2 failed`；兩個 failure 都是 Ziwei provider 回退。
+  - 在相同無 `node_modules` 條件下，fixed base `1e9e505f3a40627abbf797e0fe8d8572fa72f192` 的相同兩個 test nodes 亦為 `2 failed`，failure message 相同。
+  - 暫時提供既有 `node_modules` 後，Repair 1 full pytest 為 `476 passed`；暫時 symlink 已移除。
+- Static gates：
+  - Python compile、`git diff --check`、privacy pattern、absolute user path、debug marker：pass。
+  - V4 broker/probe/plist/installer/docs/tests path-scoped diff：empty。
+
 ## RED / GREEN
 
 - RED：新增 production pool 測試後首次有效執行為 `8 failed, 1 passed, 73 deselected`。主要預期失敗是 secure pool selector 尚不存在、production flag 尚未導向 provider、receipt 尚未支援匿名 pool identity；另有一個測試 placement defect，修正 test harness 後才進入 GREEN。

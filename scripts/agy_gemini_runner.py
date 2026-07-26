@@ -143,6 +143,8 @@ def _read_descriptor(descriptor: int, *, expected_size: int, maximum_size: int) 
 
 
 def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
+    if not path.is_absolute():
+        raise ValueError("production credential pool path must be absolute")
     descriptor = _open_private_file(path, minimum_size=2, maximum_size=MAX_CREDENTIAL_POOL_BYTES)
     try:
         size = os.fstat(descriptor).st_size
@@ -171,7 +173,8 @@ def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
     pool_id = payload.get("pool_id")
     slots = payload.get("slots")
     if (
-        payload.get("schema_version") != 1
+        type(payload.get("schema_version")) is not int
+        or payload.get("schema_version") != 1
         or type(pool_id) is not str
         or SAFE_CREDENTIAL_ID.fullmatch(pool_id) is None
         or not isinstance(slots, list)
@@ -197,8 +200,13 @@ def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
         _private_file_stat(Path(credential_file), minimum_size=20, maximum_size=512)
         slot_ids.add(slot_id)
         credential_paths.add(credential_file)
+    canonical_payload = {
+        "pool_id": pool_id,
+        "schema_version": payload["schema_version"],
+        "slots": sorted(slots, key=lambda slot: slot["slot_id"]),
+    }
     canonical = json.dumps(
-        payload,
+        canonical_payload,
         allow_nan=False,
         ensure_ascii=False,
         sort_keys=True,

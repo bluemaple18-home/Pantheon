@@ -187,6 +187,85 @@ def test_production_pool_selection_is_stable_and_distributed(tmp_path: Path) -> 
     )
 
 
+def test_production_pool_rejects_relative_manifest_before_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[Path] = []
+
+    def reject_open(
+        path: Path,
+        *,
+        minimum_size: int,
+        maximum_size: int,
+    ) -> int:
+        del minimum_size, maximum_size
+        opened.append(path)
+        raise AssertionError("relative manifest must be rejected before file open")
+
+    monkeypatch.setattr(runner, "_open_private_file", reject_open)
+
+    with pytest.raises(ValueError, match="absolute"):
+        runner._open_production_credential_source(
+            Path("relative-production-pool.json"),
+            "a" * 40,
+        )
+
+    create_external_request(
+        tmp_path,
+        namespace="production-pool-relative-manifest",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    monkeypatch.setenv(
+        "AGY_GEMINI_CREDENTIAL_POOL_FILE",
+        "relative-production-pool.json",
+    )
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "ValueError"
+    assert opened == []
+
+
+def test_production_pool_rejects_boolean_schema_version(tmp_path: Path) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["schema_version"] = True
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    manifest.chmod(0o600)
+
+    with pytest.raises(ValueError, match="production credential pool schema"):
+        source = runner._open_production_credential_source(manifest, "b" * 40)
+        os.close(source.descriptor)
+
+
+def test_production_pool_digest_is_stable_for_permuted_slots(tmp_path: Path) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    permuted_manifest = tmp_path / "production-pool-permuted.json"
+    permuted_payload = {**payload, "slots": list(reversed(payload["slots"]))}
+    permuted_manifest.write_text(json.dumps(permuted_payload), encoding="utf-8")
+    permuted_manifest.chmod(0o600)
+
+    original = runner._open_production_credential_source(manifest, "c" * 40)
+    for slot in payload["slots"]:
+        Path(slot["credential_file"]).write_text(
+            "replacement-production-credential-value\n",
+            encoding="utf-8",
+        )
+    permuted = runner._open_production_credential_source(permuted_manifest, "c" * 40)
+    try:
+        assert original.manifest_sha256 == permuted.manifest_sha256
+        assert original.slot_id == permuted.slot_id
+    finally:
+        os.close(original.descriptor)
+        os.close(permuted.descriptor)
+
+
 @pytest.mark.parametrize("unsafe_target", ["manifest-mode", "manifest-symlink", "credential-mode", "credential-symlink"])
 def test_production_pool_rejects_unsafe_files(
     tmp_path: Path,
