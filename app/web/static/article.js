@@ -128,6 +128,7 @@ function renderArticleChrome(content) {
   const inlineTopicState = buildInlineTopicState(content);
   document.body.dataset.productTheme = content.productTheme;
   document.body.dataset.intent = content.intent;
+  document.body.dataset.locale = content.locale || "zh-Hant";
   dom.articleTitle.textContent = content.title;
   dom.titleCrumb.textContent = content.title;
   dom.articleProduct.textContent = content.productCrumbLabel;
@@ -283,7 +284,7 @@ function renderArticleFaq(content) {
   }
   dom.articleFaq.hidden = false;
   const heading = document.createElement("h2");
-  heading.textContent = "常見問題";
+  heading.textContent = content.uiMessages?.faq || "常見問題";
   const questions = content.faq.map((item) => {
     const detail = document.createElement("details");
     const summary = document.createElement("summary");
@@ -309,14 +310,14 @@ function renderArticleNavigation(content) {
   const actions = document.createElement("div");
   actions.className = "article-sequence-actions";
   actions.append(
-    renderSequenceButton(previous, "previous"),
-    renderSequenceButton(next, "next"),
+    renderSequenceButton(previous, "previous", content.uiMessages),
+    renderSequenceButton(next, "next", content.uiMessages),
   );
   dom.articleNavigation.hidden = false;
   dom.articleNavigation.replaceChildren(actions);
 }
 
-function renderSequenceButton(item, direction) {
+function renderSequenceButton(item, direction, messages = {}) {
   if (!item) {
     const placeholder = document.createElement("span");
     placeholder.className = `article-sequence-placeholder article-sequence-placeholder-${direction}`;
@@ -328,7 +329,9 @@ function renderSequenceButton(item, direction) {
   const title = document.createElement("strong");
   link.className = `article-sequence-button article-sequence-button-${direction}`;
   link.href = item.href;
-  meta.textContent = direction === "previous" ? "← 上一篇" : "下一篇 →";
+  meta.textContent = direction === "previous"
+    ? `← ${messages.previous || "上一篇"}`
+    : `${messages.next || "下一篇"} →`;
   title.textContent = item.label;
   link.append(meta, title);
   return link;
@@ -344,7 +347,7 @@ function renderArticleRelated(content) {
   const links = buildVisibleRelatedLinks(content);
   if (links.length) {
     const heading = document.createElement("h2");
-    heading.textContent = "延伸閱讀";
+    heading.textContent = content.uiMessages?.related || "延伸閱讀";
     dom.articleRelated.hidden = false;
     dom.articleRelated.replaceChildren(heading, renderArticleLinkList(links, "article-link-list article-visible-link-list"));
     return;
@@ -355,6 +358,8 @@ function renderArticleRelated(content) {
 
 function buildVisibleRelatedLinks(content) {
   const currentPath = content.canonicalPath || window.location.pathname;
+  const relatedLabel = content.uiMessages?.related || "延伸閱讀";
+  const categoryLabel = content.uiMessages?.categoryArticles || "分類文章";
   const links = [];
   const addLink = (item) => {
     if (!item?.href || !item?.label || item.href === currentPath) return;
@@ -362,14 +367,14 @@ function buildVisibleRelatedLinks(content) {
     links.push({
       href: item.href,
       label: item.label,
-      kind: item.kind || "延伸閱讀",
+      kind: item.kind || relatedLabel,
     });
   };
 
   addLink({
     href: content.productHref,
     label: `回到${content.productThemeLabel || content.productCrumbLabel || "分類"}文章`,
-    kind: "分類文章",
+    kind: categoryLabel,
   });
   (content.relatedLinks || []).forEach(addLink);
   return links.slice(0, VISIBLE_RELATED_MAX_LINKS);
@@ -382,7 +387,9 @@ function renderHubVisibleLinks(content) {
   const target = module.type === "topic" ? dom.topicVisibleLinks : dom.hubVisibleLinks;
   if (!target) return;
   const heading = document.createElement("h2");
-  heading.textContent = module.title;
+  heading.textContent = module.type === "topic"
+    ? content.uiMessages?.related || module.title
+    : content.uiMessages?.categoryArticles || module.title;
   target.hidden = false;
   target.replaceChildren(heading, renderArticleLinkList(module.links, "article-link-list article-visible-link-list"));
 }

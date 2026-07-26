@@ -11,6 +11,15 @@ import {
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
 } from "./article-registry.js?v=agy-i18n-0-3-80";
+import {
+  ARTICLE_LOCALE_CONFIG,
+  ARTICLE_UI_MESSAGES,
+  DEFAULT_ARTICLE_LOCALE,
+  buildArticleLanguageLinks,
+  getArticleLocaleRecord,
+  localizedArticlePath,
+  parseArticleLocalePath,
+} from "./article-locales.js?v=agy-i18n-0-3-80";
 import { SECOND_BATCH_ARTICLE_BODY_LIBRARY } from "./article-bodies-second-batch.js?v=article-content-20260714-1";
 import { NEXT_30_ARTICLE_BODY_LIBRARY } from "./article-bodies-next-30.js?v=article-content-20260714-1";
 import { SCALE_44_ARTICLE_BODY_LIBRARY } from "./article-bodies-scale-44.js?v=article-content-20260714-2";
@@ -774,13 +783,23 @@ const ARTICLE_BODY_LIBRARY = {
 };
 
 export function buildArticleContent(pathname, origin, defaults = {}) {
-  const route = parseArticleRoute(pathname);
+  const localeRoute = parseArticleLocalePath(pathname);
+  const locale = localeRoute.locale;
+  const localeConfig = ARTICLE_LOCALE_CONFIG[locale] || ARTICLE_LOCALE_CONFIG[DEFAULT_ARTICLE_LOCALE];
+  const uiMessages = ARTICLE_UI_MESSAGES[locale] || ARTICLE_UI_MESSAGES[DEFAULT_ARTICLE_LOCALE];
+  const route = parseArticleRoute(localeRoute.pathname);
   const topic = route.topic ? getTopicRecord(route.topic) : null;
   if (route.topic) {
+    if (locale !== DEFAULT_ARTICLE_LOCALE) return { redirectTo: `/topics/${route.topic}` };
     if (!topic) return { redirectTo: "/articles" };
     return buildTopicContent(route, topic, origin, defaults);
   }
   const isLatestHub = !route.product && !route.slug && !route.intent;
+  if (locale !== DEFAULT_ARTICLE_LOCALE && !route.slug) {
+    return {
+      redirectTo: route.product ? `/articles/${route.product}` : "/articles",
+    };
+  }
   const intent = route.intent ? getLifeIntentRecord(route.intent) : null;
   const article = route.product && route.slug ? getArticleRecord(route.product, route.slug) : null;
   const section = article ? getArticleSectionRecord(article.section) : getArticleSectionRecord(route.product);
@@ -795,14 +814,34 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
     };
   }
   const productThemeRecord = getProductThemeRecord(article?.product || route.product || section?.product);
-  const canonicalPath = route.intent
+  const sourcePath = route.intent
     ? `/articles/intents/${route.intent}`
     : article
       ? getArticlePath(article)
       : route.product
         ? `/articles/${route.product}`
       : "/articles";
-  const title = article?.title || route.title;
+  const localeRecord = route.slug && article && locale !== DEFAULT_ARTICLE_LOCALE
+    ? getArticleLocaleRecord(article.id, locale)
+    : null;
+  const hasValidLocaleRecord = !route.slug
+    || locale === DEFAULT_ARTICLE_LOCALE
+    || (
+      localeRecord
+      && localeRecord.sourcePath === sourcePath
+      && localeRecord.title
+      && localeRecord.description
+      && localeRecord.answer
+      && localeRecord.bodySections?.length
+    );
+  if (!hasValidLocaleRecord) {
+    return {
+      redirectTo: section?.product ? `/articles/${section.product}` : "/articles",
+    };
+  }
+  const canonicalPath = localizedArticlePath(sourcePath, locale);
+  const localizedTitle = localeRecord?.title || article?.title || route.title;
+  const title = localizedTitle;
   const pageTitle = route.slug
     ? `${title} | Pantheon`
     : route.intent
@@ -810,12 +849,14 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       : route.product
       ? `${productThemeRecord.label}文章 | Pantheon`
       : "最新文章 | Pantheon";
-  const description = buildDescription(route, article, section, intent, productThemeRecord);
+  const description = localeRecord?.description || buildDescription(route, article, section, intent, productThemeRecord);
   const updated = article?.updated
     || (TAROT_CARD_FACE_50_LIBRARY[article?.slug] ? "2026-07-16" : "")
     || defaults.updated
     || DEFAULT_ARTICLE_UPDATED_DATE;
-  const author = defaults.author || "Pantheon 編輯部";
+  const author = locale !== DEFAULT_ARTICLE_LOCALE
+    ? uiMessages.authorName
+    : defaults.author || "Pantheon 編輯部";
   const managedArticle = enforceArticlePolicy({
     id: article?.id,
     section: article?.section || route.product,
@@ -842,41 +883,81 @@ export function buildArticleContent(pathname, origin, defaults = {}) {
       : route.product
         ? `${productTheme.label}文章`
         : "最新文章";
+  const localeProductLabel = locale !== DEFAULT_ARTICLE_LOCALE && route.slug
+    ? uiMessages.latestArticles
+    : route.intent
+      ? "搜尋意圖"
+      : productTheme.label;
+  const localeProductHref = route.slug && locale !== DEFAULT_ARTICLE_LOCALE
+    ? "/articles"
+    : route.product
+      ? `/articles/${route.product}`
+      : "/articles";
+  const localeProductSchemaHref = route.product
+    ? localizedArticlePath(`/articles/${route.product}`, locale)
+    : localizedArticlePath("/articles", locale);
+  const localeDisplayTags = localeRecord?.tags?.length
+    ? uniqueList(localeRecord.tags).slice(0, 8)
+    : buildDisplayTags(article, managedArticle, productTheme);
   return {
     title: displayTitle,
     contentType: route.slug ? "Article" : "CollectionPage",
     pageTitle,
     description,
+    locale,
+    htmlLang: localeConfig.htmlLang,
+    inLanguage: localeConfig.inLanguage,
+    ogLocale: localeConfig.ogLocale,
+    uiMessages,
     canonicalPath,
+    sourcePath,
     canonicalUrl: `${origin}${canonicalPath}`,
     product: managedArticle.product,
     productLabel: productTheme.label,
-    productHref: route.product ? `/articles/${route.product}` : "/articles",
+    productHref: localeProductHref,
+    productSchemaHref: localeProductSchemaHref,
+    articlesHubPath: localizedArticlePath("/articles", locale),
+    languageLinks: article ? buildArticleLanguageLinks(article.id, sourcePath) : [{
+      locale: DEFAULT_ARTICLE_LOCALE,
+      label: ARTICLE_LOCALE_CONFIG[DEFAULT_ARTICLE_LOCALE].label,
+      hreflang: ARTICLE_LOCALE_CONFIG[DEFAULT_ARTICLE_LOCALE].hreflang,
+      href: sourcePath,
+    }],
     section: managedArticle.section || "",
     productCrumb: route.product,
-    productCrumbLabel: route.intent ? "搜尋意圖" : productTheme.label,
+    productCrumbLabel: localeProductLabel,
     slug: article?.urlSlug || route.slug,
     serial: managedArticle.serial || "",
     author,
     updated,
     published: article?.published || defaults.published || DEFAULT_ARTICLE_PUBLISHED_DATE,
-    sectionDescription: buildSectionDescription(route, section, intent, productTheme),
+    sectionDescription: localeRecord?.description || buildSectionDescription(route, section, intent, productTheme),
     productTheme: isLatestHub ? "latest" : managedArticle.productTheme,
-    productThemeLabel: productTheme.label,
-    productThemeGlyph: productTheme.glyph,
-    productThemeDescription: productTheme.description,
+    productThemeLabel: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.latestArticles : productTheme.label,
+    productThemeGlyph: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.articleGlyph : productTheme.glyph,
+    productThemeDescription: locale !== DEFAULT_ARTICLE_LOCALE && route.slug ? uiMessages.latestDescription : productTheme.description,
     intent: route.intent || managedArticle.intent,
-    keywords: managedArticle.keywords,
-    tags: managedArticle.tags,
-    displayTags: buildDisplayTags(article, managedArticle, productTheme),
-    displayTagLinks: buildDisplayTagLinks(article, managedArticle, productTheme),
-    answer: article?.answer || buildAnswer(route),
-    bodySections: buildBodySections(route, article, section, intent, productTheme, managedArticle),
-    faq: buildArticleFaq(route, article, productTheme),
+    keywords: localeRecord?.tags?.length
+      ? uniqueList(["Pantheon", title, ...localeRecord.tags])
+      : managedArticle.keywords,
+    tags: localeRecord?.tags?.length ? uniqueList(localeRecord.tags) : managedArticle.tags,
+    displayTags: localeDisplayTags,
+    displayTagLinks: localeDisplayTags.map((label) => {
+      const topicRecord = getTopicForLabel(label);
+      return {
+        label,
+        href: topicRecord ? topicRecord.href : "",
+      };
+    }),
+    answer: localeRecord?.answer || article?.answer || buildAnswer(route),
+    bodySections: localeRecord?.bodySections || buildBodySections(route, article, section, intent, productTheme, managedArticle),
+    faq: localeRecord?.faq?.length ? localeRecord.faq : buildArticleFaq(route, article, productTheme),
     navigationLinks: buildArticleNavigationLinks(article),
     relatedLinks: buildRelatedLinks(article, managedArticle, productTheme, route),
     hubVisibleLinks: buildHubVisibleLinks(route, null),
     cta: buildArticleCta(article, productTheme, route),
+    localeSourcePath: localeRecord?.sourcePath || sourcePath,
+    localeSourceSha256: localeRecord?.sourceSha256 || "",
   };
 }
 
