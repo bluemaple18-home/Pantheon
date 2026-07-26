@@ -277,6 +277,7 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     page_title = html.escape(meta["page_title"], quote=False)
     description = meta["description"]
     canonical = html.escape(meta["canonical"], quote=True)
+    published = meta.get("published", ARTICLE_PUBLISHED_DATE)
     updated = meta.get("updated", ARTICLE_UPDATED_DATE)
     main_jsonld, breadcrumb_jsonld, faq_jsonld = build_raw_jsonld(meta)
     markup = re.sub(r"<title>.*?</title>", f"<title>{page_title}</title>", markup, count=1)
@@ -284,6 +285,7 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     markup = replace_meta_content(markup, "property", "og:title", meta["page_title"])
     markup = replace_meta_content(markup, "property", "og:description", description)
     markup = replace_meta_content(markup, "property", "og:url", meta["canonical"])
+    markup = replace_meta_content(markup, "property", "article:published_time", published)
     markup = replace_meta_content(markup, "property", "article:modified_time", updated)
     markup = replace_meta_content(markup, "name", "twitter:title", meta["page_title"])
     markup = replace_meta_content(markup, "name", "twitter:description", description)

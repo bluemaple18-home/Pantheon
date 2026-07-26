@@ -332,6 +332,8 @@ CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS = [
     "/articles/tarot/tarot-0394",
     "/articles/tarot/tarot-0395",
 ]
+CODEX_EMERGENCY_PUBLICATION_DATE = "2026-07-26"
+CODEX_EMERGENCY_FEED_PUB_DATE = "Sun, 26 Jul 2026 00:00:00 +0800"
 
 PUBLIC_ARTICLE_PATHS = [
     *INITIAL_FIRST_30_ARTICLE_PATHS,
@@ -351,6 +353,28 @@ PUBLIC_ARTICLE_PATHS = [
     *DAILY_PUBLIC_ARTICLE_PATHS,
     *CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS,
 ]
+
+
+def registry_published_dates(paths: list[str]) -> dict[str, str]:
+    script = """
+import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
+
+const wanted = new Set(JSON.parse(process.argv[1]));
+const records = Object.fromEntries(
+  listArticleRecords()
+    .filter((article) => wanted.has(getArticlePath(article)))
+    .map((article) => [getArticlePath(article), article.published || ""])
+);
+
+console.log(JSON.stringify(records));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script, json.dumps(paths, ensure_ascii=False)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
 
 def test_home_redirects_to_latest_articles() -> None:
     client = TestClient(app)
@@ -852,6 +876,44 @@ def test_prerender_articles_have_non_visible_internal_link_clusters() -> None:
     assert '<section class="article-prerender-links" aria-label="文章內鏈" hidden' in sample_html
     assert 'href="/articles/tarot"' in sample_html
     assert 'href="/articles/tarot/tarot-0074"' in sample_html
+
+
+def test_codex_emergency_articles_keep_publication_dates_consistent_across_registry_and_outputs() -> None:
+    registry_dates = registry_published_dates(CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS)
+    expected_registry_dates = {
+        path: CODEX_EMERGENCY_PUBLICATION_DATE
+        for path in CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS
+    }
+
+    assert registry_dates == expected_registry_dates
+
+    sitemap_xml = Path("app/web/sitemap.xml").read_text()
+    feed_xml = Path("app/web/feed.xml").read_text()
+
+    for path in CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS:
+        prerender_target = Path("app/web") / PRERENDER_ROUTES[path]
+        prerender_html = prerender_target.read_text()
+        article_json = re.search(r'id="article-jsonld">(.*?)</script>', prerender_html, re.S)
+        assert article_json is not None, path
+        published_jsonld = json.loads(article_json.group(1))
+
+        assert (
+            f'property="article:published_time" content="{CODEX_EMERGENCY_PUBLICATION_DATE}"'
+            in prerender_html
+        ), path
+        assert published_jsonld["datePublished"] == CODEX_EMERGENCY_PUBLICATION_DATE, path
+        assert (
+            f"<loc>https://mysticpantheon.com{path}</loc>\n    <lastmod>{CODEX_EMERGENCY_PUBLICATION_DATE}</lastmod>"
+            in sitemap_xml
+        ), path
+
+        feed_item = re.search(
+            rf"<item>\s*<title>.*?</title>\s*<link>https://mysticpantheon\.com{re.escape(path)}</link>.*?<pubDate>([^<]+)</pubDate>",
+            feed_xml,
+            re.S,
+        )
+        assert feed_item is not None, path
+        assert feed_item.group(1) == CODEX_EMERGENCY_FEED_PUB_DATE, path
 
 
 def test_seo_intel_page_exposes_internal_audit_workspace() -> None:

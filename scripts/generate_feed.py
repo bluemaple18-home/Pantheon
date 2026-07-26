@@ -1,3 +1,5 @@
+from datetime import date, datetime, time, timedelta, timezone
+from email.utils import format_datetime
 from pathlib import Path
 import sys
 from xml.sax.saxutils import escape
@@ -14,10 +16,19 @@ FEED_PATH = WEB_DIR / "feed.xml"
 SITE_ORIGIN = "https://mysticpantheon.com"
 FEED_PUB_DATE = "Fri, 10 Jul 2026 00:00:00 +0800"
 FEED_BUILD_DATE = "Sun, 12 Jul 2026 00:00:00 +0800"
+FEED_TIMEZONE = timezone(timedelta(hours=8))
 
 
 def xml_text(value: str) -> str:
     return escape(str(value or ""), {'"': "&quot;"})
+
+
+def article_pub_date(article: dict[str, str]) -> str:
+    published = article.get("published") or ""
+    if not published:
+        return FEED_PUB_DATE
+    published_at = datetime.combine(date.fromisoformat(published), time.min, tzinfo=FEED_TIMEZONE)
+    return format_datetime(published_at)
 
 
 def build_item(article: dict[str, str]) -> str:
@@ -28,7 +39,7 @@ def build_item(article: dict[str, str]) -> str:
             f"      <title>{xml_text(article['title'])}</title>",
             f"      <link>{xml_text(link)}</link>",
             f"      <guid isPermaLink=\"true\">{xml_text(link)}</guid>",
-            f"      <pubDate>{FEED_PUB_DATE}</pubDate>",
+            f"      <pubDate>{article_pub_date(article)}</pubDate>",
             f"      <category>{xml_text(article['product_label'])}</category>",
             f"      <description>{xml_text(article['description'])}</description>",
             "    </item>",
