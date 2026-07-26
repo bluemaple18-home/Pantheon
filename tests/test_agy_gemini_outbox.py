@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import plistlib
@@ -17,6 +18,7 @@ from scripts import agy_gemini_v4_broker as broker
 from scripts.agy_gemini_v4_broker import BrokerResult, ExecutionReceipt
 
 from scripts.agy_gemini_outbox import (
+    ExternalJobFailed,
     ExternalJobPending,
     OutboxGeminiClient,
     consume_external_response,
@@ -79,6 +81,32 @@ def _deep_failure_json(marker: str, depth: int = 20_000) -> str:
     return payload
 
 
+def _write_production_pool(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    credentials: dict[str, str] = {}
+    slots: list[dict[str, str]] = []
+    for index in range(3):
+        slot_id = f"account-{index + 1}"
+        credential = f"test-production-credential-slot-{index + 1}-value"
+        credential_path = tmp_path / f"credential-{index + 1}"
+        credential_path.write_text(credential + "\n", encoding="utf-8")
+        credential_path.chmod(0o600)
+        credentials[slot_id] = credential
+        slots.append({"slot_id": slot_id, "credential_file": str(credential_path)})
+    manifest = tmp_path / "production-pool.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pool_id": "pantheon-production-v1",
+                "slots": list(reversed(slots)),
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest.chmod(0o600)
+    return manifest, credentials
+
+
 def _broker_result(
     status: str,
     receipt: ExecutionReceipt,
@@ -128,6 +156,365 @@ def test_runner_module_entrypoint_and_launchd_template_are_runnable(tmp_path: Pa
     assert json.loads(completed.stdout) == {"status": "idle"}
     assert arguments[1:3] == ["-m", "scripts.agy_gemini_runner"]
     assert not any(argument.endswith("agy_gemini_runner.py") for argument in arguments)
+
+
+def test_production_pool_selection_is_stable_and_distributed(tmp_path: Path) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    selections: dict[str, str] = {}
+    try:
+        for index in range(300):
+            job_id = hashlib.sha256(f"job-{index}".encode()).hexdigest()[:40]
+            source = runner._open_production_credential_source(manifest, job_id)
+            selections[job_id] = source.slot_id
+            os.close(source.descriptor)
+        repeated = runner._open_production_credential_source(manifest, next(iter(selections)))
+        assert repeated.slot_id == selections[next(iter(selections))]
+        os.close(repeated.descriptor)
+    finally:
+        pass
+
+    assert set(selections.values()) == {"account-1", "account-2", "account-3"}
+    assert all(
+        slot_id
+        == sorted(("account-1", "account-2", "account-3"))[
+            int.from_bytes(
+                hashlib.sha256(f"pantheon-production-v1\0{job_id}".encode()).digest()[:8],
+                "big",
+            )
+            % 3
+        ]
+        for job_id, slot_id in selections.items()
+    )
+
+
+def test_production_pool_rejects_relative_manifest_before_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[Path] = []
+
+    def reject_open(
+        path: Path,
+        *,
+        minimum_size: int,
+        maximum_size: int,
+    ) -> int:
+        del minimum_size, maximum_size
+        opened.append(path)
+        raise AssertionError("relative manifest must be rejected before file open")
+
+    monkeypatch.setattr(runner, "_open_private_file", reject_open)
+
+    with pytest.raises(ValueError, match="absolute"):
+        runner._open_production_credential_source(
+            Path("relative-production-pool.json"),
+            "a" * 40,
+        )
+
+    create_external_request(
+        tmp_path,
+        namespace="production-pool-relative-manifest",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    monkeypatch.setenv(
+        "AGY_GEMINI_CREDENTIAL_POOL_FILE",
+        "relative-production-pool.json",
+    )
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    result = process_once(tmp_path)
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "ValueError"
+    assert opened == []
+
+
+def test_production_pool_rejects_boolean_schema_version(tmp_path: Path) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["schema_version"] = True
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    manifest.chmod(0o600)
+
+    with pytest.raises(ValueError, match="production credential pool schema"):
+        source = runner._open_production_credential_source(manifest, "b" * 40)
+        os.close(source.descriptor)
+
+
+def test_production_pool_digest_is_stable_for_permuted_slots(tmp_path: Path) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    permuted_manifest = tmp_path / "production-pool-permuted.json"
+    permuted_payload = {**payload, "slots": list(reversed(payload["slots"]))}
+    permuted_manifest.write_text(json.dumps(permuted_payload), encoding="utf-8")
+    permuted_manifest.chmod(0o600)
+
+    original = runner._open_production_credential_source(manifest, "c" * 40)
+    for slot in payload["slots"]:
+        Path(slot["credential_file"]).write_text(
+            "replacement-production-credential-value\n",
+            encoding="utf-8",
+        )
+    permuted = runner._open_production_credential_source(permuted_manifest, "c" * 40)
+    try:
+        assert original.manifest_sha256 == permuted.manifest_sha256
+        assert original.slot_id == permuted.slot_id
+    finally:
+        os.close(original.descriptor)
+        os.close(permuted.descriptor)
+
+
+@pytest.mark.parametrize("unsafe_target", ["manifest-mode", "manifest-symlink", "credential-mode", "credential-symlink"])
+def test_production_pool_rejects_unsafe_files(
+    tmp_path: Path,
+    unsafe_target: str,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    selected_path = Path(payload["slots"][0]["credential_file"])
+    if unsafe_target == "manifest-mode":
+        manifest.chmod(0o644)
+    elif unsafe_target == "manifest-symlink":
+        target = tmp_path / "pool-target.json"
+        manifest.replace(target)
+        manifest.symlink_to(target)
+    elif unsafe_target == "credential-mode":
+        selected_path.chmod(0o644)
+    else:
+        target = selected_path.with_suffix(".target")
+        selected_path.replace(target)
+        selected_path.symlink_to(target)
+
+    with pytest.raises(ValueError, match="production credential"):
+        source = runner._open_production_credential_source(manifest, "a" * 40)
+        os.close(source.descriptor)
+
+
+@pytest.mark.parametrize("malformation", ["slot-count", "duplicate-slot", "relative-path", "extra-field"])
+def test_production_pool_rejects_incompatible_schema(
+    tmp_path: Path,
+    malformation: str,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    if malformation == "slot-count":
+        payload["slots"].pop()
+    elif malformation == "duplicate-slot":
+        payload["slots"][1]["slot_id"] = payload["slots"][0]["slot_id"]
+    elif malformation == "relative-path":
+        payload["slots"][0]["credential_file"] = "relative-key-file"
+    else:
+        payload["unexpected"] = True
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    manifest.chmod(0o600)
+
+    with pytest.raises(ValueError, match="production credential pool"):
+        source = runner._open_production_credential_source(manifest, "b" * 40)
+        os.close(source.descriptor)
+
+
+def test_production_pool_uses_only_selected_slot_and_one_provider_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, credentials = _write_production_pool(tmp_path)
+    request = create_external_request(
+        tmp_path / "queue",
+        namespace="production-pool-success",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    credential_paths = {
+        Path(slot["credential_file"])
+        for slot in json.loads(manifest.read_text(encoding="utf-8"))["slots"]
+    }
+    opened_credentials: list[Path] = []
+    real_open = runner.os.open
+
+    def tracked_open(path: object, flags: int, mode: int = 0o777) -> int:
+        candidate = Path(path)
+        if candidate in credential_paths:
+            opened_credentials.append(candidate)
+        return real_open(path, flags, mode)
+
+    provider_calls: list[object] = []
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {"candidates": [{"content": {"parts": [{"text": "{\"ok\":true}"}]}}]}
+            ).encode()
+
+    def fake_urlopen(provider_request: object, **_kwargs: object) -> FakeResponse:
+        provider_calls.append(provider_request)
+        return FakeResponse()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner.os, "open", tracked_open)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", fake_urlopen)
+
+    result = process_once(tmp_path / "queue")
+    response_path = tmp_path / "queue" / "inbox" / f"{request['job_id']}.json"
+    response = json.loads(response_path.read_text(encoding="utf-8"))
+    selected = response["credential_pool"]["slot_id"]
+
+    assert result["status"] == "processed"
+    assert result["credential_pool"] == response["credential_pool"]
+    assert len(provider_calls) == 1
+    manifest_slots = json.loads(manifest.read_text(encoding="utf-8"))["slots"]
+    expected_path = next(
+        Path(slot["credential_file"])
+        for slot in manifest_slots
+        if slot["slot_id"] == selected
+    )
+    assert opened_credentials == [expected_path]
+    assert consume_external_response(tmp_path / "queue", request) == {"ok": True}
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (response_path, tmp_path / "queue" / "archive" / f"{request['job_id']}.json")
+    )
+    assert all(secret not in persisted for secret in credentials.values())
+    assert all(str(path) not in persisted for path in credential_paths)
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code"),
+    [
+        ("rate-limit", "API_RATE_LIMITED"),
+        ("provider-nonzero", "API_HTTP_ERROR"),
+        ("redirect", "API_HTTP_ERROR"),
+        ("timeout", "API_TIMEOUT"),
+        ("transport", "API_TRANSPORT_ERROR"),
+    ],
+)
+def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected_code: str,
+) -> None:
+    manifest, credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-pool-rate-limit",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    calls = 0
+
+    def fail_provider(provider_request: object, **_kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        if failure == "timeout":
+            raise TimeoutError("private-timeout-detail")
+        if failure == "transport":
+            raise pipeline.urllib.error.URLError(OSError("private-transport-detail"))
+        status = 429 if failure == "rate-limit" else 302 if failure == "redirect" else 503
+        raise pipeline.urllib.error.HTTPError(
+            getattr(provider_request, "full_url", "https://example.invalid"),
+            status,
+            "private-provider-detail",
+            {},
+            io.BytesIO(b"must-not-persist-provider-body"),
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", fail_provider)
+    result = process_once(queue_root)
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text(encoding="utf-8"))
+
+    assert calls == 1
+    assert result["status"] == "failed"
+    assert result["error_type"] == "GeminiApiFailure"
+    assert result["error_code"] == expected_code
+    assert result["credential_pool"] == failed["credential_pool"]
+    assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
+    assert (queue_root / "archive" / f"{request['job_id']}.json").exists()
+    persisted = failed_path.read_text(encoding="utf-8")
+    assert "provider-body" not in persisted
+    assert "private-provider-detail" not in persisted
+    assert "private-timeout-detail" not in persisted
+    assert "private-transport-detail" not in persisted
+    assert all(secret not in persisted for secret in credentials.values())
+    with pytest.raises(ExternalJobFailed) as raised:
+        consume_external_response(queue_root, request)
+    assert raised.value.error_code == expected_code
+
+
+def test_production_pool_flag_off_preserves_injected_cli_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="production-pool-flag-off",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    calls: list[tuple[str, str, str, dict[str, object]]] = []
+
+    def fake_generate(role: str, model: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
+        calls.append((role, model, prompt, schema))
+        return {"ok": True}
+
+    monkeypatch.delenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", raising=False)
+    result = process_once(tmp_path, generate_json=fake_generate)
+
+    assert result == {"status": "processed", "job_id": request["job_id"]}
+    assert len(calls) == 1
+
+
+def test_production_pool_receipt_rejects_unclosed_identity(tmp_path: Path) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="production-pool-closed-receipt",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    inbox = tmp_path / "inbox" / f"{request['job_id']}.json"
+    inbox.parent.mkdir()
+    inbox.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": request["job_id"],
+                "request_sha256": request["request_sha256"],
+                "model": request["model"],
+                "completed_at": "2026-07-26T01:00:00+08:00",
+                "result": {"ok": True},
+                "credential_pool": {
+                    "pool_id": "pantheon-production-v1",
+                    "slot_id": "account-1",
+                    "manifest_sha256": "a" * 64,
+                    "credential_file": "must-not-pass",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="external response fields are strict"):
+        consume_external_response(tmp_path, request)
 
 
 def test_outbox_request_is_sanitized_hashed_and_idempotent(tmp_path: Path) -> None:

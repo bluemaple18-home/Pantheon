@@ -8,6 +8,7 @@ USER_ID="$(id -u)"
 USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3}"
+PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
 QUEUE_ROOT="${AGY_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LOG_DIR="${USER_HOME_DIR}/Library/Logs/Pantheon"
@@ -29,6 +30,22 @@ fi
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
   exit 1
+fi
+if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
+  if [[ "${PRODUCTION_POOL_FILE}" != /* ]]; then
+    echo "Production Gemini credential pool 必須使用 absolute path。" >&2
+    exit 1
+  fi
+  if [[ ! -f "${PRODUCTION_POOL_FILE}" || -L "${PRODUCTION_POOL_FILE}" ]]; then
+    echo "Production Gemini credential pool 必須是 regular non-symlink file。" >&2
+    exit 1
+  fi
+  POOL_OWNER="$(stat -f '%u' "${PRODUCTION_POOL_FILE}")"
+  POOL_MODE="$(stat -f '%Lp' "${PRODUCTION_POOL_FILE}")"
+  if [[ "${POOL_OWNER}" != "${USER_ID}" || $((8#${POOL_MODE} & 8#077)) -ne 0 ]]; then
+    echo "Production Gemini credential pool 必須由目前使用者擁有且不得開放 group/other 權限。" >&2
+    exit 1
+  fi
 fi
 if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner" >/dev/null 2>&1; then
   echo "偵測到舊版 standalone runner；請先停止 com.pantheon.agy-gemini-runner，避免兩個服務競爭 queue。" >&2
@@ -64,6 +81,9 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:4 ${QUEUE_ROOT}/lanes/${LANE}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${LANE_TEMP_PLIST}"
+  if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string ${PRODUCTION_POOL_FILE}" "${LANE_TEMP_PLIST}"
+  fi
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
