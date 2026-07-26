@@ -10,16 +10,19 @@ PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3}"
 PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
 QUEUE_ROOT="${AGY_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
+PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LOG_DIR="${USER_HOME_DIR}/Library/Logs/Pantheon"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example"
 LANE_TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-lane.plist.example"
-TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
+TEMP_PLIST=""
 
 cleanup() {
-  rm -f "${TEMP_PLIST}"
+  if [[ -n "${TEMP_PLIST}" ]]; then
+    rm -f "${TEMP_PLIST}"
+  fi
 }
 trap cleanup EXIT
 
@@ -46,12 +49,31 @@ if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
     echo "Production Gemini credential pool 必須由目前使用者擁有且不得開放 group/other 權限。" >&2
     exit 1
   fi
+  if [[ "${PRODUCTION_STATE_FILE}" != /* ]]; then
+    echo "Production Gemini allocator state path 必須使用 absolute path。" >&2
+    exit 1
+  fi
+  for PRIVATE_STATE_FILE in "${PRODUCTION_STATE_FILE}" "${PRODUCTION_STATE_FILE}.lock"; do
+    if [[ -e "${PRIVATE_STATE_FILE}" || -L "${PRIVATE_STATE_FILE}" ]]; then
+      if [[ ! -f "${PRIVATE_STATE_FILE}" || -L "${PRIVATE_STATE_FILE}" ]]; then
+        echo "Production Gemini allocator state 必須是 regular non-symlink file。" >&2
+        exit 1
+      fi
+      STATE_OWNER="$(stat -f '%u' "${PRIVATE_STATE_FILE}")"
+      STATE_MODE="$(stat -f '%Lp' "${PRIVATE_STATE_FILE}")"
+      if [[ "${STATE_OWNER}" != "${USER_ID}" || $((8#${STATE_MODE} & 8#077)) -ne 0 ]]; then
+        echo "Production Gemini allocator state 必須由目前使用者擁有且不得開放 group/other 權限。" >&2
+        exit 1
+      fi
+    fi
+  done
 fi
 if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner" >/dev/null 2>&1; then
   echo "偵測到舊版 standalone runner；請先停止 com.pantheon.agy-gemini-runner，避免兩個服務競爭 queue。" >&2
   exit 1
 fi
 
+TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
 mkdir -p "${LOG_DIR}" "${LAUNCH_AGENTS_DIR}"
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
@@ -83,6 +105,7 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${LANE_TEMP_PLIST}"
   if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
     /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string ${PRODUCTION_POOL_FILE}" "${LANE_TEMP_PLIST}"
+    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE string ${PRODUCTION_STATE_FILE}" "${LANE_TEMP_PLIST}"
   fi
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"

@@ -4,10 +4,11 @@
 
 ## [Unreleased]
 
-- 新增 production-only `AGY_GEMINI_CREDENTIAL_POOL_FILE` opt-in，讓新文、舊文改寫與英／日／韓 lane 依 `SHA-256(pool_id + NUL + job_id)` deterministic 分流三個 owner-only Gemini credential slot。
-- Pool transport 每個 job 僅允許一次 provider request；429、HTTP/timeout/transport/output failure 一律 terminal，不換 key、不 retry、不 fallback。
-- Inbox／failed receipt 僅保存 strict validated 的匿名 pool／slot／manifest digest；不保存 credential path/value。Flag-off CLI 與所有 V4 broker／target／shadow 行為維持不變。
-- Launchd installer 僅在明確 opt-in 時，把 production pool manifest path 加入四條 content lane plist。
+- Production-only pool 改用四條 content lane 共用的 owner-only durable strict round-robin state，固定依 account-1→account-2→account-3 循環分配，並以跨程序 lock 內 durable ordinal commit 作為線性化順序。
+- Pool transport 在 provider request 前消耗 ordinal，每個 job 僅允許一次 request；crash、429、HTTP/timeout/transport/output failure 不回滾、不換 key、不 retry、不 fallback。
+- Corrupt、truncated、symlink、wrong owner/mode、relative path、pool/manifest mismatch 與 TOCTOU state 會在 credential value/provider 前 fail closed。
+- Inbox／failed receipt 仍精確只保存匿名 pool／slot／manifest digest；不保存 ordinal、state path 或 credential path/value。Flag-off CLI 與所有 V4 broker／target／shadow 行為維持不變。
+- Launchd installer 僅在明確 opt-in 時，把 production pool manifest path 與同一個 absolute allocator state path 加入四條 content lane plist，且所有 preflight 早於 plist/control-plane write。
 
 ## [0.3.80] - 2026-07-25
 

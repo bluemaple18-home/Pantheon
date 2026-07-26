@@ -678,9 +678,28 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
+    assert (
+        'PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-'
+        in installer
+    )
     assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in lane_plist["EnvironmentVariables"]
+    assert (
+        "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"
+        not in lane_plist["EnvironmentVariables"]
+    )
     assert "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string" in installer
+    assert (
+        "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE string"
+        in installer
+    )
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
+    preflight_end = installer.index(
+        'if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner"'
+    )
+    first_plist_write = installer.index('cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"')
+    first_control_write = installer.index('launchctl bootout "gui/${USER_ID}"')
+    assert "PRODUCTION_STATE_FILE" in installer[:preflight_end]
+    assert preflight_end < first_plist_write < first_control_write
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_gemini_coordinator_launchd.sh"],
         cwd=repo_root,
@@ -752,3 +771,122 @@ def test_installer_rejects_relative_production_pool_before_install_side_effects(
     assert "absolute path" in completed.stderr
     assert not fake_home.exists()
     assert not launchctl_log.exists()
+
+
+def test_installer_rejects_relative_allocator_state_before_install_side_effects(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    fake_bin.mkdir()
+    pool_file = tmp_path / "production-pool.json"
+    pool_file.write_text("{}\n", encoding="utf-8")
+    pool_file.chmod(0o600)
+    cli_path = tmp_path / "agy"
+    cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    cli_path.chmod(0o700)
+    dscl = fake_bin / "dscl"
+    dscl.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+        encoding="utf-8",
+    )
+    dscl.chmod(0o700)
+    launchctl_log = tmp_path / "launchctl.log"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{launchctl_log}'\nexit 1\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
+            "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": "relative-state.json",
+            "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "state path" in completed.stderr
+    assert not fake_home.exists()
+    assert not launchctl_log.exists()
+
+
+def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    fake_bin.mkdir()
+    pool_file = tmp_path / "production-pool.json"
+    pool_file.write_text("{}\n", encoding="utf-8")
+    pool_file.chmod(0o600)
+    state_file = tmp_path / "round-robin-state.json"
+    cli_path = tmp_path / "agy"
+    cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    cli_path.chmod(0o700)
+    dscl = fake_bin / "dscl"
+    dscl.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+        encoding="utf-8",
+    )
+    dscl.chmod(0o700)
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then exit 1; fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
+            "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
+            "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
+        installed = plistlib.loads(
+            (
+                fake_home
+                / "Library"
+                / "LaunchAgents"
+                / f"com.pantheon.agy-gemini-{lane}.plist"
+            ).read_bytes()
+        )
+        variables = installed["EnvironmentVariables"]
+        assert variables["AGY_GEMINI_CREDENTIAL_POOL_FILE"] == str(pool_file)
+        assert variables["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] == str(
+            state_file
+        )

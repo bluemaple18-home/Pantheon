@@ -81,15 +81,39 @@ Manifest 必須是目前使用者擁有、group/other 無權限、regular、non-
 
 每個 credential file 只放一個 ASCII API key，可有結尾換行。Manifest 與三個 credential file 都應設為 `0600`；credential path 必須是絕對路徑，但不得把實際本機路徑提交到 repo。
 
-每個新 job 的選槽規則固定：
+四條 lane 必須共用同一個 absolute
+`AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE`。State 與其 `.lock` companion
+必須是目前使用者擁有、group/other 無權限、regular、non-symlink file。
+State 不存在時，第一個 allocation 會以 `0600` 安全初始化；既有 state
+使用以下 closed schema：
+
+```json
+{
+  "schema_version": 1,
+  "pool_id": "pantheon-production-v1",
+  "manifest_sha256": "<canonical-manifest-sha256>",
+  "last_ordinal": 1
+}
+```
+
+每個新 allocation 的選槽規則固定：
 
 1. 對三個 slot 依 `slot_id` canonical sort。
-2. 計算 `SHA-256(pool_id + NUL + job_id)`，以前 8 bytes 的 big-endian 整數對三取模。
-3. 同一 job 永遠選到同一 slot，不使用 mutable cursor。
+2. 四條 lane 在同一跨程序 exclusive lock 內讀取 state，取得下一個唯一 ordinal。
+3. 先 durable commit ordinal，再依 `(ordinal - 1) mod 3` 選出
+   `account-1 → account-2 → account-3 → account-1`。
 4. Runner 只開啟被選中的 credential file，並且只送出一次 provider POST。
-5. `429`、其他 HTTP failure、timeout、transport error、provider output invalid 都是 terminal；不換 key、不 retry、不 fallback，也不重送既有 failed job。
+5. Commit 後的 crash、`429`、其他 HTTP failure、timeout、transport error
+   或 provider output invalid 都已消耗 ordinal；不回滾、不換 key、不 retry、
+   不 fallback，也不重送既有 failed job。
 
-成功 inbox、失敗 receipt 與 runner stdout 只可帶 `pool_id`、`slot_id`、canonical manifest SHA-256；consumer 會 strict validate。它們不得帶 credential path、credential value、provider response body 或 exception detail。Queue、archive、failed、deferred、quarantine 與既有 V4 ledger 行為不因 production pool 改寫或清除。
+Corrupt/truncated、symlink、wrong owner/mode、relative path、pool/manifest
+mismatch 或 open-time replacement 都會在 credential value 與 provider request
+前 fail closed。成功 inbox、失敗 receipt 與 runner stdout 的
+`credential_pool` 仍精確只有 `pool_id`、`slot_id`、canonical manifest
+SHA-256；不加入 ordinal 或 state path。它們也不得帶 credential path/value、
+provider response body 或 exception detail。Queue、archive、failed、deferred、
+quarantine 與既有 V4 ledger 行為不因 production pool 改寫或清除。
 
 `AGY_GEMINI_V4_BROKER=1` 只供獨立 V4 canary／shadow 驗證。受監督產文不得
 因環境中殘留該 flag 而誤入 V4；直接內容 pipeline 固定以
@@ -157,10 +181,16 @@ bash scripts/install_agy_gemini_coordinator_launchd.sh
 
 ```bash
 AGY_GEMINI_CREDENTIAL_POOL_FILE="<user-config>/pantheon/production-gemini-pool.json" \
+AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE="<private-state-root>/pantheon/production-gemini-round-robin.json" \
   bash scripts/install_agy_gemini_coordinator_launchd.sh
 ```
 
-Installer 只會把 production pool manifest path 加入 `new`、`rewrite`、`i18n-new`、`i18n-rewrite` 四條 lane plist；不會把 key value 加入 environment、argv 或 plist。未提供該變數時，lane plist 不會出現 production pool flag。
+Installer 只會把 production pool manifest path 與同一個 absolute state path
+加入 `new`、`rewrite`、`i18n-new`、`i18n-rewrite` 四條 lane plist；不會把
+key value 加入 environment、argv 或 plist。若未明確提供 state path，
+預設為 absolute queue root 下的
+`production-credential-pool-state.json`。未提供 production pool flag 時，
+lane plist 不會出現 pool 或 allocator state flag。
 
 Installer 會解析並驗證以下 placeholder：
 

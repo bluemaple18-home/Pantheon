@@ -20,6 +20,7 @@ from scripts.agy_gemini_outbox import (
     atomic_write_json,
     validate_external_request,
 )
+from scripts.agy_gemini_allocator import allocate_production_slot
 from scripts.agy_seo_copy_pipeline import CLOSED_GEMINI_ERROR_CODES, GeminiClient
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
@@ -71,7 +72,7 @@ MAX_SCHEMA_ARRAY_INDEX = 1_048_576
 STALE_PROCESSING_SECONDS = 10 * 60
 MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
-SAFE_JOB_ID = re.compile(r"^[0-9a-f]{40}$")
+PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -84,13 +85,20 @@ class ProductionCredentialSource:
     pool_id: str
     slot_id: str
     manifest_sha256: str
+    ordinal: int
 
 
-def _private_file_stat(path: Path, *, minimum_size: int, maximum_size: int) -> os.stat_result:
+def _private_file_stat(
+    path: Path,
+    *,
+    minimum_size: int,
+    maximum_size: int,
+    label: str = "production credential file",
+) -> os.stat_result:
     try:
         current = path.lstat()
     except OSError as error:
-        raise ValueError("production credential file is unavailable") from error
+        raise ValueError(f"{label} is unavailable") from error
     if (
         stat.S_ISLNK(current.st_mode)
         or not stat.S_ISREG(current.st_mode)
@@ -98,21 +106,28 @@ def _private_file_stat(path: Path, *, minimum_size: int, maximum_size: int) -> o
         or current.st_mode & 0o077
         or not minimum_size <= current.st_size <= maximum_size
     ):
-        raise ValueError("production credential file must be owner-only regular file")
+        raise ValueError(f"{label} must be owner-only regular file")
     return current
 
 
-def _open_private_file(path: Path, *, minimum_size: int, maximum_size: int) -> int:
+def _open_private_file(
+    path: Path,
+    *,
+    minimum_size: int,
+    maximum_size: int,
+    label: str = "production credential file",
+) -> int:
     before = _private_file_stat(
         path,
         minimum_size=minimum_size,
         maximum_size=maximum_size,
+        label=label,
     )
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
-        raise ValueError("production credential file cannot be opened") from error
+        raise ValueError(f"{label} cannot be opened") from error
     try:
         after = os.fstat(descriptor)
         if (
@@ -122,14 +137,20 @@ def _open_private_file(path: Path, *, minimum_size: int, maximum_size: int) -> i
             or after.st_mode & 0o077
             or not minimum_size <= after.st_size <= maximum_size
         ):
-            raise ValueError("production credential file changed during validation")
+            raise ValueError(f"{label} changed during validation")
     except Exception:
         os.close(descriptor)
         raise
     return descriptor
 
 
-def _read_descriptor(descriptor: int, *, expected_size: int, maximum_size: int) -> bytes:
+def _read_descriptor(
+    descriptor: int,
+    *,
+    expected_size: int,
+    maximum_size: int,
+    label: str = "production credential file",
+) -> bytes:
     chunks = bytearray()
     while len(chunks) <= maximum_size:
         chunk = os.read(descriptor, min(4096, maximum_size + 1 - len(chunks)))
@@ -138,7 +159,7 @@ def _read_descriptor(descriptor: int, *, expected_size: int, maximum_size: int) 
         chunks.extend(chunk)
     encoded = bytes(chunks)
     if len(encoded) != expected_size:
-        raise ValueError("production credential file size changed")
+        raise ValueError(f"{label} size changed")
     return encoded
 
 
@@ -200,6 +221,8 @@ def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
         _private_file_stat(Path(credential_file), minimum_size=20, maximum_size=512)
         slot_ids.add(slot_id)
         credential_paths.add(credential_file)
+    if slot_ids != set(PRODUCTION_SLOT_IDS):
+        raise ValueError("production credential pool slot ids are invalid")
     canonical_payload = {
         "pool_id": pool_id,
         "schema_version": payload["schema_version"],
@@ -215,16 +238,20 @@ def _read_production_pool(path: Path) -> tuple[dict[str, Any], str]:
     return payload, hashlib.sha256(canonical).hexdigest()
 
 
-def _open_production_credential_source(
+def _allocate_production_credential_source(
     manifest_path: Path,
-    job_id: str,
+    state_path: Path,
 ) -> ProductionCredentialSource:
-    if SAFE_JOB_ID.fullmatch(job_id) is None:
-        raise ValueError("production credential job id is invalid")
+    if not state_path.is_absolute():
+        raise ValueError("production allocator state path must be absolute")
     payload, manifest_sha256 = _read_production_pool(manifest_path)
     slots = sorted(payload["slots"], key=lambda slot: slot["slot_id"])
-    digest = hashlib.sha256(f"{payload['pool_id']}\0{job_id}".encode("utf-8")).digest()
-    selected = slots[int.from_bytes(digest[:8], "big") % len(slots)]
+    ordinal, selected_slot = allocate_production_slot(
+        state_path,
+        pool_id=str(payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+    )
+    selected = next(slot for slot in slots if slot["slot_id"] == selected_slot)
     return ProductionCredentialSource(
         descriptor=_open_private_file(
             Path(selected["credential_file"]),
@@ -234,6 +261,7 @@ def _open_production_credential_source(
         pool_id=str(payload["pool_id"]),
         slot_id=str(selected["slot_id"]),
         manifest_sha256=manifest_sha256,
+        ordinal=ordinal,
     )
 
 
@@ -484,7 +512,16 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 )
             result = broker_result.result
         elif pool_file := os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip():
-            source = _open_production_credential_source(Path(pool_file), job_id)
+            state_file = os.environ.get(
+                "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
+                "",
+            ).strip()
+            if not state_file:
+                raise ValueError("production allocator state path is required")
+            source = _allocate_production_credential_source(
+                Path(pool_file),
+                Path(state_file),
+            )
             credential_pool = {
                 "pool_id": source.pool_id,
                 "slot_id": source.slot_id,
