@@ -68,7 +68,7 @@ uv run python scripts/index_anomaly_audit.py \
 
 ## 本卡五個 URL 的現況與下一步
 
-以本卡乾淨 baseline 的預渲染頁、Cloudflare exact rewrite，以及 2026-07-24 對 `https://mysticpantheon.com` 執行的完整 sitemap audit 判讀。production audit 結果為 0 個現行 bug、4 個等待重抓、1 個需要更多證據：
+以本卡乾淨 baseline 的預渲染頁、Cloudflare exact rewrite，以及 2026-07-24 對 `https://www.mysticpantheon.com` 執行的完整 sitemap audit 判讀。production audit 結果為 0 個現行 bug、4 個等待重抓、1 個需要更多證據：
 
 | URL | 現行 repository 證據 | 分類 | 下一步 |
 | --- | --- | --- | --- |

@@ -407,12 +407,12 @@ def test_articles_latest_hub_serves_collection_page() -> None:
     assert render_articles_hub_dates(response.text) == response.text
     assert "\"author\": {" in response.text
     assert "\"@type\": \"Organization\"" in response.text
-    assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
+    assert "\"@id\": \"https://www.mysticpantheon.com/#organization\"" in response.text
     assert "\"@type\": \"WebSite\"" in response.text
-    assert "\"@id\": \"https://mysticpantheon.com/#website\"" in response.text
+    assert "\"@id\": \"https://www.mysticpantheon.com/#website\"" in response.text
     assert "\"@type\": \"FAQPage\"" in response.text
-    assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
-    assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+    assert "property=\"og:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+    assert "name=\"twitter:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
     assert "id=\"about-pantheon\"" in response.text
     assert "id=\"editorial-policy\"" in response.text
     assert "關於 Pantheon" in response.text
@@ -531,11 +531,11 @@ def test_article_urls_serve_article_template() -> None:
         assert f'property="article:modified_time" content="{expected_modified}"' in response.text
         assert "property=\"og:type\" content=\"article\"" in response.text
         assert "name=\"twitter:card\" content=\"summary_large_image\"" in response.text
-        assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
-        assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+        assert "property=\"og:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
+        assert "name=\"twitter:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in response.text
         assert "id=\"site-entity-jsonld\"" in response.text
-        assert "\"@id\": \"https://mysticpantheon.com/#organization\"" in response.text
-        assert "\"@id\": \"https://mysticpantheon.com/#website\"" in response.text
+        assert "\"@id\": \"https://www.mysticpantheon.com/#organization\"" in response.text
+        assert "\"@id\": \"https://www.mysticpantheon.com/#website\"" in response.text
         assert "id=\"article-jsonld\"" in response.text
         assert "id=\"breadcrumb-jsonld\"" in response.text
         assert "id=\"faq-jsonld\"" in response.text
@@ -573,8 +573,8 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
 
     assert response.status_code == 200
     assert "<title>塔羅牌意思總覽：78 張牌、正位逆位與情境怎麼看 | Pantheon</title>" in response.text
-    assert 'rel="canonical" href="https://mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
-    assert 'property="og:url" content="https://mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
+    assert 'rel="canonical" href="https://www.mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
+    assert 'property="og:url" content="https://www.mysticpantheon.com/articles/tarot/tarot-0001"' in response.text
     assert "整理塔羅牌意思、正位逆位、感情與工作情境" in response.text
 
     article_json = re.search(r'id="article-jsonld">(.*?)</script>', response.text, re.S)
@@ -588,7 +588,7 @@ def test_article_raw_html_has_path_specific_seo_shell() -> None:
     breadcrumb = json.loads(breadcrumb_json.group(1))
     faq = json.loads(faq_json.group(1))
     assert article["@type"] == "Article"
-    assert article["url"] == "https://mysticpantheon.com/articles/tarot/tarot-0001"
+    assert article["url"] == "https://www.mysticpantheon.com/articles/tarot/tarot-0001"
     assert article["dateModified"] == ARTICLE_CONTENT_REFRESH_DATE
     assert breadcrumb["@type"] == "BreadcrumbList"
     assert faq["@type"] == "FAQPage"
@@ -678,7 +678,7 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
         prerendered = Path("app/web") / target
         assert prerendered.exists()
         html = prerendered.read_text()
-        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert f'rel="canonical" href="https://www.mysticpantheon.com{route}"' in html
         assert 'id="article-jsonld">' in html
         assert 'id="breadcrumb-jsonld">' in html
         assert 'id="faq-jsonld">' in html
@@ -716,7 +716,7 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
         target = PRERENDER_ROUTES[route]
         assert f"{route} /{redirect_target(target)} 200" in redirects
         html = (Path("app/web") / target).read_text()
-        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert f'rel="canonical" href="https://www.mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
         assert '"hasPart":[' in html
         assert 'data-hub-visible-links>' in html
@@ -742,7 +742,7 @@ def test_tarot_hub_reading_guide_is_scanable() -> None:
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 import { listArticleRecords } from "./app/web/static/article-registry.js";
 
-const content = buildArticleContent("/articles/tarot", "https://mysticpantheon.com", {});
+const content = buildArticleContent("/articles/tarot", "https://www.mysticpantheon.com", {});
 const guide = content.bodySections.find((section) => section.heading === "這裡先讀哪幾篇塔羅文章？");
 const tarotCount = listArticleRecords()
   .filter((item) => item.product === "tarot" || item.articleCategory === "tarot")
@@ -798,7 +798,7 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
         target = PRERENDER_ROUTES[route]
         assert f"{route} /{redirect_target(target)} 200" in redirects
         html = (Path("app/web") / target).read_text()
-        assert f'rel="canonical" href="https://mysticpantheon.com{route}"' in html
+        assert f'rel="canonical" href="https://www.mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
         assert '"hasPart":[' in html
         assert 'data-topic-visible-links>' in html
@@ -981,8 +981,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "id=\"site-entity-jsonld\"" in article_html
     assert "\"@type\": \"Organization\"" in article_html
     assert "\"@type\": \"WebSite\"" in article_html
-    assert "property=\"og:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
-    assert "name=\"twitter:image\" content=\"https://mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
+    assert "property=\"og:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
+    assert "name=\"twitter:image\" content=\"https://www.mysticpantheon.com/static/pantheon-orb-alpha-poster.webp\"" in article_html
     assert article_html.index("data-article-navigation") < article_html.index("data-article-faq")
     assert article_html.index("data-article-faq") < article_html.index("data-article-related")
     assert "bodySections: buildBodySections" in article_meta_js
@@ -1150,7 +1150,7 @@ const defaults = {
 };
 
 function summarize(path) {
-  const content = buildArticleContent(path, "https://mysticpantheon.com", defaults);
+  const content = buildArticleContent(path, "https://www.mysticpantheon.com", defaults);
   const module = content.hubVisibleLinks;
   const links = module?.links || [];
   return {
@@ -1220,7 +1220,7 @@ def test_public_articles_follow_latest_publication_standard() -> None:
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 const paths = {json.dumps(PUBLIC_ARTICLE_PATHS)};
 const data = paths.map((path) => {{
-  const content = buildArticleContent(path, "https://mysticpantheon.com", {{
+  const content = buildArticleContent(path, "https://www.mysticpantheon.com", {{
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
   }});
@@ -1415,7 +1415,7 @@ for (const paragraph of paragraphs) {
   }
 }
 const rendered = completionCards.map((article) => {
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
   return {
     id: article.id,
@@ -1481,7 +1481,7 @@ for (const paragraph of paragraphs) {
 const records = targetArticles.map((article) => {
   const sections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
   const addonText = sections.flatMap((section) => section.paragraphs).join("");
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {
     id: article.id,
     slug: article.slug,
@@ -1541,7 +1541,7 @@ for (const paragraph of paragraphs) {{
   }}
 }}
 const rendered = expansion.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
   const rewrite = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug];
   return {{
@@ -1627,7 +1627,7 @@ for (const paragraph of paragraphs) {{
 const allArticles = listArticleRecords();
 const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = expansion.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
   return {{
     path: getArticlePath(article),
@@ -1710,7 +1710,7 @@ for (const paragraph of paragraphs) {{
 const allArticles = listArticleRecords();
 const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = expansion.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     path: getArticlePath(article),
     bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
@@ -1770,7 +1770,7 @@ for (const paragraph of paragraphs) {{
   }}
 }}
 const rendered = batch.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     path: getArticlePath(article),
     bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
@@ -1827,7 +1827,7 @@ import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-r
 const expectedPaths = new Set({json.dumps(AGY_V1_PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = records.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     id: article.id,
     path: getArticlePath(article),
@@ -1865,7 +1865,7 @@ import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-r
 const expectedPaths = new Set({json.dumps(AGY_ASC_BATCH_02_PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = records.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     id: article.id,
     path: getArticlePath(article),
@@ -1903,7 +1903,7 @@ import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-r
 const expectedPaths = new Set({json.dumps(AGY_ASC_VENUS_BATCH_03_PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = records.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     id: article.id,
     path: getArticlePath(article),
@@ -1941,7 +1941,7 @@ import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-r
 const expectedPaths = new Set({json.dumps(AGY_VENUS_BATCH_04_PUBLIC_ARTICLE_PATHS)});
 const records = listArticleRecords().filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = records.map((article) => {{
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com");
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   return {{
     id: article.id,
     path: getArticlePath(article),
@@ -2004,7 +2004,7 @@ const forbiddenTemplates = [
   "深度解析",
 ];
 const coverage = records.map((article) => {
-  const content = buildArticleContent(getArticlePath(article), "https://mysticpantheon.com", {});
+  const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com", {});
   const expectedBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug];
   return {
     slug: article.slug,
@@ -2070,7 +2070,7 @@ const forbidden = [
   "工具課",
 ];
 const records = paths.map((path) => {
-  const content = buildArticleContent(path, "https://mysticpantheon.com", {
+  const content = buildArticleContent(path, "https://www.mysticpantheon.com", {
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
   });
@@ -2108,7 +2108,7 @@ console.log(JSON.stringify(records));
 def test_unknown_article_slug_redirects_to_product_hub() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
-const content = buildArticleContent("/articles/astro/12-zodiac-signs", "https://mysticpantheon.com", {
+const content = buildArticleContent("/articles/astro/12-zodiac-signs", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
@@ -2126,23 +2126,23 @@ console.log(JSON.stringify(content));
 def test_legacy_article_slug_redirects_to_serial_url() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
-const legacy = buildArticleContent("/articles/personality/relationships-stuck", "https://mysticpantheon.com", {
+const legacy = buildArticleContent("/articles/personality/relationships-stuck", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
-const canonical = buildArticleContent("/articles/interpersonal/interpersonal-0001", "https://mysticpantheon.com", {
+const canonical = buildArticleContent("/articles/interpersonal/interpersonal-0001", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
-const sequenceArticle = buildArticleContent("/articles/personality/personality-0002", "https://mysticpantheon.com", {
+const sequenceArticle = buildArticleContent("/articles/personality/personality-0002", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
-const topic = buildArticleContent("/topics/personality", "https://mysticpantheon.com", {
+const topic = buildArticleContent("/topics/personality", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
-const ineligibleTopic = buildArticleContent("/topics/fool", "https://mysticpantheon.com", {
+const ineligibleTopic = buildArticleContent("/topics/fool", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
@@ -2213,7 +2213,7 @@ def test_article_body_runtime_contract_keeps_custom_body_unenriched() -> None:
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./app/web/static/article-rewrite-release-001.js";
 
-const content = buildArticleContent("/articles/personality/personality-0001", "https://mysticpantheon.com", {
+const content = buildArticleContent("/articles/personality/personality-0001", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
@@ -2242,7 +2242,7 @@ def test_article_body_runtime_contract_fallback_is_reader_facing() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 
-const content = buildArticleContent("/articles/astrology/astrology-0004", "https://mysticpantheon.com", {
+const content = buildArticleContent("/articles/astrology/astrology-0004", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
@@ -2295,7 +2295,7 @@ const tagManagement = listTagManagementRecords();
 const taxonomy = listTagTaxonomyRecords();
 const articleSummaries = records.map((article) => {{
   const path = getArticlePath(article);
-  const content = buildArticleContent(path, "https://mysticpantheon.com", {{
+  const content = buildArticleContent(path, "https://www.mysticpantheon.com", {{
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
   }});
@@ -2312,7 +2312,7 @@ const articleSummaries = records.map((article) => {{
 
 const topicSummaries = topics.map((topic) => {{
   const topicArticlePaths = listArticlesForTopic(topic.slug).map(getArticlePath);
-  const content = buildArticleContent(topic.href, "https://mysticpantheon.com", {{
+  const content = buildArticleContent(topic.href, "https://www.mysticpantheon.com", {{
     author: "Pantheon 編輯部",
     updated: "2026-07-10",
   }});
@@ -2493,30 +2493,30 @@ def test_article_robots_and_sitemap_are_served() -> None:
     sitemap = client.get("/sitemap.xml")
     assert robots.status_code == 200
     assert "User-agent: *" in robots.text
-    assert "Sitemap: https://mysticpantheon.com/sitemap.xml" in robots.text
+    assert "Sitemap: https://www.mysticpantheon.com/sitemap.xml" in robots.text
     assert sitemap.status_code == 200
-    assert "https://mysticpantheon.com/articles" in sitemap.text
-    assert "https://mysticpantheon.com/</loc>" not in sitemap.text
-    assert "https://mysticpantheon.com/articles/fortune" in sitemap.text
-    assert "https://mysticpantheon.com/articles/personality" in sitemap.text
-    assert "https://mysticpantheon.com/articles/astro" in sitemap.text
-    assert "https://mysticpantheon.com/articles/fortune/fortune-0001" in sitemap.text
-    assert "https://mysticpantheon.com/articles/interpersonal/interpersonal-0001" in sitemap.text
-    assert "https://mysticpantheon.com/topics/tarot" in sitemap.text
-    assert "https://mysticpantheon.com/topics/personality" in sitemap.text
-    assert "https://mysticpantheon.com/topics/mbti" in sitemap.text
-    assert "https://mysticpantheon.com/topics/upright" in sitemap.text
-    assert "https://mysticpantheon.com/topics/interpersonal" in sitemap.text
-    assert "https://mysticpantheon.com/topics/reversed" in sitemap.text
-    assert "https://mysticpantheon.com/topics/fool" not in sitemap.text
-    assert "https://mysticpantheon.com/articles/bazi" not in sitemap.text
-    assert "https://mysticpantheon.com/articles/mbti" not in sitemap.text
-    assert "https://mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
+    assert "https://www.mysticpantheon.com/articles" in sitemap.text
+    assert "https://www.mysticpantheon.com/</loc>" not in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/fortune" in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/personality" in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/astro" in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/fortune/fortune-0001" in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/interpersonal/interpersonal-0001" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/tarot" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/personality" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/mbti" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/upright" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/interpersonal" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/reversed" in sitemap.text
+    assert "https://www.mysticpantheon.com/topics/fool" not in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/bazi" not in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/mbti" not in sitemap.text
+    assert "https://www.mysticpantheon.com/articles/personality/relationships-stuck" not in sitemap.text
 
     sitemap_lastmods = re.findall(r"<lastmod>([^<]+)</lastmod>", sitemap.text)
     assert len(sitemap_lastmods) == len(PRERENDER_ARTICLES)
     for article in PRERENDER_ARTICLES:
-        entry = f"<loc>https://mysticpantheon.com{article['route']}</loc>\n    <lastmod>{article['updated']}</lastmod>"
+        entry = f"<loc>https://www.mysticpantheon.com{article['route']}</loc>\n    <lastmod>{article['updated']}</lastmod>"
         assert entry in sitemap.text
 
 
@@ -2527,12 +2527,12 @@ def test_foundation_ai_and_feed_endpoints_are_served() -> None:
     feed = client.get("/feed/")
     feed_xml = client.get("/feed.xml")
     feed_file = Path("app/web/feed.xml").read_text()
-    feed_links = re.findall(r"<link>(https://mysticpantheon\.com/articles/[^<]+)</link>", feed_file)
-    expected_feed_links = [f"https://mysticpantheon.com{article['route']}" for article in PRERENDER_ARTICLES]
+    feed_links = re.findall(r"<link>(https://www\.mysticpantheon\.com/articles/[^<]+)</link>", feed_file)
+    expected_feed_links = [f"https://www.mysticpantheon.com{article['route']}" for article in PRERENDER_ARTICLES]
 
     assert llms.status_code == 200
     assert "Pantheon" in llms.text
-    assert "https://mysticpantheon.com/articles" in llms.text
+    assert "https://www.mysticpantheon.com/articles" in llms.text
     assert "<!doctype html>" not in llms.text.lower()
     assert endpoint_label(
         {"status": llms.status_code, "content_type": llms.headers["content-type"], "bytes": len(llms.content), "body": llms.text},
@@ -2554,10 +2554,10 @@ def test_foundation_ai_and_feed_endpoints_are_served() -> None:
     assert "<rss version=\"2.0\"" in feed.text
     assert "Pantheon 最新文章" in feed.text
     assert feed.text == feed_xml.text
-    assert "https://mysticpantheon.com/articles/tarot/tarot-0001" in feed.text
-    assert "https://mysticpantheon.com/articles/tarot/tarot-0080" in feed.text
-    assert "https://mysticpantheon.com/articles/life-direction/life-direction-0001" in feed.text
-    assert "<link>https://mysticpantheon.com/articles/life-direction</link>" not in feed.text
+    assert "https://www.mysticpantheon.com/articles/tarot/tarot-0001" in feed.text
+    assert "https://www.mysticpantheon.com/articles/tarot/tarot-0080" in feed.text
+    assert "https://www.mysticpantheon.com/articles/life-direction/life-direction-0001" in feed.text
+    assert "<link>https://www.mysticpantheon.com/articles/life-direction</link>" not in feed.text
     assert feed_file.count("<item>") == len(PRERENDER_ARTICLES)
     assert feed_links == expected_feed_links
 
@@ -2599,7 +2599,7 @@ def test_first_30_article_plan_is_registered_for_site() -> None:
     ]
     for keyword, path in expected_articles:
         assert f'primaryKeyword: "{keyword}"' in article_registry_js
-        assert f"https://mysticpantheon.com{path}" in sitemap_xml
+        assert f"https://www.mysticpantheon.com{path}" in sitemap_xml
 
 
 def test_retired_static_product_pages_redirect_to_articles() -> None:
@@ -2687,12 +2687,12 @@ def test_cors_allows_public_frontend_origin() -> None:
     response = client.options(
         "/api/v1/health",
         headers={
-            "Origin": "https://mysticpantheon.com",
+            "Origin": "https://www.mysticpantheon.com",
             "Access-Control-Request-Method": "GET",
         },
     )
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "https://mysticpantheon.com"
+    assert response.headers["access-control-allow-origin"] == "https://www.mysticpantheon.com"
 
 
 def test_cors_rejects_unknown_origin() -> None:

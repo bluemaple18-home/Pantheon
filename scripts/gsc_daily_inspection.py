@@ -21,11 +21,11 @@ from scripts.gsc_daily_fetch import write_snapshot
 from scripts.gsc_opportunity_brief import choose_single_property
 
 
-DEFAULT_SITEMAP_URL = "https://mysticpantheon.com/sitemap.xml"
+DEFAULT_SITEMAP_URL = "https://www.mysticpantheon.com/sitemap.xml"
 DEFAULT_MAX_URLS = 1_900
 DEFAULT_INSPECTION_INTERVAL = 0.12
 DEFAULT_WORKERS = 8
-USER_AGENT = "Pantheon-GSC-Monitor/1.0 (+https://mysticpantheon.com)"
+USER_AGENT = "Pantheon-GSC-Monitor/1.0 (+https://www.mysticpantheon.com)"
 INDEX_FIELDS = (
     "verdict",
     "coverageState",

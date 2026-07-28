@@ -84,6 +84,8 @@ tag-management-YYYYMMDD-N
 
 - URL 使用流水號：`/articles/{category}/{category}-{number}`。
 - canonical、breadcrumb、sitemap、上一篇/下一篇都使用正式 URL。
+- 正式推送前必須確認 `mysticpantheon.com` 以單一步驟永久轉址至
+  `www.mysticpantheon.com`；驗證失敗時停止發布，不得新增文章擴大 canonical 分裂。
 - 相關文章不顯示流水號。
 - 可見延伸閱讀最多 6 條，可包含上一篇 / 下一篇、分類文章入口與推薦文章；推薦文章最多 5 篇。
 - FAQ 不出現內部管理語言。

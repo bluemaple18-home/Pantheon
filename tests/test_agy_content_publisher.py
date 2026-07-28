@@ -969,12 +969,13 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
 
 def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
+    checked: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
         calls.append(args)
         return "c" * 40 if args == ["rev-parse", "HEAD"] else ""
 
-    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: checked.append(args))
 
     publisher._stage_commit_tag_push(
         Path("/synthetic/repo"),
@@ -984,7 +985,60 @@ def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pyte
         release_gate=True,
     )
 
+    assert checked == [
+        [publisher.sys.executable, "scripts/verify_host_canonical.py"],
+        [
+            publisher.sys.executable,
+            "scripts/check_release_record.py",
+            "--base-ref",
+            "origin/main",
+            "--require-head-tag",
+        ],
+    ]
     assert calls[-1] == ["push", "--atomic", "origin", "HEAD:main", "v0.3.59"]
+
+
+def test_push_checks_live_canonical_host_before_git_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[tuple[str, list[str]]] = []
+
+    def fake_checked(_repo_root: Path, args: list[str]) -> None:
+        events.append(("check", args))
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        events.append(("git", args))
+        return "c" * 40 if args == ["rev-parse", "HEAD"] else ""
+
+    monkeypatch.setattr(publisher, "_run_checked", fake_checked)
+
+    publisher._stage_commit_tag_push(
+        Path("/synthetic/repo"),
+        "0.3.59",
+        fake_git,
+        push=True,
+        release_gate=False,
+    )
+
+    assert events[0] == (
+        "check",
+        [publisher.sys.executable, "scripts/verify_host_canonical.py"],
+    )
+    assert events[1][0] == "git"
+
+
+def test_local_release_does_not_require_live_canonical_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    checked: list[list[str]] = []
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: checked.append(args))
+
+    publisher._stage_commit_tag_push(
+        Path("/synthetic/repo"),
+        "0.3.59",
+        lambda _repo, args, _input=None: "c" * 40 if args == ["rev-parse", "HEAD"] else "",
+        push=False,
+        release_gate=False,
+    )
+
+    assert checked == []
 
 
 def test_recovery_removes_unpushed_commit_and_tag_but_preserves_failure_evidence(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mysticpantheon.com/sitemap.xml
+Sitemap: https://www.mysticpantheon.com/sitemap.xml

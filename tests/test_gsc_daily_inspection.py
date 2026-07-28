@@ -17,28 +17,28 @@ from scripts.gsc_daily_inspection import (
 def test_sitemap_urlset_and_index_are_same_origin_and_unique() -> None:
     index = b"""<?xml version="1.0"?>
     <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      <sitemap><loc>https://mysticpantheon.com/a.xml</loc></sitemap>
-      <sitemap><loc>https://mysticpantheon.com/b.xml</loc></sitemap>
+      <sitemap><loc>https://www.mysticpantheon.com/a.xml</loc></sitemap>
+      <sitemap><loc>https://www.mysticpantheon.com/b.xml</loc></sitemap>
     </sitemapindex>"""
     child_a = b"""<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      <url><loc>https://mysticpantheon.com/articles/a</loc></url>
+      <url><loc>https://www.mysticpantheon.com/articles/a</loc></url>
     </urlset>"""
     child_b = b"""<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      <url><loc>https://mysticpantheon.com/articles/a</loc></url>
-      <url><loc>https://mysticpantheon.com/articles/b</loc></url>
+      <url><loc>https://www.mysticpantheon.com/articles/a</loc></url>
+      <url><loc>https://www.mysticpantheon.com/articles/b</loc></url>
     </urlset>"""
     fixtures = {
-        "https://mysticpantheon.com/sitemap.xml": index,
-        "https://mysticpantheon.com/a.xml": child_a,
-        "https://mysticpantheon.com/b.xml": child_b,
+        "https://www.mysticpantheon.com/sitemap.xml": index,
+        "https://www.mysticpantheon.com/a.xml": child_a,
+        "https://www.mysticpantheon.com/b.xml": child_b,
     }
     assert sitemap_urls_from_bytes(index)[0] == "sitemapindex"
     assert load_sitemap_urls(
-        "https://mysticpantheon.com/sitemap.xml",
+        "https://www.mysticpantheon.com/sitemap.xml",
         request_bytes=fixtures.__getitem__,
     ) == [
-        "https://mysticpantheon.com/articles/a",
-        "https://mysticpantheon.com/articles/b",
+        "https://www.mysticpantheon.com/articles/a",
+        "https://www.mysticpantheon.com/articles/b",
     ]
 
 
@@ -53,13 +53,13 @@ def test_extracts_breadcrumb_urls_from_jsonld_graph() -> None:
                         "@type": "ListItem",
                         "position": 2,
                         "name": "文章",
-                        "item": {"@id": "https://mysticpantheon.com/articles/a"},
+                        "item": {"@id": "https://www.mysticpantheon.com/articles/a"},
                     },
                     {
                         "@type": "ListItem",
                         "position": 1,
                         "name": "首頁",
-                        "item": "https://mysticpantheon.com/",
+                        "item": "https://www.mysticpantheon.com/",
                     },
                 ],
             }
@@ -71,8 +71,8 @@ def test_extracts_breadcrumb_urls_from_jsonld_graph() -> None:
     assert breadcrumbs == [
         {
             "items": [
-                {"position": 1, "name": "首頁", "url": "https://mysticpantheon.com/"},
-                {"position": 2, "name": "文章", "url": "https://mysticpantheon.com/articles/a"},
+                {"position": 1, "name": "首頁", "url": "https://www.mysticpantheon.com/"},
+                {"position": 2, "name": "文章", "url": "https://www.mysticpantheon.com/articles/a"},
             ]
         }
     ]
@@ -126,37 +126,37 @@ def test_compares_index_and_breadcrumb_url_changes() -> None:
         "observation_date": "2026-07-23",
         "records": [
             {
-                "url": "https://mysticpantheon.com/a",
+                "url": "https://www.mysticpantheon.com/a",
                 "inspection": {"index": {"verdict": "NEUTRAL"}},
                 "declared_breadcrumb": {
-                    "breadcrumbs": [{"items": [{"url": "https://mysticpantheon.com/old"}]}]
+                    "breadcrumbs": [{"items": [{"url": "https://www.mysticpantheon.com/old"}]}]
                 },
             },
-            {"url": "https://mysticpantheon.com/removed"},
+            {"url": "https://www.mysticpantheon.com/removed"},
         ],
     }
     current = [
         {
-            "url": "https://mysticpantheon.com/a",
+            "url": "https://www.mysticpantheon.com/a",
             "inspection": {"index": {"verdict": "PASS"}},
             "declared_breadcrumb": {
-                "breadcrumbs": [{"items": [{"url": "https://mysticpantheon.com/new"}]}]
+                "breadcrumbs": [{"items": [{"url": "https://www.mysticpantheon.com/new"}]}]
             },
         },
-        {"url": "https://mysticpantheon.com/added"},
+        {"url": "https://www.mysticpantheon.com/added"},
     ]
     changes = compare_snapshots(previous, current)
     assert changes["baseline"] is False
-    assert changes["urls_added"] == ["https://mysticpantheon.com/added"]
-    assert changes["urls_removed"] == ["https://mysticpantheon.com/removed"]
+    assert changes["urls_added"] == ["https://www.mysticpantheon.com/added"]
+    assert changes["urls_removed"] == ["https://www.mysticpantheon.com/removed"]
     assert changes["index_changes"][0]["fields"]["verdict"] == {
         "before": "NEUTRAL",
         "after": "PASS",
     }
     assert changes["breadcrumb_url_changes"][0] == {
-        "url": "https://mysticpantheon.com/a",
-        "before": [["https://mysticpantheon.com/old"]],
-        "after": [["https://mysticpantheon.com/new"]],
+        "url": "https://www.mysticpantheon.com/a",
+        "before": [["https://www.mysticpantheon.com/old"]],
+        "after": [["https://www.mysticpantheon.com/new"]],
     }
 
 
@@ -168,10 +168,10 @@ def test_inspection_keeps_failed_url_with_structured_warning() -> None:
             return {"indexStatusResult": {"verdict": "PASS"}}
 
     html = b"""<script type="application/ld+json">
-    {"@type":"BreadcrumbList","itemListElement":[{"position":1,"name":"Home","item":"https://mysticpantheon.com/"}]}
+    {"@type":"BreadcrumbList","itemListElement":[{"position":1,"name":"Home","item":"https://www.mysticpantheon.com/"}]}
     </script>"""
     records, warnings = inspect_records(
-        ["https://mysticpantheon.com/good", "https://mysticpantheon.com/bad"],
+        ["https://www.mysticpantheon.com/good", "https://www.mysticpantheon.com/bad"],
         property_url="sc-domain:mysticpantheon.com",
         client=FakeClient(),  # type: ignore[arg-type]
         inspection_interval=0,
@@ -179,19 +179,19 @@ def test_inspection_keeps_failed_url_with_structured_warning() -> None:
         request_bytes=lambda _url: html,
     )
     assert [record["url"] for record in records] == [
-        "https://mysticpantheon.com/good",
-        "https://mysticpantheon.com/bad",
+        "https://www.mysticpantheon.com/good",
+        "https://www.mysticpantheon.com/bad",
     ]
     assert records[1]["inspection"] == {"available": False}
     assert records[0]["inspection"]["available"] is True
     assert warnings[0]["reason_code"] == "URL_INSPECTION_FAILED"
-    assert warnings[0]["record"] == "https://mysticpantheon.com/bad"
+    assert warnings[0]["record"] == "https://www.mysticpantheon.com/bad"
 
 
 def test_classifies_index_and_breadcrumb_research_groups() -> None:
     records = [
         {
-            "url": "https://mysticpantheon.com/indexed-breadcrumb",
+            "url": "https://www.mysticpantheon.com/indexed-breadcrumb",
             "inspection": {
                 "available": True,
                 "index": {"verdict": "PASS", "coverageState": "Submitted and indexed"},
@@ -200,7 +200,7 @@ def test_classifies_index_and_breadcrumb_research_groups() -> None:
             "declared_breadcrumb": {"present": True},
         },
         {
-            "url": "https://mysticpantheon.com/indexed-gap",
+            "url": "https://www.mysticpantheon.com/indexed-gap",
             "inspection": {
                 "available": True,
                 "index": {"verdict": "PASS"},
@@ -209,7 +209,7 @@ def test_classifies_index_and_breadcrumb_research_groups() -> None:
             "declared_breadcrumb": {"present": True},
         },
         {
-            "url": "https://mysticpantheon.com/not-indexed",
+            "url": "https://www.mysticpantheon.com/not-indexed",
             "inspection": {
                 "available": True,
                 "index": {"verdict": "NEUTRAL", "coverageState": "Crawled - currently not indexed"},
@@ -218,7 +218,7 @@ def test_classifies_index_and_breadcrumb_research_groups() -> None:
             "declared_breadcrumb": {"present": True},
         },
         {
-            "url": "https://mysticpantheon.com/unknown",
+            "url": "https://www.mysticpantheon.com/unknown",
             "inspection": {"available": False},
             "declared_breadcrumb": {"present": False},
         },
@@ -234,11 +234,11 @@ def test_classifies_index_and_breadcrumb_research_groups() -> None:
     assert len(classification["diagnosis_queue"]) == 3
 
     changes = compare_classifications(
-        {"classification": {"groups": {"unknown": ["https://mysticpantheon.com/unknown"]}}},
+        {"classification": {"groups": {"unknown": ["https://www.mysticpantheon.com/unknown"]}}},
         classification,
     )
     assert changes["unknown"]["entered"] == []
     assert changes["unknown"]["left"] == []
     assert changes["indexed_gsc_breadcrumb"]["entered"] == [
-        "https://mysticpantheon.com/indexed-breadcrumb"
+        "https://www.mysticpantheon.com/indexed-breadcrumb"
     ]

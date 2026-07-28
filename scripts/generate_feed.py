@@ -11,7 +11,7 @@ from scripts.prerender_article_shells import PRERENDER_ARTICLES  # noqa: E402
 
 WEB_DIR = Path("app/web")
 FEED_PATH = WEB_DIR / "feed.xml"
-SITE_ORIGIN = "https://mysticpantheon.com"
+SITE_ORIGIN = "https://www.mysticpantheon.com"
 FEED_PUB_DATE = "Fri, 10 Jul 2026 00:00:00 +0800"
 FEED_BUILD_DATE = "Sun, 12 Jul 2026 00:00:00 +0800"
 

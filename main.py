@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 WEB_DIR = Path(__file__).parent / "app" / "web"
-SITE_ORIGIN = "https://mysticpantheon.com"
+SITE_ORIGIN = "https://www.mysticpantheon.com"
 ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
 ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
