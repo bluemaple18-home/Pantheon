@@ -20,6 +20,8 @@ from scripts import agy_seo_copy_pipeline as pipeline  # noqa: E402
 WEB_DIR = Path("app/web")
 REDIRECTS_PATH = WEB_DIR / "_redirects"
 SITEMAP_PATH = WEB_DIR / "sitemap.xml"
+ARTICLE_PRERENDER_REWRITE = "/articles/* /seo/articles/:splat/ 200"
+TOPIC_PRERENDER_REWRITE = "/topics/* /seo/topics/:splat/ 200"
 PRODUCT_HUBS = {
     "fortune": {
         "title": "命盤文章",
@@ -361,10 +363,6 @@ LEGACY_REDIRECTS = {
 }
 
 
-def redirect_target(target: str) -> str:
-    return f"{target.removesuffix('/index.html')}/"
-
-
 def update_redirects() -> None:
     lines = REDIRECTS_PATH.read_text(encoding="utf-8").splitlines()
     without_legacy_block: list[str] = []
@@ -379,7 +377,6 @@ def update_redirects() -> None:
         if not in_legacy_block:
             without_legacy_block.append(line)
 
-    generated_rewrites = [f"{route} /{redirect_target(target)} 200" for route, target in PRERENDER_ROUTES.items()]
     generated_legacy_redirects = [f"{source} {target} 301" for source, target in LEGACY_REDIRECTS.items()]
     filtered = [
         line
@@ -387,6 +384,7 @@ def update_redirects() -> None:
         if not (
             (line.startswith("/articles/") and " /seo/articles/" in line)
             or (line.startswith("/topics/") and " /seo/topics/" in line)
+            or line in {ARTICLE_PRERENDER_REWRITE, TOPIC_PRERENDER_REWRITE}
         )
     ]
     insert_at = filtered.index("/articles /articles 200")
@@ -394,7 +392,10 @@ def update_redirects() -> None:
         LEGACY_REDIRECTS_START,
         *generated_legacy_redirects,
         LEGACY_REDIRECTS_END,
-        *generated_rewrites,
+        # Cloudflare Pages 最多只接受 100 條 dynamic redirects。逐篇 200 rewrite
+        # 會讓後段文章落入 noindex fallback；兩條 splat 規則可涵蓋全部預渲染頁。
+        ARTICLE_PRERENDER_REWRITE,
+        TOPIC_PRERENDER_REWRITE,
     ]
     next_lines = filtered[:insert_at] + generated + filtered[insert_at:]
     REDIRECTS_PATH.write_text("\n".join(next_lines) + "\n", encoding="utf-8")

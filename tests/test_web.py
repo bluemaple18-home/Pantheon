@@ -25,14 +25,15 @@ from main import (
 )
 from scripts.competitor_seo_tool import endpoint_label
 from scripts.prerender_article_shells import (
+    ARTICLE_PRERENDER_REWRITE,
     LEGACY_REDIRECTS,
     PRERENDER_ARTICLES,
     PRERENDER_HUBS,
     PRERENDER_ROUTES,
     PRERENDER_TOPICS,
+    TOPIC_PRERENDER_REWRITE,
     build_policy_v2_audit,
     prerender_artifact_findings,
-    redirect_target,
     render_article_specific_shell,
 )
 from scripts.update_articles_hub_dates import render_articles_hub_dates
@@ -714,12 +715,12 @@ def test_expansion_50d_articles_expose_current_publish_date() -> None:
         assert f'<time datetime="{ARTICLE_TAROT_COMPLETION_DATE}" data-article-updated>{ARTICLE_TAROT_COMPLETION_DATE}</time>' in response.text, path
 
 
-def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> None:
+def test_cloudflare_pages_wildcard_rewrite_uses_prerendered_article_shells() -> None:
     redirects = Path("app/web/_redirects").read_text()
 
     assert len(PRERENDER_ARTICLES) == len(PUBLIC_ARTICLE_PATHS)
+    assert redirects.count(ARTICLE_PRERENDER_REWRITE) == 1
     for route, target in PRERENDER_ROUTES.items():
-        assert f"{route} /{redirect_target(target)} 200" in redirects
         prerendered = Path("app/web") / target
         assert prerendered.exists()
         html = prerendered.read_text()
@@ -728,8 +729,8 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_article_shells() -> Non
         assert 'id="breadcrumb-jsonld">' in html
         assert 'id="faq-jsonld">' in html
         assert 'id="article-jsonld"></script>' not in html
-    assert redirects.count(" /seo/articles/") == len(PRERENDER_ARTICLES) + len(PRERENDER_HUBS)
-    assert redirects.count(" /seo/topics/") == len(PRERENDER_TOPICS)
+    assert redirects.count(" /seo/articles/") == 1
+    assert redirects.count(" /seo/topics/") == 1
 
 
 def test_legacy_article_slugs_use_permanent_server_redirects() -> None:
@@ -742,11 +743,11 @@ def test_legacy_article_slugs_use_permanent_server_redirects() -> None:
         assert f"{source} {target} 301" in redirects
 
     first_legacy = redirects.index("# BEGIN GENERATED LEGACY ARTICLE REDIRECTS")
-    first_rewrite = redirects.index("/articles/personality/personality-0001 /seo/articles/personality/personality-0001/ 200")
+    first_rewrite = redirects.index(ARTICLE_PRERENDER_REWRITE)
     assert first_legacy < first_rewrite
 
 
-def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
+def test_cloudflare_pages_wildcard_rewrite_uses_prerendered_product_hubs() -> None:
     redirects = Path("app/web/_redirects").read_text()
     expected_routes = {
         "/articles/fortune",
@@ -756,10 +757,10 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs() -> None:
     }
 
     assert {hub["route"] for hub in PRERENDER_HUBS} == expected_routes
+    assert redirects.count(ARTICLE_PRERENDER_REWRITE) == 1
     for hub in PRERENDER_HUBS:
         route = hub["route"]
         target = PRERENDER_ROUTES[route]
-        assert f"{route} /{redirect_target(target)} 200" in redirects
         html = (Path("app/web") / target).read_text()
         assert f'rel="canonical" href="https://www.mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
@@ -816,7 +817,7 @@ console.log(JSON.stringify({
     assert not data["hasFullTitleDump"]
 
 
-def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
+def test_cloudflare_pages_wildcard_rewrite_uses_prerendered_topic_hubs() -> None:
     redirects = Path("app/web/_redirects").read_text()
     expected_routes = {
         "/topics/mbti",
@@ -838,10 +839,10 @@ def test_cloudflare_pages_exact_rewrites_use_prerendered_topic_hubs() -> None:
     assert {topic["route"] for topic in PRERENDER_TOPICS} == expected_routes
     assert "/topics/fool" not in PRERENDER_ROUTES
     assert "/topics/fool /seo/topics/fool/ 200" not in redirects
+    assert redirects.count(TOPIC_PRERENDER_REWRITE) == 1
     for topic in PRERENDER_TOPICS:
         route = topic["route"]
         target = PRERENDER_ROUTES[route]
-        assert f"{route} /{redirect_target(target)} 200" in redirects
         html = (Path("app/web") / target).read_text()
         assert f'rel="canonical" href="https://www.mysticpantheon.com{route}"' in html
         assert '"@type":"CollectionPage"' in html
@@ -1116,7 +1117,7 @@ def test_codex_emergency_articles_keep_publication_dates_consistent_across_regis
         ), path
 
         feed_item = re.search(
-            rf"<item>\s*<title>.*?</title>\s*<link>https://mysticpantheon\.com{re.escape(path)}</link>.*?<pubDate>([^<]+)</pubDate>",
+            rf"<item>\s*<title>.*?</title>\s*<link>https://www\.mysticpantheon\.com{re.escape(path)}</link>.*?<pubDate>([^<]+)</pubDate>",
             feed_xml,
             re.S,
         )
