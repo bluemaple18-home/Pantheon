@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-NEW-LANE-PRODUCTION-OWNED-PENDING-CAPABILITY-IMPLEMENTATION-001
-status: CARD_DRAFTED
+status: IMPLEMENTATION_RUNNING
 type: bounded-implementation
 project: Pantheon
 chain_id: PANTHEON-NEW-LANE-PRODUCTION-OWNED-PENDING-CAPABILITY-20260728
@@ -213,18 +213,19 @@ Implementation 不宣稱 ACCEPTED。主線收到 candidate 後才可建立唯一
 
 ## Dispatch receipt
 
-- card source SHA：待提交
+- card source SHA：`197c58f96f1a45cd06913137ab267c4e2134e831`
 - implementation source ref：`codex/new-lane-production-owned-pending-capability-20260728`
 - fixed base：`c44953a7c3a68008a84eb8e7fb8fc88147a18fd2`
-- source clean／index lock：待驗證
-- formal thread ID：PENDING
+- source clean／index lock：PASS
+- formal thread ID：`019fa868-48fc-7093-8cd8-6d65a613c9ca`
 - title：`CARD-PANTHEON-NEW-LANE-PRODUCTION-OWNED-PENDING-CAPABILITY-IMPLEMENTATION-001`
-- worktree exists／clean／distinct：PENDING
+- worktree exists／clean／distinct：PASS（registered independent worktree `d549`）
+- dispatch correction：初始 prompt 誤展開不存在的 card SHA；已在 production mutation 前更正為上述 exact SHA，不影響 fixed-base lineage。
 - model：`gpt-5.6-sol`
 - reasoning：`high`
 - Gate 1 card contract：PASS
-- Gate 2 visible thread：PENDING
+- Gate 2 visible thread：PASS
 - Gate 3 candidate delivery：PENDING
 - Gate 4 independent review：PENDING（Implementation 完成後由主線另開）
 - Gate 5 mainline acceptance：PENDING
-- workflow：`CARD_DRAFTED`
+- workflow：`IMPLEMENTATION_RUNNING`
