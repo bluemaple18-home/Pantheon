@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-REVIEW-REPLACEMENT-001
-status: REVIEW_RUNNING
+status: STOPPED_DUPLICATE_REVIEW
 type: independent-review-replacement
 project: Pantheon
 chain_id: PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-20260728
@@ -20,6 +20,18 @@ previous_invalid_reason: CROSS_THREAD_BINDING
 ---
 
 # Pantheon New-Lane Outbox Lifecycle Handshake Review Replacement
+
+## Stop record
+
+- disposition：`STOPPED_DUPLICATE_REVIEW`
+- reason：主線 lineage audit 確認既有 commit `c44953a7c3a68008a84eb8e7fb8fc88147a18fd2` 已是 candidate `cea69cc97b59b1635f0e48a444c6d222efc24670` 的有效唯一 Review。
+- authoritative verdict：`NO_GO / STOP_NO_REPAIR_BUDGET`
+- duplicate thread：`019fa85b-971c-7db3-b253-1586ef514d2f`
+- duplicate thread result：`STOPPED_DUPLICATE_REVIEW / NO_COMMIT`
+- duplicate worktree：只留下未提交的 replacement card／evidence；不得視為有效 Review，不得整合。
+- replacement implementation：`CARD-PANTHEON-NEW-LANE-PRODUCTION-OWNED-PENDING-CAPABILITY-IMPLEMENTATION-001`
+
+本卡是主線誤判造成的重複派工，未產生 commit，也未消耗新的合法 Review 額度。後續不得恢復本卡。
 
 ## Root question
 
@@ -209,6 +221,6 @@ Evidence root：
 - Gate 1 card contract：PASS
 - Gate 2 visible thread：PASS
 - Gate 3 candidate delivery：`cea69cc97b59b1635f0e48a444c6d222efc24670 / READY_FOR_REVIEW`
-- Gate 4 independent review：PENDING（本卡）
+- Gate 4 independent review：N/A（本卡為重複派工；有效 Review 為 `c44953a7…`）
 - Gate 5 mainline acceptance：PENDING
-- workflow：`REVIEW_RUNNING`
+- workflow：`STOPPED_DUPLICATE_REVIEW / NO_COMMIT`
