@@ -1007,6 +1007,56 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "即使是否定句也改用其他說法" in prompt
 
 
+def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> None:
+    article = make_article("PROMPT-REPAIR")
+    article["description"] = "這段描述太短，不能替個人下結論。"
+    article["bodySections"] = article["bodySections"][:1]
+    brief = {
+        "schema_version": 1,
+        "run_id": "prompt-repair",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                    "title": article["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: article[field]
+                    for field in ["id", "section", "product", "slug", "serial", "urlSlug", "primaryKeyword", "published", "updated"]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "create",
+        "articles": [article],
+    }
+    findings = [
+        {"article_id": article["id"], "code": "description_length", "message": "meta description 必須為 70 到 95 字"},
+        {"article_id": article["id"], "code": "body_length", "message": "正文不足"},
+        {"article_id": article["id"], "code": "paragraph_length", "message": "段落不足"},
+        {"article_id": article["id"], "code": "banned_phrase", "message": "命中禁詞：保證"},
+    ]
+
+    prompt = pipeline._writer_prompt(brief, candidate, findings)
+
+    assert '"description_characters":' in prompt
+    assert '"body_characters":' in prompt
+    assert '"section_count":' in prompt
+    assert '"paragraph_characters":' in prompt
+    assert "description 修復目標為 80 到 90 字" in prompt
+    assert "正文修復目標為 5 節、每節 3 段、每段 95 到 110 字" in prompt
+    assert "逐一移除 findings 指出的禁詞" in prompt
+    assert pipeline.publication_presentation_instruction("create") in prompt
+    assert "description 以 80 到 90 個中文字為初稿目標" in prompt
+
+
 def test_create_transport_schema_excludes_deterministic_publication_envelope() -> None:
     article_schema = pipeline.external_candidate_schema("create")["properties"]["articles"]["items"]
 
@@ -1550,6 +1600,114 @@ def test_reviewer_prompt_distinguishes_hard_boundaries_from_preferences() -> Non
     assert "1500 到 1800 字只是生成目標" in prompt
     assert "不得只因正文未落在生成目標區間而退件" in prompt
     assert "英文殘字與錯別字" in prompt
+
+
+def test_run_writer_reviewer_ignores_false_machine_check_from_external_reviewer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article = make_article("FALSE-MACHINE-REVIEW")
+    brief = {
+        "schema_version": 1,
+        "run_id": "false-machine-review",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                },
+                "target": {
+                    field: article[field]
+                    for field in ["id", "section", "product", "slug", "serial", "urlSlug", "primaryKeyword", "published", "updated"]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    run_dir = tmp_path / "false-machine-review"
+    run_dir.mkdir()
+    pipeline.write_json(run_dir / "brief.json", brief)
+    monkeypatch.setattr(pipeline, "quality_findings", lambda _articles: [])
+
+    class FalseMachineReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(self, role: str, _prompt: str, _schema: dict[str, object]) -> dict[str, object]:
+            if role == "writer":
+                return {"articles": [make_external_create_article(article)]}
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {"code": "body_length_insufficient", "message": "錯誤聲稱正文不足 1300 字"},
+                            {"code": "paragraph_length_violation", "message": "錯誤聲稱段落不足 80 字"},
+                        ],
+                    }
+                ]
+            }
+
+    _candidate, review = pipeline.run_writer_reviewer(
+        run_dir,
+        FalseMachineReviewer(),
+        max_repairs=0,
+    )
+
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert review["articles"][0]["findings"] == []
+
+    trusted_finding = {
+        "article_id": article["id"],
+        "code": "body_length",
+        "message": "本機 deterministic gate 確認正文不足",
+    }
+    monkeypatch.setattr(
+        pipeline,
+        "quality_findings",
+        lambda _articles: [trusted_finding],
+    )
+    trusted_run_dir = tmp_path / "trusted-machine-review"
+    trusted_run_dir.mkdir()
+    pipeline.write_json(trusted_run_dir / "brief.json", brief)
+
+    _candidate, trusted_review = pipeline.run_writer_reviewer(
+        trusted_run_dir,
+        FalseMachineReviewer(),
+        max_repairs=0,
+    )
+
+    assert trusted_review["articles"][0]["verdict"] == "REJECT"
+    assert trusted_review["articles"][0]["findings"] == [
+        {"code": trusted_finding["code"], "message": trusted_finding["message"]}
+    ]
+
+
+def test_machine_gate_reconciliation_preserves_semantic_reviewer_rejection() -> None:
+    review = {
+        "schema_version": 1,
+        "run_id": "semantic-review",
+        "articles": [
+            {
+                "article_id": "SEMANTIC-REVIEW",
+                "candidate_sha256": "a" * 64,
+                "verdict": "REJECT",
+                "findings": [
+                    {"code": "body_length_insufficient", "message": "錯誤的機械字數判定"},
+                    {"code": "search_intent_mismatch", "message": "沒有回答搜尋者的核心問題"},
+                ],
+            }
+        ],
+    }
+
+    reconciled = pipeline.reconcile_external_review_with_machine_gate(review)
+
+    assert reconciled["articles"][0]["verdict"] == "REJECT"
+    assert reconciled["articles"][0]["findings"] == [
+        {"code": "search_intent_mismatch", "message": "沒有回答搜尋者的核心問題"}
+    ]
 
 
 def test_description_requires_its_own_boundary_statement() -> None:

@@ -253,6 +253,24 @@ BANNED_PHRASES = {
     "保證",
     "注定",
 }
+MACHINE_OWNED_REVIEW_CODES = {
+    "answer_length",
+    "banned_phrase",
+    "body_length",
+    "body_length_insufficient",
+    "description_boundary",
+    "description_length",
+    "generic_ai_phrase",
+    "opening_keyword",
+    "paragraph_count",
+    "paragraph_length",
+    "paragraph_length_violation",
+    "repeated_sentence",
+    "required_tags",
+    "section_count",
+    "title_keyword",
+    "title_length",
+}
 REQUIRED_PUBLIC_TAGS = {"Pantheon", "繁體中文", "公開文章", "通用知識", "SEO", "AEO", "GEO"}
 GENERIC_AI_PHRASES = {
     "我們可以透過",
@@ -2696,6 +2714,59 @@ def public_model_findings(brief: dict[str, Any], findings: list[dict[str, Any]])
     ]
 
 
+def _create_repair_measurements(candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "articles": [
+            {
+                "slot": _slot(index),
+                "description_characters": len(str(article["description"])),
+                "body_characters": len(
+                    "".join(
+                        str(paragraph)
+                        for section in article["bodySections"]
+                        for paragraph in section["paragraphs"]
+                    )
+                ),
+                "section_count": len(article["bodySections"]),
+                "paragraph_counts": [
+                    len(section["paragraphs"])
+                    for section in article["bodySections"]
+                ],
+                "paragraph_characters": [
+                    [len(str(paragraph)) for paragraph in section["paragraphs"]]
+                    for section in article["bodySections"]
+                ],
+            }
+            for index, article in enumerate(candidate["articles"])
+        ]
+    }
+
+
+def _create_repair_directives(findings: list[dict[str, Any]]) -> str:
+    codes = {str(finding.get("code")) for finding in findings}
+    directives = []
+    if "description_length" in codes:
+        directives.append(
+            "description 修復目標為 80 到 90 字；輸出前逐字計數，不足就補具體情境與限制，超過就刪除贅詞"
+        )
+    if codes & {
+        "body_length",
+        "body_length_insufficient",
+        "section_count",
+        "paragraph_count",
+        "paragraph_length",
+        "paragraph_length_violation",
+    }:
+        directives.append(
+            "正文修復目標為 5 節、每節 3 段、每段 95 到 110 字；輸出前依 trusted local measurements 校正總字數與各段字數"
+        )
+    if codes & {"banned_phrase", "generic_ai_phrase"}:
+        directives.append(
+            "逐一移除 findings 指出的禁詞與模板詞，包含標題、description、answer、FAQ 與正文，不得只改其中一處"
+        )
+    return "；".join(directives) if directives else "只修正 findings 指出的項目，不改動已通過欄位"
+
+
 def external_review_schema() -> dict[str, Any]:
     finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
     item = {"type": "object", "additionalProperties": False, "properties": {"slot": {"type": "string"}, "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]}, "findings": {"type": "array", "items": finding}}, "required": ["slot", "verdict", "findings"]}
@@ -2724,6 +2795,21 @@ def hydrate_review(brief: dict[str, Any], candidate: dict[str, Any], external: d
         )
     review = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "articles": articles}
     validate_review(review, candidate["articles"])
+    return review
+
+
+def reconcile_external_review_with_machine_gate(
+    review: dict[str, Any],
+) -> dict[str, Any]:
+    for item in review["articles"]:
+        original_verdict = item["verdict"]
+        item["findings"] = [
+            finding
+            for finding in item["findings"]
+            if str(finding.get("code")) not in MACHINE_OWNED_REVIEW_CODES
+        ]
+        if original_verdict == "REJECT" and not item["findings"]:
+            item["verdict"] = "APPROVE"
     return review
 
 
@@ -2761,14 +2847,27 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
             " publicationPolicy 的 modified 必須是這次實質正文改寫的真實日期，published 必須沿用 brief 的真實資料；"
             "可驗證事實要列來源，純文化/反思內容要明示 disclosure，不得虛構來源。"
         )
+    repair_measurements = "null"
+    repair_directives = "null"
     if prior is not None:
-        instruction = "請只修正 findings 指出的問題，保留候選稿中正確且具體的內容；仍須輸出完整 candidate。"
+        repair_instruction = "請只修正 findings 指出的問題，保留候選稿中正確且具體的內容；仍須輸出完整 candidate。"
+        if brief.get("mode") == "create":
+            instruction = f"{repair_instruction}\n{instruction}"
+            repair_measurements = json.dumps(
+                _create_repair_measurements(prior),
+                ensure_ascii=False,
+            )
+            repair_directives = _create_repair_directives(findings or [])
+        else:
+            instruction = repair_instruction
     return "\n".join([
         instruction,
         "不得共用跨篇完整句型。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
         "prior public candidate:", json.dumps(public_model_candidate(brief, prior), ensure_ascii=False) if prior else "null",
         "public findings:", json.dumps(public_model_findings(brief, findings or []), ensure_ascii=False),
+        "trusted local measurements:", repair_measurements,
+        "repair directives:", repair_directives,
     ])
 
 
@@ -2796,6 +2895,12 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         presentation_profile,
         "body_characters",
     )
+    machine_gate_instruction = ""
+    if brief.get("mode") == "create":
+        machine_gate_instruction = (
+            "字數、段落結構、關鍵字、固定 tags、禁詞與模板詞由本機 deterministic gate 唯一判定；"
+            "不得自行回報這些 machine-owned findings，請集中審查搜尋意圖、場景、表達、事實與安全邊界。"
+        )
     return "\n".join([
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
         "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
@@ -2807,6 +2912,7 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         "不得只因正文未落在生成目標區間而退件。",
         f"body shape internal constraint：{publication_presentation_instruction(presentation_mode)}。",
         "禁詞必須依語境判斷；不一定、不能保證、不是注定等否定邊界句不得當成承諾禁詞。",
+        machine_gate_instruction,
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
         "public candidate:", json.dumps(public_model_candidate(brief, candidate), ensure_ascii=False),
@@ -3023,6 +3129,8 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             )
             write_json(attempt_dir / "external-review.json", external_review)
             review = hydrate_review(brief, candidate, external_review)
+            if mode == "create":
+                review = reconcile_external_review_with_machine_gate(review)
             for item in review["articles"]:
                 item["hard_failure"] = False
         except (json.JSONDecodeError, TypeError, ValueError) as error:
