@@ -778,6 +778,30 @@ def test_gemini_25_flash_models_use_compatible_generation_config(model: str) -> 
     assert schema["properties"]["items"]["items"]["minLength"] == 20
 
 
+@pytest.mark.parametrize("model", ["gemini-3.5-flash-lite", "gemini-3.6-flash"])
+def test_latest_gemini_models_omit_deprecated_sampling_parameters(model: str) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append((model, payload))
+        return {"ok": True}
+
+    client = GeminiClient(
+        api_key="redacted",
+        writer_model=model,
+        transport=transport,
+    )
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    client.generate_json("writer", "writer prompt", schema)
+
+    generation_config = calls[0][1]["generationConfig"]
+    assert "temperature" not in generation_config
+    assert "topP" not in generation_config
+    assert "topK" not in generation_config
+    assert generation_config["thinkingConfig"] == {"thinkingLevel": "LOW"}
+    assert generation_config["responseJsonSchema"] is schema
+
+
 def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
 
