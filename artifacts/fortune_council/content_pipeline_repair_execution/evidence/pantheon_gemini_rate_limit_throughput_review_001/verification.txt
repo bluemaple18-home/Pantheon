@@ -1,0 +1,59 @@
+Targeted re-review provisioning
+PASS  same chain and same Reviewer identity
+PASS  Reviewer worktree clean before candidate checkout
+PASS  detached HEAD exact Repair candidate
+PASS  direct parent exact original candidate
+PASS  index.lock absent
+
+Scope
+PASS  exact Repair changed-file allowlist: actual=9 expected=9 missing=[] unexpected=[]
+PASS  only PGR-REV-001 and PGR-REV-002 plus direct regressions inspected
+PASS  production code, tests and Repair evidence remained read-only
+
+Finding-specific fresh verification
+COMMAND  <pantheon-python> -m pytest -q commit-failure success-lock installer-parity opt-out template nodes
+PASS     6 passed in 2.78s
+PASS     commit failure credential open/read=0
+PASS     ordinal durable=false and provider construction/call=0
+PASS     exactly one closed terminal failure and one failed production attempt
+PASS     raw exception, credential path and credential value not persisted
+PASS     success provider construction and transport outside allocator lock
+PASS     coordinator plus four lanes exact pool/state/cooldown parity
+PASS     canary-off shared-root runner observes same contract
+PASS     opt-out compatibility and pre-mutation validation
+
+Complete related suites
+COMMAND  <pantheon-python> -m pytest -q allocator outbox coordinator
+PASS     171 passed in 15.72s
+
+Static and privacy
+PASS  installer bash -n
+PASS  coordinator plist plutil -lint
+PASS  lane plist plutil -lint
+PASS  git diff --check required-parent..Repair-candidate
+PASS  added-diff secret scan; zero matches
+PASS  added-diff absolute-local-path scan; zero matches
+PASS  added-diff debug-marker scan; zero matches
+PASS  Repair findings/results JSON valid
+
+Repair evidence cross-check
+PASS  Repair evidence candidate, parent and finding ids match actual lineage
+PASS  Repair focused count 171 matches fresh full-suite result
+INFO  Repair finding-specific report counted 5; targeted Reviewer added the direct
+      success lock-boundary node and observed 6 passed
+
+Multilingual baseline
+PASS  Repair diff has no multilingual production/test path
+INFO  existing missing_policy_contract failures have no new candidate causality
+
+Forbidden operations
+NOT RUN  real Gemini/HTTP, real credential, production queue/state, launchctl,
+         live installer, Publisher, deploy, canary, publish, push, PR or merge
+
+Finding closure
+RESOLVED  PGR-REV-001
+RESOLVED  PGR-REV-002
+NEW FINDINGS  0
+
+Decision
+TARGETED_REVIEW_GO

@@ -1,0 +1,93 @@
+{
+  "schema_version": 2,
+  "card_id": "CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-REVIEW-001",
+  "chain_id": "PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-20260728",
+  "review_cycle": 1,
+  "targeted_re_review": true,
+  "original_review_evidence_commit": "3adf0746a6810d3a90e26cd3e966300c6d94ec66",
+  "repair_candidate": "74db4fbb6e28936376ff4b02e021362b04386af7",
+  "required_direct_parent": "7e38274efda6b76eb2e5baf27b62d20bb9614292",
+  "decision": "TARGETED_REVIEW_GO",
+  "finding_closure": {
+    "PGR-REV-001": "resolved",
+    "PGR-REV-002": "resolved",
+    "new_findings": []
+  },
+  "fresh_verification": {
+    "finding_specific": {
+      "passed": 6,
+      "failed": 0,
+      "seconds": 2.78
+    },
+    "allocator_outbox_coordinator_full": {
+      "passed": 171,
+      "failed": 0,
+      "seconds": 15.72
+    }
+  },
+  "closure_observations": {
+    "commit_failure": {
+      "credential_open": false,
+      "credential_read": false,
+      "ordinal_durable": false,
+      "provider_constructed": false,
+      "provider_called": false,
+      "terminal_failure_count": 1,
+      "production_attempt_status": "failed",
+      "raw_exception_persisted": false,
+      "credential_path_or_value_persisted": false
+    },
+    "success_lock_boundary": {
+      "provider_construction_lock_free": true,
+      "provider_transport_lock_free": true
+    },
+    "installer_contract": {
+      "coordinator_and_four_lanes_exact_shared_contract": true,
+      "coordinator_template_and_installer_consistent": true,
+      "closed_validation_precedes_plist_or_control_mutation": true,
+      "canary_off_shared_root_has_same_contract": true,
+      "pool_opt_out_compatible": true
+    }
+  },
+  "static_checks": {
+    "installer_bash_n": "PASS",
+    "coordinator_plist_lint": "PASS",
+    "lane_plist_lint": "PASS",
+    "git_diff_check": "PASS",
+    "secret_scan": "PASS",
+    "absolute_local_path_scan": "PASS",
+    "debug_marker_scan": "PASS"
+  },
+  "repair_changed_files": {
+    "actual_count": 9,
+    "expected_count": 9,
+    "missing": [],
+    "unexpected": [],
+    "paths": [
+      "artifacts/fortune_council/content_pipeline_repair_execution/CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-REPAIR-001.md",
+      "artifacts/fortune_council/content_pipeline_repair_execution/evidence/pantheon_gemini_rate_limit_throughput_repair_001/findings.json",
+      "artifacts/fortune_council/content_pipeline_repair_execution/evidence/pantheon_gemini_rate_limit_throughput_repair_001/results.json",
+      "artifacts/fortune_council/content_pipeline_repair_execution/evidence/pantheon_gemini_rate_limit_throughput_repair_001/verification.md",
+      "ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example",
+      "scripts/agy_gemini_runner.py",
+      "scripts/install_agy_gemini_coordinator_launchd.sh",
+      "tests/test_agy_gemini_coordinator.py",
+      "tests/test_agy_gemini_outbox.py"
+    ]
+  },
+  "multilingual_baseline": {
+    "new_candidate_causality": false,
+    "reason": "Repair diff does not modify multilingual production or test paths.",
+    "existing_failure_code": "missing_policy_contract"
+  },
+  "claims": {
+    "real_provider_called": false,
+    "real_credential_read": false,
+    "production_touched": false,
+    "integrated": false,
+    "deployed": false,
+    "canary_enabled": false,
+    "published": false,
+    "production_throughput_improved": false
+  }
+}

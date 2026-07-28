@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "card_id": "CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-REVIEW-001",
+  "chain_id": "PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-20260728",
+  "review_cycle": 1,
+  "targeted_re_review": true,
+  "repair_candidate": "74db4fbb6e28936376ff4b02e021362b04386af7",
+  "findings": [
+    {
+      "finding_id": "PGR-REV-001",
+      "severity": "P1",
+      "category": "correctness",
+      "path": "scripts/agy_gemini_runner.py",
+      "line": 311,
+      "evidence": "Fresh commit-failure regression observed credential_open=0, credential_read=0, ordinal_durable=false, provider_constructed=false, provider_called=false, terminal_failure_count=1, production_attempt_status=failed, and no raw exception/path/value persistence. Success regression observed provider construction and transport outside the allocator lock.",
+      "risk": "Original credential-read-before-durable-ordinal exception window.",
+      "suggested_fix": "Implemented: durable admission commit now precedes selected credential open/read.",
+      "validation_gap": "closed",
+      "confidence": "high",
+      "status": "resolved"
+    },
+    {
+      "finding_id": "PGR-REV-002",
+      "severity": "P1",
+      "category": "release",
+      "path": "scripts/install_agy_gemini_coordinator_launchd.sh",
+      "line": 105,
+      "evidence": "Fresh installer regression parsed the coordinator and all four lane plists and found exact pool/state/cooldown parity; canary-off shared-root processing observed the same contract; opt-out and pre-mutation fail-closed tests passed.",
+      "risk": "Original coordinator shared-root allocator/cooldown bypass.",
+      "suggested_fix": "Implemented: validated production pool/state/cooldown contract is injected into coordinator and all four lanes when opt-in is active.",
+      "validation_gap": "closed",
+      "confidence": "high",
+      "status": "resolved"
+    }
+  ],
+  "summary": {
+    "P0_open": 0,
+    "P1_open": 0,
+    "P2_open": 0,
+    "P3_open": 0,
+    "resolved": 2,
+    "new_findings": 0
+  }
+}
