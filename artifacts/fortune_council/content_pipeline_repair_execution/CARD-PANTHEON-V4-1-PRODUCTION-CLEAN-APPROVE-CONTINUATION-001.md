@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-V4-1-PRODUCTION-CLEAN-APPROVE-CONTINUATION-001
-status: CARD_DRAFTED
+status: SUPERSEDED
 type: production-execution
 project: Pantheon
 chain_id: pantheon-v4-1-production-clean-approve-continuation-001
@@ -15,6 +15,17 @@ source_sha: 3a73e5ac142bb5f676c4ddb13bef0122f5e6e7f8
 ---
 
 # Pantheon V4.1 Production Clean-Approve Continuation
+
+## Supersession
+
+- disposition：`SUPERSEDED`
+- reason：主線誤將使用者所稱「早上未完成的事情」理解為 production clean-approve continuation。
+- dispatched：`false`
+- formal thread ID：`null`
+- worktree created：`false`
+- replacement card：`CARD-PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-REVIEW-REPLACEMENT-001`
+
+本卡從未派工、未建立正式 thread、未產生獨立 worktree，也未執行任何 production 動作。保留本檔只為追溯，不得再派工。
 
 ## Root question
 
@@ -163,8 +174,8 @@ Evidence path：
 - model：`gpt-5.6-sol`
 - reasoning：`high`
 - Gate 1 card contract：PASS
-- Gate 2 visible thread：PENDING
-- Gate 3 candidate delivery：PENDING
+- Gate 2 visible thread：N/A（從未派工）
+- Gate 3 candidate delivery：N/A（從未執行）
 - Gate 4 independent review：N/A（純 production 執行卡；code/config 變更禁止）
-- Gate 5 mainline acceptance：PENDING
-- workflow：`CARD_DRAFTED`
+- Gate 5 mainline acceptance：N/A（已由 replacement card 取代）
+- workflow：`SUPERSEDED / NEVER_DISPATCHED`
