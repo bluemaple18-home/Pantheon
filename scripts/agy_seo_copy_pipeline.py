@@ -2096,6 +2096,12 @@ GEMINI_25_FLASH_MODELS = frozenset(
         "gemini-2.5-flash-lite",
     }
 )
+GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = frozenset(
+    {
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+    }
+)
 GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
     {
         "maxItems",
@@ -2169,15 +2175,17 @@ class GeminiClient:
             if model in GEMINI_25_FLASH_MODELS
             else {"thinkingLevel": "LOW"}
         )
+        generation_config: dict[str, Any] = {
+            "responseMimeType": "application/json",
+            "responseJsonSchema": _response_schema_for_model(model, schema),
+            "thinkingConfig": thinking_config,
+        }
+        if model not in GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS:
+            generation_config["temperature"] = 0.45 if role == "writer" else 0.1
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.45 if role == "writer" else 0.1,
-                "responseMimeType": "application/json",
-                "responseJsonSchema": _response_schema_for_model(model, schema),
-                "thinkingConfig": thinking_config,
-            },
+            "generationConfig": generation_config,
         }
         return self.transport(model, payload)
 
@@ -2277,6 +2285,11 @@ class GeminiClient:
             f"JSON Schema：{json.dumps(schema, ensure_ascii=False, separators=(',', ':'))}\n\n"
             f"任務：\n{user_prompt}"
         )
+        generate_content_config: dict[str, Any] = {
+            "thinkingConfig": generation["thinkingConfig"],
+        }
+        if "temperature" in generation:
+            generate_content_config["temperature"] = generation["temperature"]
         settings = {
             "general": {"defaultApprovalMode": "plan", "enableAutoUpdate": False},
             "modelConfigs": {
@@ -2284,10 +2297,7 @@ class GeminiClient:
                     "agy-low": {
                         "modelConfig": {
                             "model": model,
-                            "generateContentConfig": {
-                                "temperature": generation["temperature"],
-                                "thinkingConfig": {"thinkingLevel": "LOW"},
-                            },
+                            "generateContentConfig": generate_content_config,
                         }
                     }
                 }
