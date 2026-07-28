@@ -35,6 +35,8 @@
     <string>__AGY_GEMINI_CLI__</string>
     <key>AGY_GEMINI_NEW_ONLY</key>
     <string>0</string>
+    <key>AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS</key>
+    <string>300</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>

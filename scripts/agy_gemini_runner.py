@@ -308,6 +308,7 @@ def _credential_from_admission(
 ) -> tuple[str, dict[str, str]]:
     slots = sorted(payload["slots"], key=lambda slot: slot["slot_id"])
     selected = next(slot for slot in slots if slot["slot_id"] == admission.slot_id)
+    _ordinal, selected_slot = admission.commit()
     descriptor = _open_private_file(
         Path(selected["credential_file"]),
         minimum_size=20,
@@ -315,7 +316,6 @@ def _credential_from_admission(
     )
     try:
         api_key = _read_production_api_key(descriptor)
-        _ordinal, selected_slot = admission.commit()
     finally:
         os.close(descriptor)
     return api_key, {

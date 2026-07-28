@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-REPAIR-001",
+  "chain_id": "PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-20260728",
+  "repair_cycle": 1,
+  "findings": [
+    {
+      "finding_id": "PGR-REV-001",
+      "severity": "P1",
+      "status": "repaired_pending_targeted_review",
+      "repair": "Durable admission commit now precedes selected credential open/read.",
+      "regression": "test_production_pool_commit_failure_precedes_credential_and_provider"
+    },
+    {
+      "finding_id": "PGR-REV-002",
+      "severity": "P1",
+      "status": "repaired_pending_targeted_review",
+      "repair": "Coordinator and all four lanes receive the same validated production pool, state and bounded cooldown contract when opt-in is enabled.",
+      "regression": "test_installer_injects_one_shared_allocator_contract_into_coordinator_and_all_lanes"
+    }
+  ],
+  "open_findings": 0,
+  "review_required": true
+}

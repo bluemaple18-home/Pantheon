@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-REPAIR-001",
+  "chain_id": "PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-20260728",
+  "repair_cycle": 1,
+  "source_candidate": "7e38274efda6b76eb2e5baf27b62d20bb9614292",
+  "required_direct_parent": "e21d9f7f11ef0fbfd78224afb5027b57c6b07f61",
+  "fresh_verification": {
+    "finding_specific": {
+      "passed": 5,
+      "failed": 0
+    },
+    "focused": {
+      "passed": 171,
+      "failed": 0
+    },
+    "multiprocess_and_stress": {
+      "passed": 2,
+      "failed": 0,
+      "denied_admissions": 64,
+      "allocations": 300
+    },
+    "publisher_seo_v4": {
+      "passed": 181,
+      "failed": 0
+    },
+    "multilingual_candidate": {
+      "passed": 16,
+      "failed": 2,
+      "failure_code": "missing_policy_contract"
+    },
+    "multilingual_required_parent": {
+      "passed": 16,
+      "failed": 2,
+      "failure_code": "missing_policy_contract"
+    }
+  },
+  "synthetic_probes": {
+    "commit_failure": {
+      "credential_open": false,
+      "credential_read": false,
+      "ordinal_durable": false,
+      "provider_constructed": false,
+      "provider_called": false,
+      "terminal_failure_count": 1,
+      "production_attempt_status": "failed",
+      "raw_exception_persisted": false,
+      "credential_path_or_value_persisted": false
+    },
+    "provider_lock_boundary": {
+      "provider_construction_lock_free": true,
+      "provider_transport_lock_free": true
+    },
+    "installer_contract": {
+      "coordinator_and_four_lanes_exact_shared_contract": true,
+      "coordinator_canary_off_root_runner_observed": true,
+      "pool_opt_out_requires_pool": false,
+      "closed_validation_precedes_plist_or_control_write": true
+    }
+  },
+  "baseline_exception": {
+    "classification": "PRE_EXISTING_BASELINE",
+    "candidate_causality": false,
+    "scope": "tests/test_agy_multilingual_pipeline.py"
+  },
+  "static_checks": {
+    "python_py_compile": "PASS",
+    "installer_bash_n": "PASS",
+    "coordinator_plist_lint": "PASS",
+    "lane_plist_lint": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "claims": {
+    "real_provider_called": false,
+    "real_credential_read": false,
+    "production_touched": false,
+    "integrated": false,
+    "deployed": false,
+    "published": false,
+    "quota_limit_increased": false,
+    "production_throughput_improved": false
+  },
+  "delivery_status": "DELIVERED_CANDIDATE / READY_FOR_TARGETED_REVIEW"
+}

@@ -809,8 +809,42 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
         str(state),
     )
     monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    provider_constructions = 0
+    real_gemini_client = runner.GeminiClient
+
+    def assert_allocator_lock_is_free() -> None:
+        lock_descriptor = os.open(
+            state.with_name(f"{state.name}.lock"),
+            os.O_RDWR,
+        )
+        try:
+            allocator.fcntl.flock(
+                lock_descriptor,
+                allocator.fcntl.LOCK_EX | allocator.fcntl.LOCK_NB,
+            )
+            allocator.fcntl.flock(lock_descriptor, allocator.fcntl.LOCK_UN)
+        finally:
+            os.close(lock_descriptor)
+
+    class LockCheckingGeminiClient(real_gemini_client):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            nonlocal provider_constructions
+            assert_allocator_lock_is_free()
+            provider_constructions += 1
+            super().__init__(*args, **kwargs)
+
+    original_fake_urlopen = fake_urlopen
+
+    def lock_checking_urlopen(
+        provider_request: object,
+        **kwargs: object,
+    ) -> FakeResponse:
+        assert_allocator_lock_is_free()
+        return original_fake_urlopen(provider_request, **kwargs)
+
     monkeypatch.setattr(runner.os, "open", tracked_open)
-    monkeypatch.setattr(pipeline, "_single_request_urlopen", fake_urlopen)
+    monkeypatch.setattr(runner, "GeminiClient", LockCheckingGeminiClient)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", lock_checking_urlopen)
 
     result = process_once(tmp_path / "queue", clock=lambda: 7_001.0)
     response_path = tmp_path / "queue" / "inbox" / f"{request['job_id']}.json"
@@ -824,6 +858,7 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
         "slot_id",
         "manifest_sha256",
     }
+    assert provider_constructions == 1
     assert len(provider_calls) == 1
     assert selected == "account-2"
     manifest_slots = json.loads(manifest.read_text(encoding="utf-8"))["slots"]
@@ -842,6 +877,104 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     assert all(str(path) not in persisted for path in credential_paths)
     assert str(tmp_path / "round-robin-state.json") not in persisted
     assert "last_ordinal" not in persisted
+
+
+def test_production_pool_commit_failure_precedes_credential_and_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, credentials = _write_production_pool(tmp_path)
+    credential_paths = {
+        Path(slot["credential_file"])
+        for slot in json.loads(manifest.read_text(encoding="utf-8"))["slots"]
+    }
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-pool-commit-failure",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    raw_error = (
+        f"private-commit-error::{next(iter(credential_paths))}::"
+        f"{credentials['account-1']}"
+    )
+    credential_opens = 0
+    credential_reads = 0
+    provider_constructions = 0
+    provider_calls = 0
+    real_open_private_file = runner._open_private_file
+    real_read_production_api_key = runner._read_production_api_key
+
+    def tracked_open_private_file(path: Path, **kwargs: object) -> int:
+        nonlocal credential_opens
+        if path in credential_paths:
+            credential_opens += 1
+        return real_open_private_file(path, **kwargs)
+
+    def tracked_read_production_api_key(descriptor: int) -> str:
+        nonlocal credential_reads
+        credential_reads += 1
+        return real_read_production_api_key(descriptor)
+
+    def fail_commit(*_args: object, **_kwargs: object) -> None:
+        raise OSError(raw_error)
+
+    class ForbiddenProvider:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            nonlocal provider_constructions
+            provider_constructions += 1
+
+        def generate_json(self, *_args: object, **_kwargs: object) -> dict[str, bool]:
+            nonlocal provider_calls
+            provider_calls += 1
+            return {"ok": True}
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner, "_open_private_file", tracked_open_private_file)
+    monkeypatch.setattr(runner, "_read_production_api_key", tracked_read_production_api_key)
+    monkeypatch.setattr(allocator, "_commit_state", fail_commit)
+    monkeypatch.setattr(runner, "GeminiClient", ForbiddenProvider)
+
+    result = process_once(queue_root)
+
+    failed_paths = list((queue_root / "failed").glob("*.json"))
+    archive_paths = list((queue_root / "archive").glob("*.json"))
+    attempt_paths = list((queue_root / "production-attempts").glob("*.attempt"))
+    failed = json.loads(failed_paths[0].read_text(encoding="utf-8"))
+    attempt = json.loads(attempt_paths[0].read_text(encoding="utf-8"))
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (*failed_paths, *archive_paths, *attempt_paths)
+    )
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "OSError",
+    }
+    assert credential_opens == 0
+    assert credential_reads == 0
+    assert provider_constructions == 0
+    assert provider_calls == 0
+    assert not state.exists()
+    assert failed_paths == [queue_root / "failed" / f"{request['job_id']}.json"]
+    assert archive_paths == [queue_root / "archive" / f"{request['job_id']}.json"]
+    assert attempt_paths == [
+        queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    ]
+    assert failed["error_type"] == "OSError"
+    assert "credential_pool" not in failed
+    assert attempt["attempt_status"] == "failed"
+    assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
+    assert raw_error not in persisted
+    assert all(secret not in persisted for secret in credentials.values())
+    assert all(str(path) not in persisted for path in credential_paths)
 
 
 @pytest.mark.parametrize(

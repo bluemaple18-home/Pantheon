@@ -761,6 +761,10 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
         lane_plist["EnvironmentVariables"]["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"]
         == "300"
     )
+    assert (
+        plist["EnvironmentVariables"]["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"]
+        == "300"
+    )
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
     assert 'LANE_LABEL="com.pantheon.agy-gemini-${LANE}"' in installer
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
@@ -778,6 +782,7 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
         in installer
     )
     assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in lane_plist["EnvironmentVariables"]
+    assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in plist["EnvironmentVariables"]
     assert "AGY_WRITER_MODEL" not in plist["EnvironmentVariables"]
     assert "AGY_REVIEWER_MODEL" not in plist["EnvironmentVariables"]
     assert "AGY_WRITER_MODEL" not in lane_plist["EnvironmentVariables"]
@@ -785,6 +790,10 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert (
         "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"
         not in lane_plist["EnvironmentVariables"]
+    )
+    assert (
+        "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"
+        not in plist["EnvironmentVariables"]
     )
     assert "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string" in installer
     assert (
@@ -1157,8 +1166,9 @@ def test_installer_builds_and_lints_every_plist_before_any_mutation(
         },
     ],
 )
-def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
+def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_all_lanes(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     model_overrides: dict[str, str],
 ) -> None:
     repo_root = Path(__file__).resolve().parents[1]
@@ -1192,7 +1202,7 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
             "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
             "AGY_GEMINI_CLI_PATH": str(cli_path),
-            "AGY_GEMINI_NEW_ONLY": "1",
+            "AGY_GEMINI_NEW_ONLY": "0",
             "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS": "600",
             "PANTHEON_GSC_COPY_ROOT": str(gsc_copy_root),
             "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
@@ -1213,7 +1223,7 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     )
 
     assert completed.returncode == 0, completed.stderr
-    coordinator = plistlib.loads(
+    coordinator_plist = plistlib.loads(
         (
             fake_home
             / "Library"
@@ -1221,12 +1231,21 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             / "com.pantheon.agy-gemini-coordinator.plist"
         ).read_bytes()
     )
-    coordinator_arguments = coordinator["ProgramArguments"]
-    coordinator_variables = coordinator["EnvironmentVariables"]
+    coordinator_arguments = coordinator_plist["ProgramArguments"]
+    coordinator_variables = coordinator_plist["EnvironmentVariables"]
     assert coordinator_arguments[8] == str(gsc_copy_root)
     assert coordinator_arguments[11] == str(publisher_root)
     assert coordinator_arguments[13] == str(gsc_copy_root)
-    assert coordinator_variables["AGY_GEMINI_NEW_ONLY"] == "1"
+    shared_contract = {
+        "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
+        "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
+        "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS": "600",
+    }
+    assert coordinator_variables["AGY_GEMINI_NEW_ONLY"] == "0"
+    assert {
+        key: coordinator_variables[key]
+        for key in shared_contract
+    } == shared_contract
     if model_overrides:
         assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-explicit-writer"
         assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-explicit-reviewer"
@@ -1245,11 +1264,80 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
         variables = installed["EnvironmentVariables"]
         arguments = installed["ProgramArguments"]
         assert arguments[arguments.index("--lane") + 1] == lane
-        assert variables["AGY_GEMINI_CREDENTIAL_POOL_FILE"] == str(pool_file)
-        assert variables["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] == str(
-            state_file
-        )
-        assert variables["AGY_GEMINI_NEW_ONLY"] == "1"
-        assert variables["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"] == "600"
+        assert {key: variables[key] for key in shared_contract} == shared_contract
+        assert variables["AGY_GEMINI_NEW_ONLY"] == "0"
         assert "AGY_WRITER_MODEL" not in variables
         assert "AGY_REVIEWER_MODEL" not in variables
+
+    for key, value in coordinator_variables.items():
+        monkeypatch.setenv(key, str(value))
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _root: set())
+    queue_root = tmp_path / "canary-off-queue"
+    run_dir = tmp_path / "canary-off-run"
+    _write_brief(run_dir, "canary-off-root-run")
+    register_run(run_dir, queue_root)
+    observed: list[tuple[Path, dict[str, str]]] = []
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending("canary-off-root-job")
+
+    def observe_root_runner(root: Path) -> dict[str, str]:
+        observed.append(
+            (
+                root,
+                {key: os.environ[key] for key in shared_contract},
+            )
+        )
+        return {"status": "idle"}
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=observe_root_runner,
+        repo_root=tmp_path,
+        lane_mode=True,
+        new_only=False,
+    )
+
+    assert summary["runner"] == {"status": "idle"}
+    assert observed == [(queue_root.resolve(), shared_contract)]
+
+
+def test_installer_pool_opt_out_preserves_compatibility_without_pool_requirements(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+    )
+    env.pop("AGY_GEMINI_CREDENTIAL_POOL_FILE")
+    env.pop("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE")
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert mutation_log.exists()
+    installed_paths = [
+        fake_home / "Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist",
+        *[
+            fake_home / f"Library/LaunchAgents/com.pantheon.agy-gemini-{lane}.plist"
+            for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite")
+        ],
+    ]
+    assert len(installed_paths) == 5
+    for path in installed_paths:
+        variables = plistlib.loads(path.read_bytes())["EnvironmentVariables"]
+        assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in variables
+        assert "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE" not in variables
+        assert variables["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"] == "300"
