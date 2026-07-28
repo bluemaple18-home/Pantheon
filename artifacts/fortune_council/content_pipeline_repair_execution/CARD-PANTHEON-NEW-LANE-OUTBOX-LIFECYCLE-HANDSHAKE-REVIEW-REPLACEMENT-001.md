@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-REVIEW-REPLACEMENT-001
-status: CARD_DRAFTED
+status: REVIEW_RUNNING
 type: independent-review-replacement
 project: Pantheon
 chain_id: PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-20260728
@@ -195,20 +195,20 @@ Evidence root：
 
 ## Dispatch receipt
 
-- provisioning source SHA：待 card commit 後鎖定
+- provisioning source SHA：`2f804d185f384a1a168407a1eb0c56320814eff7`
 - source branch/ref：`codex/review-new-lane-outbox-handshake-20260728`
-- source clean：待驗證
-- Git metadata／index lock：待驗證
-- unrelated dirty paths：待驗證
-- formal thread ID：PENDING
+- source clean：PASS
+- Git metadata／index lock：PASS（無 index lock）
+- unrelated dirty paths：NONE（派工來源 worktree clean）
+- formal thread ID：`019fa85b-971c-7db3-b253-1586ef514d2f`
 - title：`CARD-PANTHEON-NEW-LANE-OUTBOX-LIFECYCLE-HANDSHAKE-REVIEW-REPLACEMENT-001`
-- worktree cwd／exists／clean：PENDING
+- worktree cwd／exists／clean：PASS（registered independent worktree `1608a4ae-e45d-46ba-adb4-c27ecab98967`，與 `<main-cwd>` 不同）
 - model：`gpt-5.6-sol`
 - reasoning：`high`
 - previous invalid Reviewer：`019fa7ac-19cf-7900-b666-040a04f4096a / CROSS_THREAD_BINDING`
 - Gate 1 card contract：PASS
-- Gate 2 visible thread：PENDING
+- Gate 2 visible thread：PASS
 - Gate 3 candidate delivery：`cea69cc97b59b1635f0e48a444c6d222efc24670 / READY_FOR_REVIEW`
 - Gate 4 independent review：PENDING（本卡）
 - Gate 5 mainline acceptance：PENDING
-- workflow：`CARD_DRAFTED`
+- workflow：`REVIEW_RUNNING`
