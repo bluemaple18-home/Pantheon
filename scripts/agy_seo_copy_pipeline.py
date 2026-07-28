@@ -2126,6 +2126,11 @@ class GeminiClient:
             if role == "writer"
             else "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。"
         )
+        thinking_config = (
+            {"thinkingBudget": 0}
+            if model == "gemini-2.5-flash"
+            else {"thinkingLevel": "LOW"}
+        )
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -2133,7 +2138,7 @@ class GeminiClient:
                 "temperature": 0.45 if role == "writer" else 0.1,
                 "responseMimeType": "application/json",
                 "responseJsonSchema": schema,
-                "thinkingConfig": {"thinkingLevel": "LOW"},
+                "thinkingConfig": thinking_config,
             },
         }
         return self.transport(model, payload)

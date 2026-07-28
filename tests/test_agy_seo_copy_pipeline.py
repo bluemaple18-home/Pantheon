@@ -730,6 +730,26 @@ def test_writer_and_reviewer_requests_have_independent_contexts() -> None:
     assert "hard_failure" not in review_schema()["properties"]["articles"]["items"]["properties"]
 
 
+def test_gemini_25_flash_uses_thinking_budget_instead_of_thinking_level() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append((model, payload))
+        return {"ok": True}
+
+    client = GeminiClient(
+        api_key="redacted",
+        writer_model="gemini-2.5-flash",
+        transport=transport,
+    )
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    client.generate_json("writer", "writer prompt", schema)
+
+    generation_config = calls[0][1]["generationConfig"]
+    assert generation_config["thinkingConfig"] == {"thinkingBudget": 0}
+    assert "thinkingLevel" not in generation_config["thinkingConfig"]
+
+
 def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
 
