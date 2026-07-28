@@ -2090,6 +2090,44 @@ def _single_request_urlopen(
     )
 
 
+GEMINI_25_FLASH_MODELS = frozenset(
+    {
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    }
+)
+GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
+    {
+        "maxItems",
+        "maxLength",
+        "minItems",
+        "minLength",
+    }
+)
+
+
+def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """2.5 Flash 僅送結構約束；完整限制仍由本地 deterministic validator 執行。"""
+    if model not in GEMINI_25_FLASH_MODELS:
+        return schema
+
+    def strip_complexity(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: strip_complexity(item)
+                for key, item in value.items()
+                if key not in GEMINI_25_COMPLEX_SCHEMA_KEYS
+            }
+        if isinstance(value, list):
+            return [strip_complexity(item) for item in value]
+        return value
+
+    simplified = strip_complexity(schema)
+    if not isinstance(simplified, dict):
+        raise TypeError("response schema must remain an object")
+    return simplified
+
+
 class GeminiClient:
     """Stateless Gemini JSON client；每次呼叫只傳單次 contents。"""
 
@@ -2128,7 +2166,7 @@ class GeminiClient:
         )
         thinking_config = (
             {"thinkingBudget": 0}
-            if model == "gemini-2.5-flash"
+            if model in GEMINI_25_FLASH_MODELS
             else {"thinkingLevel": "LOW"}
         )
         payload = {
@@ -2137,7 +2175,7 @@ class GeminiClient:
             "generationConfig": {
                 "temperature": 0.45 if role == "writer" else 0.1,
                 "responseMimeType": "application/json",
-                "responseJsonSchema": schema,
+                "responseJsonSchema": _response_schema_for_model(model, schema),
                 "thinkingConfig": thinking_config,
             },
         }
