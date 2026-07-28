@@ -1021,6 +1021,8 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     fake_bin.mkdir()
     pool_file, _manifest_sha256 = _write_installer_pool(tmp_path)
     state_file = tmp_path / "round-robin-state.json"
+    gsc_copy_root = tmp_path / "existing-gsc-copy"
+    publisher_root = tmp_path / "existing-content-publisher"
     cli_path = tmp_path / "agy"
     cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     cli_path.chmod(0o700)
@@ -1044,6 +1046,8 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
             "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
             "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "PANTHEON_GSC_COPY_ROOT": str(gsc_copy_root),
+            "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
             "PANTHEON_PYTHON_PATH": sys.executable,
             "PATH": f"{fake_bin}:/usr/bin:/bin",
             "TMPDIR": str(tmp_path),
@@ -1060,6 +1064,18 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     )
 
     assert completed.returncode == 0, completed.stderr
+    coordinator = plistlib.loads(
+        (
+            fake_home
+            / "Library"
+            / "LaunchAgents"
+            / "com.pantheon.agy-gemini-coordinator.plist"
+        ).read_bytes()
+    )
+    coordinator_arguments = coordinator["ProgramArguments"]
+    assert coordinator_arguments[8] == str(gsc_copy_root)
+    assert coordinator_arguments[11] == str(publisher_root)
+    assert coordinator_arguments[13] == str(gsc_copy_root)
     for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
         installed = plistlib.loads(
             (

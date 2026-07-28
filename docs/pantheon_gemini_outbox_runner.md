@@ -203,6 +203,19 @@ AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE="<private-state-root>/pantheon/production-
   bash scripts/install_agy_gemini_coordinator_launchd.sh
 ```
 
+若 launchd code 來自獨立 runtime worktree，必須顯式沿用既有 production
+state roots，避免 coordinator 在 worktree 內建立第二套 sweep state：
+
+```bash
+AGY_GEMINI_QUEUE_ROOT="<existing-production-root>/gemini-runner" \
+PANTHEON_GSC_COPY_ROOT="<existing-production-root>/gsc-copy" \
+PANTHEON_CONTENT_PUBLISHER_ROOT="<existing-production-root>/content-publisher" \
+  bash scripts/install_agy_gemini_coordinator_launchd.sh
+```
+
+三個 override 都必須是 absolute path，並在任何 plist 或 launchd mutation
+前驗證。它們只改變本機 state 定位，不會清空、搬移或重建既有 state。
+
 Installer 只會把 production pool manifest path 與同一個 absolute state path
 加入 `new`、`rewrite`、`i18n-new`、`i18n-rewrite` 四條 lane plist；不會把
 key value 加入 environment、argv 或 plist。若未明確提供 state path，

@@ -11,6 +11,8 @@ AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3
 PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
 QUEUE_ROOT="${AGY_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
+GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-${REPO_ROOT}/.work/gsc-copy}"
+CONTENT_PUBLISHER_ROOT="${PANTHEON_CONTENT_PUBLISHER_ROOT:-${REPO_ROOT}/.work/content-publisher}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LOG_DIR="${USER_HOME_DIR}/Library/Logs/Pantheon"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
@@ -36,6 +38,10 @@ if [[ ! -x "${PYTHON_PATH}" ]]; then
 fi
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
+  exit 1
+fi
+if [[ "${QUEUE_ROOT}" != /* || "${GSC_COPY_ROOT}" != /* || "${CONTENT_PUBLISHER_ROOT}" != /* ]]; then
+  echo "Pantheon queue、GSC copy 與 publisher state root 必須使用 absolute path。" >&2
   exit 1
 fi
 if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
@@ -69,9 +75,9 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:4 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:6 ${REPO_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:8 ${REPO_ROOT}/.work/gsc-copy" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${REPO_ROOT}/.work/content-publisher" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${REPO_ROOT}/.work/gsc-copy" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:8 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${CONTENT_PUBLISHER_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${TEMP_PLIST}"

@@ -13,6 +13,7 @@
 - Production attempt marker terminal 後不刪除，會原子更新並永久保留成功／失敗 evidence；相同 job/request replay、unsafe marker metadata 或 fd/path replacement 均在 allocator／credential／provider 前 fail closed。
 - Allocator 以 state directory fd 序列化並把 lock device/inode identity 綁入 durable state；acquire 與 commit 後均核對 fd/path，lock pathname unlink/replace 會在 credential open 前 fail closed。
 - Installer preflight 會完整驗證 pool schema、credential file metadata、state/lock/parent/identity，並先建構、lint coordinator 與四 lane 的全部 temp plist；全通過後才允許 target plist 或 launchd mutation。
+- Launchd installer 支援顯式沿用既有 queue、GSC copy 與 publisher state roots，避免獨立 runtime worktree 建立第二套 sweep state；三個 root 均須在任何 mutation 前通過 absolute-path preflight。
 
 ## [0.3.80] - 2026-07-25
 
