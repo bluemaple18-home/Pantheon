@@ -2390,7 +2390,8 @@ PUBLIC_CREATE_FIELDS = {
     "bodySections",
     "publicationPolicy",
 }
-EXTERNAL_CREATE_FIELDS = PUBLIC_CREATE_FIELDS | {"primaryKeyword"}
+EXTERNAL_CREATE_FIELDS = (PUBLIC_CREATE_FIELDS - {"publicationPolicy"}) | {"primaryKeyword"}
+CREATE_EVIDENCE_DISCLOSURE = "本文屬文化脈絡與反思整理，不主張可驗證的預測結果。"
 
 
 def _slot(index: int) -> str:
@@ -2493,7 +2494,12 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
     else:
         full = _article_json_schema()
         properties = {"slot": {"type": "string"}}
-        properties.update({field: full["properties"][field] for field in sorted(EXTERNAL_CREATE_FIELDS)})
+        properties.update(
+            {
+                field: full["properties"][field]
+                for field in sorted(EXTERNAL_CREATE_FIELDS)
+            }
+        )
         article = {
             "type": "object",
             "additionalProperties": False,
@@ -2506,6 +2512,39 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         "properties": {"articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}},
         "required": ["articles"],
     }
+
+
+def _hydrate_create_publication_policy(
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    target = source.get("target")
+    if not isinstance(target, dict):
+        raise CandidateValidationError("create source target must be an object")
+    policy = load_article_publication_policy()
+    identity = policy["identity"]
+    route = _article_route(target)
+    if not route:
+        raise CandidateValidationError("create target cannot determine canonical route")
+    contract = {
+        "policyVersion": policy["policy_version"],
+        "canonical": f"{policy['site_origin']}{route}",
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": {
+            "mode": "cultural_reflection",
+            "sources": [],
+            "disclosure": CREATE_EVIDENCE_DISCLOSURE,
+        },
+        "published": target.get("published"),
+        "modified": target.get("updated"),
+        "changeType": "created",
+    }
+    _validate_publication_contract_shape(contract)
+    return contract
 
 
 def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[str, Any]:
@@ -2524,7 +2563,17 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
                 raise CandidateValidationError("external create fields are strict")
             if generated["primaryKeyword"] != source["target"]["primaryKeyword"]:
                 raise CandidateValidationError("external primaryKeyword differs from public brief")
-            articles.append({**source["target"], **{field: generated[field] for field in sorted(PUBLIC_CREATE_FIELDS)}})
+            generated_fields = PUBLIC_CREATE_FIELDS - {"publicationPolicy"}
+            articles.append(
+                {
+                    **source["target"],
+                    **{
+                        field: generated[field]
+                        for field in sorted(generated_fields)
+                    },
+                    "publicationPolicy": _hydrate_create_publication_policy(source),
+                }
+            )
         elif mode == "optimize":
             if set(generated) != {"slot", "proposed"}:
                 raise CandidateValidationError("external optimize fields are strict")
@@ -2643,10 +2692,13 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
             "為避免中文計數超標，初稿每段以 "
             f"{paragraph_preferred_minimum} 到 {paragraph_preferred_maximum} 字為生成目標，"
             f"{_maximum_bound(create_profile, 'paragraph_characters')} 字是硬上限；"
+            "每節以 3 段為初稿目標；description 以 80 到 90 個中文字為初稿目標；"
             "不得把某節段落複製到另一節。正文第一段第一句必須完整且連續包含該篇 primaryKeyword；"
             "title 也必須完整且連續包含 primaryKeyword。完全避免 public policy 的 banned_phrases，"
             "即使是否定句也改用其他說法。meta description 欄位本身必須明寫內容只提供通用理解、"
             "不能替個人下結論等限制；不得只把限制放在正文。"
+            " publicationPolicy 由本機可信資料補齊；內容只採文化／反思定位，"
+            "不得寫入研究、統計、百分比或方法型主張。"
         )
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"

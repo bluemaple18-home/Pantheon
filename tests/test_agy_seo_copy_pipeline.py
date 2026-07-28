@@ -212,6 +212,17 @@ def make_article(article_id: str = "TEST-001") -> dict[str, object]:
     return article
 
 
+def make_external_create_article(article: dict[str, object]) -> dict[str, object]:
+    return {
+        "slot": "article-01",
+        "primaryKeyword": article["primaryKeyword"],
+        **{
+            field: article[field]
+            for field in pipeline.PUBLIC_CREATE_FIELDS - {"publicationPolicy"}
+        },
+    }
+
+
 def test_create_candidate_serialization_is_stable_across_python_hash_seeds() -> None:
     target = make_article()
     brief = {
@@ -225,15 +236,7 @@ def test_create_candidate_serialization_is_stable_across_python_hash_seeds() -> 
             }
         ],
     }
-    external = {
-        "articles": [
-            {
-                "slot": "article-01",
-                "primaryKeyword": target["primaryKeyword"],
-                **{field: target[field] for field in pipeline.PUBLIC_CREATE_FIELDS},
-            }
-        ]
-    }
+    external = {"articles": [make_external_create_article(target)]}
     code = (
         "import json,sys; "
         "from scripts.agy_seo_copy_pipeline import hydrate_candidate,public_model_candidate; "
@@ -923,9 +926,20 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "不得只把限制放在正文" in prompt
     assert "正文第一段第一句必須完整且連續包含該篇 primaryKeyword" in prompt
     assert pipeline.publication_presentation_instruction("create") in prompt
+    assert "publicationPolicy 由本機可信資料補齊" in prompt
+    assert "不得寫入研究、統計、百分比或方法型主張" in prompt
     assert "每節2 到 4段" in prompt
+    assert "每節以 3 段為初稿目標" in prompt
+    assert "description 以 80 到 90 個中文字為初稿目標" in prompt
     assert "初稿每段以 95 到 110 字為生成目標" in prompt
     assert "即使是否定句也改用其他說法" in prompt
+
+
+def test_create_transport_schema_excludes_deterministic_publication_envelope() -> None:
+    article_schema = pipeline.external_candidate_schema("create")["properties"]["articles"]["items"]
+
+    assert "publicationPolicy" not in article_schema["properties"]
+    assert "evidence" not in article_schema["properties"]
 
 
 def test_run_cli_accepts_zero_content_repairs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1394,12 +1408,7 @@ def test_external_content_is_hydrated_and_hashed_only_after_return() -> None:
             }
         ],
     }
-    external = {
-        "articles": [
-            {"slot": "article-01", "primaryKeyword": complete["primaryKeyword"]}
-            | {field: complete[field] for field in pipeline.PUBLIC_CREATE_FIELDS}
-        ]
-    }
+    external = {"articles": [make_external_create_article(complete)]}
 
     candidate = pipeline.hydrate_candidate(brief, external)
     reviewer_prompt = pipeline._reviewer_prompt(brief, candidate, [])
