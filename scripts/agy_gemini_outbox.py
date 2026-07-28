@@ -434,6 +434,10 @@ def _request_is_known(queue_root: Path, job_id: str) -> bool:
     )
 
 
+def _model_from_environment(name: str, default: str) -> str:
+    return os.environ.get(name, "").strip() or default
+
+
 class OutboxGeminiClient:
     """只寫 sanitized request；不持有憑證，也不直接呼叫外部服務。"""
 
@@ -498,6 +502,14 @@ def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
         queue_root,
         legacy_queue_root=legacy_queue_root,
         namespace=namespace,
+        writer_model=_model_from_environment(
+            "AGY_WRITER_MODEL",
+            pipeline.DEFAULT_WRITER_MODEL,
+        ),
+        reviewer_model=_model_from_environment(
+            "AGY_REVIEWER_MODEL",
+            pipeline.DEFAULT_REVIEWER_MODEL,
+        ),
     )
     runner = multilingual.run_writer_reviewer if brief.get("mode") == "translate_existing" else pipeline.run_writer_reviewer
     candidate, review = runner(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)

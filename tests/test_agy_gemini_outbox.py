@@ -2698,6 +2698,36 @@ def test_pipeline_tick_reserves_one_bounded_final_content_repair(
     assert observed == [2]
 
 
+def test_pipeline_tick_honors_explicit_model_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "brief.json").write_text(
+        json.dumps({"run_id": "model-override-run"}),
+        encoding="utf-8",
+    )
+    observed: list[tuple[str, str]] = []
+
+    def fake_run_writer_reviewer(
+        _run_dir: Path,
+        client: OutboxGeminiClient,
+        max_repairs: int = 2,
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        observed.append((client.writer_model, client.reviewer_model))
+        return {"articles": []}, {"articles": []}
+
+    monkeypatch.setenv("AGY_WRITER_MODEL", "gemini-explicit-writer")
+    monkeypatch.setenv("AGY_REVIEWER_MODEL", "gemini-explicit-reviewer")
+    monkeypatch.setattr(outbox.pipeline, "run_writer_reviewer", fake_run_writer_reviewer)
+
+    result = run_pipeline_tick(run_dir, tmp_path / "queue")
+
+    assert result["status"] == "complete"
+    assert observed == [("gemini-explicit-writer", "gemini-explicit-reviewer")]
+
+
 def test_pipeline_tick_routes_translation_brief_to_multilingual_pipeline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
