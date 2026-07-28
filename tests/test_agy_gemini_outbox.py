@@ -723,11 +723,16 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     opened_credentials: list[Path] = []
     real_open = runner.os.open
 
-    def tracked_open(path: object, flags: int, mode: int = 0o777) -> int:
+    def tracked_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        **kwargs: object,
+    ) -> int:
         candidate = Path(path)
         if candidate in credential_paths:
             opened_credentials.append(candidate)
-        return real_open(path, flags, mode)
+        return real_open(path, flags, mode, **kwargs)
 
     provider_calls: list[object] = []
 
@@ -1575,6 +1580,229 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
             (queue_root / "failed" / processing_path.name).read_text(encoding="utf-8")
         )
         assert failed["error_type"] == "RuntimeError"
+    attempt_marker = (
+        queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    )
+    assert attempt_marker.exists()
+    attempt_record = json.loads(attempt_marker.read_text(encoding="utf-8"))
+    assert attempt_record["attempt_status"] == (
+        "succeeded" if crash_point == "after-response" else "failed"
+    )
+
+
+@pytest.mark.parametrize("provider_outcome", ["success", "failure"])
+def test_production_attempt_evidence_blocks_terminal_same_job_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_outcome: str,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace=f"production-replay-{provider_outcome}",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    provider_calls = 0
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"candidates":[{"content":{"parts":[{"text":"{\\"ok\\":true}"}]}}]}'
+
+    def provider(provider_request: object, **_kwargs: object) -> FakeResponse:
+        nonlocal provider_calls
+        provider_calls += 1
+        if provider_outcome == "failure":
+            raise pipeline.urllib.error.HTTPError(
+                getattr(provider_request, "full_url", "https://example.invalid"),
+                429,
+                "private-provider-detail",
+                {},
+                io.BytesIO(b"private-provider-body"),
+            )
+        return FakeResponse()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
+
+    first = process_once(queue_root)
+    marker = queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    first_record = json.loads(marker.read_text(encoding="utf-8"))
+    assert first_record["attempt_status"] == (
+        "succeeded" if provider_outcome == "success" else "failed"
+    )
+    assert provider_calls == 1
+
+    archive = queue_root / "archive" / f"{request['job_id']}.json"
+    replay = queue_root / "outbox" / archive.name
+    replay.parent.mkdir(parents=True, exist_ok=True)
+    replay.write_bytes(archive.read_bytes())
+    second = process_once(queue_root)
+
+    assert first["status"] == (
+        "processed" if provider_outcome == "success" else "failed"
+    )
+    assert second["status"] == "failed"
+    assert second["error_type"] == "ProductionAttemptReplay"
+    assert provider_calls == 1
+    assert json.loads(marker.read_text(encoding="utf-8")) == first_record
+    if provider_outcome == "success":
+        assert (queue_root / "inbox" / archive.name).exists()
+        assert not (queue_root / "failed" / archive.name).exists()
+    else:
+        assert (queue_root / "failed" / archive.name).exists()
+
+
+@pytest.mark.parametrize(
+    "unsafe_kind",
+    [
+        "directory-symlink",
+        "directory-writable",
+        "marker-symlink",
+        "marker-wrong-mode",
+        "marker-corrupt",
+        "marker-unknown-key",
+        "marker-job-mismatch",
+        "marker-request-mismatch",
+    ],
+)
+def test_production_attempt_evidence_rejects_unsafe_metadata_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_kind: str,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace=f"production-marker-{unsafe_kind}",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    marker_directory = queue_root / "production-attempts"
+    real_directory = tmp_path / "real-production-attempts"
+    if unsafe_kind == "directory-symlink":
+        real_directory.mkdir(mode=0o700)
+        marker_directory.symlink_to(real_directory, target_is_directory=True)
+    else:
+        marker_directory.mkdir(mode=0o700)
+    marker = marker_directory / f"{request['job_id']}.attempt"
+    if unsafe_kind == "directory-writable":
+        marker_directory.chmod(0o777)
+    elif unsafe_kind == "marker-symlink":
+        target = tmp_path / "attempt-target"
+        target.write_text("{}\n", encoding="utf-8")
+        marker.symlink_to(target)
+    elif unsafe_kind.startswith("marker-"):
+        payload: dict[str, object] = {
+            "schema_version": 1,
+            "job_id": request["job_id"],
+            "request_sha256": request["request_sha256"],
+            "attempt_status": "started",
+        }
+        if unsafe_kind == "marker-corrupt":
+            marker.write_text("{\n", encoding="utf-8")
+        else:
+            if unsafe_kind == "marker-unknown-key":
+                payload["unknown"] = True
+            elif unsafe_kind == "marker-job-mismatch":
+                payload["job_id"] = "0" * 64
+            elif unsafe_kind == "marker-request-mismatch":
+                payload["request_sha256"] = "0" * 64
+            marker.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        marker.chmod(0o644 if unsafe_kind == "marker-wrong-mode" else 0o600)
+
+    provider_calls = 0
+
+    def provider(*_args: object, **_kwargs: object) -> object:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("unsafe marker metadata reached provider")
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv(
+        "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
+        str(tmp_path / "round-robin-state.json"),
+    )
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
+
+    result = process_once(queue_root)
+
+    assert result["status"] == "failed"
+    assert provider_calls == 0
+    assert not (tmp_path / "round-robin-state.json").exists()
+
+
+def test_production_attempt_marker_replacement_fails_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-marker-replacement",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    provider_calls = 0
+    real_read_api_key = runner._read_production_api_key
+
+    def replace_marker(descriptor: int) -> str:
+        api_key = real_read_api_key(descriptor)
+        marker = (
+            queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+        )
+        marker.unlink()
+        marker.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "job_id": request["job_id"],
+                    "request_sha256": request["request_sha256"],
+                    "attempt_status": "started",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        marker.chmod(0o600)
+        return api_key
+
+    def provider(*_args: object, **_kwargs: object) -> object:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("replaced marker reached provider")
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner, "_read_production_api_key", replace_marker)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
+
+    result = process_once(queue_root)
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "ProductionAttemptEvidenceError"
+    assert provider_calls == 0
 
 
 def test_runner_does_not_requeue_fresh_processing_job(tmp_path: Path) -> None:

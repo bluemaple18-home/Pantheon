@@ -118,8 +118,12 @@ fd/path identity。Lock pathname 被 unlink、replace 或改指向第二 inode �
 Production attempt 在 allocation 前會先留下 owner-only durable per-job marker。
 若 worker 在 ordinal commit 後、credential/provider 期間或 inbox response
 落盤後中斷，stale recovery 只會將原 job terminalize/archive；不搬回 outbox，
-不取得第二個 slot，也不做第二次 provider attempt。未啟用 production pool
-且沒有 marker 的 legacy stale recovery 維持原行為。
+不取得第二個 slot，也不做第二次 provider attempt。Marker 不會在 terminal
+後刪除，而是原子更新為 `succeeded` 或 `failed` 的永久 evidence；相同
+job/request 再出現時會在 allocator、credential 與 provider 前 fail closed。
+Marker directory/file 必須通過 owner、mode、non-symlink、closed schema 與
+fd/path identity 驗證。未啟用 production pool 且沒有 marker 的 legacy stale
+recovery 維持原行為。
 
 Corrupt/truncated、symlink、wrong owner/mode、relative path、pool/manifest
 mismatch 或 open-time replacement 都會在 credential value 與 provider request

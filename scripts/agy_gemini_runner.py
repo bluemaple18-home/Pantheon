@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import sys
 import time
@@ -75,8 +77,12 @@ MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
 STALE_PROCESSING_SECONDS = 10 * 60
 MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
+MAX_PRODUCTION_ATTEMPT_BYTES = 4 * 1024
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+SAFE_ATTEMPT_JOB_ID = re.compile(r"^[0-9a-f]{40,64}$")
+SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
+PRODUCTION_ATTEMPT_STATES = frozenset({"started", "succeeded", "failed"})
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -90,6 +96,25 @@ class ProductionCredentialSource:
     slot_id: str
     manifest_sha256: str
     ordinal: int
+
+
+class ProductionAttemptEvidenceError(ValueError):
+    """Production at-most-once evidence 不可信時的封閉錯誤。"""
+
+
+class ProductionAttemptReplay(RuntimeError):
+    """同一 production job 已有可信 attempt evidence。"""
+
+
+@dataclass
+class ProductionAttemptEvidence:
+    directory_descriptor: int
+    marker_descriptor: int
+    marker_path: Path
+    job_id: str
+    request_sha256: str
+    attempt_status: str
+    is_new: bool
 
 
 def _private_file_stat(
@@ -339,30 +364,42 @@ def _requeue_stale_processing(queue_root: Path) -> None:
         except FileNotFoundError:
             continue
         attempt_marker = _production_attempt_marker(queue_root, source.stem)
-        if attempt_marker.exists():
+        if attempt_marker.exists() or attempt_marker.is_symlink():
+            request = json.loads(source.read_text(encoding="utf-8"))
+            validate_external_request(request)
+            if request["job_id"] != source.stem:
+                raise ProductionAttemptEvidenceError(
+                    "production attempt evidence identity mismatch"
+                )
+            attempt_evidence = _begin_production_attempt(queue_root, request)
             inbox_path = queue_root / "inbox" / source.name
             failed_path = queue_root / "failed" / source.name
-            if not inbox_path.exists() and not failed_path.exists():
-                request = json.loads(source.read_text(encoding="utf-8"))
-                atomic_write_json(
-                    failed_path,
-                    {
-                        "schema_version": SCHEMA_VERSION,
-                        "job_id": source.stem,
-                        "request_sha256": request.get("request_sha256"),
-                        "error_type": "RuntimeError",
-                        "completed_at": datetime.now().astimezone().isoformat(
-                            timespec="seconds"
-                        ),
-                    },
-                )
-            archive_path = queue_root / "archive" / source.name
-            archive_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                os.replace(source, archive_path)
-            except FileNotFoundError:
-                continue
-            _remove_production_attempt_marker(attempt_marker)
+                if not inbox_path.exists() and not failed_path.exists():
+                    atomic_write_json(
+                        failed_path,
+                        {
+                            "schema_version": SCHEMA_VERSION,
+                            "job_id": source.stem,
+                            "request_sha256": request.get("request_sha256"),
+                            "error_type": "RuntimeError",
+                            "completed_at": datetime.now().astimezone().isoformat(
+                                timespec="seconds"
+                            ),
+                        },
+                    )
+                archive_path = queue_root / "archive" / source.name
+                archive_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    os.replace(source, archive_path)
+                except FileNotFoundError:
+                    continue
+                _finish_production_attempt(
+                    attempt_evidence,
+                    "succeeded" if inbox_path.exists() else "failed",
+                )
+            finally:
+                _close_production_attempt(attempt_evidence)
             continue
         target = outbox / source.name
         if target.exists():
@@ -393,27 +430,23 @@ def _production_attempt_marker(queue_root: Path, job_id: str) -> Path:
     return queue_root / "production-attempts" / f"{job_id}.attempt"
 
 
-def _create_production_attempt_marker(queue_root: Path, request: dict[str, Any]) -> Path:
-    marker = _production_attempt_marker(queue_root, str(request["job_id"]))
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    flags = (
-        os.O_WRONLY
-        | os.O_CREAT
-        | os.O_EXCL
-        | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_NOFOLLOW", 0)
-    )
-    try:
-        descriptor = os.open(marker, flags, 0o600)
-    except OSError as error:
-        raise ValueError("production attempt marker cannot be created") from error
-    encoded = (
+def _attempt_payload(
+    job_id: str,
+    request_sha256: str,
+    attempt_status: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "job_id": job_id,
+        "request_sha256": request_sha256,
+        "attempt_status": attempt_status,
+    }
+
+
+def _encode_attempt_payload(payload: dict[str, object]) -> bytes:
+    return (
         json.dumps(
-            {
-                "schema_version": 1,
-                "job_id": request["job_id"],
-                "request_sha256": request["request_sha256"],
-            },
+            payload,
             allow_nan=False,
             ensure_ascii=False,
             sort_keys=True,
@@ -421,36 +454,359 @@ def _create_production_attempt_marker(queue_root: Path, request: dict[str, Any])
         ).encode("utf-8")
         + b"\n"
     )
+
+
+def _write_all(descriptor: int, encoded: bytes) -> None:
+    offset = 0
+    while offset < len(encoded):
+        written = os.write(descriptor, encoded[offset:])
+        if written <= 0:
+            raise ProductionAttemptEvidenceError(
+                "production attempt evidence write failed"
+            )
+        offset += written
+
+
+def _assert_attempt_directory_identity(evidence: ProductionAttemptEvidence) -> None:
     try:
-        offset = 0
-        while offset < len(encoded):
-            written = os.write(descriptor, encoded[offset:])
-            if written <= 0:
-                raise ValueError("production attempt marker write failed")
-            offset += written
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-    directory_descriptor = os.open(
-        marker.parent,
+        current = evidence.marker_path.parent.lstat()
+        opened = os.fstat(evidence.directory_descriptor)
+    except OSError as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory changed"
+        ) from error
+    if (
+        stat.S_ISLNK(current.st_mode)
+        or not stat.S_ISDIR(current.st_mode)
+        or (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino)
+        or opened.st_uid != os.getuid()
+        or opened.st_mode & 0o022
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory changed"
+        )
+
+
+def _assert_attempt_marker_identity(evidence: ProductionAttemptEvidence) -> None:
+    try:
+        current = os.stat(
+            evidence.marker_path.name,
+            dir_fd=evidence.directory_descriptor,
+            follow_symlinks=False,
+        )
+        opened = os.fstat(evidence.marker_descriptor)
+    except OSError as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence changed"
+        ) from error
+    if (
+        stat.S_ISLNK(current.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or not stat.S_ISREG(opened.st_mode)
+        or (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino)
+        or opened.st_uid != os.getuid()
+        or stat.S_IMODE(opened.st_mode) != 0o600
+        or not 2 <= opened.st_size <= MAX_PRODUCTION_ATTEMPT_BYTES
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence changed"
+        )
+    _assert_attempt_directory_identity(evidence)
+
+
+def _read_attempt_payload(evidence: ProductionAttemptEvidence) -> dict[str, object]:
+    _assert_attempt_marker_identity(evidence)
+    try:
+        os.lseek(evidence.marker_descriptor, 0, os.SEEK_SET)
+        expected_size = os.fstat(evidence.marker_descriptor).st_size
+        encoded = os.read(
+            evidence.marker_descriptor,
+            MAX_PRODUCTION_ATTEMPT_BYTES + 1,
+        )
+    except OSError as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence cannot be read"
+        ) from error
+    if len(encoded) != expected_size or len(encoded) > MAX_PRODUCTION_ATTEMPT_BYTES:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence size changed"
+        )
+    try:
+        payload = json.loads(
+            encoded,
+            parse_constant=lambda _value: (_ for _ in ()).throw(
+                ValueError("non-finite JSON constant")
+            ),
+        )
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence JSON is invalid"
+        ) from error
+    if not isinstance(payload, dict) or set(payload) != {
+        "attempt_status",
+        "job_id",
+        "request_sha256",
+        "schema_version",
+    }:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence schema is invalid"
+        )
+    if (
+        type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != 1
+        or type(payload.get("job_id")) is not str
+        or SAFE_ATTEMPT_JOB_ID.fullmatch(payload["job_id"]) is None
+        or type(payload.get("request_sha256")) is not str
+        or SAFE_SHA256.fullmatch(payload["request_sha256"]) is None
+        or type(payload.get("attempt_status")) is not str
+        or payload["attempt_status"] not in PRODUCTION_ATTEMPT_STATES
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence schema is invalid"
+        )
+    if (
+        payload["job_id"] != evidence.job_id
+        or payload["request_sha256"] != evidence.request_sha256
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence identity mismatch"
+        )
+    _assert_attempt_marker_identity(evidence)
+    return payload
+
+
+def _open_attempt_directory(marker_directory: Path) -> int:
+    try:
+        marker_directory.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory cannot be created"
+        ) from error
+    try:
+        before = marker_directory.lstat()
+    except OSError as error:
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory is unavailable"
+        ) from error
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISDIR(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o022
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory is unsafe"
+        )
+    flags = (
         os.O_RDONLY
         | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_DIRECTORY", 0),
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
     )
+    descriptor = -1
     try:
-        os.fsync(directory_descriptor)
-    finally:
+        descriptor = os.open(marker_directory, flags)
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        after = os.fstat(descriptor)
+        current = marker_directory.lstat()
+    except OSError as error:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory cannot be opened"
+        ) from error
+    if (
+        not stat.S_ISDIR(after.st_mode)
+        or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+        or (current.st_dev, current.st_ino) != (after.st_dev, after.st_ino)
+        or after.st_uid != os.getuid()
+        or after.st_mode & 0o022
+    ):
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence directory changed"
+        )
+    return descriptor
+
+
+def _begin_production_attempt(
+    queue_root: Path,
+    request: dict[str, Any],
+) -> ProductionAttemptEvidence:
+    job_id = request.get("job_id")
+    request_sha256 = request.get("request_sha256")
+    if (
+        type(job_id) is not str
+        or SAFE_ATTEMPT_JOB_ID.fullmatch(job_id) is None
+        or type(request_sha256) is not str
+        or SAFE_SHA256.fullmatch(request_sha256) is None
+    ):
+        raise ProductionAttemptEvidenceError(
+            "production attempt identity is invalid"
+        )
+    marker = _production_attempt_marker(queue_root, job_id)
+    directory_descriptor = _open_attempt_directory(marker.parent)
+    marker_descriptor = -1
+    is_new = False
+    try:
+        flags = (
+            os.O_RDWR
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        try:
+            marker_descriptor = os.open(
+                marker.name,
+                flags,
+                0o600,
+                dir_fd=directory_descriptor,
+            )
+            is_new = True
+        except FileExistsError:
+            marker_descriptor = os.open(
+                marker.name,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_descriptor,
+            )
+        evidence = ProductionAttemptEvidence(
+            directory_descriptor=directory_descriptor,
+            marker_descriptor=marker_descriptor,
+            marker_path=marker,
+            job_id=job_id,
+            request_sha256=request_sha256,
+            attempt_status="started",
+            is_new=is_new,
+        )
+        if is_new:
+            os.fchmod(marker_descriptor, 0o600)
+            _write_all(
+                marker_descriptor,
+                _encode_attempt_payload(
+                    _attempt_payload(job_id, request_sha256, "started")
+                ),
+            )
+            os.fsync(marker_descriptor)
+            os.fsync(directory_descriptor)
+        payload = _read_attempt_payload(evidence)
+        evidence.attempt_status = str(payload["attempt_status"])
+        return evidence
+    except Exception as error:
+        if marker_descriptor >= 0:
+            os.close(marker_descriptor)
+        fcntl.flock(directory_descriptor, fcntl.LOCK_UN)
         os.close(directory_descriptor)
-    return marker
+        if isinstance(error, ProductionAttemptEvidenceError):
+            raise
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence cannot be opened"
+        ) from error
 
 
-def _remove_production_attempt_marker(marker: Path | None) -> None:
-    if marker is None:
+def _finish_production_attempt(
+    evidence: ProductionAttemptEvidence,
+    attempt_status: str,
+) -> None:
+    if attempt_status not in {"succeeded", "failed"}:
+        raise ProductionAttemptEvidenceError(
+            "production attempt terminal status is invalid"
+        )
+    payload = _read_attempt_payload(evidence)
+    current_status = str(payload["attempt_status"])
+    if current_status in {"succeeded", "failed"}:
+        evidence.attempt_status = current_status
+        return
+    temp_name = (
+        f".{evidence.marker_path.name}.{os.getpid()}."
+        f"{secrets.token_hex(8)}.tmp"
+    )
+    temp_descriptor = -1
+    try:
+        temp_descriptor = os.open(
+            temp_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=evidence.directory_descriptor,
+        )
+        os.fchmod(temp_descriptor, 0o600)
+        _write_all(
+            temp_descriptor,
+            _encode_attempt_payload(
+                _attempt_payload(
+                    evidence.job_id,
+                    evidence.request_sha256,
+                    attempt_status,
+                )
+            ),
+        )
+        os.fsync(temp_descriptor)
+        _assert_attempt_marker_identity(evidence)
+        os.replace(
+            temp_name,
+            evidence.marker_path.name,
+            src_dir_fd=evidence.directory_descriptor,
+            dst_dir_fd=evidence.directory_descriptor,
+        )
+        os.fsync(evidence.directory_descriptor)
+        os.close(evidence.marker_descriptor)
+        evidence.marker_descriptor = os.open(
+            evidence.marker_path.name,
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=evidence.directory_descriptor,
+        )
+        evidence.attempt_status = attempt_status
+        committed = _read_attempt_payload(evidence)
+        if committed["attempt_status"] != attempt_status:
+            raise ProductionAttemptEvidenceError(
+                "production attempt terminal evidence is invalid"
+            )
+    except Exception as error:
+        if isinstance(error, ProductionAttemptEvidenceError):
+            raise
+        raise ProductionAttemptEvidenceError(
+            "production attempt evidence cannot be finalized"
+        ) from error
+    finally:
+        if temp_descriptor >= 0:
+            try:
+                os.close(temp_descriptor)
+            except OSError:
+                pass
+        try:
+            os.unlink(temp_name, dir_fd=evidence.directory_descriptor)
+        except FileNotFoundError:
+            pass
+
+
+def _close_production_attempt(evidence: ProductionAttemptEvidence | None) -> None:
+    if evidence is None:
         return
     try:
-        marker.unlink()
-    except FileNotFoundError:
+        os.close(evidence.marker_descriptor)
+    except OSError:
         pass
+    try:
+        fcntl.flock(evidence.directory_descriptor, fcntl.LOCK_UN)
+    finally:
+        try:
+            os.close(evidence.directory_descriptor)
+        except OSError:
+            pass
 
 
 def _schema_path_is_closed(
@@ -568,7 +924,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
     request: dict[str, Any] = {}
     broker_diagnostic: dict[str, object] | None = None
     credential_pool: dict[str, str] | None = None
-    production_attempt_marker: Path | None = None
+    production_attempt_evidence: ProductionAttemptEvidence | None = None
     try:
         request = json.loads(processing_path.read_text(encoding="utf-8"))
         validate_external_request(request)
@@ -626,10 +982,14 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             ).strip()
             if not state_file:
                 raise ValueError("production allocator state path is required")
-            production_attempt_marker = _create_production_attempt_marker(
+            production_attempt_evidence = _begin_production_attempt(
                 queue_root,
                 request,
             )
+            if not production_attempt_evidence.is_new:
+                raise ProductionAttemptReplay(
+                    "production job already has attempt evidence"
+                )
             source = _allocate_production_credential_source(
                 Path(pool_file),
                 Path(state_file),
@@ -643,6 +1003,8 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                 api_key = _read_production_api_key(source.descriptor)
             finally:
                 os.close(source.descriptor)
+            _assert_attempt_marker_identity(production_attempt_evidence)
+            _read_attempt_payload(production_attempt_evidence)
             client = GeminiClient(
                 api_key,
                 writer_model=str(request["model"]) if request["role"] == "writer" else None,
@@ -674,7 +1036,11 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         atomic_write_json(queue_root / "inbox" / f"{job_id}.json", response_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
-        _remove_production_attempt_marker(production_attempt_marker)
+        if production_attempt_evidence is not None:
+            _finish_production_attempt(
+                production_attempt_evidence,
+                "succeeded",
+            )
         processed: dict[str, Any] = {"status": "processed", "job_id": job_id}
         if credential_pool is not None:
             processed["credential_pool"] = credential_pool
@@ -694,16 +1060,32 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             failed_record["broker_diagnostic"] = broker_diagnostic
         if credential_pool is not None:
             failed_record["credential_pool"] = credential_pool
-        atomic_write_json(queue_root / "failed" / f"{job_id}.json", failed_record)
+        inbox_path = queue_root / "inbox" / f"{job_id}.json"
+        failed_path = queue_root / "failed" / f"{job_id}.json"
+        if not inbox_path.exists() and not failed_path.exists():
+            atomic_write_json(failed_path, failed_record)
         archive_path.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(processing_path, archive_path)
-        _remove_production_attempt_marker(production_attempt_marker)
+        if processing_path.exists():
+            os.replace(processing_path, archive_path)
+        if (
+            production_attempt_evidence is not None
+            and not isinstance(error, ProductionAttemptEvidenceError)
+        ):
+            try:
+                _finish_production_attempt(
+                    production_attempt_evidence,
+                    "succeeded" if inbox_path.exists() else "failed",
+                )
+            except ProductionAttemptEvidenceError as evidence_error:
+                error = evidence_error
         result = {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
         if error_code is not None:
             result["error_code"] = error_code
         if credential_pool is not None:
             result["credential_pool"] = credential_pool
         return result
+    finally:
+        _close_production_attempt(production_attempt_evidence)
 
 
 def parse_args() -> argparse.Namespace:
