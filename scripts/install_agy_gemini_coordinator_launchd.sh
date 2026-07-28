@@ -9,6 +9,8 @@ USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{pri
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3}"
 PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
+WRITER_MODEL="${AGY_WRITER_MODEL:-}"
+REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"
 QUEUE_ROOT="${AGY_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
 GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-${REPO_ROOT}/.work/gsc-copy}"
@@ -38,6 +40,14 @@ if [[ ! -x "${PYTHON_PATH}" ]]; then
 fi
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
+  exit 1
+fi
+if [[ -n "${WRITER_MODEL}" && ! "${WRITER_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "AGY_WRITER_MODEL 只能使用 model identifier 安全字元。" >&2
+  exit 1
+fi
+if [[ -n "${REVIEWER_MODEL}" && ! "${REVIEWER_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "AGY_REVIEWER_MODEL 只能使用 model identifier 安全字元。" >&2
   exit 1
 fi
 if [[ "${QUEUE_ROOT}" != /* || "${GSC_COPY_ROOT}" != /* || "${CONTENT_PUBLISHER_ROOT}" != /* ]]; then
@@ -81,6 +91,12 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${TEMP_PLIST}"
+if [[ -n "${WRITER_MODEL}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${TEMP_PLIST}"
+fi
+if [[ -n "${REVIEWER_MODEL}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string ${REVIEWER_MODEL}" "${TEMP_PLIST}"
+fi
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-coordinator.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-coordinator.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null

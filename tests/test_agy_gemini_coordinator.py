@@ -681,11 +681,17 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
+    assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-}"' in installer
+    assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"' in installer
     assert (
         'PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-'
         in installer
     )
     assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in lane_plist["EnvironmentVariables"]
+    assert "AGY_WRITER_MODEL" not in plist["EnvironmentVariables"]
+    assert "AGY_REVIEWER_MODEL" not in plist["EnvironmentVariables"]
+    assert "AGY_WRITER_MODEL" not in lane_plist["EnvironmentVariables"]
+    assert "AGY_REVIEWER_MODEL" not in lane_plist["EnvironmentVariables"]
     assert (
         "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"
         not in lane_plist["EnvironmentVariables"]
@@ -695,6 +701,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
         "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE string"
         in installer
     )
+    assert "Add :EnvironmentVariables:AGY_WRITER_MODEL string" in installer
+    assert "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string" in installer
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
     preflight_end = installer.index(
         'if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner"'
@@ -1012,8 +1020,19 @@ def test_installer_builds_and_lints_every_plist_before_any_mutation(
     assert not mutation_log.exists()
 
 
+@pytest.mark.parametrize(
+    "model_overrides",
+    [
+        {},
+        {
+            "AGY_WRITER_MODEL": "gemini-explicit-writer",
+            "AGY_REVIEWER_MODEL": "gemini-explicit-reviewer",
+        },
+    ],
+)
 def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     tmp_path: Path,
+    model_overrides: dict[str, str],
 ) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     fake_bin = tmp_path / "bin"
@@ -1053,6 +1072,7 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             "TMPDIR": str(tmp_path),
         }
     )
+    env.update(model_overrides)
 
     completed = subprocess.run(
         ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
@@ -1073,9 +1093,16 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
         ).read_bytes()
     )
     coordinator_arguments = coordinator["ProgramArguments"]
+    coordinator_variables = coordinator["EnvironmentVariables"]
     assert coordinator_arguments[8] == str(gsc_copy_root)
     assert coordinator_arguments[11] == str(publisher_root)
     assert coordinator_arguments[13] == str(gsc_copy_root)
+    if model_overrides:
+        assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-explicit-writer"
+        assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-explicit-reviewer"
+    else:
+        assert "AGY_WRITER_MODEL" not in coordinator_variables
+        assert "AGY_REVIEWER_MODEL" not in coordinator_variables
     for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
         installed = plistlib.loads(
             (
@@ -1090,3 +1117,5 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
         assert variables["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] == str(
             state_file
         )
+        assert "AGY_WRITER_MODEL" not in variables
+        assert "AGY_REVIEWER_MODEL" not in variables
