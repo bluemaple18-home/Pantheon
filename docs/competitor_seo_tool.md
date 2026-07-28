@@ -41,7 +41,7 @@
 
 ```bash
 .venv/bin/python scripts/competitor_seo_tool.py \
-  --own-site-url https://mysticpantheon.com \
+  --own-site-url https://www.mysticpantheon.com \
   --own-name Pantheon \
   --site-url https://news.click108.com.tw \
   --name Click108 \

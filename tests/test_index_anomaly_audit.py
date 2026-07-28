@@ -12,16 +12,16 @@ from scripts.index_anomaly_audit import (
 
 
 def page(path: str, *, robots: str = "index,follow", canonical: str | None = None) -> str:
-    canonical = canonical or f"https://mysticpantheon.com{path}"
+    canonical = canonical or f"https://www.mysticpantheon.com{path}"
     return f"""<!doctype html>
 <html><head>
 <meta charset="utf-8">
 <title>可索引頁面</title>
 <meta name="description" content="足以供測試使用的 rendered description">
 <meta name="robots" content="{robots}">
-<meta property="og:url" content="https://mysticpantheon.com{path}">
+<meta property="og:url" content="https://www.mysticpantheon.com{path}">
 <link rel="canonical" href="{canonical}">
-<script type="application/ld+json">{{"@type":"WebPage","url":"https://mysticpantheon.com{path}"}}</script>
+<script type="application/ld+json">{{"@type":"WebPage","url":"https://www.mysticpantheon.com{path}"}}</script>
 </head><body><h1>可索引頁面</h1></body></html>"""
 
 
@@ -84,7 +84,7 @@ def test_canonical_mismatch_is_a_current_bug() -> None:
     responses[path] = ResponseSnapshot(
         status=200,
         headers={},
-        body=page(path, canonical="https://mysticpantheon.com/articles/tarot/tarot-0008"),
+        body=page(path, canonical="https://www.mysticpantheon.com/articles/tarot/tarot-0008"),
     )
 
     finding = audit_snapshots(responses, discovery_complete=True)["findings"][path]

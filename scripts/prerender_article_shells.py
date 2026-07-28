@@ -48,7 +48,7 @@ import { listArticleRecords, getArticlePath, getArticleSectionRecord } from './a
 import { buildArticleContent } from './app/web/static/article-meta.js';
 const records = listArticleRecords().map((article) => {
   const path = getArticlePath(article);
-  const content = buildArticleContent(path, 'https://mysticpantheon.com', {
+  const content = buildArticleContent(path, 'https://www.mysticpantheon.com', {
     author: 'Pantheon 編輯部',
     updated: article.updated || '',
   });

@@ -1,6 +1,6 @@
 # Pantheon AI Usage Policy
 
-Site: https://mysticpantheon.com
+Site: https://www.mysticpantheon.com
 Policy: AI crawlers and answer engines may crawl, summarize, and cite Pantheon public article pages when attribution and canonical URLs are preserved.
 
 Allowed:
@@ -15,5 +15,5 @@ Disallowed:
 
 Attribution:
 - Source name: Pantheon
-- Canonical hub: https://mysticpantheon.com/articles
+- Canonical hub: https://www.mysticpantheon.com/articles
 - Contact: hello@mysticpantheon.com

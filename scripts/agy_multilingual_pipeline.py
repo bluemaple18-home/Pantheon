@@ -297,7 +297,7 @@ import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
 const article = listArticleRecords().find((item) => item.id === {json.dumps(article_id)});
 if (!article) throw new Error("article not found");
 const canonicalPath = getArticlePath(article);
-const content = buildArticleContent(canonicalPath, "https://mysticpantheon.com");
+const content = buildArticleContent(canonicalPath, "https://www.mysticpantheon.com");
 console.log(JSON.stringify({{
   article_id: article.id,
   canonical_path: canonicalPath,

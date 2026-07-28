@@ -1604,7 +1604,7 @@ def load_publication_reference_corpus(repo_root: Path) -> list[dict[str, Any]]:
     script = """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
 import { buildArticleContent } from './app/web/static/article-meta.js';
-const origin = 'https://mysticpantheon.com';
+const origin = 'https://www.mysticpantheon.com';
 console.log(JSON.stringify(listArticleRecords().map((article) => {
   const path = getArticlePath(article);
   const content = buildArticleContent(path, origin, {author: 'Pantheon 編輯部', updated: article.updated || ''});
@@ -1833,7 +1833,7 @@ def _existing_rewrite_inventory(repo_root: Path) -> dict[str, dict[str, Any]]:
     script = """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
 import { buildArticleContent } from './app/web/static/article-meta.js';
-const origin = 'https://mysticpantheon.com';
+const origin = 'https://www.mysticpantheon.com';
 console.log(JSON.stringify(listArticleRecords().map((record) => {
   const canonicalPath = getArticlePath(record);
   const content = buildArticleContent(canonicalPath, origin);

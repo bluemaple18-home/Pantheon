@@ -1,11 +1,11 @@
 {
   "policy_version": "pantheon-article-publication-v2.0.0",
   "effective_date": "2026-07-25",
-  "site_origin": "https://mysticpantheon.com",
+  "site_origin": "https://www.mysticpantheon.com",
   "identity": {
     "author_name": "Pantheon 編輯部",
-    "author_url": "https://mysticpantheon.com/#organization",
-    "author_id": "https://mysticpantheon.com/#organization",
+    "author_url": "https://www.mysticpantheon.com/#organization",
+    "author_id": "https://www.mysticpantheon.com/#organization",
     "editorial_responsibility": "Pantheon 編輯部"
   },
   "levels": {

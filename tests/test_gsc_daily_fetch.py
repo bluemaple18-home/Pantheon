@@ -140,8 +140,8 @@ def test_query_all_warns_when_non_multiple_max_rows_is_reached() -> None:
 
 def test_snapshot_contract_and_atomic_write(tmp_path: Path) -> None:
     rows = [
-        {"keys": ["https://mysticpantheon.com/articles/a", "甲"], "clicks": 2, "impressions": 10},
-        {"keys": ["https://mysticpantheon.com/articles/a", "乙"], "clicks": 1, "impressions": 20},
+        {"keys": ["https://www.mysticpantheon.com/articles/a", "甲"], "clicks": 2, "impressions": 10},
+        {"keys": ["https://www.mysticpantheon.com/articles/a", "乙"], "clicks": 1, "impressions": 20},
     ]
     assert visible_row_totals(rows) == {
         "rows": 2,

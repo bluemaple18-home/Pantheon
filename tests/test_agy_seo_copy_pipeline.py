@@ -90,7 +90,7 @@ V2_MATRIX_IDS = {row["id"] for row in build_matrix_v2_rows()}
 
 def make_publication_policy(
     *,
-    canonical: str = "https://mysticpantheon.com/articles/personality/personality-9999",
+    canonical: str = "https://www.mysticpantheon.com/articles/personality/personality-9999",
     published: str = "2026-07-17",
     modified: str = "2026-07-17",
     change_type: str = "created",
@@ -328,7 +328,7 @@ def make_rewrite_publication_policy(source: dict[str, object]) -> dict[str, obje
     immutable = source["immutable_fields"]
     return make_publication_policy(
         canonical=(
-            "https://mysticpantheon.com/articles/"
+            "https://www.mysticpantheon.com/articles/"
             f"{identity['category']}/{identity['slug']}"
         ),
         published=str(immutable["published"]),
@@ -382,7 +382,7 @@ def test_gsc_selects_at_most_five_rank_4_to_20_low_ctr_pages() -> None:
     for index in range(8):
         rows.append(
             {
-                "keys": [f"https://mysticpantheon.com/articles/test-{index}", f"query-{index}"],
+                "keys": [f"https://www.mysticpantheon.com/articles/test-{index}", f"query-{index}"],
                 "clicks": index,
                 "impressions": 1000 - index * 50,
                 "ctr": index / 1000,
@@ -391,8 +391,8 @@ def test_gsc_selects_at_most_five_rank_4_to_20_low_ctr_pages() -> None:
         )
     rows.extend(
         [
-            {"keys": ["https://mysticpantheon.com/articles/rank-3", "q"], "clicks": 0, "impressions": 5000, "ctr": 0, "position": 3.9},
-            {"keys": ["https://mysticpantheon.com/articles/high-ctr", "q"], "clicks": 100, "impressions": 1000, "ctr": 0.1, "position": 8},
+            {"keys": ["https://www.mysticpantheon.com/articles/rank-3", "q"], "clicks": 0, "impressions": 5000, "ctr": 0, "position": 3.9},
+            {"keys": ["https://www.mysticpantheon.com/articles/high-ctr", "q"], "clicks": 100, "impressions": 1000, "ctr": 0.1, "position": 8},
         ]
     )
 

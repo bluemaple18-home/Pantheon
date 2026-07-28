@@ -1678,6 +1678,8 @@ def _stage_commit_tag_push(
     phase: str | None = None,
     run_ids: list[str] | None = None,
 ) -> str:
+    if push:
+        _run_checked(repo_root, [sys.executable, "scripts/verify_host_canonical.py"])
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
         git(repo_root, ["add", *extra_add_paths], None)
