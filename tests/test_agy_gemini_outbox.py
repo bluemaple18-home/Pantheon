@@ -525,6 +525,10 @@ def test_production_pool_rejects_incompatible_schema(
         "pool-mismatch",
         "manifest-mismatch",
         "extra-field",
+        "cooldown-extra-field",
+        "cooldown-raw-reason",
+        "cooldown-unbounded",
+        "cooldown-duplicate",
     ],
 )
 def test_production_pool_state_fails_closed_before_credential_or_provider(
@@ -540,6 +544,15 @@ def test_production_pool_state_fails_closed_before_credential_or_provider(
         manifest_sha256=manifest_sha256,
         last_ordinal=1,
     )
+    if malformation.startswith("cooldown-"):
+        allocator.record_production_rate_limit(
+            state,
+            pool_id="pantheon-production-v1",
+            manifest_sha256=manifest_sha256,
+            slot_id="account-1",
+            cooldown_seconds=60,
+            clock=lambda: 4_000.0,
+        )
     if malformation == "corrupt":
         state.write_text("{not-json}\n", encoding="utf-8")
     elif malformation == "truncated":
@@ -566,6 +579,24 @@ def test_production_pool_state_fails_closed_before_credential_or_provider(
             manifest_sha256="0" * 64,
             last_ordinal=1,
         )
+    elif malformation == "cooldown-extra-field":
+        payload = json.loads(state.read_text(encoding="utf-8"))
+        payload["cooldowns"][0]["raw"] = "must-not-be-accepted"
+        state.write_text(json.dumps(payload), encoding="utf-8")
+    elif malformation == "cooldown-raw-reason":
+        payload = json.loads(state.read_text(encoding="utf-8"))
+        payload["cooldowns"][0]["reason"] = "private provider detail"
+        state.write_text(json.dumps(payload), encoding="utf-8")
+    elif malformation == "cooldown-unbounded":
+        payload = json.loads(state.read_text(encoding="utf-8"))
+        payload["cooldowns"][0]["cooldown_until_ms"] += (
+            allocator.MAX_RATE_LIMIT_COOLDOWN_SECONDS * 1000
+        )
+        state.write_text(json.dumps(payload), encoding="utf-8")
+    elif malformation == "cooldown-duplicate":
+        payload = json.loads(state.read_text(encoding="utf-8"))
+        payload["cooldowns"].append(dict(payload["cooldowns"][0]))
+        state.write_text(json.dumps(payload), encoding="utf-8")
     else:
         payload = json.loads(state.read_text(encoding="utf-8"))
         payload["unexpected"] = True
@@ -586,7 +617,7 @@ def test_production_pool_state_fails_closed_before_credential_or_provider(
         raise AssertionError("provider must not be called")
 
     queue_root = tmp_path / "queue"
-    create_external_request(
+    request = create_external_request(
         queue_root,
         namespace=f"state-safety-{malformation}",
         role="writer",
@@ -607,6 +638,10 @@ def test_production_pool_state_fails_closed_before_credential_or_provider(
     assert "credential_pool" not in result
     assert credential_read is False
     assert provider_called is False
+    assert (queue_root / "outbox" / f"{request['job_id']}.json").exists()
+    assert not (queue_root / "processing").exists()
+    assert not (queue_root / "archive").exists()
+    assert not (queue_root / "failed").exists()
 
 
 def test_production_pool_rejects_relative_state_before_credential_open(
@@ -708,6 +743,22 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest, credentials = _write_production_pool(tmp_path)
+    pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    assert allocator.allocate_production_slot(
+        state,
+        pool_id=str(pool_payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+        clock=lambda: 7_000.0,
+    ) == (1, "account-1")
+    allocator.record_production_rate_limit(
+        state,
+        pool_id=str(pool_payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+        slot_id="account-1",
+        cooldown_seconds=60,
+        clock=lambda: 7_000.0,
+    )
     request = create_external_request(
         tmp_path / "queue",
         namespace="production-pool-success",
@@ -755,13 +806,13 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
     monkeypatch.setenv(
         "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
-        str(tmp_path / "round-robin-state.json"),
+        str(state),
     )
     monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
     monkeypatch.setattr(runner.os, "open", tracked_open)
     monkeypatch.setattr(pipeline, "_single_request_urlopen", fake_urlopen)
 
-    result = process_once(tmp_path / "queue")
+    result = process_once(tmp_path / "queue", clock=lambda: 7_001.0)
     response_path = tmp_path / "queue" / "inbox" / f"{request['job_id']}.json"
     response = json.loads(response_path.read_text(encoding="utf-8"))
     selected = response["credential_pool"]["slot_id"]
@@ -774,6 +825,7 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
         "manifest_sha256",
     }
     assert len(provider_calls) == 1
+    assert selected == "account-2"
     manifest_slots = json.loads(manifest.read_text(encoding="utf-8"))["slots"]
     expected_path = next(
         Path(slot["credential_file"])
@@ -858,7 +910,19 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     assert "private-timeout-detail" not in persisted
     assert "private-transport-detail" not in persisted
     assert all(secret not in persisted for secret in credentials.values())
-    assert json.loads(state.read_text(encoding="utf-8"))["last_ordinal"] == 1
+    allocator_payload = json.loads(state.read_text(encoding="utf-8"))
+    assert allocator_payload["last_ordinal"] == 1
+    if failure == "rate-limit":
+        assert allocator_payload["cooldowns"] == [
+            {
+                "slot_id": "account-1",
+                "cooldown_started_ms": result["cooldown"]["cooldown_started_ms"],
+                "cooldown_until_ms": result["cooldown"]["cooldown_until_ms"],
+                "reason": "API_RATE_LIMITED",
+            }
+        ]
+    else:
+        assert allocator_payload["cooldowns"] == []
     next_source = runner._allocate_production_credential_source(manifest, state)
     try:
         assert (next_source.ordinal, next_source.slot_id) == (2, "account-2")
@@ -867,6 +931,169 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     with pytest.raises(ExternalJobFailed) as raised:
         consume_external_response(queue_root, request)
     assert raised.value.error_code == expected_code
+
+
+def test_all_slots_cooling_denies_two_lanes_before_claim_or_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    for expected_slot in allocator.PRODUCTION_SLOT_IDS:
+        ordinal, selected_slot = allocator.allocate_production_slot(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            clock=lambda: 3_000.0,
+        )
+        assert ordinal >= 1
+        assert selected_slot == expected_slot
+        allocator.record_production_rate_limit(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            slot_id=expected_slot,
+            cooldown_seconds=60,
+            clock=lambda: 3_000.0,
+        )
+
+    lane_roots = [tmp_path / "lanes" / "new", tmp_path / "lanes" / "rewrite"]
+    requests = [
+        create_external_request(
+            lane_root,
+            namespace=f"cooling-{lane_root.name}",
+            role="writer",
+            model="gemini-test-writer",
+            prompt="公開 prompt",
+            response_schema=SCHEMA,
+        )
+        for lane_root in lane_roots
+    ]
+    state_before = state.read_bytes()
+    provider_calls = 0
+    credential_reads = 0
+
+    def reject_provider(*_args: object, **_kwargs: object) -> object:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("provider must not be called while all slots cool")
+
+    def reject_credential(_descriptor: int) -> str:
+        nonlocal credential_reads
+        credential_reads += 1
+        raise AssertionError("credential must not be read while all slots cool")
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", reject_provider)
+    monkeypatch.setattr(runner, "_read_production_api_key", reject_credential)
+
+    results = [
+        process_once(lane_root, clock=lambda: 3_001.0)
+        for lane_root in lane_roots
+    ]
+
+    assert all(result["status"] == "cooldown" for result in results)
+    assert all(result["admission"]["reason"] == "API_RATE_LIMITED" for result in results)
+    assert provider_calls == 0
+    assert credential_reads == 0
+    assert state.read_bytes() == state_before
+    for lane_root, request in zip(lane_roots, requests, strict=True):
+        assert (lane_root / "outbox" / f"{request['job_id']}.json").exists()
+        assert not (lane_root / "processing").exists()
+        assert not (lane_root / "archive").exists()
+        assert not (lane_root / "inbox").exists()
+        assert not (lane_root / "failed").exists()
+        assert not (lane_root / "production-attempts").exists()
+
+
+def test_cooling_admission_64_process_competition_has_zero_side_effects(
+    tmp_path: Path,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    for expected_slot in allocator.PRODUCTION_SLOT_IDS:
+        _ordinal, selected_slot = allocator.allocate_production_slot(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            clock=lambda: 5_000.0,
+        )
+        assert selected_slot == expected_slot
+        allocator.record_production_rate_limit(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            slot_id=expected_slot,
+            cooldown_seconds=60,
+            clock=lambda: 5_000.0,
+        )
+    lane_roots = [tmp_path / "lanes" / "new", tmp_path / "lanes" / "rewrite"]
+    requests = [
+        create_external_request(
+            lane_root,
+            namespace=f"competition-{lane_root.name}",
+            role="writer",
+            model="gemini-test-writer",
+            prompt="公開 prompt",
+            response_schema=SCHEMA,
+        )
+        for lane_root in lane_roots
+    ]
+    state_before = state.read_bytes()
+    repo_root = Path(__file__).resolve().parents[1]
+    worker = (
+        "import json,pathlib,sys;"
+        "from scripts import agy_gemini_runner as r;"
+        "from scripts import agy_seo_copy_pipeline as p;"
+        "\ndef blocked(*args,**kwargs): raise AssertionError('forbidden external call')"
+        "\nr._read_production_api_key=blocked;p._single_request_urlopen=blocked"
+        "\nroots=[pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2])]"
+        "\nrows=[]"
+        "\nfor index in range(8):"
+        "\n rows.append(r.process_once(roots[index % 2],clock=lambda:5001.0)['status'])"
+        "\nprint(json.dumps(rows))"
+    )
+    environment = os.environ.copy()
+    environment["AGY_GEMINI_CREDENTIAL_POOL_FILE"] = str(manifest)
+    environment["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] = str(state)
+    environment.pop("AGY_GEMINI_V4_BROKER", None)
+    processes = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                worker,
+                str(lane_roots[index % 2]),
+                str(lane_roots[(index + 1) % 2]),
+            ],
+            cwd=repo_root,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for index in range(8)
+    ]
+    rows: list[str] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=15)
+        assert process.returncode == 0, stdout + stderr
+        rows.extend(json.loads(stdout))
+
+    assert len(rows) == 64
+    assert set(rows) == {"cooldown"}
+    assert state.read_bytes() == state_before
+    for lane_root, request in zip(lane_roots, requests, strict=True):
+        assert (lane_root / "outbox" / f"{request['job_id']}.json").exists()
+        assert not (lane_root / "processing").exists()
+        assert not (lane_root / "archive").exists()
+        assert not (lane_root / "inbox").exists()
+        assert not (lane_root / "failed").exists()
+        assert not (lane_root / "production-attempts").exists()
 
 
 def test_production_pool_flag_off_preserves_injected_cli_path(
@@ -1093,6 +1320,179 @@ def test_runner_processes_one_job_and_archives_request(tmp_path: Path) -> None:
     response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
     assert response["request_sha256"] == request["request_sha256"]
     assert response["result"] == {"ok": True}
+
+
+def test_runner_claims_reviewer_before_fresh_writers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.delenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", raising=False)
+    reviewer = create_external_request(
+        tmp_path,
+        namespace="opaque-review-ready",
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="審查已完成的 writer candidate",
+        response_schema=SCHEMA,
+    )
+    lower_writer = None
+    for index in range(64):
+        writer = create_external_request(
+            tmp_path,
+            namespace=f"opaque-fresh-writer-{index:02d}",
+            role="writer",
+            model="gemini-test-writer",
+            prompt=f"fresh writer {index:02d}",
+            response_schema=SCHEMA,
+        )
+        if writer["job_id"] < reviewer["job_id"]:
+            lower_writer = writer
+            break
+    assert lower_writer is not None, "fixture must include a writer filename before reviewer"
+
+    roles: list[str] = []
+    result = process_once(
+        tmp_path,
+        generate_json=lambda role, _model, _prompt, _schema: roles.append(role) or {"ok": True},
+    )
+
+    assert result["job_id"] == reviewer["job_id"]
+    assert roles == ["reviewer"]
+
+
+def test_new_only_runner_gates_non_new_lane_before_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rewrite_root = tmp_path / "lanes" / "rewrite"
+    new_root = tmp_path / "lanes" / "new"
+    rewrite_request = create_external_request(
+        rewrite_root,
+        namespace="new-only-rewrite",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="rewrite must wait",
+        response_schema=SCHEMA,
+    )
+    new_request = create_external_request(
+        new_root,
+        namespace="new-only-new",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="new may proceed",
+        response_schema=SCHEMA,
+    )
+    calls: list[str] = []
+    monkeypatch.setenv("AGY_GEMINI_NEW_ONLY", "1")
+    monkeypatch.delenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", raising=False)
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+
+    blocked = process_once(
+        rewrite_root,
+        lane="rewrite",
+        generate_json=lambda role, *_args: calls.append(role) or {"ok": True},
+    )
+    processed = process_once(
+        new_root,
+        lane="new",
+        generate_json=lambda role, *_args: calls.append(role) or {"ok": True},
+    )
+
+    assert blocked == {"status": "disabled", "reason": "new_only", "lane": "rewrite"}
+    assert processed["status"] == "processed"
+    assert processed["job_id"] == new_request["job_id"]
+    assert calls == ["writer"]
+    assert (rewrite_root / "outbox" / f"{rewrite_request['job_id']}.json").exists()
+    assert not (rewrite_root / "processing").exists()
+    assert not (rewrite_root / "archive").exists()
+
+    monkeypatch.setenv("AGY_GEMINI_NEW_ONLY", "0")
+    resumed = process_once(
+        rewrite_root,
+        lane="rewrite",
+        generate_json=lambda role, *_args: calls.append(role) or {"ok": True},
+    )
+    assert resumed["status"] == "processed"
+    assert resumed["job_id"] == rewrite_request["job_id"]
+
+
+def test_cooldown_expiry_releases_one_new_and_keeps_rewrite_queued(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    for expected_slot in allocator.PRODUCTION_SLOT_IDS:
+        _ordinal, selected_slot = allocator.allocate_production_slot(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            clock=lambda: 6_000.0,
+        )
+        assert selected_slot == expected_slot
+        allocator.record_production_rate_limit(
+            state,
+            pool_id=str(payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            slot_id=expected_slot,
+            cooldown_seconds=60,
+            clock=lambda: 6_000.0,
+        )
+    new_root = tmp_path / "lanes" / "new"
+    rewrite_root = tmp_path / "lanes" / "rewrite"
+    new_request = create_external_request(
+        new_root,
+        namespace="expiry-new",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="new after expiry",
+        response_schema=SCHEMA,
+    )
+    rewrite_request = create_external_request(
+        rewrite_root,
+        namespace="expiry-rewrite",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="rewrite remains paused",
+        response_schema=SCHEMA,
+    )
+    provider_calls = 0
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"candidates":[{"content":{"parts":[{"text":"{\\"ok\\":true}"}]}}]}'
+
+    def fake_provider(*_args: object, **_kwargs: object) -> FakeResponse:
+        nonlocal provider_calls
+        provider_calls += 1
+        return FakeResponse()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.setenv("AGY_GEMINI_NEW_ONLY", "1")
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", fake_provider)
+
+    released = process_once(new_root, lane="new", clock=lambda: 6_060.0)
+    blocked = process_once(rewrite_root, lane="rewrite", clock=lambda: 6_060.0)
+
+    assert released["status"] == "processed"
+    assert released["job_id"] == new_request["job_id"]
+    assert released["credential_pool"]["slot_id"] == "account-1"
+    assert blocked == {"status": "disabled", "reason": "new_only", "lane": "rewrite"}
+    assert provider_calls == 1
+    assert json.loads(state.read_text(encoding="utf-8"))["last_ordinal"] == 4
+    assert (rewrite_root / "outbox" / f"{rewrite_request['job_id']}.json").exists()
+    assert not (rewrite_root / "processing").exists()
+    assert not (rewrite_root / "archive").exists()
 
 
 @pytest.mark.parametrize(

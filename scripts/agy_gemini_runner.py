@@ -24,7 +24,12 @@ from scripts.agy_gemini_outbox import (
     validate_external_request,
 )
 from scripts.agy_gemini_allocator import (
+    MAX_RATE_LIMIT_COOLDOWN_SECONDS,
+    ProductionSlotAdmission,
+    RATE_LIMIT_REASON,
     allocate_production_slot,
+    production_slot_admission,
+    record_production_rate_limit,
     validate_production_allocator_installation,
 )
 from scripts.agy_seo_copy_pipeline import CLOSED_GEMINI_ERROR_CODES, GeminiClient
@@ -78,10 +83,12 @@ MAX_SCHEMA_ARRAY_INDEX = 1_048_576
 STALE_PROCESSING_SECONDS = 10 * 60
 MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
 MAX_PRODUCTION_ATTEMPT_BYTES = 4 * 1024
+DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 5 * 60
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SAFE_ATTEMPT_JOB_ID = re.compile(r"^[0-9a-f]{40,64}$")
 SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
+CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 PRODUCTION_ATTEMPT_STATES = frozenset({"started", "succeeded", "failed"})
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
@@ -294,6 +301,50 @@ def _allocate_production_credential_source(
     )
 
 
+def _credential_from_admission(
+    payload: dict[str, Any],
+    manifest_sha256: str,
+    admission: ProductionSlotAdmission,
+) -> tuple[str, dict[str, str]]:
+    slots = sorted(payload["slots"], key=lambda slot: slot["slot_id"])
+    selected = next(slot for slot in slots if slot["slot_id"] == admission.slot_id)
+    descriptor = _open_private_file(
+        Path(selected["credential_file"]),
+        minimum_size=20,
+        maximum_size=512,
+    )
+    try:
+        api_key = _read_production_api_key(descriptor)
+        _ordinal, selected_slot = admission.commit()
+    finally:
+        os.close(descriptor)
+    return api_key, {
+        "pool_id": str(payload["pool_id"]),
+        "slot_id": selected_slot,
+        "manifest_sha256": manifest_sha256,
+    }
+
+
+def _production_cooldown_seconds() -> int:
+    raw = os.environ.get(
+        "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS",
+        str(DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS),
+    )
+    if re.fullmatch(r"[1-9][0-9]*", raw) is None:
+        raise ValueError("production cooldown duration is invalid")
+    seconds = int(raw)
+    if seconds > MAX_RATE_LIMIT_COOLDOWN_SECONDS:
+        raise ValueError("production cooldown duration is invalid")
+    return seconds
+
+
+def _new_only_enabled() -> bool:
+    raw = os.environ.get("AGY_GEMINI_NEW_ONLY", "0")
+    if raw not in {"0", "1"}:
+        raise ValueError("AGY_GEMINI_NEW_ONLY must be 0 or 1")
+    return raw == "1"
+
+
 def _read_production_api_key(descriptor: int) -> str:
     size = os.fstat(descriptor).st_size
     encoded = _read_descriptor(descriptor, expected_size=size, maximum_size=512)
@@ -416,7 +467,17 @@ def _claim_next(queue_root: Path) -> Path | None:
     outbox = queue_root / "outbox"
     processing = queue_root / "processing"
     processing.mkdir(parents=True, exist_ok=True)
-    for source in sorted(outbox.glob("*.json")) if outbox.exists() else []:
+    sources = list(outbox.glob("*.json")) if outbox.exists() else []
+
+    def priority(source: Path) -> tuple[int, str]:
+        try:
+            request = json.loads(source.read_text(encoding="utf-8"))
+            validate_external_request(request)
+        except Exception:
+            return 2, source.name
+        return (0 if request["role"] == "reviewer" else 1), source.name
+
+    for source in sorted(sources, key=priority):
         target = processing / source.name
         try:
             os.replace(source, target)
@@ -914,22 +975,95 @@ def _closed_error_code(error: BaseException) -> str | None:
     return None
 
 
-def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generate_json) -> dict[str, Any]:
-    claimed = _claim_next(queue_root)
-    if claimed is None:
-        return {"status": "idle"}
-    processing_path = claimed
-    job_id = processing_path.stem
-    archive_path = queue_root / "archive" / f"{job_id}.json"
+def process_once(
+    queue_root: Path,
+    *,
+    generate_json: GenerateJson = _cli_generate_json,
+    clock: Callable[[], float] | None = None,
+    lane: str | None = None,
+) -> dict[str, Any]:
+    processing_path: Path | None = None
+    archive_path: Path | None = None
+    job_id = ""
     request: dict[str, Any] = {}
     broker_diagnostic: dict[str, object] | None = None
     credential_pool: dict[str, str] | None = None
     production_attempt_evidence: ProductionAttemptEvidence | None = None
+    production_api_key: str | None = None
+    production_state_path: Path | None = None
+    production_manifest_sha256: str | None = None
+    cooldown_seconds: int | None = None
+    clock_function = clock or time.time
     try:
-        request = json.loads(processing_path.read_text(encoding="utf-8"))
-        validate_external_request(request)
-        if request["job_id"] != job_id:
-            raise ValueError("request job id differs from queue filename")
+        if lane is not None and lane not in CONTENT_LANES:
+            raise ValueError("unknown content lane")
+        if _new_only_enabled() and lane != "new":
+            return {
+                "status": "disabled",
+                "reason": "new_only",
+                "lane": lane or "shared",
+            }
+        pool_file = os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip()
+        production_enabled = (
+            os.environ.get("AGY_GEMINI_V4_BROKER") != "1"
+            and bool(pool_file)
+        )
+        if production_enabled:
+            state_file = os.environ.get(
+                "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
+                "",
+            ).strip()
+            if not state_file:
+                raise ValueError("production allocator state path is required")
+            production_state_path = Path(state_file)
+            pool_payload, production_manifest_sha256 = _read_production_pool(
+                Path(pool_file)
+            )
+            cooldown_seconds = _production_cooldown_seconds()
+            with production_slot_admission(
+                production_state_path,
+                pool_id=str(pool_payload["pool_id"]),
+                manifest_sha256=production_manifest_sha256,
+                clock=clock_function,
+            ) as admission:
+                if not admission.allowed:
+                    return {
+                        "status": "cooldown",
+                        "admission": admission.receipt,
+                    }
+                processing_path = _claim_next(queue_root)
+                if processing_path is None:
+                    return {"status": "idle"}
+                job_id = processing_path.stem
+                archive_path = queue_root / "archive" / f"{job_id}.json"
+                request = json.loads(processing_path.read_text(encoding="utf-8"))
+                validate_external_request(request)
+                if request["job_id"] != job_id:
+                    raise ValueError("request job id differs from queue filename")
+                production_attempt_evidence = _begin_production_attempt(
+                    queue_root,
+                    request,
+                )
+                if not production_attempt_evidence.is_new:
+                    raise ProductionAttemptReplay(
+                        "production job already has attempt evidence"
+                    )
+                production_api_key, credential_pool = _credential_from_admission(
+                    pool_payload,
+                    production_manifest_sha256,
+                    admission,
+                )
+        else:
+            processing_path = _claim_next(queue_root)
+            if processing_path is None:
+                return {"status": "idle"}
+            job_id = processing_path.stem
+            archive_path = queue_root / "archive" / f"{job_id}.json"
+            request = json.loads(processing_path.read_text(encoding="utf-8"))
+            validate_external_request(request)
+            if request["job_id"] != job_id:
+                raise ValueError("request job id differs from queue filename")
+
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
             expected_executable_digest = os.environ["AGY_GEMINI_V4_EXECUTABLE_SHA256"]
@@ -975,38 +1109,11 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
                     f"{broker_diagnostic['process_count']}"
                 )
             result = broker_result.result
-        elif pool_file := os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip():
-            state_file = os.environ.get(
-                "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
-                "",
-            ).strip()
-            if not state_file:
-                raise ValueError("production allocator state path is required")
-            production_attempt_evidence = _begin_production_attempt(
-                queue_root,
-                request,
-            )
-            if not production_attempt_evidence.is_new:
-                raise ProductionAttemptReplay(
-                    "production job already has attempt evidence"
-                )
-            source = _allocate_production_credential_source(
-                Path(pool_file),
-                Path(state_file),
-            )
-            credential_pool = {
-                "pool_id": source.pool_id,
-                "slot_id": source.slot_id,
-                "manifest_sha256": source.manifest_sha256,
-            }
-            try:
-                api_key = _read_production_api_key(source.descriptor)
-            finally:
-                os.close(source.descriptor)
+        elif production_api_key is not None:
             _assert_attempt_marker_identity(production_attempt_evidence)
             _read_attempt_payload(production_attempt_evidence)
             client = GeminiClient(
-                api_key,
+                production_api_key,
                 writer_model=str(request["model"]) if request["role"] == "writer" else None,
                 reviewer_model=str(request["model"]) if request["role"] == "reviewer" else None,
             )
@@ -1034,6 +1141,8 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         if credential_pool is not None:
             response_record["credential_pool"] = credential_pool
         atomic_write_json(queue_root / "inbox" / f"{job_id}.json", response_record)
+        assert archive_path is not None
+        assert processing_path is not None
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         os.replace(processing_path, archive_path)
         if production_attempt_evidence is not None:
@@ -1046,6 +1155,28 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             processed["credential_pool"] = credential_pool
         return processed
     except Exception as error:
+        if processing_path is None:
+            return {"status": "failed", "error_type": type(error).__name__}
+        cooldown_receipt: dict[str, object] | None = None
+        error_code = _closed_error_code(error)
+        if (
+            error_code == RATE_LIMIT_REASON
+            and credential_pool is not None
+            and production_state_path is not None
+            and production_manifest_sha256 is not None
+            and cooldown_seconds is not None
+        ):
+            try:
+                cooldown_receipt = record_production_rate_limit(
+                    production_state_path,
+                    pool_id=credential_pool["pool_id"],
+                    manifest_sha256=production_manifest_sha256,
+                    slot_id=credential_pool["slot_id"],
+                    cooldown_seconds=cooldown_seconds,
+                    clock=clock_function,
+                )
+            except (OSError, ValueError):
+                cooldown_receipt = None
         failed_record: dict[str, object] = {
             "schema_version": SCHEMA_VERSION,
             "job_id": job_id,
@@ -1053,7 +1184,6 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             "error_type": type(error).__name__,
             "completed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         }
-        error_code = _closed_error_code(error)
         if error_code is not None:
             failed_record["error_code"] = error_code
         if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
@@ -1064,6 +1194,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
         failed_path = queue_root / "failed" / f"{job_id}.json"
         if not inbox_path.exists() and not failed_path.exists():
             atomic_write_json(failed_path, failed_record)
+        assert archive_path is not None
         archive_path.parent.mkdir(parents=True, exist_ok=True)
         if processing_path.exists():
             os.replace(processing_path, archive_path)
@@ -1083,6 +1214,8 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
             result["error_code"] = error_code
         if credential_pool is not None:
             result["credential_pool"] = credential_pool
+        if cooldown_receipt is not None:
+            result["cooldown"] = cooldown_receipt
         return result
     finally:
         _close_production_attempt(production_attempt_evidence)
@@ -1091,6 +1224,7 @@ def process_once(queue_root: Path, *, generate_json: GenerateJson = _cli_generat
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
+    parser.add_argument("--lane", choices=CONTENT_LANES)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("process-once")
     validate = subparsers.add_parser("validate-production-installation")
@@ -1113,12 +1247,12 @@ def main() -> int:
         print('{"status":"valid"}')
         return 0
     if args.command == "process-once":
-        result = process_once(queue_root)
+        result = process_once(queue_root, lane=args.lane)
         print(json.dumps(result, ensure_ascii=False))
         return 1 if result["status"] == "failed" else 0
     results = []
     for _ in range(args.max_jobs):
-        result = process_once(queue_root)
+        result = process_once(queue_root, lane=args.lane)
         results.append(result)
         if result["status"] in {"idle", "failed"}:
             break

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-IMPLEMENTATION-001",
+  "chain_id": "PANTHEON-GEMINI-RATE-LIMIT-THROUGHPUT-20260728",
+  "status": "DELIVERED_CANDIDATE",
+  "review_status": "READY_FOR_REVIEW",
+  "source_sha": "e21d9f7f11ef0fbfd78224afb5027b57c6b07f61",
+  "focused_tests": {
+    "passed": 169,
+    "failed": 0
+  },
+  "success_criteria": {
+    "SC-RATE-001": "PASS",
+    "SC-RATE-002": "PASS",
+    "SC-RATE-003": "PASS",
+    "SC-RATE-004": "PASS",
+    "SC-RATE-005": "PASS",
+    "SC-RATE-006": "PASS",
+    "SC-RATE-007": "PASS"
+  },
+  "static_checks": {
+    "python_py_compile": "PASS",
+    "installer_bash_n": "PASS",
+    "plist_lint": "PASS",
+    "git_diff_check": "PASS",
+    "changed_file_allowlist": "PASS",
+    "privacy_scan": "PASS",
+    "debug_marker_scan": "PASS"
+  },
+  "baseline_exception": {
+    "scope": "tests/test_agy_multilingual_pipeline.py",
+    "candidate_result": "16 passed, 2 failed",
+    "pristine_source_confirmation": "same missing_policy_contract failure",
+    "classification": "PRE_EXISTING_BASELINE"
+  },
+  "claims": {
+    "deployed": false,
+    "integrated": false,
+    "production_touched": false,
+    "quota_limit_increased": false
+  }
+}

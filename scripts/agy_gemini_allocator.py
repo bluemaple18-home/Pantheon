@@ -9,14 +9,52 @@ import os
 import re
 import stat
 import tempfile
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Iterator
 
 
 MAX_ALLOCATOR_STATE_BYTES = 4 * 1024
 MAX_ALLOCATION_ORDINAL = (1 << 63) - 1
+MAX_TIMESTAMP_MILLISECONDS = (1 << 63) - 1
+MAX_RATE_LIMIT_COOLDOWN_SECONDS = 60 * 60
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
+RATE_LIMIT_REASON = "API_RATE_LIMITED"
+
+
+@dataclass(frozen=True)
+class _Cooldown:
+    slot_id: str
+    cooldown_started_ms: int
+    cooldown_until_ms: int
+
+    def state_payload(self) -> dict[str, object]:
+        return {
+            "slot_id": self.slot_id,
+            "cooldown_started_ms": self.cooldown_started_ms,
+            "cooldown_until_ms": self.cooldown_until_ms,
+            "reason": RATE_LIMIT_REASON,
+        }
+
+    def receipt_payload(self) -> dict[str, object]:
+        return {
+            "slot_id": self.slot_id,
+            "cooldown_started_ms": self.cooldown_started_ms,
+            "cooldown_until_ms": self.cooldown_until_ms,
+        }
+
+
+@dataclass(frozen=True)
+class _AllocatorState:
+    last_ordinal: int
+    last_slot_id: str | None
+    cooldowns: tuple[_Cooldown, ...]
+    state_identity: tuple[int, int] | None
+    expected_lock_identity: tuple[int, int] | None
 
 
 def _open_allocator_directory(path: Path) -> int:
@@ -231,11 +269,11 @@ def _read_state(
     *,
     pool_id: str,
     manifest_sha256: str,
-) -> tuple[int, tuple[int, int] | None, tuple[int, int] | None]:
+) -> _AllocatorState:
     try:
         path.lstat()
     except FileNotFoundError:
-        return 0, None, None
+        return _AllocatorState(0, None, (), None, None)
     except OSError as error:
         raise ValueError("production allocator state file is unavailable") from error
     descriptor = _open_private_state(path)
@@ -258,21 +296,30 @@ def _read_state(
         )
     except (UnicodeDecodeError, ValueError) as error:
         raise ValueError("production allocator state JSON is invalid") from error
-    if not isinstance(payload, dict) or set(payload) != {
+    common_keys = {
         "last_ordinal",
         "lock_device",
         "lock_inode",
         "manifest_sha256",
         "pool_id",
         "schema_version",
-    }:
+    }
+    if not isinstance(payload, dict):
+        raise ValueError("production allocator state schema is invalid")
+    schema_version = payload.get("schema_version")
+    if schema_version == 1:
+        if set(payload) != common_keys:
+            raise ValueError("production allocator state schema is invalid")
+    elif schema_version == 2:
+        if set(payload) != common_keys | {"cooldowns", "last_slot_id"}:
+            raise ValueError("production allocator state schema is invalid")
+    else:
         raise ValueError("production allocator state schema is invalid")
     last_ordinal = payload.get("last_ordinal")
     lock_device = payload.get("lock_device")
     lock_inode = payload.get("lock_inode")
     if (
-        type(payload.get("schema_version")) is not int
-        or payload.get("schema_version") != 1
+        type(schema_version) is not int
         or type(payload.get("pool_id")) is not str
         or SAFE_CREDENTIAL_ID.fullmatch(payload["pool_id"]) is None
         or type(payload.get("manifest_sha256")) is not str
@@ -289,8 +336,50 @@ def _read_state(
         raise ValueError("production allocator state pool mismatch")
     if payload["manifest_sha256"] != manifest_sha256:
         raise ValueError("production allocator state manifest mismatch")
-    return (
+    last_slot_id = PRODUCTION_SLOT_IDS[(last_ordinal - 1) % len(PRODUCTION_SLOT_IDS)]
+    cooldowns: tuple[_Cooldown, ...] = ()
+    if schema_version == 2:
+        if (
+            type(payload.get("last_slot_id")) is not str
+            or payload["last_slot_id"] not in PRODUCTION_SLOT_IDS
+            or not isinstance(payload.get("cooldowns"), list)
+            or len(payload["cooldowns"]) > len(PRODUCTION_SLOT_IDS)
+        ):
+            raise ValueError("production allocator state schema is invalid")
+        last_slot_id = payload["last_slot_id"]
+        parsed: list[_Cooldown] = []
+        seen_slots: set[str] = set()
+        for item in payload["cooldowns"]:
+            if not isinstance(item, dict) or set(item) != {
+                "cooldown_started_ms",
+                "cooldown_until_ms",
+                "reason",
+                "slot_id",
+            }:
+                raise ValueError("production allocator state schema is invalid")
+            slot_id = item.get("slot_id")
+            started_ms = item.get("cooldown_started_ms")
+            until_ms = item.get("cooldown_until_ms")
+            if (
+                type(slot_id) is not str
+                or slot_id not in PRODUCTION_SLOT_IDS
+                or slot_id in seen_slots
+                or type(started_ms) is not int
+                or type(until_ms) is not int
+                or not 0 <= started_ms < until_ms <= MAX_TIMESTAMP_MILLISECONDS
+                or until_ms - started_ms > MAX_RATE_LIMIT_COOLDOWN_SECONDS * 1000
+                or item.get("reason") != RATE_LIMIT_REASON
+            ):
+                raise ValueError("production allocator state schema is invalid")
+            parsed.append(_Cooldown(slot_id, started_ms, until_ms))
+            seen_slots.add(slot_id)
+        cooldowns = tuple(
+            sorted(parsed, key=lambda item: PRODUCTION_SLOT_IDS.index(item.slot_id))
+        )
+    return _AllocatorState(
         last_ordinal,
+        last_slot_id,
+        cooldowns,
         (current.st_dev, current.st_ino),
         (lock_device, lock_inode),
     )
@@ -302,16 +391,20 @@ def _commit_state(
     pool_id: str,
     manifest_sha256: str,
     ordinal: int,
+    last_slot_id: str,
+    cooldowns: tuple[_Cooldown, ...],
     previous_identity: tuple[int, int] | None,
     lock_identity: tuple[int, int],
 ) -> None:
     encoded = (
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "pool_id": pool_id,
                 "manifest_sha256": manifest_sha256,
                 "last_ordinal": ordinal,
+                "last_slot_id": last_slot_id,
+                "cooldowns": [cooldown.state_payload() for cooldown in cooldowns],
                 "lock_device": lock_identity[0],
                 "lock_inode": lock_identity[1],
             },
@@ -388,15 +481,152 @@ def _commit_state(
             pass
 
 
-def allocate_production_slot(
+class ProductionAdmissionDenied(RuntimeError):
+    """所有匿名 production slot cooling 時的封閉 admission 結果。"""
+
+    def __init__(self, receipt: dict[str, object]) -> None:
+        super().__init__("production provider admission is cooling")
+        self.receipt = receipt
+
+
+def _clock_milliseconds(clock: Callable[[], float] | None) -> int:
+    value = (clock or time.time)()
+    if (
+        type(value) not in {int, float}
+        or value < 0
+        or value * 1000 > MAX_TIMESTAMP_MILLISECONDS
+    ):
+        raise ValueError("production allocator clock is invalid")
+    return int(value * 1000)
+
+
+@dataclass
+class ProductionSlotAdmission:
+    state_path: Path
+    pool_id: str
+    manifest_sha256: str
+    now_ms: int
+    slot_id: str | None
+    cooldowns: tuple[_Cooldown, ...]
+    state: _AllocatorState
+    directory_descriptor: int
+    lock_path: Path
+    lock_descriptor: int
+    lock_identity: tuple[int, int]
+    committed: bool = False
+
+    @property
+    def allowed(self) -> bool:
+        return self.slot_id is not None
+
+    @property
+    def receipt(self) -> dict[str, object]:
+        if self.allowed:
+            return {"slot_id": str(self.slot_id)}
+        return {
+            "reason": RATE_LIMIT_REASON,
+            "cooldowns": [
+                cooldown.receipt_payload() for cooldown in self.cooldowns
+            ],
+        }
+
+    def commit(self) -> tuple[int, str]:
+        if not self.allowed:
+            raise ProductionAdmissionDenied(self.receipt)
+        if self.committed:
+            raise ValueError("production provider admission is already committed")
+        if self.state.last_ordinal >= MAX_ALLOCATION_ORDINAL:
+            raise ValueError("production allocator ordinal is exhausted")
+        ordinal = self.state.last_ordinal + 1
+        selected_slot = str(self.slot_id)
+        _commit_state(
+            self.state_path,
+            pool_id=self.pool_id,
+            manifest_sha256=self.manifest_sha256,
+            ordinal=ordinal,
+            last_slot_id=selected_slot,
+            cooldowns=self.cooldowns,
+            previous_identity=self.state.state_identity,
+            lock_identity=self.lock_identity,
+        )
+        _assert_path_identity(
+            self.lock_path,
+            self.lock_descriptor,
+            label="production allocator lock file",
+        )
+        _assert_directory_identity(
+            self.state_path.parent,
+            self.directory_descriptor,
+        )
+        self.committed = True
+        return ordinal, selected_slot
+
+    def record_rate_limit(
+        self,
+        slot_id: str,
+        cooldown_seconds: int,
+    ) -> dict[str, object]:
+        if slot_id not in PRODUCTION_SLOT_IDS:
+            raise ValueError("production cooldown slot is invalid")
+        if (
+            type(cooldown_seconds) is not int
+            or not 1 <= cooldown_seconds <= MAX_RATE_LIMIT_COOLDOWN_SECONDS
+            or self.now_ms + cooldown_seconds * 1000 > MAX_TIMESTAMP_MILLISECONDS
+        ):
+            raise ValueError("production cooldown duration is invalid")
+        if self.committed:
+            raise ValueError("production provider admission is already committed")
+        if self.state.last_ordinal < 1 or self.state.last_slot_id is None:
+            raise ValueError("production cooldown requires a committed attempt")
+        cooldown = _Cooldown(
+            slot_id,
+            self.now_ms,
+            self.now_ms + cooldown_seconds * 1000,
+        )
+        retained = tuple(item for item in self.cooldowns if item.slot_id != slot_id)
+        updated = tuple(
+            sorted(
+                (*retained, cooldown),
+                key=lambda item: PRODUCTION_SLOT_IDS.index(item.slot_id),
+            )
+        )
+        _commit_state(
+            self.state_path,
+            pool_id=self.pool_id,
+            manifest_sha256=self.manifest_sha256,
+            ordinal=self.state.last_ordinal,
+            last_slot_id=self.state.last_slot_id,
+            cooldowns=updated,
+            previous_identity=self.state.state_identity,
+            lock_identity=self.lock_identity,
+        )
+        _assert_path_identity(
+            self.lock_path,
+            self.lock_descriptor,
+            label="production allocator lock file",
+        )
+        _assert_directory_identity(
+            self.state_path.parent,
+            self.directory_descriptor,
+        )
+        self.committed = True
+        receipt = cooldown.receipt_payload()
+        receipt["reason"] = RATE_LIMIT_REASON
+        return receipt
+
+
+@contextmanager
+def production_slot_admission(
     state_path: Path,
     *,
     pool_id: str,
     manifest_sha256: str,
-) -> tuple[int, str]:
-    """Durable commit 下一個 ordinal，並回傳固定三槽中的 selected slot。"""
+    clock: Callable[[], float] | None = None,
+) -> Iterator[ProductionSlotAdmission]:
+    """鎖住 durable state，先判 eligibility，再由 caller 決定是否 commit ordinal。"""
     if not state_path.is_absolute():
         raise ValueError("production allocator state path must be absolute")
+    now_ms = _clock_milliseconds(clock)
     lock_path = state_path.with_name(f"{state_path.name}.lock")
     directory_descriptor = _open_allocator_directory(state_path.parent)
     try:
@@ -409,29 +639,53 @@ def allocate_production_slot(
                 lock_descriptor,
                 label="production allocator lock file",
             )
-            last_ordinal, previous_identity, expected_lock_identity = _read_state(
+            state = _read_state(
                 state_path,
                 pool_id=pool_id,
                 manifest_sha256=manifest_sha256,
             )
             if (
-                expected_lock_identity is not None
-                and expected_lock_identity != lock_identity
+                state.expected_lock_identity is not None
+                and state.expected_lock_identity != lock_identity
             ):
                 raise ValueError(
                     "production allocator lock file changed during allocation"
                 )
-            if last_ordinal >= MAX_ALLOCATION_ORDINAL:
-                raise ValueError("production allocator ordinal is exhausted")
-            ordinal = last_ordinal + 1
-            _commit_state(
-                state_path,
+            active_cooldowns = tuple(
+                cooldown
+                for cooldown in state.cooldowns
+                if cooldown.cooldown_until_ms > now_ms
+            )
+            cooling_slots = {cooldown.slot_id for cooldown in active_cooldowns}
+            start = (
+                0
+                if state.last_slot_id is None
+                else (PRODUCTION_SLOT_IDS.index(state.last_slot_id) + 1)
+                % len(PRODUCTION_SLOT_IDS)
+            )
+            selected_slot = next(
+                (
+                    PRODUCTION_SLOT_IDS[(start + offset) % len(PRODUCTION_SLOT_IDS)]
+                    for offset in range(len(PRODUCTION_SLOT_IDS))
+                    if PRODUCTION_SLOT_IDS[(start + offset) % len(PRODUCTION_SLOT_IDS)]
+                    not in cooling_slots
+                ),
+                None,
+            )
+            admission = ProductionSlotAdmission(
+                state_path=state_path,
                 pool_id=pool_id,
                 manifest_sha256=manifest_sha256,
-                ordinal=ordinal,
-                previous_identity=previous_identity,
+                now_ms=now_ms,
+                slot_id=selected_slot,
+                cooldowns=active_cooldowns,
+                state=state,
+                directory_descriptor=directory_descriptor,
+                lock_path=lock_path,
+                lock_descriptor=lock_descriptor,
                 lock_identity=lock_identity,
             )
+            yield admission
             _assert_path_identity(
                 lock_path,
                 lock_descriptor,
@@ -444,7 +698,42 @@ def allocate_production_slot(
     finally:
         fcntl.flock(directory_descriptor, fcntl.LOCK_UN)
         os.close(directory_descriptor)
-    return ordinal, PRODUCTION_SLOT_IDS[(ordinal - 1) % len(PRODUCTION_SLOT_IDS)]
+
+
+def allocate_production_slot(
+    state_path: Path,
+    *,
+    pool_id: str,
+    manifest_sha256: str,
+    clock: Callable[[], float] | None = None,
+) -> tuple[int, str]:
+    """Durable commit 下一個 eligible slot 的 ordinal。"""
+    with production_slot_admission(
+        state_path,
+        pool_id=pool_id,
+        manifest_sha256=manifest_sha256,
+        clock=clock,
+    ) as admission:
+        return admission.commit()
+
+
+def record_production_rate_limit(
+    state_path: Path,
+    *,
+    pool_id: str,
+    manifest_sha256: str,
+    slot_id: str,
+    cooldown_seconds: int,
+    clock: Callable[[], float] | None = None,
+) -> dict[str, object]:
+    """只以 closed API_RATE_LIMITED reason 寫入匿名 slot cooldown。"""
+    with production_slot_admission(
+        state_path,
+        pool_id=pool_id,
+        manifest_sha256=manifest_sha256,
+        clock=clock,
+    ) as admission:
+        return admission.record_rate_limit(slot_id, cooldown_seconds)
 
 
 def validate_production_allocator_installation(
@@ -473,12 +762,12 @@ def validate_production_allocator_installation(
                 label="production allocator lock file",
             )
             if state_exists:
-                _last_ordinal, _state_identity, expected_lock_identity = _read_state(
+                state = _read_state(
                     state_path,
                     pool_id=pool_id,
                     manifest_sha256=manifest_sha256,
                 )
-                if expected_lock_identity != lock_identity:
+                if state.expected_lock_identity != lock_identity:
                     raise ValueError(
                         "production allocator lock file changed during allocation"
                     )

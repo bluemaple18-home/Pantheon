@@ -182,6 +182,70 @@ def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch
     }
 
 
+def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    briefs = {
+        "new-run-1": {"mode": "create", "articles": []},
+        "new-run-2": {"mode": "create", "articles": []},
+        "rewrite-run": {
+            "mode": "rewrite_existing_body",
+            "articles": [{"article_id": "LEGACY-001"}],
+        },
+        "i18n-new-run": {
+            "mode": "translate_existing",
+            "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
+        },
+        "i18n-rewrite-run": {
+            "mode": "translate_existing",
+            "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}],
+        },
+    }
+    for run_id, payload in briefs.items():
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps({"schema_version": 1, "run_id": run_id, **payload}),
+            encoding="utf-8",
+        )
+        register_run(run_dir, queue_root)
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
+    monkeypatch.setattr(
+        coordinator,
+        "seed_legacy_rewrite_runs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("new-only must not seed rewrite")
+        ),
+    )
+    advanced: list[str] = []
+    process_calls: list[Path] = []
+
+    def pending_tick(run_dir: Path, _job_queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda root: process_calls.append(root) or {"status": "processed"},
+        repo_root=tmp_path,
+        legacy_sweep=True,
+        lane_mode=True,
+        new_only=True,
+    )
+
+    assert advanced == ["new-run-1"]
+    assert process_calls == []
+    assert summary["runner"] == {"status": "idle"}
+    assert summary["legacy_sweep"] == {
+        "status": "disabled_by_new_only",
+        "created": 0,
+        "created_run_ids": [],
+    }
+
+
 def test_lane_mode_migrates_shared_pending_jobs_by_run_namespace(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     run_dir = tmp_path / "runs" / "new-run"
@@ -545,7 +609,10 @@ def test_cycle_legacy_sweep_does_not_require_manual_register(tmp_path: Path, mon
     assert summary["runner"] == {"status": "idle"}
 
 
-def test_seed_new_matrix_runs_registers_prepared_create_run(tmp_path: Path, monkeypatch) -> None:
+def test_seed_new_matrix_runs_registers_only_one_run_and_article_per_cycle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     repo_root = tmp_path / "repo"
     queue_root = tmp_path / "queue"
     run_root = tmp_path / "private-runs"
@@ -570,7 +637,14 @@ def test_seed_new_matrix_runs_registers_prepared_create_run(tmp_path: Path, monk
             }
         )
         paths: list[Path] = []
-        for index, article_id in enumerate(["V2-ZODIAC-ARIES-LOVE", "V2-ZODIAC-ARIES-WORK"], start=1):
+        article_ids = [
+            "V2-ZODIAC-ARIES-LOVE",
+            "V2-ZODIAC-ARIES-WORK",
+            "V2-ZODIAC-ARIES-MONEY",
+            "V2-ZODIAC-ARIES-HEALTH",
+            "V2-ZODIAC-ARIES-GROWTH",
+        ]
+        for index, article_id in enumerate(article_ids, start=1):
             run_dir = output_root / f"{run_prefix}-{index:02d}"
             run_dir.mkdir(parents=True)
             brief = {
@@ -596,12 +670,16 @@ def test_seed_new_matrix_runs_registers_prepared_create_run(tmp_path: Path, monk
     )
 
     assert summary["status"] == "seeded"
-    assert summary["created"] == 2
+    assert summary["created"] == 1
     assert summary["created_run_ids"][0].startswith("auto-new-v1-")
-    assert summary["created_run_ids"][1].startswith("auto-new-v1-")
-    assert calls[0]["limit"] == 5
+    assert calls[0]["limit"] == 1
+    assert calls[0]["max_articles_per_run"] == 1
     assert calls[0]["exclude_ids"] == []
-    assert len(list((queue_root / "runs").glob("*.json"))) == 2
+    assert len(list((queue_root / "runs").glob("*.json"))) == 1
+    state_path = next((queue_root / "runs").glob("*.json"))
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    brief = json.loads((Path(state["run_dir"]) / "brief.json").read_text(encoding="utf-8"))
+    assert len(brief["articles"]) == 1
 
 
 def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
@@ -675,7 +753,14 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert arguments[-1] == "cycle"
     assert plist["RunAtLoad"] is True
     assert lane_plist["ProgramArguments"][1:3] == ["-m", "scripts.agy_gemini_runner"]
+    assert "--lane" in lane_plist["ProgramArguments"]
     assert lane_plist["ProgramArguments"][-1] == "process-once"
+    assert plist["EnvironmentVariables"]["AGY_GEMINI_NEW_ONLY"] == "0"
+    assert lane_plist["EnvironmentVariables"]["AGY_GEMINI_NEW_ONLY"] == "0"
+    assert (
+        lane_plist["EnvironmentVariables"]["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"]
+        == "300"
+    )
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
     assert 'LANE_LABEL="com.pantheon.agy-gemini-${LANE}"' in installer
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
@@ -683,6 +768,11 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
     assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-}"' in installer
     assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"' in installer
+    assert 'NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"' in installer
+    assert (
+        'RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"'
+        in installer
+    )
     assert (
         'PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-'
         in installer
@@ -940,6 +1030,43 @@ def _installer_test_env(
 
 
 @pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("AGY_GEMINI_NEW_ONLY", "true"),
+        ("AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS", "0"),
+        ("AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS", "3601"),
+    ],
+)
+def test_installer_rejects_invalid_admission_config_before_side_effects(
+    tmp_path: Path,
+    variable: str,
+    value: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+    )
+    env[variable] = value
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
+
+
+@pytest.mark.parametrize(
     "failure_class",
     [
         "pool-corrupt",
@@ -1065,6 +1192,8 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
             "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
             "AGY_GEMINI_CLI_PATH": str(cli_path),
+            "AGY_GEMINI_NEW_ONLY": "1",
+            "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS": "600",
             "PANTHEON_GSC_COPY_ROOT": str(gsc_copy_root),
             "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
             "PANTHEON_PYTHON_PATH": sys.executable,
@@ -1097,6 +1226,7 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
     assert coordinator_arguments[8] == str(gsc_copy_root)
     assert coordinator_arguments[11] == str(publisher_root)
     assert coordinator_arguments[13] == str(gsc_copy_root)
+    assert coordinator_variables["AGY_GEMINI_NEW_ONLY"] == "1"
     if model_overrides:
         assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-explicit-writer"
         assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-explicit-reviewer"
@@ -1113,9 +1243,13 @@ def test_installer_injects_one_shared_allocator_state_into_all_four_lanes(
             ).read_bytes()
         )
         variables = installed["EnvironmentVariables"]
+        arguments = installed["ProgramArguments"]
+        assert arguments[arguments.index("--lane") + 1] == lane
         assert variables["AGY_GEMINI_CREDENTIAL_POOL_FILE"] == str(pool_file)
         assert variables["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] == str(
             state_file
         )
+        assert variables["AGY_GEMINI_NEW_ONLY"] == "1"
+        assert variables["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"] == "600"
         assert "AGY_WRITER_MODEL" not in variables
         assert "AGY_REVIEWER_MODEL" not in variables

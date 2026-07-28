@@ -12,6 +12,8 @@
     <string>scripts.agy_gemini_runner</string>
     <string>--queue-root</string>
     <string>__QUEUE_ROOT__</string>
+    <string>--lane</string>
+    <string>__LANE__</string>
     <string>process-once</string>
   </array>
 
@@ -23,6 +25,10 @@
     <!-- Installer 只在明確 opt-in 時加入 production pool 與 shared allocator state path。 -->
     <key>AGY_GEMINI_CLI</key>
     <string>__AGY_GEMINI_CLI__</string>
+    <key>AGY_GEMINI_NEW_ONLY</key>
+    <string>0</string>
+    <key>AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS</key>
+    <string>300</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>

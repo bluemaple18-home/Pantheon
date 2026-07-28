@@ -40,6 +40,13 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def _new_only_enabled() -> bool:
+    raw = os.environ.get("AGY_GEMINI_NEW_ONLY", "0")
+    if raw not in {"0", "1"}:
+        raise ValueError("AGY_GEMINI_NEW_ONLY must be 0 or 1")
+    return raw == "1"
+
+
 def _brief(run_dir: Path) -> dict[str, Any]:
     path = run_dir / "brief.json"
     if not path.is_file():
@@ -363,7 +370,7 @@ def seed_new_matrix_runs(
     max_articles_per_run: int = DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN,
 ) -> dict[str, Any]:
     """自動從內容矩陣挑未登記的新文，建立 create run 並交給 coordinator。"""
-    if min_active_runs <= 0 or max_new_runs <= 0:
+    if min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0:
         return {"status": "disabled", "created": 0, "created_run_ids": []}
     active_create = _active_count_by_mode(queue_root, "create")
     if active_create >= min_active_runs:
@@ -371,19 +378,19 @@ def seed_new_matrix_runs(
 
     created: list[str] = []
     excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
-    for _ in range(min(max_new_runs, min_active_runs - active_create)):
+    for _ in range(min(1, max_new_runs, min_active_runs - active_create)):
         run_prefix = _next_new_matrix_run_prefix(run_root, queue_root)
         paths = pipeline.prepare_matrix_runs(
             repo_root,
             run_prefix,
             output_root=run_root,
-            limit=max_articles_per_run,
+            limit=min(1, max_articles_per_run),
             exclude_ids=excluded_ids,
-            max_articles_per_run=max_articles_per_run,
+            max_articles_per_run=min(1, max_articles_per_run),
         )
         if not paths:
             break
-        for brief_path in paths:
+        for brief_path in paths[:1]:
             state = register_run(brief_path.parent, queue_root)
             created.append(str(state["run_id"]))
             brief = _brief(brief_path.parent)
@@ -551,6 +558,7 @@ def cycle_once(
     legacy_run_root: Path | None = None,
     legacy_max_new_runs_per_cycle: int = DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE,
     lane_mode: bool = False,
+    new_only: bool = False,
 ) -> dict[str, Any]:
     """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
     root = queue_root.resolve()
@@ -576,26 +584,38 @@ def cycle_once(
 
         legacy_summary: dict[str, Any] | None = None
         if legacy_sweep:
-            legacy_summary = seed_legacy_rewrite_runs(
-                resolved_repo,
-                root,
-                (legacy_state_root or resolved_repo / ".work/content-publisher").resolve(),
-                (legacy_run_root or resolved_repo / ".work/gsc-copy").resolve(),
-                max_new_runs=legacy_max_new_runs_per_cycle,
-            )
+            if new_only:
+                legacy_summary = {
+                    "status": "disabled_by_new_only",
+                    "created": 0,
+                    "created_run_ids": [],
+                }
+            else:
+                legacy_summary = seed_legacy_rewrite_runs(
+                    resolved_repo,
+                    root,
+                    (legacy_state_root or resolved_repo / ".work/content-publisher").resolve(),
+                    (legacy_run_root or resolved_repo / ".work/gsc-copy").resolve(),
+                    max_new_runs=legacy_max_new_runs_per_cycle,
+                )
 
         active_states = _active_states(root)
         legacy_article_ids = publisher.legacy_article_ids(resolved_repo) if lane_mode else set()
         migrated_jobs = (
             _migrate_pending_jobs(root, active_states, legacy_article_ids)
-            if lane_mode
+            if lane_mode and not new_only
             else None
         )
-        states = (
-            _select_lane_states(active_states, legacy_article_ids)
-            if lane_mode
-            else active_states[:MAX_ACTIVE_RUNS_PER_CYCLE]
-        )
+        if new_only:
+            states = [
+                state
+                for state in active_states
+                if _lane_for_state(state, legacy_article_ids) == "new"
+            ][:1]
+        elif lane_mode:
+            states = _select_lane_states(active_states, legacy_article_ids)
+        else:
+            states = active_states[:MAX_ACTIVE_RUNS_PER_CYCLE]
         pending = 0
         completed = 0
         failed = 0
@@ -612,7 +632,7 @@ def cycle_once(
             failed += outcome == "failed"
 
         runner: dict[str, str] = {"status": "idle"}
-        if pending:
+        if pending and not new_only:
             try:
                 runner = process(root)
             except json.JSONDecodeError:
@@ -703,6 +723,7 @@ def main() -> int:
             legacy_run_root=args.legacy_run_root,
             legacy_max_new_runs_per_cycle=args.legacy_max_new_runs_per_cycle,
             lane_mode=args.lane_mode,
+            new_only=_new_only_enabled(),
         )
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result.get("status") == "failed" else 0
