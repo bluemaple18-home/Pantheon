@@ -2028,8 +2028,9 @@ def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) 
                 "articles": [
                     {
                         "slot": "article-01",
-                        "verdict": "APPROVE",
-                        "findings": [],
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [],
                     }
                 ]
             }
@@ -2124,12 +2125,20 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
                     ]
                 }
             self.reviewer_calls += 1
+            review_item_schema = _schema["properties"]["articles"]["items"]  # type: ignore[index]
+            assert set(review_item_schema["properties"]) == {
+                "slot",
+                "semantic_verdict",
+                "semantic_findings",
+                "objective_observations",
+            }
             return {
                 "articles": [
                     {
                         "slot": "article-01",
-                        "verdict": "REJECT",
-                        "findings": [
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [
                             {
                                 "code": "BODY_SHAPE_VIOLATION",
                                 "message": "錯誤聲稱正文約 1150 字",
@@ -2154,6 +2163,89 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
     assert client.reviewer_calls == 1
     assert review["articles"][0]["verdict"] == "APPROVE"
     assert review["articles"][0]["findings"] == []
+    external_review = json.loads(
+        (tmp_path / "attempts/01/external-review.json").read_text()
+    )
+    assert len(external_review["articles"][0]["objective_observations"]) == 2
+
+
+def test_rewrite_semantic_reject_survives_machine_owned_code_label(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("HOSTILE-SEMANTIC-MISLABEL")
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections(variant="誤標")
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    class HostileMislabelReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
+                            {
+                                "code": "BODY_SHAPE_VIOLATION",
+                                "message": "文章完全誤解搜尋意圖，且把文化反思寫成個人定論",
+                            }
+                        ],
+                        "objective_observations": [],
+                    }
+                ]
+            }
+
+    client = HostileMislabelReviewer()
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=0,
+    )
+
+    assert client.writer_calls == 1
+    assert client.reviewer_calls == 1
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is False
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "BODY_SHAPE_VIOLATION",
+            "message": "文章完全誤解搜尋意圖，且把文化反思寫成個人定論",
+        }
+    ]
 
 
 def test_rewrite_malformed_machine_owned_finding_fails_closed(
@@ -2198,8 +2290,11 @@ def test_rewrite_malformed_machine_owned_finding_fails_closed(
                 "articles": [
                     {
                         "slot": "article-01",
-                        "verdict": "REJECT",
-                        "findings": [{"code": "BODY_SHAPE_VIOLATION"}],
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [
+                            {"code": "BODY_SHAPE_VIOLATION"}
+                        ],
                     }
                 ]
             }
@@ -2274,13 +2369,14 @@ def test_rewrite_semantic_rejection_keeps_writer_reviewer_calls_bounded(
                 "articles": [
                     {
                         "slot": "article-01",
-                        "verdict": "REJECT",
-                        "findings": [
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
                             {
                                 "code": "search_intent_mismatch",
                                 "message": "沒有回答搜尋者的核心問題",
                             }
                         ],
+                        "objective_observations": [],
                     }
                 ]
             }
@@ -2404,13 +2500,14 @@ def test_rewrite_unknown_reviewer_finding_fails_closed(tmp_path: Path) -> None:
                 "articles": [
                     {
                         "slot": "article-01",
-                        "verdict": "REJECT",
-                        "findings": [
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
                             {
                                 "code": "UNKNOWN_REVIEW_AUTHORITY",
                                 "message": "無法分類的 Reviewer finding",
                             }
                         ],
+                        "objective_observations": [],
                     }
                 ]
             }
@@ -2601,8 +2698,17 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
                 "articles": [
                     {
                         "slot": f"article-{index:02d}",
-                        "verdict": "REJECT" if self.reviewer_calls == 1 and index == 1 else "APPROVE",
-                        "findings": [{"code": "TEMPLATE_USAGE", "message": "仍相似"}] if self.reviewer_calls == 1 and index == 1 else [],
+                        "semantic_verdict": (
+                            "REJECT"
+                            if self.reviewer_calls == 1 and index == 1
+                            else "APPROVE"
+                        ),
+                        "semantic_findings": (
+                            [{"code": "TEMPLATE_USAGE", "message": "仍相似"}]
+                            if self.reviewer_calls == 1 and index == 1
+                            else []
+                        ),
+                        "objective_observations": [],
                     }
                     for index in range(1, 6)
                 ]
@@ -2712,8 +2818,9 @@ def test_rewrite_repair_machine_reject_skips_reviewer_until_green(
                 "articles": [
                     {
                         "slot": f"article-{index:02d}",
-                        "verdict": "APPROVE",
-                        "findings": [],
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [],
                     }
                     for index in range(1, 6)
                 ]
@@ -2751,6 +2858,7 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
 
         def __init__(self) -> None:
             self.writer_prompts: list[str] = []
+            self.reviewer_calls = 0
 
         def generate_json(self, role: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
             if role == "writer":
@@ -2766,15 +2874,38 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
                         }
                     ]
                 }
-            return {"articles": [{"slot": f"article-{index:02d}", "verdict": "APPROVE", "findings": []} for index in range(1, 6)]}
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": f"article-{index:02d}",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": (
+                            [
+                                {
+                                    "code": "BODY_SHAPE_VIOLATION",
+                                    "message": "錯誤聲稱正文尺寸不合格",
+                                }
+                            ]
+                            if index == 1
+                            else []
+                        ),
+                    }
+                    for index in range(1, 6)
+                ]
+            }
 
     client = RecordingClient()
     candidate, review = pipeline.run_rewrite_repair(tmp_path, client)
 
     assert len(client.writer_prompts) == 5
+    assert client.reviewer_calls == 1
     assert all(prompt.count('"currentBody"') == 1 for prompt in client.writer_prompts)
     assert [article["article_id"] for article in candidate["articles"]] == [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES]
     assert all(item["verdict"] == "APPROVE" for item in review["articles"])
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text())
+    assert evidence["internal_repairs_used"] == 0
 
 
 def test_rewrite_repair_closure_changes_only_two_authorized_paragraphs_and_never_calls_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2831,7 +2962,12 @@ def test_rewrite_repair_closure_changes_only_two_authorized_paragraphs_and_never
             assert prompt.count('"currentBody"') == 5
             return {
                 "articles": [
-                    {"slot": f"article-{index:02d}", "verdict": "APPROVE", "findings": []}
+                    {
+                        "slot": f"article-{index:02d}",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [],
+                    }
                     for index in range(1, 6)
                 ]
             }
@@ -3115,6 +3251,111 @@ def test_review_existing_reuses_candidate_without_writer_call(tmp_path: Path, mo
 
     assert review["articles"][0]["verdict"] == "APPROVE"
     assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
+
+
+def test_review_existing_rewrite_dismisses_only_objective_observations(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("EXISTING-REWRITE-001")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(variant="既有"),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    assert pipeline.rewrite_quality_findings(brief, [article]) == []
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(tmp_path / "candidate.json", candidate)
+
+    class ReviewerOnly:
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            assert role == "reviewer"
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [
+                            {
+                                "code": "BODY_SHAPE_VIOLATION",
+                                "message": "錯誤聲稱既有正文尺寸不合格",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    review = pipeline.review_existing_candidate(tmp_path, ReviewerOnly())
+
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert review["articles"][0]["findings"] == []
+    assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
+
+
+def test_review_existing_rewrite_deterministic_reject_skips_reviewer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brief = make_rewrite_brief("EXISTING-DETERMINISTIC-REJECT")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(variant="確定"),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    finding = {
+        "article_id": source["article_id"],
+        "code": "paragraph_length",
+        "message": "本機確認第 1 節第 1 段超過 130 字",
+    }
+    monkeypatch.setattr(
+        pipeline,
+        "rewrite_quality_findings",
+        lambda *_args: [finding],
+    )
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(tmp_path / "candidate.json", candidate)
+
+    class ReviewerMustNotRun:
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise AssertionError("deterministic rejection must skip Reviewer")
+
+    review = pipeline.review_existing_candidate(tmp_path, ReviewerMustNotRun())
+
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["findings"] == [
+        {"code": finding["code"], "message": finding["message"]}
+    ]
+    assert not (tmp_path / "review-existing-operation.json").exists()
 
 
 def test_partial_approval_and_human_override_are_bound_to_article_hashes() -> None:

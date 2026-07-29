@@ -1456,6 +1456,39 @@ def invalid_review_payload(run_id: str, articles: list[dict[str, Any]], reason: 
     }
 
 
+def deterministic_review_payload(
+    run_id: str,
+    articles: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    findings_by_id: dict[str, list[dict[str, str]]] = {}
+    for finding in findings:
+        findings_by_id.setdefault(str(finding["article_id"]), []).append(
+            {
+                "code": str(finding["code"]),
+                "message": str(finding["message"]),
+            }
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": run_id,
+        "articles": [
+            {
+                "article_id": _candidate_id(article),
+                "candidate_sha256": article_sha256(article),
+                "verdict": (
+                    "REJECT"
+                    if findings_by_id.get(_candidate_id(article))
+                    else "APPROVE"
+                ),
+                "findings": findings_by_id.get(_candidate_id(article), []),
+                "hard_failure": False,
+            }
+            for article in articles
+        ],
+    }
+
+
 def validate_review(review: dict[str, Any], candidates: list[dict[str, Any]]) -> None:
     if review.get("schema_version") != SCHEMA_VERSION or not isinstance(review.get("articles"), list):
         raise ValueError("invalid review schema")
@@ -3071,6 +3104,27 @@ def external_review_schema() -> dict[str, Any]:
     return {"type": "object", "additionalProperties": False, "properties": {"articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["articles"]}
 
 
+def rewrite_external_review_schema() -> dict[str, Any]:
+    finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
+    item = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "slot": {"type": "string"},
+            "semantic_verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]},
+            "semantic_findings": {"type": "array", "items": finding},
+            "objective_observations": {"type": "array", "items": finding},
+        },
+        "required": [
+            "slot",
+            "semantic_verdict",
+            "semantic_findings",
+            "objective_observations",
+        ],
+    }
+    return {"type": "object", "additionalProperties": False, "properties": {"articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["articles"]}
+
+
 def hydrate_review(brief: dict[str, Any], candidate: dict[str, Any], external: dict[str, Any]) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise ValueError("external review top-level fields are strict")
@@ -3094,6 +3148,67 @@ def hydrate_review(brief: dict[str, Any], candidate: dict[str, Any], external: d
     review = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "articles": articles}
     validate_review(review, candidate["articles"])
     return review
+
+
+def hydrate_rewrite_review(
+    brief: dict[str, Any],
+    candidate: dict[str, Any],
+    external: dict[str, Any],
+) -> dict[str, Any]:
+    if set(external) != {"articles"} or not isinstance(external["articles"], list):
+        raise ValueError("external rewrite review top-level fields are strict")
+    by_slot = {
+        str(item.get("slot")): item
+        for item in external["articles"]
+        if isinstance(item, dict)
+    }
+    expected_slots = {_slot(index) for index in range(len(candidate["articles"]))}
+    if set(by_slot) != expected_slots or len(by_slot) != len(external["articles"]):
+        raise ValueError("external rewrite review slots differ from candidate")
+    semantic_external = {"articles": []}
+    for slot in sorted(expected_slots):
+        item = by_slot[slot]
+        if set(item) != {
+            "slot",
+            "semantic_verdict",
+            "semantic_findings",
+            "objective_observations",
+        }:
+            raise ValueError("external rewrite review fields are strict")
+        semantic_verdict = item["semantic_verdict"]
+        semantic_findings = item["semantic_findings"]
+        objective_observations = item["objective_observations"]
+        if semantic_verdict not in {"APPROVE", "REJECT"}:
+            raise ValueError("rewrite semantic verdict must be APPROVE or REJECT")
+        if not isinstance(semantic_findings, list) or not isinstance(
+            objective_observations,
+            list,
+        ):
+            raise ValueError("rewrite review findings must be lists")
+        if semantic_verdict == "APPROVE" and semantic_findings:
+            raise ValueError("rewrite semantic APPROVE must not contain findings")
+        if semantic_verdict == "REJECT" and not semantic_findings:
+            raise ValueError("rewrite semantic REJECT must contain findings")
+        for observation in objective_observations:
+            if (
+                not isinstance(observation, dict)
+                or set(observation) != {"code", "message"}
+                or not all(
+                    isinstance(observation[field], str) and observation[field].strip()
+                    for field in ("code", "message")
+                )
+                or str(observation["code"]).strip().casefold()
+                not in REWRITE_MACHINE_OWNED_REVIEW_CODES
+            ):
+                raise ValueError("rewrite objective observation is invalid")
+        semantic_external["articles"].append(
+            {
+                "slot": slot,
+                "verdict": semantic_verdict,
+                "findings": semantic_findings,
+            }
+        )
+    return hydrate_review(brief, candidate, semantic_external)
 
 
 def reconcile_external_review_with_machine_gate(
@@ -3241,10 +3356,18 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         "body_characters",
     )
     machine_gate_instruction = ""
-    if brief.get("mode") in {"create", "rewrite_existing_body"}:
+    if brief.get("mode") == "create":
         machine_gate_instruction = (
             "字數、section／paragraph 數量與長度、immutable identity、candidate hash "
             "由本機 deterministic gate 唯一判定；不得自行回報這些 machine-owned findings。"
+            "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
+        )
+    elif brief.get("mode") == "rewrite_existing_body":
+        machine_gate_instruction = (
+            "semantic_verdict 只能表示語意審查結論；semantic_findings 只能放搜尋意圖、語意品質、"
+            "場景、動詞、限制、安全邊界、錯別字與模板感。section／paragraph 數量與長度、正文總長、"
+            "immutable identity、candidate hash 等客觀觀察只能放 objective_observations。"
+            "即使 semantic finding 的 code 看似客觀，也必須保留在 semantic_findings；"
             "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
         )
     return "\n".join([
@@ -3307,6 +3430,9 @@ def _repair_reviewer_prompt(
         "你是新的獨立 Gemini Pro Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
         "本卡只審 Repair 1：確認跨篇完整句、共用 H2、長片段、段落開頭與抽象句型／論證結構不再相似。",
         f"同時確認 {publication_presentation_instruction('rewrite_existing_body')}、前 80 字、專屬場景、具體動詞、反例與安全限制沒有回歸。",
+        "semantic_verdict 只表示語意結論；semantic_findings 與 objective_observations 必須分開。"
+        "搜尋意圖、語意品質、安全、錯別字與模板感只能放 semantic_findings，"
+        "即使 code 看似客觀也不得移到 objective_observations。",
         "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
@@ -3541,17 +3667,23 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                     client,
                     "reviewer",
                     _reviewer_prompt(brief, candidate, deterministic),
-                    external_review_schema(),
+                    (
+                        rewrite_external_review_schema()
+                        if mode == "rewrite_existing_body"
+                        else external_review_schema()
+                    ),
                     attempt_dir / "reviewer-operation.json",
                 )
                 write_json(attempt_dir / "external-review.json", external_review)
-                review = hydrate_review(brief, candidate, external_review)
-                if mode in {"create", "rewrite_existing_body"}:
+                review = (
+                    hydrate_rewrite_review(brief, candidate, external_review)
+                    if mode == "rewrite_existing_body"
+                    else hydrate_review(brief, candidate, external_review)
+                )
+                if mode == "create":
                     review = reconcile_external_review_with_machine_gate(
                         review,
-                        REWRITE_MACHINE_OWNED_REVIEW_CODES
-                        if mode == "rewrite_existing_body"
-                        else MACHINE_OWNED_REVIEW_CODES,
+                        MACHINE_OWNED_REVIEW_CODES,
                     )
                 for item in review["articles"]:
                     item["hard_failure"] = False
@@ -3790,12 +3922,12 @@ def run_rewrite_repair(
                         client,
                         "reviewer",
                         _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
-                        external_review_schema(),
+                        rewrite_external_review_schema(),
                         attempt_dir / "reviewer-operation.json",
                     )
                     reviewer_calls += 1
                     write_json(external_review_path, external_review)
-                review = hydrate_review(brief, candidate, external_review)
+                review = hydrate_rewrite_review(brief, candidate, external_review)
                 for item in review["articles"]:
                     item["hard_failure"] = False
             except (json.JSONDecodeError, TypeError, ValueError) as error:
@@ -4186,18 +4318,24 @@ def run_rewrite_release_generation(
         write_json(attempt_dir / "uniqueness-findings.json", uniqueness)
         if writer_errors:
             review = invalid_review_payload(brief["run_id"], candidate["articles"], "invalid_writer_schema")
+        elif deterministic:
+            review = deterministic_review_payload(
+                brief["run_id"],
+                candidate["articles"],
+                deterministic,
+            )
         else:
             try:
                 external_review = _generate_with_receipt(
                     client,
                     "reviewer",
                     _repair_reviewer_prompt(brief, candidate, deterministic, styles),
-                    external_review_schema(),
+                    rewrite_external_review_schema(),
                     attempt_dir / "reviewer-operation.json",
                 )
                 reviewer_calls += 1
                 write_json(attempt_dir / "external-review.json", external_review)
-                review = hydrate_review(brief, candidate, external_review)
+                review = hydrate_rewrite_review(brief, candidate, external_review)
                 for item in review["articles"]:
                     item["hard_failure"] = False
             except (json.JSONDecodeError, TypeError, ValueError) as error:
@@ -4279,11 +4417,11 @@ def review_rewrite_release_final(
                 client,
                 "reviewer",
                 _repair_reviewer_prompt(brief, candidate, [], contract["variation_contracts"]),
-                external_review_schema(),
+                rewrite_external_review_schema(),
                 round_dir / "reviewer-operation.json",
             )
             write_json(external_path, external)
-            review = hydrate_review(brief, candidate, external)
+            review = hydrate_rewrite_review(brief, candidate, external)
             for item in review["articles"]:
                 item["hard_failure"] = False
             write_json(round_dir / "review.json", review)
@@ -4836,11 +4974,11 @@ def run_rewrite_repair_closure(
         client,
         "reviewer",
         _repair_reviewer_prompt(brief, candidate, []),
-        external_review_schema(),
+        rewrite_external_review_schema(),
         closure_dir / "reviewer-operation.json",
     )
     write_json(closure_dir / "external-review.json", external_review)
-    review = hydrate_review(brief, candidate, external_review)
+    review = hydrate_rewrite_review(brief, candidate, external_review)
     for item in review["articles"]:
         item["hard_failure"] = False
     write_json(closure_dir / "review.json", review)
@@ -4874,7 +5012,8 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
     validate_candidate(candidate)
     if candidate["run_id"] != brief["run_id"] or candidate["mode"] != brief["mode"]:
         raise CandidateValidationError("existing candidate differs from brief")
-    if brief.get("mode") == "rewrite_existing_body":
+    is_rewrite = brief.get("mode") == "rewrite_existing_body"
+    if is_rewrite:
         validate_rewrite_brief(brief)
         if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
             raise RuntimeError("rewrite_existing_body requires a fresh headless reviewer process")
@@ -4889,20 +5028,35 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
         deterministic = rewrite_quality_findings(brief, candidate["articles"])
     else:
         deterministic = quality_findings(candidate["articles"])
-    try:
-        external_review = _generate_with_receipt(
-            client,
-            "reviewer",
-            _reviewer_prompt(brief, candidate, deterministic),
-            external_review_schema(),
-            run_dir / "review-existing-operation.json",
+    if is_rewrite and deterministic:
+        review = deterministic_review_payload(
+            brief["run_id"],
+            candidate["articles"],
+            deterministic,
         )
-        write_json(run_dir / "external-review-existing.json", external_review)
-        review = hydrate_review(brief, candidate, external_review)
-        for item in review["articles"]:
-            item["hard_failure"] = False
-    except (json.JSONDecodeError, TypeError, ValueError) as error:
-        review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
+    else:
+        try:
+            external_review = _generate_with_receipt(
+                client,
+                "reviewer",
+                _reviewer_prompt(brief, candidate, deterministic),
+                (
+                    rewrite_external_review_schema()
+                    if is_rewrite
+                    else external_review_schema()
+                ),
+                run_dir / "review-existing-operation.json",
+            )
+            write_json(run_dir / "external-review-existing.json", external_review)
+            review = (
+                hydrate_rewrite_review(brief, candidate, external_review)
+                if is_rewrite
+                else hydrate_review(brief, candidate, external_review)
+            )
+            for item in review["articles"]:
+                item["hard_failure"] = False
+        except (json.JSONDecodeError, TypeError, ValueError) as error:
+            review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
     by_id = {item["article_id"]: item for item in review["articles"]}
     for finding in deterministic:
         item = by_id[finding["article_id"]]
