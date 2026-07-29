@@ -1,3 +1,18 @@
+---
+card_id: CARD-PANTHEON-LANE-CONTINUATION-REPAIR-20260729
+chain_id: PANTHEON-LANE-CONTINUATION-REPAIR-20260729
+status: READY_TO_DISPATCH
+type: implementation
+ownership: implementation
+thickness: standard
+risk: medium
+model: gpt-5.5
+reasoning: medium
+model_reason: 跨 coordinator 排程、rewrite policy hydration 與 production runtime 驗收，但根因、allowlist、測試與候選 commit 已鎖定。
+branch: codex/lane-continuation-repair-20260729
+source_sha: 83ec832b3d3c19068c5b866a7634615f5e5eacb8
+---
+
 # Pantheon Lane Continuation Repair
 
 ## 目的
