@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.140] - 2026-07-30
+
+- Release tag：`v0.3.140`
+- 公開文章總數：491（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ja；run_id：auto-i18n-ja-cb9211f6bf8a43fa3a24。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-publish-actor/.work/content-publisher/evidence/translation-0.3.140`
+
 ## [0.3.139] - 2026-07-30
 
 - Release tag：`v0.3.139`
