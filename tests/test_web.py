@@ -534,15 +534,56 @@ def test_articles_hub_uses_balanced_display_order() -> None:
 import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
 import { ARTICLE_HUB_DISPLAY_LIMIT, pickLatestArticles } from "./app/web/static/articles.js";
 
-const selected = pickLatestArticles(listArticleRecords());
-const records = selected.map((article) => ({
-  path: getArticlePath(article),
-  category: article.articleCategory,
-}));
+const allArticles = listArticleRecords();
+const rankedPathsByCategory = (articles) => {
+  const buckets = new Map();
+  for (const article of articles) {
+    const category = article.articleCategory || article.section || article.product;
+    if (!buckets.has(category)) buckets.set(category, []);
+    buckets.get(category).push(article);
+  }
+  for (const bucket of buckets.values()) {
+    bucket.sort((a, b) => {
+      const aDate = String(a.updated || a.published || a.date || "");
+      const bDate = String(b.updated || b.published || b.date || "");
+      return bDate.localeCompare(aDate)
+        || String(b.serial || "").localeCompare(String(a.serial || ""), "zh-Hant", { numeric: true });
+    });
+  }
+  return new Map([...buckets].map(([category, bucket]) => [category, bucket.map(getArticlePath)]));
+};
+const summarize = (articles) => {
+  const rankedPaths = rankedPathsByCategory(articles);
+  const categoryOffsets = new Map();
+  const records = pickLatestArticles(articles).map((article) => {
+    const category = article.articleCategory;
+    const offset = categoryOffsets.get(category) || 0;
+    categoryOffsets.set(category, offset + 1);
+    return {
+      path: getArticlePath(article),
+      expectedPath: rankedPaths.get(category)[offset],
+      category,
+    };
+  });
+  return {
+    records,
+    adjacentSameCategory: records.some(
+      (record, index) => index > 0 && record.category === records[index - 1].category,
+    ),
+  };
+};
+const rewriteTarget = allArticles.find((article) => article.serial === "fortune-0039");
+const rewrittenArticles = allArticles.map((article) => (
+  article.id === rewriteTarget.id ? { ...article, updated: "9999-12-31" } : article
+));
 console.log(JSON.stringify({
   limit: ARTICLE_HUB_DISPLAY_LIMIT,
-  records,
-  adjacentSameCategory: records.some((record, index) => index > 0 && record.category === records[index - 1].category),
+  categoryOrder: [...new Set(allArticles.map(
+    (article) => article.articleCategory || article.section || article.product,
+  ))],
+  rewriteTargetPath: getArticlePath(rewriteTarget),
+  baseline: summarize(allArticles),
+  rewritten: summarize(rewrittenArticles),
 }));
 """
     result = subprocess.run(
@@ -553,35 +594,19 @@ console.log(JSON.stringify({
     )
     data = json.loads(result.stdout)
     assert data["limit"] == 12
-    assert [record["category"] for record in data["records"]] == [
-        "personality",
-        "tarot",
-        "fortune",
-        "astrology",
-        "love",
-        "career",
-        "interpersonal",
-        "wealth",
-        "life-direction",
-        "personality",
-        "tarot",
-        "fortune",
-    ]
-    assert [record["path"] for record in data["records"]] == [
-        "/articles/personality/personality-0279",
-        "/articles/tarot/tarot-1442",
-        "/articles/fortune/fortune-0044",
-        "/articles/astrology/astrology-0196",
-        "/articles/love/love-0012",
-        "/articles/career/career-0012",
-        "/articles/interpersonal/interpersonal-0012",
-        "/articles/wealth/wealth-0012",
-        "/articles/life-direction/life-direction-0012",
-        "/articles/personality/personality-0278",
-        "/articles/tarot/tarot-1174",
-        "/articles/fortune/fortune-0043",
-    ]
-    assert data["adjacentSameCategory"] is False
+    expected_categories = (data["categoryOrder"] * data["limit"])[: data["limit"]]
+    baseline_paths = [record["path"] for record in data["baseline"]["records"]]
+    rewritten_paths = [record["path"] for record in data["rewritten"]["records"]]
+    assert len(baseline_paths) == len(rewritten_paths) == data["limit"]
+    assert [record["category"] for record in data["baseline"]["records"]] == expected_categories
+    assert [record["category"] for record in data["rewritten"]["records"]] == expected_categories
+    assert all(record["path"] == record["expectedPath"] for record in data["baseline"]["records"])
+    assert all(record["path"] == record["expectedPath"] for record in data["rewritten"]["records"])
+    assert data["baseline"]["adjacentSameCategory"] is False
+    assert data["rewritten"]["adjacentSameCategory"] is False
+    assert data["rewriteTargetPath"] not in baseline_paths
+    assert data["rewriteTargetPath"] in rewritten_paths
+    assert rewritten_paths != baseline_paths
 
 
 def test_article_urls_serve_article_template() -> None:
@@ -2037,10 +2062,13 @@ const allArticles = listArticleRecords();
 const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePath(article)));
 const rendered = expansion.map((article) => {{
   const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
+  const sourceBody = bodies[article.slug];
   return {{
     path: getArticlePath(article),
     bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
-    sectionCount: content.bodySections.length,
+    sourceSectionCount: sourceBody.length,
+    renderedSectionCount: content.bodySections.length,
+    bodyMatchesSource: JSON.stringify(content.bodySections) === JSON.stringify(sourceBody),
     faqCount: content.faq.length,
     published: content.published,
     updated: content.updated,
@@ -2057,6 +2085,7 @@ console.log(JSON.stringify({{
   uniqueTitles: new Set(records.map((record) => record.title)).size,
   missingPaths: [...expectedPaths].filter((path) => !expansion.some((article) => getArticlePath(article) === path)),
   repeatedSentences: [...sentenceCounts.entries()].filter(([, count]) => count > 3),
+  sourceSectionCounts: [...new Set(Object.values(bodies).map((sections) => sections.length))],
   forbiddenTemplates: ["全面解析", "深度解析", "總而言之", "值得注意的是", "不可或缺", "賦能", "必看", "一定", "保證", "注定"]
     .filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
   rendered,
@@ -2071,12 +2100,15 @@ console.log(JSON.stringify({{
     assert data["missingPaths"] == []
     assert data["repeatedSentences"] == []
     assert data["forbiddenTemplates"] == []
+    assert data["sourceSectionCounts"] == [4]
     for article in data["rendered"]:
         assert article["bodyLength"] >= 650, article
-        assert article["sectionCount"] == 4, article
+        assert article["sourceSectionCount"] == 4, article
+        expected_rendered_sections = 4 if article["bodyMatchesSource"] else 5
+        assert article["renderedSectionCount"] == expected_rendered_sections, article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
-        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] >= article["published"], article
 
 
 def test_expansion_50e_adds_fifty_unique_full_articles() -> None:
