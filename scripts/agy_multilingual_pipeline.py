@@ -705,7 +705,12 @@ def apply_approved_translations(
     deterministic = translation_findings(brief, candidate["articles"])
     if deterministic:
         raise ValueError(f"translation deterministic gate failed: {len(deterministic)}")
-    approved = pipeline.validate_apply_gate(candidate["articles"], review, approval)
+    approved = pipeline.validate_apply_gate(
+        candidate["articles"],
+        review,
+        approval,
+        candidate_mode=str(candidate["mode"]),
+    )
     if not approved:
         return []
     for article in approved:

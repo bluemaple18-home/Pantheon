@@ -2472,6 +2472,38 @@ def test_hard_gate_cannot_be_overridden() -> None:
         validate_apply_gate([article], review, approval)
 
 
+def test_create_apply_gate_still_requires_publication_policy() -> None:
+    article = make_article("CREATE-POLICY")
+    article.pop("publicationPolicy")
+    review = {
+        "schema_version": 1,
+        "run_id": "run",
+        "articles": [
+            {
+                "article_id": article["id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "APPROVE",
+                "findings": [],
+            }
+        ],
+    }
+    approval = build_approval(
+        "run",
+        [article],
+        review,
+        decisions={article["id"]: "APPROVE"},
+        approved_by="user",
+    )
+
+    with pytest.raises(ValueError, match="missing_policy_contract"):
+        validate_apply_gate(
+            [article],
+            review,
+            approval,
+            candidate_mode="create",
+        )
+
+
 def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     integrated_inventory = pipeline._registry_inventory(repo_root)

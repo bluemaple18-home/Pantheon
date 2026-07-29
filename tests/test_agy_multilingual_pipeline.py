@@ -204,6 +204,40 @@ def test_translation_contract_rejects_source_hash_drift() -> None:
         multilingual.validate_translation_candidate(brief, candidate)
 
 
+def test_translation_apply_gate_uses_translation_mode_without_bypassing_approval() -> None:
+    candidate = translation_candidate()
+    article = candidate["articles"][0]
+    review = {
+        "schema_version": 1,
+        "run_id": candidate["run_id"],
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "APPROVE",
+                "hard_failure": False,
+                "findings": [],
+            }
+        ],
+    }
+    approval = build_approval(
+        str(candidate["run_id"]),
+        candidate["articles"],
+        review,
+        {str(article["article_id"]): "APPROVE"},
+        "test",
+    )
+
+    approved = multilingual.pipeline.validate_apply_gate(
+        candidate["articles"],
+        review,
+        approval,
+        candidate_mode=str(candidate["mode"]),
+    )
+
+    assert approved == candidate["articles"]
+
+
 def test_translation_gate_rejects_wrong_language() -> None:
     brief = translation_brief("ko")
     candidate = translation_candidate("ko")

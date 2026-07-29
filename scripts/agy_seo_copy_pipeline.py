@@ -1524,12 +1524,28 @@ def build_approval(
     }
 
 
-def validate_apply_gate(candidates: list[dict[str, Any]], review: dict[str, Any], approval: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_apply_gate(
+    candidates: list[dict[str, Any]],
+    review: dict[str, Any],
+    approval: dict[str, Any],
+    *,
+    candidate_mode: str | None = None,
+) -> list[dict[str, Any]]:
+    if candidate_mode not in {
+        None,
+        "create",
+        "optimize",
+        "rewrite_existing_body",
+        "translate_existing",
+    }:
+        raise ValueError(f"unsupported apply gate candidate mode: {candidate_mode}")
     validate_review(review, candidates)
     for candidate in candidates:
-        if "proposed" in candidate:
+        if candidate_mode in {"optimize", "translate_existing"} or "proposed" in candidate:
             continue
-        mode = "rewrite_existing_body" if "identity" in candidate else "create"
+        mode = candidate_mode or (
+            "rewrite_existing_body" if "identity" in candidate else "create"
+        )
         policy_article = candidate
         if mode == "rewrite_existing_body":
             policy_article = {
