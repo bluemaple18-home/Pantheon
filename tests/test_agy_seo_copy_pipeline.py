@@ -2169,7 +2169,27 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
     assert len(external_review["articles"][0]["objective_observations"]) == 2
 
 
-def test_rewrite_reviewer_prompts_require_empty_findings_for_approval() -> None:
+def test_rewrite_review_schema_uses_canonical_objective_code_enum() -> None:
+    item_schema = pipeline.rewrite_external_review_schema()["properties"][
+        "articles"
+    ]["items"]
+    semantic_code_schema = item_schema["properties"]["semantic_findings"][
+        "items"
+    ]["properties"]["code"]
+    objective_code_schema = item_schema["properties"]["objective_observations"][
+        "items"
+    ]["properties"]["code"]
+
+    assert semantic_code_schema == {"type": "string"}
+    assert objective_code_schema == {
+        "type": "string",
+        "enum": sorted(pipeline.REWRITE_MACHINE_OWNED_REVIEW_CODES),
+    }
+    assert "section_count_valid" not in objective_code_schema["enum"]
+    assert "total_length_valid" not in objective_code_schema["enum"]
+
+
+def test_rewrite_reviewer_prompts_require_exact_review_contract() -> None:
     brief = make_rewrite_brief("REWRITE-PROMPT-CONTRACT")
     source = brief["articles"][0]
     candidate = {
@@ -2191,6 +2211,11 @@ def test_rewrite_reviewer_prompts_require_empty_findings_for_approval() -> None:
         pipeline._reviewer_prompt(brief, candidate, []),
         pipeline._repair_reviewer_prompt(brief, candidate, []),
     ]
+    expected_objective_contract = (
+        "objective_observations.code 只允許以下精確值："
+        + ", ".join(sorted(pipeline.REWRITE_MACHINE_OWNED_REVIEW_CODES))
+        + "；若沒有客觀觀察，objective_observations 必須輸出 []。"
+    )
 
     for prompt in prompts:
         assert "semantic_findings 只可放阻塞核准的問題" in prompt
@@ -2203,6 +2228,7 @@ def test_rewrite_reviewer_prompts_require_empty_findings_for_approval() -> None:
             "不得把正面評語、通過項目、摘要或建議放入 semantic_findings"
             in prompt
         )
+        assert expected_objective_contract in prompt
 
 
 def test_rewrite_provider_approve_with_positive_findings_fails_closed(
@@ -2341,6 +2367,107 @@ def test_rewrite_provider_approve_with_positive_findings_fails_closed(
     assert (
         external_review["articles"][0]["semantic_findings"]
         == positive_findings
+    )
+
+
+def test_rewrite_provider_valid_suffix_objective_codes_fail_closed(
+    tmp_path: Path,
+) -> None:
+    article_id = "EXPANSION-50D-FORTUNE-0031"
+    brief = make_rewrite_brief(article_id)
+    brief["run_id"] = (
+        "legacy-auto-sweep-v1-fortune-0031-expansion-50d-fortune-0031"
+    )
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections(
+        str(source["identity"]["primaryKeyword"]),
+        variant="擴充",
+    )
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    objective_observations = [
+        {"code": "SECTION_COUNT_VALID", "message": "section 數量符合規範。"},
+        {
+            "code": "PARAGRAPH_COUNT_VALID",
+            "message": "paragraph 數量符合規範。",
+        },
+        {
+            "code": "PARAGRAPH_LENGTH_VALID",
+            "message": "各段長度符合規範。",
+        },
+        {"code": "TOTAL_LENGTH_VALID", "message": "正文總長符合規範。"},
+    ]
+
+    class ValidSuffixReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "gemini-3.1-flash-lite"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": objective_observations,
+                    }
+                ]
+            }
+
+    client = ValidSuffixReviewer()
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=1,
+    )
+
+    assert client.writer_calls == 1
+    assert client.reviewer_calls == 1
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is True
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "invalid_reviewer_json:ValueError",
+            "message": "invalid_reviewer_json:ValueError",
+        }
+    ]
+    external_review = json.loads(
+        (tmp_path / "attempts/01/external-review.json").read_text()
+    )
+    assert (
+        external_review["articles"][0]["objective_observations"]
+        == objective_observations
     )
 
 

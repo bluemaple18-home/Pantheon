@@ -3106,6 +3106,18 @@ def external_review_schema() -> dict[str, Any]:
 
 def rewrite_external_review_schema() -> dict[str, Any]:
     finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
+    objective_observation = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "code": {
+                "type": "string",
+                "enum": sorted(REWRITE_MACHINE_OWNED_REVIEW_CODES),
+            },
+            "message": {"type": "string"},
+        },
+        "required": ["code", "message"],
+    }
     item = {
         "type": "object",
         "additionalProperties": False,
@@ -3113,7 +3125,10 @@ def rewrite_external_review_schema() -> dict[str, Any]:
             "slot": {"type": "string"},
             "semantic_verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]},
             "semantic_findings": {"type": "array", "items": finding},
-            "objective_observations": {"type": "array", "items": finding},
+            "objective_observations": {
+                "type": "array",
+                "items": objective_observation,
+            },
         },
         "required": [
             "slot",
@@ -3340,6 +3355,15 @@ def _rewrite_reviewer_semantic_contract() -> str:
     )
 
 
+def _rewrite_reviewer_objective_contract() -> str:
+    allowed_codes = ", ".join(sorted(REWRITE_MACHINE_OWNED_REVIEW_CODES))
+    return (
+        "objective_observations.code 只允許以下精確值："
+        f"{allowed_codes}；"
+        "若沒有客觀觀察，objective_observations 必須輸出 []。"
+    )
+
+
 def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], deterministic_findings: list[dict[str, str]]) -> str:
     create_profile = publication_presentation_profile("create")
     title_minimum, title_maximum = _range_bounds(
@@ -3376,6 +3400,7 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
             "semantic_verdict 只能表示語意審查結論；semantic_findings 只能放搜尋意圖、語意品質、"
             "場景、動詞、限制、安全邊界、錯別字與模板感。section／paragraph 數量與長度、正文總長、"
             "immutable identity、candidate hash 等客觀觀察只能放 objective_observations。"
+            f"{_rewrite_reviewer_objective_contract()}"
             "即使 semantic finding 的 code 看似客觀，也必須保留在 semantic_findings；"
             f"{_rewrite_reviewer_semantic_contract()}"
             "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
@@ -3444,6 +3469,7 @@ def _repair_reviewer_prompt(
         "搜尋意圖、語意品質、安全、錯別字與模板感只能放 semantic_findings，"
         "即使 code 看似客觀也不得移到 objective_observations。",
         _rewrite_reviewer_semantic_contract(),
+        _rewrite_reviewer_objective_contract(),
         "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
