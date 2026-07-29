@@ -1230,6 +1230,7 @@ def rewrite_quality_findings(
         text = "".join(paragraphs)
         if not section_minimum <= len(sections) <= section_maximum:
             findings.append({"article_id": article_id, "code": "section_count", "message": f"正文必須為 {section_minimum} 到 {section_maximum} 節"})
+        paragraph_locations: dict[str, tuple[int, int]] = {}
         for section_index, section in enumerate(sections, start=1):
             section_paragraphs = section.get("paragraphs", [])
             if not paragraph_minimum <= len(section_paragraphs) <= paragraph_maximum:
@@ -1238,9 +1239,27 @@ def rewrite_quality_findings(
             if any(template in heading for template in REWRITE_TEMPLATE_HEADINGS):
                 findings.append({"article_id": article_id, "code": "template_heading", "message": f"不得沿用批次模板小標：{heading}"})
             for paragraph_index, paragraph in enumerate(section_paragraphs, start=1):
-                length = len(str(paragraph))
+                paragraph_text = str(paragraph)
+                length = len(paragraph_text)
                 if not paragraph_char_minimum <= length <= paragraph_char_maximum:
                     findings.append({"article_id": article_id, "code": "paragraph_length", "message": f"第 {section_index} 節第 {paragraph_index} 段為 {length} 字；必須 {paragraph_char_minimum} 到 {paragraph_char_maximum} 字"})
+                first_location = paragraph_locations.get(paragraph_text)
+                if first_location is not None:
+                    findings.append(
+                        {
+                            "article_id": article_id,
+                            "code": "duplicate_paragraph",
+                            "message": (
+                                f"第 {section_index} 節第 {paragraph_index} 段與"
+                                f"第 {first_location[0]} 節第 {first_location[1]} 段逐字重複"
+                            ),
+                        }
+                    )
+                else:
+                    paragraph_locations[paragraph_text] = (
+                        section_index,
+                        paragraph_index,
+                    )
         if not body_minimum <= len(text) <= body_maximum:
             findings.append({"article_id": article_id, "code": "body_length", "message": f"正文為 {len(text)} 字；必須 {body_minimum} 到 {body_maximum} 字"})
         keyword = _normalize_keyword(str(source["identity"]["primaryKeyword"]))
@@ -3073,6 +3092,25 @@ def review_schema() -> dict[str, Any]:
     return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "articles"]}
 
 
+def _rewrite_generation_instruction() -> str:
+    profile = publication_presentation_profile("rewrite_existing_body")
+    body_preferred_minimum, body_preferred_maximum = _preferred_bounds(
+        profile,
+        "body_characters",
+    )
+    paragraph_preferred_minimum, paragraph_preferred_maximum = _preferred_bounds(
+        profile,
+        "paragraph_characters",
+    )
+    return (
+        f"每篇必須符合：{publication_presentation_instruction('rewrite_existing_body')}；"
+        f"正文以 {body_preferred_minimum} 到 {body_preferred_maximum} 字為生成目標；"
+        f"每段以 {paragraph_preferred_minimum} 到 {paragraph_preferred_maximum} 字為生成目標，"
+        f"{_maximum_bound(profile, 'paragraph_characters')} 字是硬上限；"
+        "不得在同一篇內逐字重複完整段落。"
+    )
+
+
 def _writer_prompt(
     brief: dict[str, Any],
     prior: dict[str, Any] | None = None,
@@ -3105,6 +3143,7 @@ def _writer_prompt(
             "只輸出各 slot 的完整 bodySections 與 publicationPolicy；不得輸出或改動 identity、FAQ、tag 或 URL 欄位。"
             " publicationPolicy 的 modified 必須是這次實質正文改寫的真實日期，published 必須沿用 brief 的真實資料；"
             "可驗證事實要列來源，純文化/反思內容要明示 disclosure，不得虛構來源。"
+            f" {_rewrite_generation_instruction()}"
         )
     repair_measurements = "null"
     repair_directives = "null"
@@ -3129,7 +3168,11 @@ def _writer_prompt(
             )
             repair_directives = _create_repair_directives(findings or [])
         else:
-            instruction = repair_instruction
+            instruction = (
+                f"{repair_instruction}\n{_rewrite_generation_instruction()}"
+                if brief.get("mode") == "rewrite_existing_body"
+                else repair_instruction
+            )
     return "\n".join([
         instruction,
         "不得共用跨篇完整句型。",
@@ -3212,6 +3255,7 @@ def _repair_writer_prompt(
     return "\n".join([
         f"這是 {operation_label}。輸出單篇完整 bodySections；slot 必須逐字複製。",
         "不得改寫或輸出 identity、metadata、URL、title、FAQ、tags、日期或 current-body SHA。",
+        _rewrite_generation_instruction(),
         "不要沿用其他文章常見的定義、實驗回顧、專業協助或邊界呼籲句型。",
         "public brief（本次唯一文章素材）:", json.dumps(public_model_brief(single_brief), ensure_ascii=False),
         "variation contract:", json.dumps(style_contract, ensure_ascii=False),
@@ -3424,7 +3468,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         if mode == "create" and not deterministic:
             validate_candidate(candidate)
         invalid_reviewer = False
-        if mode == "create" and deterministic:
+        if mode in {"create", "rewrite_existing_body"} and deterministic:
             repair_findings_are_deterministic = True
             deterministic_by_id: dict[str, list[dict[str, Any]]] = {}
             for finding in deterministic:
@@ -3666,25 +3710,59 @@ def run_rewrite_repair(
         write_json(attempt_dir / "candidate.json", candidate)
         write_json(attempt_dir / "deterministic-quality-findings.json", quality)
         write_json(attempt_dir / "uniqueness-findings.json", uniqueness)
-        try:
-            external_review_path = attempt_dir / "external-review.json"
-            if external_review_path.exists():
-                external_review = json.loads(external_review_path.read_text(encoding="utf-8"))
-            else:
-                external_review = _generate_with_receipt(
-                    client,
-                    "reviewer",
-                    _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
-                    external_review_schema(),
-                    attempt_dir / "reviewer-operation.json",
+        if deterministic:
+            deterministic_by_id: dict[str, list[dict[str, str]]] = {}
+            for finding in deterministic:
+                deterministic_by_id.setdefault(
+                    str(finding["article_id"]),
+                    [],
+                ).append(
+                    {
+                        "code": finding["code"],
+                        "message": finding["message"],
+                    }
                 )
-                reviewer_calls += 1
-                write_json(external_review_path, external_review)
-            review = hydrate_review(brief, candidate, external_review)
-            for item in review["articles"]:
-                item["hard_failure"] = False
-        except (json.JSONDecodeError, TypeError, ValueError) as error:
-            review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
+            review = {
+                "schema_version": SCHEMA_VERSION,
+                "run_id": brief["run_id"],
+                "articles": [
+                    {
+                        "article_id": _candidate_id(article),
+                        "candidate_sha256": article_sha256(article),
+                        "verdict": (
+                            "REJECT"
+                            if deterministic_by_id.get(_candidate_id(article))
+                            else "APPROVE"
+                        ),
+                        "findings": deterministic_by_id.get(
+                            _candidate_id(article),
+                            [],
+                        ),
+                        "hard_failure": False,
+                    }
+                    for article in candidate["articles"]
+                ],
+            }
+        else:
+            try:
+                external_review_path = attempt_dir / "external-review.json"
+                if external_review_path.exists():
+                    external_review = json.loads(external_review_path.read_text(encoding="utf-8"))
+                else:
+                    external_review = _generate_with_receipt(
+                        client,
+                        "reviewer",
+                        _repair_reviewer_prompt(brief, candidate, deterministic, style_contracts),
+                        external_review_schema(),
+                        attempt_dir / "reviewer-operation.json",
+                    )
+                    reviewer_calls += 1
+                    write_json(external_review_path, external_review)
+                review = hydrate_review(brief, candidate, external_review)
+                for item in review["articles"]:
+                    item["hard_failure"] = False
+            except (json.JSONDecodeError, TypeError, ValueError) as error:
+                review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
         by_id = {str(item["article_id"]): item for item in review["articles"]}
         for finding in deterministic:
             item = by_id[str(finding["article_id"])]

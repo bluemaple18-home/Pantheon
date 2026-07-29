@@ -1100,6 +1100,43 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
 
 
+def test_rewrite_initial_and_repair_prompts_include_generation_contract() -> None:
+    brief = make_rewrite_brief()
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    finding = {
+        "article_id": source["article_id"],
+        "code": "paragraph_length",
+        "message": "第 1 節第 1 段為 131 字；必須 90 到 130 字",
+    }
+
+    prompts = [
+        pipeline._writer_prompt(brief),
+        pipeline._writer_prompt(brief, candidate, [finding]),
+    ]
+
+    for prompt in prompts:
+        assert pipeline.publication_presentation_instruction(
+            "rewrite_existing_body"
+        ) in prompt
+        assert "正文以 1500 到 1800 字為生成目標" in prompt
+        assert "每段以 95 到 110 字為生成目標" in prompt
+        assert "130 字是硬上限" in prompt
+        assert "不得在同一篇內逐字重複完整段落" in prompt
+
+
 def test_standalone_answer_repair_fields_only_authorize_answer() -> None:
     article = make_article("STANDALONE-ANSWER-REPAIR")
     article["answer"] = "太短"
@@ -1937,6 +1974,111 @@ def test_rewrite_deterministic_gate_enforces_shape_intent_scenarios_actions_and_
     assert "scenario_density" not in codes
 
 
+def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) -> None:
+    brief = make_rewrite_brief()
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    initial_body = make_rewrite_sections()
+    initial_body[0]["paragraphs"][0] = (
+        str(initial_body[0]["paragraphs"][0]) + "補" * 131
+    )[:131]
+    repaired_body = make_rewrite_sections(variant="修")
+    assert any(
+        finding["code"] == "paragraph_length"
+        for finding in pipeline.rewrite_quality_findings(
+            brief,
+            [
+                {
+                    "article_id": source["article_id"],
+                    "identity": source["identity"],
+                    "current_body_sha256": source["current_body_sha256"],
+                    "bodySections": initial_body,
+                    "publicationPolicy": make_rewrite_publication_policy(source),
+                }
+            ],
+        )
+    )
+
+    class RecordingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            self.calls.append(role)
+            if role == "writer":
+                body = initial_body if self.calls.count("writer") == 1 else repaired_body
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(source),
+                        }
+                    ]
+                }
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    client = RecordingClient()
+    candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=1,
+    )
+
+    assert client.calls == ["writer", "writer", "reviewer"]
+    assert pipeline.rewrite_quality_findings(brief, candidate["articles"]) == []
+    assert review["articles"][0]["verdict"] == "APPROVE"
+
+
+def test_rewrite_deterministic_gate_locates_exact_duplicate_paragraph() -> None:
+    brief = make_rewrite_brief()
+    source = brief["articles"][0]
+    body = make_rewrite_sections()
+    body[0]["paragraphs"][1] = body[0]["paragraphs"][0]
+    findings = pipeline.rewrite_quality_findings(
+        brief,
+        [
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": body,
+                "publicationPolicy": make_rewrite_publication_policy(source),
+            }
+        ],
+    )
+
+    duplicates = [
+        finding for finding in findings if finding["code"] == "duplicate_paragraph"
+    ]
+
+    assert duplicates == [
+        {
+            "article_id": source["article_id"],
+            "code": "duplicate_paragraph",
+            "message": "第 1 節第 2 段與第 1 節第 1 段逐字重複",
+            "severity": "required",
+            "policy_version": pipeline.publication_policy_version(),
+        }
+    ]
+
+
 def test_rewrite_uniqueness_gate_checks_shared_h2_long_ngram_and_paragraph_opening() -> None:
     brief = make_repair_brief()
     articles = []
@@ -2087,6 +2229,13 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
 
     assert len(client.writer_prompts) == 6
     assert all(prompt.count('"currentBody"') == 1 for prompt in client.writer_prompts)
+    assert all(
+        "正文以 1500 到 1800 字為生成目標" in prompt
+        and "每段以 95 到 110 字為生成目標" in prompt
+        and "130 字是硬上限" in prompt
+        and "不得在同一篇內逐字重複完整段落" in prompt
+        for prompt in client.writer_prompts
+    )
     assert client.reviewer_calls == 2
     assert [article["article_id"] for article in candidate["articles"]] == list(pipeline.REWRITE_REPAIR_ARTICLE_IDS)
     assert all(item["verdict"] == "APPROVE" for item in review["articles"])
@@ -2094,6 +2243,104 @@ def test_rewrite_repair_uses_single_article_writers_and_one_aggregate_repair(tmp
     assert evidence["internal_repairs_used"] == 1
     assert evidence["writer_processes"] == 6
     assert evidence["reviewer_processes"] == 2
+
+
+def test_rewrite_repair_machine_reject_skips_reviewer_until_green(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brief = make_repair_brief()
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(
+        tmp_path / "repair-source.json",
+        {
+            "chain_id": "CONTENT-GEMINI-REWRITE-BATCH-001",
+            "repair_generation": 1,
+            "exact_findings": [
+                {
+                    "article_id": article_id,
+                    "findings": [
+                        {"code": "TEMPLATE_USAGE", "message": "跨篇相似"}
+                    ],
+                }
+                for article_id in pipeline.REWRITE_REPAIR_ARTICLE_IDS
+            ],
+        },
+    )
+    deterministic_calls = 0
+
+    def aggregate_findings(
+        _brief: dict[str, object],
+        _articles: list[dict[str, object]],
+    ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+        nonlocal deterministic_calls
+        deterministic_calls += 1
+        if deterministic_calls == 1:
+            return (
+                [
+                    {
+                        "article_id": pipeline.REWRITE_REPAIR_ARTICLE_IDS[0],
+                        "code": "paragraph_length",
+                        "message": "第 1 節第 1 段為 131 字；必須 90 到 130 字",
+                    }
+                ],
+                [],
+            )
+        return [], []
+
+    monkeypatch.setattr(pipeline, "rewrite_aggregate_findings", aggregate_findings)
+
+    class RecordingClient:
+        writer_model = "test-writer"
+        reviewer_model = "test-reviewer"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                source = brief["articles"][
+                    0 if self.writer_calls > 5 else self.writer_calls - 1
+                ]
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": make_rewrite_sections(
+                                str(source["identity"]["primaryKeyword"]),
+                                f"稿{self.writer_calls}",
+                            ),
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": f"article-{index:02d}",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                    for index in range(1, 6)
+                ]
+            }
+
+    client = RecordingClient()
+    _candidate, review = pipeline.run_rewrite_repair(tmp_path, client)
+
+    assert client.writer_calls == 6
+    assert client.reviewer_calls == 1
+    assert all(item["verdict"] == "APPROVE" for item in review["articles"])
 
 
 def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
