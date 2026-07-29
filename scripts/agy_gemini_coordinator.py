@@ -187,8 +187,16 @@ def _select_lane_states(
     states: list[dict[str, Any]],
     legacy_article_ids: set[str],
 ) -> list[dict[str, Any]]:
+    """每條 lane 固定推進最早註冊的 run，直到它進入終態。"""
     selected: dict[str, dict[str, Any]] = {}
-    for state in states:
+    ordered_states = sorted(
+        states,
+        key=lambda state: (
+            str(state.get("registered_at") or ""),
+            str(state.get("run_id") or ""),
+        ),
+    )
+    for state in ordered_states:
         lane = _lane_for_state(state, legacy_article_ids)
         selected.setdefault(lane, state)
         if len(selected) == len(CONTENT_LANES):

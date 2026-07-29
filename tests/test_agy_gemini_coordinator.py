@@ -182,6 +182,51 @@ def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch
     }
 
 
+def test_lane_mode_continues_oldest_registered_run_until_terminal(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    for index, run_id in enumerate(("i18n-oldest", "i18n-next")):
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "mode": "translate_existing",
+                    "articles": [{"source_article_id": f"V2-NEW-{index + 1:03d}", "locale": "en"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        register_run(run_dir, queue_root)
+        state_path = coordinator._state_path(run_id, queue_root)
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["registered_at"] = f"2026-07-25T10:0{index}:00+08:00"
+        state["updated_at"] = state["registered_at"]
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    for _ in range(2):
+        cycle_once(
+            queue_root,
+            tick=pending_tick,
+            process=lambda _root: {"status": "idle"},
+            repo_root=tmp_path,
+            lane_mode=True,
+        )
+
+    assert advanced == ["i18n-oldest", "i18n-oldest"]
+
+
 def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
     tmp_path: Path,
     monkeypatch,
