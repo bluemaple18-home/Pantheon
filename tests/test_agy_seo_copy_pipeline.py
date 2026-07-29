@@ -2136,18 +2136,18 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
                 "articles": [
                     {
                         "slot": "article-01",
-                        "semantic_verdict": "APPROVE",
-                        "semantic_findings": [],
-                        "objective_observations": [
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
                             {
-                                "code": "BODY_SHAPE_VIOLATION",
+                                "code": "body_shape_violation",
                                 "message": "錯誤聲稱正文約 1150 字",
                             },
                             {
-                                "code": "BODY_SHAPE_VIOLATION",
+                                "code": "paragraph_length_violation",
                                 "message": "錯誤聲稱多數段落不足 90 到 130 字",
                             },
                         ],
+                        "objective_observations": [],
                     }
                 ]
             }
@@ -2166,7 +2166,7 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
     external_review = json.loads(
         (tmp_path / "attempts/01/external-review.json").read_text()
     )
-    assert len(external_review["articles"][0]["objective_observations"]) == 2
+    assert len(external_review["articles"][0]["semantic_findings"]) == 2
 
 
 def test_rewrite_review_schema_uses_canonical_objective_code_enum() -> None:
@@ -2187,6 +2187,95 @@ def test_rewrite_review_schema_uses_canonical_objective_code_enum() -> None:
     }
     assert "section_count_valid" not in objective_code_schema["enum"]
     assert "total_length_valid" not in objective_code_schema["enum"]
+
+
+def test_hydrate_rewrite_review_removes_only_machine_owned_semantic_findings() -> None:
+    brief = make_rewrite_brief("MIXED-REWRITE-REVIEW")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(variant="混合"),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+
+    review = pipeline.hydrate_rewrite_review(
+        brief,
+        candidate,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "semantic_verdict": "REJECT",
+                    "semantic_findings": [
+                        {
+                            "code": "body_shape_violation",
+                            "message": "錯誤聲稱正文尺寸不合格",
+                        },
+                        {
+                            "code": "search_intent_mismatch",
+                            "message": "沒有回答搜尋者的核心問題",
+                        },
+                    ],
+                    "objective_observations": [],
+                }
+            ]
+        },
+    )
+
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "search_intent_mismatch",
+            "message": "沒有回答搜尋者的核心問題",
+        }
+    ]
+
+
+def test_hydrate_rewrite_review_requires_exact_objective_code() -> None:
+    brief = make_rewrite_brief("INVALID-OBJECTIVE-CODE")
+    source = brief["articles"][0]
+    article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": make_rewrite_sections(variant="精確"),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+
+    with pytest.raises(ValueError, match="objective observation is invalid"):
+        pipeline.hydrate_rewrite_review(
+            brief,
+            candidate,
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [
+                            {
+                                "code": "BODY_SHAPE_VIOLATION",
+                                "message": "非 canonical 大小寫",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
 
 
 def test_rewrite_reviewer_prompts_require_exact_review_contract() -> None:
@@ -3219,18 +3308,20 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
                 "articles": [
                     {
                         "slot": f"article-{index:02d}",
-                        "semantic_verdict": "APPROVE",
-                        "semantic_findings": [],
-                        "objective_observations": (
+                        "semantic_verdict": (
+                            "REJECT" if index == 1 else "APPROVE"
+                        ),
+                        "semantic_findings": (
                             [
                                 {
-                                    "code": "BODY_SHAPE_VIOLATION",
+                                    "code": "body_shape_violation",
                                     "message": "錯誤聲稱正文尺寸不合格",
                                 }
                             ]
                             if index == 1
                             else []
                         ),
+                        "objective_observations": [],
                     }
                     for index in range(1, 6)
                 ]
@@ -3593,7 +3684,7 @@ def test_review_existing_reuses_candidate_without_writer_call(tmp_path: Path, mo
     assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
 
 
-def test_review_existing_rewrite_dismisses_only_objective_observations(
+def test_review_existing_rewrite_reconciles_misplaced_machine_finding(
     tmp_path: Path,
 ) -> None:
     brief = make_rewrite_brief("EXISTING-REWRITE-001")
@@ -3629,14 +3720,14 @@ def test_review_existing_rewrite_dismisses_only_objective_observations(
                 "articles": [
                     {
                         "slot": "article-01",
-                        "semantic_verdict": "APPROVE",
-                        "semantic_findings": [],
-                        "objective_observations": [
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
                             {
-                                "code": "BODY_SHAPE_VIOLATION",
+                                "code": "body_shape_violation",
                                 "message": "錯誤聲稱既有正文尺寸不合格",
                             }
                         ],
+                        "objective_observations": [],
                     }
                 ]
             }

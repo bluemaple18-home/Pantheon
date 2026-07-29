@@ -3212,8 +3212,7 @@ def hydrate_rewrite_review(
                     isinstance(observation[field], str) and observation[field].strip()
                     for field in ("code", "message")
                 )
-                or str(observation["code"]).strip().casefold()
-                not in REWRITE_MACHINE_OWNED_REVIEW_CODES
+                or observation["code"] not in REWRITE_MACHINE_OWNED_REVIEW_CODES
             ):
                 raise ValueError("rewrite objective observation is invalid")
         semantic_external["articles"].append(
@@ -3223,12 +3222,19 @@ def hydrate_rewrite_review(
                 "findings": semantic_findings,
             }
         )
-    return hydrate_review(brief, candidate, semantic_external)
+    review = hydrate_review(brief, candidate, semantic_external)
+    return reconcile_external_review_with_machine_gate(
+        review,
+        REWRITE_MACHINE_OWNED_REVIEW_CODES,
+        exact_codes=True,
+    )
 
 
 def reconcile_external_review_with_machine_gate(
     review: dict[str, Any],
     machine_owned_codes: set[str] | None = None,
+    *,
+    exact_codes: bool = False,
 ) -> dict[str, Any]:
     owned_codes = (
         MACHINE_OWNED_REVIEW_CODES
@@ -3240,7 +3246,12 @@ def reconcile_external_review_with_machine_gate(
         item["findings"] = [
             finding
             for finding in item["findings"]
-            if str(finding.get("code")).strip().casefold() not in owned_codes
+            if (
+                finding.get("code")
+                if exact_codes
+                else str(finding.get("code")).strip().casefold()
+            )
+            not in owned_codes
         ]
         if original_verdict == "REJECT" and not item["findings"]:
             item["verdict"] = "APPROVE"
