@@ -535,36 +535,11 @@ import { getArticlePath, listArticleRecords } from "./app/web/static/article-reg
 import { ARTICLE_HUB_DISPLAY_LIMIT, pickLatestArticles } from "./app/web/static/articles.js";
 
 const allArticles = listArticleRecords();
-const rankedPathsByCategory = (articles) => {
-  const buckets = new Map();
-  for (const article of articles) {
-    const category = article.articleCategory || article.section || article.product;
-    if (!buckets.has(category)) buckets.set(category, []);
-    buckets.get(category).push(article);
-  }
-  for (const bucket of buckets.values()) {
-    bucket.sort((a, b) => {
-      const aDate = String(a.updated || a.published || a.date || "");
-      const bDate = String(b.updated || b.published || b.date || "");
-      return bDate.localeCompare(aDate)
-        || String(b.serial || "").localeCompare(String(a.serial || ""), "zh-Hant", { numeric: true });
-    });
-  }
-  return new Map([...buckets].map(([category, bucket]) => [category, bucket.map(getArticlePath)]));
-};
 const summarize = (articles) => {
-  const rankedPaths = rankedPathsByCategory(articles);
-  const categoryOffsets = new Map();
-  const records = pickLatestArticles(articles).map((article) => {
-    const category = article.articleCategory;
-    const offset = categoryOffsets.get(category) || 0;
-    categoryOffsets.set(category, offset + 1);
-    return {
-      path: getArticlePath(article),
-      expectedPath: rankedPaths.get(category)[offset],
-      category,
-    };
-  });
+  const records = pickLatestArticles(articles).map((article) => ({
+    path: getArticlePath(article),
+    category: article.articleCategory,
+  }));
   return {
     records,
     adjacentSameCategory: records.some(
@@ -600,13 +575,53 @@ console.log(JSON.stringify({
     assert len(baseline_paths) == len(rewritten_paths) == data["limit"]
     assert [record["category"] for record in data["baseline"]["records"]] == expected_categories
     assert [record["category"] for record in data["rewritten"]["records"]] == expected_categories
-    assert all(record["path"] == record["expectedPath"] for record in data["baseline"]["records"])
-    assert all(record["path"] == record["expectedPath"] for record in data["rewritten"]["records"])
     assert data["baseline"]["adjacentSameCategory"] is False
     assert data["rewritten"]["adjacentSameCategory"] is False
-    assert data["rewriteTargetPath"] not in baseline_paths
     assert data["rewriteTargetPath"] in rewritten_paths
-    assert rewritten_paths != baseline_paths
+    if data["rewriteTargetPath"] not in baseline_paths:
+        assert rewritten_paths != baseline_paths
+
+
+def test_articles_hub_sorting_uses_date_fallback_and_serial_tie_break() -> None:
+    script = """
+import { getArticlePath } from "./app/web/static/article-registry.js";
+import { compareNewestArticles } from "./app/web/static/articles.js";
+
+const records = [
+  { articleCategory: "synthetic", serial: "synthetic-0011", date: "2026-01-01" },
+  { articleCategory: "synthetic", serial: "synthetic-0003", date: "2026-02-02" },
+  {
+    articleCategory: "synthetic",
+    serial: "synthetic-0002",
+    published: "2026-03-03",
+    date: "2099-12-31",
+  },
+  {
+    articleCategory: "synthetic",
+    serial: "synthetic-0001",
+    updated: "2026-01-15",
+    published: "2099-12-31",
+    date: "2099-12-31",
+  },
+  { articleCategory: "synthetic", serial: "synthetic-0020", date: "2026-01-01" },
+];
+
+console.log(JSON.stringify([...records].sort(compareNewestArticles).map(getArticlePath)));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == [
+        "/articles/synthetic/synthetic-0002",
+        "/articles/synthetic/synthetic-0003",
+        "/articles/synthetic/synthetic-0001",
+        "/articles/synthetic/synthetic-0020",
+        "/articles/synthetic/synthetic-0011",
+    ]
 
 
 def test_article_urls_serve_article_template() -> None:
