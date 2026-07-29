@@ -3331,6 +3331,15 @@ def _writer_prompt(
     ])
 
 
+def _rewrite_reviewer_semantic_contract() -> str:
+    return (
+        "semantic_findings 只可放阻塞核准的問題；"
+        "semantic_verdict=APPROVE 時 semantic_findings 必須精確為 []；"
+        "semantic_findings 非空時 semantic_verdict 必須為 REJECT；"
+        "不得把正面評語、通過項目、摘要或建議放入 semantic_findings。"
+    )
+
+
 def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], deterministic_findings: list[dict[str, str]]) -> str:
     create_profile = publication_presentation_profile("create")
     title_minimum, title_maximum = _range_bounds(
@@ -3368,6 +3377,7 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
             "場景、動詞、限制、安全邊界、錯別字與模板感。section／paragraph 數量與長度、正文總長、"
             "immutable identity、candidate hash 等客觀觀察只能放 objective_observations。"
             "即使 semantic finding 的 code 看似客觀，也必須保留在 semantic_findings；"
+            f"{_rewrite_reviewer_semantic_contract()}"
             "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
         )
     return "\n".join([
@@ -3433,6 +3443,7 @@ def _repair_reviewer_prompt(
         "semantic_verdict 只表示語意結論；semantic_findings 與 objective_observations 必須分開。"
         "搜尋意圖、語意品質、安全、錯別字與模板感只能放 semantic_findings，"
         "即使 code 看似客觀也不得移到 objective_observations。",
+        _rewrite_reviewer_semantic_contract(),
         "不同文章必須採用 variation contract 指定的不同開場、H2、論證順序、反例位置與結尾。",
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),

@@ -2169,6 +2169,219 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
     assert len(external_review["articles"][0]["objective_observations"]) == 2
 
 
+def test_rewrite_reviewer_prompts_require_empty_findings_for_approval() -> None:
+    brief = make_rewrite_brief("REWRITE-PROMPT-CONTRACT")
+    source = brief["articles"][0]
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": make_rewrite_sections(variant="契約"),
+                "publicationPolicy": make_rewrite_publication_policy(source),
+            }
+        ],
+    }
+
+    prompts = [
+        pipeline._reviewer_prompt(brief, candidate, []),
+        pipeline._repair_reviewer_prompt(brief, candidate, []),
+    ]
+
+    for prompt in prompts:
+        assert "semantic_findings 只可放阻塞核准的問題" in prompt
+        assert (
+            "semantic_verdict=APPROVE 時 semantic_findings 必須精確為 []"
+            in prompt
+        )
+        assert "semantic_findings 非空時 semantic_verdict 必須為 REJECT" in prompt
+        assert (
+            "不得把正面評語、通過項目、摘要或建議放入 semantic_findings"
+            in prompt
+        )
+
+
+def test_rewrite_provider_approve_with_positive_findings_fails_closed(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("CHART-BAZI-05")
+    brief["run_id"] = "legacy-auto-sweep-v1-fortune-0026-chart-bazi-05"
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections(
+        str(source["identity"]["primaryKeyword"]),
+        variant="八字",
+    )
+    production_lengths = [
+        127,
+        125,
+        125,
+        118,
+        120,
+        116,
+        119,
+        117,
+        112,
+        122,
+        115,
+        111,
+        116,
+        110,
+        109,
+    ]
+    paragraphs = [
+        paragraph
+        for section in body
+        for paragraph in section["paragraphs"]
+    ]
+    for index, target_length in enumerate(production_lengths):
+        paragraphs[index] = (str(paragraphs[index]) + "補" * target_length)[
+            :target_length
+        ]
+    for index, section in enumerate(body):
+        section["paragraphs"] = paragraphs[index * 3 : index * 3 + 3]
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert sum(len(paragraph) for paragraph in paragraphs) == 1762
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    positive_findings = [
+        {
+            "code": "SEARCH_INTENT_ALIGNED",
+            "message": "內容完整回應搜尋意圖。",
+        },
+        {
+            "code": "SCENARIOS_ARE_CONCRETE",
+            "message": "生活場景具體且可觀察。",
+        },
+        {
+            "code": "BOUNDARIES_ARE_CLEAR",
+            "message": "限制與安全邊界交代清楚。",
+        },
+        {
+            "code": "LANGUAGE_IS_NATURAL",
+            "message": "繁體中文自然，沒有模板感。",
+        },
+    ]
+    objective_observations = [
+        {"code": "BODY_LENGTH", "message": "正文長度符合規範。"},
+        {"code": "SECTION_COUNT", "message": "section 數量符合規範。"},
+        {"code": "PARAGRAPH_COUNT", "message": "paragraph 數量符合規範。"},
+        {"code": "PARAGRAPH_LENGTH", "message": "各段長度符合規範。"},
+    ]
+
+    class PositiveFindingsReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "gemini-3.1-flash-lite"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": positive_findings,
+                        "objective_observations": objective_observations,
+                    }
+                ]
+            }
+
+    client = PositiveFindingsReviewer()
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=1,
+    )
+
+    assert client.writer_calls == 1
+    assert client.reviewer_calls == 1
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is True
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "invalid_reviewer_json:ValueError",
+            "message": "invalid_reviewer_json:ValueError",
+        }
+    ]
+    external_review = json.loads(
+        (tmp_path / "attempts/01/external-review.json").read_text()
+    )
+    assert (
+        external_review["articles"][0]["semantic_findings"]
+        == positive_findings
+    )
+
+
+def test_rewrite_cached_legacy_review_payload_fails_closed(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("CACHED-LEGACY-REVIEW")
+    source = brief["articles"][0]
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [
+            {
+                "article_id": source["article_id"],
+                "identity": source["identity"],
+                "current_body_sha256": source["current_body_sha256"],
+                "bodySections": make_rewrite_sections(variant="快取"),
+                "publicationPolicy": make_rewrite_publication_policy(source),
+            }
+        ],
+    }
+    cached_path = tmp_path / "external-review.json"
+    pipeline.write_json(
+        cached_path,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "verdict": "APPROVE",
+                    "findings": [],
+                }
+            ]
+        },
+    )
+    cached_payload = json.loads(cached_path.read_text())
+
+    with pytest.raises(ValueError, match="rewrite review fields are strict"):
+        pipeline.hydrate_rewrite_review(brief, candidate, cached_payload)
+
+
 def test_rewrite_semantic_reject_survives_machine_owned_code_label(
     tmp_path: Path,
 ) -> None:
