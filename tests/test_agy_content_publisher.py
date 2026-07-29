@@ -1158,6 +1158,56 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
     assert after == before
 
 
+def test_deployment_preflight_allows_descendant_content_only_origin_advance(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    runtime_sha = "a" * 40
+    origin_main_sha = "b" * 40
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        if args == ["rev-parse", "origin/main"]:
+            return origin_main_sha
+        if args == ["merge-base", runtime_sha, origin_main_sha]:
+            return runtime_sha
+        if args == [
+            "diff",
+            "--name-only",
+            runtime_sha,
+            origin_main_sha,
+            "--",
+            *publisher.TRANSACTION_RUNTIME_PATHS,
+        ]:
+            return ""
+        raise AssertionError(f"unexpected git command: {args}")
+
+    plan = publisher.deployment_preflight(
+        actor,
+        queue_root,
+        state_root,
+        expected_repo_root=actor,
+        expected_queue_root=queue_root,
+        expected_state_root=state_root,
+        expected_runtime_sha=runtime_sha,
+        push=True,
+        expected_push_mode="push",
+        git=fake_git,
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["runtime_sha"] == runtime_sha
+    assert plan["origin_main_sha"] == origin_main_sha
+
+
 def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1227,7 +1277,8 @@ def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
         ("state", "state root"),
         ("runtime", "runtime SHA"),
         ("dirty", "worktree is not clean"),
-        ("origin", "local HEAD differs"),
+        ("origin", "origin/main is not a descendant"),
+        ("origin-runtime", "publisher runtime differs from origin/main"),
         ("push", "push mode"),
     ],
 )
@@ -1250,7 +1301,18 @@ def test_deployment_preflight_fails_closed_on_contract_drift(
         if args == ["rev-parse", "HEAD"]:
             return runtime_sha
         if args == ["rev-parse", "origin/main"]:
-            return "b" * 40 if drift == "origin" else runtime_sha
+            return "b" * 40 if drift in {"origin", "origin-runtime"} else runtime_sha
+        if args == ["merge-base", runtime_sha, "b" * 40]:
+            return "c" * 40 if drift == "origin" else runtime_sha
+        if args == [
+            "diff",
+            "--name-only",
+            runtime_sha,
+            "b" * 40,
+            "--",
+            *publisher.TRANSACTION_RUNTIME_PATHS,
+        ]:
+            return publisher.TRANSACTION_RUNTIME_PATHS[0] if drift == "origin-runtime" else ""
         raise AssertionError(f"unexpected git command: {args}")
 
     with pytest.raises(publisher.PublishBlocked, match=message):

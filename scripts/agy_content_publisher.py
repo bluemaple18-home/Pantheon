@@ -500,9 +500,32 @@ def deployment_preflight(
         )
     origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
     if local_sha != origin_main_sha:
-        raise PublishBlocked(
-            f"local HEAD differs from origin/main: {local_sha[:12]} != {origin_main_sha[:12]}"
+        merge_base = git(
+            repo_root,
+            ["merge-base", local_sha, origin_main_sha],
+            None,
         )
+        if merge_base != local_sha:
+            raise PublishBlocked(
+                "origin/main is not a descendant of publisher runtime SHA"
+            )
+        runtime_drift = git(
+            repo_root,
+            [
+                "diff",
+                "--name-only",
+                local_sha,
+                origin_main_sha,
+                "--",
+                *TRANSACTION_RUNTIME_PATHS,
+            ],
+            None,
+        ).splitlines()
+        if runtime_drift:
+            raise PublishBlocked(
+                "publisher runtime differs from origin/main: "
+                + ", ".join(runtime_drift)
+            )
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "ready",
