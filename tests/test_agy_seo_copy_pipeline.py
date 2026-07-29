@@ -223,6 +223,39 @@ def make_external_create_article(article: dict[str, object]) -> dict[str, object
     }
 
 
+def make_deterministic_green_create_article(
+    article_id: str = "DETERMINISTIC-GREEN",
+) -> dict[str, object]:
+    def sized_text(seed: str, size: int) -> str:
+        return (seed + "逐項記錄可觀察資料與限制。" * size)[:size]
+
+    article = make_article(article_id)
+    article["tags"] = sorted(pipeline.REQUIRED_PUBLIC_TAGS | {"人格", "自我理解"})
+    article["description"] = sized_text(
+        "測試關鍵字適合整理具體情境與可觀察行動；本文只提供通用理解，不能替個人下結論。",
+        84,
+    )
+    article["bodySections"] = [
+        {
+            "heading": f"測試關鍵字的具體觀察 {section + 1}",
+            "paragraphs": [
+                sized_text(
+                    (
+                        "測試關鍵字先核對情境與限制，再決定下一步。"
+                        if section == 0 and paragraph == 0
+                        else f"第{section + 1}節第{paragraph + 1}段先核對情境與限制。"
+                    ),
+                    100,
+                )
+                for paragraph in range(3)
+            ],
+        }
+        for section in range(5)
+    ]
+    assert pipeline.quality_findings([article]) == []
+    return article
+
+
 def test_create_candidate_serialization_is_stable_across_python_hash_seeds() -> None:
     target = make_article()
     brief = {
@@ -1055,6 +1088,253 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     assert "逐一移除 findings 指出的禁詞" in prompt
     assert pipeline.publication_presentation_instruction("create") in prompt
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
+
+
+def test_standalone_answer_repair_fields_only_authorize_answer() -> None:
+    article = make_article("STANDALONE-ANSWER-REPAIR")
+    article["answer"] = "太短"
+    finding = {
+        "article_id": article["id"],
+        "code": "standalone_answer",
+        "message": "answer 必須可獨立理解",
+    }
+
+    fields = pipeline._create_repair_fields(article, [finding])
+    contract = pipeline._create_repair_contract(
+        {
+            "schema_version": 1,
+            "run_id": "standalone-answer-repair",
+            "mode": "create",
+            "articles": [article],
+        },
+        [finding],
+    )
+    properties = pipeline.external_create_repair_schema(contract)["properties"][
+        "articles"
+    ]["items"]["properties"]
+
+    assert fields == {"answer"}
+    assert contract == {"article-01": ("answer",)}
+    assert set(properties) == {"slot", "answer"}
+
+
+def test_repair_fields_cover_all_repairable_deterministic_create_codes() -> None:
+    article = make_article("DETERMINISTIC-REPAIR-FIELDS")
+    expected = {
+        "answer_length": {"answer"},
+        "body_length": {"bodySections"},
+        "body_length_insufficient": {"bodySections"},
+        "cross_corpus_originality": {"bodySections"},
+        "description_boundary": {"description"},
+        "description_context_and_limit": {"description"},
+        "description_length": {"description"},
+        "explicit_limit_or_counterexample": {"bodySections"},
+        "false_social_origin": {"bodySections"},
+        "missing_boundary": {"description"},
+        "missing_pantheon_context": {"bodySections"},
+        "opening_keyword": {"bodySections"},
+        "opening_primary_intent": {"bodySections"},
+        "paragraph_count": {"bodySections"},
+        "paragraph_length": {"bodySections"},
+        "paragraph_length_violation": {"bodySections"},
+        "repeated_sentence": {"bodySections"},
+        "required_tags": {"tags"},
+        "section_count": {"bodySections"},
+        "standalone_answer": {"answer"},
+        "title_keyword": {"title"},
+        "title_length": {"title"},
+        "title_primary_intent": {"title"},
+    }
+
+    actual = {
+        code: pipeline._create_repair_fields(
+            article,
+            [{"article_id": article["id"], "code": code, "message": code}],
+            deterministic_findings=True,
+        )
+        for code in expected
+    }
+
+    assert actual == expected
+
+
+def test_repair_fields_locate_dynamic_deterministic_create_codes() -> None:
+    cases = [
+        ("banned_phrase", "命中禁詞：自訂禁詞", "answer", "自訂禁詞"),
+        (
+            "generic_ai_phrase",
+            "命中模板或假場景詞：自訂模板詞",
+            "description",
+            "自訂模板詞",
+        ),
+        (
+            "article_level_evidence",
+            "文化/反思內容偵測到需 evidence 的主張",
+            "title",
+            "某項研究顯示",
+        ),
+        (
+            "no_outcome_guarantee",
+            "禁止結果保證：自訂結果保證",
+            "answer",
+            "自訂結果保證",
+        ),
+        (
+            "no_professional_advice_substitution",
+            "禁止專業替代建議：自訂專業替代",
+            "bodySections",
+            "自訂專業替代",
+        ),
+    ]
+
+    for code, message, field, phrase in cases:
+        article = make_article(f"DYNAMIC-{code}")
+        if field == "bodySections":
+            article[field][0]["paragraphs"][0] = phrase
+        else:
+            article[field] = phrase
+        assert pipeline._create_repair_fields(
+            article,
+            [{"article_id": article["id"], "code": code, "message": message}],
+            deterministic_findings=True,
+        ) == {field}
+
+
+def test_repair_fields_fail_closed_only_for_deterministic_unmapped_findings() -> None:
+    article = make_article("UNMAPPED-DETERMINISTIC-REPAIR")
+    deterministic_unmapped_codes = {
+        "author_identity",
+        "canonical_consistency",
+        "cultural_reflection_disclosure",
+        "future_deterministic_code",
+        "invalid_policy_contract",
+        "missing_policy_contract",
+        "policy_version",
+        "substantive_modified_date",
+        "truthful_dates",
+    }
+
+    for code in deterministic_unmapped_codes:
+        with pytest.raises(
+            CandidateValidationError,
+            match=f"unmapped deterministic create finding: {code}",
+        ):
+            pipeline._create_repair_contract(
+                {
+                    "schema_version": 1,
+                    "run_id": "unmapped-deterministic-repair",
+                    "mode": "create",
+                    "articles": [article],
+                },
+                [{"article_id": article["id"], "code": code, "message": code}],
+                deterministic_findings=True,
+            )
+
+    for code in ["copy", "TEMPLATE_STRUCTURE", "search_intent_mismatch"]:
+        assert pipeline._create_repair_contract(
+            {
+                "schema_version": 1,
+                "run_id": "reviewer-directed-repair",
+                "mode": "create",
+                "articles": [article],
+            },
+            [{"article_id": article["id"], "code": code, "message": code}],
+        ) == {"article-01": ("bodySections",)}
+
+
+def test_bounded_create_repair_answer_merge_preserves_unauthorized_field_bytes() -> None:
+    article = make_article("PARTIAL-ANSWER-REPAIR")
+    article["answer"] = "太短"
+    candidate = {
+        "schema_version": 1,
+        "run_id": "partial-answer-repair",
+        "mode": "create",
+        "articles": [article],
+    }
+    finding = {
+        "article_id": article["id"],
+        "code": "standalone_answer",
+        "message": "answer 必須可獨立理解",
+    }
+    unchanged_bytes = {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in article.items()
+        if field != "answer"
+    }
+    contract = pipeline._create_repair_contract(
+        candidate,
+        [finding],
+        deterministic_findings=True,
+    )
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "answer": "測試關鍵字提供通用觀察角度，不能替個人下結論。",
+                }
+            ]
+        },
+        contract,
+    )
+
+    assert {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in repaired["articles"][0].items()
+        if field != "answer"
+    } == unchanged_bytes
+    with pytest.raises(
+        CandidateValidationError,
+        match="external create repair fields differ from contract",
+    ):
+        pipeline.hydrate_create_repair(
+            candidate,
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "answer": "測試關鍵字提供通用觀察角度，不能替個人下結論。",
+                        "bodySections": article["bodySections"],
+                    }
+                ]
+            },
+            contract,
+        )
+
+
+def test_bounded_create_repair_clears_short_answer_before_reviewer_gate() -> None:
+    article = make_deterministic_green_create_article("SHORT-ANSWER-GATE")
+    article["answer"] = "太短"
+    candidate = {
+        "schema_version": 1,
+        "run_id": "short-answer-gate",
+        "mode": "create",
+        "articles": [article],
+    }
+    findings = pipeline.quality_findings([article])
+    assert {finding["code"] for finding in findings} == {"standalone_answer"}
+    contract = pipeline._create_repair_contract(
+        candidate,
+        findings,
+        deterministic_findings=True,
+    )
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "answer": "測試關鍵字提供通用觀察角度，不能替個人下結論。",
+                }
+            ]
+        },
+        contract,
+    )
+
+    assert pipeline.quality_findings(repaired["articles"]) == []
 
 
 def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_green(

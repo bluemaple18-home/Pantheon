@@ -2770,24 +2770,34 @@ def _create_repair_directives(findings: list[dict[str, Any]]) -> str:
 def _create_repair_fields(
     article: dict[str, Any],
     findings: list[dict[str, Any]],
+    *,
+    deterministic_findings: bool = False,
 ) -> set[str]:
     """把本機 finding 收斂成最小可重做欄位集合。"""
     fields_by_code = {
         "answer_length": {"answer"},
         "body_length": {"bodySections"},
         "body_length_insufficient": {"bodySections"},
+        "cross_corpus_originality": {"bodySections"},
         "description_boundary": {"description"},
+        "description_context_and_limit": {"description"},
         "description_length": {"description"},
+        "explicit_limit_or_counterexample": {"bodySections"},
+        "false_social_origin": {"bodySections"},
         "missing_boundary": {"description"},
+        "missing_pantheon_context": {"bodySections"},
         "opening_keyword": {"bodySections"},
+        "opening_primary_intent": {"bodySections"},
         "paragraph_count": {"bodySections"},
         "paragraph_length": {"bodySections"},
         "paragraph_length_violation": {"bodySections"},
         "repeated_sentence": {"bodySections"},
         "required_tags": {"tags"},
         "section_count": {"bodySections"},
+        "standalone_answer": {"answer"},
         "title_keyword": {"title"},
         "title_length": {"title"},
+        "title_primary_intent": {"title"},
     }
     repair_fields: set[str] = set()
     searchable = {
@@ -2802,7 +2812,18 @@ def _create_repair_fields(
     }
     for finding in findings:
         code = str(finding.get("code") or "")
-        if code in {"banned_phrase", "generic_ai_phrase"}:
+        if code == "article_level_evidence":
+            matched = {
+                field
+                for field, text in searchable.items()
+                if _verifiable_claim_markers(text)
+            }
+        elif code in {
+            "banned_phrase",
+            "generic_ai_phrase",
+            "no_outcome_guarantee",
+            "no_professional_advice_substitution",
+        }:
             phrase = str(finding.get("message") or "").partition("：")[2]
             matched = {
                 field
@@ -2814,15 +2835,24 @@ def _create_repair_fields(
                     else phrase in text
                 )
             }
-            repair_fields.update(matched or {"bodySections"})
-            continue
-        repair_fields.update(fields_by_code.get(code, {"bodySections"}))
+        else:
+            matched = fields_by_code.get(code, set())
+        if matched:
+            repair_fields.update(matched)
+        elif deterministic_findings:
+            raise CandidateValidationError(
+                f"unmapped deterministic create finding: {code or '<missing>'}"
+            )
+        else:
+            repair_fields.add("bodySections")
     return repair_fields
 
 
 def _create_repair_contract(
     candidate: dict[str, Any],
     findings: list[dict[str, Any]],
+    *,
+    deterministic_findings: bool = False,
 ) -> dict[str, tuple[str, ...]]:
     findings_by_id: dict[str, list[dict[str, Any]]] = {}
     for finding in findings:
@@ -2834,7 +2864,13 @@ def _create_repair_contract(
         article_findings = findings_by_id.get(_candidate_id(article), [])
         if article_findings:
             contract[_slot(index)] = tuple(
-                sorted(_create_repair_fields(article, article_findings))
+                sorted(
+                    _create_repair_fields(
+                        article,
+                        article_findings,
+                        deterministic_findings=deterministic_findings,
+                    )
+                )
             )
     if not contract:
         raise CandidateValidationError("create repair has no targeted findings")
@@ -3191,6 +3227,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     content_repairs_used = 0
     schema_repairs_used = 0
     current_schema_repair = 0
+    repair_findings_are_deterministic = False
     attempt = 0
     while True:
         if review is not None and content_repairs_used >= max_repairs:
@@ -3204,7 +3241,11 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             for finding in item.get("findings", [])
         ]
         create_repair_contract = (
-            _create_repair_contract(candidate, findings)
+            _create_repair_contract(
+                candidate,
+                findings,
+                deterministic_findings=repair_findings_are_deterministic,
+            )
             if mode == "create" and candidate is not None
             else None
         )
@@ -3293,6 +3334,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         write_json(attempt_dir / "deterministic-findings.json", deterministic)
         invalid_reviewer = False
         if mode == "create" and deterministic:
+            repair_findings_are_deterministic = True
             deterministic_by_id: dict[str, list[dict[str, Any]]] = {}
             for finding in deterministic:
                 deterministic_by_id.setdefault(
@@ -3326,6 +3368,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                 ],
             }
         else:
+            repair_findings_are_deterministic = False
             try:
                 external_review = _generate_with_receipt(
                     client,
