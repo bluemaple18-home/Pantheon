@@ -252,6 +252,16 @@ def make_deterministic_green_create_article(
         }
         for section in range(5)
     ]
+    if article_id in {
+        "MBTI-INTP-AH",
+        "MBTI-INTP-AC",
+        "MBTI-INTP-OH",
+        "MBTI-INTP-OC",
+    }:
+        article["bodySections"][0]["paragraphs"][0] = sized_text(
+            "測試關鍵字屬於 Pantheon 64 分支內容；先核對情境與限制，再決定下一步。",
+            100,
+        )
     assert pipeline.quality_findings([article]) == []
     return article
 
@@ -1129,7 +1139,6 @@ def test_repair_fields_cover_all_repairable_deterministic_create_codes() -> None
         "description_context_and_limit": {"description"},
         "description_length": {"description"},
         "explicit_limit_or_counterexample": {"bodySections"},
-        "false_social_origin": {"bodySections"},
         "missing_boundary": {"description"},
         "missing_pantheon_context": {"bodySections"},
         "opening_keyword": {"bodySections"},
@@ -1156,6 +1165,123 @@ def test_repair_fields_cover_all_repairable_deterministic_create_codes() -> None
     }
 
     assert actual == expected
+
+
+def test_false_social_origin_repair_fields_follow_actual_matching_fields() -> None:
+    def with_false_origin(*fields: str) -> dict[str, object]:
+        article = make_deterministic_green_create_article("MBTI-INTP-AH")
+        if "title" in fields:
+            article["title"] = "測試關鍵字不是網路論壇俗稱，仍須核對具體情境與限制"
+        if "description" in fields:
+            seed = "測試關鍵字並非網路論壇俗稱；本文只提供通用理解，不能替個人下結論。"
+            article["description"] = (seed + "仍須核對情境與資料限制。" * 10)[:84]
+        if "answer" in fields:
+            article["answer"] = "測試關鍵字並非網路論壇俗稱，不能替個人下結論。"
+        if "bodySections" in fields:
+            seed = "測試關鍵字屬於 Pantheon 64 分支內容，並非網路論壇俗稱；先核對具體情境與限制。"
+            article["bodySections"][0]["paragraphs"][0] = (
+                seed + "逐項記錄可觀察資料。" * 20
+            )[:100]
+        return article
+
+    for field in ["title", "description", "answer", "bodySections"]:
+        article = with_false_origin(field)
+        findings = pipeline.quality_findings([article])
+        assert {finding["code"] for finding in findings} == {
+            "false_social_origin"
+        }
+        assert pipeline._create_repair_fields(
+            article,
+            findings,
+            deterministic_findings=True,
+        ) == {field}
+
+    article = with_false_origin("title", "answer")
+    findings = pipeline.quality_findings([article])
+    assert pipeline._create_repair_fields(
+        article,
+        findings,
+        deterministic_findings=True,
+    ) == {"title", "answer"}
+
+    unlocatable = make_deterministic_green_create_article("MBTI-INTP-AH")
+    unlocatable["title"] = "測試關鍵字的具體情境與限制需逐項查證於網友"
+    seed = "常被俗稱的說法仍須核對具體情境；本文只提供通用理解，不能替個人下結論。"
+    unlocatable["description"] = (seed + "仍須核對資料與使用限制。" * 10)[:84]
+    findings = pipeline.quality_findings([unlocatable])
+    assert {finding["code"] for finding in findings} == {"false_social_origin"}
+    with pytest.raises(
+        CandidateValidationError,
+        match="unmapped deterministic create finding: false_social_origin",
+    ):
+        pipeline._create_repair_fields(
+            unlocatable,
+            findings,
+            deterministic_findings=True,
+        )
+
+
+def test_false_social_origin_bounded_create_repair_is_strict_and_byte_stable() -> None:
+    article = make_deterministic_green_create_article("MBTI-INTP-AH")
+    article["title"] = "測試關鍵字不是網路論壇俗稱，仍須核對具體情境與限制"
+    findings = pipeline.quality_findings([article])
+    candidate = {
+        "schema_version": 1,
+        "run_id": "false-social-origin-repair",
+        "mode": "create",
+        "articles": [article],
+    }
+    unchanged_bytes = {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in article.items()
+        if field != "title"
+    }
+    contract = pipeline._create_repair_contract(
+        candidate,
+        findings,
+        deterministic_findings=True,
+    )
+    properties = pipeline.external_create_repair_schema(contract)["properties"][
+        "articles"
+    ]["items"]["properties"]
+
+    assert contract == {"article-01": ("title",)}
+    assert set(properties) == {"slot", "title"}
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "title": "測試關鍵字的具體情境與限制：先核對資料再做選擇",
+                }
+            ]
+        },
+        contract,
+    )
+    assert pipeline.quality_findings(repaired["articles"]) == []
+    assert {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in repaired["articles"][0].items()
+        if field != "title"
+    } == unchanged_bytes
+    with pytest.raises(
+        CandidateValidationError,
+        match="external create repair fields differ from contract",
+    ):
+        pipeline.hydrate_create_repair(
+            candidate,
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "title": "測試關鍵字的具體情境與限制：先核對資料再做選擇",
+                        "answer": article["answer"],
+                    }
+                ]
+            },
+            contract,
+        )
 
 
 def test_repair_fields_locate_dynamic_deterministic_create_codes() -> None:
@@ -1335,6 +1461,113 @@ def test_bounded_create_repair_clears_short_answer_before_reviewer_gate() -> Non
     )
 
     assert pipeline.quality_findings(repaired["articles"]) == []
+
+
+def test_run_writer_reviewer_repairs_standalone_answer_before_review(
+    tmp_path: Path,
+) -> None:
+    article = make_deterministic_green_create_article("SHORT-ANSWER-E2E")
+    article["answer"] = "太短"
+    repaired_answer = "測試關鍵字提供通用觀察角度，不能替個人下結論。"
+    unchanged_bytes = {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in article.items()
+        if field != "answer"
+    }
+    brief = {
+        "schema_version": 1,
+        "run_id": "short-answer-e2e",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                    "title": article["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: article[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    pipeline.write_json(tmp_path / "brief.json", brief)
+
+    class RecordingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            self.calls.append(role)
+            if role == "writer" and self.calls.count("writer") == 1:
+                return {"articles": [make_external_create_article(article)]}
+            if role == "writer":
+                properties = schema["properties"]["articles"]["items"]["properties"]  # type: ignore[index]
+                assert set(properties) == {"slot", "answer"}
+                assert '"standalone_answer"' in prompt
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "answer": repaired_answer,
+                        }
+                    ]
+                }
+            assert self.calls == ["writer", "writer", "reviewer"]
+            assert repaired_answer in prompt
+            assert "public deterministic findings:\n[]" in prompt
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    client = RecordingClient()
+    candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=1,
+    )
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text())
+    repaired = candidate["articles"][0]
+
+    assert client.calls == ["writer", "writer", "reviewer"]
+    assert repaired["answer"] == repaired_answer
+    assert {
+        field: pipeline.compact_json_bytes(value)
+        for field, value in repaired.items()
+        if field != "answer"
+    } == unchanged_bytes
+    assert pipeline.quality_findings([repaired]) == []
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert evidence["schema_repairs_used"] == 0
+    assert evidence["content_repairs_used"] == 1
+    assert evidence["attempts"] == 2
 
 
 def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_green(

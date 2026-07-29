@@ -1054,6 +1054,15 @@ def _has_boundary_statement(text: str) -> bool:
     return bool(re.search(r"不能|不代表|不適合|不是|無法|並非|不得|僅供|只供|只提供", text))
 
 
+def _has_false_social_origin(text: str) -> bool:
+    return bool(
+        re.search(
+            r"網路論壇|網友.{0,8}(?:俗稱|稱為)|社群.{0,8}(?:俗稱|代稱)",
+            text,
+        )
+    )
+
+
 def quality_findings(
     articles: list[dict[str, Any]],
     *,
@@ -1128,7 +1137,7 @@ def quality_findings(
             if re.fullmatch(r"MBTI-INTP-(?:AH|AC|OH|OC)", article_id):
                 if "Pantheon 64 分支" not in text:
                     findings.append({"article_id": article_id, "code": "missing_pantheon_context", "message": "INTP 分支文必須說明這是 Pantheon 64 分支內容"})
-                if re.search(r"網路論壇|網友.{0,8}(?:俗稱|稱為)|社群.{0,8}(?:俗稱|代稱)", text):
+                if _has_false_social_origin(text):
                     findings.append({"article_id": article_id, "code": "false_social_origin", "message": "不得把 Pantheon 64 分支誤寫成網路論壇俗稱"})
         proposed = article.get("proposed") if isinstance(article.get("proposed"), dict) else None
         if proposed is not None:
@@ -2618,7 +2627,12 @@ def _hydrate_create_publication_policy(
     return contract
 
 
-def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[str, Any]:
+def hydrate_candidate(
+    brief: dict[str, Any],
+    external: dict[str, Any],
+    *,
+    enforce_policy: bool = True,
+) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise CandidateValidationError("external candidate top-level fields are strict")
     by_slot = {str(item.get("slot")): item for item in external["articles"] if isinstance(item, dict)}
@@ -2668,7 +2682,7 @@ def hydrate_candidate(brief: dict[str, Any], external: dict[str, Any]) -> dict[s
                 }
             )
     candidate = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "mode": mode, "articles": articles}
-    validate_candidate(candidate)
+    validate_candidate(candidate, enforce_policy=enforce_policy)
     return candidate
 
 
@@ -2783,7 +2797,6 @@ def _create_repair_fields(
         "description_context_and_limit": {"description"},
         "description_length": {"description"},
         "explicit_limit_or_counterexample": {"bodySections"},
-        "false_social_origin": {"bodySections"},
         "missing_boundary": {"description"},
         "missing_pantheon_context": {"bodySections"},
         "opening_keyword": {"bodySections"},
@@ -2812,7 +2825,13 @@ def _create_repair_fields(
     }
     for finding in findings:
         code = str(finding.get("code") or "")
-        if code == "article_level_evidence":
+        if code == "false_social_origin":
+            matched = {
+                field
+                for field, text in searchable.items()
+                if _has_false_social_origin(text)
+            }
+        elif code == "article_level_evidence":
             matched = {
                 field
                 for field, text in searchable.items()
@@ -2910,6 +2929,8 @@ def hydrate_create_repair(
     prior: dict[str, Any],
     external: dict[str, Any],
     contract: dict[str, tuple[str, ...]],
+    *,
+    enforce_policy: bool = True,
 ) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise CandidateValidationError("external create repair top-level fields are strict")
@@ -2933,7 +2954,7 @@ def hydrate_create_repair(
             )
         for field in expected_fields:
             article[field] = generated[field]
-    validate_candidate(repaired)
+    validate_candidate(repaired, enforce_policy=enforce_policy)
     return repaired
 
 
@@ -3283,9 +3304,14 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                     candidate,
                     external_candidate,
                     create_repair_contract,
+                    enforce_policy=False,
                 )
                 if create_repair_contract is not None and candidate is not None
-                else hydrate_candidate(brief, external_candidate)
+                else hydrate_candidate(
+                    brief,
+                    external_candidate,
+                    enforce_policy=mode != "create",
+                )
             )
         except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
             schema_repairs_used += 1
@@ -3332,6 +3358,8 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                     raise CandidateValidationError(f"candidate changed current body hash for {article['article_id']}")
         deterministic = rewrite_quality_findings(brief, candidate["articles"]) if mode == "rewrite_existing_body" else quality_findings(candidate["articles"])
         write_json(attempt_dir / "deterministic-findings.json", deterministic)
+        if mode == "create" and not deterministic:
+            validate_candidate(candidate)
         invalid_reviewer = False
         if mode == "create" and deterministic:
             repair_findings_are_deterministic = True
@@ -3403,6 +3431,8 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             break
         attempt += 1
     assert candidate is not None and review is not None
+    if mode == "create":
+        validate_candidate(candidate)
     write_json(run_dir / "candidate.json", candidate)
     write_json(run_dir / "review.json", review)
     (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
