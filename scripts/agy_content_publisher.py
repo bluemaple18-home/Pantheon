@@ -1622,7 +1622,10 @@ def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, article
     paths = [_article_path(article) for article in articles]
     marker = "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
     start = text.index(marker) + len(marker)
-    end = text.index("]\n\nPUBLIC_ARTICLE_PATHS", start)
+    closing = re.search(r"^]\r?$", text[start:], flags=re.MULTILINE)
+    if closing is None:
+        raise PublishBlocked("DAILY_PUBLIC_ARTICLE_PATHS closing bracket not found")
+    end = start + closing.start()
     block = text[start:end]
     for path in paths:
         line = f'    "{path}",\n'

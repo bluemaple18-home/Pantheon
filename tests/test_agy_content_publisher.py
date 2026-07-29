@@ -2119,6 +2119,51 @@ def test_sync_web_test_release_fixture_updates_cache_token_and_paths(tmp_path: P
     assert '    "/articles/astrology/astrology-0139",\n' in text
 
 
+def test_sync_web_test_release_fixture_does_not_require_public_paths_to_be_adjacent(
+    tmp_path: Path,
+) -> None:
+    test_dir = tmp_path / "tests"
+    test_dir.mkdir()
+    middle_block = (
+        "EMERGENCY_PUBLIC_ARTICLE_PATHS = [\n"
+        '    "/articles/astrology/astrology-emergency",\n'
+        "]\n\n"
+        'PUBLIC_ARTICLE_DATE = "2026-07-29"\n\n'
+    )
+    public_block = (
+        "PUBLIC_ARTICLE_PATHS = [\n"
+        "    *DAILY_PUBLIC_ARTICLE_PATHS,\n"
+        "]\n"
+    )
+    (test_dir / "test_web.py").write_text(
+        'ARTICLE_CACHE_TOKEN = "old-token"\n\n'
+        "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
+        '    "/articles/astrology/astrology-0115",\n'
+        "]\n\n"
+        f"{middle_block}"
+        f"{public_block}",
+        encoding="utf-8",
+    )
+    article = make_publishable_article("AUTO-NEW")
+    article["serial"] = "astrology-0139"
+    article["urlSlug"] = "astrology-0139"
+
+    publisher._sync_web_test_release_fixture(
+        tmp_path,
+        cache_token="new-token",
+        articles=[article],
+    )
+    text = (test_dir / "test_web.py").read_text(encoding="utf-8")
+
+    assert 'ARTICLE_CACHE_TOKEN = "new-token"' in text
+    assert text.count('    "/articles/astrology/astrology-0139",\n') == 1
+    assert middle_block in text
+    assert public_block in text
+    assert text.index('    "/articles/astrology/astrology-0139",\n') < text.index(
+        "EMERGENCY_PUBLIC_ARTICLE_PATHS"
+    )
+
+
 def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp_path: Path) -> None:
     test_dir = tmp_path / "tests"
     web_dir = tmp_path / "app/web"
