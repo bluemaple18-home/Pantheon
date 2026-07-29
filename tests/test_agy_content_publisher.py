@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import plistlib
 from pathlib import Path
@@ -2195,6 +2196,24 @@ def test_run_release_tests_runs_fast_preflight_before_full_gate(
     publisher._run_release_tests(tmp_path)
 
     assert calls == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND]
+
+
+def test_preflight_test_command_selectors_resolve_to_top_level_tests() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    functions_by_path: dict[str, set[str]] = {}
+    selectors = [argument for argument in publisher.PREFLIGHT_TEST_COMMAND if "::" in argument]
+
+    assert selectors
+    for selector in selectors:
+        path_text, function_name = selector.split("::", maxsplit=1)
+        if path_text not in functions_by_path:
+            tree = ast.parse((repo_root / path_text).read_text(encoding="utf-8"))
+            functions_by_path[path_text] = {
+                node.name
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+        assert function_name in functions_by_path[path_text], selector
 
 
 def test_run_release_tests_skips_full_gate_when_preflight_fails(

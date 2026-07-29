@@ -53,7 +53,7 @@ PREFLIGHT_TEST_COMMAND = [
     sys.executable,
     "-m",
     "pytest",
-    "tests/test_web.py::test_cloudflare_pages_exact_rewrites_use_prerendered_product_hubs",
+    "tests/test_web.py::test_cloudflare_pages_wildcard_rewrite_uses_prerendered_product_hubs",
     "tests/test_web.py::test_tarot_hub_reading_guide_is_scanable",
     "tests/test_web.py::test_public_articles_follow_latest_publication_standard",
     "-q",
