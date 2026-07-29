@@ -460,6 +460,65 @@ def _repo_clean(repo_root: Path, git: GitRunner = run_git) -> bool:
     return git(repo_root, ["status", "--porcelain"], None) == ""
 
 
+def deployment_preflight(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    expected_repo_root: Path,
+    expected_queue_root: Path,
+    expected_state_root: Path,
+    expected_runtime_sha: str,
+    push: bool,
+    expected_push_mode: str,
+    git: GitRunner = run_git,
+) -> dict[str, Any]:
+    """唯讀核對 publisher actor 與部署契約，不建立或搬動任何狀態。"""
+    path_contract = (
+        ("actor root", repo_root, expected_repo_root),
+        ("queue root", queue_root, expected_queue_root),
+        ("state root", state_root, expected_state_root),
+    )
+    for label, actual, expected in path_contract:
+        if actual.resolve() != expected.resolve():
+            raise PublishBlocked(f"publisher {label} differs from deployment contract")
+    actual_push_mode = "push" if push else "no-push"
+    if expected_push_mode not in {"push", "no-push"}:
+        raise PublishBlocked("publisher expected push mode is invalid")
+    if actual_push_mode != expected_push_mode:
+        raise PublishBlocked(
+            "publisher push mode differs from deployment contract"
+        )
+    if not re.fullmatch(r"[0-9a-f]{40}", expected_runtime_sha):
+        raise PublishBlocked("publisher expected runtime SHA is invalid")
+    if not _repo_clean(repo_root, git):
+        raise PublishBlocked("publisher actor worktree is not clean")
+    local_sha = git(repo_root, ["rev-parse", "HEAD"], None)
+    if local_sha != expected_runtime_sha:
+        raise PublishBlocked(
+            "publisher runtime SHA differs from deployment contract"
+        )
+    origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
+    if local_sha != origin_main_sha:
+        raise PublishBlocked(
+            f"local HEAD differs from origin/main: {local_sha[:12]} != {origin_main_sha[:12]}"
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "ready",
+        "operation": "deployment-preflight",
+        "mode": "read-only",
+        "dry_run": True,
+        "mutation_permitted": False,
+        "actor": "matched",
+        "queue": "matched",
+        "state": "matched",
+        "runtime_sha": local_sha,
+        "origin_main_sha": origin_main_sha,
+        "push_mode": actual_push_mode,
+    }
+
+
 def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
     git(repo_root, ["fetch", "origin", "main"], None)
     if not _repo_clean(repo_root, git):
@@ -2420,6 +2479,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-rewrites", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--push", action="store_true")
+    parser.add_argument("--deployment-preflight", action="store_true")
+    parser.add_argument("--expected-repo-root", type=Path)
+    parser.add_argument("--expected-queue-root", type=Path)
+    parser.add_argument("--expected-state-root", type=Path)
+    parser.add_argument("--expected-runtime-sha")
+    parser.add_argument(
+        "--expected-push-mode",
+        choices=("push", "no-push"),
+    )
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--skip-release-gate", action="store_true")
     return parser.parse_args()
@@ -2443,6 +2511,36 @@ def main() -> int:
         publisher_fn = publish_ready_runs
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
+    contract_values = (
+        getattr(args, "expected_repo_root", None),
+        getattr(args, "expected_queue_root", None),
+        getattr(args, "expected_state_root", None),
+        getattr(args, "expected_runtime_sha", None),
+        getattr(args, "expected_push_mode", None),
+    )
+    if any(value is not None for value in contract_values) and not all(
+        value is not None for value in contract_values
+    ):
+        raise SystemExit("deployment contract requires all expected values")
+    if getattr(args, "deployment_preflight", False) and not all(
+        value is not None for value in contract_values
+    ):
+        raise SystemExit("--deployment-preflight requires a complete deployment contract")
+    if all(value is not None for value in contract_values):
+        preflight = deployment_preflight(
+            repo_root,
+            queue_root,
+            state_root,
+            expected_repo_root=contract_values[0],
+            expected_queue_root=contract_values[1],
+            expected_state_root=contract_values[2],
+            expected_runtime_sha=contract_values[3],
+            push=args.push,
+            expected_push_mode=contract_values[4],
+        )
+        if getattr(args, "deployment_preflight", False):
+            print(json.dumps(preflight, ensure_ascii=False))
+            return 0
     state_root.mkdir(parents=True, exist_ok=True)
     if args.dry_run:
         result = publisher_fn(

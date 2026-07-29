@@ -2767,6 +2767,140 @@ def _create_repair_directives(findings: list[dict[str, Any]]) -> str:
     return "；".join(directives) if directives else "只修正 findings 指出的項目，不改動已通過欄位"
 
 
+def _create_repair_fields(
+    article: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> set[str]:
+    """把本機 finding 收斂成最小可重做欄位集合。"""
+    fields_by_code = {
+        "answer_length": {"answer"},
+        "body_length": {"bodySections"},
+        "body_length_insufficient": {"bodySections"},
+        "description_boundary": {"description"},
+        "description_length": {"description"},
+        "missing_boundary": {"description"},
+        "opening_keyword": {"bodySections"},
+        "paragraph_count": {"bodySections"},
+        "paragraph_length": {"bodySections"},
+        "paragraph_length_violation": {"bodySections"},
+        "repeated_sentence": {"bodySections"},
+        "required_tags": {"tags"},
+        "section_count": {"bodySections"},
+        "title_keyword": {"title"},
+        "title_length": {"title"},
+    }
+    repair_fields: set[str] = set()
+    searchable = {
+        "title": str(article["title"]),
+        "description": str(article["description"]),
+        "answer": str(article["answer"]),
+        "bodySections": "".join(
+            str(paragraph)
+            for section in article["bodySections"]
+            for paragraph in section["paragraphs"]
+        ),
+    }
+    for finding in findings:
+        code = str(finding.get("code") or "")
+        if code in {"banned_phrase", "generic_ai_phrase"}:
+            phrase = str(finding.get("message") or "").partition("：")[2]
+            matched = {
+                field
+                for field, text in searchable.items()
+                if phrase
+                and (
+                    _contains_banned_phrase(text, phrase)
+                    if code == "banned_phrase"
+                    else phrase in text
+                )
+            }
+            repair_fields.update(matched or {"bodySections"})
+            continue
+        repair_fields.update(fields_by_code.get(code, {"bodySections"}))
+    return repair_fields
+
+
+def _create_repair_contract(
+    candidate: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> dict[str, tuple[str, ...]]:
+    findings_by_id: dict[str, list[dict[str, Any]]] = {}
+    for finding in findings:
+        findings_by_id.setdefault(str(finding.get("article_id") or ""), []).append(
+            finding
+        )
+    contract: dict[str, tuple[str, ...]] = {}
+    for index, article in enumerate(candidate["articles"]):
+        article_findings = findings_by_id.get(_candidate_id(article), [])
+        if article_findings:
+            contract[_slot(index)] = tuple(
+                sorted(_create_repair_fields(article, article_findings))
+            )
+    if not contract:
+        raise CandidateValidationError("create repair has no targeted findings")
+    return contract
+
+
+def external_create_repair_schema(
+    contract: dict[str, tuple[str, ...]],
+) -> dict[str, Any]:
+    full = _article_json_schema()
+    fields = sorted({field for values in contract.values() for field in values})
+    article = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "slot": {"type": "string"},
+            **{field: full["properties"][field] for field in fields},
+        },
+        "required": ["slot"],
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "articles": {
+                "type": "array",
+                "items": article,
+                "minItems": len(contract),
+                "maxItems": len(contract),
+            }
+        },
+        "required": ["articles"],
+    }
+
+
+def hydrate_create_repair(
+    prior: dict[str, Any],
+    external: dict[str, Any],
+    contract: dict[str, tuple[str, ...]],
+) -> dict[str, Any]:
+    if set(external) != {"articles"} or not isinstance(external["articles"], list):
+        raise CandidateValidationError("external create repair top-level fields are strict")
+    by_slot = {
+        str(item.get("slot")): item
+        for item in external["articles"]
+        if isinstance(item, dict)
+    }
+    if set(by_slot) != set(contract) or len(by_slot) != len(external["articles"]):
+        raise CandidateValidationError("external create repair slots differ from contract")
+    repaired = json.loads(json.dumps(prior, ensure_ascii=False))
+    for index, article in enumerate(repaired["articles"]):
+        slot = _slot(index)
+        if slot not in contract:
+            continue
+        generated = by_slot[slot]
+        expected_fields = set(contract[slot])
+        if set(generated) != {"slot", *expected_fields}:
+            raise CandidateValidationError(
+                f"external create repair fields differ from contract for {slot}"
+            )
+        for field in expected_fields:
+            article[field] = generated[field]
+    validate_candidate(repaired)
+    return repaired
+
+
 def external_review_schema() -> dict[str, Any]:
     finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
     item = {"type": "object", "additionalProperties": False, "properties": {"slot": {"type": "string"}, "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]}, "findings": {"type": "array", "items": finding}}, "required": ["slot", "verdict", "findings"]}
@@ -2819,7 +2953,12 @@ def review_schema() -> dict[str, Any]:
     return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "articles"]}
 
 
-def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, findings: list[dict[str, Any]] | None = None) -> str:
+def _writer_prompt(
+    brief: dict[str, Any],
+    prior: dict[str, Any] | None = None,
+    findings: list[dict[str, Any]] | None = None,
+    repair_contract: dict[str, tuple[str, ...]] | None = None,
+) -> str:
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
     if brief.get("mode") == "create":
         create_profile = publication_presentation_profile("create")
@@ -2852,7 +2991,18 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
     if prior is not None:
         repair_instruction = "請只修正 findings 指出的問題，保留候選稿中正確且具體的內容；仍須輸出完整 candidate。"
         if brief.get("mode") == "create":
-            instruction = f"{repair_instruction}\n{instruction}"
+            if repair_contract is None:
+                repair_contract = _create_repair_contract(prior, findings or [])
+            repair_instruction = (
+                "這是 bounded field repair。每個 slot 只可輸出 repair contract 指定欄位；"
+                "不得輸出或重做其他已通過欄位，也不得輸出完整 candidate。"
+            )
+            bounded_rules = instruction.replace(
+                "請依 public brief 產生完整文章內容。slot 必須逐字複製。",
+                "slot 必須逐字複製。",
+                1,
+            )
+            instruction = f"{repair_instruction}\n{bounded_rules}"
             repair_measurements = json.dumps(
                 _create_repair_measurements(prior),
                 ensure_ascii=False,
@@ -2868,6 +3018,7 @@ def _writer_prompt(brief: dict[str, Any], prior: dict[str, Any] | None = None, f
         "public findings:", json.dumps(public_model_findings(brief, findings or []), ensure_ascii=False),
         "trusted local measurements:", repair_measurements,
         "repair directives:", repair_directives,
+        "bounded repair contract:", json.dumps(repair_contract, ensure_ascii=False) if repair_contract else "null",
     ])
 
 
@@ -3052,7 +3203,17 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             for item in review["articles"]
             for finding in item.get("findings", [])
         ]
-        writer_prompt = _writer_prompt(brief, candidate, findings)
+        create_repair_contract = (
+            _create_repair_contract(candidate, findings)
+            if mode == "create" and candidate is not None
+            else None
+        )
+        writer_prompt = _writer_prompt(
+            brief,
+            candidate,
+            findings,
+            create_repair_contract,
+        )
         if current_schema_repair:
             writer_prompt = "\n".join(
                 [
@@ -3061,7 +3222,11 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                     writer_prompt,
                 ]
             )
-        writer_schema = external_candidate_schema(mode)
+        writer_schema = (
+            external_create_repair_schema(create_repair_contract)
+            if create_repair_contract is not None
+            else external_candidate_schema(mode)
+        )
         write_json(attempt_dir / "public-brief.json", public_model_brief(brief))
         try:
             external_candidate = _generate_with_receipt(
@@ -3072,7 +3237,15 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                 attempt_dir / "writer-operation.json",
             )
             write_json(attempt_dir / "external-candidate.json", external_candidate)
-            candidate = hydrate_candidate(brief, external_candidate)
+            candidate = (
+                hydrate_create_repair(
+                    candidate,
+                    external_candidate,
+                    create_repair_contract,
+                )
+                if create_repair_contract is not None and candidate is not None
+                else hydrate_candidate(brief, external_candidate)
+            )
         except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
             schema_repairs_used += 1
             current_schema_repair += 1
@@ -3119,23 +3292,57 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         deterministic = rewrite_quality_findings(brief, candidate["articles"]) if mode == "rewrite_existing_body" else quality_findings(candidate["articles"])
         write_json(attempt_dir / "deterministic-findings.json", deterministic)
         invalid_reviewer = False
-        try:
-            external_review = _generate_with_receipt(
-                client,
-                "reviewer",
-                _reviewer_prompt(brief, candidate, deterministic),
-                external_review_schema(),
-                attempt_dir / "reviewer-operation.json",
-            )
-            write_json(attempt_dir / "external-review.json", external_review)
-            review = hydrate_review(brief, candidate, external_review)
-            if mode == "create":
-                review = reconcile_external_review_with_machine_gate(review)
-            for item in review["articles"]:
-                item["hard_failure"] = False
-        except (json.JSONDecodeError, TypeError, ValueError) as error:
-            review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
-            invalid_reviewer = True
+        if mode == "create" and deterministic:
+            deterministic_by_id: dict[str, list[dict[str, Any]]] = {}
+            for finding in deterministic:
+                deterministic_by_id.setdefault(
+                    str(finding["article_id"]),
+                    [],
+                ).append(
+                    {
+                        "code": finding["code"],
+                        "message": finding["message"],
+                    }
+                )
+            review = {
+                "schema_version": SCHEMA_VERSION,
+                "run_id": brief["run_id"],
+                "articles": [
+                    {
+                        "article_id": _candidate_id(article),
+                        "candidate_sha256": article_sha256(article),
+                        "verdict": (
+                            "REJECT"
+                            if deterministic_by_id.get(_candidate_id(article))
+                            else "APPROVE"
+                        ),
+                        "findings": deterministic_by_id.get(
+                            _candidate_id(article),
+                            [],
+                        ),
+                        "hard_failure": False,
+                    }
+                    for article in candidate["articles"]
+                ],
+            }
+        else:
+            try:
+                external_review = _generate_with_receipt(
+                    client,
+                    "reviewer",
+                    _reviewer_prompt(brief, candidate, deterministic),
+                    external_review_schema(),
+                    attempt_dir / "reviewer-operation.json",
+                )
+                write_json(attempt_dir / "external-review.json", external_review)
+                review = hydrate_review(brief, candidate, external_review)
+                if mode == "create":
+                    review = reconcile_external_review_with_machine_gate(review)
+                for item in review["articles"]:
+                    item["hard_failure"] = False
+            except (json.JSONDecodeError, TypeError, ValueError) as error:
+                review = invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
+                invalid_reviewer = True
         if deterministic:
             by_id = {item["article_id"]: item for item in review["articles"]}
             for finding in deterministic:

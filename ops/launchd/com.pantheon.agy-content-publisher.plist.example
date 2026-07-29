@@ -20,6 +20,16 @@
     <string>__MAX_RUNS__</string>
     <string>--include-rewrites</string>
     <string>--push</string>
+    <string>--expected-repo-root</string>
+    <string>__REPO_ROOT__</string>
+    <string>--expected-queue-root</string>
+    <string>__QUEUE_ROOT__</string>
+    <string>--expected-state-root</string>
+    <string>__REPO_ROOT__/.work/content-publisher</string>
+    <string>--expected-runtime-sha</string>
+    <string>__RUNTIME_SHA__</string>
+    <string>--expected-push-mode</string>
+    <string>push</string>
   </array>
 
   <key>WorkingDirectory</key>

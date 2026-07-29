@@ -649,10 +649,19 @@ def cycle_once(
                     completed += outcome == "complete"
                     failed += outcome == "failed"
 
-        remaining = len(_active_states(root))
+        remaining_states = _active_states(root)
+        runnable_remaining = (
+            [
+                state
+                for state in remaining_states
+                if _lane_for_state(state, legacy_article_ids) == "new"
+            ]
+            if new_only
+            else remaining_states
+        )
         summary = {
             "status": "ok" if failed == 0 else "failed",
-            "active": remaining,
+            "active": len(runnable_remaining),
             "complete": completed,
             "failed": failed,
             "runner": runner,
@@ -660,8 +669,35 @@ def cycle_once(
             "legacy_sweep": legacy_summary,
         }
         if lane_mode:
-            summary["lanes"] = _lane_summary(root, _active_states(root), legacy_article_ids)
+            lane_inventory = _lane_summary(
+                root,
+                remaining_states,
+                legacy_article_ids,
+            )
+            summary["lanes"] = lane_inventory
             summary["migrated_jobs"] = migrated_jobs
+            if new_only:
+                disabled_lanes = {
+                    lane: lane_inventory[lane]
+                    for lane in CONTENT_LANES
+                    if lane != "new"
+                }
+                summary["runnable_active"] = len(runnable_remaining)
+                summary["disabled_backlog"] = {
+                    "active": sum(
+                        inventory["active"]
+                        for inventory in disabled_lanes.values()
+                    ),
+                    "queued": sum(
+                        inventory["queued"]
+                        for inventory in disabled_lanes.values()
+                    ),
+                    "processing": sum(
+                        inventory["processing"]
+                        for inventory in disabled_lanes.values()
+                    ),
+                    "lanes": disabled_lanes,
+                }
         return summary
 
 

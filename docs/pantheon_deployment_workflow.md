@@ -31,6 +31,29 @@ git branch --show-current
 - `outputs/` 這類未追蹤輸出資料預設不加入 commit。
 - 若目前不在 `main`，只能做開發與驗收；要正式上線必須明確合併或 cherry-pick 到 `main` 後推送。
 
+### Publisher 部署契約 preflight
+
+Publisher launchd 範本會鎖定 actor root、Gemini queue root、publisher state
+root、安裝時 runtime SHA 與 push mode。服務每次啟動會在任何 publish mutation
+前核對：
+
+- actor、queue、state 是否仍為部署時指定路徑；
+- actor worktree 是否乾淨；
+- runtime SHA 是否仍等於安裝契約；
+- local `HEAD` 是否等於本機追蹤的 `origin/main`；
+- 實際 push mode 是否等於部署契約。
+
+任一項漂移都會 fail closed。部署人員可先走唯讀路徑：
+
+```bash
+PANTHEON_GEMINI_QUEUE_ROOT=<repo-root>/.work/gemini-runner \
+  bash scripts/install_agy_content_publisher_launchd.sh --preflight
+```
+
+`--preflight` 只驗證並輸出 dry-run 計畫，不寫入 LaunchAgents、不載入服務、
+不建立 publisher state，也不發布或 push。確認 actor 已同步最新 remote refs
+後才執行 preflight；此命令本身不執行 `git fetch`。
+
 ## 3. 改版前檢查
 
 每次部署前先確認變更類型。

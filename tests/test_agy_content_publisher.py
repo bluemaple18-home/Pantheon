@@ -4,6 +4,7 @@ import json
 import plistlib
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -1099,6 +1100,173 @@ def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:
         publisher.publish_ready_runs(tmp_path, tmp_path / "queue", tmp_path / "state", git=fake_git, run_tests=False, release_gate=False)
 
 
+def test_deployment_preflight_returns_read_only_plan_without_mutation(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    runtime_sha = "a" * 40
+    git_calls: list[list[str]] = []
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        git_calls.append(args)
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return runtime_sha
+        raise AssertionError(f"unexpected git command: {args}")
+
+    before = sorted(str(path.relative_to(tmp_path)) for path in tmp_path.rglob("*"))
+    plan = publisher.deployment_preflight(
+        actor,
+        queue_root,
+        state_root,
+        expected_repo_root=actor,
+        expected_queue_root=queue_root,
+        expected_state_root=state_root,
+        expected_runtime_sha=runtime_sha,
+        push=True,
+        expected_push_mode="push",
+        git=fake_git,
+    )
+    after = sorted(str(path.relative_to(tmp_path)) for path in tmp_path.rglob("*"))
+
+    assert plan == {
+        "schema_version": publisher.SCHEMA_VERSION,
+        "status": "ready",
+        "operation": "deployment-preflight",
+        "mode": "read-only",
+        "dry_run": True,
+        "mutation_permitted": False,
+        "actor": "matched",
+        "queue": "matched",
+        "state": "matched",
+        "runtime_sha": runtime_sha,
+        "origin_main_sha": runtime_sha,
+        "push_mode": "push",
+    }
+    assert git_calls == [
+        ["status", "--porcelain"],
+        ["rev-parse", "HEAD"],
+        ["rev-parse", "origin/main"],
+    ]
+    assert after == before
+
+
+def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    queue_root.mkdir()
+    runtime_sha = "a" * 40
+    expected_plan = {
+        "schema_version": publisher.SCHEMA_VERSION,
+        "status": "ready",
+        "operation": "deployment-preflight",
+        "mode": "read-only",
+    }
+    monkeypatch.setattr(
+        publisher,
+        "deployment_preflight",
+        lambda *_args, **_kwargs: expected_plan,
+    )
+    monkeypatch.setattr(
+        publisher,
+        "publish_ready_all",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("deployment preflight must not publish")
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agy_content_publisher.py",
+            "--repo-root",
+            str(actor),
+            "--queue-root",
+            str(queue_root),
+            "--state-root",
+            str(state_root),
+            "--include-rewrites",
+            "--push",
+            "--deployment-preflight",
+            "--expected-repo-root",
+            str(actor),
+            "--expected-queue-root",
+            str(queue_root),
+            "--expected-state-root",
+            str(state_root),
+            "--expected-runtime-sha",
+            runtime_sha,
+            "--expected-push-mode",
+            "push",
+        ],
+    )
+
+    assert publisher.main() == 0
+    assert json.loads(capsys.readouterr().out) == expected_plan
+    assert not state_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("drift", "message"),
+    [
+        ("actor", "actor root"),
+        ("queue", "queue root"),
+        ("state", "state root"),
+        ("runtime", "runtime SHA"),
+        ("dirty", "worktree is not clean"),
+        ("origin", "local HEAD differs"),
+        ("push", "push mode"),
+    ],
+)
+def test_deployment_preflight_fails_closed_on_contract_drift(
+    tmp_path: Path,
+    drift: str,
+    message: str,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    runtime_sha = "a" * 40
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return "M drift" if drift == "dirty" else ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        if args == ["rev-parse", "origin/main"]:
+            return "b" * 40 if drift == "origin" else runtime_sha
+        raise AssertionError(f"unexpected git command: {args}")
+
+    with pytest.raises(publisher.PublishBlocked, match=message):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=tmp_path / "other-actor" if drift == "actor" else actor,
+            expected_queue_root=tmp_path / "other-queue" if drift == "queue" else queue_root,
+            expected_state_root=tmp_path / "other-state" if drift == "state" else state_root,
+            expected_runtime_sha="b" * 40 if drift == "runtime" else runtime_sha,
+            push=drift != "push",
+            expected_push_mode="push",
+            git=fake_git,
+        )
+
+
 def test_publish_ready_all_runs_create_then_rewrite_then_translation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, bool, bool, bool]] = []
 
@@ -1198,7 +1366,24 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "--max-runs",
         "__MAX_RUNS__",
     ]
-    assert arguments[-2:] == ["--include-rewrites", "--push"]
+    assert arguments[11:] == [
+        "--include-rewrites",
+        "--push",
+        "--expected-repo-root",
+        "__REPO_ROOT__",
+        "--expected-queue-root",
+        "__QUEUE_ROOT__",
+        "--expected-state-root",
+        "__REPO_ROOT__/.work/content-publisher",
+        "--expected-runtime-sha",
+        "__RUNTIME_SHA__",
+        "--expected-push-mode",
+        "push",
+    ]
+    assert 'ACTION="${1:---install}"' in installer
+    assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
+    assert "--deployment-preflight" in installer
+    assert 'run_preflight >/dev/null' in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert plist["StartInterval"] == 60
     completed = subprocess.run(

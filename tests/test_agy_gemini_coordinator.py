@@ -211,6 +211,10 @@ def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
             encoding="utf-8",
         )
         register_run(run_dir, queue_root)
+    disabled_job = queue_root / "lanes" / "rewrite" / "outbox" / "stale-rewrite.json"
+    disabled_job.parent.mkdir(parents=True)
+    disabled_job.write_text('{"status":"pending"}\n', encoding="utf-8")
+    disabled_job_before = disabled_job.read_bytes()
     monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
     monkeypatch.setattr(
         coordinator,
@@ -239,6 +243,19 @@ def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
     assert advanced == ["new-run-1"]
     assert process_calls == []
     assert summary["runner"] == {"status": "idle"}
+    assert summary["active"] == 2
+    assert summary["runnable_active"] == 2
+    assert summary["disabled_backlog"] == {
+        "active": 3,
+        "queued": 1,
+        "processing": 0,
+        "lanes": {
+            "rewrite": {"active": 1, "queued": 1, "processing": 0},
+            "i18n-new": {"active": 1, "queued": 0, "processing": 0},
+            "i18n-rewrite": {"active": 1, "queued": 0, "processing": 0},
+        },
+    }
+    assert disabled_job.read_bytes() == disabled_job_before
     assert summary["legacy_sweep"] == {
         "status": "disabled_by_new_only",
         "created": 0,

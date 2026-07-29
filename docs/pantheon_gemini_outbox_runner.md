@@ -185,6 +185,29 @@ Coordinator 只處理明確登記的 run，不會掃描並啟動所有 `.work/gs
 
 Coordinator 的完成條件只代表已產生 candidate 與 review；它不建立 `approval.json`，也不 apply、commit、push 或部署。
 
+### `NEW_ONLY` 的 disabled backlog
+
+`AGY_GEMINI_NEW_ONLY=1` 時，coordinator 只把 `new` lane 的 active run
+計入 top-level `active`／`runnable_active`。既有 rewrite、i18n-new 與
+i18n-rewrite active state，以及各 lane 的 outbox／processing inventory，
+會保留在 `disabled_backlog`：
+
+```json
+{
+  "active": 2,
+  "runnable_active": 2,
+  "disabled_backlog": {
+    "active": 5,
+    "queued": 1,
+    "processing": 0,
+    "lanes": {}
+  }
+}
+```
+
+這是唯讀 reporting 契約。Coordinator 不會因 `NEW_ONLY` 搬動、刪除或改寫
+disabled lane 的 run state 與 outbox；runner 的 fail-closed disabled 行為亦不變。
+
 ## 一次性 launchd 啟用
 
 正式背景範本位於 `ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example`。它每 60 秒執行一次 cycle，且每個 cycle 最多對外處理一個 job。`RunAtLoad=true`，啟用後會立即接續已登記的 run。

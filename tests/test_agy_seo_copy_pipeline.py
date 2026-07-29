@@ -1057,6 +1057,169 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
 
 
+def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_green(
+    tmp_path: Path,
+) -> None:
+    def sized_paragraph(label: str, size: int) -> str:
+        seed = f"{label}先核對具體情境、已知資料與可調整限制，再決定下一步。"
+        return (seed + "逐項記錄觀察與行動。" * size)[:size]
+
+    def sized_description(size: int) -> str:
+        seed = "測試關鍵字用來整理具體情境與可觀察行動；本文只提供通用理解，不能替個人下結論。"
+        return (seed + "仍須回到現況與資料判斷。" * size)[:size]
+
+    article = make_article("BOUNDED-CREATE-REPAIR")
+    article["tags"] = sorted(pipeline.REQUIRED_PUBLIC_TAGS | {"人格", "自我理解"})
+    article["description"] = sized_description(61)
+    article["bodySections"] = [
+        {
+            "heading": f"測試關鍵字的具體觀察 {section + 1}",
+            "paragraphs": [
+                sized_paragraph(
+                    (
+                        "測試關鍵字"
+                        if section == 0 and paragraph == 0
+                        else f"第{section + 1}節第{paragraph + 1}段"
+                    ),
+                    116 if section == 0 and paragraph < 2 else 117,
+                )
+                for paragraph in range(4 if section < 3 else 3)
+            ],
+        }
+        for section in range(5)
+    ]
+    assert len(str(article["description"])) == 61
+    assert sum(
+        len(str(paragraph))
+        for section in article["bodySections"]
+        for paragraph in section["paragraphs"]
+    ) == 2104
+    repaired_description = sized_description(84)
+    repaired_body = [
+        {
+            "heading": f"測試關鍵字的修復觀察 {section + 1}",
+            "paragraphs": [
+                sized_paragraph(
+                    (
+                        "測試關鍵字"
+                        if section == 0 and paragraph == 0
+                        else f"修復第{section + 1}節第{paragraph + 1}段"
+                    ),
+                    100,
+                )
+                for paragraph in range(3)
+            ],
+        }
+        for section in range(5)
+    ]
+    initial_findings = pipeline.quality_findings([article])
+    assert {finding["code"] for finding in initial_findings} == {
+        "body_length",
+        "description_length",
+    }
+
+    brief = {
+        "schema_version": 1,
+        "run_id": "bounded-create-repair",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                    "title": article["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: article[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    run_dir = tmp_path / "bounded-create-repair"
+    run_dir.mkdir()
+    pipeline.write_json(run_dir / "brief.json", brief)
+
+    class BoundedClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                if self.writer_calls == 1:
+                    return {"articles": [make_external_create_article(article)]}
+                repair_properties = schema["properties"]["articles"]["items"]["properties"]  # type: ignore[index]
+                assert set(repair_properties) == {
+                    "slot",
+                    "description",
+                    "bodySections",
+                }
+                assert "bounded field repair" in prompt
+                assert "不得輸出完整 candidate" in prompt
+                assert "產生完整文章內容" not in prompt
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "description": repaired_description,
+                            "bodySections": repaired_body,
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    client = BoundedClient()
+    candidate, review = pipeline.run_writer_reviewer(
+        run_dir,
+        client,
+        max_repairs=1,
+    )
+
+    repaired = candidate["articles"][0]
+    assert repaired["description"] == repaired_description
+    assert repaired["bodySections"] == repaired_body
+    for field in pipeline.PUBLIC_CREATE_FIELDS - {
+        "description",
+        "bodySections",
+    }:
+        assert repaired[field] == article[field]
+    assert pipeline.quality_findings([repaired]) == []
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert client.writer_calls == 2
+    assert client.reviewer_calls == 1
+
+
 def test_create_transport_schema_excludes_deterministic_publication_envelope() -> None:
     article_schema = pipeline.external_candidate_schema("create")["properties"]["articles"]["items"]
 
