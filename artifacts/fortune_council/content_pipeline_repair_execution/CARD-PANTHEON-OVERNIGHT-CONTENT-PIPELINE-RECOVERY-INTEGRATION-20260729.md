@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-OVERNIGHT-CONTENT-PIPELINE-RECOVERY-INTEGRATION-20260729
 chain_id: PANTHEON-OVERNIGHT-CONTENT-PIPELINE-RECOVERY-20260729
 version: 2.1
-status: RUNNING
+status: DELIVERED_INTEGRATION_CANDIDATE
 type: integration
 role: mainline_integration_candidate
 ownership: integration
@@ -23,7 +23,7 @@ branch: codex/overnight-content-pipeline-recovery-integration-20260729
 
 - Card ID：`CARD-PANTHEON-OVERNIGHT-CONTENT-PIPELINE-RECOVERY-INTEGRATION-20260729`
 - Chain ID：`PANTHEON-OVERNIGHT-CONTENT-PIPELINE-RECOVERY-20260729`
-- 狀態：`RUNNING`
+- 狀態：`DELIVERED_INTEGRATION_CANDIDATE`
 - 角色：`mainline_integration_candidate`
 - Ownership：`integration`
 - 交付狀態上限：`DELIVERED_INTEGRATION_CANDIDATE`
@@ -195,3 +195,11 @@ production/integration boundary。
 - Final branch tip 為可由 verified remote main 快轉接收的乾淨
   `DELIVERED_INTEGRATION_CANDIDATE`。
 
+## Delivery receipt
+
+- Card commit：`f3f36ae40230df26c0bfb4356b67ccd063e9a6f5`
+- Card commit parent：`39a3a9f23720e158bd2cf9e630901f9debbceb15`
+- Finalization commit：`SELF`；完整 SHA 由正式 thread delivery response 回報。
+- Branch：`codex/overnight-content-pipeline-recovery-integration-20260729`
+- Result：`DELIVERED_INTEGRATION_CANDIDATE`
+- Boundary：未 push、未 deploy、未操作 production、未宣稱 `INTEGRATED`。
