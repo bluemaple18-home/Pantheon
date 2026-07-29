@@ -39,7 +39,7 @@ from scripts.prerender_article_shells import (
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-110"
+ARTICLE_CACHE_TOKEN = "agy-auto-new-v1-20260729-164-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -362,6 +362,7 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/tarot/tarot-0512",
     "/articles/tarot/tarot-0624",
     "/articles/tarot/tarot-0634",
+    "/articles/tarot/tarot-0648",
 ]
 
 CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS = [
@@ -569,7 +570,7 @@ console.log(JSON.stringify({
         "/articles/wealth/wealth-0012",
         "/articles/life-direction/life-direction-0012",
         "/articles/personality/personality-0278",
-        "/articles/tarot/tarot-0647",
+        "/articles/tarot/tarot-0648",
         "/articles/fortune/fortune-0043",
     ]
     assert data["adjacentSameCategory"] is False
