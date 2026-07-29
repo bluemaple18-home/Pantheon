@@ -1843,6 +1843,7 @@ def test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity(
 def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -> None:
     brief = make_rewrite_brief()
     source = brief["articles"][0]
+    source["identity"]["slug"] = "semantic-personality-slug"
     generated_policy = make_rewrite_publication_policy(source)
     generated_policy.update(
         {
@@ -1889,6 +1890,12 @@ def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -
         "modified": pipeline.date.today().isoformat(),
         "changeType": "substantive_rewrite",
     }
+    findings = pipeline.rewrite_quality_findings(brief, candidate["articles"])
+    assert not [
+        finding
+        for finding in findings
+        if finding["code"] == "canonical_consistency"
+    ]
 
 
 def test_rewrite_deterministic_gate_enforces_shape_intent_scenarios_actions_and_uniqueness() -> None:

@@ -618,6 +618,7 @@ def article_publication_policy_findings(
     *,
     mode: str,
     reference_articles: list[dict[str, Any]] | None = None,
+    validate_canonical_route: bool = True,
 ) -> list[dict[str, str]]:
     """同一 required validator，供 create、rewrite、publisher 與 prerender 使用。"""
     policy = load_article_publication_policy()
@@ -635,7 +636,14 @@ def article_publication_policy_findings(
 
     route = _article_route(article)
     canonical = f"{policy['site_origin']}{route}" if route else ""
-    if not route or contract.get("canonical") != canonical:
+    canonical_is_valid = (
+        contract.get("canonical") == canonical
+        if validate_canonical_route
+        else str(contract.get("canonical") or "").startswith(
+            f"{policy['site_origin']}/articles/"
+        )
+    )
+    if not canonical_is_valid:
         findings.append(_policy_finding(article_id, "canonical_consistency", "canonical 必須與 id/route 契約一致"))
 
     author = contract["author"]
@@ -1038,7 +1046,11 @@ def validate_candidate(
                     "publicationPolicy": article["publicationPolicy"],
                 }
             findings = required_policy_findings(
-                article_publication_policy_findings(policy_article, mode=mode)
+                article_publication_policy_findings(
+                    policy_article,
+                    mode=mode,
+                    validate_canonical_route=mode != "rewrite_existing_body",
+                )
             )
             if findings:
                 raise CandidateValidationError(
@@ -2651,10 +2663,10 @@ def _hydrate_rewrite_publication_policy(
     _validate_publication_contract_shape(generated)
     policy = load_article_publication_policy()
     identity = policy["identity"]
-    route = _article_route(source["identity"])
+    immutable = source["immutable_fields"]
+    route = _article_route({**source["identity"], **immutable})
     if not route:
         raise CandidateValidationError("rewrite source cannot determine canonical route")
-    immutable = source["immutable_fields"]
     source_updated = _iso_date(immutable.get("updated"))
     modified = max(date.today(), source_updated or date.today()).isoformat()
     contract = {
