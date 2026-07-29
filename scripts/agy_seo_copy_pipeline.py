@@ -2643,6 +2643,38 @@ def _hydrate_create_publication_policy(
     return contract
 
 
+def _hydrate_rewrite_publication_policy(
+    source: dict[str, Any],
+    generated: dict[str, Any],
+) -> dict[str, Any]:
+    """保留 Writer evidence，其餘發布 metadata 由本機可信契約鎖定。"""
+    _validate_publication_contract_shape(generated)
+    policy = load_article_publication_policy()
+    identity = policy["identity"]
+    route = _article_route(source["identity"])
+    if not route:
+        raise CandidateValidationError("rewrite source cannot determine canonical route")
+    immutable = source["immutable_fields"]
+    source_updated = _iso_date(immutable.get("updated"))
+    modified = max(date.today(), source_updated or date.today()).isoformat()
+    contract = {
+        "policyVersion": policy["policy_version"],
+        "canonical": f"{policy['site_origin']}{route}",
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": generated["evidence"],
+        "published": immutable.get("published"),
+        "modified": modified,
+        "changeType": "substantive_rewrite",
+    }
+    _validate_publication_contract_shape(contract)
+    return contract
+
+
 def hydrate_candidate(
     brief: dict[str, Any],
     external: dict[str, Any],
@@ -2694,7 +2726,10 @@ def hydrate_candidate(
                     "identity": source["identity"],
                     "current_body_sha256": source["current_body_sha256"],
                     "bodySections": generated["bodySections"],
-                    "publicationPolicy": generated["publicationPolicy"],
+                    "publicationPolicy": _hydrate_rewrite_publication_policy(
+                        source,
+                        generated["publicationPolicy"],
+                    ),
                 }
             )
     candidate = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "mode": mode, "articles": articles}

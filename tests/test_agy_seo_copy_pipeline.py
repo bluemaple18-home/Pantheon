@@ -1840,6 +1840,57 @@ def test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity(
         )
 
 
+def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -> None:
+    brief = make_rewrite_brief()
+    source = brief["articles"][0]
+    generated_policy = make_rewrite_publication_policy(source)
+    generated_policy.update(
+        {
+            "policyVersion": "writer-guessed-policy",
+            "canonical": "https://example.com/guessed-route",
+            "author": {
+                "name": "Writer 猜測作者",
+                "url": "https://example.com/authors/writer",
+                "id": "writer",
+            },
+            "editorialResponsibility": "Writer 猜測責任文字",
+            "published": "2020-01-01",
+            "modified": "2020-01-02",
+            "changeType": "created",
+        }
+    )
+    candidate = pipeline.hydrate_candidate(
+        brief,
+        {
+            "articles": [
+                {
+                    "slot": "article-01",
+                    "bodySections": make_rewrite_sections(),
+                    "publicationPolicy": generated_policy,
+                }
+            ]
+        },
+    )
+
+    hydrated = candidate["articles"][0]["publicationPolicy"]
+    policy = pipeline.load_article_publication_policy()
+    identity = policy["identity"]
+    assert hydrated == {
+        "policyVersion": policy["policy_version"],
+        "canonical": "https://www.mysticpantheon.com/articles/personality/personality-0001",
+        "author": {
+            "name": identity["author_name"],
+            "url": identity["author_url"],
+            "id": identity["author_id"],
+        },
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": generated_policy["evidence"],
+        "published": source["immutable_fields"]["published"],
+        "modified": pipeline.date.today().isoformat(),
+        "changeType": "substantive_rewrite",
+    }
+
+
 def test_rewrite_deterministic_gate_enforces_shape_intent_scenarios_actions_and_uniqueness() -> None:
     first_brief = make_rewrite_brief("REWRITE-001")
     second_brief = make_rewrite_brief("REWRITE-002")

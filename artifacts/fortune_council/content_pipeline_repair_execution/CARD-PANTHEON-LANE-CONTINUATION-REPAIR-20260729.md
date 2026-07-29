@@ -9,11 +9,14 @@
 1. 正式 LaunchAgent 被部署為 `AGY_GEMINI_NEW_ONLY=1`，舊文與翻譯 lane 被明確停用；已切回 `0`。
 2. 完整模式恢復後，`_active_states()` 每次 pending 都更新 `updated_at`，而 `_select_lane_states()` 直接取更新時間最舊的 run，導致同一 lane 在所有 active run 間輪轉。
 3. 翻譯 lane 有 36 個 active run；現行排程會先替所有 run 做 writer，再回到第一個 run 做 reviewer，單一可發布成果延遲過長。
+4. 舊文 writer 正文符合外部 schema，卻因模型猜錯 canonical、作者 identity 與 modified date，被本機 policy validator 當成整份 writer schema 無效；這些可信 metadata 應由本機 policy 與 rewrite brief 鎖定。
 
 ## 可改檔案
 
 - `scripts/agy_gemini_coordinator.py`
+- `scripts/agy_seo_copy_pipeline.py`
 - `tests/test_agy_gemini_coordinator.py`
+- `tests/test_agy_seo_copy_pipeline.py`
 - 本卡
 
 ## 禁止範圍
@@ -29,7 +32,8 @@
 2. lane mode 每輪仍只選每條 lane 一個 run。
 3. 同一 lane 持續選最早註冊的 active run，直到 complete／failed 後才選下一個。
 4. 受影響測試、完整 coordinator 測試與 `git diff --check` 通過。
-5. 部署後觀察既有翻譯與舊文 job 產生 candidate／review，並由 publisher 實際發布至少一個成果。
+5. rewrite hydration 由本機鎖定 canonical、作者 identity、published／modified 與 changeType，仍保留 writer 提供的 evidence 交給 deterministic gate。
+6. 部署後觀察既有翻譯與舊文 job 產生 candidate／review，並由 publisher 實際發布至少一個成果。
 
 ## 交付
 
