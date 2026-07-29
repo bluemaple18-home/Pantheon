@@ -2046,6 +2046,390 @@ def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) 
     assert review["articles"][0]["verdict"] == "APPROVE"
 
 
+def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("CHART-ZIWEI-11")
+    brief["run_id"] = "legacy-auto-sweep-v1-fortune-0013-chart-ziwei-11"
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections(
+        str(source["identity"]["primaryKeyword"]),
+        variant="紫微",
+    )
+    production_lengths = [
+        127,
+        125,
+        125,
+        118,
+        120,
+        116,
+        119,
+        117,
+        112,
+        122,
+        115,
+        111,
+        116,
+        110,
+        109,
+    ]
+    paragraphs = [
+        paragraph
+        for section in body
+        for paragraph in section["paragraphs"]
+    ]
+    for index, target_length in enumerate(production_lengths):
+        paragraphs[index] = (str(paragraphs[index]) + "補" * target_length)[
+            :target_length
+        ]
+    for index, section in enumerate(body):
+        section["paragraphs"] = paragraphs[index * 3 : index * 3 + 3]
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert sum(len(paragraph) for paragraph in paragraphs) == 1762
+    assert [len(paragraph) for paragraph in paragraphs] == production_lengths
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    class FalseBodyShapeReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "BODY_SHAPE_VIOLATION",
+                                "message": "錯誤聲稱正文約 1150 字",
+                            },
+                            {
+                                "code": "BODY_SHAPE_VIOLATION",
+                                "message": "錯誤聲稱多數段落不足 90 到 130 字",
+                            },
+                        ],
+                    }
+                ]
+            }
+
+    client = FalseBodyShapeReviewer()
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=1,
+    )
+
+    assert client.writer_calls == 1
+    assert client.reviewer_calls == 1
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert review["articles"][0]["findings"] == []
+
+
+def test_rewrite_malformed_machine_owned_finding_fails_closed(
+    tmp_path: Path,
+) -> None:
+    brief = make_rewrite_brief("MALFORMED-REVIEW")
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections()
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    class MalformedReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [{"code": "BODY_SHAPE_VIOLATION"}],
+                    }
+                ]
+            }
+
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        MalformedReviewer(),
+        max_repairs=0,
+    )
+
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is True
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "invalid_reviewer_json:ValueError",
+            "message": "invalid_reviewer_json:ValueError",
+        }
+    ]
+
+
+@pytest.mark.parametrize("max_repairs", [0, 1, 2])
+def test_rewrite_semantic_rejection_keeps_writer_reviewer_calls_bounded(
+    tmp_path: Path,
+    max_repairs: int,
+) -> None:
+    run_dir = tmp_path / f"semantic-repair-{max_repairs}"
+    run_dir.mkdir()
+    brief = make_rewrite_brief(f"SEMANTIC-{max_repairs}")
+    pipeline.write_json(run_dir / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections(variant=f"語意{max_repairs}")
+    candidate_article = {
+        "article_id": source["article_id"],
+        "identity": source["identity"],
+        "current_body_sha256": source["current_body_sha256"],
+        "bodySections": body,
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }
+    assert pipeline.rewrite_quality_findings(brief, [candidate_article]) == []
+
+    class SemanticReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+            self.reviewer_prompts: list[str] = []
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_calls += 1
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            self.reviewer_calls += 1
+            self.reviewer_prompts.append(prompt)
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "search_intent_mismatch",
+                                "message": "沒有回答搜尋者的核心問題",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    client = SemanticReviewer()
+    _candidate, review = pipeline.run_writer_reviewer(
+        run_dir,
+        client,
+        max_repairs=max_repairs,
+    )
+    evidence = json.loads((run_dir / "run-evidence.json").read_text())
+
+    assert client.writer_calls == max_repairs + 1
+    assert client.reviewer_calls == max_repairs + 1
+    assert evidence["content_repairs_used"] == max_repairs
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "search_intent_mismatch",
+            "message": "沒有回答搜尋者的核心問題",
+        }
+    ]
+    assert all(
+        "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感"
+        in prompt
+        for prompt in client.reviewer_prompts
+    )
+
+
+def test_rewrite_deterministic_reject_never_calls_reviewer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brief = make_rewrite_brief("DETERMINISTIC-REJECT")
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections()
+    finding = {
+        "article_id": source["article_id"],
+        "code": "paragraph_length",
+        "message": "第 1 節第 1 段為 131 字；必須 90 到 130 字",
+    }
+    monkeypatch.setattr(
+        pipeline,
+        "rewrite_quality_findings",
+        lambda *_args: [finding],
+    )
+
+    class DeterministicRejectClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_calls = 0
+            self.reviewer_calls = 0
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "reviewer":
+                self.reviewer_calls += 1
+                raise AssertionError("deterministic rejection must skip Reviewer")
+            self.writer_calls += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "bodySections": body,
+                        "publicationPolicy": make_rewrite_publication_policy(source),
+                    }
+                ]
+            }
+
+    client = DeterministicRejectClient()
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=0,
+    )
+
+    assert client.writer_calls == 1
+    assert client.reviewer_calls == 0
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["findings"] == [
+        {"code": finding["code"], "message": finding["message"]}
+    ]
+
+
+def test_rewrite_unknown_reviewer_finding_fails_closed(tmp_path: Path) -> None:
+    brief = make_rewrite_brief("UNKNOWN-REVIEW")
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    source = brief["articles"][0]
+    body = make_rewrite_sections()
+
+    class UnknownFindingReviewer:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": body,
+                            "publicationPolicy": make_rewrite_publication_policy(
+                                source
+                            ),
+                        }
+                    ]
+                }
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "UNKNOWN_REVIEW_AUTHORITY",
+                                "message": "無法分類的 Reviewer finding",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    _candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        UnknownFindingReviewer(),
+        max_repairs=0,
+    )
+
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["findings"] == [
+        {
+            "code": "UNKNOWN_REVIEW_AUTHORITY",
+            "message": "無法分類的 Reviewer finding",
+        }
+    ]
+
+
 def test_rewrite_deterministic_gate_locates_exact_duplicate_paragraph() -> None:
     brief = make_rewrite_brief()
     source = brief["articles"][0]

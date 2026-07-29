@@ -271,6 +271,21 @@ MACHINE_OWNED_REVIEW_CODES = {
     "title_keyword",
     "title_length",
 }
+REWRITE_MACHINE_OWNED_REVIEW_CODES = {
+    "body_length",
+    "body_length_insufficient",
+    "body_shape_violation",
+    "candidate_hash",
+    "candidate_hash_mismatch",
+    "current_body_hash_mismatch",
+    "current_body_sha256",
+    "immutable_identity",
+    "immutable_identity_violation",
+    "paragraph_count",
+    "paragraph_length",
+    "paragraph_length_violation",
+    "section_count",
+}
 REQUIRED_PUBLIC_TAGS = {"Pantheon", "繁體中文", "公開文章", "通用知識", "SEO", "AEO", "GEO"}
 GENERIC_AI_PHRASES = {
     "我們可以透過",
@@ -1461,6 +1476,16 @@ def validate_review(review: dict[str, Any], candidates: list[dict[str, Any]]) ->
             raise ValueError("review verdict must be APPROVE or REJECT")
         if not isinstance(item["findings"], list):
             raise ValueError("review findings must be a list")
+        for finding in item["findings"]:
+            if (
+                not isinstance(finding, dict)
+                or set(finding) != {"code", "message"}
+                or not all(
+                    isinstance(finding[field], str) and finding[field].strip()
+                    for field in ("code", "message")
+                )
+            ):
+                raise ValueError("review finding fields are invalid")
         seen.add(article_id)
     if seen != set(expected):
         raise ValueError("review is missing candidate articles")
@@ -3073,13 +3098,19 @@ def hydrate_review(brief: dict[str, Any], candidate: dict[str, Any], external: d
 
 def reconcile_external_review_with_machine_gate(
     review: dict[str, Any],
+    machine_owned_codes: set[str] | None = None,
 ) -> dict[str, Any]:
+    owned_codes = (
+        MACHINE_OWNED_REVIEW_CODES
+        if machine_owned_codes is None
+        else machine_owned_codes
+    )
     for item in review["articles"]:
         original_verdict = item["verdict"]
         item["findings"] = [
             finding
             for finding in item["findings"]
-            if str(finding.get("code")) not in MACHINE_OWNED_REVIEW_CODES
+            if str(finding.get("code")).strip().casefold() not in owned_codes
         ]
         if original_verdict == "REJECT" and not item["findings"]:
             item["verdict"] = "APPROVE"
@@ -3210,10 +3241,11 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         "body_characters",
     )
     machine_gate_instruction = ""
-    if brief.get("mode") == "create":
+    if brief.get("mode") in {"create", "rewrite_existing_body"}:
         machine_gate_instruction = (
-            "字數、段落結構、關鍵字、固定 tags、禁詞與模板詞由本機 deterministic gate 唯一判定；"
-            "不得自行回報這些 machine-owned findings，請集中審查搜尋意圖、場景、表達、事實與安全邊界。"
+            "字數、section／paragraph 數量與長度、immutable identity、candidate hash "
+            "由本機 deterministic gate 唯一判定；不得自行回報這些 machine-owned findings。"
+            "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
         )
     return "\n".join([
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
@@ -3514,8 +3546,13 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                 )
                 write_json(attempt_dir / "external-review.json", external_review)
                 review = hydrate_review(brief, candidate, external_review)
-                if mode == "create":
-                    review = reconcile_external_review_with_machine_gate(review)
+                if mode in {"create", "rewrite_existing_body"}:
+                    review = reconcile_external_review_with_machine_gate(
+                        review,
+                        REWRITE_MACHINE_OWNED_REVIEW_CODES
+                        if mode == "rewrite_existing_body"
+                        else MACHINE_OWNED_REVIEW_CODES,
+                    )
                 for item in review["articles"]:
                     item["hard_failure"] = False
             except (json.JSONDecodeError, TypeError, ValueError) as error:
