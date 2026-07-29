@@ -444,7 +444,7 @@ def _legacy_rewrite_article_brief(
             "product": immutable_fields["product"],
             "category": publisher._record_category(record),
             "serial": immutable_fields["serial"],
-            "slug": immutable_fields["slug"],
+            "slug": immutable_fields["urlSlug"],
             "primaryKeyword": immutable_fields["primaryKeyword"],
             "title": immutable_fields["title"],
         },

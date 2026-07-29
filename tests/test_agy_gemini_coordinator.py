@@ -495,8 +495,8 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
         "product": "tarot",
         "articleCategory": "tarot",
         "serial": "tarot-001",
-        "slug": "legacy-one",
-        "urlSlug": "legacy-one",
+        "slug": "yongshen-meaning",
+        "urlSlug": "fortune-0039",
         "primaryKeyword": "塔羅舊文一",
         "title": "塔羅舊文一",
         "description": "描述一",
@@ -540,6 +540,8 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert brief["mode"] == "rewrite_existing_body"
     assert brief["articles"][0]["article_id"] == "LEGACY-001"
     assert brief["articles"][0]["identity"]["serial"] == "tarot-001"
+    assert brief["articles"][0]["identity"]["slug"] == "fortune-0039"
+    assert brief["articles"][0]["immutable_fields"]["slug"] == "yongshen-meaning"
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 

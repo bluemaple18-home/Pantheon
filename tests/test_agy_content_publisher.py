@@ -424,6 +424,66 @@ def test_policy_v2_noop_rewrite_apply_fails_before_modified_is_written(
     assert not (tmp_path / "app/web/static").exists()
 
 
+def test_apply_rewrite_release_uses_inventory_slug_for_body_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _minimal_article_static(tmp_path)
+    article = make_rewrite_article("EXPANSION-50D-FORTUNE-0039", "fortune-0039")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-split-slug",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: {
+            "EXPANSION-50D-FORTUNE-0039": {
+                "record": {
+                    "id": "EXPANSION-50D-FORTUNE-0039",
+                    "product": "astrology",
+                    "articleCategory": "astrology",
+                    "serial": "astrology-0001",
+                    "slug": "yongshen-meaning",
+                    "urlSlug": "fortune-0039",
+                    "primaryKeyword": "舊文測試",
+                    "title": "舊文測試標題",
+                },
+                "currentBody": [
+                    {
+                        "heading": "舊內容",
+                        "paragraphs": [_long("舊文原始內容。")],
+                    }
+                ],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "required_policy_findings",
+        lambda _findings: [],
+    )
+
+    changed = publisher.apply_rewrite_release(
+        tmp_path,
+        "rewrite-split-slug",
+        [candidate],
+    )
+
+    module = tmp_path / "app/web/static/article-rewrite-rewrite-split-slug.js"
+    assert module in changed
+    text = module.read_text(encoding="utf-8")
+    assert '"yongshen-meaning": [' in text
+    assert '"fortune-0039": [' not in text
+
+
 def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -780,11 +840,21 @@ def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, mo
     assert ready == []
 
 
-def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "drift",
+    ["title", "primary_keyword", "serial", "category", "url_slug"],
+)
+def test_publish_ready_rewrite_runs_quarantines_identity_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+) -> None:
     monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
-    article = make_rewrite_article("LEGACY-001", "legacy-001")
+    candidate_slug = "yongshen-meaning" if drift == "url_slug" else "legacy-001"
+    inventory_url_slug = "fortune-0039" if drift == "url_slug" else "legacy-001"
+    article = make_rewrite_article("LEGACY-001", candidate_slug)
     _write_rewrite_run(queue_root, tmp_path / "runs" / "rewrite-drift", article)
     _write_json(
         state_root / "ledger.json",
@@ -813,11 +883,12 @@ def test_publish_ready_rewrite_runs_quarantines_identity_drift(tmp_path: Path, m
                 "record": {
                     "id": "LEGACY-001",
                     "product": "astrology",
-                    "articleCategory": "astrology",
-                    "serial": "astrology-0001",
-                    "urlSlug": "legacy-001",
-                    "primaryKeyword": "舊文測試",
-                    "title": "已變動的舊文標題",
+                    "articleCategory": "fortune" if drift == "category" else "astrology",
+                    "serial": "astrology-9999" if drift == "serial" else "astrology-0001",
+                    "slug": "yongshen-meaning" if drift == "url_slug" else "legacy-001",
+                    "urlSlug": inventory_url_slug,
+                    "primaryKeyword": "已變動的關鍵字" if drift == "primary_keyword" else "舊文測試",
+                    "title": "已變動的舊文標題" if drift == "title" else "舊文測試標題",
                 },
                 "currentBody": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
             }
@@ -971,6 +1042,7 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
                     "product": "astrology",
                     "articleCategory": "astrology",
                     "serial": "astrology-0001",
+                    "slug": "legacy-001",
                     "urlSlug": "legacy-001",
                     "primaryKeyword": "舊文測試",
                     "title": "舊文測試標題",

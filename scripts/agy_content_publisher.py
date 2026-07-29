@@ -1935,15 +1935,17 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
     policy_export_name = f"AGY_{identifier}_REWRITE_POLICY_OVERRIDES"
     module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
+    inventory = pipeline._existing_rewrite_inventory(repo_root)
     bodies: dict[str, list[dict[str, Any]]] = {}
     policies: dict[str, dict[str, Any]] = {}
     for candidate in candidates:
         for article in candidate["articles"]:
-            slug = str(article["identity"]["slug"])
+            article_id = str(article["article_id"])
+            slug = str(inventory[article_id]["record"]["slug"])
             if slug in bodies:
                 raise PublishBlocked(f"duplicate rewrite slug in release batch: {slug}")
             bodies[slug] = article["bodySections"]
-            policies[str(article["article_id"])] = {
+            policies[article_id] = {
                 "updated": article["publicationPolicy"]["modified"],
                 "publicationPolicy": article["publicationPolicy"],
             }
