@@ -1855,7 +1855,10 @@ def _rewrite_identity_for_inventory_item(item: dict[str, Any]) -> dict[str, str]
     }
 
 
-def _assert_rewrite_source_matches(repo_root: Path, candidates: list[dict[str, Any]]) -> None:
+def _assert_rewrite_source_matches(
+    repo_root: Path,
+    candidates: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     inventory = pipeline._existing_rewrite_inventory(repo_root)
     for candidate in candidates:
         for article in candidate["articles"]:
@@ -1863,12 +1866,19 @@ def _assert_rewrite_source_matches(repo_root: Path, candidates: list[dict[str, A
             current = inventory.get(article_id)
             if current is None:
                 raise PublishBlocked(f"rewrite source article no longer exists: {article_id}")
+            record = current.get("record")
+            if not isinstance(record, dict):
+                raise PublishBlocked(f"rewrite source record is missing: {article_id}")
+            body_slug = record.get("slug")
+            if not isinstance(body_slug, str) or not body_slug.strip():
+                raise PublishBlocked(f"rewrite source body slug is missing: {article_id}")
             if article["identity"] != _rewrite_identity_for_inventory_item(current):
                 raise PublishBlocked(f"rewrite identity drift for {article_id}")
             actual_hash = pipeline.body_sha256(current["currentBody"])
             approved_hash = pipeline.body_sha256(article["bodySections"])
             if actual_hash not in {str(article["current_body_sha256"]), approved_hash}:
                 raise PublishBlocked(f"rewrite body drift for {article_id}")
+    return inventory
 
 
 def _update_rewrite_body_override_lookup(meta_path: Path, export_name: str) -> None:
@@ -1908,7 +1918,7 @@ def _update_rewrite_policy_override_lookup(registry_path: Path, export_name: str
 def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dict[str, Any]]) -> list[Path]:
     if not candidates:
         return []
-    _assert_rewrite_source_matches(repo_root, candidates)
+    inventory = _assert_rewrite_source_matches(repo_root, candidates)
     reference_articles = pipeline.load_publication_reference_corpus(repo_root)
     for candidate in candidates:
         for article in candidate["articles"]:
@@ -1935,7 +1945,6 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
     policy_export_name = f"AGY_{identifier}_REWRITE_POLICY_OVERRIDES"
     module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
-    inventory = pipeline._existing_rewrite_inventory(repo_root)
     bodies: dict[str, list[dict[str, Any]]] = {}
     policies: dict[str, dict[str, Any]] = {}
     for candidate in candidates:

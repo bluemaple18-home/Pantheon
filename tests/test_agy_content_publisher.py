@@ -484,6 +484,154 @@ def test_apply_rewrite_release_uses_inventory_slug_for_body_override(
     assert '"fortune-0039": [' not in text
 
 
+def test_apply_rewrite_release_reuses_validated_inventory_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _minimal_article_static(tmp_path)
+    article = make_rewrite_article("EXPANSION-50D-FORTUNE-0039", "fortune-0039")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-inventory-snapshot",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    current_body = [
+        {
+            "heading": "舊內容",
+            "paragraphs": [_long("舊文原始內容。")],
+        }
+    ]
+    valid_record = {
+        "id": "EXPANSION-50D-FORTUNE-0039",
+        "product": "astrology",
+        "articleCategory": "astrology",
+        "serial": "astrology-0001",
+        "slug": "yongshen-meaning",
+        "urlSlug": "fortune-0039",
+        "primaryKeyword": "舊文測試",
+        "title": "舊文測試標題",
+    }
+    loads: list[Path] = []
+
+    def load_inventory(repo_root: Path) -> dict[str, object]:
+        loads.append(repo_root)
+        record = dict(valid_record)
+        if len(loads) > 1:
+            record["slug"] = "unverified-drift"
+        return {
+            "EXPANSION-50D-FORTUNE-0039": {
+                "record": record,
+                "currentBody": current_body,
+            }
+        }
+
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "_existing_rewrite_inventory",
+        load_inventory,
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "required_policy_findings",
+        lambda _findings: [],
+    )
+
+    changed = publisher.apply_rewrite_release(
+        tmp_path,
+        "rewrite-inventory-snapshot",
+        [candidate],
+    )
+
+    module = tmp_path / "app/web/static/article-rewrite-rewrite-inventory-snapshot.js"
+    assert module in changed
+    assert loads == [tmp_path]
+    text = module.read_text(encoding="utf-8")
+    assert '"yongshen-meaning": [' in text
+    assert '"unverified-drift": [' not in text
+
+
+@pytest.mark.parametrize(
+    ("invalid_source", "message"),
+    [
+        ("missing_article", "rewrite source article no longer exists"),
+        ("missing_record", "rewrite source record is missing"),
+        ("missing_slug", "rewrite source body slug is missing"),
+        ("blank_slug", "rewrite source body slug is missing"),
+    ],
+)
+def test_apply_rewrite_release_invalid_inventory_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_source: str,
+    message: str,
+) -> None:
+    article_id = "EXPANSION-50D-FORTUNE-0039"
+    article = make_rewrite_article(article_id, "fortune-0039")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-invalid-inventory",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    record = {
+        "id": article_id,
+        "product": "astrology",
+        "articleCategory": "astrology",
+        "serial": "astrology-0001",
+        "slug": "yongshen-meaning",
+        "urlSlug": "fortune-0039",
+        "primaryKeyword": "舊文測試",
+        "title": "舊文測試標題",
+    }
+    source: dict[str, object] = {
+        "record": record,
+        "currentBody": [
+            {
+                "heading": "舊內容",
+                "paragraphs": [_long("舊文原始內容。")],
+            }
+        ],
+    }
+    inventory = {article_id: source}
+    if invalid_source == "missing_article":
+        inventory = {}
+    elif invalid_source == "missing_record":
+        source.pop("record")
+    elif invalid_source == "missing_slug":
+        record.pop("slug")
+    else:
+        record["slug"] = " \t"
+
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: inventory,
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "required_policy_findings",
+        lambda _findings: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match=message):
+        publisher.apply_rewrite_release(
+            tmp_path,
+            "rewrite-invalid-inventory",
+            [candidate],
+        )
+
+
 def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
