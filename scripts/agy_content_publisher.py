@@ -570,6 +570,10 @@ def _isolated_transaction_worktree(
         )
         added = True
         _assert_transaction_runtime_matches(repo_root, transaction_root)
+        actor_venv = repo_root / ".venv"
+        transaction_venv = transaction_root / ".venv"
+        if actor_venv.is_dir() and not transaction_venv.exists():
+            transaction_venv.symlink_to(actor_venv, target_is_directory=True)
         actor_node_modules = repo_root / "node_modules"
         transaction_node_modules = transaction_root / "node_modules"
         if actor_node_modules.is_dir() and not transaction_node_modules.exists():

@@ -2244,7 +2244,7 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     target = seed / "app/web/owned.txt"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"base\n")
-    (seed / ".gitignore").write_text("node_modules/\n.work/\n", encoding="utf-8")
+    (seed / ".gitignore").write_text(".venv\nnode_modules/\n.work/\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
     subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True)
@@ -2253,11 +2253,16 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
 
     state_root = actor / ".work/content-publisher"
     state_root.mkdir(parents=True)
+    actor_venv_python = actor / ".venv/bin/python"
+    actor_venv_python.parent.mkdir(parents=True)
+    actor_venv_python.write_text("#!/bin/sh\n", encoding="utf-8")
     (actor / "node_modules").mkdir()
     actor_target = actor / "app/web/owned.txt"
     with publisher._isolated_transaction_worktree(actor, state_root) as transaction_root:
         assert transaction_root != actor
         assert (transaction_root / "app/web/owned.txt").read_bytes() == b"base\n"
+        assert (transaction_root / ".venv").resolve() == (actor / ".venv").resolve()
+        assert (transaction_root / "node_modules").is_dir()
         assert publisher._repo_clean(transaction_root)
         actor_target.write_bytes(b"concurrent-user\n")
         (transaction_root / "app/web/owned.txt").write_bytes(b"publisher\n")
