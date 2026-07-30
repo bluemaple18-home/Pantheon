@@ -20,41 +20,6 @@ from scripts import agy_seo_copy_pipeline as pipeline
 SCHEMA_VERSION = 1
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
 LOCALE_LABELS = {"en": "English", "ja": "日本語", "ko": "한국어"}
-GENERAL_ENGLISH_WORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "avoid",
-    "by",
-    "check",
-    "compare",
-    "explain",
-    "find",
-    "for",
-    "from",
-    "guide",
-    "how",
-    "identify",
-    "in",
-    "is",
-    "of",
-    "on",
-    "or",
-    "the",
-    "to",
-    "understand",
-    "use",
-    "using",
-    "what",
-    "when",
-    "where",
-    "which",
-    "why",
-    "with",
-}
 LOCALE_EDITORIAL_CONTRACTS = {
     "en": {
         "voice": "Write as an original English web editor: direct, clear, calm, and useful. Use active voice and natural subject-verb order.",
@@ -618,17 +583,52 @@ def _outline_topology(item: dict[str, Any]) -> tuple[frozenset[str], ...]:
 
 
 def _ascii_is_name_acronym_or_number(text: str) -> bool:
-    words = re.findall(r"[A-Za-z][A-Za-z0-9+-]*", text)
-    if not words:
-        return bool(re.search(r"\d", text))
-    if any(word.casefold() in GENERAL_ENGLISH_WORDS for word in words):
+    tokens = re.findall(r"[A-Za-z0-9]+(?:[-+.][A-Za-z0-9]+)*%?", text)
+    if not tokens:
         return False
-    return all(
-        any(character.isdigit() for character in word)
-        or word.isupper()
-        or sum(character.isupper() for character in word) >= 2
-        or word[0].isupper()
-        for word in words
+
+    def is_number(token: str) -> bool:
+        return re.fullmatch(r"\d+(?:[.,]\d+)?%?", token) is not None
+
+    def is_acronym(token: str) -> bool:
+        return re.fullmatch(r"[A-Z]{2,6}", token) is not None
+
+    def is_model_code(token: str) -> bool:
+        return (
+            len(token) <= 24
+            and re.fullmatch(r"[A-Za-z0-9]+(?:[-+][A-Za-z0-9]+)*", token)
+            is not None
+            and any(character.isalpha() for character in token)
+            and any(character.isdigit() for character in token)
+            and (
+                any(character.isupper() for character in token)
+                or "-" in token
+                or "+" in token
+            )
+        )
+
+    def is_single_name(token: str) -> bool:
+        return (
+            2 <= len(token) <= 24
+            and token.isalpha()
+            and token[0].isupper()
+            and any(character.islower() for character in token)
+        )
+
+    if len(tokens) == 1:
+        return any(
+            predicate(tokens[0])
+            for predicate in (is_number, is_acronym, is_model_code, is_single_name)
+        )
+    if len(tokens) > 3:
+        return False
+    return (
+        (is_single_name(tokens[0]) or is_acronym(tokens[0]))
+        and is_model_code(tokens[1])
+        and all(is_number(token) for token in tokens[2:])
+    ) or (
+        is_model_code(tokens[0])
+        and all(is_number(token) for token in tokens[1:])
     )
 
 

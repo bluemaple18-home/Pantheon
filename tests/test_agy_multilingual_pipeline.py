@@ -544,6 +544,134 @@ def test_locale_plan_accepts_native_script_with_names_acronyms_and_numbers(
     )
 
 
+def _replace_locale_plan_semantic_item(
+    item: dict[str, object],
+    field: str,
+    text: str,
+) -> None:
+    if field in {"native_search_intent", "article_angle"}:
+        item[field] = text
+        return
+    if field == "native_query_phrasings":
+        queries = item[field]
+        assert isinstance(queries, list)
+        queries[0] = text
+        return
+    if field == "ordered_h2_outline":
+        outline = item[field]
+        mappings = item["coverage_mapping"]
+        assert isinstance(outline, list) and isinstance(mappings, list)
+        old_heading = outline[0]
+        outline[0] = text
+        for mapping in mappings:
+            assert isinstance(mapping, dict)
+            if mapping["planned_h2"] == old_heading:
+                mapping["planned_h2"] = text
+        return
+    mappings = item["coverage_mapping"]
+    assert isinstance(mappings, list) and isinstance(mappings[0], dict)
+    mappings[0]["coverage_note"] = text
+
+
+@pytest.mark.parametrize("locale", ["ja", "ko"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "native_search_intent",
+        "native_query_phrasings",
+        "article_angle",
+        "ordered_h2_outline",
+        "coverage_note",
+    ],
+)
+@pytest.mark.parametrize(
+    "wrong_text",
+    [
+        "orbit velvet lanterns quietly",
+        "Orbit Velvet Lanterns Quietly",
+        "ORBIT VELVET LANTERNS QUIETLY",
+        "Zorple Quindle Marvex Tundra",
+        "ZXCV QWER",
+    ],
+)
+def test_locale_plan_rejects_ascii_only_sentence_matrix(
+    locale: str,
+    field: str,
+    wrong_text: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    _replace_locale_plan_semantic_item(item, field, wrong_text)
+
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
+@pytest.mark.parametrize("locale", ["ja", "ko"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "OpenAI",
+        "API",
+        "GPT-5",
+        "2026",
+        "OpenAI GPT-5 2026",
+    ],
+)
+def test_locale_plan_accepts_closed_ascii_only_literal_contract(
+    locale: str,
+    text: str,
+) -> None:
+    assert multilingual._plan_matches_target_language(locale, text)
+
+
+@pytest.mark.parametrize("locale", ["ja", "ko"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ABCDEFG",
+        "Supercalifragilisticexpialidocious",
+        "MODEL-12345678901234567890",
+        "OpenAI GPT-5 2026 2027",
+    ],
+)
+def test_locale_plan_rejects_ascii_literal_outside_closed_boundaries(
+    locale: str,
+    text: str,
+) -> None:
+    assert not multilingual._plan_matches_target_language(locale, text)
+
+
+@pytest.mark.parametrize(
+    ("locale", "text"),
+    [
+        ("ja", "OpenAIを使う"),
+        ("ja", "APIを確認する"),
+        ("ja", "GPT-5を比較する"),
+        ("ja", "2026年の傾向"),
+        ("ko", "OpenAI를 사용합니다"),
+        ("ko", "API를 확인합니다"),
+        ("ko", "GPT-5를 비교합니다"),
+        ("ko", "2026년의 경향"),
+    ],
+)
+def test_locale_plan_accepts_native_text_with_closed_ascii_literal(
+    locale: str,
+    text: str,
+) -> None:
+    assert multilingual._plan_matches_target_language(locale, text)
+
+
+def test_locale_plan_accepts_valid_japanese_kanji_only_heading() -> None:
+    assert multilingual._plan_matches_target_language("ja", "実践方法")
+
+
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])
 @pytest.mark.parametrize(
     "field",
