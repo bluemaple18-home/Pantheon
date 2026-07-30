@@ -6,7 +6,7 @@ import {
   listArticleRecords,
   listArticleSectionRecords,
   listTagManagementRecords,
-} from "./article-registry.js?v=agy-i18n-0-3-158";
+} from "./article-registry.js?v=agy-i18n-0-3-159";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
