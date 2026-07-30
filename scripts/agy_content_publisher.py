@@ -1709,26 +1709,6 @@ def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, article
         if line not in block:
             block += line
     text = text[:start] + block + text[end:]
-    if (repo_root / "app/web/static/articles.js").exists():
-        records = _hub_display_records(repo_root)
-        category_list = _python_string_list([str(record["category"]) for record in records])
-        path_list = _python_string_list([str(record["path"]) for record in records])
-        pattern = re.compile(
-            r'assert \[record\["category"\] for record in data\["records"\]\] == \[\n.*?\n    \]\n'
-            r'    assert \[record\["path"\] for record in data\["records"\]\] == \[\n.*?\n    \]',
-            flags=re.DOTALL,
-        )
-        replacement = (
-            'assert [record["category"] for record in data["records"]] == [\n'
-            f"{category_list}\n"
-            "    ]\n"
-            '    assert [record["path"] for record in data["records"]] == [\n'
-            f"{path_list}\n"
-            "    ]"
-        )
-        text, replaced = pattern.subn(replacement, text, count=1)
-        if replaced != 1:
-            raise PublishBlocked("test_web hub display fixture marker not found")
     test_path.write_text(text, encoding="utf-8")
     return test_path
 
@@ -1740,24 +1720,6 @@ def _sync_web_test_cache_token(repo_root: Path, *, cache_token: str) -> Path:
     text = re.sub(r'ARTICLE_CACHE_TOKEN = "[^"]+"', f'ARTICLE_CACHE_TOKEN = "{cache_token}"', text, count=1)
     test_path.write_text(text, encoding="utf-8")
     return test_path
-
-
-def _python_string_list(values: list[str]) -> str:
-    return "\n".join(f'        "{value}",' for value in values)
-
-
-def _hub_display_records(repo_root: Path) -> list[dict[str, str]]:
-    script = """
-import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
-import { pickLatestArticles } from "./app/web/static/articles.js";
-const selected = pickLatestArticles(listArticleRecords());
-console.log(JSON.stringify(selected.map((article) => ({
-  path: getArticlePath(article),
-  category: article.articleCategory,
-}))));
-"""
-    result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=repo_root, check=True, capture_output=True, text=True)
-    return list(json.loads(result.stdout))
 
 
 def _run_prerender(
