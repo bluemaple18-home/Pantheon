@@ -3,7 +3,7 @@
 - captured_at: `2026-07-30 Asia/Taipei`
 - mainline_thread: `019fb165-8174-7192-b19f-4ed19ed19426`
 - chain: `pantheon-i18n-rewrite-4of4-runtime-stability-p0-20260730`
-- state: `BLOCKED_PENDING_REPAIR_BUDGET_DECISION`
+- state: `BLOCKED_STRICT_REPAIR_LIMIT_EXHAUSTED`
 
 ## Root question
 
@@ -31,46 +31,66 @@ locale-specific plan，再依source fact package原生重寫；repeated findings
   - `git diff --check`：PASS
 - Targeted probes：`2 failed, 1 passed`；兩個failure是尚未關閉的P1
   requirement probes。
+- 使用者已核准第二代、最後一代Repair。
+- Repair-2 card commit：
+  `04ce6b662651d213477125c8e3a3977dcb9a4523`。
+- Repair-2 candidate：
+  `488c3ca290cc62811100f5b73a6eb530f86c6634`，direct parent
+  `5d75d1802e379e022ae5682fd9d6ebe019d804f6`。
+- Final targeted re-review evidence commit：
+  `ce34670911a7c4691cb6a3cea851b7a805ff965e`，verdict
+  `REVIEW_NO_GO`。
+- Repair-2／final review fresh evidence：
+  - direct multilingual：`64 passed`
+  - original Review probes：`15 passed`
+  - required suite：`492 passed, 1 warning`
+  - candidate `git diff --check`：PASS
+  - final independent probes：`3 passed, 10 failed`
 - Candidate尚未整合到mainline；未呼叫provider、未讀寫production `.work`、
   未push、deploy或publish。
 
 ## Blocker
 
-Review卡的`repair_budget: 1`已用盡，且仍有兩筆P1：
+Strict chain允許的兩代Repair均已用盡，且仍有一筆P1：
 
-1. `P0C-REREV-001`：後續generation plan-pending replay的`prior_plan`第一次來自
-   in-memory dict，重跑來自sorted-key JSON artifact；`_plan_prompt()`未canonical
-   serialize structured fragments，導致prompt/request identity漂移。
-2. `P0C-REREV-002`：locale gate只做所有semantic fields的aggregate script ratio；
-   ko的其他母語欄位可掩護整組英文H2，錯語言outline仍被article phase接受。
+1. `P0C-REREV-002`：per-item gate會把
+   `READERS EVALUATE SOURCES CAREFULLY`這類全大寫一般英文誤認為acronym／產品名，
+   因而在ja／ko的intent、query、angle、H2與coverage note放行。
+2. 同一判定也會把合法日文純漢字H2如`実践方法`誤判為繁中殘留；這是同一
+   locale authority P1的false-positive側。
+
+已關閉：
+
+- `P0C-REREV-001`：prompt bytes、SHA、request identity、job ID與單一enqueue
+  均穩定。
+- `P0C-REV-003..006`：無回歸。
 
 ## Candidate fork
 
-- Recommended、尚未啟動：在使用者明確增加一次repair budget後，建立唯一
-  Repair-2／Retry-1卡，以targeted re-review evidence commit
-  `5d75d1802e379e022ae5682fd9d6ebe019d804f6`為base，只修：
-  - structured prompt canonical serialization與later-generation plan replay；
-  - critical field-group／per-item locale validation。
-- Alternative、尚未啟動：停止本candidate，重新設計整個P0-C continuation。
-  目前四筆原finding已關閉，兩筆剩餘finding範圍明確，因此不建議此fork。
+- Current mainline：停止本candidate；不得用Repair-3、改名或replacement繞過
+  strict兩代Repair上限。
+- Pending independent fork：若使用者仍要繼續，必須由主線重新立一條新chain／
+  新spec，先重新設計locale authority validator，再重新建立完整Implementation →
+  Review鏈；不能把它冒充本chain的下一代Repair。
+- Production fork：仍pending，且被本P1與`REVIEW_NO_GO`阻擋。
 
 ## Next step
 
-等待使用者決定是否明確增加一次repair budget。若核准：
-
-1. 建立唯一實體Repair-2／Retry-1卡。
-2. 建立獨立可見task與clean worktree，base精確為
-   `5d75d1802e379e022ae5682fd9d6ebe019d804f6`。
-3. 修復後交回同一原Reviewer做targeted re-review。
-4. 只有`REVIEW_GO`後才整合mainline與跑fresh acceptance。
+本chain無合法下一個Repair step。若使用者要求繼續，主線先重新做
+root question／scope／validator design arbitration，形成新chain；不得直接繼承
+本chain的GO狀態，且新candidate仍需獨立Review。
 
 ## Waiting condition
 
-使用者明確核准「增加一次repair budget並開唯一Repair-2／Retry-1」。
+使用者明確選擇是否：
+
+1. 停止P0-C並保留目前P0-A／P0-B成果；或
+2. 另立新chain重新設計locale authority validator。
 
 ## Limits
 
-- 未核准前不得建立Repair-2／replacement、修改candidate或整合NO_GO candidate。
+- 不得建立Repair-3、用新finding名稱重置repair generation，或整合NO_GO
+  candidate。
 - 未取得精確外部授權前不得呼叫provider、push、deploy、publish或修改production
   `.work`。
 - 不降低deterministic、Reviewer、SEO、canonical、安全或publication gate。
