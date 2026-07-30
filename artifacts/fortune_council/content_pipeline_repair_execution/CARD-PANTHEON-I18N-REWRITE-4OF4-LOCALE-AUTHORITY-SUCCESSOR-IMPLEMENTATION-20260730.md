@@ -110,6 +110,8 @@ list 修補。
 
 - `scripts/agy_multilingual_pipeline.py`
 - `tests/test_agy_multilingual_pipeline.py`
+- 本卡實體 `.md`；僅可從主線 card commit
+  `16db4868a6a001738d9bc27091352306cf86ab60` 精確帶入，不得改寫契約
 - 本卡專屬 evidence／handoff
 
 若 RED 證據顯示必須變更 schema 或其他 production module，立即停止並回報
