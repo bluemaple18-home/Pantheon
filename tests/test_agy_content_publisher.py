@@ -275,8 +275,19 @@ def _write_active_create_run(queue_root: Path, run_dir: Path, article_id: str = 
 
 
 def _minimal_article_static(repo_root: Path) -> None:
-    static = repo_root / "app" / "web" / "static"
+    web = repo_root / "app" / "web"
+    static = web / "static"
     static.mkdir(parents=True)
+    (web / "articles.html").write_text(
+        '<meta property="article:published_time" content="2026-07-10" />\n'
+        '<meta property="article:modified_time" content="2026-07-16" />\n'
+        '"datePublished": "2026-07-10",\n'
+        '"dateModified": "2026-07-16",\n'
+        '<time datetime="2026-07-10" data-articles-published>2026-07-10</time>\n'
+        '<time datetime="2026-07-16" data-articles-updated>2026-07-16</time>\n'
+        '<script type="module" src="/static/articles.js?v=old-token"></script>\n',
+        encoding="utf-8",
+    )
     (static / "article-registry.js").write_text(
         "export const ARTICLE_REGISTRY = [\n];\n"
         "function getArticleSectionRecord() { return {}; }\n"
@@ -947,6 +958,11 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     assert result["version"] == "0.3.1"
     assert (repo_root / "app/web/static/article-expansion-agy-run-approved.js").exists()
     assert (run_dir / "approval.json").exists()
+    hub = (repo_root / "app/web/articles.html").read_text(encoding="utf-8")
+    expected_updated = str(article["updated"])
+    assert f'<meta property="article:modified_time" content="{expected_updated}" />' in hub
+    assert f'"dateModified": "{expected_updated}"' in hub
+    assert f'<time datetime="{expected_updated}" data-articles-updated>{expected_updated}</time>' in hub
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
     assert "## [0.3.1]" in (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
     assert seeded == [("run-approved", "AUTO-001")]
@@ -1231,6 +1247,11 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
 
     assert result["status"] == "PUBLISHED_REWRITE"
     assert result["public_article_count"] == 353
+    hub = (repo_root / "app/web/articles.html").read_text(encoding="utf-8")
+    expected_updated = str(article["publicationPolicy"]["modified"])
+    assert f'<meta property="article:modified_time" content="{expected_updated}" />' in hub
+    assert f'"dateModified": "{expected_updated}"' in hub
+    assert f'<time datetime="{expected_updated}" data-articles-updated>{expected_updated}</time>' in hub
     modules = list((repo_root / "app/web/static").glob("article-rewrite-agy-rewrite-*.js"))
     assert len(modules) == 1
     meta = (repo_root / "app/web/static/article-meta.js").read_text(encoding="utf-8")
@@ -2458,6 +2479,9 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
         encoding="utf-8",
     )
     (web_dir / "articles.html").write_text(
+        '<meta property="article:modified_time" content="2026-07-23" />\n'
+        '"dateModified": "2026-07-23",\n'
+        '<time datetime="2026-07-23" data-articles-updated>2026-07-23</time>\n'
         '<script type="module" src="/static/articles.js?v=old-token"></script>\n',
         encoding="utf-8",
     )
@@ -2466,7 +2490,11 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
 
     assert 'ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-59"' in (test_dir / "test_web.py").read_text(encoding="utf-8")
     assert "static/article.js?v=agy-i18n-0-3-59" in (web_dir / "article.html").read_text(encoding="utf-8")
-    assert "static/articles.js?v=agy-i18n-0-3-59" in (web_dir / "articles.html").read_text(encoding="utf-8")
+    hub = (web_dir / "articles.html").read_text(encoding="utf-8")
+    assert "static/articles.js?v=agy-i18n-0-3-59" in hub
+    assert '<meta property="article:modified_time" content="2026-07-23" />' in hub
+    assert '"dateModified": "2026-07-23"' in hub
+    assert '<time datetime="2026-07-23" data-articles-updated>2026-07-23</time>' in hub
 
 
 def test_run_release_tests_runs_fast_preflight_before_full_gate(

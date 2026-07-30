@@ -1982,7 +1982,18 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     registry_path.write_text(registry, encoding="utf-8")
     _update_rewrite_policy_override_lookup(registry_path, policy_export_name)
     changed = [module, meta_path, registry_path]
-    changed.extend(pipeline._bump_article_cache_queries(repo_root, release_id))
+    hub_updated_date = max(
+        str(article["publicationPolicy"]["modified"])
+        for candidate in candidates
+        for article in candidate["articles"]
+    )
+    changed.extend(
+        pipeline._bump_article_cache_queries(
+            repo_root,
+            release_id,
+            hub_updated_date=hub_updated_date,
+        )
+    )
     return changed
 
 

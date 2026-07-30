@@ -16,11 +16,17 @@ ARTICLE_PUBLISHED_DATE = "2026-07-10"
 ARTICLE_UPDATED_DATE = "2026-07-12"
 ARTICLE_CONTENT_REFRESH_DATE = "2026-07-14"
 ARTICLE_TAROT_COMPLETION_DATE = "2026-07-16"
-ARTICLES_HUB_UPDATED_DATE = max(
-    ARTICLE_UPDATED_DATE,
-    ARTICLE_CONTENT_REFRESH_DATE,
-    ARTICLE_TAROT_COMPLETION_DATE,
-)
+
+
+def _articles_hub_updated_date() -> str:
+    markup = (WEB_DIR / "articles.html").read_text(encoding="utf-8")
+    match = re.search(r'<time datetime="([^"]+)" data-articles-updated>', markup)
+    if match is None:
+        raise RuntimeError("articles hub updated date marker is missing")
+    return match.group(1)
+
+
+ARTICLES_HUB_UPDATED_DATE = _articles_hub_updated_date()
 TAROT_COMPLETION_PATHS = {
     *(f"/articles/tarot/tarot-{serial:04d}" for serial in range(77, 81)),
 }
