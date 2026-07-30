@@ -1,0 +1,57 @@
+CARD-PANTHEON-I18N-REWRITE-4OF4-LOCALE-AUTHORITY-SUCCESSOR-REPAIR-1-20260730
+Verification snapshot
+
+1. full-consumption RED
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q -k "full_ascii_value_consumption or rejects_unconsumed_characters"
+   result: EXPECTED RED — 44 failed, 128 deselected
+
+2. full-consumption GREEN
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q -k "full_ascii_value_consumption or rejects_unconsumed_characters"
+   result: PASS — 44 passed, 128 deselected
+
+3. standalone-word RED
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q -k "rejects_single_ordinary_ascii_word"
+   result: EXPECTED RED — 30 failed, 142 deselected
+
+4. standalone-word GREEN
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q -k "rejects_single_ordinary_ascii_word"
+   result: PASS — 30 passed, 142 deselected
+
+5. complete successor independent Review probes
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q
+   result: PASS — 172 passed
+
+6. direct multilingual pipeline suite
+   command: <existing-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -q
+   result: PASS — 148 passed
+
+7. prior native-outline Review probes
+   command: <existing-venv-python> -m pytest <adversarial-review-tests> <targeted-re-review-probes> <targeted-re-review-2-probes> -q
+   result: PASS — 28 passed
+
+8. seven-file regression suite
+   command: <existing-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py tests/test_agy_gemini_outbox.py tests/test_agy_seo_copy_pipeline.py tests/test_agy_content_publisher.py tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_v4_broker.py tests/test_agy_gemini_reviewer_cutover.py -q
+   result: PASS — 576 passed, 1 existing DeprecationWarning
+
+9. production compile
+   command: <existing-venv-python> -m py_compile scripts/agy_multilingual_pipeline.py
+   result: PASS
+
+10. changed production/direct-test debug scan
+    patterns: [DBG-, breakpoint(, pdb.set_trace, print(
+    result: PASS — no matches in changed lines
+
+11. working diff check
+    command: git diff --check
+    result: PASS
+
+12. changed-files allowlist audit
+    result: PASS — production script, direct test, exact Repair card, and six Repair evidence files only
+
+13. evidence local-path scan
+    result: PASS — no prohibited local-path markers
+
+14. evidence secret/raw-payload scan
+    result: PASS — no secret or payload indicators
+
+Committed diff check and direct-parent verification are recorded in repair-evidence.md and handoff.md.

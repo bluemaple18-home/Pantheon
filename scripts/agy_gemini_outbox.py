@@ -20,9 +20,16 @@ from scripts import agy_seo_copy_pipeline as pipeline
 SCHEMA_VERSION = 1
 OUTBOX_MAX_REPAIRS = 2
 OUTBOX_MAX_TRANSPORT_RETRIES = 2
-RETRYABLE_EXTERNAL_ERRORS = {"JSONDecodeError"}
 CLOSED_EXTERNAL_ERROR_CODES = pipeline.CLOSED_GEMINI_ERROR_CODES
 INVALID_FAILURE_RECEIPT = "InvalidFailureReceipt"
+EXTERNAL_FAILURE_CATEGORIES = pipeline.CLOSED_GEMINI_FAILURE_CATEGORIES
+RETRYABLE_EXTERNAL_FAILURE_CATEGORIES = frozenset({
+    "CLI_NONZERO",
+    "MALFORMED_PAYLOAD",
+    "NETWORK",
+    "PROVIDER_UNAVAILABLE",
+    "SCHEMA_INVALID_PAYLOAD",
+})
 CLOSED_EXTERNAL_ERROR_TYPES = frozenset({
     "GeminiApiFailure",
     "GeminiCliFailure",
@@ -43,6 +50,7 @@ FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({
     "broker_diagnostic",
     "credential_pool",
     "error_code",
+    "failure_category",
 })
 FAILURE_TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$"
@@ -116,7 +124,16 @@ class ExternalJobPending(RuntimeError):
 class ExternalJobFailed(RuntimeError):
     """外部 runner 已記錄失敗。"""
 
-    def __init__(self, job_id: str, error_type: str, error_code: str | None = None) -> None:
+    def __init__(
+        self,
+        job_id: str,
+        error_type: str,
+        error_code: str | None = None,
+        *,
+        failure_category: str | None = None,
+        request_sha256: str | None = None,
+        transport_attempt: int = 0,
+    ) -> None:
         self.job_id = job_id
         self.error_type = (
             error_type
@@ -127,6 +144,24 @@ class ExternalJobFailed(RuntimeError):
             error_code
             if type(error_code) is str and error_code in CLOSED_EXTERNAL_ERROR_CODES
             else None
+        )
+        self.failure_category = (
+            failure_category
+            if failure_category in EXTERNAL_FAILURE_CATEGORIES
+            else "INVALID_RECEIPT"
+        )
+        self.request_sha256 = (
+            request_sha256
+            if type(request_sha256) is str
+            and SHA256_PATTERN.fullmatch(request_sha256) is not None
+            else None
+        )
+        self.transport_attempts = (
+            transport_attempt + 1
+            if type(transport_attempt) is int
+            and type(transport_attempt) is not bool
+            and 0 <= transport_attempt <= OUTBOX_MAX_TRANSPORT_RETRIES
+            else 1
         )
         super().__init__(f"external job failed: {job_id} ({self.error_type})")
 
@@ -194,7 +229,14 @@ def build_external_request(
     model: str,
     prompt: str,
     response_schema: dict[str, Any],
+    transport_attempt: int = 0,
 ) -> dict[str, Any]:
+    if (
+        type(transport_attempt) is not int
+        or type(transport_attempt) is bool
+        or not 0 <= transport_attempt <= OUTBOX_MAX_TRANSPORT_RETRIES
+    ):
+        raise ValueError("transport attempt is outside bounded retry budget")
     core = _request_core(
         namespace=namespace,
         role=role,
@@ -203,7 +245,17 @@ def build_external_request(
         response_schema=response_schema,
     )
     request_sha256 = hashlib.sha256(_json_bytes(core)).hexdigest()
-    return {**core, "job_id": request_sha256[:40], "request_sha256": request_sha256}
+    job_id = (
+        request_sha256[:40]
+        if transport_attempt == 0
+        else hashlib.sha256(
+            f"{request_sha256}:{transport_attempt}".encode("ascii")
+        ).hexdigest()[:40]
+    )
+    request = {**core, "job_id": job_id, "request_sha256": request_sha256}
+    if transport_attempt:
+        request["transport_attempt"] = transport_attempt
+    return request
 
 
 def validate_external_request(request: dict[str, Any]) -> None:
@@ -221,7 +273,8 @@ def validate_external_request(request: dict[str, Any]) -> None:
         "job_id",
         "request_sha256",
     }
-    if set(request) != required:
+    optional = {"transport_attempt"}
+    if not required <= set(request) or not set(request) <= required | optional:
         raise ValueError("external request fields are strict")
     rebuilt = build_external_request(
         namespace=str(request["namespace"]),
@@ -229,6 +282,7 @@ def validate_external_request(request: dict[str, Any]) -> None:
         model=str(request["model"]),
         prompt=str(request["prompt"]),
         response_schema=request["response_schema"],
+        transport_attempt=request.get("transport_attempt", 0),
     )
     if request != rebuilt:
         raise ValueError("external request hash mismatch")
@@ -242,6 +296,7 @@ def create_external_request(
     model: str,
     prompt: str,
     response_schema: dict[str, Any],
+    transport_attempt: int = 0,
 ) -> dict[str, Any]:
     request = build_external_request(
         namespace=namespace,
@@ -249,6 +304,7 @@ def create_external_request(
         model=model,
         prompt=prompt,
         response_schema=response_schema,
+        transport_attempt=transport_attempt,
     )
     job_id = request["job_id"]
     known_paths = [
@@ -364,6 +420,13 @@ def _failure_receipt_is_valid(
     broker_diagnostic = failure.get("broker_diagnostic")
     if ("broker_diagnostic" in failure) != (failure.get("error_type") == "V4BrokerFailure"):
         return False
+    failure_category = failure.get("failure_category")
+    if "failure_category" in failure and (
+        type(failure_category) is not str
+        or failure_category not in EXTERNAL_FAILURE_CATEGORIES
+        or failure_category != classify_external_failure(failure)
+    ):
+        return False
     credential_pool = failure.get("credential_pool")
     return (
         ("broker_diagnostic" not in failure or _broker_diagnostic_is_closed(broker_diagnostic))
@@ -372,6 +435,55 @@ def _failure_receipt_is_valid(
             or _credential_pool_identity_is_closed(credential_pool)
         )
     )
+
+
+def classify_external_failure(failure: object) -> str:
+    """將外部錯誤收斂為不含 provider detail 的封閉分類。"""
+    if type(failure) is not dict:
+        return "INVALID_RECEIPT"
+    error_type = failure.get("error_type")
+    error_code = failure.get("error_code")
+    diagnostic = failure.get("broker_diagnostic")
+    if error_type == INVALID_FAILURE_RECEIPT:
+        return "INVALID_RECEIPT"
+    if error_type == "JSONDecodeError":
+        return "MALFORMED_PAYLOAD"
+    if error_code == "CLI_NONZERO":
+        return "CLI_NONZERO"
+    if error_code in {"CLI_NOT_FOUND"}:
+        return "CLI_UNAVAILABLE"
+    if error_code in {"CLI_TIMEOUT", "API_TIMEOUT", "API_TRANSPORT_ERROR"}:
+        return "NETWORK"
+    if error_code in {"CLI_ENVELOPE_ERROR", "API_RESPONSE_INVALID"}:
+        return "MALFORMED_PAYLOAD"
+    if error_code == "API_AUTH":
+        return "AUTH"
+    if error_code in {"API_QUOTA", "API_RATE_LIMITED"}:
+        return "QUOTA"
+    if error_code == "API_MODEL_UNAVAILABLE":
+        return "MODEL_UNAVAILABLE"
+    if type(diagnostic) is dict:
+        result_validation = diagnostic.get("result_validation")
+        outcome = diagnostic.get("outcome")
+        if result_validation == "JSON_INVALID":
+            return "MALFORMED_PAYLOAD"
+        if result_validation in {"NOT_OBJECT", "SCHEMA_MISMATCH"}:
+            return "SCHEMA_INVALID_PAYLOAD"
+        if outcome == "CLI_NONZERO":
+            return "CLI_NONZERO"
+        if outcome == "CLI_TIMEOUT":
+            return "NETWORK"
+        if outcome in {
+            "CLI_NOT_FOUND",
+            "CRASH_BEFORE_FORK",
+            "PERMISSION_DENIED",
+            "EXEC_FORMAT",
+            "EXEC_RACE",
+        }:
+            return "CLI_UNAVAILABLE"
+    if error_type in {"GeminiApiFailure", "GeminiCliFailure", "RuntimeError", "V4BrokerFailure"}:
+        return "PROVIDER_UNAVAILABLE"
+    return "INVALID_RECEIPT"
 
 
 def _failure_timestamp_is_valid(value: object) -> bool:
@@ -394,13 +506,28 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
                 raise ValueError("failure receipt exceeds closed size")
             failure = json.loads(failed_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError, RecursionError, ValueError):
-            raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT) from None
+            raise ExternalJobFailed(
+                job_id,
+                INVALID_FAILURE_RECEIPT,
+                failure_category="INVALID_RECEIPT",
+                request_sha256=str(request["request_sha256"]),
+                transport_attempt=request.get("transport_attempt", 0),
+            ) from None
         if not _failure_receipt_is_valid(failure, request):
-            raise ExternalJobFailed(job_id, INVALID_FAILURE_RECEIPT)
+            raise ExternalJobFailed(
+                job_id,
+                INVALID_FAILURE_RECEIPT,
+                failure_category="INVALID_RECEIPT",
+                request_sha256=str(request["request_sha256"]),
+                transport_attempt=request.get("transport_attempt", 0),
+            )
         raise ExternalJobFailed(
             job_id,
             failure["error_type"],
             failure.get("error_code") if type(failure.get("error_code")) is str else None,
+            failure_category=classify_external_failure(failure),
+            request_sha256=str(request["request_sha256"]),
+            transport_attempt=request.get("transport_attempt", 0),
         )
     response_path = queue_root / "inbox" / f"{job_id}.json"
     if not response_path.exists():
@@ -463,13 +590,13 @@ class OutboxGeminiClient:
     def generate_json(self, role: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         model = self.writer_model if role == "writer" else self.reviewer_model
         for retry_index in range(OUTBOX_MAX_TRANSPORT_RETRIES + 1):
-            namespace = self.namespace if retry_index == 0 else f"{self.namespace}-r{retry_index}"
             expected = build_external_request(
-                namespace=namespace,
+                namespace=self.namespace,
                 role=role,
                 model=model,
                 prompt=prompt,
                 response_schema=schema,
+                transport_attempt=retry_index,
             )
             request_root = self.queue_root
             if (
@@ -479,16 +606,21 @@ class OutboxGeminiClient:
                 request_root = self.legacy_queue_root
             request = create_external_request(
                 request_root,
-                namespace=namespace,
+                namespace=self.namespace,
                 role=role,
                 model=model,
                 prompt=prompt,
                 response_schema=schema,
+                transport_attempt=retry_index,
             )
             try:
                 return consume_external_response(request_root, request)
             except ExternalJobFailed as failed:
-                if failed.error_type not in RETRYABLE_EXTERNAL_ERRORS or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES:
+                if (
+                    failed.failure_category
+                    not in RETRYABLE_EXTERNAL_FAILURE_CATEGORIES
+                    or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES
+                ):
                     raise
         raise RuntimeError("unreachable external transport retry state")
 

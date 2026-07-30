@@ -49,6 +49,11 @@ if [[ "${RUNTIME_SHA}" != "${ORIGIN_MAIN_SHA}" ]]; then
   echo "publisher actor HEAD 與 origin/main 不一致，拒絕部署" >&2
   exit 1
 fi
+RUNTIME_DIGEST="$(
+  cd "${REPO_ROOT}"
+  "${PYTHON_PATH}" -c \
+    'from pathlib import Path; from scripts.agy_content_publisher import runtime_manifest_digest; print(runtime_manifest_digest(Path.cwd()))'
+)"
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
@@ -60,6 +65,7 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:16 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:18 ${STATE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:20 ${RUNTIME_SHA}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:22 ${RUNTIME_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-content-publisher.stdout.log" "${TEMP_PLIST}"
@@ -81,6 +87,7 @@ run_preflight() {
       --expected-queue-root "${QUEUE_ROOT}" \
       --expected-state-root "${STATE_ROOT}" \
       --expected-runtime-sha "${RUNTIME_SHA}" \
+      --expected-runtime-digest "${RUNTIME_DIGEST}" \
       --expected-push-mode push
   )
 }

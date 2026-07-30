@@ -1,0 +1,35 @@
+fresh verification receipt
+
+1. targeted_re_review_2_probes.py -q
+   PASS: 13 passed in 0.06s
+
+2. tests/test_agy_multilingual_pipeline.py -q
+   PASS: 141 passed in 0.19s
+
+3. adversarial_review_tests.py + targeted_re_review_probes.py
+   + targeted_re_review_2_probes.py -q
+   PASS: 28 passed in 0.11s
+
+4. affected suites:
+   tests/test_agy_multilingual_pipeline.py
+   tests/test_agy_gemini_outbox.py
+   tests/test_agy_seo_copy_pipeline.py
+   tests/test_agy_content_publisher.py
+   tests/test_agy_gemini_coordinator.py
+   tests/test_agy_gemini_v4_broker.py
+   tests/test_agy_gemini_reviewer_cutover.py
+   PASS: 569 passed, 1 warning in 83.36s
+   NOTE: warning is the pre-existing invalid escape sequence DeprecationWarning
+   exercised by test_agy_content_publisher.py.
+
+5. production compile
+   PASS: python -m py_compile scripts/agy_multilingual_pipeline.py
+
+6. debug instrumentation
+   PASS: debug-marker scan returned no matches in changed production/test files.
+
+7. whitespace
+   PASS: git diff --check
+
+No provider, production .work, push, deploy, publish, merge, or external runtime
+action was executed.

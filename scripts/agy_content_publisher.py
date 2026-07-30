@@ -25,6 +25,7 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 
 SCHEMA_VERSION = 1
+RUNTIME_MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_MAX_RUNS = 3
 PUBLISHER_ID = "agy-content-publisher"
 LEGACY_ARTICLE_COUNT_CUTOFF = 353
@@ -91,6 +92,49 @@ class PolicyRejected(PublishBlocked):
 
 class PushOutcomeUnknown(PublishBlocked):
     """遠端 atomic push 結果無法安全判定。"""
+
+
+def runtime_manifest(repo_root: Path) -> dict[str, Any]:
+    """以封閉 path set 建立 Publisher runtime bytes manifest。"""
+    paths = sorted(TRANSACTION_RUNTIME_PATHS)
+    if not paths or len(paths) != len(set(paths)):
+        raise PublishBlocked("publisher runtime manifest paths are invalid")
+    files: list[dict[str, Any]] = []
+    for relative in paths:
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise PublishBlocked("publisher runtime manifest path is invalid")
+        path = repo_root / relative_path
+        if not path.is_file():
+            raise PublishBlocked(
+                f"publisher runtime manifest path is missing: {relative}"
+            )
+        body = path.read_bytes()
+        files.append(
+            {
+                "path": relative,
+                "bytes": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+            }
+        )
+    return {
+        "schema_version": RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "files": files,
+    }
+
+
+def _runtime_manifest_digest(manifest: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def runtime_manifest_digest(repo_root: Path) -> str:
+    return _runtime_manifest_digest(runtime_manifest(repo_root))
 
 
 class MutationJournal:
@@ -441,8 +485,323 @@ def _record_retry_failure(
                 "next_eligible_at": (datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(timespec="seconds"),
                 "eligibility": "exhausted" if attempts >= MAX_RETRY_ATTEMPTS else "deferred",
                 "candidate_preserved": True,
+                "recovery_count": int(previous.get("recovery_count", 0)),
+                "last_recovery_id": previous.get("last_recovery_id"),
             },
         )
+
+
+@contextmanager
+def _retry_recovery_lock(
+    state_root: Path,
+    *,
+    dry_run: bool,
+) -> Iterator[None]:
+    if dry_run:
+        yield
+        return
+    state_root.mkdir(parents=True, exist_ok=True)
+    lock_path = state_root / "publisher.lock"
+    with lock_path.open("a+") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise PublishBlocked("publisher is busy") from error
+        yield
+
+
+def recover_exhausted_create_retries(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    run_ids: list[str],
+    expected_error: str,
+    reason: str,
+    expected_recovery_digest: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """驗證並恢復指定 create run 的 retry budget，同時保存可稽核 receipt。"""
+    normalized_run_ids = [run_id.strip() for run_id in run_ids if run_id.strip()]
+    if not normalized_run_ids or len(normalized_run_ids) != len(set(normalized_run_ids)):
+        raise PublishBlocked("retry recovery run ids are empty or duplicated")
+    expected_error = expected_error.strip()
+    reason = reason.strip()
+    if not expected_error:
+        raise PublishBlocked("retry recovery expected error is required")
+    if len(reason) < 8 or len(reason) > 500:
+        raise PublishBlocked("retry recovery reason length is invalid")
+
+    with _retry_recovery_lock(state_root, dry_run=dry_run):
+        _assert_no_unresolved_push(state_root)
+        ledger = _load_ledger(state_root)
+        published = {
+            str(item.get("run_id")) for item in ledger["published_runs"]
+        }
+        quarantined = {
+            str(item.get("run_id")) for item in ledger["quarantined_runs"]
+        }
+        reference_articles = pipeline.load_publication_reference_corpus(repo_root)
+        states_by_run: dict[str, list[Path]] = {
+            run_id: [] for run_id in normalized_run_ids
+        }
+        for state_path in _run_files(queue_root):
+            try:
+                run_id = str(_read_json(state_path).get("run_id") or "")
+            except (OSError, json.JSONDecodeError):
+                continue
+            if run_id in states_by_run:
+                states_by_run[run_id].append(state_path)
+
+        validated: list[dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
+        for run_id in normalized_run_ids:
+            if run_id in published:
+                raise PublishBlocked(f"retry recovery run already published: {run_id}")
+            if run_id in quarantined:
+                raise PublishBlocked(f"retry recovery run is quarantined: {run_id}")
+            if _policy_rejection_path(state_root, "create", run_id).exists():
+                raise PublishBlocked(
+                    f"retry recovery run has terminal policy rejection: {run_id}"
+                )
+            state_paths = states_by_run[run_id]
+            if len(state_paths) != 1:
+                raise PublishBlocked(
+                    f"retry recovery requires one queue state for {run_id}"
+                )
+            state, candidate, review = _load_completed_run(state_paths[0])
+            if candidate.get("mode") != "create":
+                raise PublishBlocked(
+                    f"retry recovery only supports create mode: {run_id}"
+                )
+            if not _review_is_clean_approve(review):
+                raise PublishBlocked(
+                    f"retry recovery reviewer approval is not clean: {run_id}"
+                )
+            findings = (
+                pipeline.quality_findings(
+                    candidate["articles"],
+                    reference_articles=reference_articles,
+                )
+                if reference_articles
+                else pipeline.quality_findings(candidate["articles"])
+            )
+            if findings:
+                raise PublishBlocked(
+                    f"retry recovery candidate no longer passes policy: {run_id}"
+                )
+
+            retry_path = _retry_path(state_root, "create", run_id)
+            if not retry_path.is_file():
+                raise PublishBlocked(
+                    f"retry recovery record is missing: {run_id}"
+                )
+            retry_bytes = retry_path.read_bytes()
+            retry = json.loads(retry_bytes)
+            if (
+                retry.get("schema_version") != SCHEMA_VERSION
+                or retry.get("phase") != "create"
+                or retry.get("run_id") != run_id
+            ):
+                raise PublishBlocked(
+                    f"retry recovery record contract is invalid: {run_id}"
+                )
+            if (
+                retry.get("eligibility") != "exhausted"
+                or int(retry.get("attempts", -1)) < MAX_RETRY_ATTEMPTS
+                or int(retry.get("max_attempts", -1)) != MAX_RETRY_ATTEMPTS
+            ):
+                raise PublishBlocked(
+                    f"retry recovery record is not exhausted: {run_id}"
+                )
+            if retry.get("candidate_preserved") is not True:
+                raise PublishBlocked(
+                    f"retry recovery candidate preservation is not proven: {run_id}"
+                )
+            if str(retry.get("error") or "") != expected_error:
+                raise PublishBlocked(
+                    f"retry error differs from operator expectation: {run_id}"
+                )
+
+            evidence_path = Path(str(retry.get("evidence") or "")).resolve()
+            if (
+                not evidence_path.is_relative_to(state_root.resolve())
+                or not evidence_path.is_file()
+            ):
+                raise PublishBlocked(
+                    f"retry recovery evidence path is invalid: {run_id}"
+                )
+            failure_bytes = evidence_path.read_bytes()
+            failure = json.loads(failure_bytes)
+            if (
+                failure.get("status") != "FAILED_RECOVERED"
+                or failure.get("phase") != "create"
+                or failure.get("repo_recovered") is not True
+                or failure.get("status_after_recovery") not in (None, [])
+                or failure.get("concurrent_write_conflicts") not in (None, [])
+            ):
+                raise PublishBlocked(
+                    f"retry failure evidence is not fully recovered: {run_id}"
+                )
+            if failure.get("retry_status") != "candidate_preserved":
+                raise PublishBlocked(
+                    f"retry candidate preservation is not proven: {run_id}"
+                )
+            if failure.get("error_type") != retry.get("error_type"):
+                raise PublishBlocked(
+                    f"retry failure type is not bound to record: {run_id}"
+                )
+            if run_id not in {
+                str(item) for item in failure.get("run_ids", [])
+            }:
+                raise PublishBlocked(
+                    f"retry failure evidence is not bound to run: {run_id}"
+                )
+            validated.append(
+                {
+                    "run_id": run_id,
+                    "retry_path": retry_path,
+                    "retry": retry,
+                    "retry_bytes": retry_bytes,
+                    "failure_evidence": evidence_path,
+                    "failure_bytes": failure_bytes,
+                    "state_path": state_paths[0],
+                    "candidate_sha256": hashlib.sha256(
+                        pipeline.compact_json_bytes(candidate)
+                    ).hexdigest(),
+                }
+            )
+            candidates.append(candidate)
+
+        _assert_batch_unique(candidates)
+        recovery_digest = hashlib.sha256(
+            pipeline.compact_json_bytes(
+                {
+                    "expected_error": expected_error,
+                    "reason": reason,
+                    "runs": [
+                        {
+                            "run_id": item["run_id"],
+                            "source_retry_sha256": _bytes_sha256(
+                                item["retry_bytes"]
+                            ),
+                            "source_failure_sha256": _bytes_sha256(
+                                item["failure_bytes"]
+                            ),
+                            "candidate_sha256": item["candidate_sha256"],
+                        }
+                        for item in validated
+                    ],
+                }
+            )
+        ).hexdigest()
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "operation": "recover-exhausted-create-retries",
+                "mutation_permitted": False,
+                "recoverable_runs": normalized_run_ids,
+                "expected_error": expected_error,
+                "recovery_digest": recovery_digest,
+            }
+        if expected_recovery_digest != recovery_digest:
+            raise PublishBlocked(
+                "retry recovery state differs from approved dry-run"
+            )
+
+        for item in validated:
+            run_id = str(item["run_id"])
+            retry_path = Path(item["retry_path"])
+            if (
+                retry_path.read_bytes() != item["retry_bytes"]
+                or Path(item["failure_evidence"]).read_bytes()
+                != item["failure_bytes"]
+            ):
+                raise PublishBlocked(
+                    f"retry recovery state changed before mutation: {run_id}"
+                )
+            _, current_candidate, _ = _load_completed_run(
+                Path(item["state_path"])
+            )
+            if hashlib.sha256(
+                pipeline.compact_json_bytes(current_candidate)
+            ).hexdigest() != item["candidate_sha256"]:
+                raise PublishBlocked(
+                    f"retry recovery candidate changed before mutation: {run_id}"
+                )
+
+        recovered_runs: list[str] = []
+        receipts: list[str] = []
+        for item in validated:
+            run_id = str(item["run_id"])
+            retry_path = Path(item["retry_path"])
+            retry = dict(item["retry"])
+            source_retry_sha256 = _bytes_sha256(item["retry_bytes"])
+            recovered_at = _now()
+            recovery_id = hashlib.sha256(
+                (
+                    f"create:{run_id}:{source_retry_sha256}:"
+                    f"{recovered_at}:{reason}"
+                ).encode("utf-8")
+            ).hexdigest()[:20]
+            receipt_path = (
+                state_root
+                / "evidence"
+                / "retry-recovery"
+                / f"{recovery_id}-{retry_path.stem}.json"
+            )
+            receipt = {
+                "schema_version": SCHEMA_VERSION,
+                "status": "RECOVERY_AUTHORIZED",
+                "operation": "recover-exhausted-create-retry",
+                "recovery_id": recovery_id,
+                "phase": "create",
+                "run_id": run_id,
+                "reason": reason,
+                "expected_error": expected_error,
+                "source_retry_sha256": source_retry_sha256,
+                "source_failure_evidence": str(item["failure_evidence"]),
+                "candidate_sha256": item["candidate_sha256"],
+                "authorized_at": recovered_at,
+            }
+            _atomic_write_json(receipt_path, receipt)
+            _atomic_write_json(
+                retry_path,
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "phase": "create",
+                    "run_id": run_id,
+                    "attempts": 0,
+                    "max_attempts": MAX_RETRY_ATTEMPTS,
+                    "error_type": "OperatorRecovery",
+                    "error": reason,
+                    "evidence": str(receipt_path),
+                    "last_attempt_at": retry.get("last_attempt_at"),
+                    "next_eligible_at": datetime.now()
+                    .astimezone()
+                    .isoformat(timespec="seconds"),
+                    "eligibility": "recovered",
+                    "candidate_preserved": True,
+                    "recovered_from_retry_sha256": source_retry_sha256,
+                    "recovery_count": int(retry.get("recovery_count", 0)) + 1,
+                    "last_recovery_id": recovery_id,
+                    "recovered_at": recovered_at,
+                },
+            )
+            receipt["status"] = "RECOVERED"
+            receipt["completed_at"] = _now()
+            _atomic_write_json(receipt_path, receipt)
+            recovered_runs.append(run_id)
+            receipts.append(str(receipt_path))
+
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "RECOVERED",
+            "operation": "recover-exhausted-create-retries",
+            "recovered_runs": recovered_runs,
+            "receipts": receipts,
+        }
 
 
 def run_git(repo_root: Path, args: list[str], input_text: str | None = None) -> str:
@@ -469,6 +828,7 @@ def deployment_preflight(
     expected_queue_root: Path,
     expected_state_root: Path,
     expected_runtime_sha: str,
+    expected_runtime_digest: str,
     push: bool,
     expected_push_mode: str,
     git: GitRunner = run_git,
@@ -491,12 +851,19 @@ def deployment_preflight(
         )
     if not re.fullmatch(r"[0-9a-f]{40}", expected_runtime_sha):
         raise PublishBlocked("publisher expected runtime SHA is invalid")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_runtime_digest):
+        raise PublishBlocked("publisher expected runtime digest is invalid")
     if not _repo_clean(repo_root, git):
         raise PublishBlocked("publisher actor worktree is not clean")
     local_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if local_sha != expected_runtime_sha:
         raise PublishBlocked(
             "publisher runtime SHA differs from deployment contract"
+        )
+    actual_runtime_digest = runtime_manifest_digest(repo_root)
+    if actual_runtime_digest != expected_runtime_digest:
+        raise PublishBlocked(
+            "publisher runtime digest differs from deployment contract"
         )
     origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
     if local_sha != origin_main_sha:
@@ -537,6 +904,8 @@ def deployment_preflight(
         "queue": "matched",
         "state": "matched",
         "runtime_sha": local_sha,
+        "runtime_manifest_schema_version": RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "runtime_digest": actual_runtime_digest,
         "origin_main_sha": origin_main_sha,
         "push_mode": actual_push_mode,
     }
@@ -555,18 +924,14 @@ def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
 
 def _assert_transaction_runtime_matches(repo_root: Path, transaction_root: Path) -> None:
     """避免 lagging actor 用舊 publisher runtime 操作較新的 origin/main。"""
-    mismatches: list[str] = []
-    for relative in TRANSACTION_RUNTIME_PATHS:
-        actor_path = repo_root / relative
-        transaction_path = transaction_root / relative
-        actor_bytes = actor_path.read_bytes() if actor_path.is_file() else None
-        transaction_bytes = transaction_path.read_bytes() if transaction_path.is_file() else None
-        if actor_bytes != transaction_bytes:
-            mismatches.append(relative)
-    if mismatches:
+    actor_manifest = runtime_manifest(repo_root)
+    transaction_manifest = runtime_manifest(transaction_root)
+    actor_digest = _runtime_manifest_digest(actor_manifest)
+    transaction_digest = _runtime_manifest_digest(transaction_manifest)
+    if actor_manifest != transaction_manifest or actor_digest != transaction_digest:
         raise PublishBlocked(
-            "publisher actor runtime differs from origin/main; deploy actor before publishing: "
-            + ", ".join(mismatches)
+            "publisher actor runtime digest differs from origin/main; "
+            "deploy actor before publishing"
         )
 
 
@@ -1659,26 +2024,6 @@ def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, article
         if line not in block:
             block += line
     text = text[:start] + block + text[end:]
-    if (repo_root / "app/web/static/articles.js").exists():
-        records = _hub_display_records(repo_root)
-        category_list = _python_string_list([str(record["category"]) for record in records])
-        path_list = _python_string_list([str(record["path"]) for record in records])
-        pattern = re.compile(
-            r'assert \[record\["category"\] for record in data\["records"\]\] == \[\n.*?\n    \]\n'
-            r'    assert \[record\["path"\] for record in data\["records"\]\] == \[\n.*?\n    \]',
-            flags=re.DOTALL,
-        )
-        replacement = (
-            'assert [record["category"] for record in data["records"]] == [\n'
-            f"{category_list}\n"
-            "    ]\n"
-            '    assert [record["path"] for record in data["records"]] == [\n'
-            f"{path_list}\n"
-            "    ]"
-        )
-        text, replaced = pattern.subn(replacement, text, count=1)
-        if replaced != 1:
-            raise PublishBlocked("test_web hub display fixture marker not found")
     test_path.write_text(text, encoding="utf-8")
     return test_path
 
@@ -1690,24 +2035,6 @@ def _sync_web_test_cache_token(repo_root: Path, *, cache_token: str) -> Path:
     text = re.sub(r'ARTICLE_CACHE_TOKEN = "[^"]+"', f'ARTICLE_CACHE_TOKEN = "{cache_token}"', text, count=1)
     test_path.write_text(text, encoding="utf-8")
     return test_path
-
-
-def _python_string_list(values: list[str]) -> str:
-    return "\n".join(f'        "{value}",' for value in values)
-
-
-def _hub_display_records(repo_root: Path) -> list[dict[str, str]]:
-    script = """
-import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
-import { pickLatestArticles } from "./app/web/static/articles.js";
-const selected = pickLatestArticles(listArticleRecords());
-console.log(JSON.stringify(selected.map((article) => ({
-  path: getArticlePath(article),
-  category: article.articleCategory,
-}))));
-"""
-    result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=repo_root, check=True, capture_output=True, text=True)
-    return list(json.loads(result.stdout))
 
 
 def _run_prerender(
@@ -2532,10 +2859,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--deployment-preflight", action="store_true")
+    parser.add_argument(
+        "--recover-exhausted-create-run",
+        action="append",
+        default=[],
+    )
+    parser.add_argument("--expected-retry-error")
+    parser.add_argument("--expected-recovery-digest")
+    parser.add_argument("--recovery-reason")
     parser.add_argument("--expected-repo-root", type=Path)
     parser.add_argument("--expected-queue-root", type=Path)
     parser.add_argument("--expected-state-root", type=Path)
     parser.add_argument("--expected-runtime-sha")
+    parser.add_argument("--expected-runtime-digest")
     parser.add_argument(
         "--expected-push-mode",
         choices=("push", "no-push"),
@@ -2555,6 +2891,15 @@ def main() -> int:
         raise SystemExit("--queue-root is required unless --legacy-report is set")
     if args.rewrite_release and args.include_rewrites:
         raise SystemExit("--rewrite-release and --include-rewrites cannot be used together")
+    recovery_run_ids = list(
+        getattr(args, "recover_exhausted_create_run", []) or []
+    )
+    if recovery_run_ids and (
+        args.rewrite_release
+        or args.include_rewrites
+        or args.legacy_report
+    ):
+        raise SystemExit("retry recovery cannot be combined with release modes")
     if args.include_rewrites:
         publisher_fn = publish_ready_all
     elif args.rewrite_release:
@@ -2568,6 +2913,7 @@ def main() -> int:
         getattr(args, "expected_queue_root", None),
         getattr(args, "expected_state_root", None),
         getattr(args, "expected_runtime_sha", None),
+        getattr(args, "expected_runtime_digest", None),
         getattr(args, "expected_push_mode", None),
     )
     if any(value is not None for value in contract_values) and not all(
@@ -2587,12 +2933,51 @@ def main() -> int:
             expected_queue_root=contract_values[1],
             expected_state_root=contract_values[2],
             expected_runtime_sha=contract_values[3],
+            expected_runtime_digest=contract_values[4],
             push=args.push,
-            expected_push_mode=contract_values[4],
+            expected_push_mode=contract_values[5],
         )
         if getattr(args, "deployment_preflight", False):
             print(json.dumps(preflight, ensure_ascii=False))
             return 0
+    if recovery_run_ids:
+        if not args.dry_run and not all(
+            value is not None for value in contract_values
+        ):
+            raise SystemExit(
+                "retry recovery requires a complete deployment contract"
+            )
+        expected_retry_error = str(
+            getattr(args, "expected_retry_error", "") or ""
+        )
+        recovery_reason = str(getattr(args, "recovery_reason", "") or "")
+        if not expected_retry_error or not recovery_reason:
+            raise SystemExit(
+                "retry recovery requires --expected-retry-error "
+                "and --recovery-reason"
+            )
+        expected_recovery_digest = getattr(
+            args,
+            "expected_recovery_digest",
+            None,
+        )
+        if not args.dry_run and not expected_recovery_digest:
+            raise SystemExit(
+                "retry recovery requires --expected-recovery-digest "
+                "from a current dry-run"
+            )
+        result = recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=recovery_run_ids,
+            expected_error=expected_retry_error,
+            reason=recovery_reason,
+            expected_recovery_digest=expected_recovery_digest,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
     state_root.mkdir(parents=True, exist_ok=True)
     if args.dry_run:
         result = publisher_fn(

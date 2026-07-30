@@ -2166,7 +2166,10 @@ def prepare_rewrite_repair(
 
 
 CLOSED_GEMINI_ERROR_CODES = frozenset({
+    "API_AUTH",
     "API_HTTP_ERROR",
+    "API_MODEL_UNAVAILABLE",
+    "API_QUOTA",
     "API_RATE_LIMITED",
     "API_RESPONSE_INVALID",
     "API_TIMEOUT",
@@ -2175,6 +2178,18 @@ CLOSED_GEMINI_ERROR_CODES = frozenset({
     "CLI_NONZERO",
     "CLI_NOT_FOUND",
     "CLI_TIMEOUT",
+})
+CLOSED_GEMINI_FAILURE_CATEGORIES = frozenset({
+    "AUTH",
+    "CLI_NONZERO",
+    "CLI_UNAVAILABLE",
+    "INVALID_RECEIPT",
+    "MALFORMED_PAYLOAD",
+    "MODEL_UNAVAILABLE",
+    "NETWORK",
+    "PROVIDER_UNAVAILABLE",
+    "QUOTA",
+    "SCHEMA_INVALID_PAYLOAD",
 })
 
 
@@ -2370,7 +2385,14 @@ class GeminiClient:
             ) as response:
                 encoded = response.read()
         except urllib.error.HTTPError as error:
-            code = "API_RATE_LIMITED" if error.code == 429 else "API_HTTP_ERROR"
+            if error.code in {401, 403}:
+                code = "API_AUTH"
+            elif error.code == 429:
+                code = "API_RATE_LIMITED"
+            elif error.code == 404:
+                code = "API_MODEL_UNAVAILABLE"
+            else:
+                code = "API_HTTP_ERROR"
             raise GeminiApiFailure(code) from None
         except urllib.error.URLError as error:
             code = "API_TIMEOUT" if isinstance(error.reason, TimeoutError) else "API_TRANSPORT_ERROR"
@@ -3535,6 +3557,25 @@ def _generate_with_receipt(
         error_code = getattr(error, "error_code", None)
         if type(error_code) is str and error_code in CLOSED_GEMINI_ERROR_CODES:
             receipt["error_code"] = error_code
+        failure_category = getattr(error, "failure_category", None)
+        if (
+            type(failure_category) is str
+            and failure_category in CLOSED_GEMINI_FAILURE_CATEGORIES
+        ):
+            receipt["failure_category"] = failure_category
+        transport_attempts = getattr(error, "transport_attempts", None)
+        if (
+            type(transport_attempts) is int
+            and type(transport_attempts) is not bool
+            and 1 <= transport_attempts <= 3
+        ):
+            receipt["transport_attempts"] = transport_attempts
+        request_sha256 = getattr(error, "request_sha256", None)
+        if (
+            type(request_sha256) is str
+            and re.fullmatch(r"[0-9a-f]{64}", request_sha256)
+        ):
+            receipt["request_sha256"] = request_sha256
         receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         write_json(receipt_path, receipt)
         raise

@@ -119,6 +119,48 @@ def _write_run(queue_root: Path, run_dir: Path, article: dict[str, object], verd
     )
 
 
+def _write_exhausted_create_retry(
+    state_root: Path,
+    run_id: str,
+    *,
+    error: str = "test_web hub display fixture marker not found",
+) -> Path:
+    evidence_path = state_root / "evidence" / f"failed-create-{run_id}" / "failure.json"
+    _write_json(
+        evidence_path,
+        {
+            "schema_version": 1,
+            "status": "FAILED_RECOVERED",
+            "phase": "create",
+            "run_ids": [run_id],
+            "error_type": "PublishBlocked",
+            "repo_recovered": True,
+            "retry_status": "candidate_preserved",
+            "concurrent_write_conflicts": [],
+            "status_after_recovery": [],
+        },
+    )
+    retry_path = publisher._retry_path(state_root, "create", run_id)
+    _write_json(
+        retry_path,
+        {
+            "schema_version": 1,
+            "phase": "create",
+            "run_id": run_id,
+            "attempts": publisher.MAX_RETRY_ATTEMPTS,
+            "max_attempts": publisher.MAX_RETRY_ATTEMPTS,
+            "error_type": "PublishBlocked",
+            "error": error,
+            "evidence": str(evidence_path),
+            "last_attempt_at": "2026-07-30T12:00:00+08:00",
+            "next_eligible_at": "2026-07-30T12:20:00+08:00",
+            "eligibility": "exhausted",
+            "candidate_preserved": True,
+        },
+    )
+    return retry_path
+
+
 def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001") -> dict[str, object]:
     body_sections = [
         {
@@ -329,6 +371,239 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ready == []
     ledger = json.loads((tmp_path / "state" / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
+
+
+def test_recover_exhausted_create_retry_dry_run_is_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    result = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+
+    assert result["status"] == "dry-run"
+    assert result["recoverable_runs"] == [run_dir.name]
+    assert len(result["recovery_digest"]) == 64
+    assert retry_path.read_bytes() == before
+    assert not (state_root / "evidence/retry-recovery").exists()
+    assert not (state_root / "publisher.lock").exists()
+
+
+def test_recover_exhausted_create_retry_resets_budget_with_audit_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    preview = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+    result = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        expected_recovery_digest=preview["recovery_digest"],
+    )
+
+    assert result["status"] == "RECOVERED"
+    assert result["recovered_runs"] == [run_dir.name]
+    retry = publisher._read_json(retry_path)
+    assert retry["attempts"] == 0
+    assert retry["eligibility"] == "recovered"
+    assert retry["candidate_preserved"] is True
+    assert retry["recovered_from_retry_sha256"] == publisher._bytes_sha256(before)
+    receipt = publisher._read_json(Path(retry["evidence"]))
+    assert receipt["status"] == "RECOVERED"
+    assert receipt["run_id"] == run_dir.name
+    assert receipt["source_retry_sha256"] == publisher._bytes_sha256(before)
+    assert receipt["reason"] == "fixture contract repaired by ac042b42b"
+    ready = publisher.collect_ready_runs(
+        queue_root,
+        state_root,
+        repo_root=repo_root,
+    )
+    assert [state["run_id"] for state, _candidate, _review in ready] == [
+        run_dir.name
+    ]
+
+
+@pytest.mark.parametrize(
+    ("invalid_field", "invalid_value", "message"),
+    [
+        ("status", "RECOVERY_PENDING", "failure evidence is not fully recovered"),
+        ("repo_recovered", False, "failure evidence is not fully recovered"),
+        ("retry_status", "unknown", "candidate preservation is not proven"),
+        ("error_type", "OSError", "failure type is not bound"),
+    ],
+)
+def test_recover_exhausted_create_retry_rejects_invalid_failure_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_field: str,
+    invalid_value: object,
+    message: str,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    retry = publisher._read_json(retry_path)
+    evidence_path = Path(retry["evidence"])
+    evidence = publisher._read_json(evidence_path)
+    evidence[invalid_field] = invalid_value
+    _write_json(evidence_path, evidence)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match=message):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    assert retry_path.read_bytes() == before
+
+
+def test_recover_exhausted_create_retry_rejects_error_or_ledger_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="retry error differs"):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="different failure",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    ledger = publisher._load_ledger(state_root)
+    ledger["published_runs"].append({"run_id": run_dir.name})
+    _write_json(publisher._ledger_path(state_root), ledger)
+    with pytest.raises(publisher.PublishBlocked, match="already published"):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    assert retry_path.read_bytes() == before
+
+
+def test_recover_exhausted_create_retry_rejects_post_dry_run_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    preview = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+    retry = publisher._read_json(retry_path)
+    retry["last_attempt_at"] = "2026-07-30T12:01:00+08:00"
+    _write_json(retry_path, retry)
+    changed = retry_path.read_bytes()
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="state differs from approved dry-run",
+    ):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest=preview["recovery_digest"],
+        )
+
+    assert retry_path.read_bytes() == changed
+    assert not (state_root / "evidence/retry-recovery").exists()
 
 
 def test_policy_v2_scheduler_rejection_is_terminal_and_never_enters_retry_loop(
@@ -1342,6 +1617,54 @@ def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:
         publisher.publish_ready_runs(tmp_path, tmp_path / "queue", tmp_path / "state", git=fake_git, run_tests=False, release_gate=False)
 
 
+def _write_runtime_manifest_fixture(repo_root: Path) -> None:
+    for relative in publisher.TRANSACTION_RUNTIME_PATHS:
+        path = repo_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"runtime fixture: {relative}\n", encoding="utf-8")
+
+
+def test_runtime_manifest_digest_is_path_ordered_and_byte_sensitive(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    _write_runtime_manifest_fixture(actor)
+
+    manifest = publisher.runtime_manifest(actor)
+    digest = publisher.runtime_manifest_digest(actor)
+
+    assert manifest["schema_version"] == publisher.RUNTIME_MANIFEST_SCHEMA_VERSION
+    assert [item["path"] for item in manifest["files"]] == sorted(
+        publisher.TRANSACTION_RUNTIME_PATHS
+    )
+    assert len(digest) == 64
+    changed = actor / publisher.TRANSACTION_RUNTIME_PATHS[0]
+    changed.write_bytes(changed.read_bytes() + b"drift\n")
+    assert publisher.runtime_manifest_digest(actor) != digest
+
+
+def test_runtime_manifest_digest_is_path_set_sensitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    digest = publisher.runtime_manifest_digest(actor)
+    extra = actor / "scripts/runtime-membership-marker.py"
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text("RUNTIME_MARKER = True\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        publisher,
+        "TRANSACTION_RUNTIME_PATHS",
+        (*publisher.TRANSACTION_RUNTIME_PATHS, "scripts/runtime-membership-marker.py"),
+    )
+
+    assert publisher.runtime_manifest_digest(actor) != digest
+
+
 def test_deployment_preflight_returns_read_only_plan_without_mutation(
     tmp_path: Path,
 ) -> None:
@@ -1351,7 +1674,9 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
     git_calls: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -1371,6 +1696,7 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
         expected_queue_root=queue_root,
         expected_state_root=state_root,
         expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
         push=True,
         expected_push_mode="push",
         git=fake_git,
@@ -1388,6 +1714,8 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
         "queue": "matched",
         "state": "matched",
         "runtime_sha": runtime_sha,
+        "runtime_manifest_schema_version": publisher.RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "runtime_digest": runtime_digest,
         "origin_main_sha": runtime_sha,
         "push_mode": "push",
     }
@@ -1408,7 +1736,9 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
     origin_main_sha = "b" * 40
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -1439,6 +1769,7 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
         expected_queue_root=queue_root,
         expected_state_root=state_root,
         expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
         push=True,
         expected_push_mode="push",
         git=fake_git,
@@ -1446,6 +1777,7 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
 
     assert plan["status"] == "ready"
     assert plan["runtime_sha"] == runtime_sha
+    assert plan["runtime_digest"] == runtime_digest
     assert plan["origin_main_sha"] == origin_main_sha
 
 
@@ -1500,6 +1832,8 @@ def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
             str(state_root),
             "--expected-runtime-sha",
             runtime_sha,
+            "--expected-runtime-digest",
+            "d" * 64,
             "--expected-push-mode",
             "push",
         ],
@@ -1517,6 +1851,7 @@ def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
         ("queue", "queue root"),
         ("state", "state root"),
         ("runtime", "runtime SHA"),
+        ("runtime-digest", "runtime digest"),
         ("dirty", "worktree is not clean"),
         ("origin", "origin/main is not a descendant"),
         ("origin-runtime", "publisher runtime differs from origin/main"),
@@ -1534,7 +1869,9 @@ def test_deployment_preflight_fails_closed_on_contract_drift(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
         if args == ["status", "--porcelain"]:
@@ -1565,6 +1902,7 @@ def test_deployment_preflight_fails_closed_on_contract_drift(
             expected_queue_root=tmp_path / "other-queue" if drift == "queue" else queue_root,
             expected_state_root=tmp_path / "other-state" if drift == "state" else state_root,
             expected_runtime_sha="b" * 40 if drift == "runtime" else runtime_sha,
+            expected_runtime_digest="d" * 64 if drift == "runtime-digest" else runtime_digest,
             push=drift != "push",
             expected_push_mode="push",
             git=fake_git,
@@ -1681,12 +2019,16 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "__REPO_ROOT__/.work/content-publisher",
         "--expected-runtime-sha",
         "__RUNTIME_SHA__",
+        "--expected-runtime-digest",
+        "__RUNTIME_DIGEST__",
         "--expected-push-mode",
         "push",
     ]
     assert 'ACTION="${1:---install}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
+    assert "runtime_manifest_digest" in installer
+    assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert plist["StartInterval"] == 60
@@ -2468,6 +2810,55 @@ def test_sync_web_test_release_fixture_does_not_require_public_paths_to_be_adjac
     )
 
 
+def test_sync_web_test_release_fixture_preserves_runtime_hub_assertions(
+    tmp_path: Path,
+) -> None:
+    test_dir = tmp_path / "tests"
+    static_dir = tmp_path / "app/web/static"
+    test_dir.mkdir()
+    static_dir.mkdir(parents=True)
+    runtime_assertions = (
+        "def test_articles_hub_uses_balanced_display_order() -> None:\n"
+        '    baseline_paths = [record["path"] for record in data["baseline"]["records"]]\n'
+        '    rewritten_paths = [record["path"] for record in data["rewritten"]["records"]]\n'
+        "    assert len(baseline_paths) == len(rewritten_paths) == data[\"limit\"]\n"
+    )
+    (test_dir / "test_web.py").write_text(
+        'ARTICLE_CACHE_TOKEN = "old-token"\n\n'
+        "DAILY_PUBLIC_ARTICLE_PATHS = [\n"
+        '    "/articles/astrology/astrology-0115",\n'
+        "]\n\n"
+        f"{runtime_assertions}",
+        encoding="utf-8",
+    )
+    (static_dir / "article-registry.js").write_text(
+        "export const listArticleRecords = () => [\n"
+        '  { serial: "astrology-0115", articleCategory: "astrology" },\n'
+        "];\n"
+        "export const getArticlePath = (article) => "
+        "`/articles/${article.articleCategory}/${article.serial}`;\n",
+        encoding="utf-8",
+    )
+    (static_dir / "articles.js").write_text(
+        "export const pickLatestArticles = (articles) => articles;\n",
+        encoding="utf-8",
+    )
+    article = make_publishable_article("AUTO-NEW")
+    article["serial"] = "astrology-0139"
+    article["urlSlug"] = "astrology-0139"
+
+    publisher._sync_web_test_release_fixture(
+        tmp_path,
+        cache_token="new-token",
+        articles=[article],
+    )
+    text = (test_dir / "test_web.py").read_text(encoding="utf-8")
+
+    assert 'ARTICLE_CACHE_TOKEN = "new-token"' in text
+    assert '    "/articles/astrology/astrology-0139",\n' in text
+    assert runtime_assertions in text
+
+
 def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp_path: Path) -> None:
     test_dir = tmp_path / "tests"
     web_dir = tmp_path / "app/web"
@@ -2554,6 +2945,7 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     target = seed / "app/web/owned.txt"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"base\n")
+    _write_runtime_manifest_fixture(seed)
     (seed / ".gitignore").write_text(".venv\nnode_modules/\n.work/\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
@@ -2588,7 +2980,15 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     assert not list(state_root.glob("transaction-*"))
 
 
-def test_isolated_transaction_blocks_stale_actor_runtime(tmp_path: Path) -> None:
+def test_isolated_transaction_blocks_stale_actor_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "TRANSACTION_RUNTIME_PATHS",
+        ("scripts/agy_content_publisher.py",),
+    )
     actor = tmp_path / "actor"
     transaction = tmp_path / "transaction"
     for root, body in ((actor, b"old\n"), (transaction, b"new\n")):
@@ -2596,7 +2996,7 @@ def test_isolated_transaction_blocks_stale_actor_runtime(tmp_path: Path) -> None
         path.parent.mkdir(parents=True)
         path.write_bytes(body)
 
-    with pytest.raises(publisher.PublishBlocked, match="deploy actor before publishing"):
+    with pytest.raises(publisher.PublishBlocked, match="runtime digest differs"):
         publisher._assert_transaction_runtime_matches(actor, transaction)
 
 
@@ -2616,6 +3016,7 @@ def test_main_runs_real_publish_in_isolated_worktree(
     target = seed / "app/web/owned.txt"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"base\n")
+    _write_runtime_manifest_fixture(seed)
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
     subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True)
