@@ -20,6 +20,41 @@ from scripts import agy_seo_copy_pipeline as pipeline
 SCHEMA_VERSION = 1
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
 LOCALE_LABELS = {"en": "English", "ja": "日本語", "ko": "한국어"}
+GENERAL_ENGLISH_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "avoid",
+    "by",
+    "check",
+    "compare",
+    "explain",
+    "find",
+    "for",
+    "from",
+    "guide",
+    "how",
+    "identify",
+    "in",
+    "is",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "understand",
+    "use",
+    "using",
+    "what",
+    "when",
+    "where",
+    "which",
+    "why",
+    "with",
+}
 LOCALE_EDITORIAL_CONTRACTS = {
     "en": {
         "voice": "Write as an original English web editor: direct, clear, calm, and useful. Use active voice and natural subject-verb order.",
@@ -60,6 +95,10 @@ SourceLoader = Callable[[Path, str], dict[str, Any]]
 
 def compact_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _canonical_json(payload: object) -> str:
+    return compact_json_bytes(payload).decode("utf-8")
 
 
 def _json_sha256(payload: object) -> str:
@@ -578,17 +617,46 @@ def _outline_topology(item: dict[str, Any]) -> tuple[frozenset[str], ...]:
     )
 
 
-def _plan_matches_target_language(locale: str, values: list[str]) -> bool:
-    text = "\n".join(values)
+def _ascii_is_name_acronym_or_number(text: str) -> bool:
+    words = re.findall(r"[A-Za-z][A-Za-z0-9+-]*", text)
+    if not words:
+        return bool(re.search(r"\d", text))
+    if any(word.casefold() in GENERAL_ENGLISH_WORDS for word in words):
+        return False
+    return all(
+        any(character.isdigit() for character in word)
+        or word.isupper()
+        or sum(character.isupper() for character in word) >= 2
+        or word[0].isupper()
+        for word in words
+    )
+
+
+def _plan_matches_target_language(locale: str, text: str) -> bool:
     latin = len(re.findall(r"[A-Za-z]", text))
     han = len(re.findall(r"[\u3400-\u9fff]", text))
     kana = len(re.findall(r"[\u3040-\u30ff]", text))
     hangul = len(re.findall(r"[\uac00-\ud7af]", text))
     if locale == "en":
-        return latin >= 5 and latin >= 2 * (han + kana + hangul)
+        return (
+            (latin > 0 and latin >= 2 * (han + kana + hangul))
+            or (latin == 0 and han + kana + hangul == 0 and bool(re.search(r"\d", text)))
+        )
+    latin_authority = 0 if _ascii_is_name_acronym_or_number(text) else latin
     if locale == "ja":
-        return kana >= 2 and kana * 4 >= han + hangul
-    return hangul >= 4 and hangul >= han + kana
+        traditional_chinese = bool(
+            re.search(r"[與斷體國學關氣覺實應發讓對從將會這們裡麼]", text)
+        )
+        if kana + han:
+            return (
+                not (traditional_chinese and kana == 0)
+                and kana + han >= hangul
+                and kana + han >= latin_authority
+            )
+        return _ascii_is_name_acronym_or_number(text)
+    if hangul:
+        return hangul >= han + kana and hangul >= latin_authority
+    return _ascii_is_name_acronym_or_number(text)
 
 
 def validate_locale_plan(
@@ -684,15 +752,27 @@ def validate_locale_plan(
             _non_empty_string(mapping["coverage_note"], "locale plan coverage note")
             if mapping["safety_boundary"] is not expected_facts[fact_id]["safety_boundary"]:
                 raise ValueError(f"locale plan safety coverage differs for {slot}")
-        semantic_values = [
-            str(item["native_search_intent"]),
-            *[str(query) for query in queries],
-            str(item["article_angle"]),
-            *[str(heading) for heading in outline],
-            *[str(mapping["coverage_note"]) for mapping in mappings],
+        semantic_items = [
+            ("native_search_intent", str(item["native_search_intent"])),
+            *[
+                (f"native_query_phrasings[{query_index}]", str(query))
+                for query_index, query in enumerate(queries)
+            ],
+            ("article_angle", str(item["article_angle"])),
+            *[
+                (f"ordered_h2_outline[{heading_index}]", str(heading))
+                for heading_index, heading in enumerate(outline)
+            ],
+            *[
+                (f"coverage_note[{mapping_index}]", str(mapping["coverage_note"]))
+                for mapping_index, mapping in enumerate(mappings)
+            ],
         ]
-        if not _plan_matches_target_language(str(target["locale"]), semantic_values):
-            raise ValueError(f"locale plan native locale language differs for {slot}")
+        for field, value in semantic_items:
+            if not _plan_matches_target_language(str(target["locale"]), value):
+                raise ValueError(
+                    f"locale plan native locale language differs for {slot}.{field}"
+                )
         source_headings = [
             section["heading"]
             for section in target["source"]["bodySections"]
@@ -775,17 +855,17 @@ def _plan_prompt(
             "generation:",
             str(generation),
             "locale contracts:",
-            json.dumps(LOCALE_EDITORIAL_CONTRACTS, ensure_ascii=False),
+            _canonical_json(LOCALE_EDITORIAL_CONTRACTS),
             "source fact package:",
-            json.dumps(_source_fact_package(brief), ensure_ascii=False),
+            _canonical_json(_source_fact_package(brief)),
             "source structure to avoid:",
-            json.dumps(_source_structure_to_avoid(brief), ensure_ascii=False),
+            _canonical_json(_source_structure_to_avoid(brief)),
             "prior plan:",
-            json.dumps(prior_plan, ensure_ascii=False) if prior_plan else "null",
+            _canonical_json(prior_plan),
             "findings:",
-            json.dumps(findings, ensure_ascii=False),
+            _canonical_json(findings),
             "rebuild authority:",
-            json.dumps(rebuild_by_slot, ensure_ascii=False),
+            _canonical_json(rebuild_by_slot),
         ]
     )
 

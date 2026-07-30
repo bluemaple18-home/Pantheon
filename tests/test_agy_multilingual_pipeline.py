@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -518,7 +519,22 @@ def test_locale_plan_accepts_native_script_with_names_acronyms_and_numbers(
 ) -> None:
     brief = non_tarot_translation_brief(locale)
     external = external_locale_plan(brief)
-    external["articles"][0]["native_search_intent"] += " OpenAI GPT-5 2026"
+    item = external["articles"][0]
+    item["native_search_intent"] += " OpenAI GPT-5 2026"
+    item["native_query_phrasings"].append("OpenAI GPT-5 2026")
+    item["article_angle"] += " OpenAI GPT-5 2026"
+    old_heading = item["ordered_h2_outline"][0]
+    item["ordered_h2_outline"][0] = "OpenAI GPT-5 2026"
+    for mapping in item["coverage_mapping"]:
+        if mapping["planned_h2"] == old_heading:
+            mapping["planned_h2"] = item["ordered_h2_outline"][0]
+    item["coverage_mapping"][0]["coverage_note"] = "OpenAI GPT-5 2026"
+    if locale == "ja":
+        old_heading = item["ordered_h2_outline"][1]
+        item["ordered_h2_outline"][1] = "用神判断基準"
+        for mapping in item["coverage_mapping"]:
+            if mapping["planned_h2"] == old_heading:
+                mapping["planned_h2"] = item["ordered_h2_outline"][1]
 
     multilingual._hydrate_locale_plan(
         brief,
@@ -526,6 +542,71 @@ def test_locale_plan_accepts_native_script_with_names_acronyms_and_numbers(
         generation=1,
         rebuild_by_slot={"article-01": False},
     )
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "native_search_intent",
+        "native_query_phrasings",
+        "article_angle",
+        "ordered_h2_outline",
+        "coverage_note",
+    ],
+)
+def test_locale_plan_rejects_wrong_language_in_each_critical_item(
+    locale: str,
+    field: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    wrong_text = (
+        "用神的判斷順序與限制"
+        if locale == "en"
+        else "How to identify the useful element and its limits"
+    )
+    if field in {"native_search_intent", "article_angle"}:
+        item[field] = wrong_text
+    elif field == "native_query_phrasings":
+        item[field][0] = wrong_text
+    elif field == "ordered_h2_outline":
+        old_heading = item[field][0]
+        item[field][0] = wrong_text
+        for mapping in item["coverage_mapping"]:
+            if mapping["planned_h2"] == old_heading:
+                mapping["planned_h2"] = wrong_text
+    else:
+        item["coverage_mapping"][0]["coverage_note"] = wrong_text
+
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
+@pytest.mark.parametrize("locale", ["ja", "ko"])
+def test_locale_plan_rejects_uppercase_general_english_heading(locale: str) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    old_heading = item["ordered_h2_outline"][0]
+    item["ordered_h2_outline"][0] = "HOW TO USE THE USEFUL ELEMENT"
+    for mapping in item["coverage_mapping"]:
+        if mapping["planned_h2"] == old_heading:
+            mapping["planned_h2"] = item["ordered_h2_outline"][0]
+
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
 
 
 @pytest.mark.parametrize(
@@ -1029,6 +1110,93 @@ def test_pending_continuation_article_reuses_plan_and_request_identity(
     assert article_prompts[0] == article_prompts[1]
     assert json.loads((tmp_path / "candidate.json").read_text()) == old_candidate
     assert json.loads((tmp_path / "review.json").read_text()) == old_review
+
+
+def test_later_generation_plan_pending_reuses_prompt_and_operation_identity(
+    tmp_path: Path,
+) -> None:
+    old_candidate, old_review = _write_rejected_deferred_lineage(tmp_path)
+    brief = non_tarot_translation_brief()
+    plan_calls = 0
+    last_outline: list[str] | None = None
+    pending_prompts: list[str] = []
+
+    class ExternalJobPending(RuntimeError):
+        pass
+
+    class LaterPlanPendingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def _outbox_transport(self) -> None:
+            raise AssertionError("transport marker only")
+
+        transport = _outbox_transport
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal plan_calls, last_outline
+            if "native_search_intent" in json.dumps(schema):
+                plan_calls += 1
+                if plan_calls == 1:
+                    payload = external_locale_plan(
+                        brief,
+                        rebuild_outline=True,
+                        coverage_shift=1,
+                        outline=[
+                            "용신 검색 질문부터 정리하기",
+                            "명식의 강약과 계절 확인하기",
+                            "오행의 흐름으로 후보 비교하기",
+                            "조건에 따라 결론을 제한하기",
+                        ],
+                    )
+                    last_outline = payload["articles"][0]["ordered_h2_outline"]
+                    return payload
+                pending_prompts.append(prompt)
+                raise ExternalJobPending("synthetic later plan pending")
+            if role == "writer":
+                return non_tarot_external_candidate(last_outline)
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "AI_TEMPLATE_STYLE",
+                                "message": "still repeats the template",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    client = LaterPlanPendingClient()
+    for _replay in range(2):
+        with pytest.raises(ExternalJobPending, match="later plan pending"):
+            multilingual.continue_writer_reviewer(tmp_path, client, max_repairs=2)
+
+    prompt_hashes = [
+        hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        for prompt in pending_prompts
+    ]
+    assert len(pending_prompts) == 2
+    assert pending_prompts[0] == pending_prompts[1], prompt_hashes
+    receipt = json.loads(
+        (tmp_path / "generations/05/plan-operation.json").read_text()
+    )
+    assert receipt["prompt_sha256"] == prompt_hashes[0]
+    assert len(list((tmp_path / "generations/05").glob("plan-operation*.json"))) == 1
+    assert not (tmp_path / "generations/05/external-plan.json").exists()
+    assert json.loads((tmp_path / "candidate.json").read_text()) == old_candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == old_review
+    state = json.loads((tmp_path / "continuation/state.json").read_text())
+    assert state["completed_generations"] == [4]
+    assert state["next_generation"] == 5
 
 
 def test_root_update_transaction_recovers_candidate_review_and_state_together(
