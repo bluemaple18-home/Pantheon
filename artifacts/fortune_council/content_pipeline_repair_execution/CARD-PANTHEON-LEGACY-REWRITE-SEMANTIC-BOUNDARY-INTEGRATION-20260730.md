@@ -3,7 +3,7 @@ card_id: CARD-PANTHEON-LEGACY-REWRITE-SEMANTIC-BOUNDARY-INTEGRATION-20260730
 chain_id: pantheon-legacy-rewrite-semantic-boundary-integration-20260730
 role: integration
 cycle: 1
-status: CARD_DRAFTED
+status: BLOCKED
 thickness: strict
 risk: high
 model: gpt-5.6-sol

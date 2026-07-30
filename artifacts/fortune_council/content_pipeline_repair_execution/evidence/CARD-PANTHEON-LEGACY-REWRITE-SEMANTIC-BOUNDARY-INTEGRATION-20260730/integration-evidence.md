@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-LEGACY-REWRITE-SEMANTIC-BOUNDARY-INTEGRATION-20260730-EVIDENCE
-status: ACTIVE
+status: BLOCKED
 type: integration-evidence
 formal_thread_id: 019faf6d-7764-7e02-922c-a78361e8c143
 dispatch_key: v1:0d1cce445cbbf3f24c3e8e83f41023fd8a00c5719323fb4b79e906bb98c79453
@@ -16,11 +16,13 @@ runtime 驗收。
 
 ## Mainline snapshot
 
-- Blocker：目前無阻斷；push 前 fresh gates 尚未執行。
+- Blocker：唯一一次 Gemini Reviewer request 已送出，但 Gemini CLI 回傳
+  `CLI_NONZERO`，未產生 provider review payload。
 - Fork：無。
-- Current state：ACTIVE；已完成唯讀 lineage、remote 與 graph preflight。
-- Next step：執行 fresh verification，通過後才建立 integration evidence commit。
-- Waiting condition：所有 push 前 gate 必須全綠。
+- Current state：BLOCKED；integration commit、push、actor sync 與 LaunchAgent 重裝均
+  已完成；non-publishing runtime retry 未取得可驗收的 provider 結果。
+- Next step：交回主線決定是否另開新的、明確授權的 provider retry 卡；本卡不再重試。
+- Waiting condition：本卡唯一 retry budget 已耗盡，且 provider transport 失敗。
 - Limits：不得手改 runtime 資料，不得 publish，不得建立 replacement 或 sub-agent。
 
 ## Strict fact gate
@@ -147,3 +149,52 @@ Targeted set 明確覆蓋：
 - 核准命令邊界：production actor runtime 執行
   `scripts.agy_seo_copy_pipeline review-existing <run-dir>`；它只重跑 Reviewer、
   更新 review／operation receipt，不呼叫 apply、approval 或 publisher。
+
+## Integration push and runtime alignment
+
+- Integration evidence commit：
+  `a7d7ce37f6a2a8b05ff164ba118c71b689cbb210`。
+- `git push origin HEAD:main` 第一次被 local release-record hook 阻擋，原因為此
+  worktree 缺 `.venv/bin/python`；依專案規範以 `uv sync --frozen` 建立隔離
+  `.venv` 後，同一 commit 第二次 push 通過。
+- Push hook：`release record pre-push gate: PASS`。
+- GitHub `refs/heads/main` push 後精確為 integration commit。
+- Production actor 同步前 SHA：
+  `443dc0be0040964f70f8c0fb0b1e352bdb819f77`。
+- 同步時先停止 publisher、coordinator 與四條 lane，避免 actor checkout 與執行中
+  服務競爭；之後 actor detached HEAD 對齊 integration commit。
+- Coordinator／lane 重裝保留既有 queue root、GSC root、credential pool、allocator
+  state、writer/reviewer models、cooldown、`new_only=0` 與 PATH。
+- Publisher 重裝保留既有 queue root、state root、push mode 與 `max_runs=1`。
+- 重裝後 coordinator、new、rewrite、i18n-new、i18n-rewrite、publisher 六個
+  LaunchAgent 全部 loaded。
+- 對齊驗證：
+  actor HEAD = actor `origin/main` = publisher expected runtime SHA =
+  `a7d7ce37f6a2a8b05ff164ba118c71b689cbb210`；actor worktree clean。
+
+## Provider retry evidence
+
+- 使用者已明確核准把指定 run 的既有 candidate 與 review prompt 傳送至 Gemini
+  `gemini-3.1-pro-preview`，且只允許一次 non-publishing `review-existing`。
+- 實際執行的唯一 retry：
+  `legacy-auto-sweep-v1-fortune-0026-chart-bazi-05` →
+  Gemini `gemini-3.1-pro-preview` Reviewer，`AGY_GEMINI_TRANSPORT=cli`。
+- Operation 開始時間：`2026-07-30T09:02:08+08:00`。
+- Provider transport 結果：process exit `1`；
+  `GeminiCliFailure("CLI_NONZERO")`。
+- 自動產生的 `review-existing-operation.json` 記錄
+  `status=error`、`role=reviewer`、`model=gemini-3.1-pro-preview`、
+  `transport=_cli_transport`、`error_code=CLI_NONZERO`；SHA-256：
+  `4b9016187411ca9e8d336c244d7ce2979b94f7b18c96134354b70811257c89f9`。
+- `external-review-existing.json` 未產生，因此沒有 provider verdict 可用來驗收真實
+  semantic/objective reconciliation。
+- Retry 前後 candidate SHA-256 均為
+  `be0b3a952c66e74b38b3c692f47df56064d12a2b818d09f8b67cc4be77b08e1d`；
+  queue state SHA-256 均為
+  `dbca65c93c640868b56d67bc7738b4256e8f11a4522a0fb334ed8f24d0c20b42`。
+- 既有 canonical `review.json` SHA-256 仍為
+  `2cb0a0b3bd70d77c5e879cfc20a0e1c209eea0097f0ea06b7698b581fcd99bbd`。
+- `approval.json`、`apply.json`、`publish.json` 均不存在；未呼叫 approval、apply 或
+  publisher，也未手改 production queue／receipt。
+- 唯一 retry budget 已耗盡；依卡片限制不做第二次呼叫。
+- 目前狀態：`BLOCKED / PROVIDER_CLI_NONZERO`。
