@@ -119,6 +119,48 @@ def _write_run(queue_root: Path, run_dir: Path, article: dict[str, object], verd
     )
 
 
+def _write_exhausted_create_retry(
+    state_root: Path,
+    run_id: str,
+    *,
+    error: str = "test_web hub display fixture marker not found",
+) -> Path:
+    evidence_path = state_root / "evidence" / f"failed-create-{run_id}" / "failure.json"
+    _write_json(
+        evidence_path,
+        {
+            "schema_version": 1,
+            "status": "FAILED_RECOVERED",
+            "phase": "create",
+            "run_ids": [run_id],
+            "error_type": "PublishBlocked",
+            "repo_recovered": True,
+            "retry_status": "candidate_preserved",
+            "concurrent_write_conflicts": [],
+            "status_after_recovery": [],
+        },
+    )
+    retry_path = publisher._retry_path(state_root, "create", run_id)
+    _write_json(
+        retry_path,
+        {
+            "schema_version": 1,
+            "phase": "create",
+            "run_id": run_id,
+            "attempts": publisher.MAX_RETRY_ATTEMPTS,
+            "max_attempts": publisher.MAX_RETRY_ATTEMPTS,
+            "error_type": "PublishBlocked",
+            "error": error,
+            "evidence": str(evidence_path),
+            "last_attempt_at": "2026-07-30T12:00:00+08:00",
+            "next_eligible_at": "2026-07-30T12:20:00+08:00",
+            "eligibility": "exhausted",
+            "candidate_preserved": True,
+        },
+    )
+    return retry_path
+
+
 def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001") -> dict[str, object]:
     body_sections = [
         {
@@ -329,6 +371,239 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ready == []
     ledger = json.loads((tmp_path / "state" / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
+
+
+def test_recover_exhausted_create_retry_dry_run_is_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    result = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+
+    assert result["status"] == "dry-run"
+    assert result["recoverable_runs"] == [run_dir.name]
+    assert len(result["recovery_digest"]) == 64
+    assert retry_path.read_bytes() == before
+    assert not (state_root / "evidence/retry-recovery").exists()
+    assert not (state_root / "publisher.lock").exists()
+
+
+def test_recover_exhausted_create_retry_resets_budget_with_audit_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    preview = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+    result = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        expected_recovery_digest=preview["recovery_digest"],
+    )
+
+    assert result["status"] == "RECOVERED"
+    assert result["recovered_runs"] == [run_dir.name]
+    retry = publisher._read_json(retry_path)
+    assert retry["attempts"] == 0
+    assert retry["eligibility"] == "recovered"
+    assert retry["candidate_preserved"] is True
+    assert retry["recovered_from_retry_sha256"] == publisher._bytes_sha256(before)
+    receipt = publisher._read_json(Path(retry["evidence"]))
+    assert receipt["status"] == "RECOVERED"
+    assert receipt["run_id"] == run_dir.name
+    assert receipt["source_retry_sha256"] == publisher._bytes_sha256(before)
+    assert receipt["reason"] == "fixture contract repaired by ac042b42b"
+    ready = publisher.collect_ready_runs(
+        queue_root,
+        state_root,
+        repo_root=repo_root,
+    )
+    assert [state["run_id"] for state, _candidate, _review in ready] == [
+        run_dir.name
+    ]
+
+
+@pytest.mark.parametrize(
+    ("invalid_field", "invalid_value", "message"),
+    [
+        ("status", "RECOVERY_PENDING", "failure evidence is not fully recovered"),
+        ("repo_recovered", False, "failure evidence is not fully recovered"),
+        ("retry_status", "unknown", "candidate preservation is not proven"),
+        ("error_type", "OSError", "failure type is not bound"),
+    ],
+)
+def test_recover_exhausted_create_retry_rejects_invalid_failure_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_field: str,
+    invalid_value: object,
+    message: str,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    retry = publisher._read_json(retry_path)
+    evidence_path = Path(retry["evidence"])
+    evidence = publisher._read_json(evidence_path)
+    evidence[invalid_field] = invalid_value
+    _write_json(evidence_path, evidence)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match=message):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    assert retry_path.read_bytes() == before
+
+
+def test_recover_exhausted_create_retry_rejects_error_or_ledger_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    before = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="retry error differs"):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="different failure",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    ledger = publisher._load_ledger(state_root)
+    ledger["published_runs"].append({"run_id": run_dir.name})
+    _write_json(publisher._ledger_path(state_root), ledger)
+    with pytest.raises(publisher.PublishBlocked, match="already published"):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest="0" * 64,
+        )
+
+    assert retry_path.read_bytes() == before
+
+
+def test_recover_exhausted_create_retry_rejects_post_dry_run_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-exhausted"
+    _write_run(queue_root, run_dir, make_publishable_article())
+    retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    preview = publisher.recover_exhausted_create_retries(
+        repo_root,
+        queue_root,
+        state_root,
+        run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="fixture contract repaired by ac042b42b",
+        dry_run=True,
+    )
+    retry = publisher._read_json(retry_path)
+    retry["last_attempt_at"] = "2026-07-30T12:01:00+08:00"
+    _write_json(retry_path, retry)
+    changed = retry_path.read_bytes()
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="state differs from approved dry-run",
+    ):
+        publisher.recover_exhausted_create_retries(
+            repo_root,
+            queue_root,
+            state_root,
+            run_ids=[run_dir.name],
+            expected_error="test_web hub display fixture marker not found",
+            reason="fixture contract repaired by ac042b42b",
+            expected_recovery_digest=preview["recovery_digest"],
+        )
+
+    assert retry_path.read_bytes() == changed
+    assert not (state_root / "evidence/retry-recovery").exists()
 
 
 def test_policy_v2_scheduler_rejection_is_terminal_and_never_enters_retry_loop(
