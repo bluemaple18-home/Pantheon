@@ -22,36 +22,28 @@ SUPPORTED_LOCALES = {"en", "ja", "ko"}
 LOCALE_LABELS = {"en": "English", "ja": "日本語", "ko": "한국어"}
 LOCALE_EDITORIAL_CONTRACTS = {
     "en": {
-        "audience": "Readers searching in English for a practical tarot card meanings guide.",
         "voice": "Write as an original English web editor: direct, clear, calm, and useful. Use active voice and natural subject-verb order.",
         "syntax": "Lead with the answer, use short scannable headings, vary sentence length, and address the reader as 'you' only when it helps.",
-        "structure": (
-            "Use exactly 4 H2 sections in this English-native order: "
-            "(1) answer how tarot card meanings work, "
-            "(2) give a short reading method using symbol, upright/reversed tone, and context, "
-            "(3) explain why the same card reads differently in relationship and career questions, "
-            "(4) state the limits and one practical next step. "
-            "Recast source examples as natural English prose; never copy the source's three-item lists or clause order."
-        ),
-        "seo": "Use the phrases English readers would search for, such as tarot card meanings, upright and reversed meanings, and tarot reading, without keyword stuffing.",
+        "search": "Derive the query phrasing from the current source facts. Use natural English question and noun-phrase patterns without keyword stuffing.",
         "avoid": "Do not preserve Chinese sentence order, parallelism, section boundaries, or repeated negative constructions. Avoid calques, generic AI polish, inflated adjectives, decorative metaphors, and formulaic conclusions.",
     },
     "ja": {
-        "audience": "タロットカードの意味や正位置・逆位置を調べる日本語読者。",
         "voice": "日本のWebメディア向けに、自然で落ち着いた「です・ます調」で書く。説明は丁寧にするが、回りくどくしない。",
         "syntax": "日本語として自然な主題提示と省略を使い、長い修飾語を分ける。見出しと段落は読者の疑問順に再構成する。",
-        "structure": "H2は4つに再構成する。最初に要点、次に正位置・逆位置の読み分け、質問別の読み方、最後に使い方の限界を置く。原文と同じ段落数にしない。",
-        "seo": "「タロットカード 意味」「正位置 逆位置」「タロット 読み方」など、日本語で実際に入力される語順を自然に使う。",
+        "search": "現在のsource factsから検索意図を導き、日本語で実際に入力される助詞省略や疑問形を自然に使う。キーワードを詰め込まない。",
         "avoid": "中国語の語順、対句、段落構成を写さない。「〜することができます」「〜において」「〜を提供します」などの翻訳調を連発しない。文体を混在させない。",
     },
     "ko": {
-        "audience": "타로카드 뜻, 정방향·역방향, 타로 해석 방법을 찾는 한국어 독자.",
         "voice": "한국 웹 콘텐츠에 맞는 자연스럽고 신뢰감 있는 설명체로 쓴다. 설명은 합니다체를 기본으로 하고, 행동 제안에서만 자연스럽게 권유형을 쓴다.",
         "syntax": "핵심 답을 먼저 제시하고, 긴 관형절과 명사 나열을 줄인다. 한국어 독자의 질문 흐름에 따라 제목과 문단 순서를 새로 구성한다.",
-        "structure": "한국 독자의 검색 흐름에 맞춰 H2를 4개 또는 5개로 다시 구성한다. 원문과 같은 섹션 수나 문단 수 패턴을 사용하지 않는다.",
-        "seo": "「타로카드 뜻」「타로카드 해석」「정방향 역방향」처럼 한국어 검색에서 자연스러운 표현을 문맥에 맞게 사용한다.",
+        "search": "현재 source facts에서 검색 의도를 도출하고, 한국어 검색에서 자연스러운 명사구와 질문형을 문맥에 맞게 사용한다. 키워드를 나열하지 않는다.",
         "avoid": "중국어 어순, 대칭 문장, 원문의 문단 수를 복제하지 않는다. 번역투인 과도한 피동형, '제공합니다' 반복, 부자연스러운 한자어와 전각 문장부호를 피한다.",
     },
+}
+REBUILD_FINDING_CODES = {
+    "AI_TEMPLATE_STYLE",
+    "SOURCE_SYNTAX_TRANSFER",
+    "NON_NATIVE_SEARCH_INTENT",
 }
 TRANSLATABLE_FIELDS = {"title", "description", "answer", "tags", "faq", "bodySections"}
 TRANSLATION_ARTICLE_FIELDS = {
@@ -410,6 +402,414 @@ def enqueue_article_translations(
     return records
 
 
+def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
+    """將來源結構攤平成可追溯 facts，避免 Writer 把來源 H2 當成 outline。"""
+    validate_translation_brief(brief)
+    articles = []
+    safety_pattern = re.compile(
+        r"(不能|不得|不會|無法|不保證|限制|避免|禁止|保証しない|できません|"
+        r"보장하지|할 수 없|제한)"
+    )
+    for index, item in enumerate(brief["articles"]):
+        source = item["source"]
+        texts = [
+            str(source["description"]),
+            str(source["answer"]),
+            *[
+                f"{faq['question']} {faq['answer']}"
+                for faq in source["faq"]
+            ],
+            *[
+                str(paragraph)
+                for section in source["bodySections"]
+                for paragraph in section["paragraphs"]
+            ],
+        ]
+        facts = []
+        seen: set[str] = set()
+        for text in texts:
+            normalized = text.strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            facts.append(
+                {
+                    "fact_id": f"fact-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]}",
+                    "text": normalized,
+                    "safety_boundary": bool(safety_pattern.search(normalized)),
+                }
+            )
+        facts.sort(key=lambda fact: fact["fact_id"])
+        articles.append(
+            {
+                "slot": f"article-{index + 1:02d}",
+                "locale": item["locale"],
+                "source_sha256": item["source_sha256"],
+                "topic_cues": {
+                    "title": source["title"],
+                    "tags": source["tags"],
+                },
+                "facts": facts,
+            }
+        )
+    return {"articles": articles}
+
+
+def _source_structure_to_avoid(brief: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "articles": [
+            {
+                "slot": f"article-{index + 1:02d}",
+                "source_h2_order": [
+                    section["heading"]
+                    for section in item["source"]["bodySections"]
+                ],
+                "source_section_count": len(item["source"]["bodySections"]),
+                "source_paragraph_counts": [
+                    len(section["paragraphs"])
+                    for section in item["source"]["bodySections"]
+                ],
+            }
+            for index, item in enumerate(brief["articles"])
+        ]
+    }
+
+
+def _external_locale_plan_schema() -> dict[str, Any]:
+    coverage = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "source_fact_id": {"type": "string"},
+            "planned_h2": {"type": "string"},
+            "coverage_note": {"type": "string"},
+            "safety_boundary": {"type": "boolean"},
+        },
+        "required": [
+            "source_fact_id",
+            "planned_h2",
+            "coverage_note",
+            "safety_boundary",
+        ],
+    }
+    item = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "slot": {"type": "string"},
+            "locale": {"type": "string", "enum": sorted(SUPPORTED_LOCALES)},
+            "source_sha256": {"type": "string"},
+            "native_search_intent": {"type": "string"},
+            "native_query_phrasings": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+            },
+            "article_angle": {"type": "string"},
+            "ordered_h2_outline": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 4,
+                "maxItems": 5,
+            },
+            "coverage_mapping": {
+                "type": "array",
+                "items": coverage,
+                "minItems": 1,
+            },
+            "source_structure_not_copied": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+            },
+            "rebuild_outline": {"type": "boolean"},
+        },
+        "required": [
+            "slot",
+            "locale",
+            "source_sha256",
+            "native_search_intent",
+            "native_query_phrasings",
+            "article_angle",
+            "ordered_h2_outline",
+            "coverage_mapping",
+            "source_structure_not_copied",
+            "rebuild_outline",
+        ],
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "articles": {
+                "type": "array",
+                "items": item,
+                "minItems": 1,
+                "maxItems": 5,
+            }
+        },
+        "required": ["articles"],
+    }
+
+
+def _normalized_outline(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(re.sub(r"\W+", "", str(item)).casefold() for item in value)
+
+
+def _outline_topology(item: dict[str, Any]) -> tuple[frozenset[str], ...]:
+    outline = item.get("ordered_h2_outline")
+    mappings = item.get("coverage_mapping")
+    if not isinstance(outline, list) or not isinstance(mappings, list):
+        return ()
+    return tuple(
+        frozenset(
+            str(mapping.get("source_fact_id"))
+            for mapping in mappings
+            if isinstance(mapping, dict) and mapping.get("planned_h2") == heading
+        )
+        for heading in outline
+    )
+
+
+def validate_locale_plan(
+    brief: dict[str, Any],
+    plan: object,
+    *,
+    prior_plan: dict[str, Any] | None = None,
+) -> None:
+    validate_translation_brief(brief)
+    if not isinstance(plan, dict) or set(plan) != {
+        "schema_version",
+        "run_id",
+        "generation",
+        "articles",
+    }:
+        raise ValueError("locale plan fields are strict")
+    if (
+        plan.get("schema_version") != SCHEMA_VERSION
+        or plan.get("run_id") != brief["run_id"]
+        or type(plan.get("generation")) is not int
+        or type(plan.get("generation")) is bool
+        or plan["generation"] < 1
+    ):
+        raise ValueError("locale plan identity is invalid")
+    articles = plan.get("articles")
+    if not isinstance(articles, list) or len(articles) != len(brief["articles"]):
+        raise ValueError("locale plan target count differs from brief")
+    prior_by_slot = {
+        str(item.get("slot")): item
+        for item in (prior_plan or {}).get("articles", [])
+        if isinstance(item, dict)
+    }
+    fact_package = _source_fact_package(brief)
+    for index, target in enumerate(brief["articles"]):
+        slot = f"article-{index + 1:02d}"
+        item = articles[index]
+        required = {
+            "slot",
+            "locale",
+            "source_sha256",
+            "native_search_intent",
+            "native_query_phrasings",
+            "article_angle",
+            "ordered_h2_outline",
+            "coverage_mapping",
+            "source_structure_not_copied",
+            "rebuild_outline",
+        }
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValueError(f"locale plan article fields are strict for {slot}")
+        if item["slot"] != slot or item["locale"] != target["locale"]:
+            raise ValueError(f"locale plan locale identity differs for {slot}")
+        if item["source_sha256"] != target["source_sha256"]:
+            raise ValueError(f"locale plan source hash differs for {slot}")
+        for field in ("native_search_intent", "article_angle"):
+            _non_empty_string(item.get(field), f"locale plan {field}")
+        queries = item.get("native_query_phrasings")
+        if not isinstance(queries, list) or not queries:
+            raise ValueError(f"locale plan query phrasing is empty for {slot}")
+        for query in queries:
+            _non_empty_string(query, "locale plan query phrasing")
+        outline = item.get("ordered_h2_outline")
+        if (
+            not isinstance(outline, list)
+            or not 4 <= len(outline) <= 5
+            or len(_normalized_outline(outline)) != len(set(_normalized_outline(outline)))
+        ):
+            raise ValueError(f"locale plan outline is invalid for {slot}")
+        for heading in outline:
+            _non_empty_string(heading, "locale plan heading")
+        expected_facts = {
+            str(fact["fact_id"]): fact
+            for fact in fact_package["articles"][index]["facts"]
+        }
+        mappings = item.get("coverage_mapping")
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"locale plan coverage mapping differs for {slot}")
+        seen_fact_ids: set[str] = set()
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != {
+                "source_fact_id",
+                "planned_h2",
+                "coverage_note",
+                "safety_boundary",
+            }:
+                raise ValueError(f"locale plan coverage fields are strict for {slot}")
+            fact_id = str(mapping["source_fact_id"])
+            if fact_id not in expected_facts or fact_id in seen_fact_ids:
+                raise ValueError(f"locale plan source fact coverage differs for {slot}")
+            seen_fact_ids.add(fact_id)
+            if mapping["planned_h2"] not in outline:
+                raise ValueError(f"locale plan coverage heading differs for {slot}")
+            _non_empty_string(mapping["coverage_note"], "locale plan coverage note")
+            if mapping["safety_boundary"] is not expected_facts[fact_id]["safety_boundary"]:
+                raise ValueError(f"locale plan safety coverage differs for {slot}")
+        source_headings = [
+            section["heading"]
+            for section in target["source"]["bodySections"]
+        ]
+        if (
+            not isinstance(item.get("source_structure_not_copied"), list)
+            or set(item["source_structure_not_copied"]) != set(source_headings)
+        ):
+            raise ValueError(f"locale plan source structure blacklist differs for {slot}")
+        if type(item.get("rebuild_outline")) is not bool:
+            raise ValueError(f"locale plan rebuild flag is invalid for {slot}")
+        prior = prior_by_slot.get(slot)
+        if (
+            item["rebuild_outline"]
+            and prior is not None
+            and (
+                _normalized_outline(item["ordered_h2_outline"])
+                == _normalized_outline(prior.get("ordered_h2_outline"))
+                or (
+                    _outline_topology(item)
+                    and _outline_topology(item) == _outline_topology(prior)
+                )
+            )
+        ):
+            raise ValueError(f"locale plan rebuild reused prior outline topology for {slot}")
+
+
+def _hydrate_locale_plan(
+    brief: dict[str, Any],
+    external: dict[str, Any],
+    *,
+    generation: int,
+    rebuild_by_slot: dict[str, bool],
+    prior_plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if set(external) != {"articles"} or not isinstance(external["articles"], list):
+        raise ValueError("external locale plan fields are strict")
+    by_slot = {
+        str(item.get("slot")): item
+        for item in external["articles"]
+        if isinstance(item, dict)
+    }
+    expected_slots = [
+        f"article-{index + 1:02d}"
+        for index in range(len(brief["articles"]))
+    ]
+    if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
+        raise ValueError("external locale plan slots differ from brief")
+    articles = []
+    for slot in expected_slots:
+        item = by_slot[slot]
+        if item.get("rebuild_outline") is not rebuild_by_slot.get(slot, False):
+            raise ValueError(f"locale plan rebuild authority differs for {slot}")
+        articles.append(item)
+    plan = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": brief["run_id"],
+        "generation": generation,
+        "articles": articles,
+    }
+    validate_locale_plan(brief, plan, prior_plan=prior_plan)
+    return plan
+
+
+def _plan_prompt(
+    brief: dict[str, Any],
+    *,
+    generation: int,
+    prior_plan: dict[str, Any] | None,
+    findings: list[dict[str, str]],
+    rebuild_by_slot: dict[str, bool],
+) -> str:
+    return "\n".join(
+        [
+            "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
+            "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
+            "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
+            "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
+            "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
+            "generation:",
+            str(generation),
+            "locale contracts:",
+            json.dumps(LOCALE_EDITORIAL_CONTRACTS, ensure_ascii=False),
+            "source fact package:",
+            json.dumps(_source_fact_package(brief), ensure_ascii=False),
+            "source structure to avoid:",
+            json.dumps(_source_structure_to_avoid(brief), ensure_ascii=False),
+            "prior plan:",
+            json.dumps(prior_plan, ensure_ascii=False) if prior_plan else "null",
+            "findings:",
+            json.dumps(findings, ensure_ascii=False),
+            "rebuild authority:",
+            json.dumps(rebuild_by_slot, ensure_ascii=False),
+        ]
+    )
+
+
+def _article_prompt(
+    brief: dict[str, Any],
+    plan: dict[str, Any] | None,
+    findings: list[dict[str, str]],
+) -> str:
+    try:
+        validate_locale_plan(brief, plan)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"locale plan is required and must be valid: {error}") from error
+    public_input = {
+        "articles": [
+            {
+                **fact_package,
+                "editorial_contract": LOCALE_EDITORIAL_CONTRACTS[target["locale"]],
+                "locale_plan": plan["articles"][index],
+            }
+            for index, (target, fact_package) in enumerate(
+                zip(brief["articles"], _source_fact_package(brief)["articles"])
+            )
+        ]
+    }
+    return "\n".join(
+        [
+            "你是 Pantheon 的目標語言母語主編。這不是翻譯任務；slot 必須逐字複製。",
+            "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
+            "寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。",
+            "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
+            "不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。",
+            "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
+            "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
+            "article input:",
+            json.dumps(public_input, ensure_ascii=False),
+            "findings:",
+            json.dumps(findings, ensure_ascii=False),
+        ]
+    )
+
+
+def _writer_prompt(
+    brief: dict[str, Any],
+    plan: dict[str, Any],
+    findings: list[dict[str, str]],
+) -> str:
+    """保留舊 helper 名稱；Writer authority 已改為 validated locale plan。"""
+    return _article_prompt(brief, plan, findings)
+
+
 def _external_candidate_schema() -> dict[str, Any]:
     faq = {
         "type": "object",
@@ -517,29 +917,6 @@ def _normalize_korean_typography(value: Any) -> Any:
     return value
 
 
-def _writer_prompt(
-    brief: dict[str, Any],
-    prior: dict[str, Any] | None,
-    findings: list[dict[str, str]],
-) -> str:
-    return "\n".join(
-        [
-            "你是 Pantheon 的目標語言母語主編。這不是翻譯任務，而是依 editorial_contract 從零重寫可公開文章；slot 必須逐字複製。",
-            "寫作前先在內部建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source 明確支持；無法對應的句子直接刪除，不得用常識補完。",
-            "再按照該語言的語法、搜尋習慣與閱讀節奏重新設計標題、H2、段落與 FAQ。",
-            "不得逐句對譯、不得沿用中文段落骨架。可拆分、合併、重排內容，但不能新增原文沒有的事實或承諾。",
-            "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅；原文只有「正逆位語氣不同」時，不得自行發明正逆位能量、心理或象徵定義。",
-            "若有 prior，只修正 findings，但仍輸出完整結果。",
-            "public brief:",
-            json.dumps(_public_brief(brief), ensure_ascii=False),
-            "prior:",
-            json.dumps(prior, ensure_ascii=False) if prior else "null",
-            "findings:",
-            json.dumps(findings, ensure_ascii=False),
-        ]
-    )
-
-
 def _reviewer_prompt(
     brief: dict[str, Any],
     candidate: dict[str, Any],
@@ -587,59 +964,518 @@ def _load_or_generate_external(
     return payload
 
 
+def _review_findings(review: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        {
+            "article_id": str(item["article_id"]),
+            "code": str(finding["code"]),
+            "message": str(finding["message"]),
+        }
+        for item in review["articles"]
+        for finding in item["findings"]
+    ]
+
+
+def _external_review_findings(
+    brief: dict[str, Any],
+    attempt_dir: Path,
+) -> list[dict[str, str]]:
+    path = attempt_dir / "external-review.json"
+    if not path.is_file():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    by_slot = {
+        str(item.get("slot")): item
+        for item in payload.get("articles", [])
+        if isinstance(item, dict)
+    }
+    findings = []
+    for index, target in enumerate(brief["articles"]):
+        item = by_slot.get(f"article-{index + 1:02d}", {})
+        for finding in item.get("findings", []):
+            if isinstance(finding, dict) and {"code", "message"} <= set(finding):
+                findings.append(
+                    {
+                        "article_id": str(target["translation_id"]),
+                        "code": str(finding["code"]),
+                        "message": str(finding["message"]),
+                    }
+                )
+    return findings
+
+
+def _generation_directories(root: Path) -> list[Path]:
+    if not root.is_dir():
+        return []
+    return sorted(
+        (
+            path
+            for path in root.iterdir()
+            if path.is_dir() and re.fullmatch(r"\d+", path.name)
+        ),
+        key=lambda path: int(path.name),
+    )
+
+
+def _finding_history(brief: dict[str, Any], roots: list[Path]) -> list[list[dict[str, str]]]:
+    history = []
+    for root in roots:
+        for attempt_dir in _generation_directories(root):
+            findings = _external_review_findings(brief, attempt_dir)
+            if findings:
+                history.append(findings)
+    return history
+
+
+def _rebuild_authority(
+    brief: dict[str, Any],
+    history: list[list[dict[str, str]]],
+) -> dict[str, bool]:
+    recent = []
+    for findings in history[-2:]:
+        current: dict[str, set[str]] = {}
+        for finding in findings:
+            current.setdefault(str(finding["article_id"]), set()).add(str(finding["code"]))
+        recent.append(current)
+    return {
+        f"article-{index + 1:02d}": bool(
+            (
+                recent[0].get(str(target["translation_id"]), set())
+                & recent[1].get(str(target["translation_id"]), set())
+                if len(recent) == 2
+                else set()
+            )
+            & REBUILD_FINDING_CODES
+        )
+        for index, target in enumerate(brief["articles"])
+    }
+
+
+def _last_locale_plan(roots: list[Path]) -> dict[str, Any] | None:
+    paths = [
+        attempt_dir / "locale-plan.json"
+        for root in roots
+        for attempt_dir in _generation_directories(root)
+        if (attempt_dir / "locale-plan.json").is_file()
+    ]
+    if not paths:
+        return None
+    return json.loads(paths[-1].read_text(encoding="utf-8"))
+
+
+def _candidate_outline_plan(candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "articles": [
+            {
+                "slot": f"article-{index + 1:02d}",
+                "ordered_h2_outline": [
+                    section["heading"]
+                    for section in article["bodySections"]
+                ],
+            }
+            for index, article in enumerate(candidate["articles"])
+        ]
+    }
+
+
+def _review_generated_candidate(
+    brief: dict[str, Any],
+    candidate: dict[str, Any],
+    external_review: dict[str, Any],
+    deterministic_findings: list[dict[str, str]],
+) -> dict[str, Any]:
+    review = pipeline.hydrate_review(brief, candidate, external_review)
+    by_id = {str(item["article_id"]): item for item in review["articles"]}
+    for finding in deterministic_findings:
+        item = by_id[str(finding["article_id"])]
+        item["verdict"] = "REJECT"
+        normalized = {
+            "code": finding["code"],
+            "message": finding["message"],
+        }
+        if normalized not in item["findings"]:
+            item["findings"].append(normalized)
+        item["hard_failure"] = True
+    return review
+
+
+def _validate_candidate_matches_plan(
+    candidate: dict[str, Any],
+    plan: dict[str, Any],
+) -> None:
+    for article, planned in zip(candidate["articles"], plan["articles"]):
+        headings = [
+            section["heading"]
+            for section in article["bodySections"]
+        ]
+        if headings != planned["ordered_h2_outline"]:
+            raise ValueError(
+                f"article outline differs from locale plan for {planned['slot']}"
+            )
+
+
+def _run_locale_generation(
+    brief: dict[str, Any],
+    client: pipeline.GeminiClient,
+    *,
+    generation: int,
+    generation_dir: Path,
+    findings: list[dict[str, str]],
+    history: list[list[dict[str, str]]],
+    prior_plan: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    rebuild_by_slot = _rebuild_authority(brief, history)
+    external_plan = _load_or_generate_external(
+        client,
+        "writer",
+        _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+        ),
+        _external_locale_plan_schema(),
+        generation_dir / "plan-operation.json",
+        generation_dir / "external-plan.json",
+    )
+    plan = _hydrate_locale_plan(
+        brief,
+        external_plan,
+        generation=generation,
+        rebuild_by_slot=rebuild_by_slot,
+        prior_plan=prior_plan,
+    )
+    _atomic_write_json(generation_dir / "locale-plan.json", plan)
+    external_candidate = _load_or_generate_external(
+        client,
+        "writer",
+        _article_prompt(brief, plan, findings),
+        _external_candidate_schema(),
+        generation_dir / "article-operation.json",
+        generation_dir / "external-candidate.json",
+    )
+    candidate = _hydrate_candidate(brief, external_candidate)
+    _validate_candidate_matches_plan(candidate, plan)
+    deterministic = translation_findings(brief, candidate["articles"])
+    _atomic_write_json(
+        generation_dir / "deterministic-findings.json",
+        deterministic,
+    )
+    external_review = _load_or_generate_external(
+        client,
+        "reviewer",
+        _reviewer_prompt(brief, candidate, deterministic),
+        pipeline.external_review_schema(),
+        generation_dir / "reviewer-operation.json",
+        generation_dir / "external-review.json",
+    )
+    review = _review_generated_candidate(
+        brief,
+        candidate,
+        external_review,
+        deterministic,
+    )
+    _atomic_write_json(generation_dir / "candidate.json", candidate)
+    _atomic_write_json(generation_dir / "review.json", review)
+    return candidate, review, plan
+
+
+def _review_approved(review: dict[str, Any]) -> bool:
+    return all(
+        item["verdict"] == "APPROVE" and not item["findings"]
+        for item in review["articles"]
+    )
+
+
+def _write_root_result(
+    run_dir: Path,
+    candidate: dict[str, Any],
+    review: dict[str, Any],
+    *,
+    state: dict[str, Any] | None = None,
+) -> None:
+    transaction_path = run_dir / "continuation" / "root-update.json"
+    _atomic_write_json(
+        transaction_path,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "candidate": candidate,
+            "review": review,
+            "state": state,
+        },
+    )
+    _atomic_write_json(run_dir / "candidate.json", candidate)
+    _atomic_write_json(run_dir / "review.json", review)
+    if state is not None:
+        _atomic_write_json(run_dir / "continuation" / "state.json", state)
+    transaction_path.unlink()
+
+
+def _recover_root_result(run_dir: Path) -> None:
+    transaction_path = run_dir / "continuation" / "root-update.json"
+    if not transaction_path.is_file():
+        return
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(transaction, dict)
+        or set(transaction) != {"schema_version", "candidate", "review", "state"}
+        or transaction.get("schema_version") != SCHEMA_VERSION
+        or not isinstance(transaction.get("candidate"), dict)
+        or not isinstance(transaction.get("review"), dict)
+        or (
+            transaction.get("state") is not None
+            and not isinstance(transaction.get("state"), dict)
+        )
+    ):
+        raise ValueError("root update transaction is invalid")
+    _atomic_write_json(run_dir / "candidate.json", transaction["candidate"])
+    _atomic_write_json(run_dir / "review.json", transaction["review"])
+    if transaction["state"] is not None:
+        _atomic_write_json(
+            run_dir / "continuation" / "state.json",
+            transaction["state"],
+        )
+    transaction_path.unlink()
+
+
+def _run_fresh_writer_reviewer(
+    run_dir: Path,
+    client: pipeline.GeminiClient,
+    *,
+    max_repairs: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    validate_translation_brief(brief)
+    history: list[list[dict[str, str]]] = []
+    findings: list[dict[str, str]] = []
+    prior_plan: dict[str, Any] | None = None
+    candidate: dict[str, Any] | None = None
+    review: dict[str, Any] | None = None
+    for generation in range(1, max_repairs + 2):
+        candidate, review, prior_plan = _run_locale_generation(
+            brief,
+            client,
+            generation=generation,
+            generation_dir=run_dir / "attempts" / f"{generation:02d}",
+            findings=findings,
+            history=history,
+            prior_plan=prior_plan,
+        )
+        findings = _review_findings(review)
+        history.append(findings)
+        if _review_approved(review):
+            break
+    if candidate is None or review is None:
+        raise RuntimeError("translation writer/reviewer produced no result")
+    _write_root_result(run_dir, candidate, review)
+    return candidate, review
+
+
+def _continuation_operation_id(
+    brief: dict[str, Any],
+    starting_review_sha256: str,
+    started_after_generation: int,
+) -> str:
+    identity = {
+        "run_id": brief["run_id"],
+        "source_sha256": [
+            target["source_sha256"]
+            for target in brief["articles"]
+        ],
+        "starting_review_sha256": starting_review_sha256,
+        "started_after_generation": started_after_generation,
+    }
+    return hashlib.sha256(compact_json_bytes(identity)).hexdigest()
+
+
+def _load_or_create_continuation_state(
+    run_dir: Path,
+    brief: dict[str, Any],
+    review: dict[str, Any],
+    *,
+    max_repairs: int,
+) -> dict[str, Any]:
+    path = run_dir / "continuation" / "state.json"
+    if path.is_file():
+        state = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        existing = _generation_directories(run_dir / "attempts")
+        started_after = max((int(path.name) for path in existing), default=0)
+        starting_review_sha256 = hashlib.sha256(
+            compact_json_bytes(review)
+        ).hexdigest()
+        state = {
+            "schema_version": SCHEMA_VERSION,
+            "operation_id": _continuation_operation_id(
+                brief,
+                starting_review_sha256,
+                started_after,
+            ),
+            "run_id": brief["run_id"],
+            "source_sha256": [
+                target["source_sha256"]
+                for target in brief["articles"]
+            ],
+            "starting_review_sha256": starting_review_sha256,
+            "started_after_generation": started_after,
+            "semantic_budget": max_repairs + 1,
+            "next_generation": started_after + 1,
+            "completed_generations": [],
+            "status": "active",
+        }
+        _atomic_write_json(path, state)
+    required = {
+        "schema_version",
+        "operation_id",
+        "run_id",
+        "source_sha256",
+        "starting_review_sha256",
+        "started_after_generation",
+        "semantic_budget",
+        "next_generation",
+        "completed_generations",
+        "status",
+    }
+    if (
+        not isinstance(state, dict)
+        or set(state) != required
+        or state.get("schema_version") != SCHEMA_VERSION
+        or state.get("run_id") != brief["run_id"]
+        or state.get("source_sha256")
+        != [target["source_sha256"] for target in brief["articles"]]
+        or not re.fullmatch(r"[0-9a-f]{64}", str(state.get("starting_review_sha256")))
+        or state.get("operation_id")
+        != _continuation_operation_id(
+            brief,
+            str(state.get("starting_review_sha256")),
+            state.get("started_after_generation"),
+        )
+        or type(state.get("started_after_generation")) is not int
+        or type(state.get("started_after_generation")) is bool
+        or state["started_after_generation"] < 1
+        or type(state.get("semantic_budget")) is not int
+        or type(state.get("semantic_budget")) is bool
+        or not 1 <= state["semantic_budget"] <= 3
+        or type(state.get("next_generation")) is not int
+        or type(state.get("next_generation")) is bool
+        or state["next_generation"] < state["started_after_generation"] + 1
+        or not isinstance(state.get("completed_generations"), list)
+        or state.get("status") not in {"active", "complete"}
+        or (
+            state.get("status") == "active"
+            and state.get("starting_review_sha256")
+            != hashlib.sha256(compact_json_bytes(review)).hexdigest()
+        )
+    ):
+        raise ValueError("continuation state identity is invalid")
+    return state
+
+
+def _validate_semantic_budget(max_repairs: int) -> None:
+    if (
+        type(max_repairs) is not int
+        or type(max_repairs) is bool
+        or not 0 <= max_repairs <= 2
+    ):
+        raise ValueError("translation semantic repair budget must be between 0 and 2")
+
+
+def continue_writer_reviewer(
+    run_dir: Path,
+    client: pipeline.GeminiClient,
+    *,
+    max_repairs: int = 2,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    _validate_semantic_budget(max_repairs)
+    _recover_root_result(run_dir)
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    validate_translation_brief(brief)
+    root_candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    root_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    validate_translation_candidate(brief, root_candidate)
+    if root_review.get("run_id") != brief["run_id"]:
+        raise ValueError("continuation review run identity differs from brief")
+    pipeline.validate_review(root_review, root_candidate["articles"])
+    state = _load_or_create_continuation_state(
+        run_dir,
+        brief,
+        root_review,
+        max_repairs=max_repairs,
+    )
+    if state["status"] == "complete":
+        return root_candidate, root_review
+
+    roots = [run_dir / "attempts", run_dir / "generations"]
+    history = _finding_history(brief, roots)
+    if not history:
+        history = [_review_findings(root_review)]
+    findings = history[-1]
+    prior_plan = _last_locale_plan(roots) or _candidate_outline_plan(root_candidate)
+    candidate: dict[str, Any] | None = None
+    review: dict[str, Any] | None = None
+    final_generation = (
+        int(state["started_after_generation"])
+        + int(state["semantic_budget"])
+    )
+    for generation in range(int(state["next_generation"]), final_generation + 1):
+        candidate, review, prior_plan = _run_locale_generation(
+            brief,
+            client,
+            generation=generation,
+            generation_dir=run_dir / "generations" / f"{generation:02d}",
+            findings=findings,
+            history=history,
+            prior_plan=prior_plan,
+        )
+        findings = _review_findings(review)
+        history.append(findings)
+        state["completed_generations"].append(generation)
+        state["next_generation"] = generation + 1
+        complete = _review_approved(review) or generation == final_generation
+        if complete:
+            state["status"] = "complete"
+            _write_root_result(
+                run_dir,
+                candidate,
+                review,
+                state=state,
+            )
+            return candidate, review
+        _atomic_write_json(run_dir / "continuation" / "state.json", state)
+    raise RuntimeError("continuation semantic budget produced no result")
+
+
 def run_writer_reviewer(
     run_dir: Path,
     client: pipeline.GeminiClient,
     *,
     max_repairs: int = 2,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
-    validate_translation_brief(brief)
-    candidate: dict[str, Any] | None = None
-    review: dict[str, Any] | None = None
-    findings: list[dict[str, str]] = []
-    for attempt in range(max_repairs + 1):
-        attempt_dir = run_dir / "attempts" / f"{attempt + 1:02d}"
-        external = _load_or_generate_external(
-            client,
-            "writer",
-            _writer_prompt(brief, candidate, findings),
-            _external_candidate_schema(),
-            attempt_dir / "writer-operation.json",
-            attempt_dir / "external-candidate.json",
+    _validate_semantic_budget(max_repairs)
+    _recover_root_result(run_dir)
+    state_path = run_dir / "continuation" / "state.json"
+    review_path = run_dir / "review.json"
+    candidate_path = run_dir / "candidate.json"
+    has_legacy_attempts = bool(_generation_directories(run_dir / "attempts"))
+    if state_path.is_file() or (
+        has_legacy_attempts
+        and candidate_path.is_file()
+        and review_path.is_file()
+        and not _review_approved(
+            json.loads(review_path.read_text(encoding="utf-8"))
         )
-        candidate = _hydrate_candidate(brief, external)
-        findings = translation_findings(brief, candidate["articles"])
-        pipeline.write_json(attempt_dir / "deterministic-findings.json", findings)
-        external_review = _load_or_generate_external(
+    ):
+        return continue_writer_reviewer(
+            run_dir,
             client,
-            "reviewer",
-            _reviewer_prompt(brief, candidate, findings),
-            pipeline.external_review_schema(),
-            attempt_dir / "reviewer-operation.json",
-            attempt_dir / "external-review.json",
+            max_repairs=max_repairs,
         )
-        review = pipeline.hydrate_review(brief, candidate, external_review)
-        by_id = {str(item["article_id"]): item for item in review["articles"]}
-        for finding in findings:
-            item = by_id[str(finding["article_id"])]
-            item["verdict"] = "REJECT"
-            normalized_finding = {"code": finding["code"], "message": finding["message"]}
-            if normalized_finding not in item["findings"]:
-                item["findings"].append(normalized_finding)
-            item["hard_failure"] = True
-        if all(item["verdict"] == "APPROVE" and not item["findings"] for item in review["articles"]):
-            break
-        findings = [
-            {"article_id": str(item["article_id"]), **finding}
-            for item in review["articles"]
-            for finding in item["findings"]
-        ]
-    if candidate is None or review is None:
-        raise RuntimeError("translation writer/reviewer produced no result")
-    pipeline.write_json(run_dir / "candidate.json", candidate)
-    pipeline.write_json(run_dir / "review.json", review)
-    return candidate, review
+    return _run_fresh_writer_reviewer(
+        run_dir,
+        client,
+        max_repairs=max_repairs,
+    )
 
 
 def review_edited_candidate(

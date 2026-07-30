@@ -184,6 +184,141 @@ def translation_candidate(locale: str = "en") -> dict[str, object]:
     }
 
 
+def non_tarot_translation_brief(locale: str = "ko") -> dict[str, object]:
+    source = {
+        "article_id": "FORTUNE-0039",
+        "canonical_path": "/articles/bazi/fortune-0039",
+        "title": "八字用神是什麼？",
+        "description": "用神是依命局失衡處選出的調整方向，不是固定五行，也不能只看單一字。",
+        "answer": "先看整體強弱、寒燥與流通，再判斷哪個五行能改善失衡。",
+        "tags": ["八字", "用神"],
+        "faq": [
+            {
+                "question": "用神會永遠不變嗎？",
+                "answer": "不能脫離完整命局與運勢條件，只用單一規則固定判斷。",
+            }
+        ],
+        "bodySections": [
+            {
+                "heading": "先找出命局的失衡",
+                "paragraphs": ["用神判斷先看日主強弱、寒燥與五行是否能流通。"],
+            },
+            {
+                "heading": "再選擇能改善失衡的方向",
+                "paragraphs": ["同一個五行在不同命局中可能有不同作用，不能套用固定答案。"],
+            },
+        ],
+    }
+    return {
+        "schema_version": 1,
+        "run_id": f"auto-i18n-{locale}-fortune-0039",
+        "mode": "translate_existing",
+        "articles": [
+            {
+                "translation_id": f"FORTUNE-0039:{locale}",
+                "locale": locale,
+                "source_article_id": "FORTUNE-0039",
+                "source_path": source["canonical_path"],
+                "source_sha256": multilingual.source_sha256(source),
+                "source": source,
+            }
+        ],
+    }
+
+
+def non_tarot_external_candidate(
+    outline: list[str] | None = None,
+) -> dict[str, object]:
+    payload = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "title": "사주에서 용신은 어떻게 찾나요?",
+                "description": "용신은 명식 전체의 불균형을 살핀 뒤 조정 방향을 찾는 개념이며, 한 글자나 고정된 오행만으로 정할 수 없습니다.",
+                "answer": "강약과 한난조습, 오행의 흐름을 함께 살핀 뒤 불균형을 줄이는 방향을 찾습니다.",
+                "tags": ["사주", "용신"],
+                "faq": [
+                    {
+                        "question": "용신은 항상 같나요?",
+                        "answer": "전체 명식과 운의 조건을 벗어나 하나의 규칙으로 고정할 수 없습니다.",
+                    }
+                ],
+                "bodySections": [
+                    {
+                        "heading": "용신이 답하려는 질문",
+                        "paragraphs": ["용신은 명식에서 무엇이 과하거나 부족한지 살피는 출발점입니다."],
+                    },
+                    {
+                        "heading": "강약과 계절을 함께 보는 이유",
+                        "paragraphs": ["일간의 강약과 계절의 한난조습을 따로 떼어 판단하지 않습니다."],
+                    },
+                    {
+                        "heading": "오행의 흐름으로 조정 방향 찾기",
+                        "paragraphs": ["막힌 흐름을 이어 주거나 지나친 기운을 덜어 내는 방향을 비교합니다."],
+                    },
+                    {
+                        "heading": "고정 공식으로 단정하지 않기",
+                        "paragraphs": ["같은 오행도 명식과 운의 조건에 따라 역할이 달라질 수 있습니다."],
+                    },
+                ],
+            }
+        ]
+    }
+    if outline is not None:
+        for section, heading in zip(
+            payload["articles"][0]["bodySections"],
+            outline,
+        ):
+            section["heading"] = heading
+    return payload
+
+
+def external_locale_plan(
+    brief: dict[str, object],
+    *,
+    rebuild_outline: bool = False,
+    outline: list[str] | None = None,
+    coverage_shift: int = 0,
+) -> dict[str, object]:
+    fact_package = multilingual._source_fact_package(brief)
+    target = fact_package["articles"][0]
+    headings = outline or [
+        "용신이 답하려는 질문",
+        "강약과 계절을 함께 보는 이유",
+        "오행의 흐름으로 조정 방향 찾기",
+        "고정 공식으로 단정하지 않기",
+    ]
+    return {
+        "articles": [
+            {
+                "slot": "article-01",
+                "locale": brief["articles"][0]["locale"],
+                "source_sha256": brief["articles"][0]["source_sha256"],
+                "native_search_intent": "사주에서 용신을 판단하는 기준과 한계를 알고 싶다",
+                "native_query_phrasings": ["사주 용신 찾는 법", "용신 판단 기준"],
+                "article_angle": "고정 공식을 제시하지 않고 판단 순서와 한계를 설명한다",
+                "ordered_h2_outline": headings,
+                "coverage_mapping": [
+                    {
+                        "source_fact_id": fact["fact_id"],
+                        "planned_h2": headings[
+                            (index + coverage_shift) % len(headings)
+                        ],
+                        "coverage_note": "이 사실과 제한을 해당 절에서 설명한다",
+                        "safety_boundary": fact["safety_boundary"],
+                    }
+                    for index, fact in enumerate(target["facts"])
+                ],
+                "source_structure_not_copied": [
+                    section["heading"]
+                    for section in brief["articles"][0]["source"]["bodySections"]
+                ],
+                "rebuild_outline": rebuild_outline,
+            }
+        ]
+    }
+
+
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])
 def test_translation_contract_accepts_supported_locales(locale: str) -> None:
     brief = translation_brief(locale)
@@ -287,11 +422,461 @@ def test_public_brief_includes_locale_specific_editorial_contract(locale: str) -
 
 
 def test_writer_prompt_requires_source_claim_traceability_and_rejects_filler() -> None:
-    prompt = multilingual._writer_prompt(translation_brief("en"), None, [])
+    brief = translation_brief("en")
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+    prompt = multilingual._article_prompt(brief, plan, [])
 
     assert "source claim ledger" in prompt
     assert "不得用常識補完" in prompt
     assert "禁止用比喻、口號、華麗形容詞或抽象 AI 套話" in prompt
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_locale_plan_and_article_prompts_are_topic_neutral(locale: str) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external_plan = external_locale_plan(non_tarot_translation_brief())
+    external_plan["articles"][0]["locale"] = locale
+    external_plan["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_plan,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    serialized_contract = json.dumps(
+        multilingual.LOCALE_EDITORIAL_CONTRACTS[locale],
+        ensure_ascii=False,
+    ).lower()
+    plan_prompt = multilingual._plan_prompt(
+        brief,
+        generation=1,
+        prior_plan=None,
+        findings=[],
+        rebuild_by_slot={"article-01": False},
+    )
+    article_prompt = multilingual._article_prompt(brief, plan, [])
+
+    for forbidden in (
+        "tarot",
+        "タロット",
+        "타로",
+        "upright",
+        "reversed",
+        "正位置",
+        "逆位置",
+        "정방향",
+        "역방향",
+    ):
+        assert forbidden not in serialized_contract
+        assert forbidden not in plan_prompt.lower()
+        assert forbidden not in article_prompt.lower()
+    assert "用神" in plan_prompt
+    assert "ordered_h2_outline" in article_prompt
+
+
+def test_article_phase_rejects_missing_invalid_or_mismatched_plan() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    with pytest.raises(ValueError, match="locale plan"):
+        multilingual._article_prompt(brief, None, [])
+
+    invalid = json.loads(json.dumps(plan))
+    del invalid["articles"][0]["coverage_mapping"]
+    with pytest.raises(ValueError, match="locale plan"):
+        multilingual._article_prompt(brief, invalid, [])
+
+    mismatched = json.loads(json.dumps(plan))
+    mismatched["articles"][0]["source_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="source hash"):
+        multilingual._article_prompt(brief, mismatched, [])
+
+
+def test_invalid_generated_plan_fails_before_article_candidate(tmp_path: Path) -> None:
+    brief = non_tarot_translation_brief()
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+
+    class InvalidPlanClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            payload = external_locale_plan(brief)
+            del payload["articles"][0]["coverage_mapping"]
+            return payload
+
+    with pytest.raises(ValueError, match="locale plan"):
+        multilingual.run_writer_reviewer(
+            tmp_path,
+            InvalidPlanClient(),
+            max_repairs=2,
+        )
+
+    assert not (tmp_path / "attempts/01/locale-plan.json").exists()
+    assert not (tmp_path / "attempts/01/article-operation.json").exists()
+    assert not (tmp_path / "candidate.json").exists()
+    assert not (tmp_path / "review.json").exists()
+
+
+def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> None:
+    brief = non_tarot_translation_brief()
+    prior = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+    synonym_only = external_locale_plan(
+        brief,
+        rebuild_outline=True,
+        outline=[
+            "용신이 해결하는 핵심 질문",
+            "강약과 절기를 같이 확인하는 까닭",
+            "오행 흐름에서 조정 방향 고르기",
+            "하나의 공식으로 결론 내리지 않기",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="reused prior outline topology"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            synonym_only,
+            generation=2,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+        )
+
+
+@pytest.mark.parametrize(
+    "finding_code",
+    [
+        "AI_TEMPLATE_STYLE",
+        "SOURCE_SYNTAX_TRANSFER",
+        "NON_NATIVE_SEARCH_INTENT",
+    ],
+)
+def test_repeated_native_finding_forces_new_outline_topology(
+    tmp_path: Path,
+    finding_code: str,
+) -> None:
+    brief = non_tarot_translation_brief()
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    plan_count = 0
+    review_count = 0
+    last_outline: list[str] | None = None
+
+    class ScriptedClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal plan_count, review_count, last_outline
+            if "native_search_intent" in json.dumps(schema):
+                plan_count += 1
+                if plan_count == 3:
+                    payload = external_locale_plan(
+                        brief,
+                        rebuild_outline=True,
+                        coverage_shift=1,
+                        outline=[
+                            "용신을 검색할 때 가장 먼저 묻는 것",
+                            "명식 전체에서 불균형 확인하기",
+                            "조정 후보를 비교하는 순서",
+                            "단정 대신 조건을 남기는 이유",
+                        ],
+                    )
+                else:
+                    payload = external_locale_plan(brief)
+                last_outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                return non_tarot_external_candidate(last_outline)
+            review_count += 1
+            if review_count < 3:
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "verdict": "REJECT",
+                                "findings": [
+                                    {
+                                        "code": finding_code,
+                                        "message": "구조가 이전 세대와 같은 템플릿입니다",
+                                    }
+                                ],
+                        }
+                    ]
+                }
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    multilingual.run_writer_reviewer(tmp_path, ScriptedClient(), max_repairs=2)
+
+    first = json.loads((tmp_path / "attempts/01/locale-plan.json").read_text())
+    third = json.loads((tmp_path / "attempts/03/locale-plan.json").read_text())
+    assert first["articles"][0]["rebuild_outline"] is False
+    assert third["articles"][0]["rebuild_outline"] is True
+    assert (
+        third["articles"][0]["ordered_h2_outline"]
+        != first["articles"][0]["ordered_h2_outline"]
+    )
+
+
+def _write_rejected_deferred_lineage(run_dir: Path) -> tuple[dict[str, object], dict[str, object]]:
+    brief = non_tarot_translation_brief()
+    candidate = multilingual._hydrate_candidate(brief, non_tarot_external_candidate())
+    review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": "FORTUNE-0039:ko",
+                "candidate_sha256": article_sha256(candidate["articles"][0]),
+                "verdict": "REJECT",
+                "findings": [
+                    {
+                        "code": "AI_TEMPLATE_STYLE",
+                        "message": "기존 구조를 반복합니다",
+                    }
+                ],
+            }
+        ],
+    }
+    multilingual.pipeline.write_json(run_dir / "brief.json", brief)
+    multilingual.pipeline.write_json(run_dir / "candidate.json", candidate)
+    multilingual.pipeline.write_json(run_dir / "review.json", review)
+    for attempt in range(1, 4):
+        attempt_dir = run_dir / "attempts" / f"{attempt:02d}"
+        multilingual.pipeline.write_json(
+            attempt_dir / "external-review.json",
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "AI_TEMPLATE_STYLE",
+                                "message": f"generation {attempt} repeats the template",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+        (attempt_dir / "immutable-marker.txt").write_text(
+            f"legacy-attempt-{attempt}\n",
+            encoding="utf-8",
+        )
+    return candidate, review
+
+
+def test_deferred_lineage_continuation_is_incremental_immutable_and_replayable(
+    tmp_path: Path,
+) -> None:
+    old_candidate, _old_review = _write_rejected_deferred_lineage(tmp_path)
+    legacy_bytes = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in (tmp_path / "attempts").rglob("*")
+        if path.is_file()
+    }
+    calls: list[str] = []
+    last_outline: list[str] | None = None
+
+    class ApprovingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal last_outline
+            calls.append(role)
+            if "native_search_intent" in json.dumps(schema):
+                payload = external_locale_plan(
+                    non_tarot_translation_brief(),
+                    rebuild_outline=True,
+                    coverage_shift=1,
+                    outline=[
+                        "용신 검색 질문부터 정리하기",
+                        "명식의 강약과 계절 확인하기",
+                        "오행의 흐름으로 후보 비교하기",
+                        "조건에 따라 결론을 제한하기",
+                    ],
+                )
+                last_outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                return non_tarot_external_candidate(last_outline)
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    candidate, review = multilingual.continue_writer_reviewer(
+        tmp_path,
+        ApprovingClient(),
+        max_repairs=2,
+    )
+
+    state = json.loads((tmp_path / "continuation/state.json").read_text())
+    assert state["status"] == "complete"
+    assert not (tmp_path / "continuation/root-update.json").exists()
+    assert state["started_after_generation"] == 3
+    assert state["completed_generations"] == [4]
+    assert (tmp_path / "generations/04/locale-plan.json").is_file()
+    assert candidate["run_id"] == old_candidate["run_id"]
+    assert review["run_id"] == old_candidate["run_id"]
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert not (tmp_path / "approval.json").exists()
+    assert not (tmp_path / "run-evidence.json").exists()
+    assert legacy_bytes == {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in (tmp_path / "attempts").rglob("*")
+        if path.is_file()
+    }
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("completed continuation must replay root artifacts")
+
+    replayed_candidate, replayed_review = multilingual.continue_writer_reviewer(
+        tmp_path,
+        FailIfCalled(),
+        max_repairs=2,
+    )
+    assert replayed_candidate == candidate
+    assert replayed_review == review
+    assert calls == ["writer", "writer", "reviewer"]
+
+
+def test_pending_continuation_does_not_advance_or_overwrite_roots(tmp_path: Path) -> None:
+    old_candidate, old_review = _write_rejected_deferred_lineage(tmp_path)
+    prompts: list[str] = []
+
+    class ExternalJobPending(RuntimeError):
+        pass
+
+    class PendingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def _outbox_transport(self) -> None:
+            raise AssertionError
+
+        transport = _outbox_transport
+
+        def generate_json(
+            self,
+            _role: str,
+            prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            prompts.append(prompt)
+            raise ExternalJobPending("synthetic pending plan")
+
+    client = PendingClient()
+    for _replay in range(2):
+        with pytest.raises(ExternalJobPending, match="synthetic pending plan"):
+            multilingual.continue_writer_reviewer(tmp_path, client, max_repairs=2)
+
+    state = json.loads((tmp_path / "continuation/state.json").read_text())
+    assert state["status"] == "active"
+    assert state["next_generation"] == 4
+    assert state["completed_generations"] == []
+    assert sorted(path.name for path in (tmp_path / "generations").iterdir()) == ["04"]
+    assert json.loads((tmp_path / "candidate.json").read_text()) == old_candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == old_review
+    assert prompts[0] == prompts[1]
+    for forbidden in ("approval.json", "apply.json", "publish.json", "run-evidence.json"):
+        assert not (tmp_path / forbidden).exists()
+
+
+def test_root_update_transaction_recovers_candidate_review_and_state_together(
+    tmp_path: Path,
+) -> None:
+    _old_candidate, old_review = _write_rejected_deferred_lineage(tmp_path)
+    brief = non_tarot_translation_brief()
+    new_candidate = multilingual._hydrate_candidate(
+        brief,
+        non_tarot_external_candidate(),
+    )
+    new_review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": "FORTUNE-0039:ko",
+                "candidate_sha256": article_sha256(new_candidate["articles"][0]),
+                "verdict": "APPROVE",
+                "findings": [],
+            }
+        ],
+    }
+    state = multilingual._load_or_create_continuation_state(
+        tmp_path,
+        brief,
+        old_review,
+        max_repairs=2,
+    )
+    state["status"] = "complete"
+    multilingual.pipeline.write_json(
+        tmp_path / "continuation/root-update.json",
+        {
+            "schema_version": 1,
+            "candidate": new_candidate,
+            "review": new_review,
+            "state": state,
+        },
+    )
+    multilingual.pipeline.write_json(
+        tmp_path / "candidate.json",
+        {"interrupted": True},
+    )
+
+    multilingual._recover_root_result(tmp_path)
+
+    assert json.loads((tmp_path / "candidate.json").read_text()) == new_candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == new_review
+    assert json.loads((tmp_path / "continuation/state.json").read_text()) == state
+    assert not (tmp_path / "continuation/root-update.json").exists()
 
 
 def test_korean_typography_normalizes_fullwidth_western_punctuation() -> None:
@@ -358,7 +943,7 @@ def test_transport_failure_does_not_advance_translation_semantic_attempt(
         )
 
     receipt = json.loads(
-        (tmp_path / "attempts/01/writer-operation.json").read_text()
+        (tmp_path / "attempts/01/plan-operation.json").read_text()
     )
     assert receipt["failure_category"] == "NETWORK"
     assert receipt["transport_attempts"] == 3
