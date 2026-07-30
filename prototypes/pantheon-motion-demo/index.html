@@ -7,13 +7,18 @@
       name="description"
       content="Pantheon 動態神諭核心：影片與 CSS 分層渲染示範。"
     />
-    <link
-      rel="preload"
-      as="image"
-      href="/pantheon-orb-alpha-poster.webp"
-      type="image/webp"
-      fetchpriority="high"
-    />
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("studio") !== "1" && params.get("controls") !== "1") {
+        const posterPreload = document.createElement("link");
+        posterPreload.rel = "preload";
+        posterPreload.as = "image";
+        posterPreload.href = "/pantheon-orb-alpha-poster-v3.webp";
+        posterPreload.type = "image/webp";
+        posterPreload.fetchPriority = "high";
+        document.head.append(posterPreload);
+      }
+    </script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Pantheon Motion Study</title>
   </head>

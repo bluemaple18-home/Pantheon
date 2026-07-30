@@ -181,7 +181,7 @@ export default function PantheonMotionVisual() {
       <div className={styles.mediaFrame}>
         <img
           className={`${styles.poster} ${videoReady && !staticMode ? styles.posterHidden : ""}`}
-          src="/pantheon-orb-alpha-poster.webp"
+          src="/pantheon-orb-alpha-poster-v3.webp"
           alt=""
           aria-hidden="true"
           width="720"
@@ -205,7 +205,7 @@ export default function PantheonMotionVisual() {
             onPlaying={() => setVideoReady(true)}
             onError={() => setPlaybackFailed(true)}
           >
-            <source src="/pantheon-orb-alpha-v2.webm" type="video/webm" />
+            <source src="/pantheon-orb-alpha-v3.webm" type="video/webm" />
           </video>
         )}
       </div>

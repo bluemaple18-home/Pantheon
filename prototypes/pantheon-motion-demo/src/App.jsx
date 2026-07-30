@@ -1,4 +1,14 @@
+import { lazy, Suspense } from "react";
 import PantheonMotionVisual from "./components/PantheonMotionVisual.jsx";
+
+const PantheonOrbStudio = lazy(() => import("./studio/PantheonOrbStudio.jsx"));
+const MobiusArrangementLab = lazy(() => import("./studio/MobiusArrangementLab.jsx"));
+const PantheonStarOrbitStudio = lazy(
+  () => import("./studio/PantheonStarOrbitStudio.jsx"),
+);
+const PantheonMaterialIdentityLab = lazy(
+  () => import("./studio/PantheonMaterialIdentityLab.jsx"),
+);
 
 const layers = [
   {
@@ -19,6 +29,46 @@ const layers = [
 ];
 
 export default function App() {
+  const params = new URLSearchParams(window.location.search);
+
+  const prototype = params.get("prototype");
+  if (prototype === "pantheon-material-identity-lab") {
+    return (
+      <Suspense fallback={null}>
+        <PantheonMaterialIdentityLab />
+      </Suspense>
+    );
+  }
+
+  if ([
+    "pantheon-star-orbits",
+    "pantheon-designer-b0",
+    "pantheon-designer-composition",
+    "pantheon-five-orbit-phase-a",
+  ].includes(prototype)) {
+    return (
+      <Suspense fallback={null}>
+        <PantheonStarOrbitStudio />
+      </Suspense>
+    );
+  }
+
+  if (params.get("controls") === "1") {
+    return (
+      <Suspense fallback={null}>
+        <MobiusArrangementLab />
+      </Suspense>
+    );
+  }
+
+  if (params.get("studio") === "1") {
+    return (
+      <Suspense fallback={null}>
+        <PantheonOrbStudio />
+      </Suspense>
+    );
+  }
+
   return (
     <main>
       <header className="site-header">
@@ -49,7 +99,7 @@ export default function App() {
           <PantheonMotionVisual />
           <div className="visual-meta" aria-hidden="true">
             <span>Five dimensions</span>
-            <span>Loop · 10 sec</span>
+            <span>Loop · 24 sec</span>
           </div>
         </div>
       </section>

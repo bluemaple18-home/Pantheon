@@ -1,0 +1,80 @@
+{
+  "version": "Geometry v1.0 — LOCKED",
+  "schemaVersion": 1,
+  "locked": true,
+  "lockedAt": "2026-07-28T14:37:52+08:00",
+  "center": [0, 0, 0],
+  "centerlineSignature": "sha256:869d8d22fddea450b4921e20c4732622e54bc1b895b1875de50f94ba076c6008",
+  "acceptanceReport": "artifacts/pantheon_star_orbits/final_lock/ribbon-acceptance.json",
+  "selfCore": {
+    "position": [0, 0, 0],
+    "radius": 0.14
+  },
+  "orbits": [
+    {
+      "id": "Constellation",
+      "position": [0, 0, 0],
+      "semiMajorAxis": 0.99,
+      "semiMinorAxis": 0.965,
+      "phase": 0.18,
+      "scale": 1,
+      "inclination": 32,
+      "azimuth": 58,
+      "roll": -31,
+      "normal": [0.4493970231495836, -0.28081442660546124, 0.848048096156426],
+      "quaternion": [0.19659846784014562, 0.19319677627924914, 0.2244020863690657, 0.9347019587608788]
+    },
+    {
+      "id": "Tarot",
+      "position": [0, 0, 0],
+      "semiMajorAxis": 0.94,
+      "semiMinorAxis": 0.915,
+      "phase": 0.74,
+      "scale": 1,
+      "inclination": 65.5,
+      "azimuth": 26.5,
+      "roll": 6.3,
+      "normal": [0.40602272907973597, -0.8143556090344667, 0.414693242656239],
+      "quaternion": [0.5325910873467798, 0.09486892194314851, 0.23746018018206144, 0.8068204782701184]
+    },
+    {
+      "id": "MBTI",
+      "position": [0, 0, 0],
+      "semiMajorAxis": 0.89,
+      "semiMinorAxis": 0.865,
+      "phase": 1.36,
+      "scale": 1,
+      "inclination": 89,
+      "azimuth": 335,
+      "roll": 49.6,
+      "normal": [-0.4225538949324388, -0.9061697519708842, 0.017452406437283297],
+      "quaternion": [-0.5575547322360467, 0.4247428838044831, -0.15194401869411595, -0.6968781948100572]
+    },
+    {
+      "id": "HumanDesign",
+      "position": [0, 0, 0],
+      "semiMajorAxis": 0.84,
+      "semiMinorAxis": 0.815,
+      "phase": 2.08,
+      "scale": 1,
+      "inclination": 62.4,
+      "azimuth": 136,
+      "roll": 178.1,
+      "normal": [0.6156087342436866, 0.6374815057435802, 0.46329603511986167],
+      "quaternion": [0.4834576870257176, -0.18606624437498723, 0.3335302081810408, -0.7876583128429755]
+    },
+    {
+      "id": "ZiweiBazi",
+      "position": [0, 0, 0],
+      "semiMajorAxis": 0.79,
+      "semiMinorAxis": 0.765,
+      "phase": 2.72,
+      "scale": 1,
+      "inclination": 80.1,
+      "azimuth": 214.6,
+      "roll": 172.2,
+      "normal": [-0.559388169050464, 0.8108793133404518, 0.17192910027940958],
+      "quaternion": [0.5999092177230112, 0.23268945045115377, -0.17739912988699363, -0.7446436052602899]
+    }
+  ]
+}

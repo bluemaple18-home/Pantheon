@@ -1,0 +1,66 @@
+{
+  "version": "Ribbon Frame v2",
+  "geometrySignature": "sha256:869d8d22fddea450b4921e20c4732622e54bc1b895b1875de50f94ba076c6008",
+  "phaseStepDegrees": 5,
+  "views": ["front", "front-left", "side"],
+  "naturalRollAmplitudeDegrees": 8,
+  "selectionPolicy": "phase search shortlist + browser visual acceptance",
+  "orbits": [
+    {
+      "id": "Constellation",
+      "phaseDegrees": 0,
+      "naturalRoll": true,
+      "rollAmplitudeDegrees": 8,
+      "rollPhaseDegrees": 18,
+      "score": 0.17105034325178098,
+      "fixedBest": {"phaseDegrees": 0, "score": 0.23668506804559927},
+      "naturalRollBest": {"phaseDegrees": 0, "score": 0.17105034325178098},
+      "candidatePhases": [0, 175, 5, 170, 10]
+    },
+    {
+      "id": "Tarot",
+      "phaseDegrees": 90,
+      "naturalRoll": false,
+      "rollAmplitudeDegrees": 0,
+      "rollPhaseDegrees": 91,
+      "score": 1.7721162862139148,
+      "fixedBest": {"phaseDegrees": 90, "score": 1.7721162862139148},
+      "naturalRollBest": {"phaseDegrees": 85, "score": 1.8479205869097812},
+      "candidatePhases": [85, 95, 90, 100, 80]
+    },
+    {
+      "id": "MBTI",
+      "phaseDegrees": 105,
+      "naturalRoll": true,
+      "rollAmplitudeDegrees": 8,
+      "rollPhaseDegrees": 157,
+      "score": 1.8838483555871635,
+      "fixedBest": {"phaseDegrees": 65, "score": 1.898893351376603},
+      "naturalRollBest": {"phaseDegrees": 105, "score": 1.8838483555871635},
+      "candidatePhases": [105, 75, 90, 110, 70]
+    },
+    {
+      "id": "HumanDesign",
+      "phaseDegrees": 90,
+      "naturalRoll": false,
+      "rollAmplitudeDegrees": 0,
+      "rollPhaseDegrees": 229,
+      "score": 1.8648491918098185,
+      "fixedBest": {"phaseDegrees": 90, "score": 1.8648491918098185},
+      "naturalRollBest": {"phaseDegrees": 90, "score": 1.9051855903522306},
+      "candidatePhases": [90, 95, 85, 100, 80]
+    },
+    {
+      "id": "ZiweiBazi",
+      "phaseDegrees": 45,
+      "naturalRoll": true,
+      "rollAmplitudeDegrees": 8,
+      "rollPhaseDegrees": 307,
+      "score": null,
+      "selectionBasis": "visual override: balanced compromise after phase 0 failed front and phase 85 failed side",
+      "fixedBest": {"phaseDegrees": 0, "score": 0.4612398824539076},
+      "naturalRollBest": {"phaseDegrees": 0, "score": 0.35711390735773785},
+      "candidatePhases": [0, 45, 85, 95, 175]
+    }
+  ]
+}

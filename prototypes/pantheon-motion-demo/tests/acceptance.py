@@ -8,8 +8,8 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "evidence"
 URL = "http://127.0.0.1:5173"
-VIDEO_ASSET = ROOT / "public" / "pantheon-orb-alpha-v2.webm"
-POSTER_ASSET = ROOT / "public" / "pantheon-orb-alpha-poster.webp"
+VIDEO_ASSET = ROOT / "public" / "pantheon-orb-alpha-v3.webm"
+POSTER_ASSET = ROOT / "public" / "pantheon-orb-alpha-poster-v3.webp"
 CHROME = os.environ.get(
     "BROWSER_BINARY",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -63,7 +63,7 @@ def inspect_page(page):
         """
         () => {
           const video = document.querySelector('video');
-          const poster = document.querySelector('img[src="/pantheon-orb-alpha-poster.webp"]');
+          const poster = document.querySelector('img[src="/pantheon-orb-alpha-poster-v3.webp"]');
           const orbitalField = document.querySelector('[data-orbital-field]');
           const orbitLayers = [...document.querySelectorAll('[data-orbit-layer]')];
           const orbitSignatures = Object.fromEntries(
@@ -115,7 +115,7 @@ def inspect_page(page):
               signatures: orbitSignatures,
               animationNames: orbitLayers.map((layer) => getComputedStyle(layer).animationName),
             } : null,
-            posterVisible: Boolean(document.querySelector('img[src="/pantheon-orb-alpha-poster.webp"]')?.offsetParent),
+            posterVisible: Boolean(document.querySelector('img[src="/pantheon-orb-alpha-poster-v3.webp"]')?.offsetParent),
             posterOpacity: poster ? getComputedStyle(poster).opacity : null,
             coreOverlayPresent: Boolean(document.querySelector('[class*="coreLabel"]')),
             heroLinkVisible: Boolean(document.querySelector('.hero-link')?.offsetParent),
@@ -213,7 +213,7 @@ def run():
     assert not result["desktop"]["outOfBounds"], result
     assert not result["mobile"]["outOfBounds"], result
     assert result["desktop"]["video"]["readyState"] >= 2, result
-    assert result["desktop"]["video"]["currentSrc"].endswith("pantheon-orb-alpha-v2.webm"), result
+    assert result["desktop"]["video"]["currentSrc"].endswith("pantheon-orb-alpha-v3.webm"), result
     assert result["desktop"]["video"]["paused"] is False, result
     assert result["desktop"]["posterOpacity"] == "0", result
     assert result["desktop"]["videoProgress"]["end"] > result["desktop"]["videoProgress"]["start"], result

@@ -1,0 +1,446 @@
+.lab {
+  display: grid;
+  width: 100%;
+  min-height: 100svh;
+  grid-template-columns: minmax(0, 720px) minmax(300px, 360px);
+  justify-content: center;
+  color: #f2ede2;
+  background: #111210;
+}
+
+.viewport {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-right: 1px solid rgb(236 221 188 / 0.12);
+  background:
+    radial-gradient(circle at 50% 48%, rgb(210 166 84 / 0.09), transparent 38%),
+    #0b0c0b;
+}
+
+.viewportHeader {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 30px;
+  pointer-events: none;
+}
+
+.eyebrow,
+.controlsHeader p,
+.sectionHeading p {
+  margin: 0 0 6px;
+  color: #b48a49;
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.viewportHeader h1 {
+  max-width: none;
+  margin: 0;
+  color: #f3eee3;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.liveStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  color: rgb(242 237 226 / 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+.liveStatus i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #69a89d;
+  box-shadow: 0 0 0 4px rgb(105 168 157 / 0.12);
+}
+
+.canvasFrame {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  place-items: center;
+}
+
+.canvasLegend {
+  position: absolute;
+  bottom: 24px;
+  left: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: rgb(242 237 226 / 0.58);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.canvasLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.canvasLegend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.controls {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  background: #171816;
+}
+
+.controlsHeader {
+  padding: 32px 28px 26px;
+  border-bottom: 1px solid rgb(236 221 188 / 0.12);
+}
+
+.controlsHeader strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #f2ede2;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 400;
+}
+
+.controlsHeader span,
+.controlsFooter p {
+  color: rgb(242 237 226 / 0.5);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.controlSection {
+  padding: 24px 28px;
+  border-bottom: 1px solid rgb(236 221 188 / 0.1);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.sectionHeading h2 {
+  margin: 0;
+  color: #f2ede2;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.linkToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(242 237 226 / 0.65);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.linkToggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #c59a51;
+}
+
+.axisList {
+  display: grid;
+  gap: 18px;
+}
+
+.sequenceTable {
+  margin-top: 22px;
+  border-top: 1px solid rgb(236 221 188 / 0.1);
+  color: rgb(242 237 226 / 0.58);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sequenceHeader,
+.sequenceRow {
+  display: grid;
+  grid-template-columns: 42px repeat(3, 1fr);
+  align-items: center;
+  min-height: 28px;
+  border-bottom: 1px solid rgb(236 221 188 / 0.07);
+  text-align: right;
+}
+
+.sequenceHeader {
+  color: rgb(242 237 226 / 0.34);
+  font-size: 0.61rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sequenceHeader span:first-child,
+.sequenceRow strong {
+  text-align: left;
+}
+
+.sequenceRow strong {
+  color: rgb(242 237 226 / 0.76);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+.axisControl {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 12px;
+}
+
+.axisLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.axisX {
+  color: #d89572;
+}
+
+.axisY {
+  color: #76a99e;
+}
+
+.axisZ {
+  color: #91a3c6;
+}
+
+.axisControl input[type="range"] {
+  width: 100%;
+  height: 3px;
+  margin: 0;
+  border-radius: 999px;
+  appearance: none;
+  background: rgb(242 237 226 / 0.16);
+  cursor: pointer;
+}
+
+.axisControl input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 3px solid #171816;
+  border-radius: 50%;
+  appearance: none;
+  background: #d1a252;
+  box-shadow: 0 0 0 1px rgb(209 162 82 / 0.65);
+}
+
+.axisControl output {
+  color: #f2ede2;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.presetGrid .sphericalPreset {
+  grid-column: 1 / -1;
+}
+
+.countOutput {
+  color: rgb(242 237 226 / 0.6);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.countControl {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.inspectionToggle {
+  margin-top: 14px;
+}
+
+.toggleStack {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.parameterGrid {
+  display: grid;
+  margin: 0;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid rgb(236 221 188 / 0.1);
+}
+
+.parameterGrid div {
+  display: flex;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid rgb(236 221 188 / 0.08);
+}
+
+.parameterGrid div:nth-child(odd) {
+  padding-right: 14px;
+}
+
+.parameterGrid div:nth-child(even) {
+  padding-left: 14px;
+  border-left: 1px solid rgb(236 221 188 / 0.08);
+}
+
+.parameterGrid dt {
+  color: rgb(242 237 226 / 0.5);
+  font-size: 0.7rem;
+}
+
+.parameterGrid dd {
+  margin: 0;
+  color: rgb(242 237 226 / 0.86);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.validationList {
+  display: grid;
+  margin: 16px 0 0;
+  padding: 0;
+  gap: 7px;
+  color: rgb(242 237 226 / 0.54);
+  font-size: 0.7rem;
+  list-style: none;
+}
+
+.validationList li::before {
+  margin-right: 8px;
+  color: #d6a74e;
+  content: "✓";
+}
+
+.presetGrid button,
+.countControl button,
+.segmentedControl button,
+.resetButton {
+  min-height: 38px;
+  border: 1px solid rgb(236 221 188 / 0.14);
+  border-radius: 5px;
+  color: rgb(242 237 226 / 0.7);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.presetGrid button:hover,
+.countControl button:hover,
+.segmentedControl button:hover,
+.resetButton:hover {
+  border-color: rgb(209 162 82 / 0.5);
+  color: #fff8e9;
+}
+
+.presetGrid .activePreset,
+.countControl button[aria-pressed="true"],
+.segmentedControl button[aria-pressed="true"] {
+  border-color: rgb(209 162 82 / 0.58);
+  color: #17130c;
+  background: #d1a252;
+}
+
+.segmentedControl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.controlsFooter {
+  margin-top: auto;
+  padding: 24px 28px 30px;
+}
+
+.resetButton {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.controlsFooter p {
+  margin: 0;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .lab {
+    grid-template-columns: 1fr;
+  }
+
+  .viewport {
+    border-right: 0;
+    border-bottom: 1px solid rgb(236 221 188 / 0.12);
+  }
+
+  .canvasFrame {
+    min-height: min(120vw, 720px);
+  }
+
+  .controls {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .viewportHeader {
+    padding: 20px;
+  }
+
+  .liveStatus {
+    font-size: 0;
+  }
+
+  .canvasLegend {
+    right: 20px;
+    bottom: 16px;
+    left: 20px;
+    justify-content: space-between;
+  }
+
+  .controlsHeader,
+  .controlSection,
+  .controlsFooter {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}

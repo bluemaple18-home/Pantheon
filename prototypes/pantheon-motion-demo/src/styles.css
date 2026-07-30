@@ -24,6 +24,27 @@ body {
   background-size: 8vw 100%;
 }
 
+html.pantheon-studio-mode,
+html.pantheon-studio-mode body,
+html.pantheon-studio-mode #root {
+  width: 720px;
+  min-width: 720px;
+  height: 864px;
+  min-height: 864px;
+  overflow: hidden;
+  background: transparent;
+}
+
+html.pantheon-lab-mode,
+html.pantheon-lab-mode body,
+html.pantheon-lab-mode #root {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  overflow: auto;
+  background: #111210;
+}
+
 a {
   color: inherit;
 }
