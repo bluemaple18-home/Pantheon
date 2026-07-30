@@ -282,21 +282,55 @@ def external_locale_plan(
 ) -> dict[str, object]:
     fact_package = multilingual._source_fact_package(brief)
     target = fact_package["articles"][0]
-    headings = outline or [
-        "용신이 답하려는 질문",
-        "강약과 계절을 함께 보는 이유",
-        "오행의 흐름으로 조정 방향 찾기",
-        "고정 공식으로 단정하지 않기",
-    ]
+    locale = str(brief["articles"][0]["locale"])
+    localized = {
+        "en": {
+            "intent": "Understand how to identify the useful element and its limits",
+            "queries": ["how to find the useful element", "useful element criteria"],
+            "angle": "Explain the decision order and its limits without a fixed formula",
+            "outline": [
+                "What the useful element answers",
+                "Check strength and season together",
+                "Compare the flow of elements",
+                "Avoid a fixed conclusion",
+            ],
+            "coverage_note": "Explain this fact and its limits in the selected section",
+        },
+        "ja": {
+            "intent": "命式で用神を判断する基準と限界を知りたい",
+            "queries": ["用神の見つけ方", "用神を判断する基準"],
+            "angle": "固定した公式にせず判断の順序と限界を説明する",
+            "outline": [
+                "用神で答えられる疑問",
+                "強弱と季節を一緒に確認する理由",
+                "五行の流れから調整方向を探す",
+                "固定した結論を避ける",
+            ],
+            "coverage_note": "この事実と制限を該当する節で説明する",
+        },
+        "ko": {
+            "intent": "사주에서 용신을 판단하는 기준과 한계를 알고 싶다",
+            "queries": ["사주 용신 찾는 법", "용신 판단 기준"],
+            "angle": "고정 공식을 제시하지 않고 판단 순서와 한계를 설명한다",
+            "outline": [
+                "용신이 답하려는 질문",
+                "강약과 계절을 함께 보는 이유",
+                "오행의 흐름으로 조정 방향 찾기",
+                "고정 공식으로 단정하지 않기",
+            ],
+            "coverage_note": "이 사실과 제한을 해당 절에서 설명한다",
+        },
+    }[locale]
+    headings = outline or localized["outline"]
     return {
         "articles": [
             {
                 "slot": "article-01",
-                "locale": brief["articles"][0]["locale"],
+                "locale": locale,
                 "source_sha256": brief["articles"][0]["source_sha256"],
-                "native_search_intent": "사주에서 용신을 판단하는 기준과 한계를 알고 싶다",
-                "native_query_phrasings": ["사주 용신 찾는 법", "용신 판단 기준"],
-                "article_angle": "고정 공식을 제시하지 않고 판단 순서와 한계를 설명한다",
+                "native_search_intent": localized["intent"],
+                "native_query_phrasings": localized["queries"],
+                "article_angle": localized["angle"],
                 "ordered_h2_outline": headings,
                 "coverage_mapping": [
                     {
@@ -304,7 +338,7 @@ def external_locale_plan(
                         "planned_h2": headings[
                             (index + coverage_shift) % len(headings)
                         ],
-                        "coverage_note": "이 사실과 제한을 해당 절에서 설명한다",
+                        "coverage_note": localized["coverage_note"],
                         "safety_boundary": fact["safety_boundary"],
                     }
                     for index, fact in enumerate(target["facts"])
@@ -439,9 +473,7 @@ def test_writer_prompt_requires_source_claim_traceability_and_rejects_filler() -
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])
 def test_locale_plan_and_article_prompts_are_topic_neutral(locale: str) -> None:
     brief = non_tarot_translation_brief(locale)
-    external_plan = external_locale_plan(non_tarot_translation_brief())
-    external_plan["articles"][0]["locale"] = locale
-    external_plan["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+    external_plan = external_locale_plan(brief)
     plan = multilingual._hydrate_locale_plan(
         brief,
         external_plan,
@@ -478,6 +510,58 @@ def test_locale_plan_and_article_prompts_are_topic_neutral(locale: str) -> None:
         assert forbidden not in article_prompt.lower()
     assert "用神" in plan_prompt
     assert "ordered_h2_outline" in article_prompt
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_locale_plan_accepts_native_script_with_names_acronyms_and_numbers(
+    locale: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external = external_locale_plan(brief)
+    external["articles"][0]["native_search_intent"] += " OpenAI GPT-5 2026"
+
+    multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+
+@pytest.mark.parametrize(
+    ("locale", "wrong_text"),
+    [
+        ("en", "用神的判斷順序與限制"),
+        ("ja", "How to identify the useful element and its limits"),
+        ("ja", "用神的判斷順序與限制"),
+        ("ko", "How to identify the useful element and its limits"),
+        ("ko", "用神的判斷順序與限制"),
+    ],
+)
+def test_locale_plan_rejects_wrong_script_semantic_fields(
+    locale: str,
+    wrong_text: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    item["native_search_intent"] = wrong_text
+    item["native_query_phrasings"] = [wrong_text]
+    item["article_angle"] = wrong_text
+    item["ordered_h2_outline"] = [f"{wrong_text} {index}" for index in range(1, 5)]
+    for index, mapping in enumerate(item["coverage_mapping"]):
+        mapping["planned_h2"] = item["ordered_h2_outline"][
+            index % len(item["ordered_h2_outline"])
+        ]
+        mapping["coverage_note"] = wrong_text
+
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
 
 
 def test_article_phase_rejects_missing_invalid_or_mismatched_plan() -> None:
@@ -570,6 +654,7 @@ def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> N
         "AI_TEMPLATE_STYLE",
         "SOURCE_SYNTAX_TRANSFER",
         "NON_NATIVE_SEARCH_INTENT",
+        "MIRRORED_STRUCTURE",
     ],
 )
 def test_repeated_native_finding_forces_new_outline_topology(
@@ -649,6 +734,25 @@ def test_repeated_native_finding_forces_new_outline_topology(
         third["articles"][0]["ordered_h2_outline"]
         != first["articles"][0]["ordered_h2_outline"]
     )
+
+
+def test_rebuild_authority_ignores_cross_article_and_non_consecutive_findings() -> None:
+    brief = {
+        "articles": [
+            {"translation_id": "article-a"},
+            {"translation_id": "article-b"},
+        ]
+    }
+    history = [
+        [{"article_id": "article-a", "code": "MIRRORED_STRUCTURE", "message": "a1"}],
+        [{"article_id": "article-b", "code": "MIRRORED_STRUCTURE", "message": "b2"}],
+        [{"article_id": "article-a", "code": "MIRRORED_STRUCTURE", "message": "a3"}],
+    ]
+
+    assert multilingual._rebuild_authority(brief, history) == {
+        "article-01": False,
+        "article-02": False,
+    }
 
 
 def _write_rejected_deferred_lineage(run_dir: Path) -> tuple[dict[str, object], dict[str, object]]:
@@ -787,6 +891,52 @@ def test_deferred_lineage_continuation_is_incremental_immutable_and_replayable(
     assert calls == ["writer", "writer", "reviewer"]
 
 
+def test_first_continuation_generation_uses_root_review_as_final_authority(
+    tmp_path: Path,
+) -> None:
+    _candidate, review = _write_rejected_deferred_lineage(tmp_path)
+    review["articles"][0]["findings"] = [
+        {
+            "code": "NON_NATIVE_SEARCH_INTENT",
+            "message": "ROOT-REVIEW-AUTHORITY-MARKER",
+        }
+    ]
+    multilingual.pipeline.write_json(tmp_path / "review.json", review)
+    prompts: list[str] = []
+
+    class CaptureClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            prompts.append(prompt)
+            raise RuntimeError("capture only")
+
+    with pytest.raises(RuntimeError, match="capture only"):
+        multilingual.continue_writer_reviewer(tmp_path, CaptureClient(), max_repairs=2)
+
+    assert prompts
+    assert "ROOT-REVIEW-AUTHORITY-MARKER" in prompts[0]
+
+
+def test_continuation_state_rejects_attempt_generation_gap(tmp_path: Path) -> None:
+    _candidate, review = _write_rejected_deferred_lineage(tmp_path)
+    (tmp_path / "attempts/02").rename(tmp_path / "attempts/04")
+
+    with pytest.raises(ValueError, match="generation|contiguous|lineage"):
+        multilingual._load_or_create_continuation_state(
+            tmp_path,
+            non_tarot_translation_brief(),
+            review,
+            max_repairs=2,
+        )
+
+
 def test_pending_continuation_does_not_advance_or_overwrite_roots(tmp_path: Path) -> None:
     old_candidate, old_review = _write_rejected_deferred_lineage(tmp_path)
     prompts: list[str] = []
@@ -829,6 +979,58 @@ def test_pending_continuation_does_not_advance_or_overwrite_roots(tmp_path: Path
         assert not (tmp_path / forbidden).exists()
 
 
+def test_pending_continuation_article_reuses_plan_and_request_identity(
+    tmp_path: Path,
+) -> None:
+    old_candidate, old_review = _write_rejected_deferred_lineage(tmp_path)
+    brief = non_tarot_translation_brief()
+    calls: list[tuple[str, str]] = []
+
+    class ExternalJobPending(RuntimeError):
+        pass
+
+    class PendingArticleClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def _outbox_transport(self) -> None:
+            raise AssertionError("transport marker only")
+
+        transport = _outbox_transport
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            calls.append((role, prompt))
+            if "native_search_intent" in json.dumps(schema):
+                return external_locale_plan(
+                    brief,
+                    rebuild_outline=True,
+                    coverage_shift=1,
+                    outline=[
+                        "용신 검색 질문부터 정리하기",
+                        "명식의 강약과 계절 확인하기",
+                        "오행의 흐름으로 후보 비교하기",
+                        "조건에 따라 결론을 제한하기",
+                    ],
+                )
+            raise ExternalJobPending("synthetic pending article")
+
+    client = PendingArticleClient()
+    for _replay in range(2):
+        with pytest.raises(ExternalJobPending, match="pending article"):
+            multilingual.continue_writer_reviewer(tmp_path, client, max_repairs=2)
+
+    article_prompts = [prompt for role, prompt in calls if role == "writer"][1:]
+    assert len(calls) == 3
+    assert article_prompts[0] == article_prompts[1]
+    assert json.loads((tmp_path / "candidate.json").read_text()) == old_candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == old_review
+
+
 def test_root_update_transaction_recovers_candidate_review_and_state_together(
     tmp_path: Path,
 ) -> None:
@@ -857,6 +1059,8 @@ def test_root_update_transaction_recovers_candidate_review_and_state_together(
         max_repairs=2,
     )
     state["status"] = "complete"
+    state["terminal_candidate_sha256"] = multilingual._json_sha256(new_candidate)
+    state["terminal_review_sha256"] = multilingual._json_sha256(new_review)
     multilingual.pipeline.write_json(
         tmp_path / "continuation/root-update.json",
         {
@@ -877,6 +1081,37 @@ def test_root_update_transaction_recovers_candidate_review_and_state_together(
     assert json.loads((tmp_path / "review.json").read_text()) == new_review
     assert json.loads((tmp_path / "continuation/state.json").read_text()) == state
     assert not (tmp_path / "continuation/root-update.json").exists()
+
+
+def test_complete_continuation_replay_rejects_terminal_root_drift(
+    tmp_path: Path,
+) -> None:
+    candidate, review = _write_rejected_deferred_lineage(tmp_path)
+    brief = non_tarot_translation_brief()
+    state = multilingual._load_or_create_continuation_state(
+        tmp_path,
+        brief,
+        review,
+        max_repairs=2,
+    )
+    state["status"] = "complete"
+    multilingual._write_root_result(tmp_path, candidate, review, state=state)
+
+    drifted_candidate = json.loads(json.dumps(candidate))
+    drifted_candidate["articles"][0]["title"] += " drift"
+    drifted_review = json.loads(json.dumps(review))
+    drifted_review["articles"][0]["candidate_sha256"] = article_sha256(
+        drifted_candidate["articles"][0]
+    )
+    multilingual.pipeline.write_json(tmp_path / "candidate.json", drifted_candidate)
+    multilingual.pipeline.write_json(tmp_path / "review.json", drifted_review)
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("complete replay must not call provider")
+
+    with pytest.raises(ValueError, match="identity"):
+        multilingual.continue_writer_reviewer(tmp_path, FailIfCalled(), max_repairs=2)
 
 
 def test_korean_typography_normalizes_fullwidth_western_punctuation() -> None:

@@ -42,6 +42,7 @@ LOCALE_EDITORIAL_CONTRACTS = {
 }
 REBUILD_FINDING_CODES = {
     "AI_TEMPLATE_STYLE",
+    "MIRRORED_STRUCTURE",
     "SOURCE_SYNTAX_TRANSFER",
     "NON_NATIVE_SEARCH_INTENT",
 }
@@ -59,6 +60,10 @@ SourceLoader = Callable[[Path, str], dict[str, Any]]
 
 def compact_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _json_sha256(payload: object) -> str:
+    return hashlib.sha256(compact_json_bytes(payload)).hexdigest()
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:
@@ -573,6 +578,19 @@ def _outline_topology(item: dict[str, Any]) -> tuple[frozenset[str], ...]:
     )
 
 
+def _plan_matches_target_language(locale: str, values: list[str]) -> bool:
+    text = "\n".join(values)
+    latin = len(re.findall(r"[A-Za-z]", text))
+    han = len(re.findall(r"[\u3400-\u9fff]", text))
+    kana = len(re.findall(r"[\u3040-\u30ff]", text))
+    hangul = len(re.findall(r"[\uac00-\ud7af]", text))
+    if locale == "en":
+        return latin >= 5 and latin >= 2 * (han + kana + hangul)
+    if locale == "ja":
+        return kana >= 2 and kana * 4 >= han + hangul
+    return hangul >= 4 and hangul >= han + kana
+
+
 def validate_locale_plan(
     brief: dict[str, Any],
     plan: object,
@@ -666,6 +684,15 @@ def validate_locale_plan(
             _non_empty_string(mapping["coverage_note"], "locale plan coverage note")
             if mapping["safety_boundary"] is not expected_facts[fact_id]["safety_boundary"]:
                 raise ValueError(f"locale plan safety coverage differs for {slot}")
+        semantic_values = [
+            str(item["native_search_intent"]),
+            *[str(query) for query in queries],
+            str(item["article_angle"]),
+            *[str(heading) for heading in outline],
+            *[str(mapping["coverage_note"]) for mapping in mappings],
+        ]
+        if not _plan_matches_target_language(str(target["locale"]), semantic_values):
+            raise ValueError(f"locale plan native locale language differs for {slot}")
         source_headings = [
             section["heading"]
             for section in target["source"]["bodySections"]
@@ -794,7 +821,7 @@ def _article_prompt(
             "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
             "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
             "article input:",
-            json.dumps(public_input, ensure_ascii=False),
+            json.dumps(public_input, ensure_ascii=False, sort_keys=True),
             "findings:",
             json.dumps(findings, ensure_ascii=False),
         ]
@@ -1051,11 +1078,16 @@ def _rebuild_authority(
     }
 
 
-def _last_locale_plan(roots: list[Path]) -> dict[str, Any] | None:
+def _last_locale_plan(
+    roots: list[Path],
+    *,
+    before_generation: int,
+) -> dict[str, Any] | None:
     paths = [
         attempt_dir / "locale-plan.json"
         for root in roots
         for attempt_dir in _generation_directories(root)
+        if int(attempt_dir.name) < before_generation
         if (attempt_dir / "locale-plan.json").is_file()
     ]
     if not paths:
@@ -1195,6 +1227,9 @@ def _write_root_result(
     *,
     state: dict[str, Any] | None = None,
 ) -> None:
+    if state is not None and state.get("status") == "complete":
+        state["terminal_candidate_sha256"] = _json_sha256(candidate)
+        state["terminal_review_sha256"] = _json_sha256(review)
     transaction_path = run_dir / "continuation" / "root-update.json"
     _atomic_write_json(
         transaction_path,
@@ -1229,6 +1264,14 @@ def _recover_root_result(run_dir: Path) -> None:
         )
     ):
         raise ValueError("root update transaction is invalid")
+    state = transaction["state"]
+    if state is not None and state.get("status") == "complete" and (
+        state.get("terminal_candidate_sha256")
+        != _json_sha256(transaction["candidate"])
+        or state.get("terminal_review_sha256")
+        != _json_sha256(transaction["review"])
+    ):
+        raise ValueError("root update transaction terminal identity is invalid")
     _atomic_write_json(run_dir / "candidate.json", transaction["candidate"])
     _atomic_write_json(run_dir / "review.json", transaction["review"])
     if transaction["state"] is not None:
@@ -1297,11 +1340,17 @@ def _load_or_create_continuation_state(
     max_repairs: int,
 ) -> dict[str, Any]:
     path = run_dir / "continuation" / "state.json"
+    existing = _generation_directories(run_dir / "attempts")
+    expected_attempt_names = [
+        f"{generation:02d}"
+        for generation in range(1, len(existing) + 1)
+    ]
+    if [attempt_dir.name for attempt_dir in existing] != expected_attempt_names:
+        raise ValueError("attempt generation lineage must be contiguous from 01")
+    started_after = len(existing)
     if path.is_file():
         state = json.loads(path.read_text(encoding="utf-8"))
     else:
-        existing = _generation_directories(run_dir / "attempts")
-        started_after = max((int(path.name) for path in existing), default=0)
         starting_review_sha256 = hashlib.sha256(
             compact_json_bytes(review)
         ).hexdigest()
@@ -1318,6 +1367,8 @@ def _load_or_create_continuation_state(
                 for target in brief["articles"]
             ],
             "starting_review_sha256": starting_review_sha256,
+            "terminal_candidate_sha256": None,
+            "terminal_review_sha256": None,
             "started_after_generation": started_after,
             "semantic_budget": max_repairs + 1,
             "next_generation": started_after + 1,
@@ -1331,6 +1382,8 @@ def _load_or_create_continuation_state(
         "run_id",
         "source_sha256",
         "starting_review_sha256",
+        "terminal_candidate_sha256",
+        "terminal_review_sha256",
         "started_after_generation",
         "semantic_budget",
         "next_generation",
@@ -1354,6 +1407,7 @@ def _load_or_create_continuation_state(
         or type(state.get("started_after_generation")) is not int
         or type(state.get("started_after_generation")) is bool
         or state["started_after_generation"] < 1
+        or state["started_after_generation"] != started_after
         or type(state.get("semantic_budget")) is not int
         or type(state.get("semantic_budget")) is bool
         or not 1 <= state["semantic_budget"] <= 3
@@ -1364,11 +1418,55 @@ def _load_or_create_continuation_state(
         or state.get("status") not in {"active", "complete"}
         or (
             state.get("status") == "active"
-            and state.get("starting_review_sha256")
-            != hashlib.sha256(compact_json_bytes(review)).hexdigest()
+            and (
+                state.get("starting_review_sha256") != _json_sha256(review)
+                or state.get("terminal_candidate_sha256") is not None
+                or state.get("terminal_review_sha256") is not None
+            )
+        )
+        or (
+            state.get("status") == "complete"
+            and (
+                not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(state.get("terminal_candidate_sha256")),
+                )
+                or not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(state.get("terminal_review_sha256")),
+                )
+                or state.get("terminal_candidate_sha256")
+                != _json_sha256(
+                    json.loads(
+                        (run_dir / "candidate.json").read_text(encoding="utf-8")
+                    )
+                )
+                or state.get("terminal_review_sha256") != _json_sha256(review)
+            )
         )
     ):
         raise ValueError("continuation state identity is invalid")
+    expected_completed = list(
+        range(
+            state["started_after_generation"] + 1,
+            state["next_generation"],
+        )
+    )
+    if (
+        state["completed_generations"] != expected_completed
+        or state["next_generation"]
+        > state["started_after_generation"] + state["semantic_budget"] + 1
+    ):
+        raise ValueError("continuation generation state is not contiguous")
+    generation_dirs = _generation_directories(run_dir / "generations")
+    completed_names = [f"{generation:02d}" for generation in expected_completed]
+    allowed_names = [completed_names]
+    if state["status"] == "active":
+        allowed_names.append(
+            [*completed_names, f"{state['next_generation']:02d}"]
+        )
+    if [generation_dir.name for generation_dir in generation_dirs] not in allowed_names:
+        raise ValueError("continuation generation directories differ from state")
     return state
 
 
@@ -1407,11 +1505,14 @@ def continue_writer_reviewer(
         return root_candidate, root_review
 
     roots = [run_dir / "attempts", run_dir / "generations"]
-    history = _finding_history(brief, roots)
-    if not history:
-        history = [_review_findings(root_review)]
+    history = _finding_history(brief, [run_dir / "attempts"])
+    history.append(_review_findings(root_review))
+    history.extend(_finding_history(brief, [run_dir / "generations"]))
     findings = history[-1]
-    prior_plan = _last_locale_plan(roots) or _candidate_outline_plan(root_candidate)
+    prior_plan = _last_locale_plan(
+        roots,
+        before_generation=int(state["next_generation"]),
+    ) or _candidate_outline_plan(root_candidate)
     candidate: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
     final_generation = (
