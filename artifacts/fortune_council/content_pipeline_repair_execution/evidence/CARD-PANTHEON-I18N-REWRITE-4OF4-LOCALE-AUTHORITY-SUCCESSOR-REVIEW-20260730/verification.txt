@@ -1,0 +1,78 @@
+fresh independent review verification
+
+runtime
+- worktree-local .venv: absent
+- interpreter: <existing-venv-python> from the saved Pantheon project
+- dependency install/download: not performed
+
+lineage and integrity
+- reviewed HEAD: 1f9b9359754d4f3959ee86afcb9d5c257605f9dd
+- direct parent: ce34670911a7c4691cb6a3cea851b7a805ff965e
+- Review card source/materialized blob:
+  56d6cbb57d2adf194f0a155a844bb5717224d9ea
+- Implementation card source/candidate blob:
+  4e0f1e815d5c2ed2499d532edaba1d9a38305a92
+- candidate changed files: 9, all inside the amended Implementation allowlist
+- existing Review probe diff: empty
+- local absolute path scan: no matches
+- private-key/API-key shape scan: no matches
+
+independent probes
+1. complete independent_review_probes.py
+   EXPECTED-REQUIREMENT FAIL:
+   74 failed, 98 passed in 0.13s
+
+2. lowercase/Title Case/UPPERCASE multiword, unknown multiword,
+   over-token-count, over-length, and unlisted-topology rejection matrix
+   PASS: 70 passed, 102 deselected in 0.04s
+
+3. full ASCII value consumption
+   EXPECTED-REQUIREMENT FAIL:
+   44 failed, 128 deselected in 0.04s
+   - 40 failures: ja/ko x five semantic fields x four punctuation/junk/
+     separator inputs were accepted.
+   - 4 failures: the ASCII literal helper directly accepted the same inputs.
+
+4. single ordinary/unknown ASCII word
+   EXPECTED-REQUIREMENT FAIL:
+   30 failed, 142 deselected in 0.03s
+   - ja/ko x five semantic fields x Strategy/SOURCE/Zorple were accepted.
+
+5. ja/ko positive controls, natural-plan controls, and en controls
+   PASS: 28 passed, 144 deselected in 0.03s
+
+required candidate verification
+1. final targeted Review probe
+   PASS: 13 passed in 0.04s
+
+2. direct multilingual suite
+   PASS: 141 passed in 0.18s
+
+3. three existing Review probe files
+   PASS: 28 passed in 0.10s
+
+4. seven-file affected suite
+   PASS: 569 passed, 1 warning in 84.27s
+   NOTE: the warning is the pre-existing invalid escape sequence
+   DeprecationWarning exercised by test_agy_content_publisher.py.
+
+5. production compile
+   PASS: <existing-venv-python> -m py_compile
+   scripts/agy_multilingual_pipeline.py
+
+6. candidate debug instrumentation scan
+   PASS: no [DBG- matches in changed production/direct-test files
+
+7. candidate whitespace
+   PASS: git diff --check
+   ce34670911a7c4691cb6a3cea851b7a805ff965e
+   1f9b9359754d4f3959ee86afcb9d5c257605f9dd
+
+closed continuation invariants
+- P0C-REREV-001: fresh existing probes PASS
+- P0C-REV-003..006: fresh existing probes PASS
+
+external and production actions
+- provider: not called
+- production .work: not read or written
+- push/deploy/publish/merge: not performed
