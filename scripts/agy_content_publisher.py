@@ -25,6 +25,7 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 
 SCHEMA_VERSION = 1
+RUNTIME_MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_MAX_RUNS = 3
 PUBLISHER_ID = "agy-content-publisher"
 LEGACY_ARTICLE_COUNT_CUTOFF = 353
@@ -91,6 +92,49 @@ class PolicyRejected(PublishBlocked):
 
 class PushOutcomeUnknown(PublishBlocked):
     """遠端 atomic push 結果無法安全判定。"""
+
+
+def runtime_manifest(repo_root: Path) -> dict[str, Any]:
+    """以封閉 path set 建立 Publisher runtime bytes manifest。"""
+    paths = sorted(TRANSACTION_RUNTIME_PATHS)
+    if not paths or len(paths) != len(set(paths)):
+        raise PublishBlocked("publisher runtime manifest paths are invalid")
+    files: list[dict[str, Any]] = []
+    for relative in paths:
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise PublishBlocked("publisher runtime manifest path is invalid")
+        path = repo_root / relative_path
+        if not path.is_file():
+            raise PublishBlocked(
+                f"publisher runtime manifest path is missing: {relative}"
+            )
+        body = path.read_bytes()
+        files.append(
+            {
+                "path": relative,
+                "bytes": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+            }
+        )
+    return {
+        "schema_version": RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "files": files,
+    }
+
+
+def _runtime_manifest_digest(manifest: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def runtime_manifest_digest(repo_root: Path) -> str:
+    return _runtime_manifest_digest(runtime_manifest(repo_root))
 
 
 class MutationJournal:
@@ -469,6 +513,7 @@ def deployment_preflight(
     expected_queue_root: Path,
     expected_state_root: Path,
     expected_runtime_sha: str,
+    expected_runtime_digest: str,
     push: bool,
     expected_push_mode: str,
     git: GitRunner = run_git,
@@ -491,12 +536,19 @@ def deployment_preflight(
         )
     if not re.fullmatch(r"[0-9a-f]{40}", expected_runtime_sha):
         raise PublishBlocked("publisher expected runtime SHA is invalid")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_runtime_digest):
+        raise PublishBlocked("publisher expected runtime digest is invalid")
     if not _repo_clean(repo_root, git):
         raise PublishBlocked("publisher actor worktree is not clean")
     local_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if local_sha != expected_runtime_sha:
         raise PublishBlocked(
             "publisher runtime SHA differs from deployment contract"
+        )
+    actual_runtime_digest = runtime_manifest_digest(repo_root)
+    if actual_runtime_digest != expected_runtime_digest:
+        raise PublishBlocked(
+            "publisher runtime digest differs from deployment contract"
         )
     origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
     if local_sha != origin_main_sha:
@@ -537,6 +589,8 @@ def deployment_preflight(
         "queue": "matched",
         "state": "matched",
         "runtime_sha": local_sha,
+        "runtime_manifest_schema_version": RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "runtime_digest": actual_runtime_digest,
         "origin_main_sha": origin_main_sha,
         "push_mode": actual_push_mode,
     }
@@ -555,18 +609,14 @@ def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
 
 def _assert_transaction_runtime_matches(repo_root: Path, transaction_root: Path) -> None:
     """避免 lagging actor 用舊 publisher runtime 操作較新的 origin/main。"""
-    mismatches: list[str] = []
-    for relative in TRANSACTION_RUNTIME_PATHS:
-        actor_path = repo_root / relative
-        transaction_path = transaction_root / relative
-        actor_bytes = actor_path.read_bytes() if actor_path.is_file() else None
-        transaction_bytes = transaction_path.read_bytes() if transaction_path.is_file() else None
-        if actor_bytes != transaction_bytes:
-            mismatches.append(relative)
-    if mismatches:
+    actor_manifest = runtime_manifest(repo_root)
+    transaction_manifest = runtime_manifest(transaction_root)
+    actor_digest = _runtime_manifest_digest(actor_manifest)
+    transaction_digest = _runtime_manifest_digest(transaction_manifest)
+    if actor_manifest != transaction_manifest or actor_digest != transaction_digest:
         raise PublishBlocked(
-            "publisher actor runtime differs from origin/main; deploy actor before publishing: "
-            + ", ".join(mismatches)
+            "publisher actor runtime digest differs from origin/main; "
+            "deploy actor before publishing"
         )
 
 
@@ -2536,6 +2586,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-queue-root", type=Path)
     parser.add_argument("--expected-state-root", type=Path)
     parser.add_argument("--expected-runtime-sha")
+    parser.add_argument("--expected-runtime-digest")
     parser.add_argument(
         "--expected-push-mode",
         choices=("push", "no-push"),
@@ -2568,6 +2619,7 @@ def main() -> int:
         getattr(args, "expected_queue_root", None),
         getattr(args, "expected_state_root", None),
         getattr(args, "expected_runtime_sha", None),
+        getattr(args, "expected_runtime_digest", None),
         getattr(args, "expected_push_mode", None),
     )
     if any(value is not None for value in contract_values) and not all(
@@ -2587,8 +2639,9 @@ def main() -> int:
             expected_queue_root=contract_values[1],
             expected_state_root=contract_values[2],
             expected_runtime_sha=contract_values[3],
+            expected_runtime_digest=contract_values[4],
             push=args.push,
-            expected_push_mode=contract_values[4],
+            expected_push_mode=contract_values[5],
         )
         if getattr(args, "deployment_preflight", False):
             print(json.dumps(preflight, ensure_ascii=False))

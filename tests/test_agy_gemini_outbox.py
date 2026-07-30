@@ -978,13 +978,15 @@ def test_production_pool_commit_failure_precedes_credential_and_provider(
 
 
 @pytest.mark.parametrize(
-    ("failure", "expected_code"),
+    ("failure", "expected_code", "expected_category"),
     [
-        ("rate-limit", "API_RATE_LIMITED"),
-        ("provider-nonzero", "API_HTTP_ERROR"),
-        ("redirect", "API_HTTP_ERROR"),
-        ("timeout", "API_TIMEOUT"),
-        ("transport", "API_TRANSPORT_ERROR"),
+        ("auth", "API_AUTH", "AUTH"),
+        ("rate-limit", "API_RATE_LIMITED", "QUOTA"),
+        ("model-unavailable", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
+        ("provider-nonzero", "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("redirect", "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("timeout", "API_TIMEOUT", "NETWORK"),
+        ("transport", "API_TRANSPORT_ERROR", "NETWORK"),
     ],
 )
 def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
@@ -992,6 +994,7 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
     expected_code: str,
+    expected_category: str,
 ) -> None:
     manifest, credentials = _write_production_pool(tmp_path)
     queue_root = tmp_path / "queue"
@@ -1012,7 +1015,12 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
             raise TimeoutError("private-timeout-detail")
         if failure == "transport":
             raise pipeline.urllib.error.URLError(OSError("private-transport-detail"))
-        status = 429 if failure == "rate-limit" else 302 if failure == "redirect" else 503
+        status = {
+            "auth": 401,
+            "rate-limit": 429,
+            "model-unavailable": 404,
+            "redirect": 302,
+        }.get(failure, 503)
         raise pipeline.urllib.error.HTTPError(
             getattr(provider_request, "full_url", "https://example.invalid"),
             status,
@@ -1034,6 +1042,7 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     assert result["status"] == "failed"
     assert result["error_type"] == "GeminiApiFailure"
     assert result["error_code"] == expected_code
+    assert failed["failure_category"] == expected_category
     assert result["credential_pool"] == failed["credential_pool"]
     assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
     assert (queue_root / "archive" / f"{request['job_id']}.json").exists()
@@ -1629,12 +1638,12 @@ def test_cooldown_expiry_releases_one_new_and_keeps_rewrite_queued(
 
 
 @pytest.mark.parametrize(
-    ("failure", "expected_code"),
+    ("failure", "expected_code", "expected_category"),
     [
-        ("nonzero", "CLI_NONZERO"),
-        ("timeout", "CLI_TIMEOUT"),
-        ("not-found", "CLI_NOT_FOUND"),
-        ("envelope", "CLI_ENVELOPE_ERROR"),
+        ("nonzero", "CLI_NONZERO", "CLI_NONZERO"),
+        ("timeout", "CLI_TIMEOUT", "NETWORK"),
+        ("not-found", "CLI_NOT_FOUND", "CLI_UNAVAILABLE"),
+        ("envelope", "CLI_ENVELOPE_ERROR", "MALFORMED_PAYLOAD"),
     ],
 )
 def test_runner_failure_receipt_persists_only_closed_error_code(
@@ -1642,6 +1651,7 @@ def test_runner_failure_receipt_persists_only_closed_error_code(
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
     expected_code: str,
+    expected_category: str,
 ) -> None:
     private_detail = "/Users/example/private prompt GEMINI_API_KEY=must-not-persist raw stderr"
     request = create_external_request(
@@ -1681,12 +1691,14 @@ def test_runner_failure_receipt_persists_only_closed_error_code(
         "error_code": expected_code,
     }
     assert failed["error_code"] == expected_code
+    assert failed["failure_category"] == expected_category
     assert set(failed) == {
         "schema_version",
         "job_id",
         "request_sha256",
         "error_type",
         "error_code",
+        "failure_category",
         "completed_at",
     }
     persisted = failed_path.read_text(encoding="utf-8")
@@ -3189,7 +3201,9 @@ def test_runner_closes_all_forged_broker_diagnostic_fields(
     assert secret_marker not in failed_path.read_text()
 
 
-def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Path) -> None:
+def test_runner_classifies_schema_invalid_payload_before_inbox_side_effect(
+    tmp_path: Path,
+) -> None:
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-01",
@@ -3201,10 +3215,18 @@ def test_runner_preserves_invalid_model_json_for_pipeline_rejection(tmp_path: Pa
 
     result = process_once(tmp_path, generate_json=lambda *_args: {"wrong": True})
 
-    assert result == {"status": "processed", "job_id": request["job_id"]}
-    response = json.loads((tmp_path / "inbox" / f"{request['job_id']}.json").read_text())
-    assert response["result"] == {"wrong": True}
-    assert not (tmp_path / "failed" / f"{request['job_id']}.json").exists()
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+    failed = json.loads(
+        (tmp_path / "failed" / f"{request['job_id']}.json").read_text()
+    )
+    assert failed["request_sha256"] == request["request_sha256"]
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
+    assert failed["broker_diagnostic"]["result_validation"] == "SCHEMA_MISMATCH"
 
 
 def test_runner_returns_idle_for_empty_outbox(tmp_path: Path) -> None:
@@ -3289,7 +3311,7 @@ def test_pipeline_tick_routes_translation_brief_to_multilingual_pipeline(
     assert observed == [2]
 
 
-def test_outbox_client_retries_json_decode_with_new_job_identity(tmp_path: Path) -> None:
+def test_outbox_client_retry_keeps_logical_request_identity(tmp_path: Path) -> None:
     client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-json")
     first = outbox.create_external_request(
         tmp_path,
@@ -3309,24 +3331,28 @@ def test_outbox_client_retries_json_decode_with_new_job_identity(tmp_path: Path)
 
     assert pending.value.job_id != first["job_id"]
     retry_request = json.loads((tmp_path / "outbox" / f"{pending.value.job_id}.json").read_text())
-    assert retry_request["namespace"] == "retry-json-r1"
+    assert retry_request["namespace"] == "retry-json"
+    assert retry_request["request_sha256"] == first["request_sha256"]
+    assert retry_request["transport_attempt"] == 1
     assert retry_request["prompt_sha256"] == first["prompt_sha256"]
 
 
 def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> None:
     client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-stop")
     failed_job_ids: list[str] = []
+    logical_request_ids: set[str] = set()
     for retry_index in range(3):
-        namespace = "retry-stop" if retry_index == 0 else f"retry-stop-r{retry_index}"
         request = outbox.create_external_request(
             tmp_path,
-            namespace=namespace,
+            namespace="retry-stop",
             role="reviewer",
             model=client.reviewer_model,
             prompt="公開 prompt",
             response_schema=SCHEMA,
+            transport_attempt=retry_index,
         )
         failed_job_ids.append(request["job_id"])
+        logical_request_ids.add(str(request["request_sha256"]))
         outbox.atomic_write_json(
             tmp_path / "failed" / f"{request['job_id']}.json",
             _failure_receipt(request, error_type="JSONDecodeError"),
@@ -3337,7 +3363,83 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
 
     assert failure.value.job_id == failed_job_ids[-1]
     assert failure.value.error_type == "JSONDecodeError"
+    assert failure.value.failure_category == "MALFORMED_PAYLOAD"
+    assert failure.value.transport_attempts == 3
+    assert failure.value.request_sha256 in logical_request_ids
+    assert len(logical_request_ids) == 1
     assert len(list((tmp_path / "outbox").glob("*.json"))) == 3
+
+
+@pytest.mark.parametrize(
+    ("error_type", "error_code", "broker_diagnostic", "expected_category"),
+    [
+        ("GeminiCliFailure", "CLI_NONZERO", None, "CLI_NONZERO"),
+        ("GeminiApiFailure", "API_AUTH", None, "AUTH"),
+        ("GeminiApiFailure", "API_RATE_LIMITED", None, "QUOTA"),
+        ("GeminiApiFailure", "API_TRANSPORT_ERROR", None, "NETWORK"),
+        (
+            "GeminiApiFailure",
+            "API_MODEL_UNAVAILABLE",
+            None,
+            "MODEL_UNAVAILABLE",
+        ),
+        ("JSONDecodeError", None, None, "MALFORMED_PAYLOAD"),
+        (
+            "V4BrokerFailure",
+            None,
+            {
+                "replay_status": "COMPLETE",
+                "process_count": 1,
+                "outcome": "SUCCESS",
+                "result_validation": "SCHEMA_MISMATCH",
+                "schema_diagnostics": [{"keyword": "required", "path": []}],
+            },
+            "SCHEMA_INVALID_PAYLOAD",
+        ),
+    ],
+)
+def test_transport_failure_taxonomy_is_closed_and_retryable(
+    tmp_path: Path,
+    error_type: str,
+    error_code: str | None,
+    broker_diagnostic: dict[str, object] | None,
+    expected_category: str,
+) -> None:
+    client = outbox.OutboxGeminiClient(tmp_path, namespace="closed-taxonomy")
+    first = outbox.create_external_request(
+        tmp_path,
+        namespace="closed-taxonomy",
+        role="writer",
+        model=client.writer_model,
+        prompt="公開 synthetic transport taxonomy",
+        response_schema=SCHEMA,
+    )
+    receipt = _failure_receipt(
+        first,
+        error_type=error_type,
+        error_code=error_code,
+    )
+    if broker_diagnostic is not None:
+        receipt["broker_diagnostic"] = broker_diagnostic
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{first['job_id']}.json",
+        receipt,
+    )
+
+    with pytest.raises(ExternalJobPending) as pending:
+        client.generate_json(
+            "writer",
+            "公開 synthetic transport taxonomy",
+            SCHEMA,
+        )
+
+    retry = json.loads(
+        (tmp_path / "outbox" / f"{pending.value.job_id}.json").read_text()
+    )
+    assert retry["request_sha256"] == first["request_sha256"]
+    assert retry["transport_attempt"] == 1
+    classified = outbox.classify_external_failure(receipt)
+    assert classified == expected_category
 
 
 def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Path) -> None:
@@ -3396,7 +3498,9 @@ def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Pat
     assert review["articles"][0]["verdict"] == "APPROVE"
 
 
-def test_invalid_writer_schema_enqueues_a_distinct_retry_job(tmp_path: Path) -> None:
+def test_invalid_writer_schema_uses_transport_budget_without_semantic_repair(
+    tmp_path: Path,
+) -> None:
     run_dir = tmp_path / "runs" / "optimize-writer-schema-retry"
     queue_root = tmp_path / "queue"
     run_dir.mkdir(parents=True)
@@ -3419,17 +3523,39 @@ def test_invalid_writer_schema_enqueues_a_distinct_retry_job(tmp_path: Path) -> 
 
     with pytest.raises(ExternalJobPending) as first_pending:
         run_pipeline_tick(run_dir, queue_root)
-    process_once(queue_root, generate_json=lambda *_args: {"articles": [{"slot": "article-01"}]})
+    first_request = json.loads(
+        (queue_root / "outbox" / f"{first_pending.value.job_id}.json").read_text()
+    )
+    process_once(
+        queue_root,
+        generate_json=lambda *_args: {"articles": [{"slot": "article-01"}]},
+    )
+    failed = json.loads(
+        (
+            queue_root
+            / "failed"
+            / f"{first_request['job_id']}.json"
+        ).read_text()
+    )
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
 
     with pytest.raises(ExternalJobPending) as retry_pending:
         run_pipeline_tick(run_dir, queue_root)
 
     assert retry_pending.value.job_id != first_pending.value.job_id
     retry = json.loads((queue_root / "outbox" / f"{retry_pending.value.job_id}.json").read_text())
-    assert "schema repair 1" in retry["prompt"]
+    assert retry["namespace"] == first_request["namespace"]
+    assert retry["request_sha256"] == first_request["request_sha256"]
+    assert retry["prompt"] == first_request["prompt"]
+    assert retry["transport_attempt"] == 1
+    assert not (run_dir / "attempts" / "02").exists()
+    for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
+        assert not (run_dir / forbidden).exists()
 
 
-def test_invalid_reviewer_json_becomes_hard_rejection(tmp_path: Path) -> None:
+def test_invalid_reviewer_schema_exhausts_transport_without_semantic_repair(
+    tmp_path: Path,
+) -> None:
     run_dir = tmp_path / "runs" / "optimize-invalid-review"
     queue_root = tmp_path / "queue"
     run_dir.mkdir(parents=True)
@@ -3464,11 +3590,16 @@ def test_invalid_reviewer_json_becomes_hard_rejection(tmp_path: Path) -> None:
     with pytest.raises(ExternalJobPending):
         run_pipeline_tick(run_dir, queue_root)
     process_once(queue_root, generate_json=lambda *_args: {"wrong": True})
+    for _transport_retry in range(outbox.OUTBOX_MAX_TRANSPORT_RETRIES):
+        with pytest.raises(ExternalJobPending):
+            run_pipeline_tick(run_dir, queue_root)
+        process_once(queue_root, generate_json=lambda *_args: {"wrong": True})
 
-    result = run_pipeline_tick(run_dir, queue_root)
-    review = json.loads((run_dir / "review.json").read_text())
+    with pytest.raises(ExternalJobFailed) as exhausted:
+        run_pipeline_tick(run_dir, queue_root)
 
-    assert result["status"] == "complete"
-    assert review["articles"][0]["verdict"] == "REJECT"
-    assert review["articles"][0]["hard_failure"] is True
-    assert review["articles"][0]["findings"][0]["code"].startswith("invalid_reviewer_json:")
+    assert exhausted.value.failure_category == "SCHEMA_INVALID_PAYLOAD"
+    assert exhausted.value.transport_attempts == 3
+    assert not (run_dir / "attempts/02").exists()
+    for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
+        assert not (run_dir / forbidden).exists()
