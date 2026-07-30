@@ -21,6 +21,7 @@ from typing import Any, Callable, Final
 from scripts.agy_gemini_outbox import (
     SCHEMA_VERSION,
     atomic_write_json,
+    classify_external_failure,
     validate_external_request,
 )
 from scripts.agy_gemini_allocator import (
@@ -40,6 +41,7 @@ from scripts.agy_gemini_v4_broker import (
     V4BrokerFailure,
     RESULT_VALIDATION_STATES,
     SchemaDiagnostic,
+    _diagnose_json_schema,
     run_single_shot,
 )
 
@@ -1130,6 +1132,25 @@ def process_once(
                 str(request["prompt"]),
                 request["response_schema"],
             )
+        schema_diagnostics = _diagnose_json_schema(
+            result,
+            request["response_schema"],
+        )
+        if schema_diagnostics:
+            broker_diagnostic = {
+                "replay_status": "COMPLETE",
+                "process_count": 1,
+                "outcome": "SUCCESS",
+                "result_validation": "SCHEMA_MISMATCH",
+                "schema_diagnostics": [
+                    {
+                        "keyword": diagnostic.keyword,
+                        "path": list(diagnostic.path),
+                    }
+                    for diagnostic in schema_diagnostics
+                ],
+            }
+            raise V4BrokerFailure("provider payload failed response schema")
         response_record = {
             "schema_version": SCHEMA_VERSION,
             "job_id": job_id,
@@ -1190,6 +1211,8 @@ def process_once(
             failed_record["broker_diagnostic"] = broker_diagnostic
         if credential_pool is not None:
             failed_record["credential_pool"] = credential_pool
+        failure_category = classify_external_failure(failed_record)
+        failed_record["failure_category"] = failure_category
         inbox_path = queue_root / "inbox" / f"{job_id}.json"
         failed_path = queue_root / "failed" / f"{job_id}.json"
         if not inbox_path.exists() and not failed_path.exists():

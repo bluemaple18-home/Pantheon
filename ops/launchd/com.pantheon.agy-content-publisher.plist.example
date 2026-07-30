@@ -28,6 +28,8 @@
     <string>__REPO_ROOT__/.work/content-publisher</string>
     <string>--expected-runtime-sha</string>
     <string>__RUNTIME_SHA__</string>
+    <string>--expected-runtime-digest</string>
+    <string>__RUNTIME_DIGEST__</string>
     <string>--expected-push-mode</string>
     <string>push</string>
   </array>

@@ -1342,6 +1342,54 @@ def test_publish_blocks_when_head_differs_from_origin(tmp_path: Path) -> None:
         publisher.publish_ready_runs(tmp_path, tmp_path / "queue", tmp_path / "state", git=fake_git, run_tests=False, release_gate=False)
 
 
+def _write_runtime_manifest_fixture(repo_root: Path) -> None:
+    for relative in publisher.TRANSACTION_RUNTIME_PATHS:
+        path = repo_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"runtime fixture: {relative}\n", encoding="utf-8")
+
+
+def test_runtime_manifest_digest_is_path_ordered_and_byte_sensitive(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    _write_runtime_manifest_fixture(actor)
+
+    manifest = publisher.runtime_manifest(actor)
+    digest = publisher.runtime_manifest_digest(actor)
+
+    assert manifest["schema_version"] == publisher.RUNTIME_MANIFEST_SCHEMA_VERSION
+    assert [item["path"] for item in manifest["files"]] == sorted(
+        publisher.TRANSACTION_RUNTIME_PATHS
+    )
+    assert len(digest) == 64
+    changed = actor / publisher.TRANSACTION_RUNTIME_PATHS[0]
+    changed.write_bytes(changed.read_bytes() + b"drift\n")
+    assert publisher.runtime_manifest_digest(actor) != digest
+
+
+def test_runtime_manifest_digest_is_path_set_sensitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    digest = publisher.runtime_manifest_digest(actor)
+    extra = actor / "scripts/runtime-membership-marker.py"
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text("RUNTIME_MARKER = True\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        publisher,
+        "TRANSACTION_RUNTIME_PATHS",
+        (*publisher.TRANSACTION_RUNTIME_PATHS, "scripts/runtime-membership-marker.py"),
+    )
+
+    assert publisher.runtime_manifest_digest(actor) != digest
+
+
 def test_deployment_preflight_returns_read_only_plan_without_mutation(
     tmp_path: Path,
 ) -> None:
@@ -1351,7 +1399,9 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
     git_calls: list[list[str]] = []
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -1371,6 +1421,7 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
         expected_queue_root=queue_root,
         expected_state_root=state_root,
         expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
         push=True,
         expected_push_mode="push",
         git=fake_git,
@@ -1388,6 +1439,8 @@ def test_deployment_preflight_returns_read_only_plan_without_mutation(
         "queue": "matched",
         "state": "matched",
         "runtime_sha": runtime_sha,
+        "runtime_manifest_schema_version": publisher.RUNTIME_MANIFEST_SCHEMA_VERSION,
+        "runtime_digest": runtime_digest,
         "origin_main_sha": runtime_sha,
         "push_mode": "push",
     }
@@ -1408,7 +1461,9 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
     origin_main_sha = "b" * 40
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
@@ -1439,6 +1494,7 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
         expected_queue_root=queue_root,
         expected_state_root=state_root,
         expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
         push=True,
         expected_push_mode="push",
         git=fake_git,
@@ -1446,6 +1502,7 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
 
     assert plan["status"] == "ready"
     assert plan["runtime_sha"] == runtime_sha
+    assert plan["runtime_digest"] == runtime_digest
     assert plan["origin_main_sha"] == origin_main_sha
 
 
@@ -1500,6 +1557,8 @@ def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
             str(state_root),
             "--expected-runtime-sha",
             runtime_sha,
+            "--expected-runtime-digest",
+            "d" * 64,
             "--expected-push-mode",
             "push",
         ],
@@ -1517,6 +1576,7 @@ def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
         ("queue", "queue root"),
         ("state", "state root"),
         ("runtime", "runtime SHA"),
+        ("runtime-digest", "runtime digest"),
         ("dirty", "worktree is not clean"),
         ("origin", "origin/main is not a descendant"),
         ("origin-runtime", "publisher runtime differs from origin/main"),
@@ -1534,7 +1594,9 @@ def test_deployment_preflight_fails_closed_on_contract_drift(
     actor.mkdir()
     (queue_root / "runs").mkdir(parents=True)
     state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
     runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
 
     def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
         if args == ["status", "--porcelain"]:
@@ -1565,6 +1627,7 @@ def test_deployment_preflight_fails_closed_on_contract_drift(
             expected_queue_root=tmp_path / "other-queue" if drift == "queue" else queue_root,
             expected_state_root=tmp_path / "other-state" if drift == "state" else state_root,
             expected_runtime_sha="b" * 40 if drift == "runtime" else runtime_sha,
+            expected_runtime_digest="d" * 64 if drift == "runtime-digest" else runtime_digest,
             push=drift != "push",
             expected_push_mode="push",
             git=fake_git,
@@ -1681,12 +1744,16 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "__REPO_ROOT__/.work/content-publisher",
         "--expected-runtime-sha",
         "__RUNTIME_SHA__",
+        "--expected-runtime-digest",
+        "__RUNTIME_DIGEST__",
         "--expected-push-mode",
         "push",
     ]
     assert 'ACTION="${1:---install}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
+    assert "runtime_manifest_digest" in installer
+    assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert plist["StartInterval"] == 60
@@ -2554,6 +2621,7 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     target = seed / "app/web/owned.txt"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"base\n")
+    _write_runtime_manifest_fixture(seed)
     (seed / ".gitignore").write_text(".venv\nnode_modules/\n.work/\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
@@ -2588,7 +2656,15 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     assert not list(state_root.glob("transaction-*"))
 
 
-def test_isolated_transaction_blocks_stale_actor_runtime(tmp_path: Path) -> None:
+def test_isolated_transaction_blocks_stale_actor_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "TRANSACTION_RUNTIME_PATHS",
+        ("scripts/agy_content_publisher.py",),
+    )
     actor = tmp_path / "actor"
     transaction = tmp_path / "transaction"
     for root, body in ((actor, b"old\n"), (transaction, b"new\n")):
@@ -2596,7 +2672,7 @@ def test_isolated_transaction_blocks_stale_actor_runtime(tmp_path: Path) -> None
         path.parent.mkdir(parents=True)
         path.write_bytes(body)
 
-    with pytest.raises(publisher.PublishBlocked, match="deploy actor before publishing"):
+    with pytest.raises(publisher.PublishBlocked, match="runtime digest differs"):
         publisher._assert_transaction_runtime_matches(actor, transaction)
 
 
@@ -2616,6 +2692,7 @@ def test_main_runs_real_publish_in_isolated_worktree(
     target = seed / "app/web/owned.txt"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"base\n")
+    _write_runtime_manifest_fixture(seed)
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=seed, check=True)
     subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True)

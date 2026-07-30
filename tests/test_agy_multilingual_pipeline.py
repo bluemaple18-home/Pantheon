@@ -328,6 +328,46 @@ def test_external_operation_resumes_from_saved_output_without_regeneration(tmp_p
     assert payload == {"articles": []}
 
 
+def test_transport_failure_does_not_advance_translation_semantic_attempt(
+    tmp_path: Path,
+) -> None:
+    brief = translation_brief("en")
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+
+    class FailedTransportClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            failure = RuntimeError("closed synthetic transport failure")
+            failure.failure_category = "NETWORK"  # type: ignore[attr-defined]
+            failure.transport_attempts = 3  # type: ignore[attr-defined]
+            failure.request_sha256 = "a" * 64  # type: ignore[attr-defined]
+            raise failure
+
+    with pytest.raises(RuntimeError, match="closed synthetic transport failure"):
+        multilingual.run_writer_reviewer(
+            tmp_path,
+            FailedTransportClient(),
+            max_repairs=2,
+        )
+
+    receipt = json.loads(
+        (tmp_path / "attempts/01/writer-operation.json").read_text()
+    )
+    assert receipt["failure_category"] == "NETWORK"
+    assert receipt["transport_attempts"] == 3
+    assert receipt["request_sha256"] == "a" * 64
+    assert not (tmp_path / "attempts/02").exists()
+    for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
+        assert not (tmp_path / forbidden).exists()
+
+
 def test_edited_candidate_uses_deterministic_gate_and_independent_reviewer(tmp_path: Path) -> None:
     brief = translation_brief("en")
     candidate = translation_candidate("en")
