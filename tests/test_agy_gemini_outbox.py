@@ -3311,6 +3311,129 @@ def test_pipeline_tick_routes_translation_brief_to_multilingual_pipeline(
     assert observed == [2]
 
 
+def test_translation_continuation_pending_reuses_plan_request_identity(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    queue_root = tmp_path / "queue"
+    source = {
+        "article_id": "FORTUNE-0039",
+        "canonical_path": "/articles/bazi/fortune-0039",
+        "title": "八字用神是什麼？",
+        "description": "用神要從完整命局判斷，不能只套單一五行。",
+        "answer": "先看強弱、寒燥與五行流通，再找改善失衡的方向。",
+        "tags": ["八字", "用神"],
+        "faq": [
+            {
+                "question": "用神能固定嗎？",
+                "answer": "不能脫離完整命局與運勢條件固定判斷。",
+            }
+        ],
+        "bodySections": [
+            {
+                "heading": "先看整體失衡",
+                "paragraphs": ["強弱、寒燥與五行流通必須一起判斷。"],
+            },
+            {
+                "heading": "再找調整方向",
+                "paragraphs": ["同一五行在不同命局中可能有不同作用。"],
+            },
+        ],
+    }
+    brief = {
+        "schema_version": 1,
+        "run_id": "auto-i18n-ko-149a513358e0e81cadcd",
+        "mode": "translate_existing",
+        "articles": [
+            {
+                "translation_id": "FORTUNE-0039:ko",
+                "locale": "ko",
+                "source_article_id": "FORTUNE-0039",
+                "source_path": source["canonical_path"],
+                "source_sha256": outbox.multilingual.source_sha256(source),
+                "source": source,
+            }
+        ],
+    }
+    external_candidate = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "title": "사주 용신은 어떻게 찾나요?",
+                "description": "용신은 명식 전체의 불균형을 살핀 뒤 정하며 하나의 오행만으로 고정할 수 없습니다.",
+                "answer": "강약과 계절, 오행의 흐름을 함께 살펴 조정 방향을 찾습니다.",
+                "tags": ["사주", "용신"],
+                "faq": [
+                    {
+                        "question": "용신은 항상 같나요?",
+                        "answer": "명식과 운의 조건을 벗어나 고정할 수 없습니다.",
+                    }
+                ],
+                "bodySections": [
+                    {"heading": "용신이 답하는 질문", "paragraphs": ["먼저 명식의 불균형을 확인합니다."]},
+                    {"heading": "강약과 계절 확인", "paragraphs": ["두 조건을 함께 살핍니다."]},
+                    {"heading": "오행 흐름 비교", "paragraphs": ["조정 후보를 비교합니다."]},
+                    {"heading": "고정 결론 피하기", "paragraphs": ["조건에 따라 역할이 달라집니다."]},
+                ],
+            }
+        ]
+    }
+    candidate = outbox.multilingual._hydrate_candidate(brief, external_candidate)
+    review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": "FORTUNE-0039:ko",
+                "candidate_sha256": pipeline.article_sha256(candidate["articles"][0]),
+                "verdict": "REJECT",
+                "findings": [
+                    {
+                        "code": "NON_NATIVE_SEARCH_INTENT",
+                        "message": "검색 의도가 자연스럽지 않습니다",
+                    }
+                ],
+            }
+        ],
+    }
+    pipeline.write_json(run_dir / "brief.json", brief)
+    pipeline.write_json(run_dir / "candidate.json", candidate)
+    pipeline.write_json(run_dir / "review.json", review)
+    for attempt in range(1, 4):
+        pipeline.write_json(
+            run_dir / "attempts" / f"{attempt:02d}" / "external-review.json",
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": review["articles"][0]["findings"],
+                    }
+                ]
+            },
+        )
+    original_candidate = (run_dir / "candidate.json").read_bytes()
+    original_review = (run_dir / "review.json").read_bytes()
+
+    pending_ids = []
+    for _replay in range(2):
+        with pytest.raises(ExternalJobPending) as pending:
+            run_pipeline_tick(run_dir, queue_root)
+        pending_ids.append(pending.value.job_id)
+
+    queued = list((queue_root / "outbox").glob("*.json"))
+    state = json.loads((run_dir / "continuation/state.json").read_text())
+    assert pending_ids[0] == pending_ids[1]
+    assert len(queued) == 1
+    assert state["next_generation"] == 4
+    assert state["completed_generations"] == []
+    assert sorted(path.name for path in (run_dir / "generations").iterdir()) == ["04"]
+    assert (run_dir / "candidate.json").read_bytes() == original_candidate
+    assert (run_dir / "review.json").read_bytes() == original_review
+    for forbidden in ("approval.json", "apply.json", "publish.json", "run-evidence.json"):
+        assert not (run_dir / forbidden).exists()
+
+
 def test_outbox_client_retry_keeps_logical_request_identity(tmp_path: Path) -> None:
     client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-json")
     first = outbox.create_external_request(

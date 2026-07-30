@@ -1,0 +1,67 @@
+Locale authority successor Repair-1 fresh re-review
+
+lineage and integrity
+- reviewed Repair HEAD: 1fbf58fa20ccfc54be1a433b0f6d039b2de6617d
+- Repair direct parent: a5adb559e2f60ae5f8bd93183ec4aceaca7b78b7
+- Repair candidate ref resolves to reviewed HEAD
+- Repair card source/candidate blob:
+  5b14e1b77855338a10ae264f942d1cb90119199a
+- Repair changed files: production validator, direct tests, exact Repair card,
+  and six Repair evidence files only; all are inside the Repair allowlist
+- original Review card/evidence/independent probes: unchanged by Repair
+- initial Repair checkout state: clean
+- CodeGraph: current worktree remains uninitialized; source review used a
+  read-only bounded Repair diff instead of writing an index
+- Repair card/evidence local absolute path scan: no matches
+- Repair card/evidence private-key/API-key shape scan: no matches
+
+finding-focused independent probes
+1. LAS-REV-001 whole-value grammar
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q
+   -k "full_ascii_value_consumption or unconsumed_characters"
+   PASS: 44 passed, 128 deselected in 0.05s
+   disposition:
+   - @@OpenAI@@ rejected
+   - OpenAI??? rejected
+   - OpenAI/GPT-5/2026 rejected
+   - OpenAI,GPT-5;2026 rejected
+   - ja/ko x five semantic fields all fail closed
+   - direct helper probes confirm no unconsumed-character bypass
+
+2. LAS-REV-002 standalone capitalization authority
+   command: <existing-venv-python> -m pytest <successor-review-probes> -q
+   -k single_ordinary_ascii_word
+   PASS: 30 passed, 142 deselected in 0.05s
+   disposition:
+   - Strategy, SOURCE, and Zorple rejected
+   - ja/ko x five semantic fields all fail closed
+
+positive and regression controls
+1. requested ja/ko, natural-plan, literal, and en controls
+   PASS: 28 passed, 144 deselected in 0.05s
+
+2. complete independent Review probes
+   PASS: 172 passed in 0.12s
+
+3. direct multilingual suite
+   PASS: 148 passed in 0.21s
+
+4. three existing native-outline Review probe files
+   PASS: 28 passed in 0.10s
+
+5. seven-file affected suite
+   PASS: 576 passed, 1 warning in 84.15s
+   NOTE: the warning is the pre-existing invalid escape sequence
+   DeprecationWarning exercised by test_agy_content_publisher.py.
+
+static verification
+- production compile: PASS
+- changed production/direct-test debug-marker scan: PASS, no matching files
+- Repair committed diff check: PASS
+- changed-files allowlist: PASS
+
+external and production actions
+- provider: not called
+- production .work: not read or written
+- merge/push/deploy/publish: not performed
+- new Review/Repair/replacement/agent: not created
