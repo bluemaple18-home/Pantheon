@@ -748,6 +748,7 @@
 
 ## [Unreleased]
 
+- 最新文章頁的最後更新日期改由繁中新文章與舊文改寫發布流程自動同步；多語發布不改動日期，且舊候選不會讓日期倒退。
 - Production-only pool 改用四條 content lane 共用的 owner-only durable strict round-robin state，固定依 account-1→account-2→account-3 循環分配，並以跨程序 lock 內 durable ordinal commit 作為線性化順序。
 - Pool transport 在 provider request 前消耗 ordinal，每個 job 僅允許一次 request；crash、429、HTTP/timeout/transport/output failure 不回滾、不換 key、不 retry、不 fallback。
 - Corrupt、truncated、symlink、wrong owner/mode、relative path、pool/manifest mismatch 與 TOCTOU state 會在 credential value/provider 前 fail closed。

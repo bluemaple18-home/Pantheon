@@ -20,6 +20,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from scripts.update_articles_hub_dates import articles_hub_updated_date, render_articles_hub_dates
+
 
 SCHEMA_VERSION = 1
 MAX_RUN_ARTICLES = 5
@@ -4740,7 +4742,18 @@ def apply_rewrite_release(repo_root: Path, release_root: Path) -> list[Path]:
         }
     )
     write_json(release_root / "summary.json", summary)
-    changed = [module, meta_path, *_bump_article_cache_queries(repo_root, "rewrite-release-001")]
+    changed = [
+        module,
+        meta_path,
+        *_bump_article_cache_queries(
+            repo_root,
+            "rewrite-release-001",
+            hub_updated_date=max(
+                str(article["publicationPolicy"]["modified"])
+                for article in candidates
+            ),
+        ),
+    ]
     write_json(
         release_root / "apply-evidence.json",
         {
@@ -5134,7 +5147,12 @@ def _insert_once(text: str, needle: str, insertion: str) -> str:
     return text[:index] + insertion + text[index:]
 
 
-def _bump_article_cache_queries(repo_root: Path, token: str) -> list[Path]:
+def _bump_article_cache_queries(
+    repo_root: Path,
+    token: str,
+    *,
+    hub_updated_date: str | None = None,
+) -> list[Path]:
     web = repo_root / "app/web"
     replacements = {
         web / "static/article-meta.js": [(r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}")],
@@ -5158,6 +5176,17 @@ def _bump_article_cache_queries(repo_root: Path, token: str) -> list[Path]:
         if updated != original:
             path.write_text(updated, encoding="utf-8")
             changed.append(path)
+    articles_html = web / "articles.html"
+    if hub_updated_date is not None and articles_html.exists():
+        original = articles_html.read_text(encoding="utf-8")
+        updated = render_articles_hub_dates(
+            original,
+            updated_date=max(articles_hub_updated_date(original), hub_updated_date),
+        )
+        if updated != original:
+            articles_html.write_text(updated, encoding="utf-8")
+            if articles_html not in changed:
+                changed.append(articles_html)
     return changed
 
 
@@ -5293,7 +5322,17 @@ def apply_approved_candidates(repo_root: Path, run_id: str, candidates: list[dic
         position = meta.index(marker) + len(marker)
         meta = meta[:position] + body_spread + meta[position:]
     meta_path.write_text(meta, encoding="utf-8")
-    return [module, registry_path, meta_path, *_bump_article_cache_queries(repo_root, import_query)]
+    hub_updated_date = max(str(article["updated"] or article["published"]) for article in approved)
+    return [
+        module,
+        registry_path,
+        meta_path,
+        *_bump_article_cache_queries(
+            repo_root,
+            import_query,
+            hub_updated_date=hub_updated_date,
+        ),
+    ]
 
 
 def _load_api_key() -> str:

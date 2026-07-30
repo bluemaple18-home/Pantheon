@@ -4256,8 +4256,19 @@ def test_integrated_matrix_backlog_keeps_daily_queue_first_then_v2() -> None:
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    static = tmp_path / "app" / "web" / "static"
+    web = tmp_path / "app" / "web"
+    static = web / "static"
     static.mkdir(parents=True)
+    (web / "articles.html").write_text(
+        '<meta property="article:published_time" content="2026-07-10" />\n'
+        '<meta property="article:modified_time" content="2026-07-16" />\n'
+        '"datePublished": "2026-07-10",\n'
+        '"dateModified": "2026-07-16",\n'
+        '<time datetime="2026-07-10" data-articles-published>2026-07-10</time>\n'
+        '<time datetime="2026-07-16" data-articles-updated>2026-07-16</time>\n'
+        '<script type="module" src="/static/articles.js?v=old-token"></script>\n',
+        encoding="utf-8",
+    )
     (static / "article-registry.js").write_text(
         'export const ARTICLE_REGISTRY = [\n  ...EXISTING_RECORDS,\n];\nfunction listArticleRecords() { return []; }\n',
         encoding="utf-8",
@@ -4285,8 +4296,17 @@ def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path,
     assert str(article["title"]) in module.read_text(encoding="utf-8")
     assert "article-expansion-agy-run-one.js" in (static / "article-registry.js").read_text(encoding="utf-8")
     assert "article-expansion-agy-run-one.js" in (static / "article-meta.js").read_text(encoding="utf-8")
+    hub = (web / "articles.html").read_text(encoding="utf-8")
+    expected_updated = str(article["updated"])
+    assert f'<meta property="article:modified_time" content="{expected_updated}" />' in hub
+    assert f'"dateModified": "{expected_updated}"' in hub
+    assert f'<time datetime="{expected_updated}" data-articles-updated>{expected_updated}</time>' in hub
     assert not (tmp_path / ".git").exists()
 
+    (web / "articles.html").write_text(
+        hub.replace(expected_updated, "2026-07-18"),
+        encoding="utf-8",
+    )
     article["title"] = "測試關鍵字是什麼？同一批修稿後可安全重放"
     review = {
         "schema_version": 1,
@@ -4305,6 +4325,7 @@ def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path,
     changed = apply_approved_candidates(tmp_path, "run-one", [article], review, approval)
     assert module in changed
     assert str(article["title"]) in module.read_text(encoding="utf-8")
+    assert "2026-07-18" in (web / "articles.html").read_text(encoding="utf-8")
 
     other_review = {**review, "run_id": "run-two"}
     other_approval = build_approval("run-two", [article], other_review, {str(article["id"]): "APPROVE"}, "user")
