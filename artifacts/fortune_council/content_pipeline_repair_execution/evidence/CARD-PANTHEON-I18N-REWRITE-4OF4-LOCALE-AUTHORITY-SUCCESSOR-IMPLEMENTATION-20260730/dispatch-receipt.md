@@ -24,6 +24,11 @@
 - reservation state: `BOUND`
 - activation: issued to the same formal thread
 - duplicate inventory for this dispatch key: `0`
+- card ancestry amendment:
+  `8a85f1c1a0404e5c3d0660b0a5cdc1cc250e256a` authorizes the same thread to
+  materialize the exact card blob
+  `4e0f1e815d5c2ed2499d532edaba1d9a38305a92` from the committed mainline card;
+  required candidate parent remains the verified Review evidence SHA
 
 ## Gate state
 
