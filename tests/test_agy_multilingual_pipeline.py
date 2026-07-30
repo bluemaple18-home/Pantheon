@@ -631,6 +631,26 @@ def test_locale_plan_accepts_closed_ascii_only_literal_contract(
     assert multilingual._plan_matches_target_language(locale, text)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "@@OpenAI@@",
+        "OpenAI???",
+        "OpenAI/GPT-5/2026",
+        "OpenAI,GPT-5;2026",
+    ],
+)
+def test_ascii_literal_contract_requires_full_value_consumption(text: str) -> None:
+    assert not multilingual._ascii_is_name_acronym_or_number(text)
+
+
+@pytest.mark.parametrize("text", ["Strategy", "SOURCE", "Zorple"])
+def test_ascii_literal_contract_rejects_unlisted_standalone_words(
+    text: str,
+) -> None:
+    assert not multilingual._ascii_is_name_acronym_or_number(text)
+
+
 @pytest.mark.parametrize("locale", ["ja", "ko"])
 @pytest.mark.parametrize(
     "text",

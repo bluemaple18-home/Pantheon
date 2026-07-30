@@ -583,15 +583,18 @@ def _outline_topology(item: dict[str, Any]) -> tuple[frozenset[str], ...]:
 
 
 def _ascii_is_name_acronym_or_number(text: str) -> bool:
-    tokens = re.findall(r"[A-Za-z0-9]+(?:[-+.][A-Za-z0-9]+)*%?", text)
-    if not tokens:
+    token_pattern = (
+        r"(?:\d+(?:[.,]\d+)?%?|[A-Za-z0-9]+(?:[-+.][A-Za-z0-9]+)*%?)"
+    )
+    if re.fullmatch(rf"{token_pattern}(?: {token_pattern})*", text) is None:
         return False
+    tokens = text.split(" ")
 
     def is_number(token: str) -> bool:
         return re.fullmatch(r"\d+(?:[.,]\d+)?%?", token) is not None
 
-    def is_acronym(token: str) -> bool:
-        return re.fullmatch(r"[A-Z]{2,6}", token) is not None
+    def is_literal_authority(token: str) -> bool:
+        return token in {"OpenAI", "API"}
 
     def is_model_code(token: str) -> bool:
         return (
@@ -607,23 +610,15 @@ def _ascii_is_name_acronym_or_number(text: str) -> bool:
             )
         )
 
-    def is_single_name(token: str) -> bool:
-        return (
-            2 <= len(token) <= 24
-            and token.isalpha()
-            and token[0].isupper()
-            and any(character.islower() for character in token)
-        )
-
     if len(tokens) == 1:
         return any(
             predicate(tokens[0])
-            for predicate in (is_number, is_acronym, is_model_code, is_single_name)
+            for predicate in (is_number, is_literal_authority, is_model_code)
         )
     if len(tokens) > 3:
         return False
     return (
-        (is_single_name(tokens[0]) or is_acronym(tokens[0]))
+        is_literal_authority(tokens[0])
         and is_model_code(tokens[1])
         and all(is_number(token) for token in tokens[2:])
     ) or (
@@ -642,7 +637,12 @@ def _plan_matches_target_language(locale: str, text: str) -> bool:
             (latin > 0 and latin >= 2 * (han + kana + hangul))
             or (latin == 0 and han + kana + hangul == 0 and bool(re.search(r"\d", text)))
         )
-    latin_authority = 0 if _ascii_is_name_acronym_or_number(text) else latin
+    ascii_tokens = re.findall(r"[A-Za-z0-9]+(?:[-+.][A-Za-z0-9]+)*%?", text)
+    latin_authority = latin - sum(
+        sum(character.isalpha() for character in token)
+        for token in ascii_tokens
+        if _ascii_is_name_acronym_or_number(token)
+    )
     if locale == "ja":
         traditional_chinese = bool(
             re.search(r"[與斷體國學關氣覺實應發讓對從將會這們裡麼]", text)
