@@ -3374,15 +3374,7 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
     ("error_type", "error_code", "broker_diagnostic", "expected_category"),
     [
         ("GeminiCliFailure", "CLI_NONZERO", None, "CLI_NONZERO"),
-        ("GeminiApiFailure", "API_AUTH", None, "AUTH"),
-        ("GeminiApiFailure", "API_RATE_LIMITED", None, "QUOTA"),
         ("GeminiApiFailure", "API_TRANSPORT_ERROR", None, "NETWORK"),
-        (
-            "GeminiApiFailure",
-            "API_MODEL_UNAVAILABLE",
-            None,
-            "MODEL_UNAVAILABLE",
-        ),
         ("JSONDecodeError", None, None, "MALFORMED_PAYLOAD"),
         (
             "V4BrokerFailure",
@@ -3396,9 +3388,10 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
             },
             "SCHEMA_INVALID_PAYLOAD",
         ),
+        ("GeminiApiFailure", "API_HTTP_ERROR", None, "PROVIDER_UNAVAILABLE"),
     ],
 )
-def test_transport_failure_taxonomy_is_closed_and_retryable(
+def test_transport_failure_retry_allowlist_preserves_logical_request_identity(
     tmp_path: Path,
     error_type: str,
     error_code: str | None,
@@ -3438,6 +3431,61 @@ def test_transport_failure_taxonomy_is_closed_and_retryable(
     )
     assert retry["request_sha256"] == first["request_sha256"]
     assert retry["transport_attempt"] == 1
+    assert retry["job_id"] != first["job_id"]
+    assert len(list((tmp_path / "outbox").glob("*.json"))) == 2
+    assert len(list((tmp_path / "failed").glob("*.json"))) == 1
+    classified = outbox.classify_external_failure(receipt)
+    assert classified == expected_category
+
+
+@pytest.mark.parametrize(
+    ("error_type", "error_code", "expected_category"),
+    [
+        ("GeminiApiFailure", "API_AUTH", "AUTH"),
+        ("GeminiApiFailure", "API_RATE_LIMITED", "QUOTA"),
+        ("GeminiApiFailure", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
+        ("GeminiCliFailure", "CLI_NOT_FOUND", "CLI_UNAVAILABLE"),
+    ],
+)
+def test_transport_failure_terminal_categories_do_not_enqueue_retry(
+    tmp_path: Path,
+    error_type: str,
+    error_code: str,
+    expected_category: str,
+) -> None:
+    client = outbox.OutboxGeminiClient(tmp_path, namespace="terminal-taxonomy")
+    first = outbox.create_external_request(
+        tmp_path,
+        namespace="terminal-taxonomy",
+        role="writer",
+        model=client.writer_model,
+        prompt="公開 synthetic terminal transport taxonomy",
+        response_schema=SCHEMA,
+    )
+    receipt = _failure_receipt(
+        first,
+        error_type=error_type,
+        error_code=error_code,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{first['job_id']}.json",
+        receipt,
+    )
+
+    with pytest.raises(ExternalJobFailed) as failure:
+        client.generate_json(
+            "writer",
+            "公開 synthetic terminal transport taxonomy",
+            SCHEMA,
+        )
+
+    assert failure.value.job_id == first["job_id"]
+    assert failure.value.request_sha256 == first["request_sha256"]
+    assert failure.value.failure_category == expected_category
+    assert failure.value.transport_attempts == 1
+    assert len(list((tmp_path / "outbox").glob("*.json"))) == 1
+    assert len(list((tmp_path / "failed").glob("*.json"))) == 1
+    assert not list((tmp_path / "completed").glob("*.json"))
     classified = outbox.classify_external_failure(receipt)
     assert classified == expected_category
 
