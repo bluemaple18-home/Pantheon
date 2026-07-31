@@ -1,7 +1,7 @@
 ---
 card_id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
 chain_id: PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
-status: WAITING_PRODUCTION_ACCEPTANCE_AUTHORIZATION
+status: CANARY_AUTHORIZED
 user_hold: false
 type: diagnostic-repair-mainline
 ownership: mainline
@@ -15,12 +15,14 @@ timezone: Asia/Taipei
 required_base_ref: origin/main
 required_base_sha: dde0cd214fea9b9e6567ed5ec7b7a82113cc836d
 proposed_branch: codex/four-lane-production-output-recovery-20260731
-thread_status: WAITING_USER_AUTHORIZATION
+thread_status: ACTIVE_PRODUCTION_ACCEPTANCE
 observe_dispatch_card: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731-RETRY-1
 observe_dispatch_key: v1:fbc0ab99ea1425b00d27b384ce04942232a2bff7fcf705a70321c19ea6952f4a
 observe_thread_id: 019fb598-204e-7cd0-b6b6-004b159365ba
-active_base_ref: v0.3.183
-active_base_sha: de68b6b283493a3e9ca5f80286c682cb7846735e
+active_base_ref: v0.3.185
+active_base_sha: 49df25b7bcb060942e6de5ebf27f9636dd7b8738
+rebase_backup_ref: backup/four-lane-pre-rebase-20260731
+rebase_completed_at: 2026-07-31T10:26:09+08:00
 observe_candidate: 63979fa6e7b2ea88011011f1655e269013e65662
 checkpoint_a: GO
 repair_dispatch_status: ALL_REPAIRS_INTEGRATED_OFFLINE
@@ -44,16 +46,24 @@ active_repair_threads:
     thread_id: 019fb5d8-3c6a-7c11-b507-a2f56c97a1ea
 integrated_repairs:
   - card_id: CARD-PANTHEON-FOUR-LANE-A2-NEW-CONTRACT-REPAIR-20260731
-    commit: 46322d1e4
+    commit: 8d7a64490
   - card_id: CARD-PANTHEON-FOUR-LANE-A4-MULTILINGUAL-CONTRACT-NATIVE-QUALITY-REPAIR-20260731
-    commit: fe0b0adb4
+    commit: 78329ebf5
   - card_id: CARD-PANTHEON-FOUR-LANE-A3-REWRITE-ELIGIBILITY-DEADLOCK-REPAIR-20260731
-    commit: 921353cb6
+    commit: be6f05381
 resolved_review_findings:
   - card_id: CARD-PANTHEON-FOUR-LANE-A3-REWRITE-ELIGIBILITY-DEADLOCK-REPAIR-20260731
     finding_id: A3-R1-MALFORMED-RETRY-SHAPE
-external_provider_calls_authorized: false
-production_mutation_authorized: false
+external_provider_calls_authorized: true
+production_mutation_authorized: true
+production_authorization_received_at: 2026-07-31T10:26:09+08:00
+production_authorization_scope:
+  - push verified repair baseline to origin/main
+  - align production runtime actor SHA
+  - one controlled real canary for new
+  - one controlled real canary for rewrite
+  - one controlled real canary for i18n-new
+  - one controlled real canary for i18n-rewrite
 ---
 
 # Pantheon 四條內容 Lane 端到端產出恢復卡
