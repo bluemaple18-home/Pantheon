@@ -88,3 +88,25 @@ additional Gemini calls for replay: 0
 
 At this checkpoint the explicitly capped second-round call counter is
 `7 / 40`. No candidate has yet been passed to Publisher.
+
+## Successful production release
+
+修補部署後，保留的 production candidate 經 Publisher dry-run 唯一命中本
+run。正式結果：
+
+```text
+run_id: auto-new-v1-20260731-122-01
+article_id: V2-MBTI-PAIR-INTP-ISFP-WORK
+version: 0.3.186
+commit: 1b845702db2cd561a4559d7aa5a6bab7954ba4cb
+tag: v0.3.186
+status: PUBLISHED
+validator_result: PASS
+pushed: true
+public_article_count: 504
+```
+
+生成 module：
+`app/web/static/article-expansion-agy-auto-new-v1-20260731-122-01.js`。release
+通過 clean-origin、Reviewer hash、deterministic quality、batch uniqueness、
+focused pipeline 與 release-record gate；不是 idle、fixture 或歷史發布。

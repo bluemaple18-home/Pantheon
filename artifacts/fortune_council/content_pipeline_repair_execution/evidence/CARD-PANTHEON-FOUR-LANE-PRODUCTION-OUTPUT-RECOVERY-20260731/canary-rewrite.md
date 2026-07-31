@@ -3,43 +3,36 @@
 ## Decision
 
 ```text
-status: NO-GO
+status: GO
 lane: rewrite
-run_id: legacy-manual-canary-v1-20260731-astrology-0003-astro-base-03
-source_article_id: ASTRO-BASE-03
-candidate_id: null
-publisher_decision: NOT_INVOKED
-release_commit: null
-release_tag: null
-public_result: none
+run_id: legacy-auto-sweep-v1-astrology-0004-astro-love-01-retry-01
+candidate_identity: legacy-auto-sweep-v1-astrology-0004-astro-love-01-retry-01/candidate.json
+article_id: ASTRO-LOVE-01
+publisher_decision: PUBLISHED_REWRITE
+release_commit: 2c1b5652b6b978335173c3382955166ec093de27
+release_tag: v0.3.187
+public_article_count: 504
+verified_at: 2026-07-31T14:50:05+08:00
 ```
-
-## Input selection
-
-The standard seeder first selected the real unattempted article
-`ASTRO-BASE-03`, but failed closed on a historical run identity collision. The
-old state points to a disappeared 2026-07-28 worktree. It was preserved.
-
-A unique manual-canary run was then registered from the current production
-article and source SHA using the same validated rewrite brief builder. No
-fixture was used and no historical state was reset.
 
 ## Evidence
 
-- Writer `99636d33...`: production attempt succeeded.
-- Reviewer `0620af80...`: terminal
-  `GeminiApiFailure / API_RATE_LIMITED / QUOTA`.
-- Run status: `failed` at `2026-07-31T10:45:51+08:00`.
-- Run directory contains `brief.json` and `public-brief.json` only.
-- No candidate、approval、Publisher transaction、release commit or tag exists.
+- 官方 seeder 在保留 orphan historical state 的前提下建立唯一 retry lineage；
+  不是 fixture，也沒有重置 production state。
+- 真實 candidate 與 review 存在；`ASTRO-LOVE-01` 最終 Reviewer verdict 為
+  `APPROVE`，findings 為空。
+- Publisher evidence：
+  `<publisher-state>/evidence/rewrite-0.3.187/rewrite-evidence.json`。
+- evidence 狀態為 `PUBLISHED_REWRITE`、`validator_result=PASS`、
+  `pushed=true`，且只發布本 run。
+- 生成 body override：
+  `app/web/static/article-rewrite-agy-rewrite-20260731-01.js`；registry 將
+  `ASTRO-LOVE-01` 對應至 `astrology-0004`。
 
 ## Acceptance mapping
 
-- real eligible source: PASS
-- real Writer transport: PASS
-- fresh candidate: FAIL
-- bounded failure classification: PASS
-- Publisher／release／public verification: NOT REACHED
-
-The quota failure is terminal under the production pool contract. No account
-fallback or manual resend was performed.
+- real eligible source／candidate／review：PASS
+- Publisher source-drift、hash、rewrite deterministic gate：PASS
+- release commit／tag／push：PASS
+- public generated artifact：PASS
+- idle、fixture 或 service-green substitute：未使用

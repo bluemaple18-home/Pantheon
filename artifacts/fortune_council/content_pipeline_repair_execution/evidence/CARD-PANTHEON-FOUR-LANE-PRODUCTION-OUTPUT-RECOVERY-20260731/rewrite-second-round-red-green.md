@@ -68,3 +68,31 @@ section/heading/paragraph 結構與內部語言禁漏，不再禁止正式 rewri
 第一次 Publisher transaction 結果為 `failed_recovered`、
 `candidate_preserved_deferred`；無 commit、push 或 release，且未重呼
 Gemini。
+
+## Successful production release
+
+修正 stale tests 後，保留的同一 candidate 與 Reviewer approval 再次經
+Publisher dry-run，且只命中：
+
+```text
+legacy-auto-sweep-v1-astrology-0004-astro-love-01-retry-01
+article_id: ASTRO-LOVE-01
+verdict: APPROVE
+findings: []
+```
+
+正式 release：
+
+```text
+version: 0.3.187
+commit: 2c1b5652b6b978335173c3382955166ec093de27
+tag: v0.3.187
+status: PUBLISHED_REWRITE
+validator_result: PASS
+pushed: true
+public_article_count: 504
+```
+
+Publisher evidence 為
+`<publisher-state>/evidence/rewrite-0.3.187/rewrite-evidence.json`；沒有重呼
+Gemini，第一次安全回滾也未被冒充成完成。

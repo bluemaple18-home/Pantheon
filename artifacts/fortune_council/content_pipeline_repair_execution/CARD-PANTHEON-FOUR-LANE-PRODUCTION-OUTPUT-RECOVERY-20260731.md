@@ -1,7 +1,7 @@
 ---
 card_id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
 chain_id: PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
-status: REPAIRING
+status: COMPLETE
 user_hold: false
 type: diagnostic-repair-mainline
 ownership: mainline
@@ -15,24 +15,20 @@ timezone: Asia/Taipei
 required_base_ref: origin/main
 required_base_sha: dde0cd214fea9b9e6567ed5ec7b7a82113cc836d
 proposed_branch: codex/four-lane-production-output-recovery-20260731
-thread_status: SECOND_ROUND_REPAIR_IN_PROGRESS
+thread_status: COMPLETE
 observe_dispatch_card: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731-RETRY-1
 observe_dispatch_key: v1:fbc0ab99ea1425b00d27b384ce04942232a2bff7fcf705a70321c19ea6952f4a
 observe_thread_id: 019fb598-204e-7cd0-b6b6-004b159365ba
-active_base_ref: v0.3.185
-active_base_sha: 49df25b7bcb060942e6de5ebf27f9636dd7b8738
+active_base_ref: v0.3.189
+active_base_sha: d9d1be2353bce1bc251e00f55d17523dcfeb18f9
 rebase_backup_ref: backup/four-lane-pre-rebase-20260731
 rebase_completed_at: 2026-07-31T10:26:09+08:00
 observe_candidate: 63979fa6e7b2ea88011011f1655e269013e65662
 checkpoint_a: GO
-repair_dispatch_status: ALL_REPAIRS_INTEGRATED_OFFLINE
-production_acceptance_status: NO_GO_ALL_FOUR_LANES
-runtime_actor_alignment: EXACT_FINAL_ORIGIN_MAIN_SERVICES_STOPPED
-production_acceptance_missing:
-  - new real end-to-end output
-  - rewrite real end-to-end output
-  - i18n-new real end-to-end output
-  - i18n-rewrite real end-to-end output
+repair_dispatch_status: ALL_REPAIRS_INTEGRATED_AND_PRODUCTION_VERIFIED
+production_acceptance_status: GO_ALL_FOUR_LANES
+runtime_actor_alignment: EXACT_FINAL_ORIGIN_MAIN_AFTER_EVIDENCE_PUSH_SERVICES_STOPPED
+production_acceptance_missing: []
 repair_cards_ready:
   - CARD-PANTHEON-FOUR-LANE-A2-NEW-CONTRACT-REPAIR-20260731
   - CARD-PANTHEON-FOUR-LANE-A3-REWRITE-ELIGIBILITY-DEADLOCK-REPAIR-20260731
@@ -64,7 +60,7 @@ production_authorization_scope:
   - one controlled real canary for rewrite
   - one controlled real canary for i18n-new
   - one controlled real canary for i18n-rewrite
-production_authorization_status: CONSUMED_NO_GO
+production_authorization_status: CONSUMED_GO
 second_round_authorized: true
 second_round_authorization_received_at: 2026-07-31T11:10:00+08:00
 second_round_authorization_basis: 使用者在得知四條 lane 尚未完成、且第二輪包含必要 Gemini calls 與 gate 通過後的 production publish 後，明確要求「沒好就繼續」
@@ -75,7 +71,7 @@ second_round_authorization_scope:
   - execute one fresh controlled i18n-new canary after repair deployment
   - execute one fresh controlled i18n-rewrite canary
   - publish each lane only after candidate, review, dry-run and Publisher gates pass
-second_round_authorization_status: IN_PROGRESS
+second_round_authorization_status: CONSUMED_GO
 second_round_external_call_budget: 40
 second_round_transport_attempts_per_request: 3
 second_round_semantic_repairs_per_run: 2
@@ -89,29 +85,38 @@ second_round_external_destination: Google Gemini
 canary_execution_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
 production_source_ref: origin/main
 production_runtime_ref: exact final origin/main after evidence commit
-production_release_commit: null
-production_release_tag: null
-production_publication_count: 0
+production_release_commit: d9d1be2353bce1bc251e00f55d17523dcfeb18f9
+production_release_tag: v0.3.189
+production_publication_count: 4
+production_public_article_count: 504
 production_services_loaded: false
 production_canary_attempts:
   - lane: new
-    status: NO_GO
-    run_id: auto-new-v1-20260731-121-01
-    blocker: API_RATE_LIMITED
-    replacement_pending_run_id: auto-new-v1-20260731-122-01
-    replacement_authorized: true
+    status: GO
+    run_id: auto-new-v1-20260731-122-01
+    article_id: V2-MBTI-PAIR-INTP-ISFP-WORK
+    release_commit: 1b845702db2cd561a4559d7aa5a6bab7954ba4cb
+    release_tag: v0.3.186
   - lane: rewrite
-    status: NO_GO
-    run_id: legacy-manual-canary-v1-20260731-astrology-0003-astro-base-03
-    blocker: API_RATE_LIMITED
+    status: GO
+    run_id: legacy-auto-sweep-v1-astrology-0004-astro-love-01-retry-01
+    article_id: ASTRO-LOVE-01
+    release_commit: 2c1b5652b6b978335173c3382955166ec093de27
+    release_tag: v0.3.187
   - lane: i18n-new
-    status: NO_GO
-    run_id: manual-i18n-new-canary-v1-20260731-en-v2-mbti-pair-intp-esfj-work
-    blocker: LocalePlanValidationError
+    status: GO
+    run_id: auto-i18n-en-cfd7211d31136567123c-replacement-01
+    article_id: V2-MBTI-PAIR-INTP-ISFP-WORK
+    locale: en
+    release_commit: 5fac6eb6626f54968de50f95eff97e3015a4e09e
+    release_tag: v0.3.188
   - lane: i18n-rewrite
-    status: NO_GO
-    run_id: manual-i18n-rewrite-canary-v1-20260731-en-expansion-50d-fortune-0039
-    blocker: API_HTTP_ERROR
+    status: GO
+    run_id: auto-i18n-en-daf6984c146f81cb5738
+    article_id: ASTRO-LOVE-01
+    locale: en
+    release_commit: d9d1be2353bce1bc251e00f55d17523dcfeb18f9
+    release_tag: v0.3.189
 ---
 
 # Pantheon 四條內容 Lane 端到端產出恢復卡
@@ -462,9 +467,10 @@ Publisher 必須正確接受四類合格 candidate，拒絕不合格 candidate�
 
 `READY_TO_DISPATCH → DIAGNOSING → REPAIRING → INTEGRATED → REVIEW_GO → CANARY_AUTHORIZED → CANARY_VERIFIED → COMPLETE`
 
-本卡已完成 repair、整合、strict review、主線同步與 runtime SHA 對齊，但四條
-production canary 均為 `NO_GO`，沒有 candidate 通過到 Publisher，也沒有
-release commit／tag／公開內容變更。使用者已授權第二輪修復、受控 Gemini
-canary 與 gate 通過後的 production publish。六個相關 LaunchAgent 暫時維持
-停止；`new` 保留中的 replacement repair job 會在修復版本部署完成後，以
-exact-claim 方式單獨執行。
+本卡已完成 repair、整合、strict review、四條受控 production canary 與主線
+驗收。`new`、`rewrite`、`i18n-new`、`i18n-rewrite` 分別發布為
+`v0.3.186`、`v0.3.187`、`v0.3.188`、`v0.3.189`；四條均有真實 candidate、
+Reviewer／deterministic gate、Publisher evidence、release commit／tag 與
+公開生成產物證據。六個相關 LaunchAgent 維持停止，未用 idle、服務綠燈或
+fixture 取代任何 production 產出。最終判定與逐條映射見
+`evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/final-acceptance.md`。

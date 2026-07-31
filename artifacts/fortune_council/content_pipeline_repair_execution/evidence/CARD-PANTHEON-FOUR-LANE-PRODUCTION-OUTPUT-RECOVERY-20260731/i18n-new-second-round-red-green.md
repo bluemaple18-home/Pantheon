@@ -232,3 +232,50 @@ git diff --check: PASS
 
 截至此點 production Gemini 外呼為 24/40；replacement 尚未使用任何
 semantic repair。
+
+### Final editorial repair, independent review and production release
+
+replacement 的後續模型產出仍反覆保留來源句法與模板式英文。沒有放寬
+`SOURCE_SYNTAX_TRANSFER` 或 `AI_TEMPLATE_STYLE`；最後採人工英文編輯：
+
+- 保留原 source SHA、22 個 facts 與 safety boundaries；
+- 保留 locale plan 的 4 個精確 H2；
+- 重新組織句法、段落與論證順序，不沿用來源 5×3 topology；
+- candidate、plan alignment 與 deterministic gate 均為 PASS。
+
+最終獨立 Gemini Reviewer job：
+
+```text
+92b7c6385538d712ce5e56838be2cec00fbec4ef
+verdict: APPROVE
+findings: []
+```
+
+canonical state：
+
+```text
+run_id: auto-i18n-en-cfd7211d31136567123c-replacement-01
+status: complete
+approved_by_reviewer: 1
+```
+
+Publisher dry-run 只命中本 replacement；正式結果：
+
+```text
+version: 0.3.188
+commit: 5fac6eb6626f54968de50f95eff97e3015a4e09e
+tag: v0.3.188
+status: PUBLISHED_TRANSLATION
+pushed: true
+public_article_count: 504
+```
+
+驗證：
+
+- 3 個 web tests：PASS；
+- 366 個 release tests：PASS；
+- canonical probes、release-record gate：PASS；
+- production browser 實際渲染英文頁，`lang`、canonical、H1、FAQ 與 console
+  均通過。
+
+截至此 release，production Gemini 外呼為 30/40。
