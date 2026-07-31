@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from scripts import agy_content_publisher as publisher
+from scripts import agy_gemini_coordinator as coordinator
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
@@ -1373,6 +1374,200 @@ def test_legacy_rewrite_backlog_blocks_reject_repair_until_all_legacy_attempted(
     assert summary["unattempted"] == 1
     assert summary["unattempted_articles"][0]["serial"] == "astrology-0002"
     assert summary["repair_rejects_allowed"] is False
+
+
+def test_legacy_rewrite_backlog_classifies_retry_terminal_states_without_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_specs = {
+        "rewrite-fresh": ("LEGACY-FRESH", "legacy-fresh", "APPROVE"),
+        "rewrite-deferred": ("LEGACY-DEFERRED", "legacy-deferred", "APPROVE"),
+        "rewrite-exhausted": (
+            "LEGACY-EXHAUSTED",
+            "legacy-exhausted",
+            "APPROVE",
+        ),
+        "rewrite-invalid": ("LEGACY-INVALID", "legacy-invalid", "APPROVE"),
+        "rewrite-rejected": ("LEGACY-REJECTED", "legacy-rejected", "REJECT"),
+        "rewrite-published": (
+            "LEGACY-PUBLISHED",
+            "legacy-published",
+            "APPROVE",
+        ),
+    }
+    for run_id, (article_id, slug, verdict) in run_specs.items():
+        _write_rewrite_run(
+            queue_root,
+            tmp_path / "runs" / run_id,
+            make_rewrite_article(article_id, slug),
+            verdict=verdict,
+        )
+    _write_json(
+        publisher._ledger_path(state_root),
+        {
+            **publisher._load_ledger(state_root),
+            "rewrite_released_runs": [{"run_id": "rewrite-published"}],
+        },
+    )
+    retry_payloads = {
+        "rewrite-deferred": {
+            "attempts": 1,
+            "next_eligible_at": "2999-01-01T00:00:00+08:00",
+            "eligibility": "deferred",
+        },
+        "rewrite-exhausted": {
+            "attempts": publisher.MAX_RETRY_ATTEMPTS,
+            "next_eligible_at": "2026-07-30T12:20:00+08:00",
+            "eligibility": "exhausted",
+        },
+        "rewrite-invalid": {
+            "attempts": 1,
+            "next_eligible_at": "not-a-timestamp",
+            "eligibility": "deferred",
+        },
+    }
+    retry_before: dict[Path, bytes] = {}
+    for run_id, payload in retry_payloads.items():
+        retry_path = publisher._retry_path(state_root, "rewrite", run_id)
+        _write_json(
+            retry_path,
+            {
+                "schema_version": 1,
+                "phase": "rewrite",
+                "run_id": run_id,
+                "max_attempts": publisher.MAX_RETRY_ATTEMPTS,
+                "candidate_preserved": True,
+                **payload,
+            },
+        )
+        retry_before[retry_path] = retry_path.read_bytes()
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "rewrite_aggregate_findings",
+        lambda *_args, **_kwargs: ([], []),
+    )
+    legacy_records = [
+        {
+            "id": article_id,
+            "serial": f"astrology-{index:04d}",
+            "articleCategory": "astrology",
+        }
+        for index, (article_id, _slug, _verdict) in enumerate(
+            run_specs.values(),
+            start=1,
+        )
+    ]
+    allowed_article_ids = {str(record["id"]) for record in legacy_records}
+
+    first = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids=allowed_article_ids,
+        legacy_records=legacy_records,
+    )
+    second = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids=allowed_article_ids,
+        legacy_records=legacy_records,
+    )
+    ready = publisher.collect_ready_rewrite_runs(
+        queue_root,
+        state_root,
+        limit=10,
+        allowed_article_ids=allowed_article_ids,
+    )
+
+    assert first == second
+    assert first["released"] == 1
+    assert first["reject"] == 1
+    assert first["clean_approve"] == 4
+    assert first["publish_ready_run_ids"] == ["rewrite-fresh"]
+    assert first["retry_deferred_run_ids"] == ["rewrite-deferred"]
+    assert first["retry_exhausted_run_ids"] == ["rewrite-exhausted"]
+    assert first["retry_invalid_run_ids"] == ["rewrite-invalid"]
+    assert [state["run_id"] for state, _candidate, _review, _brief in ready] == [
+        "rewrite-fresh"
+    ]
+    assert {
+        path: path.read_bytes() for path in retry_before
+    } == retry_before
+
+
+@pytest.mark.parametrize("retry_payload", [[], {"attempts": None}])
+def test_malformed_rewrite_retry_blocks_coordinator_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    retry_payload: object,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    run_id = "rewrite-malformed"
+    article_id = "LEGACY-MALFORMED"
+    _write_rewrite_run(
+        queue_root,
+        tmp_path / "runs" / run_id,
+        make_rewrite_article(article_id, "legacy-malformed"),
+    )
+    retry_path = publisher._retry_path(state_root, "rewrite", run_id)
+    _write_json(retry_path, retry_payload)
+    retry_before = retry_path.read_bytes()
+    legacy_records = [
+        {
+            "id": article_id,
+            "serial": "astrology-0001",
+            "articleCategory": "astrology",
+        },
+        {
+            "id": "LEGACY-UNATTEMPTED",
+            "serial": "astrology-0002",
+            "articleCategory": "astrology",
+        },
+    ]
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "rewrite_aggregate_findings",
+        lambda *_args, **_kwargs: ([], []),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "legacy_article_records",
+        lambda _repo: legacy_records,
+    )
+
+    first = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={str(record["id"]) for record in legacy_records},
+        legacy_records=legacy_records,
+    )
+    result = coordinator.seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        source_commit="a" * 40,
+    )
+    second = publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids={str(record["id"]) for record in legacy_records},
+        legacy_records=legacy_records,
+    )
+
+    assert first == second
+    assert first["retry_invalid"] == 1
+    assert first["retry_invalid_run_ids"] == [run_id]
+    assert result["status"] == "rewrite_retry_blocked"
+    assert result["backlog"]["retry_invalid"] == 1
+    assert retry_path.read_bytes() == retry_before
+    assert not run_root.exists()
 
 
 def test_legacy_rewrite_backlog_counts_active_runs_as_attempted(tmp_path: Path) -> None:

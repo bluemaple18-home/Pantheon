@@ -445,17 +445,35 @@ def _reconcile_unresolved_push(repo_root: Path, state_root: Path, git: GitRunner
     }
 
 
-def _retry_eligible(state_root: Path, phase: str, run_id: str) -> bool:
+def _retry_eligibility(state_root: Path, phase: str, run_id: str) -> str:
     path = _retry_path(state_root, phase, run_id)
     if not path.is_file():
-        return True
+        return "eligible"
     try:
         retry = _read_json(path)
+    except (OSError, json.JSONDecodeError):
+        return "invalid"
+    if not isinstance(retry, dict):
+        return "invalid"
+    try:
         attempts = int(retry.get("attempts", 0))
+    except (TypeError, ValueError):
+        return "invalid"
+    if attempts >= MAX_RETRY_ATTEMPTS:
+        return "exhausted"
+    try:
         next_eligible = datetime.fromisoformat(str(retry["next_eligible_at"]))
-    except (OSError, ValueError, KeyError, json.JSONDecodeError):
-        return False
-    return attempts < MAX_RETRY_ATTEMPTS and datetime.now().astimezone() >= next_eligible
+        return (
+            "eligible"
+            if datetime.now().astimezone() >= next_eligible
+            else "deferred"
+        )
+    except (KeyError, TypeError, ValueError):
+        return "invalid"
+
+
+def _retry_eligible(state_root: Path, phase: str, run_id: str) -> bool:
+    return _retry_eligibility(state_root, phase, run_id) == "eligible"
 
 
 def _record_retry_failure(
@@ -1705,6 +1723,10 @@ def summarize_legacy_rewrite_backlog(
         "released": 0,
         "quarantined": 0,
         "clean_approve": 0,
+        "publish_ready": 0,
+        "retry_deferred": 0,
+        "retry_exhausted": 0,
+        "retry_invalid": 0,
         "reject": 0,
         "active_or_incomplete": 0,
         "non_legacy": 0,
@@ -1712,6 +1734,10 @@ def summarize_legacy_rewrite_backlog(
         "attempted": 0,
         "unattempted": 0,
         "clean_approve_run_ids": [],
+        "publish_ready_run_ids": [],
+        "retry_deferred_run_ids": [],
+        "retry_exhausted_run_ids": [],
+        "retry_invalid_run_ids": [],
         "reject_run_ids": [],
         "unattempted_articles": [],
     }
@@ -1774,6 +1800,18 @@ def summarize_legacy_rewrite_backlog(
         if _review_is_clean_approve(review) and not _rewrite_findings_for_run(candidate, brief):
             summary["clean_approve"] += 1
             summary["clean_approve_run_ids"].append(run_id)
+            retry_eligibility = _retry_eligibility(
+                state_root,
+                "rewrite",
+                run_id,
+            )
+            count_key = (
+                "publish_ready"
+                if retry_eligibility == "eligible"
+                else f"retry_{retry_eligibility}"
+            )
+            summary[count_key] += 1
+            summary[f"{count_key}_run_ids"].append(run_id)
         else:
             summary["reject"] += 1
             summary["reject_run_ids"].append(run_id)

@@ -545,6 +545,260 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+def test_seed_legacy_rewrite_runs_advances_past_exhausted_clean_approvals(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    current_body = [
+        {
+            "heading": "現況",
+            "paragraphs": ["這是一段舊文內容，等待改得更貼近讀者生活。"],
+        }
+    ]
+    records: list[dict[str, object]] = []
+    inventory: dict[str, dict[str, object]] = {}
+    completed: dict[str, tuple[dict[str, object], dict[str, object], dict[str, object]]] = {}
+    retry_before: dict[Path, bytes] = {}
+    for index in range(1, 7):
+        article_id = f"LEGACY-{index:03d}"
+        serial = f"tarot-{index:03d}"
+        record = {
+            "id": article_id,
+            "product": "tarot",
+            "articleCategory": "tarot",
+            "serial": serial,
+            "slug": f"legacy-{index:03d}",
+            "urlSlug": f"legacy-{index:03d}",
+            "primaryKeyword": f"塔羅舊文{index}",
+            "title": f"塔羅舊文{index}",
+            "description": f"描述{index}",
+            "answer": f"答案{index}",
+            "faq": [{"question": f"問{index}", "answer": f"答{index}"}],
+            "tags": ["塔羅"],
+            "path": f"articles/tarot/{serial}",
+        }
+        records.append(record)
+        inventory[article_id] = {
+            "id": article_id,
+            "record": record,
+            "canonicalPath": f"/articles/tarot/{serial}",
+            "currentBody": current_body,
+            "published": "2026-01-01",
+            "updated": "2026-01-01",
+        }
+        if index == 6:
+            continue
+        run_id = f"rewrite-approved-{index}"
+        run_dir = tmp_path / "completed-runs" / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "mode": "rewrite_existing_body",
+                    "articles": [{"article_id": article_id}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+        }
+        candidate = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "rewrite_existing_body",
+            "articles": [{"article_id": article_id}],
+        }
+        review = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "articles": [
+                {
+                    "article_id": article_id,
+                    "verdict": "APPROVE",
+                    "hard_failure": False,
+                    "findings": [],
+                }
+            ],
+        }
+        completed[run_id] = (state, candidate, review)
+        state_path = queue_root / "runs" / f"{run_id}.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        retry_path = coordinator.publisher._retry_path(state_root, "rewrite", run_id)
+        retry_path.parent.mkdir(parents=True, exist_ok=True)
+        retry_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "phase": "rewrite",
+                    "run_id": run_id,
+                    "attempts": coordinator.publisher.MAX_RETRY_ATTEMPTS,
+                    "max_attempts": coordinator.publisher.MAX_RETRY_ATTEMPTS,
+                    "next_eligible_at": "2026-07-30T12:20:00+08:00",
+                    "eligibility": "exhausted",
+                    "candidate_preserved": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        retry_before[retry_path] = retry_path.read_bytes()
+
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "_load_completed_run",
+        lambda path: completed[json.loads(path.read_text(encoding="utf-8"))["run_id"]],
+    )
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "_load_rewrite_brief",
+        lambda run_dir, _run_id: json.loads(
+            (run_dir / "brief.json").read_text(encoding="utf-8")
+        ),
+    )
+    monkeypatch.setattr(
+        coordinator.publisher.pipeline,
+        "rewrite_aggregate_findings",
+        lambda *_args, **_kwargs: ([], []),
+    )
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "legacy_article_records",
+        lambda _repo: records,
+    )
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "_existing_rewrite_inventory",
+        lambda _repo: inventory,
+    )
+
+    allowed_article_ids = {str(record["id"]) for record in records}
+    backlog = coordinator.publisher.summarize_legacy_rewrite_backlog(
+        queue_root,
+        state_root,
+        allowed_article_ids=allowed_article_ids,
+        legacy_records=records,
+    )
+    ready = coordinator.publisher.collect_ready_rewrite_runs(
+        queue_root,
+        state_root,
+        allowed_article_ids=allowed_article_ids,
+    )
+    result = seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        max_new_runs=1,
+        source_commit="a" * 40,
+    )
+
+    assert backlog["clean_approve"] == 5
+    assert ready == []
+    assert result["status"] == "seeded"
+    assert backlog["publish_ready"] == 0
+    assert backlog["retry_exhausted"] == 5
+    assert result["created_run_ids"] == [
+        "legacy-auto-sweep-v1-tarot-006-legacy-006"
+    ]
+    assert len(list((queue_root / "runs").glob("*.json"))) == 6
+    assert {
+        path: path.read_bytes() for path in retry_before
+    } == retry_before
+
+
+@pytest.mark.parametrize("blocked_field", ["retry_deferred", "retry_invalid"])
+def test_seed_legacy_rewrite_runs_surfaces_non_idle_retry_blocker(
+    tmp_path: Path,
+    monkeypatch,
+    blocked_field: str,
+) -> None:
+    backlog = {
+        "released": 0,
+        "clean_approve": 1,
+        "publish_ready": 0,
+        "retry_deferred": 0,
+        "retry_exhausted": 0,
+        "retry_invalid": 0,
+        "reject": 0,
+        "active_or_incomplete": 0,
+        "non_legacy": 0,
+        "legacy_total": 2,
+        "attempted": 1,
+        "unattempted": 1,
+        "clean_approve_run_ids": ["rewrite-blocked"],
+        "unattempted_articles": [],
+    }
+    backlog[blocked_field] = 1
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "legacy_article_records",
+        lambda _repo: [{"id": "LEGACY-001"}],
+    )
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: backlog,
+    )
+
+    result = seed_legacy_rewrite_runs(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        tmp_path / "private-runs",
+        source_commit="a" * 40,
+    )
+
+    assert result["status"] == "rewrite_retry_blocked"
+    assert result["created"] == 0
+    assert result["backlog"][blocked_field] == 1
+    assert not (tmp_path / "private-runs").exists()
+
+
+def test_seed_legacy_rewrite_runs_surfaces_exhausted_terminal_when_inventory_is_done(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "legacy_article_records",
+        lambda _repo: [{"id": "LEGACY-001"}],
+    )
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: {
+            "clean_approve": 1,
+            "publish_ready": 0,
+            "retry_exhausted": 1,
+            "unattempted": 0,
+        },
+    )
+
+    result = seed_legacy_rewrite_runs(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        tmp_path / "private-runs",
+        source_commit="a" * 40,
+    )
+
+    assert result["status"] == "rewrite_retry_exhausted"
+    assert result["created"] == 0
+    assert result["backlog"]["retry_exhausted"] == 1
+    assert not (tmp_path / "private-runs").exists()
+
+
 def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(tmp_path: Path, monkeypatch) -> None:
     repo_root = tmp_path / "repo"
     queue_root = tmp_path / "queue"
