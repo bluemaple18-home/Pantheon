@@ -76,6 +76,16 @@ second_round_authorization_scope:
   - execute one fresh controlled i18n-rewrite canary
   - publish each lane only after candidate, review, dry-run and Publisher gates pass
 second_round_authorization_status: IN_PROGRESS
+second_round_external_call_budget: 40
+second_round_transport_attempts_per_request: 3
+second_round_semantic_repairs_per_run: 2
+second_round_schema_repairs_per_semantic_generation: 2
+second_round_replacement_runs_per_lane: 1
+second_round_payload_scope:
+  - content prompts
+  - source facts
+  - response schemas
+second_round_external_destination: Google Gemini
 canary_execution_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
 production_source_ref: origin/main
 production_runtime_ref: exact final origin/main after evidence commit

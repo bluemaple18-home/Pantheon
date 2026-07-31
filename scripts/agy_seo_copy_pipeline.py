@@ -264,6 +264,7 @@ BANNED_PHRASES = {
 MACHINE_OWNED_REVIEW_CODES = {
     "answer_length",
     "banned_phrase",
+    "banned_phrase_usage",
     "body_length",
     "body_length_insufficient",
     "description_boundary",

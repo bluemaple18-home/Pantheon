@@ -3577,6 +3577,10 @@ def test_run_writer_reviewer_ignores_false_machine_check_from_external_reviewer(
                         "findings": [
                             {"code": "body_length_insufficient", "message": "錯誤聲稱正文不足 1300 字"},
                             {"code": "paragraph_length_violation", "message": "錯誤聲稱段落不足 80 字"},
+                            {
+                                "code": "banned_phrase_usage",
+                                "message": "錯誤把 policy 未禁止的文字判成禁詞",
+                            },
                         ],
                     }
                 ]
