@@ -336,9 +336,9 @@ def external_locale_plan(
                 "coverage_mapping": [
                     {
                         "source_fact_id": fact["fact_id"],
-                        "planned_h2_index": (
-                            index + coverage_shift
-                        ) % len(headings),
+                        "planned_h2_slot": (
+                            f"h2-{((index + coverage_shift) % len(headings)) + 1}"
+                        ),
                         "coverage_note": localized["coverage_note"],
                         "safety_boundary": fact["safety_boundary"],
                     }
@@ -954,11 +954,11 @@ def test_external_locale_plan_schema_locks_current_brief_coverage() -> None:
     assert coverage_schema["items"]["properties"]["source_fact_id"]["enum"] == [
         fact["fact_id"] for fact in facts
     ]
-    assert coverage_schema["items"]["properties"]["planned_h2_index"]["enum"] == [
-        0,
-        1,
-        2,
-        3,
+    assert coverage_schema["items"]["properties"]["planned_h2_slot"]["enum"] == [
+        "h2-1",
+        "h2-2",
+        "h2-3",
+        "h2-4",
     ]
     assert item_schema["properties"]["ordered_h2_outline"]["minItems"] == 4
     assert item_schema["properties"]["ordered_h2_outline"]["maxItems"] == 4
@@ -980,20 +980,20 @@ def test_locale_plan_resolves_coverage_by_outline_index() -> None:
         for mapping in plan["articles"][0]["coverage_mapping"]
     )
     assert all(
-        "planned_h2_index" not in mapping
+        "planned_h2_slot" not in mapping
         for mapping in plan["articles"][0]["coverage_mapping"]
     )
 
 
-@pytest.mark.parametrize("heading_index", [4, 5, True])
-def test_locale_plan_rejects_coverage_outline_index_outside_generated_outline(
-    heading_index: object,
+@pytest.mark.parametrize("heading_slot", ["h2-0", "h2-5", 1, True])
+def test_locale_plan_rejects_coverage_outline_slot_outside_generated_outline(
+    heading_slot: object,
 ) -> None:
     brief = non_tarot_translation_brief()
     external = external_locale_plan(brief)
-    external["articles"][0]["coverage_mapping"][0]["planned_h2_index"] = heading_index
+    external["articles"][0]["coverage_mapping"][0]["planned_h2_slot"] = heading_slot
 
-    with pytest.raises(ValueError, match="coverage heading index"):
+    with pytest.raises(ValueError, match="coverage heading slot"):
         multilingual._hydrate_locale_plan(
             brief,
             external,

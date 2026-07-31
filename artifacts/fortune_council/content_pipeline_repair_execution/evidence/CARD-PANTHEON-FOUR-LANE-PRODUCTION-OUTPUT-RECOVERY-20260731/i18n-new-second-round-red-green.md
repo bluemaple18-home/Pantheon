@@ -40,7 +40,7 @@ Closed structural diagnostics, without printing provider text:
    - Supported: the response passed the provider schema envelope and failed
    only at the deterministic cross-field check.
 
-## Minimal repair
+## First repair
 
 - External coverage now uses `planned_h2_index`, an enum of `0..3`.
 - The external outline is fixed at exactly four H2s, which remains inside the
@@ -82,3 +82,37 @@ confirmation_status: received for bounded second-round canaries and gated publis
 execution_status: pending repair deployment
 remaining_risk: provider quota or availability can still produce a typed NO-GO
 ```
+
+## Live schema compatibility follow-up
+
+部署 first repair 後，同一個 `i18n-new` writer request 由兩個不同 production
+credential slot 呼叫；兩次都在 1 秒內回 `API_HTTP_ERROR`，且
+`request_sha256` 完全相同。相同模型剛完成 `rewrite` Writer，排除模型整體
+不可用；未浪費第 3 次 transport attempt 重送同一 schema。
+
+根據 Gemini structured-output 契約，string enum 是穩定的分類約束；為避開
+live endpoint 對 nested multi-value numeric enum 的接受差異，second repair
+把 external 欄位改為：
+
+```text
+planned_h2_slot: h2-1 | h2-2 | h2-3 | h2-4
+```
+
+本地 hydration 將 slot 解析為 outline index，再寫回既有 internal
+`planned_h2` canonical string。模型仍不能複製、改寫或發明 coverage H2；
+錯誤型別、未知 slot 與超界 slot 全部 fail closed。
+
+RED：
+
+```text
+KeyError: planned_h2_slot
+```
+
+GREEN：
+
+```text
+tests/test_agy_multilingual_pipeline.py: 163 passed
+git diff --check: PASS
+```
+
+兩個舊 schema 外呼已計入授權額度；second repair 尚未呼叫 provider。

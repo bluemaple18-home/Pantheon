@@ -505,16 +505,16 @@ def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "source_fact_id": {"type": "string", "enum": source_fact_ids},
-            "planned_h2_index": {
-                "type": "integer",
-                "enum": [0, 1, 2, 3],
+            "planned_h2_slot": {
+                "type": "string",
+                "enum": ["h2-1", "h2-2", "h2-3", "h2-4"],
             },
             "coverage_note": {"type": "string"},
             "safety_boundary": {"type": "boolean"},
         },
         "required": [
             "source_fact_id",
-            "planned_h2_index",
+            "planned_h2_slot",
             "coverage_note",
             "safety_boundary",
         ],
@@ -894,20 +894,21 @@ def _hydrate_locale_plan(
         for mapping in item["coverage_mapping"]:
             if set(mapping) != {
                 "source_fact_id",
-                "planned_h2_index",
+                "planned_h2_slot",
                 "coverage_note",
                 "safety_boundary",
             }:
                 raise ValueError(
                     f"external locale plan coverage fields are strict for {slot}"
                 )
-            heading_index = mapping.pop("planned_h2_index")
-            if (
-                type(heading_index) is not int
-                or type(heading_index) is bool
-                or not 0 <= heading_index < len(outline)
-            ):
-                raise ValueError(f"locale plan coverage heading index differs for {slot}")
+            heading_slot = mapping.pop("planned_h2_slot")
+            heading_slots = {
+                f"h2-{index + 1}": index
+                for index in range(len(outline))
+            }
+            if type(heading_slot) is not str or heading_slot not in heading_slots:
+                raise ValueError(f"locale plan coverage heading slot differs for {slot}")
+            heading_index = heading_slots[heading_slot]
             mapping["planned_h2"] = outline[heading_index]
         articles.append(item)
     plan = {
@@ -933,7 +934,7 @@ def _plan_prompt(
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
             "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
-            "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_index 必須使用其零起算索引，不得另寫或改寫 H2 文字。",
+            "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
             "generation:",
