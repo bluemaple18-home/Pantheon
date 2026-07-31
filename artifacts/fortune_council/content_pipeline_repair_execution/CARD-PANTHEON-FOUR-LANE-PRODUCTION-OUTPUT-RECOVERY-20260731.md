@@ -1,7 +1,7 @@
 ---
 card_id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
 chain_id: PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
-status: CANARY_AUTHORIZED
+status: BLOCKED
 user_hold: false
 type: diagnostic-repair-mainline
 ownership: mainline
@@ -15,7 +15,7 @@ timezone: Asia/Taipei
 required_base_ref: origin/main
 required_base_sha: dde0cd214fea9b9e6567ed5ec7b7a82113cc836d
 proposed_branch: codex/four-lane-production-output-recovery-20260731
-thread_status: ACTIVE_PRODUCTION_ACCEPTANCE
+thread_status: WAITING_USER_AUTHORIZATION_AND_REPAIR
 observe_dispatch_card: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731-RETRY-1
 observe_dispatch_key: v1:fbc0ab99ea1425b00d27b384ce04942232a2bff7fcf705a70321c19ea6952f4a
 observe_thread_id: 019fb598-204e-7cd0-b6b6-004b159365ba
@@ -26,8 +26,8 @@ rebase_completed_at: 2026-07-31T10:26:09+08:00
 observe_candidate: 63979fa6e7b2ea88011011f1655e269013e65662
 checkpoint_a: GO
 repair_dispatch_status: ALL_REPAIRS_INTEGRATED_OFFLINE
-production_acceptance_status: NOT_STARTED
-runtime_actor_alignment: NOT_VERIFIED_AFTER_INTEGRATION
+production_acceptance_status: NO_GO_ALL_FOUR_LANES
+runtime_actor_alignment: VERIFIED_SHA_ALIGNED_SERVICES_STOPPED
 production_acceptance_missing:
   - new real end-to-end output
   - rewrite real end-to-end output
@@ -64,6 +64,32 @@ production_authorization_scope:
   - one controlled real canary for rewrite
   - one controlled real canary for i18n-new
   - one controlled real canary for i18n-rewrite
+production_authorization_status: CONSUMED_NO_GO
+production_source_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+production_runtime_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+production_release_commit: null
+production_release_tag: null
+production_publication_count: 0
+production_services_loaded: false
+production_canary_attempts:
+  - lane: new
+    status: NO_GO
+    run_id: auto-new-v1-20260731-121-01
+    blocker: API_RATE_LIMITED
+    replacement_pending_run_id: auto-new-v1-20260731-122-01
+    replacement_authorized: false
+  - lane: rewrite
+    status: NO_GO
+    run_id: legacy-manual-canary-v1-20260731-astrology-0003-astro-base-03
+    blocker: API_RATE_LIMITED
+  - lane: i18n-new
+    status: NO_GO
+    run_id: manual-i18n-new-canary-v1-20260731-en-v2-mbti-pair-intp-esfj-work
+    blocker: LocalePlanValidationError
+  - lane: i18n-rewrite
+    status: NO_GO
+    run_id: manual-i18n-rewrite-canary-v1-20260731-en-expansion-50d-fortune-0039
+    blocker: API_HTTP_ERROR
 ---
 
 # Pantheon 四條內容 Lane 端到端產出恢復卡
@@ -414,4 +440,7 @@ Publisher 必須正確接受四類合格 candidate，拒絕不合格 candidate�
 
 `READY_TO_DISPATCH → DIAGNOSING → REPAIRING → INTEGRATED → REVIEW_GO → CANARY_AUTHORIZED → CANARY_VERIFIED → COMPLETE`
 
-本卡目前僅為 `READY_TO_DISPATCH`；尚未建立正式 thread、worktree 或 branch，未執行 provider call，也未修改 production。
+本卡已完成 repair、整合、strict review、主線同步與 runtime SHA 對齊，但四條
+production canary 均為 `NO_GO`，沒有 candidate 通過到 Publisher，也沒有
+release commit／tag／公開內容變更。六個相關 LaunchAgent 維持停止；`new`
+另有一筆未授權 replacement repair job 保留在 outbox，不會自動執行。
