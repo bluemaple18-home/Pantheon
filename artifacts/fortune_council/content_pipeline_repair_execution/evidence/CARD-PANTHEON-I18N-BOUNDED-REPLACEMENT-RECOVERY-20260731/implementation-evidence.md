@@ -7,7 +7,8 @@
 最終重新驗證主線：`2066de2c2`（`v0.3.221`）
 原始實作 commit：`7002e135f`
 後續修補：`5386447c1`、`f00298681`
-最終部署 commit：`51d6cbb5c`
+Canary execution runtime：`51d6cbb5c`
+最終 production actor：evidence commit 後精確對齊 `origin/main`
 狀態：`DEPLOYED_CANARY_NO_GO_QUALITY`
 Production canary：`HOLD`
 

@@ -11,8 +11,9 @@ implementation_commit: 7002e135f
 followup_repair_commits:
   - 5386447c1
   - f00298681
-deployed_main_sha: 51d6cbb5c
-deployed_actor_sha: 51d6cbb5c
+canary_execution_sha: 51d6cbb5c
+deployed_main_ref: origin/main
+deployed_actor_alignment: EXACT_ORIGIN_MAIN_AFTER_EVIDENCE_COMMIT
 user_hold: false
 production_canary_hold: true
 jira: not-applicable
@@ -208,8 +209,9 @@ AUTH／QUOTA／source drift／quality rejection fixture 不建立 replacement，
 完成狀態：`SLICE-I18N-REPL-001` 至 `SLICE-I18N-REPL-004` 均已完成；原始
 bounded replacement 修復為 `7002e135f`，後續再以 `5386447c1` 收回
 `rebuild_outline` 的 deterministic authority，並以 `f00298681` 補上逐欄
-target-locale Writer 契約。Production actor 與 `origin/main` 最終對齊
-`51d6cbb5c`；full Flash provider capability 試驗已 NO-GO 並安全撤回。
+target-locale Writer 契約。Canary execution runtime 為 `51d6cbb5c`；evidence
+commit 後 production actor 與 `origin/main` 依 ref 保持精確對齊。full Flash
+provider capability 試驗已 NO-GO 並安全撤回。
 
 Production canary 已證明 flash-lite provider 可用，並真實走到 candidate、
 deterministic findings 與 Reviewer；但三個獨立 `i18n-new` replacement 仍因

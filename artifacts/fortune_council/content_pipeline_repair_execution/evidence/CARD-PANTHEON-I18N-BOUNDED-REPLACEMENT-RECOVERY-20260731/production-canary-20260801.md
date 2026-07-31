@@ -80,12 +80,14 @@ payload 的大型 enum 已移除，實際 enum max 為 4，但 request 仍立即
 - bounded replacement implementation: `7002e135f`
 - deterministic rebuild authority repair: `5386447c1`
 - target-locale prompt repair: `f00298681`
-- final `origin/main` / production actor: `51d6cbb5ce45944863d50efe2d93fea795068a52`
+- canary execution runtime: `51d6cbb5ce45944863d50efe2d93fea795068a52`
+- final production source / actor: evidence commit 後精確對齊 `origin/main` ref
 - final runtime digest:
   `878b0a2c3a039dc0522ac69627926963b1bdad7f113b4c7a037b2354227b2814`
 - Publisher deployment preflight: `status=ready`；actor、queue、state、SHA、digest
   與 push mode 全部 matched
-- Publisher installed expected SHA/digest：與上述值一致
+- Publisher installed expected SHA：精確等於 evidence commit 後的
+  `origin/main`；expected digest 與上述 runtime digest 一致
 
 六個相關 LaunchAgent 均未載入：Publisher、coordinator、new、rewrite、
 i18n-new、i18n-rewrite。
