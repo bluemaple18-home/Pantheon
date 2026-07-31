@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.200] - 2026-07-31
+
+- Release tag：`v0.3.200`
+- 公開文章總數：509（舊文重寫，不新增 registry 條目）
+- 發布範圍：套用 Gemini Reviewer APPROVE 且 deterministic gate 通過的舊文 body override 2 篇；run_id：legacy-auto-sweep-v1-life-direction-0010-theme-life-10, legacy-auto-sweep-v1-life-direction-0008-theme-life-08。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、rewrite deterministic gate、source body drift gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-publish-actor/.work/content-publisher/evidence/rewrite-0.3.200`
+
 ## [0.3.199] - 2026-07-31
 
 - Release tag：`v0.3.199`
