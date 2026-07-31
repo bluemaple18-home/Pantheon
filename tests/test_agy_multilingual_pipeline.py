@@ -674,6 +674,69 @@ def test_locale_plan_accepts_native_text_with_closed_ascii_literal(
     assert multilingual._plan_matches_target_language(locale, text)
 
 
+@pytest.mark.parametrize(
+    ("locale", "query"),
+    [
+        ("ja", "ENTJ ENTP 恋愛 相性"),
+        ("ko", "ENTJ ENTP 연애 적합성"),
+    ],
+)
+def test_locale_plan_accepts_source_acronyms_in_native_query(
+    locale: str,
+    query: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    target = brief["articles"][0]
+    assert isinstance(target, dict)
+    source = target["source"]
+    assert isinstance(source, dict)
+    source["title"] = "ENTJ 與 ENTP 的 MBTI 戀愛互動"
+    target["source_sha256"] = multilingual.source_sha256(source)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    assert isinstance(item, dict)
+    item["native_query_phrasings"] = [query]
+
+    multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+
+@pytest.mark.parametrize(
+    ("locale", "query"),
+    [
+        ("ja", "ZXCV QWER 恋愛 相性"),
+        ("ko", "ZXCV QWER 연애 적합성"),
+    ],
+)
+def test_locale_plan_rejects_unrelated_acronyms_in_native_query(
+    locale: str,
+    query: str,
+) -> None:
+    brief = non_tarot_translation_brief(locale)
+    target = brief["articles"][0]
+    assert isinstance(target, dict)
+    source = target["source"]
+    assert isinstance(source, dict)
+    source["title"] = "ENTJ 與 ENTP 的 MBTI 戀愛互動"
+    target["source_sha256"] = multilingual.source_sha256(source)
+    external = external_locale_plan(brief)
+    item = external["articles"][0]
+    assert isinstance(item, dict)
+    item["native_query_phrasings"] = [query]
+
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
 def test_locale_plan_accepts_valid_japanese_kanji_only_heading() -> None:
     assert multilingual._plan_matches_target_language("ja", "実践方法")
 

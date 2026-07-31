@@ -668,7 +668,21 @@ def _ascii_is_name_acronym_or_number(text: str) -> bool:
     )
 
 
-def _plan_matches_target_language(locale: str, text: str) -> bool:
+def _source_ascii_authorities(source: dict[str, Any]) -> frozenset[str]:
+    return frozenset(
+        re.findall(
+            r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]{1,15}(?![A-Za-z0-9])",
+            _visible_text(source),
+        )
+    )
+
+
+def _plan_matches_target_language(
+    locale: str,
+    text: str,
+    *,
+    source_ascii_authorities: frozenset[str] = frozenset(),
+) -> bool:
     latin = len(re.findall(r"[A-Za-z]", text))
     han = len(re.findall(r"[\u3400-\u9fff]", text))
     kana = len(re.findall(r"[\u3040-\u30ff]", text))
@@ -682,7 +696,10 @@ def _plan_matches_target_language(locale: str, text: str) -> bool:
     latin_authority = latin - sum(
         sum(character.isalpha() for character in token)
         for token in ascii_tokens
-        if _ascii_is_name_acronym_or_number(token)
+        if (
+            _ascii_is_name_acronym_or_number(token)
+            or token in source_ascii_authorities
+        )
     )
     if locale == "ja":
         traditional_chinese = bool(
@@ -813,8 +830,13 @@ def validate_locale_plan(
                 for mapping_index, mapping in enumerate(mappings)
             ],
         ]
+        source_ascii_authorities = _source_ascii_authorities(target["source"])
         for field, value in semantic_items:
-            if not _plan_matches_target_language(str(target["locale"]), value):
+            if not _plan_matches_target_language(
+                str(target["locale"]),
+                value,
+                source_ascii_authorities=source_ascii_authorities,
+            ):
                 raise ValueError(
                     f"locale plan native locale language differs for {slot}.{field}"
                 )

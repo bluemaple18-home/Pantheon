@@ -118,3 +118,24 @@ crash cleanup 缺口。
 focused publisher + multilingual + web: 327 passed, 2 existing warnings
 full suite: 828 passed, 2 existing warnings
 ```
+
+## Production follow-up：source acronym 語言判定
+
+- `v0.3.196` 已由 production Publisher 發布 1 篇新文章，公開文章總數
+  由 507 增至 508；`v0.3.197` 已發布 3 篇 rewrite。
+- `i18n-new` 英文 run `auto-i18n-en-9460ffe098eab088250f` 已完成 candidate，
+  Reviewer 因 `MIRRORED_STRUCTURE` 與 `LITERAL_TRANSLATION` 拒絕；這是內容
+  品質閘門正常運作，不冒充 production output。
+- 同源日文與韓文 plan 的 22 個 facts 完整、唯一、順序與 safety flag
+  正確；失敗點是 `ENTJ ENTP` 佔多數拉丁字母，讓合法的日／韓搜尋 query
+  被語言閘門誤判。
+- 修復只豁免「來源文章實際出現」的全大寫 acronym；來源沒有的
+  `ZXCV QWER` 仍拒絕，正文、H2、coverage note 的目標語言檢查不移除。
+- 兩份原始 production external plan 重播均通過 22/22 facts。
+
+```text
+publisher + multilingual focused suite: 258 passed, 1 existing warning
+production plan replay: ja PASS 22/22; ko PASS 22/22
+publisher cleanup: exit 0; transaction 0; state root 45 MiB
+full suite after acronym repair: 832 passed, 3 existing warnings
+```

@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.198] - 2026-07-31
+
+- Release tag：`v0.3.198`
+- 公開文章總數：508（內容管線修復，不新增 registry 條目）
+- 發布範圍：i18n locale plan 語言閘門允許來源文章實際存在的 acronym 出現在日／韓搜尋 query，同時維持未知 acronym、正文、H2 與 coverage note 的 fail-closed 檢查。
+- 驗證：日／韓 production plan 22/22 facts 原樣重播、來源／非來源 acronym 回歸矩陣、Publisher 與 multilingual tests、全套測試、release record gate 與 `git diff --check`。
+- 證據：`artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/publisher-disk-rewrite-i18n-contract-repair.md`
+
 ## [0.3.197] - 2026-07-31
 
 - Release tag：`v0.3.197`
