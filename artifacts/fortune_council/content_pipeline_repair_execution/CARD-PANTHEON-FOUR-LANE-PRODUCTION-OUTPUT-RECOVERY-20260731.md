@@ -27,7 +27,7 @@ observe_candidate: 63979fa6e7b2ea88011011f1655e269013e65662
 checkpoint_a: GO
 repair_dispatch_status: ALL_REPAIRS_INTEGRATED_AND_PRODUCTION_VERIFIED
 production_acceptance_status: GO_ALL_FOUR_LANES
-runtime_actor_alignment: EXACT_FINAL_ORIGIN_MAIN_AFTER_EVIDENCE_PUSH_SERVICES_STOPPED
+runtime_actor_alignment: EXACT_ORIGIN_MAIN_AFTER_EVIDENCE_CORRECTION
 production_acceptance_missing: []
 repair_cards_ready:
   - CARD-PANTHEON-FOUR-LANE-A2-NEW-CONTRACT-REPAIR-20260731
@@ -89,7 +89,13 @@ production_release_commit: d9d1be2353bce1bc251e00f55d17523dcfeb18f9
 production_release_tag: v0.3.189
 production_publication_count: 4
 production_public_article_count: 504
-production_services_loaded: false
+production_services_loaded: true
+operations_followup_release_tag: v0.3.203
+operations_followup_release_commit: 5e7b78bad0a8eb76727f71ec8946dc3673f25950
+operations_followup_public_article_count: 510
+operations_followup_translation_published_count: 62
+operations_followup_publisher_schedule: ENABLED_60S
+operations_followup_publisher_state_after_cycle: 45_MIB_NO_TRANSACTION
 production_canary_attempts:
   - lane: new
     status: GO

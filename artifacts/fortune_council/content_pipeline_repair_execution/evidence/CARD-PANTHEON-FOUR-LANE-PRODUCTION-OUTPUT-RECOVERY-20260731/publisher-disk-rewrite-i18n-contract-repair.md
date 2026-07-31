@@ -157,8 +157,11 @@ full suite after acronym repair: 832 passed, 3 existing warnings
 - 該輪 transaction 執行中 94 MiB，退出後自動刪除；Publisher state root
   回到 45 MiB，沒有 orphan。這證明容量上升是受控的單一 active
   transaction，不再是每輪永久累積。
-- translation ledger 目前仍為 0 個正式 release；i18n candidates 的
-  Reviewer APPROVE／REJECT 均不冒充上線產出。
+- 更正：先前觀測誤讀不存在的 `translation_released_runs` key；正式 key
+  為 `translation_published_runs`，截至 `v0.3.203` 歷史累計 62 個正式
+  translation releases。四條 lane 的本次 production canary 已分別在
+  `v0.3.186` 至 `v0.3.189` 完成，均有 commit、annotated tag、ledger
+  `published_at` 與來源 lineage。
 
 ```text
 production releases: v0.3.199 new 1; v0.3.200 rewrite 2
@@ -166,4 +169,43 @@ rewrite allocator probe: agy-rewrite-20260731-04
 publisher cleanup: transaction 0; state root 45 MiB
 full suite after collision repair: 833 passed, 3 existing warnings
 git diff --check: PASS
+```
+
+## 四條 Lane production acceptance 更正
+
+| Lane | Source / locale | Release | Commit |
+|---|---|---|---|
+| `new` | `V2-MBTI-PAIR-INTP-ISFP-WORK` | `v0.3.186` | `1b845702db2cd561a4559d7aa5a6bab7954ba4cb` |
+| `rewrite` | `ASTRO-LOVE-01` | `v0.3.187` | `2c1b5652b6b978335173c3382955166ec093de27` |
+| `i18n-new` | `V2-MBTI-PAIR-INTP-ISFP-WORK` / `en` | `v0.3.188` | `5fac6eb6626f54968de50f95eff97e3015a4e09e` |
+| `i18n-rewrite` | `ASTRO-LOVE-01` / `en` | `v0.3.189` | `d9d1be2353bce1bc251e00f55d17523dcfeb18f9` |
+
+- `i18n-new` source lineage：`new` run
+  `auto-new-v1-20260731-122-01` → translation run
+  `auto-i18n-en-cfd7211d31136567123c-replacement-01`。
+- `i18n-rewrite` source lineage：`rewrite` run
+  `legacy-auto-sweep-v1-astrology-0004-astro-love-01-retry-01` →
+  translation run `auto-i18n-en-daf6984c146f81cb5738`。
+- 以上不是 fixture、idle 或單獨 Reviewer 結果；四筆皆存在
+  `translation_published_runs`／來源 ledger 記錄與 production tag。
+
+## v0.3.201 首輪 production cycle
+
+- `v0.3.202` 發布新文 `V2-MBTI-PAIR-ENTJ-ENFJ-LOVE`，公開文章總數
+  由 509 增至 510。
+- rewrite allocator 在已有 `-01/-02/-03` 時實際建立 `-04`，並由
+  `v0.3.203` 發布 `THEME-LIFE-11`、`THEME-LIFE-12`；舊 release 模組
+  全部保留。
+- translation phase 回報 `idle_rejects_only`；本輪新增 deferred 是
+  Reviewer 未乾淨核准或真正的 `LocalePlanValidationError`，不是 fact
+  順序碰撞，也沒有把 reject 當發布。
+- 單一 transaction 執行期間約 137 MiB；cycle exit 0 後 transaction
+  自動刪除，Publisher state root 回到 45 MiB。
+
+```text
+runtime: v0.3.201 / 2bb694d89f3988b8998ad563ec68da3125ef8742
+production new: v0.3.202 / 1 article
+production rewrite: v0.3.203 / 2 articles / release module -04
+translation ledger: 62 published; current cycle idle_rejects_only
+publisher cleanup: transaction 0; state root 45 MiB
 ```
