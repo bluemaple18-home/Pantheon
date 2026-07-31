@@ -58,6 +58,10 @@ TRANSLATION_ARTICLE_FIELDS = {
 SourceLoader = Callable[[Path, str], dict[str, Any]]
 
 
+class LocalePlanValidationError(ValueError):
+    """標示 provider transport 成功後的 deterministic locale-plan 契約失敗。"""
+
+
 def compact_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -484,12 +488,23 @@ def _source_structure_to_avoid(brief: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _external_locale_plan_schema() -> dict[str, Any]:
+def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
+    validate_translation_brief(brief)
+    fact_articles = _source_fact_package(brief)["articles"]
+    fact_counts = [len(item["facts"]) for item in fact_articles]
+    source_fact_ids = list(
+        dict.fromkeys(
+            str(fact["fact_id"])
+            for item in fact_articles
+            for fact in item["facts"]
+        )
+    )
+    target_count = len(brief["articles"])
     coverage = {
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "source_fact_id": {"type": "string"},
+            "source_fact_id": {"type": "string", "enum": source_fact_ids},
             "planned_h2": {"type": "string"},
             "coverage_note": {"type": "string"},
             "safety_boundary": {"type": "boolean"},
@@ -505,9 +520,31 @@ def _external_locale_plan_schema() -> dict[str, Any]:
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "slot": {"type": "string"},
-            "locale": {"type": "string", "enum": sorted(SUPPORTED_LOCALES)},
-            "source_sha256": {"type": "string"},
+            "slot": {
+                "type": "string",
+                "enum": [
+                    f"article-{index + 1:02d}"
+                    for index in range(target_count)
+                ],
+            },
+            "locale": {
+                "type": "string",
+                "enum": list(
+                    dict.fromkeys(
+                        str(target["locale"])
+                        for target in brief["articles"]
+                    )
+                ),
+            },
+            "source_sha256": {
+                "type": "string",
+                "enum": list(
+                    dict.fromkeys(
+                        str(target["source_sha256"])
+                        for target in brief["articles"]
+                    )
+                ),
+            },
             "native_search_intent": {"type": "string"},
             "native_query_phrasings": {
                 "type": "array",
@@ -524,7 +561,8 @@ def _external_locale_plan_schema() -> dict[str, Any]:
             "coverage_mapping": {
                 "type": "array",
                 "items": coverage,
-                "minItems": 1,
+                "minItems": min(fact_counts),
+                "maxItems": max(fact_counts),
             },
             "source_structure_not_copied": {
                 "type": "array",
@@ -553,8 +591,8 @@ def _external_locale_plan_schema() -> dict[str, Any]:
             "articles": {
                 "type": "array",
                 "items": item,
-                "minItems": 1,
-                "maxItems": 5,
+                "minItems": target_count,
+                "maxItems": target_count,
             }
         },
         "required": ["articles"],
@@ -735,6 +773,7 @@ def validate_locale_plan(
         if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
             raise ValueError(f"locale plan coverage mapping differs for {slot}")
         seen_fact_ids: set[str] = set()
+        mapped_fact_ids: list[str] = []
         for mapping in mappings:
             if not isinstance(mapping, dict) or set(mapping) != {
                 "source_fact_id",
@@ -747,11 +786,14 @@ def validate_locale_plan(
             if fact_id not in expected_facts or fact_id in seen_fact_ids:
                 raise ValueError(f"locale plan source fact coverage differs for {slot}")
             seen_fact_ids.add(fact_id)
+            mapped_fact_ids.append(fact_id)
             if mapping["planned_h2"] not in outline:
                 raise ValueError(f"locale plan coverage heading differs for {slot}")
             _non_empty_string(mapping["coverage_note"], "locale plan coverage note")
             if mapping["safety_boundary"] is not expected_facts[fact_id]["safety_boundary"]:
                 raise ValueError(f"locale plan safety coverage differs for {slot}")
+        if mapped_fact_ids != list(expected_facts):
+            raise ValueError(f"locale plan coverage mapping order differs for {slot}")
         semantic_items = [
             ("native_search_intent", str(item["native_search_intent"])),
             *[
@@ -810,15 +852,21 @@ def _hydrate_locale_plan(
 ) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise ValueError("external locale plan fields are strict")
+    expected_slots = [
+        f"article-{index + 1:02d}"
+        for index in range(len(brief["articles"]))
+    ]
+    supplied_slots = [
+        str(item.get("slot")) if isinstance(item, dict) else ""
+        for item in external["articles"]
+    ]
+    if supplied_slots != expected_slots:
+        raise ValueError("external locale plan slots differ from brief order")
     by_slot = {
         str(item.get("slot")): item
         for item in external["articles"]
         if isinstance(item, dict)
     }
-    expected_slots = [
-        f"article-{index + 1:02d}"
-        for index in range(len(brief["articles"]))
-    ]
     if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
         raise ValueError("external locale plan slots differ from brief")
     articles = []
@@ -1247,17 +1295,22 @@ def _run_locale_generation(
             findings=findings,
             rebuild_by_slot=rebuild_by_slot,
         ),
-        _external_locale_plan_schema(),
+        _external_locale_plan_schema(brief),
         generation_dir / "plan-operation.json",
         generation_dir / "external-plan.json",
     )
-    plan = _hydrate_locale_plan(
-        brief,
-        external_plan,
-        generation=generation,
-        rebuild_by_slot=rebuild_by_slot,
-        prior_plan=prior_plan,
-    )
+    try:
+        plan = _hydrate_locale_plan(
+            brief,
+            external_plan,
+            generation=generation,
+            rebuild_by_slot=rebuild_by_slot,
+            prior_plan=prior_plan,
+        )
+    except ValueError as error:
+        raise LocalePlanValidationError(
+            f"deterministic locale plan failure: {error}"
+        ) from error
     _atomic_write_json(generation_dir / "locale-plan.json", plan)
     external_candidate = _load_or_generate_external(
         client,

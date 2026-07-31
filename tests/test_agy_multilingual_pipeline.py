@@ -820,6 +820,7 @@ def test_article_phase_rejects_missing_invalid_or_mismatched_plan() -> None:
 def test_invalid_generated_plan_fails_before_article_candidate(tmp_path: Path) -> None:
     brief = non_tarot_translation_brief()
     multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    calls = 0
 
     class InvalidPlanClient:
         writer_model = "writer-test"
@@ -831,21 +832,221 @@ def test_invalid_generated_plan_fails_before_article_candidate(tmp_path: Path) -
             _prompt: str,
             _schema: dict[str, object],
         ) -> dict[str, object]:
+            nonlocal calls
+            calls += 1
             payload = external_locale_plan(brief)
             del payload["articles"][0]["coverage_mapping"]
             return payload
 
-    with pytest.raises(ValueError, match="locale plan"):
+    with pytest.raises(ValueError, match="locale plan") as caught:
         multilingual.run_writer_reviewer(
             tmp_path,
             InvalidPlanClient(),
             max_repairs=2,
         )
 
+    assert isinstance(caught.value, multilingual.LocalePlanValidationError)
+    assert calls == 1
     assert not (tmp_path / "attempts/01/locale-plan.json").exists()
     assert not (tmp_path / "attempts/01/article-operation.json").exists()
     assert not (tmp_path / "candidate.json").exists()
     assert not (tmp_path / "review.json").exists()
+
+
+def test_valid_locale_plan_reaches_candidate_persistence(tmp_path: Path) -> None:
+    brief = non_tarot_translation_brief()
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    calls: list[str] = []
+    outline: list[str] | None = None
+
+    class ValidPlanClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal outline
+            calls.append(role)
+            if "native_search_intent" in json.dumps(schema):
+                payload = external_locale_plan(brief)
+                outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                return non_tarot_external_candidate(outline)
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    candidate, review = multilingual.run_writer_reviewer(
+        tmp_path,
+        ValidPlanClient(),
+        max_repairs=0,
+    )
+
+    assert calls == ["writer", "writer", "reviewer"]
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == review
+    assert (tmp_path / "attempts/01/locale-plan.json").is_file()
+    assert (tmp_path / "attempts/01/candidate.json").is_file()
+
+
+@pytest.mark.parametrize("mutation", ["missing", "duplicate"])
+def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
+    mutation: str,
+) -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    mappings = external["articles"][0]["coverage_mapping"]
+    if mutation == "missing":
+        mappings.pop()
+    else:
+        mappings[-1] = json.loads(json.dumps(mappings[0]))
+
+    with pytest.raises(ValueError, match="coverage"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
+def test_locale_plan_rejects_coverage_mapping_order_drift() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    external["articles"][0]["coverage_mapping"].reverse()
+
+    with pytest.raises(ValueError, match="coverage mapping order"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
+def test_locale_plan_rejects_external_article_order_drift() -> None:
+    japanese = non_tarot_translation_brief("ja")
+    korean = non_tarot_translation_brief("ko")
+    brief = {
+        **japanese,
+        "run_id": "auto-i18n-multi-fortune-0039",
+        "articles": [japanese["articles"][0], korean["articles"][0]],
+    }
+    japanese_plan = external_locale_plan(japanese)["articles"][0]
+    korean_plan = external_locale_plan(korean)["articles"][0]
+    korean_plan["slot"] = "article-02"
+    external = {"articles": [korean_plan, japanese_plan]}
+
+    with pytest.raises(ValueError, match="slots differ from brief order"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={
+                "article-01": False,
+                "article-02": False,
+            },
+        )
+
+
+def test_external_locale_plan_schema_locks_current_brief_coverage() -> None:
+    brief = non_tarot_translation_brief()
+    schema = multilingual._external_locale_plan_schema(brief)
+    articles_schema = schema["properties"]["articles"]
+    item_schema = articles_schema["items"]
+    coverage_schema = item_schema["properties"]["coverage_mapping"]
+    facts = multilingual._source_fact_package(brief)["articles"][0]["facts"]
+
+    assert articles_schema["minItems"] == articles_schema["maxItems"] == 1
+    assert item_schema["properties"]["slot"]["enum"] == ["article-01"]
+    assert item_schema["properties"]["locale"]["enum"] == ["ko"]
+    assert item_schema["properties"]["source_sha256"]["enum"] == [
+        brief["articles"][0]["source_sha256"]
+    ]
+    assert coverage_schema["minItems"] == coverage_schema["maxItems"] == len(facts)
+    assert coverage_schema["items"]["properties"]["source_fact_id"]["enum"] == [
+        fact["fact_id"] for fact in facts
+    ]
+
+
+@pytest.mark.parametrize(
+    ("finding_code", "expected_verdict"),
+    [
+        (None, "APPROVE"),
+        ("NON_NATIVE_SEARCH_INTENT", "REJECT"),
+        ("AI_TEMPLATE_STYLE", "REJECT"),
+    ],
+)
+def test_i18n_rewrite_persists_candidate_and_preserves_native_quality_gate(
+    tmp_path: Path,
+    finding_code: str | None,
+    expected_verdict: str,
+) -> None:
+    brief = non_tarot_translation_brief()
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    outline: list[str] | None = None
+
+    class RewriteClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal outline
+            if "native_search_intent" in json.dumps(schema):
+                payload = external_locale_plan(brief)
+                outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                return non_tarot_external_candidate(outline)
+            findings = (
+                []
+                if finding_code is None
+                else [
+                    {
+                        "code": finding_code,
+                        "message": "母語品質契約的 deterministic fixture",
+                    }
+                ]
+            )
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": expected_verdict,
+                        "findings": findings,
+                    }
+                ]
+            }
+
+    candidate, review = multilingual.run_writer_reviewer(
+        tmp_path,
+        RewriteClient(),
+        max_repairs=0,
+    )
+
+    assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == review
+    assert review["articles"][0]["verdict"] == expected_verdict
+    assert [item["code"] for item in review["articles"][0]["findings"]] == (
+        [] if finding_code is None else [finding_code]
+    )
 
 
 def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> None:
@@ -1645,6 +1846,46 @@ def test_enqueue_article_translations_creates_three_independent_idempotent_runs(
         assert brief["mode"] == "translate_existing"
         assert len(brief["articles"]) == 1
         assert brief["articles"][0]["locale"] == item["locale"]
+
+
+def test_legacy_rewrite_source_is_seeded_once_and_terminal_locale_stays_ineligible(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    first = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="legacy-rewrite-fortune-0039",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    korean_run_id = next(
+        item["run_id"]
+        for item in first
+        if item["locale"] == "ko"
+    )
+    state_path = next(
+        path
+        for path in (queue_root / "runs").glob("*.json")
+        if json.loads(path.read_text())["run_id"] == korean_run_id
+    )
+    state = json.loads(state_path.read_text())
+    state["status"] = "complete"
+    multilingual.pipeline.write_json(state_path, state)
+    terminal_bytes = state_path.read_bytes()
+
+    second = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="legacy-rewrite-fortune-0039",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+
+    assert first == second
+    assert len(list((queue_root / "runs").glob("*.json"))) == 3
+    assert state_path.read_bytes() == terminal_bytes
+    assert json.loads(state_path.read_text())["status"] == "complete"
 
 
 def test_enqueue_article_translations_does_not_overwrite_registered_source(tmp_path: Path) -> None:
