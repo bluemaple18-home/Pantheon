@@ -845,6 +845,46 @@ def test_latest_gemini_models_omit_deprecated_sampling_parameters(model: str) ->
     assert generation_config["responseJsonSchema"] is schema
 
 
+def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append((model, payload))
+        return {"ok": True}
+
+    client = GeminiClient(
+        api_key="redacted",
+        writer_model="gemini-3.5-flash-lite",
+        transport=transport,
+    )
+    schema = {
+        "type": "object",
+        "properties": {
+            "outline_slot": {
+                "type": "string",
+                "enum": ["h2-1", "h2-2", "h2-3", "h2-4"],
+            },
+            "source_fact_id": {
+                "type": "string",
+                "enum": [f"fact-{index:02d}" for index in range(17)],
+            },
+        },
+        "required": ["outline_slot", "source_fact_id"],
+    }
+
+    client.generate_json("writer", "writer prompt", schema)
+
+    provider_schema = calls[0][1]["generationConfig"]["responseJsonSchema"]
+    assert provider_schema["properties"]["outline_slot"]["enum"] == [
+        "h2-1",
+        "h2-2",
+        "h2-3",
+        "h2-4",
+    ]
+    assert "enum" not in provider_schema["properties"]["source_fact_id"]
+    assert len(schema["properties"]["source_fact_id"]["enum"]) == 17
+
+
 def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
 

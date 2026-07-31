@@ -116,3 +116,34 @@ git diff --check: PASS
 ```
 
 兩個舊 schema 外呼已計入授權額度；second repair 尚未呼叫 provider。
+
+### Second repair live result
+
+string slot request 使用新 hash 呼叫後仍在 1 秒內回 `API_HTTP_ERROR`，因此
+numeric enum 不是唯一撞點。結構統計顯示：
+
+```text
+i18n schema: 1817 bytes / depth 10 / enum choices 29
+successful rewrite schema: 1724 bytes / depth 14 / enum choices 5
+```
+
+兩者大小接近，i18n 反而較淺；差異集中在 enum state count。依 Gemini
+structured-output 的 schema complexity 限制，`gemini-3.5-flash-lite`
+provider payload 現在只移除超過 8 個值的大型 enum，保留 `h2-1..4` 等小型
+enum。原始 outbox schema 不變；provider response 回來後仍以完整 enum、
+hash、fact identity 與 deterministic validators 驗證，沒有放寬 acceptance。
+
+RED：
+
+```text
+AssertionError: large source_fact_id enum remained in provider schema
+```
+
+GREEN：
+
+```text
+provider schema + multilingual + outbox focused tests: 312 passed
+git diff --check: PASS
+```
+
+此變更是本 run 的 schema repair 2/2；尚未執行修補後外呼。

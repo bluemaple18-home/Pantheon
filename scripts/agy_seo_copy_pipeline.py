@@ -2266,11 +2266,20 @@ GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
         "minLength",
     }
 )
+GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT = frozenset(
+    {
+        "gemini-3.5-flash-lite",
+    }
+)
+MAX_PROVIDER_SCHEMA_ENUM_VALUES = 8
 
 
 def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, Any]:
-    """2.5 Flash 僅送結構約束；完整限制仍由本地 deterministic validator 執行。"""
-    if model not in GEMINI_25_FLASH_MODELS:
+    """依 model 降低 provider schema 複雜度；完整限制仍由本地 validator 執行。"""
+    if (
+        model not in GEMINI_25_FLASH_MODELS
+        and model not in GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT
+    ):
         return schema
 
     def strip_complexity(value: Any) -> Any:
@@ -2278,7 +2287,16 @@ def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, 
             return {
                 key: strip_complexity(item)
                 for key, item in value.items()
-                if key not in GEMINI_25_COMPLEX_SCHEMA_KEYS
+                if not (
+                    model in GEMINI_25_FLASH_MODELS
+                    and key in GEMINI_25_COMPLEX_SCHEMA_KEYS
+                )
+                and not (
+                    model in GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT
+                    and key == "enum"
+                    and isinstance(item, list)
+                    and len(item) > MAX_PROVIDER_SCHEMA_ENUM_VALUES
+                )
             }
         if isinstance(value, list):
             return [strip_complexity(item) for item in value]
@@ -2287,7 +2305,7 @@ def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, 
     simplified = strip_complexity(schema)
     if not isinstance(simplified, dict):
         raise TypeError("response schema must remain an object")
-    return simplified
+    return schema if simplified == schema else simplified
 
 
 class GeminiClient:
