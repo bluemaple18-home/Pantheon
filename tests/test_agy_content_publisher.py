@@ -336,8 +336,19 @@ def _minimal_article_static(repo_root: Path) -> None:
         "export const ARTICLE_REGISTRY = [\n];\n"
         "function getArticleSectionRecord() { return {}; }\n"
         "function enforceArticlePolicy(article) { return article; }\n"
+        "export function getActiveArticlePolicyOverride(article) {\n"
+        "  const customPolicy = {};\n"
+        "  return customPolicy;\n"
+        "}\n"
+        "function resolveArticleRecord(article) {\n"
+        "  return enforceArticlePolicy({ ...article, ...getActiveArticlePolicyOverride(article) }, getArticleSectionRecord(article.section));\n"
+        "}\n"
         "export function listArticleRecords() {\n"
-        "  return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy(article, getArticleSectionRecord(article.section)));\n"
+        "  return ARTICLE_REGISTRY.map(resolveArticleRecord);\n"
+        "}\n"
+        "export function getArticleRecord() {\n"
+        "  const article = ARTICLE_REGISTRY[0];\n"
+        "  return article ? resolveArticleRecord(article) : null;\n"
         "}\n",
         encoding="utf-8",
     )
@@ -770,6 +781,12 @@ def test_apply_rewrite_release_uses_inventory_slug_for_body_override(
     text = module.read_text(encoding="utf-8")
     assert '"yongshen-meaning": [' in text
     assert '"fortune-0039": [' not in text
+    registry = (tmp_path / "app/web/static/article-registry.js").read_text(
+        encoding="utf-8"
+    )
+    assert "REWRITE_POLICY_OVERRIDES[article.id] || {}" in registry
+    assert "ARTICLE_REGISTRY.map(resolveArticleRecord)" in registry
+    assert "return article ? resolveArticleRecord(article) : null" in registry
 
 
 def test_apply_rewrite_release_reuses_validated_inventory_snapshot(

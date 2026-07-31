@@ -2361,20 +2361,16 @@ def _update_rewrite_body_override_lookup(meta_path: Path, export_name: str) -> N
 
 def _update_rewrite_policy_override_lookup(registry_path: Path, export_name: str) -> None:
     text = registry_path.read_text(encoding="utf-8")
-    marker = "return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy("
-    start = text.find(marker)
-    if start < 0:
-        raise PublishBlocked("article registry listArticleRecords policy marker not found")
-    argument_start = start + len(marker)
-    argument_end = text.find(", getArticleSectionRecord(article.section)));", argument_start)
-    if argument_end < 0:
-        raise PublishBlocked("article registry listArticleRecords policy argument not found")
+    pattern = re.compile(r"(?m)^(\s*const customPolicy = )(.+?);$")
+    match = pattern.search(text)
+    if not match:
+        raise PublishBlocked("article registry customPolicy lookup marker not found")
+    expression = match.group(2)
     token = f"{export_name}[article.id]"
-    current = text[argument_start:argument_end]
-    if token in current:
+    if token in expression:
         return
-    updated = f"{{ ...({current}), ...({token} || {{}}) }}"
-    text = text[:argument_start] + updated + text[argument_end:]
+    updated_expression = f"{token} || {expression}"
+    text = text[: match.start(2)] + updated_expression + text[match.end(2) :]
     registry_path.write_text(text, encoding="utf-8")
 
 

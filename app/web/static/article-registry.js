@@ -2799,8 +2799,20 @@ export function listArticleSectionRecords() {
   return Object.entries(ARTICLE_SECTION_REGISTRY).map(([slug, section]) => ({ slug, ...section }));
 }
 
+export function getActiveArticlePolicyOverride(article) {
+  const customPolicy = AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {};
+  return customPolicy;
+}
+
+function resolveArticleRecord(article) {
+  return enforceArticlePolicy(
+    { ...article, ...getActiveArticlePolicyOverride(article) },
+    getArticleSectionRecord(article.section),
+  );
+}
+
 export function listArticleRecords() {
-  return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy({ ...({ ...(article), ...(AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {}) }), ...(AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES[article.id] || {}) }, getArticleSectionRecord(article.section)));
+  return ARTICLE_REGISTRY.map(resolveArticleRecord);
 }
 
 export function getArticlePath(article) {
@@ -3039,12 +3051,12 @@ export function getProductThemeRecord(productTheme = "fortune") {
 
 export function getArticleRecord(product = "", slug = "") {
   const record = ARTICLE_REGISTRY.find((article) => {
-    const managed = enforceArticlePolicy(article, getArticleSectionRecord(article.section));
+    const managed = resolveArticleRecord(article);
     const routeMatches = managed.product === product || managed.articleCategory === product || managed.section === product;
     const slugMatches = managed.slug === slug || managed.urlSlug === slug;
     return routeMatches && slugMatches;
   });
-  return record ? enforceArticlePolicy(record, getArticleSectionRecord(record.section)) : null;
+  return record ? resolveArticleRecord(record) : null;
 }
 
 export function enforceArticlePolicy(article, section = null) {

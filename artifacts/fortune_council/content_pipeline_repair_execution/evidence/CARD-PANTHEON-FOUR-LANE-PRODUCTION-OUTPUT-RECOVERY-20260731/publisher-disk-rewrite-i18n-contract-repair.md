@@ -98,3 +98,23 @@ crash cleanup 缺口。
 
 - 提交、推送、同步 Publisher actor，重新安裝 launchd。
 - 觀察至少一輪 Publisher 與四條 lane，補上 production 結果。
+
+## Production follow-up：rewrite policy resolver
+
+- `v0.3.194` 已由 production Publisher 發布 1 篇新文章，公開文章總數
+  由 506 增至 507。
+- 後續 rewrite production batch 通過 body override 與 preflight，但完整
+  web suite 揭露 registry 清單與單篇 lookup 使用不同 policy resolver：
+  清單為 `updated=2026-07-31`，實際渲染仍保留舊日期。
+- Publisher 已安全回滾，3 個 rewrite candidate 均保留，沒有把不一致內容
+  推上線；transaction 結束後 state root 回到約 45 MiB，未再留下 orphan。
+- 修復後 `listArticleRecords()`、`getArticleRecord()` 與
+  `buildArticleContent()` 共用中央 resolver；Publisher 產生下一版 rewrite
+  時也只 prepend 該 resolver。
+- 新增 regression 直接驗證 registry、lookup、rendered content 的
+  `updated` 與 `publicationPolicy.modified` 一致。
+
+```text
+focused publisher + multilingual + web: 327 passed, 2 existing warnings
+full suite: 828 passed, 2 existing warnings
+```

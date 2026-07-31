@@ -1980,6 +1980,34 @@ console.log(JSON.stringify({{
         assert article["voice"], article
 
 
+def test_rewrite_policy_override_is_shared_by_registry_lookup_and_rendering() -> None:
+    script = """
+import { buildArticleContent } from "./app/web/static/article-meta.js";
+import { getArticlePath, getArticleRecord, listArticleRecords } from "./app/web/static/article-registry.js";
+
+const listed = listArticleRecords().find((article) => article.id === "THEME-LIFE-01");
+const resolved = getArticleRecord(listed.articleCategory || listed.product, listed.urlSlug);
+const rendered = buildArticleContent(getArticlePath(listed), "https://www.mysticpantheon.com");
+console.log(JSON.stringify({
+  listedUpdated: listed.updated,
+  resolvedUpdated: resolved.updated,
+  renderedUpdated: rendered.updated,
+  listedPolicyModified: listed.publicationPolicy.modified,
+  resolvedPolicyModified: resolved.publicationPolicy.modified,
+}));
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    assert data["resolvedUpdated"] == data["listedUpdated"]
+    assert data["renderedUpdated"] == data["listedUpdated"]
+    assert data["resolvedPolicyModified"] == data["listedPolicyModified"]
+
+
 def test_expansion_50c_adds_parallel_card_articles() -> None:
     script = f"""
 import {{ EXPANSION_50C_MBTI_ARTICLE_RECORDS, EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-mbti.js";
