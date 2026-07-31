@@ -10,8 +10,10 @@ verified_at: 2026-07-31T10:51:45+08:00
 
 ## Facts
 
-- `main`、`origin/main` and the production actor all resolve to
-  `66009a3014ee51ba8977b2cbd33462fc37c029ff`.
+- After the final evidence push, `main`、`origin/main`、the stopped production
+  actor and the installed Publisher expected SHA are aligned to the same final
+  evidence commit. The canary code executed at `66009a301...`; the evidence-only
+  descendants do not change the runtime manifest.
 - Publisher read-only deployment preflight is `ready`; runtime manifest digest
   is `306333ac...`.
 - Pre-push full suite: `814 passed, 3 warnings in 144.76s`.

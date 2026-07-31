@@ -3,14 +3,14 @@
 ## Result
 
 ```text
-status: PASS_SHA_ALIGNED_SERVICES_STOPPED
+status: PASS_EXACT_FINAL_ORIGIN_MAIN_SERVICES_STOPPED
 verified_at: 2026-07-31T10:51:45+08:00
-source_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
-origin_main_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
-actor_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+canary_execution_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+source_ref: origin/main
+actor_ref: exact final origin/main after this evidence commit
 ```
 
-Publisher deployment preflight after all canary attempts:
+Publisher deployment preflight at canary execution SHA:
 
 ```text
 status=ready
@@ -25,6 +25,13 @@ push_mode=push
 The installed Publisher plist expects the same full runtime SHA. The installed
 Gemini coordinator points to `<publisher-actor-root>` and `<queue-root>`, with
 `NEW_ONLY=1` retained from the isolated new-canary phase.
+
+The NO-GO evidence commit necessarily advances `origin/main` after the canary
+execution SHA. To avoid a self-referential commit hash, this receipt records the
+final contract by ref: after the final evidence push, the stopped actor and the
+installed Publisher expected SHA are updated to that exact `origin/main`, then
+the official read-only deployment preflight is rerun. The exact resulting SHA
+is reported in the operator handoff without creating another repository commit.
 
 All six related LaunchAgents are intentionally unloaded:
 

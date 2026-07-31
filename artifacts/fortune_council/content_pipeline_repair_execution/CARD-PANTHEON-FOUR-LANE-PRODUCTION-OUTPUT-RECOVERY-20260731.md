@@ -27,7 +27,7 @@ observe_candidate: 63979fa6e7b2ea88011011f1655e269013e65662
 checkpoint_a: GO
 repair_dispatch_status: ALL_REPAIRS_INTEGRATED_OFFLINE
 production_acceptance_status: NO_GO_ALL_FOUR_LANES
-runtime_actor_alignment: VERIFIED_SHA_ALIGNED_SERVICES_STOPPED
+runtime_actor_alignment: EXACT_FINAL_ORIGIN_MAIN_SERVICES_STOPPED
 production_acceptance_missing:
   - new real end-to-end output
   - rewrite real end-to-end output
@@ -65,8 +65,9 @@ production_authorization_scope:
   - one controlled real canary for i18n-new
   - one controlled real canary for i18n-rewrite
 production_authorization_status: CONSUMED_NO_GO
-production_source_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
-production_runtime_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+canary_execution_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
+production_source_ref: origin/main
+production_runtime_ref: exact final origin/main after evidence commit
 production_release_commit: null
 production_release_tag: null
 production_publication_count: 0
