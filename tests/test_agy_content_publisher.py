@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import fcntl
 import json
 import plistlib
 from pathlib import Path
@@ -2226,6 +2227,16 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
+    assert (
+        plist["EnvironmentVariables"]["PANTHEON_PUBLISHER_STDOUT_LOG"]
+        == "__STDOUT_LOG__"
+    )
+    assert (
+        plist["EnvironmentVariables"]["PANTHEON_PUBLISHER_STDERR_LOG"]
+        == "__STDERR_LOG__"
+    )
+    assert "PANTHEON_PUBLISHER_STDOUT_LOG" in installer
+    assert "PANTHEON_PUBLISHER_STDERR_LOG" in installer
     assert plist["StartInterval"] == 60
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],
@@ -3155,7 +3166,22 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     actor_venv_python.write_text("#!/bin/sh\n", encoding="utf-8")
     (actor / "node_modules").mkdir()
     actor_target = actor / "app/web/owned.txt"
+    orphan_parent = state_root / "transaction-orphan"
+    orphan_root = orphan_parent / "repo"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(orphan_root), "origin/main"],
+        cwd=actor,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    incomplete_parent = state_root / "transaction-incomplete"
+    incomplete_parent.mkdir()
+    (incomplete_parent / "partial").write_bytes(b"incomplete\n")
+
     with publisher._isolated_transaction_worktree(actor, state_root) as transaction_root:
+        assert not orphan_parent.exists()
+        assert not incomplete_parent.exists()
         assert transaction_root != actor
         assert (transaction_root / "app/web/owned.txt").read_bytes() == b"base\n"
         assert (transaction_root / ".venv").resolve() == (actor / ".venv").resolve()
@@ -3173,6 +3199,28 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
         text=True,
     ).stdout.strip() == "M app/web/owned.txt"
     assert not list(state_root.glob("transaction-*"))
+
+
+def test_transaction_lifecycle_lock_blocks_concurrent_scavenger(tmp_path: Path) -> None:
+    actor = tmp_path / "actor"
+    subprocess.run(["git", "init", "-q", str(actor)], check=True)
+    lock_path = actor / ".git/agy-content-publisher.lifecycle.lock"
+
+    with lock_path.open("a+") as held_lock:
+        fcntl.flock(held_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(publisher.PublishBlocked, match="transaction is busy"):
+            with publisher._transaction_lifecycle_lock(actor):
+                pytest.fail("busy lifecycle lock must not be entered")
+
+
+def test_trim_log_file_keeps_only_bounded_tail(tmp_path: Path) -> None:
+    log_path = tmp_path / "publisher.log"
+    payload = b"old-prefix\n" + b"x" * 96 + b"\nkept-tail\n"
+    log_path.write_bytes(payload)
+
+    assert publisher._trim_log_file(log_path, max_bytes=64, retain_bytes=24) is True
+    assert log_path.read_bytes() == payload[-24:]
+    assert publisher._trim_log_file(log_path, max_bytes=64, retain_bytes=24) is False
 
 
 def test_isolated_transaction_blocks_stale_actor_runtime(

@@ -845,6 +845,46 @@ def validate_locale_plan(
             raise ValueError(f"locale plan rebuild reused prior outline topology for {slot}")
 
 
+def _canonicalize_external_coverage_mappings(
+    expected_facts: list[dict[str, Any]],
+    mappings: object,
+    *,
+    slot: str,
+) -> list[dict[str, Any]]:
+    """驗證 fact 集合與安全旗標後，依 deterministic fact 順序正規化。"""
+    if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+        raise ValueError(f"external locale plan coverage differs for {slot}")
+    expected_by_id = {
+        str(fact["fact_id"]): fact
+        for fact in expected_facts
+    }
+    mapped_by_id: dict[str, dict[str, Any]] = {}
+    required = {
+        "source_fact_id",
+        "planned_h2_slot",
+        "coverage_note",
+        "safety_boundary",
+    }
+    for mapping in mappings:
+        if not isinstance(mapping, dict) or set(mapping) != required:
+            raise ValueError(
+                f"external locale plan coverage fields are strict for {slot}"
+            )
+        fact_id = str(mapping["source_fact_id"])
+        if fact_id not in expected_by_id or fact_id in mapped_by_id:
+            raise ValueError(f"external locale plan source fact coverage differs for {slot}")
+        if (
+            mapping["safety_boundary"]
+            is not expected_by_id[fact_id]["safety_boundary"]
+        ):
+            raise ValueError(f"locale plan safety coverage differs for {slot}")
+        mapped_by_id[fact_id] = dict(mapping)
+    return [
+        mapped_by_id[str(fact["fact_id"])]
+        for fact in expected_facts
+    ]
+
+
 def _hydrate_locale_plan(
     brief: dict[str, Any],
     external: dict[str, Any],
@@ -872,12 +912,15 @@ def _hydrate_locale_plan(
     }
     if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
         raise ValueError("external locale plan slots differ from brief")
+    fact_articles = _source_fact_package(brief)["articles"]
     articles = []
     for index, slot in enumerate(expected_slots):
         external_item = by_slot[slot]
-        external_mappings = external_item.get("coverage_mapping")
-        if not isinstance(external_mappings, list):
-            raise ValueError(f"external locale plan coverage differs for {slot}")
+        external_mappings = _canonicalize_external_coverage_mappings(
+            fact_articles[index]["facts"],
+            external_item.get("coverage_mapping"),
+            slot=slot,
+        )
         item = {
             **external_item,
             "source_structure_not_copied": [
@@ -887,7 +930,6 @@ def _hydrate_locale_plan(
             "coverage_mapping": [
                 dict(mapping)
                 for mapping in external_mappings
-                if isinstance(mapping, dict)
             ],
         }
         if item.get("rebuild_outline") is not rebuild_by_slot.get(slot, False):

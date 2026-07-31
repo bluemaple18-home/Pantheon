@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.193] - 2026-07-31
+
+- Release tag：`v0.3.193`
+- 公開文章總數：506（內容管線修復，不新增 registry 條目）
+- 發布範圍：修復 Publisher crash 後 orphan worktree 回收與 log 容量上限；rewrite 測試改驗證最高優先序正式 override；i18n 在 exact fact set、唯一性與 safety flag 通過後 canonicalize coverage 順序。
+- 驗證：Publisher、multilingual、web 與全套測試 827 passed；launchd plist、shell syntax、release record gate 與 `git diff --check`。
+- 證據：`artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/publisher-disk-rewrite-i18n-contract-repair.md`
+
 ## [0.3.192] - 2026-07-31
 
 - Release tag：`v0.3.192`

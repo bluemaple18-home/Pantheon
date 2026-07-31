@@ -963,12 +963,35 @@ def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
         )
 
 
-def test_locale_plan_rejects_coverage_mapping_order_drift() -> None:
+def test_locale_plan_canonicalizes_complete_coverage_mapping_order_drift() -> None:
     brief = non_tarot_translation_brief()
     external = external_locale_plan(brief)
     external["articles"][0]["coverage_mapping"].reverse()
 
-    with pytest.raises(ValueError, match="coverage mapping order"):
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    assert [
+        mapping["source_fact_id"]
+        for mapping in plan["articles"][0]["coverage_mapping"]
+    ] == [
+        fact["fact_id"]
+        for fact in multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    ]
+
+
+def test_locale_plan_rejects_safety_drift_before_order_canonicalization() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    mappings = external["articles"][0]["coverage_mapping"]
+    mappings.reverse()
+    mappings[0]["safety_boundary"] = not mappings[0]["safety_boundary"]
+
+    with pytest.raises(ValueError, match="safety coverage"):
         multilingual._hydrate_locale_plan(
             brief,
             external,

@@ -71,6 +71,8 @@ SUCCESS_STATUSES = {
 }
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
+PUBLISHER_LOG_MAX_BYTES = 32 * 1024 * 1024
+PUBLISHER_LOG_RETAIN_BYTES = 4 * 1024 * 1024
 
 
 class PublishBlocked(ValueError):
@@ -218,6 +220,41 @@ class MutationJournal:
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _trim_log_file(
+    path: Path,
+    *,
+    max_bytes: int = PUBLISHER_LOG_MAX_BYTES,
+    retain_bytes: int = PUBLISHER_LOG_RETAIN_BYTES,
+) -> bool:
+    """同 inode 保留 log 尾端，避免破壞 launchd 已開啟的輸出描述符。"""
+    if max_bytes <= 0 or retain_bytes <= 0 or retain_bytes >= max_bytes:
+        raise ValueError("log limits must satisfy 0 < retain_bytes < max_bytes")
+    try:
+        with path.open("r+b") as log:
+            log.seek(0, os.SEEK_END)
+            size = log.tell()
+            if size <= max_bytes:
+                return False
+            log.seek(-min(size, retain_bytes), os.SEEK_END)
+            tail = log.read()
+            log.seek(0)
+            log.write(tail)
+            log.truncate()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _trim_configured_launchd_logs() -> None:
+    for variable in (
+        "PANTHEON_PUBLISHER_STDOUT_LOG",
+        "PANTHEON_PUBLISHER_STDERR_LOG",
+    ):
+        configured = os.environ.get(variable)
+        if configured:
+            _trim_log_file(Path(configured).expanduser())
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -954,6 +991,59 @@ def _assert_transaction_runtime_matches(repo_root: Path, transaction_root: Path)
 
 
 @contextmanager
+def _transaction_lifecycle_lock(
+    repo_root: Path,
+    git: GitRunner = run_git,
+) -> Iterator[None]:
+    """序列化 transaction 建立、回收與執行，讓 crash 後清理可判定安全。"""
+    lock_path = _repo_lock_path(repo_root, git).with_name(
+        "agy-content-publisher.lifecycle.lock"
+    )
+    with lock_path.open("a+") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise PublishBlocked("publisher transaction is busy") from error
+        yield
+
+
+def _cleanup_stale_transaction_worktrees(
+    repo_root: Path,
+    state_root: Path,
+    git: GitRunner = run_git,
+) -> list[Path]:
+    """只回收專用 state root 直屬的 transaction 暫存 worktree。"""
+    cleaned: list[Path] = []
+    for transaction_parent in sorted(state_root.iterdir()):
+        if (
+            not transaction_parent.is_dir()
+            or transaction_parent.is_symlink()
+            or re.fullmatch(r"transaction-[A-Za-z0-9_-]+", transaction_parent.name)
+            is None
+        ):
+            continue
+        transaction_root = transaction_parent / "repo"
+        if transaction_root.exists():
+            try:
+                git(
+                    repo_root,
+                    ["worktree", "remove", "--force", str(transaction_root)],
+                    None,
+                )
+            except Exception:
+                shutil.rmtree(transaction_root, ignore_errors=True)
+        shutil.rmtree(transaction_parent, ignore_errors=True)
+        if transaction_parent.exists():
+            raise PublishBlocked(
+                f"stale transaction cleanup failed: {transaction_parent}"
+            )
+        cleaned.append(transaction_parent)
+    if cleaned:
+        git(repo_root, ["worktree", "prune"], None)
+    return cleaned
+
+
+@contextmanager
 def _isolated_transaction_worktree(
     repo_root: Path,
     state_root: Path,
@@ -961,43 +1051,51 @@ def _isolated_transaction_worktree(
 ) -> Iterator[Path]:
     """從最新 origin/main 建立單輪隔離 worktree，正式 actor 全程唯讀。"""
     state_root.mkdir(parents=True, exist_ok=True)
-    git(repo_root, ["fetch", "origin", "main"], None)
-    if not _repo_clean(repo_root, git):
-        raise PublishBlocked("publisher actor worktree is not clean")
-    remote_sha = git(repo_root, ["rev-parse", "origin/main"], None)
-    transaction_parent = Path(tempfile.mkdtemp(prefix="transaction-", dir=state_root))
-    transaction_root = transaction_parent / "repo"
-    added = False
-    try:
-        git(
-            repo_root,
-            ["worktree", "add", "--detach", str(transaction_root), remote_sha],
-            None,
+    with _transaction_lifecycle_lock(repo_root, git):
+        _cleanup_stale_transaction_worktrees(repo_root, state_root, git)
+        git(repo_root, ["fetch", "origin", "main"], None)
+        if not _repo_clean(repo_root, git):
+            raise PublishBlocked("publisher actor worktree is not clean")
+        remote_sha = git(repo_root, ["rev-parse", "origin/main"], None)
+        transaction_parent = Path(
+            tempfile.mkdtemp(prefix="transaction-", dir=state_root)
         )
-        added = True
-        _assert_transaction_runtime_matches(repo_root, transaction_root)
-        actor_venv = repo_root / ".venv"
-        transaction_venv = transaction_root / ".venv"
-        if actor_venv.is_dir() and not transaction_venv.exists():
-            transaction_venv.symlink_to(actor_venv, target_is_directory=True)
-        actor_node_modules = repo_root / "node_modules"
-        transaction_node_modules = transaction_root / "node_modules"
-        if actor_node_modules.is_dir() and not transaction_node_modules.exists():
-            transaction_node_modules.mkdir()
-            for dependency in actor_node_modules.iterdir():
-                (transaction_node_modules / dependency.name).symlink_to(
-                    dependency,
-                    target_is_directory=dependency.is_dir(),
-                )
-        yield transaction_root
-    finally:
-        if added:
-            try:
-                git(repo_root, ["worktree", "remove", "--force", str(transaction_root)], None)
-            except Exception:
-                shutil.rmtree(transaction_root, ignore_errors=True)
-                git(repo_root, ["worktree", "prune"], None)
-        shutil.rmtree(transaction_parent, ignore_errors=True)
+        transaction_root = transaction_parent / "repo"
+        added = False
+        try:
+            git(
+                repo_root,
+                ["worktree", "add", "--detach", str(transaction_root), remote_sha],
+                None,
+            )
+            added = True
+            _assert_transaction_runtime_matches(repo_root, transaction_root)
+            actor_venv = repo_root / ".venv"
+            transaction_venv = transaction_root / ".venv"
+            if actor_venv.is_dir() and not transaction_venv.exists():
+                transaction_venv.symlink_to(actor_venv, target_is_directory=True)
+            actor_node_modules = repo_root / "node_modules"
+            transaction_node_modules = transaction_root / "node_modules"
+            if actor_node_modules.is_dir() and not transaction_node_modules.exists():
+                transaction_node_modules.mkdir()
+                for dependency in actor_node_modules.iterdir():
+                    (transaction_node_modules / dependency.name).symlink_to(
+                        dependency,
+                        target_is_directory=dependency.is_dir(),
+                    )
+            yield transaction_root
+        finally:
+            if added:
+                try:
+                    git(
+                        repo_root,
+                        ["worktree", "remove", "--force", str(transaction_root)],
+                        None,
+                    )
+                except Exception:
+                    shutil.rmtree(transaction_root, ignore_errors=True)
+                    git(repo_root, ["worktree", "prune"], None)
+            shutil.rmtree(transaction_parent, ignore_errors=True)
 
 
 def _git_paths(repo_root: Path, git: GitRunner, args: list[str]) -> list[str]:
@@ -2920,6 +3018,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    _trim_configured_launchd_logs()
     args = parse_args()
     repo_root = args.repo_root.resolve()
     if args.legacy_report:

@@ -41,6 +41,10 @@
   <dict>
     <key>PATH</key>
     <string>__PATH__</string>
+    <key>PANTHEON_PUBLISHER_STDOUT_LOG</key>
+    <string>__STDOUT_LOG__</string>
+    <key>PANTHEON_PUBLISHER_STDERR_LOG</key>
+    <string>__STDERR_LOG__</string>
   </dict>
 
   <key>StartInterval</key>

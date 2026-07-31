@@ -1361,13 +1361,18 @@ function buildProductHubReadingGuide(label, articleCount) {
   ];
 }
 
+export function getActiveArticleBodyOverride(article) {
+  const customBody = AGY_AGY_REWRITE_20260731_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260730_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
+  if (!customBody) return null;
+  return isScaleTarotArticle(article)
+    ? humanizeTarotScaleBody(article, customBody)
+    : customBody;
+}
+
 function buildArticleBody(article, productTheme, managedArticle) {
   const cardFaceSections = TAROT_CARD_FACE_50_LIBRARY[article.slug] || [];
-  const customBody = AGY_AGY_REWRITE_20260731_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260730_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
-  if (customBody) {
-    const body = isScaleTarotArticle(article) ? humanizeTarotScaleBody(article, customBody) : customBody;
-    return [...cardFaceSections, ...body];
-  }
+  const customBody = getActiveArticleBodyOverride(article);
+  if (customBody) return [...cardFaceSections, ...customBody];
   const primary = article.primaryKeyword || article.title;
   const related = [primary, ...(article.secondaryKeywords || [])].slice(0, 4).join("、");
   return [

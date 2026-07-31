@@ -1906,9 +1906,8 @@ console.log(JSON.stringify({
 def test_expansion_50_adds_unique_publishable_articles() -> None:
     script = f"""
 import {{ EXPANSION_50_ARTICLE_BODY_LIBRARY, EXPANSION_50_ARTICLE_RECORDS }} from "./app/web/static/article-expansion-50.js";
-import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ buildArticleContent, getActiveArticleBodyOverride }} from "./app/web/static/article-meta.js";
 import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
-import {{ REWRITE_RELEASE_001_BODY_OVERRIDES }} from "./app/web/static/article-rewrite-release-001.js";
 
 const expectedPaths = new Set({json.dumps(EXPANSION_50_PUBLIC_ARTICLE_PATHS)});
 const allArticles = listArticleRecords();
@@ -1924,7 +1923,7 @@ for (const paragraph of paragraphs) {{
 const rendered = expansion.map((article) => {{
   const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
-  const rewrite = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug];
+  const rewrite = getActiveArticleBodyOverride(article);
   return {{
     path: getArticlePath(article),
     bodyLength: [...bodyText].length,
@@ -1934,6 +1933,7 @@ const rendered = expansion.map((article) => {{
     faqCount: content.faq.length,
     published: content.published,
     updated: content.updated,
+    registryUpdated: article.updated,
     voice: article.description.length >= 50 && /不|不能|無法/.test(`${{article.description}}${{article.answer}}`),
   }};
 }});
@@ -1974,7 +1974,8 @@ console.log(JSON.stringify({{
         assert article["bodyMatchesRewrite"], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
-        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == article["registryUpdated"], article
+        assert article["updated"] >= article["published"], article
         assert article["voice"], article
 
 
@@ -2747,16 +2748,16 @@ console.log(JSON.stringify({
 
 def test_article_body_runtime_contract_keeps_custom_body_unenriched() -> None:
     script = """
-import { buildArticleContent } from "./app/web/static/article-meta.js";
-import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./app/web/static/article-rewrite-release-001.js";
+import { buildArticleContent, getActiveArticleBodyOverride } from "./app/web/static/article-meta.js";
 
 const content = buildArticleContent("/articles/personality/personality-0001", "https://www.mysticpantheon.com", {
   author: "Pantheon 編輯部",
   updated: "2026-07-10",
 });
+const activeRewrite = getActiveArticleBodyOverride({ slug: "mbti-meaning" });
 console.log(JSON.stringify({
   headings: content.bodySections.map((section) => section.heading),
-  bodyMatchesRewrite: JSON.stringify(content.bodySections) === JSON.stringify(REWRITE_RELEASE_001_BODY_OVERRIDES["mbti-meaning"]),
+  bodyMatchesRewrite: JSON.stringify(content.bodySections) === JSON.stringify(activeRewrite),
   text: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\\n"),
 }));
 """
