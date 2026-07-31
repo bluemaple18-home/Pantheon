@@ -876,6 +876,72 @@ def test_valid_locale_plan_reaches_candidate_persistence(tmp_path: Path) -> None
     assert (tmp_path / "attempts/01/candidate.json").is_file()
 
 
+def test_candidate_outline_mismatch_enters_semantic_repair(tmp_path: Path) -> None:
+    brief = non_tarot_translation_brief()
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    plan_count = 0
+    candidate_count = 0
+    last_outline: list[str] | None = None
+
+    class OutlineRepairClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal plan_count, candidate_count, last_outline
+            if "native_search_intent" in json.dumps(schema):
+                plan_count += 1
+                payload = external_locale_plan(brief)
+                if plan_count == 1:
+                    payload["articles"][0]["ordered_h2_outline"] = [
+                        "h2-1",
+                        "h2-2",
+                        "h2-3",
+                        "h2-4",
+                    ]
+                last_outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                candidate_count += 1
+                if candidate_count == 1:
+                    return non_tarot_external_candidate()
+                return non_tarot_external_candidate(last_outline)
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                    }
+                ]
+            }
+
+    _candidate, review = multilingual.run_writer_reviewer(
+        tmp_path,
+        OutlineRepairClient(),
+        max_repairs=1,
+    )
+
+    first_review = json.loads(
+        (tmp_path / "attempts/01/review.json").read_text()
+    )
+    assert first_review["articles"][0]["verdict"] == "REJECT"
+    assert {
+        finding["code"]
+        for finding in first_review["articles"][0]["findings"]
+    } == {
+        "LOCALE_PLAN_HEADING_PLACEHOLDER",
+        "LOCALE_PLAN_OUTLINE_MISMATCH",
+    }
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert plan_count == candidate_count == 2
+
+
 @pytest.mark.parametrize("mutation", ["missing", "duplicate"])
 def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
     mutation: str,

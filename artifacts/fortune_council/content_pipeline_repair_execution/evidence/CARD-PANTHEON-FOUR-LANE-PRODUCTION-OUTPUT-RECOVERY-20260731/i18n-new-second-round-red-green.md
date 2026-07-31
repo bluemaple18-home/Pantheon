@@ -191,3 +191,44 @@ affected tests: 432 passed
 full suite: 823 passed, 2 warnings
 git diff --check: PASS
 ```
+
+### Reviewer exhaustion and replacement-run outline repair
+
+original run 在兩次 semantic repair 後仍被 reviewer 以
+`SOURCE_SYNTAX_TRANSFER`、`AI_TEMPLATE_STYLE` 拒絕；
+`approved_by_reviewer=0`，因此沒有進 Publisher。依卡片限定只建立一個
+replacement：
+
+```text
+auto-i18n-en-cfd7211d31136567123c-replacement-01
+```
+
+replacement 的第一份 locale plan 把 `h2-1` 到 `h2-4` 誤當實際 H2，
+article 又沿用來源中文 H2。舊路徑在 provider transport 成功後以
+`ValueError: article outline differs from locale plan` hard fail，無法使用
+既有 semantic repair 額度。
+
+新增 deterministic findings：
+
+```text
+LOCALE_PLAN_HEADING_PLACEHOLDER
+LOCALE_PLAN_OUTLINE_MISMATCH
+```
+
+兩者會合併進 reviewer 結果並強制 `REJECT`；只有下一代 plan 使用目標語言
+自然 H2，且 candidate 的 section count、order、heading 逐字對齊，才會清除
+findings。prompt 同時明確區分 mapping slot 與實際 H2，不放寬任何既有
+reviewer 契約。
+
+同一份 production response 的離線 RED/GREEN：
+
+```text
+RED: ValueError: article outline differs from locale plan for article-01
+GREEN: 2 deterministic findings persisted for semantic repair
+affected tests: 433 passed
+full suite: 824 passed, 2 warnings
+git diff --check: PASS
+```
+
+截至此點 production Gemini 外呼為 24/40；replacement 尚未使用任何
+semantic repair。

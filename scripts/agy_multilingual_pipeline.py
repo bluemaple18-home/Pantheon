@@ -939,6 +939,7 @@ def _plan_prompt(
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
             "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
+            "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
             "generation:",
@@ -986,6 +987,7 @@ def _article_prompt(
             "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
             "寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。",
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
+            "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
             "不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。",
             "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
             "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
@@ -1315,6 +1317,45 @@ def _validate_candidate_matches_plan(
             )
 
 
+def _candidate_plan_findings(
+    candidate: dict[str, Any],
+    plan: dict[str, Any],
+) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    for article, planned in zip(candidate["articles"], plan["articles"]):
+        planned_outline = planned["ordered_h2_outline"]
+        headings = [
+            section["heading"]
+            for section in article["bodySections"]
+        ]
+        if any(
+            re.fullmatch(r"h2-[1-4]", str(heading).strip(), re.IGNORECASE)
+            for heading in planned_outline
+        ):
+            findings.append(
+                {
+                    "article_id": str(article["article_id"]),
+                    "code": "LOCALE_PLAN_HEADING_PLACEHOLDER",
+                    "message": (
+                        "ordered_h2_outline 使用了保留的 h2 slot token，"
+                        "必須改成目標語言的自然標題"
+                    ),
+                }
+            )
+        if headings != planned_outline:
+            findings.append(
+                {
+                    "article_id": str(article["article_id"]),
+                    "code": "LOCALE_PLAN_OUTLINE_MISMATCH",
+                    "message": (
+                        "bodySections 的數量、順序與 heading 必須逐字對齊"
+                        "已驗證的 ordered_h2_outline"
+                    ),
+                }
+            )
+    return findings
+
+
 def _run_locale_generation(
     brief: dict[str, Any],
     client: pipeline.GeminiClient,
@@ -1362,8 +1403,10 @@ def _run_locale_generation(
         generation_dir / "external-candidate.json",
     )
     candidate = _hydrate_candidate(brief, external_candidate)
-    _validate_candidate_matches_plan(candidate, plan)
-    deterministic = translation_findings(brief, candidate["articles"])
+    deterministic = [
+        *_candidate_plan_findings(candidate, plan),
+        *translation_findings(brief, candidate["articles"]),
+    ]
     _atomic_write_json(
         generation_dir / "deterministic-findings.json",
         deterministic,
