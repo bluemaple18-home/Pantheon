@@ -697,6 +697,8 @@ import { AGY_AUTO_NEW_V1_20260731_112_01_ARTICLE_RECORDS } from "./article-expan
 
 import { AGY_AUTO_NEW_V1_20260731_122_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260731-122-01.js?v=agy-auto-new-v1-20260731-122-01";
 
+import { AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260731-01.js?v=agy-rewrite-20260731-01";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2789,7 +2791,7 @@ export function listArticleSectionRecords() {
 }
 
 export function listArticleRecords() {
-  return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy({ ...(article), ...(AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {}) }, getArticleSectionRecord(article.section)));
+  return ARTICLE_REGISTRY.map((article) => enforceArticlePolicy({ ...({ ...(article), ...(AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {}) }), ...(AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES[article.id] || {}) }, getArticleSectionRecord(article.section)));
 }
 
 export function getArticlePath(article) {
