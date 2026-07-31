@@ -1043,13 +1043,14 @@ def _hydrate_locale_plan(
                 section["heading"]
                 for section in brief["articles"][index]["source"]["bodySections"]
             ],
+            "rebuild_outline": rebuild_by_slot.get(slot, False),
             "coverage_mapping": [
                 dict(mapping)
                 for mapping in external_mappings
             ],
         }
-        if item.get("rebuild_outline") is not rebuild_by_slot.get(slot, False):
-            raise ValueError(f"locale plan rebuild authority differs for {slot}")
+        if type(external_item.get("rebuild_outline")) is not bool:
+            raise ValueError(f"locale plan rebuild flag is invalid for {slot}")
         outline = item.get("ordered_h2_outline")
         if not isinstance(outline, list):
             raise ValueError(f"locale plan outline is invalid for {slot}")

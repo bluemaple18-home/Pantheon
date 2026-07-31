@@ -1274,6 +1274,44 @@ def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> N
 
 
 @pytest.mark.parametrize(
+    ("external_rebuild", "pipeline_rebuild"),
+    [(True, False), (False, True)],
+)
+def test_locale_plan_canonicalizes_rebuild_to_pipeline_authority(
+    external_rebuild: bool,
+    pipeline_rebuild: bool,
+) -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(
+        brief,
+        rebuild_outline=external_rebuild,
+    )
+
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": pipeline_rebuild},
+    )
+
+    assert plan["articles"][0]["rebuild_outline"] is pipeline_rebuild
+
+
+def test_locale_plan_rejects_non_boolean_external_rebuild_flag() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    external["articles"][0]["rebuild_outline"] = "false"
+
+    with pytest.raises(ValueError, match="rebuild flag is invalid"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
+
+
+@pytest.mark.parametrize(
     "finding_code",
     [
         "AI_TEMPLATE_STYLE",
