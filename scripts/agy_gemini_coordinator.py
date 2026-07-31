@@ -31,6 +31,7 @@ DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS = 2
 DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE = 1
 DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN = 5
 DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
+MAX_LEGACY_REWRITE_LINEAGE_RETRIES = 100
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
@@ -336,6 +337,19 @@ def _slug_part(value: str) -> str:
     return slug[:80] or "article"
 
 
+def _next_legacy_rewrite_run_id(run_root: Path, queue_root: Path, base_run_id: str) -> str:
+    """保留歷史 run/state，為重新排程挑選第一個未使用的 lineage ID。"""
+    retries = (
+        f"{base_run_id}-retry-{index:02d}"
+        for index in range(1, MAX_LEGACY_REWRITE_LINEAGE_RETRIES + 1)
+    )
+    candidates = [base_run_id, *retries]
+    for candidate in candidates:
+        if not (run_root / candidate).exists() and not _state_path(candidate, queue_root).exists():
+            return candidate
+    raise ValueError("legacy rewrite run lineage exhausted")
+
+
 def _head_sha(repo_root: Path) -> str:
     return subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -536,7 +550,8 @@ def seed_legacy_rewrite_runs(
         inventory_item = inventory.get(article_id)
         if not inventory_item:
             continue
-        run_id = f"legacy-auto-sweep-v1-{publisher._record_serial(record)}-{_slug_part(article_id)}"
+        base_run_id = f"legacy-auto-sweep-v1-{publisher._record_serial(record)}-{_slug_part(article_id)}"
+        run_id = _next_legacy_rewrite_run_id(run_root, queue_root, base_run_id)
         run_dir = run_root / run_id
         article_brief = _legacy_rewrite_article_brief(record, inventory_item)
         brief = {

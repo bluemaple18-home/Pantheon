@@ -545,6 +545,101 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+def test_seed_legacy_rewrite_runs_preserves_orphan_state_and_uses_retry_lineage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    record = {
+        "id": "LEGACY-001",
+        "product": "tarot",
+        "articleCategory": "tarot",
+        "serial": "tarot-001",
+        "slug": "yongshen-meaning",
+        "urlSlug": "fortune-0039",
+        "primaryKeyword": "塔羅舊文一",
+        "title": "塔羅舊文一",
+        "description": "描述一",
+        "answer": "答案一",
+        "faq": [{"question": "問一", "answer": "答一"}],
+        "tags": ["塔羅"],
+        "path": "articles/tarot/tarot-001",
+    }
+    current_body = [{"heading": "現況", "paragraphs": ["這是一段舊文內容，等待改得更貼近讀者生活。"]}]
+    inventory = {
+        "LEGACY-001": {
+            "id": "LEGACY-001",
+            "record": record,
+            "canonicalPath": "/articles/tarot/tarot-001",
+            "currentBody": current_body,
+            "published": "2026-01-01",
+            "updated": "2026-01-01",
+        }
+    }
+    base_run_id = "legacy-auto-sweep-v1-tarot-001-legacy-001"
+    orphan_state_path = coordinator._state_path(base_run_id, queue_root)
+    orphan_state_path.parent.mkdir(parents=True)
+    orphan_state_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": base_run_id,
+                "run_dir": str(tmp_path / "removed-worktree" / base_run_id),
+                "status": "active",
+            }
+        ),
+        encoding="utf-8",
+    )
+    orphan_state_before = orphan_state_path.read_bytes()
+    preserved_base_run_dir = run_root / base_run_id
+    preserved_base_run_dir.mkdir(parents=True)
+    preserved_marker = preserved_base_run_dir / "preserve.txt"
+    preserved_marker.write_text("failed historical seed", encoding="utf-8")
+
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: [record])
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+
+    summary = seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        max_new_runs=1,
+        source_commit="a" * 40,
+    )
+
+    retry_run_id = f"{base_run_id}-retry-01"
+    assert summary["status"] == "seeded"
+    assert summary["created_run_ids"] == [retry_run_id]
+    assert orphan_state_path.read_bytes() == orphan_state_before
+    assert preserved_marker.read_text(encoding="utf-8") == "failed historical seed"
+    retry_brief = json.loads((run_root / retry_run_id / "brief.json").read_text(encoding="utf-8"))
+    assert retry_brief["run_id"] == retry_run_id
+    assert read_run_state(run_root / retry_run_id, queue_root)["run_id"] == retry_run_id
+
+
+def test_next_legacy_rewrite_run_id_skips_existing_retry_directory(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    base_run_id = "legacy-auto-sweep-v1-tarot-001-legacy-001"
+    base_state_path = coordinator._state_path(base_run_id, queue_root)
+    base_state_path.parent.mkdir(parents=True)
+    base_state_path.write_text("{}", encoding="utf-8")
+    retry_dir = run_root / f"{base_run_id}-retry-01"
+    retry_dir.mkdir(parents=True)
+    marker = retry_dir / "preserve.txt"
+    marker.write_text("historical", encoding="utf-8")
+
+    selected = coordinator._next_legacy_rewrite_run_id(run_root, queue_root, base_run_id)
+
+    assert selected == f"{base_run_id}-retry-02"
+    assert marker.read_text(encoding="utf-8") == "historical"
+
+
 def test_seed_legacy_rewrite_runs_advances_past_exhausted_clean_approvals(
     tmp_path: Path,
     monkeypatch,
