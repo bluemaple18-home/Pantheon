@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "projectKind": "remote",
+      "label": "Pantheon",
+      "supportsWorktrees": true,
+      "isGitRepository": true,
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "path": "<repo-root>",
+      "hostDisplayName": "MattkuodeMac-mini.local"
+    }
+  ]
+}

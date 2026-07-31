@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "query": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731",
+  "unavailableHosts": [],
+  "threads": [
+    {
+      "id": "019fb430-ff85-7860-ae08-ed4bcbc91c5d",
+      "threadId": "019fb430-ff85-7860-ae08-ed4bcbc91c5d",
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "cwd": "<repo-root>",
+      "title": "Dispatch Four Lane Recovery Card",
+      "status": "active"
+    },
+    {
+      "id": "019fb39d-564d-72f0-9fd4-8a86770a2825",
+      "threadId": "019fb39d-564d-72f0-9fd4-8a86770a2825",
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "cwd": "<repo-root>",
+      "title": "檢查卡片為何停在草稿",
+      "status": "idle"
+    }
+  ]
+}

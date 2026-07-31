@@ -1,0 +1,4 @@
+{"added_lines": 112, "binary": false, "old_path": null, "path": "artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/i18n-new-red-green.md", "removed_lines": 0, "status": "M", "untracked": false}
+{"added_lines": 75, "binary": false, "old_path": null, "path": "artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/i18n-rewrite-red-green.md", "removed_lines": 0, "status": "M", "untracked": false}
+{"added_lines": 73, "binary": false, "old_path": null, "path": "scripts/agy_multilingual_pipeline.py", "removed_lines": 20, "status": "M", "untracked": false}
+{"added_lines": 242, "binary": false, "old_path": null, "path": "tests/test_agy_multilingual_pipeline.py", "removed_lines": 1, "status": "M", "untracked": false}

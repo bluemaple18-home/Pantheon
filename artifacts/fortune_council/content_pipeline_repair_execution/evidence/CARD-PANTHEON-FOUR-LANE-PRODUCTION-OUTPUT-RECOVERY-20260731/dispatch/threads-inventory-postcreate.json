@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "query": "v1:3dc5b577b0a24987083ade7b817d666018e78da7190ba28d742616c00ffc8be1",
+  "unavailableHosts": [],
+  "threads": [
+    {
+      "id": "019fb593-406b-7212-8b17-25daa2f63c8e",
+      "threadId": "019fb593-406b-7212-8b17-25daa2f63c8e",
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "cwd": "<codex-home>/worktrees/c8eeb5a2-3a1c-4de7-bfad-e62cbdbe01a3/Pantheon",
+      "title": "Four Lane Recovery — Observe & Failure Matrix",
+      "status": "active",
+      "dispatchKey": "v1:3dc5b577b0a24987083ade7b817d666018e78da7190ba28d742616c00ffc8be1"
+    }
+  ]
+}

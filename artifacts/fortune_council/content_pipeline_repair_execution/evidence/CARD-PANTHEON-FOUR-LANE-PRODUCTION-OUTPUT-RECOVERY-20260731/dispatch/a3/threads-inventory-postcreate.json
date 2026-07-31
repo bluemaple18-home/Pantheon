@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "query": "v1:46cac7ec0baf6e3e2a11e7f800595d3764532633a05e549d13bdfa94420cd8bf",
+  "unavailableHosts": [],
+  "threads": [
+    {
+      "id": "019fb5d8-0aa3-7921-8da9-464fdd0115a6",
+      "threadId": "019fb5d8-0aa3-7921-8da9-464fdd0115a6",
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "cwd": "<codex-home>/worktrees/26797248-6cf6-4a52-84aa-078a7a57fc37/Pantheon",
+      "title": "A3 — Rewrite Eligibility Deadlock Repair",
+      "status": "active",
+      "dispatchKey": "v1:46cac7ec0baf6e3e2a11e7f800595d3764532633a05e549d13bdfa94420cd8bf"
+    }
+  ]
+}

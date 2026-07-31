@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "query": "v1:19562d5bd63056069b72789e78a14a4e6d76291cbff0f28c083efdc2def01abb",
+  "unavailableHosts": [],
+  "threads": [
+    {
+      "id": "019fb5d7-d3e0-72e1-92fe-ae1c0868bc61",
+      "threadId": "019fb5d7-d3e0-72e1-92fe-ae1c0868bc61",
+      "hostId": "slingshot:env_e_6a17b3781858832daee8697c30fc7e7c",
+      "projectId": "c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==",
+      "cwd": "<codex-home>/worktrees/71879694-dd29-4a4d-b6d6-f8caf49d411a/Pantheon",
+      "title": "A2 — New Contract Repair",
+      "status": "active",
+      "dispatchKey": "v1:19562d5bd63056069b72789e78a14a4e6d76291cbff0f28c083efdc2def01abb"
+    }
+  ]
+}

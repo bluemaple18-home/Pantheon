@@ -1,0 +1,5 @@
+{"added_lines": 92, "binary": false, "old_path": null, "path": "artifacts/fortune_council/content_pipeline_repair_execution/evidence/CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731/rewrite-red-green.md", "removed_lines": 0, "status": "M", "untracked": false}
+{"added_lines": 38, "binary": false, "old_path": null, "path": "scripts/agy_content_publisher.py", "removed_lines": 5, "status": "M", "untracked": false}
+{"added_lines": 14, "binary": false, "old_path": null, "path": "scripts/agy_gemini_coordinator.py", "removed_lines": 2, "status": "M", "untracked": false}
+{"added_lines": 121, "binary": false, "old_path": null, "path": "tests/test_agy_content_publisher.py", "removed_lines": 0, "status": "M", "untracked": false}
+{"added_lines": 254, "binary": false, "old_path": null, "path": "tests/test_agy_gemini_coordinator.py", "removed_lines": 0, "status": "M", "untracked": false}
