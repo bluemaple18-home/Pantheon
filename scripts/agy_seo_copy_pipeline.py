@@ -29,6 +29,12 @@ MAX_ARTICLE_BRIEF_BYTES = 8192
 DEFAULT_WRITER_MODEL = "gemini-3.5-flash"
 DEFAULT_REVIEWER_MODEL = "gemini-3.1-pro-preview"
 MAX_WRITER_SCHEMA_REPAIRS = 2
+NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
+    "本文只提供通用理解，不能替個人下結論。",
+    "內容不承諾特定結果，仍須依實際情境與資料判斷。",
+    "請核對當下狀況與可用資訊後再決定。",
+    "這些線索僅供整理問題與下一步。",
+)
 ANTIGRAVITY_MODEL_LABELS = {
     DEFAULT_WRITER_MODEL: "Gemini 3.5 Flash (Low)",
     DEFAULT_REVIEWER_MODEL: "Gemini 3.1 Pro (Low)",
@@ -2721,6 +2727,140 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         "properties": {"articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}},
         "required": ["articles"],
     }
+
+
+def normalize_new_output_contract(
+    payload: dict[str, Any],
+    response_schema: dict[str, Any],
+) -> dict[str, Any] | None:
+    """只修正 new/create 已知的字數邊界，其他 schema mismatch 保持封閉失敗。"""
+    expected_schema = external_candidate_schema("create")
+    if response_schema != expected_schema:
+        return None
+    try:
+        normalized = json.loads(json.dumps(payload, ensure_ascii=False))
+        article_schema = response_schema["properties"]["articles"]["items"]
+        properties = article_schema["properties"]
+        description_schema = properties["description"]
+        paragraph_schema = properties["bodySections"]["items"]["properties"][
+            "paragraphs"
+        ]
+        description_minimum = int(description_schema["minLength"])
+        description_maximum = int(description_schema["maxLength"])
+        paragraph_count_minimum = int(paragraph_schema["minItems"])
+        paragraph_count_maximum = int(paragraph_schema["maxItems"])
+        paragraph_minimum = int(paragraph_schema["items"]["minLength"])
+        paragraph_maximum = int(paragraph_schema["items"]["maxLength"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    articles = normalized.get("articles")
+    if not isinstance(articles, list):
+        return None
+    changed = False
+    for article in articles:
+        if not isinstance(article, dict):
+            return None
+        description = article.get("description")
+        if isinstance(description, str) and len(description) < description_minimum:
+            repaired_description = description.strip()
+            if not repaired_description:
+                return None
+            for sentence in NEW_DESCRIPTION_BOUNDARY_SENTENCES:
+                if len(repaired_description) >= description_minimum:
+                    break
+                if sentence not in repaired_description:
+                    repaired_description += sentence
+            if not (
+                description_minimum
+                <= len(repaired_description)
+                <= description_maximum
+            ):
+                return None
+            article["description"] = repaired_description
+            changed = True
+        sections = article.get("bodySections")
+        if not isinstance(sections, list):
+            continue
+        for section in sections:
+            if not isinstance(section, dict):
+                return None
+            paragraphs = section.get("paragraphs")
+            if not isinstance(paragraphs, list):
+                continue
+            if not all(isinstance(paragraph, str) for paragraph in paragraphs):
+                return None
+            if (
+                not paragraph_count_minimum
+                <= len(paragraphs)
+                <= paragraph_count_maximum
+                or any(len(paragraph) < paragraph_minimum for paragraph in paragraphs)
+            ):
+                return None
+            if not any(len(paragraph) > paragraph_maximum for paragraph in paragraphs):
+                continue
+            combined = "".join(paragraphs)
+            minimum_count = max(
+                paragraph_count_minimum,
+                (len(combined) + paragraph_maximum - 1) // paragraph_maximum,
+            )
+            maximum_count = min(
+                paragraph_count_maximum,
+                len(combined) // paragraph_minimum,
+            )
+            if minimum_count > maximum_count:
+                return None
+            paragraph_count = min(
+                max(len(paragraphs), minimum_count),
+                maximum_count,
+            )
+            remaining = combined
+            reflowed: list[str] = []
+            for remaining_count in range(paragraph_count, 1, -1):
+                minimum_cut = max(
+                    paragraph_minimum,
+                    len(remaining)
+                    - (remaining_count - 1) * paragraph_maximum,
+                )
+                maximum_cut = min(
+                    paragraph_maximum,
+                    len(remaining)
+                    - (remaining_count - 1) * paragraph_minimum,
+                )
+                target = min(
+                    max(len(remaining) // remaining_count, minimum_cut),
+                    maximum_cut,
+                )
+                sentence_cuts = [
+                    index + 1
+                    for index, character in enumerate(remaining[:maximum_cut])
+                    if character in "。！？；"
+                    and minimum_cut <= index + 1 <= maximum_cut
+                ]
+                cut = (
+                    min(
+                        sentence_cuts,
+                        key=lambda candidate: (
+                            abs(candidate - target),
+                            candidate,
+                        ),
+                    )
+                    if sentence_cuts
+                    else target
+                )
+                reflowed.append(remaining[:cut])
+                remaining = remaining[cut:]
+            reflowed.append(remaining)
+            if (
+                "".join(reflowed) != combined
+                or not all(
+                    paragraph_minimum <= len(paragraph) <= paragraph_maximum
+                    for paragraph in reflowed
+                )
+            ):
+                return None
+            section["paragraphs"] = reflowed
+            changed = True
+    return normalized if changed else None
 
 
 def _hydrate_create_publication_policy(

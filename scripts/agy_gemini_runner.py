@@ -33,7 +33,11 @@ from scripts.agy_gemini_allocator import (
     record_production_rate_limit,
     validate_production_allocator_installation,
 )
-from scripts.agy_seo_copy_pipeline import CLOSED_GEMINI_ERROR_CODES, GeminiClient
+from scripts.agy_seo_copy_pipeline import (
+    CLOSED_GEMINI_ERROR_CODES,
+    GeminiClient,
+    normalize_new_output_contract,
+)
 from scripts.agy_gemini_v4_broker import (
     ANTIGRAVITY_CLI_PROFILE,
     ExecutionReceipt,
@@ -1087,6 +1091,7 @@ def process_once(
                 timeout_milliseconds=120_000,
                 ledger_path=queue_root / "v4" / "ledger" / f"{job_id}.jsonl",
                 anchor_store=FileAnchorStore(queue_root / "v4" / "anchors"),
+                result_normalizer=normalize_new_output_contract,
             )
             expected_receipt = ExecutionReceipt(
                 job_id,
@@ -1136,6 +1141,20 @@ def process_once(
             result,
             request["response_schema"],
         )
+        if schema_diagnostics:
+            normalized_result = normalize_new_output_contract(
+                result,
+                request["response_schema"],
+            )
+            if (
+                normalized_result is not None
+                and not _diagnose_json_schema(
+                    normalized_result,
+                    request["response_schema"],
+                )
+            ):
+                result = normalized_result
+                schema_diagnostics = ()
         if schema_diagnostics:
             broker_diagnostic = {
                 "replay_status": "COMPLETE",

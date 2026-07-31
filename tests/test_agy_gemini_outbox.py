@@ -160,6 +160,54 @@ def _broker_result(
     )
 
 
+def _new_output_contract_fixture() -> dict[str, object]:
+    def sized_text(seed: str, size: int) -> str:
+        return (seed + "逐項核對情境、資料與可調整限制。" * size)[:size]
+
+    bounded_paragraph = sized_text(
+        "測試關鍵字先整理可觀察情境，再核對手邊資料與限制。",
+        159,
+    ) + "。"
+    assert len(bounded_paragraph) == 160
+    return {
+        "articles": [
+            {
+                "slot": "article-01",
+                "primaryKeyword": "測試關鍵字",
+                "secondaryKeywords": ["觀察情境", "資料限制"],
+                "title": sized_text("測試關鍵字如何整理日常觀察", 28),
+                "description": sized_text("測試關鍵字可協助整理現況與下一步", 69),
+                "answer": "先核對具體情境與可用資料，再決定下一步。",
+                "tags": [f"測試標籤{index}" for index in range(1, 10)],
+                "faq": [
+                    {
+                        "question": f"測試問題 {index}？",
+                        "answer": "先核對實際情境與資料限制。",
+                    }
+                    for index in range(1, 4)
+                ],
+                "bodySections": [
+                    {
+                        "heading": f"測試關鍵字的觀察面向 {section}",
+                        "paragraphs": [
+                            (
+                                bounded_paragraph + "RAW_PROVIDER_TAIL"
+                                if section == 1 and paragraph == 1
+                                else sized_text(
+                                    f"第 {section} 節第 {paragraph} 段先整理具體線索。",
+                                    100,
+                                )
+                            )
+                            for paragraph in range(1, 3)
+                        ],
+                    }
+                    for section in range(1, 6)
+                ],
+            }
+        ]
+    }
+
+
 def test_runner_module_entrypoint_and_launchd_template_are_runnable(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -877,6 +925,67 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     assert all(str(path) not in persisted for path in credential_paths)
     assert str(tmp_path / "round-robin-state.json") not in persisted
     assert "last_ordinal" not in persisted
+
+
+def test_production_normalizes_new_output_with_one_credential_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    assert allocator.allocate_production_slot(
+        state,
+        pool_id=str(pool_payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+        clock=lambda: 8_000.0,
+    ) == (1, "account-1")
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-new-output-normalization",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 new lane prompt",
+        response_schema=pipeline.external_candidate_schema("create"),
+    )
+    provider_constructions = 0
+    provider_calls = 0
+
+    class OneShotGeminiClient:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            nonlocal provider_constructions
+            provider_constructions += 1
+
+        def _single_request_http_transport(self, *_args: object) -> None:
+            raise AssertionError("test double transport must not be called directly")
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal provider_calls
+            provider_calls += 1
+            return _new_output_contract_fixture()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner, "GeminiClient", OneShotGeminiClient)
+
+    result = process_once(queue_root, clock=lambda: 8_001.0, lane="new")
+
+    response = json.loads(
+        (queue_root / "inbox" / f"{request['job_id']}.json").read_text()
+    )
+    assert result["status"] == "processed"
+    assert result["credential_pool"]["slot_id"] == "account-2"
+    assert response["credential_pool"] == result["credential_pool"]
+    assert provider_constructions == 1
+    assert provider_calls == 1
+    assert not list((queue_root / "failed").glob("*.json"))
 
 
 def test_production_pool_commit_failure_precedes_credential_and_provider(
@@ -3227,6 +3336,80 @@ def test_runner_classifies_schema_invalid_payload_before_inbox_side_effect(
     assert failed["request_sha256"] == request["request_sha256"]
     assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
     assert failed["broker_diagnostic"]["result_validation"] == "SCHEMA_MISMATCH"
+
+
+def test_runner_normalizes_new_description_and_paragraph_bounds_without_retry(
+    tmp_path: Path,
+) -> None:
+    response_schema = pipeline.external_candidate_schema("create")
+    request = create_external_request(
+        tmp_path,
+        namespace="new-output-contract-normalization",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 new lane prompt",
+        response_schema=response_schema,
+    )
+    provider_calls = 0
+
+    provider_payload = _new_output_contract_fixture()
+    original_paragraph_text = "".join(
+        provider_payload["articles"][0]["bodySections"][0]["paragraphs"]
+    )
+
+    def successful_provider(
+        _role: str,
+        _model: str,
+        _prompt: str,
+        _schema: dict[str, object],
+    ) -> dict[str, object]:
+        nonlocal provider_calls
+        provider_calls += 1
+        return provider_payload
+
+    result = process_once(tmp_path, generate_json=successful_provider, lane="new")
+
+    assert result == {"status": "processed", "job_id": request["job_id"]}
+    assert provider_calls == 1
+    assert not list((tmp_path / "failed").glob("*.json"))
+    external = consume_external_response(tmp_path, request)
+    article = external["articles"][0]
+    assert 70 <= len(article["description"]) <= 95
+    normalized_paragraphs = article["bodySections"][0]["paragraphs"]
+    assert 2 <= len(normalized_paragraphs) <= 4
+    assert all(80 <= len(paragraph) <= 160 for paragraph in normalized_paragraphs)
+    assert "".join(normalized_paragraphs) == original_paragraph_text
+    assert broker._diagnose_json_schema(external, response_schema) == ()
+
+    target = {
+        "id": "NEW-OUTPUT-01",
+        "section": "astrology",
+        "product": "astrology",
+        "slug": "new-output-01",
+        "serial": "astrology-0001",
+        "urlSlug": "new-output-01",
+        "primaryKeyword": "測試關鍵字",
+        "published": "2026-07-31",
+        "updated": "2026-07-31",
+    }
+    candidate = pipeline.hydrate_candidate(
+        {
+            "schema_version": 1,
+            "run_id": "new-output-contract-normalization",
+            "mode": "create",
+            "articles": [{"target": target}],
+        },
+        external,
+        enforce_policy=False,
+    )
+    pipeline.validate_candidate(candidate, enforce_policy=False)
+    assert candidate["articles"][0]["description"] == article["description"]
+    assert process_once(
+        tmp_path,
+        generate_json=lambda *_args: pytest.fail("archived job must not replay"),
+        lane="new",
+    ) == {"status": "idle"}
+    assert provider_calls == 1
 
 
 def test_runner_returns_idle_for_empty_outbox(tmp_path: Path) -> None:

@@ -15,7 +15,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Literal, Protocol
+from typing import Any, Callable, Final, Literal, Protocol
 
 
 COMMAND_SCHEMA_VERSION: Final = 2
@@ -927,6 +927,11 @@ def run_single_shot(
     timeout_milliseconds: int,
     ledger_path: Path,
     anchor_store: AnchorStore,
+    result_normalizer: Callable[
+        [dict[str, Any], dict[str, Any]],
+        dict[str, Any] | None,
+    ]
+    | None = None,
 ) -> BrokerResult:
     """執行恰一次 target；既有 ledger 一律只 replay，不補事件或重送。"""
     binding = Binding(operation_id, item_id, attempt_id)
@@ -1114,6 +1119,7 @@ def run_single_shot(
     parsed: dict[str, Any] | None = None
     caller_ok = False
     result_validation = "NOT_EVALUATED"
+    result_json: bytes | None = None
     schema_diagnostics: tuple[SchemaDiagnostic, ...] = ()
     json_diagnostic: JsonDiagnostic | None = None
     if replay.status == "COMPLETE" and replay.process_count == 1 and control["outcome"] == "SUCCESS":
@@ -1128,10 +1134,29 @@ def run_single_shot(
             else:
                 schema_diagnostics = _diagnose_json_schema(candidate, response_schema)
                 if schema_diagnostics:
-                    result_validation = "SCHEMA_MISMATCH"
+                    normalized: dict[str, Any] | None = None
+                    if result_normalizer is not None:
+                        try:
+                            normalized = result_normalizer(
+                                candidate,
+                                response_schema,
+                            )
+                        except Exception:
+                            normalized = None
+                    if (
+                        normalized is not None
+                        and not _diagnose_json_schema(normalized, response_schema)
+                    ):
+                        parsed, caller_ok = normalized, True
+                        result_json = canonical_json(normalized)
+                        result_validation = "VALID"
+                        schema_diagnostics = ()
+                    else:
+                        result_validation = "SCHEMA_MISMATCH"
                 else:
                     result_validation = "VALID"
                     parsed, caller_ok = candidate, True
+                    result_json = raw_result
     return BrokerResult(
         replay.status,
         replay.process_count,
@@ -1143,7 +1168,7 @@ def run_single_shot(
         final_anchor,
         receipt,
         caller_ok,
-        raw_result if parsed is not None else None,
+        result_json if parsed is not None else None,
         replay.errors,
         result_validation=result_validation,
         schema_diagnostics=schema_diagnostics,

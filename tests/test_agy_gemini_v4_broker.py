@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -52,6 +53,9 @@ def _write_target(path: Path, mode: str) -> Path:
         "{'ok':True,'must-not-persist':'secret-value'},sort_keys=True))\n"
         "elif mode=='many-schema-mismatches': print(json.dumps("
         "{'a':'x','b':'x','c':'x','d':'x'},sort_keys=True))\n"
+        "elif mode=='normalizable-schema-mismatch': print(json.dumps("
+        "{'description':'短','paragraph':'完整句子。RAW_PROVIDER_TAIL'},"
+        "ensure_ascii=False,sort_keys=True))\n"
         "elif mode=='nonzero': print('non-json-output'); sys.exit(7)\n"
         "elif mode=='timeout': time.sleep(10)\n",
         encoding="utf-8",
@@ -69,6 +73,11 @@ def _run(
     raw_request: bytes = "公開 synthetic request".encode(),
     target_profile: str | None = None,
     response_schema: dict[str, object] = SCHEMA,
+    result_normalizer: Callable[
+        [dict[str, object], dict[str, object]],
+        dict[str, object] | None,
+    ]
+    | None = None,
 ) -> broker.BrokerResult:
     selected_profile = target_profile or (
         broker.ANTIGRAVITY_CLI_PROFILE if executable.name.startswith("agy") else broker.RAW_STDIN_PROFILE
@@ -88,6 +97,7 @@ def _run(
         timeout_milliseconds=timeout_milliseconds,
         ledger_path=tmp_path / "ledger.jsonl",
         anchor_store=broker.FileAnchorStore(tmp_path / "anchors"),
+        result_normalizer=result_normalizer,
     )
 
 
@@ -387,6 +397,54 @@ def test_single_shot_reports_bounded_schema_keyword_and_defined_path_without_val
     serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
     assert "secret-value" not in serialized
     assert "must-not-persist" not in serialized
+
+
+def test_single_shot_delivers_only_revalidated_normalized_result(
+    tmp_path: Path,
+) -> None:
+    response_schema: dict[str, object] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "description": {"type": "string", "minLength": 5},
+            "paragraph": {"type": "string", "maxLength": 5},
+        },
+        "required": ["description", "paragraph"],
+    }
+    target = _write_target(
+        tmp_path / "fake-target",
+        "normalizable-schema-mismatch",
+    )
+    normalizer_calls = 0
+
+    def normalize(
+        candidate: dict[str, object],
+        schema: dict[str, object],
+    ) -> dict[str, object]:
+        nonlocal normalizer_calls
+        normalizer_calls += 1
+        assert schema is response_schema
+        return {
+            "description": f"{candidate['description']}補足說明",
+            "paragraph": "完整句子。",
+        }
+
+    result = _run(
+        tmp_path,
+        target,
+        response_schema=response_schema,
+        result_normalizer=normalize,
+    )
+
+    assert normalizer_calls == 1
+    assert result.caller_contract_satisfied is True
+    assert result.result_validation == "VALID"
+    assert result.result == {
+        "description": "短補足說明",
+        "paragraph": "完整句子。",
+    }
+    assert result.result_json is not None
+    assert b"RAW_PROVIDER_TAIL" not in result.result_json
 
 
 def test_single_shot_schema_diagnostics_do_not_retain_unknown_property_names(
