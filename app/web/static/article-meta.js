@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-auto-new-v1-20260731-155-01";
+} from "./article-registry.js?v=agy-rewrite-20260731-04";
 import {
   ARTICLE_LOCALE_CONFIG,
   ARTICLE_UI_MESSAGES,
@@ -369,6 +369,8 @@ import { AGY_AUTO_NEW_V1_20260731_150_01_ARTICLE_BODY_LIBRARY } from "./article-
 import { AGY_AGY_REWRITE_20260731_02_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260731-02.js?v=agy-rewrite-20260731-02";
 
 import { AGY_AUTO_NEW_V1_20260731_155_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260731-155-01.js?v=agy-auto-new-v1-20260731-155-01";
+
+import { AGY_AGY_REWRITE_20260731_04_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260731-04.js?v=agy-rewrite-20260731-04";
 
 const ARTICLE_BODY_LIBRARY = {
   ...AGY_AUTO_NEW_V1_20260731_155_01_ARTICLE_BODY_LIBRARY,
@@ -1378,7 +1380,7 @@ function buildProductHubReadingGuide(label, articleCount) {
 }
 
 export function getActiveArticleBodyOverride(article) {
-  const customBody = AGY_AGY_REWRITE_20260731_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260731_03_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260731_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260730_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
+  const customBody = AGY_AGY_REWRITE_20260731_04_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260731_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260731_03_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260731_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260730_01_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260726_EMERGENCY_CODEX_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_02_REWRITE_BODY_OVERRIDES[article.slug] || AGY_AGY_REWRITE_20260724_12_REWRITE_BODY_OVERRIDES[article.slug] || REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug];
   if (!customBody) return null;
   return isScaleTarotArticle(article)
     ? humanizeTarotScaleBody(article, customBody)
