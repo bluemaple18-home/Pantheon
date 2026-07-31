@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-I18N-BOUNDED-REPLACEMENT-RECOVERY-20260731
-status: DEPLOYED_CANARY_BLOCKED_PROVIDER
+status: DEPLOYED_CANARY_NO_GO_QUALITY
 owner: current-thread
 base_ref: origin/main
 base_sha_at_triage: 6ba4692b7
@@ -8,8 +8,11 @@ initial_implementation_base_sha: 523ad3e4c
 verified_mainline_sha: 2066de2c2
 implementation_branch: codex/i18n-bounded-replacement-20260731
 implementation_commit: 7002e135f
-deployed_main_sha: 7002e135f
-deployed_actor_sha: 7002e135f
+followup_repair_commits:
+  - 5386447c1
+  - f00298681
+deployed_main_sha: 51d6cbb5c
+deployed_actor_sha: 51d6cbb5c
 user_hold: false
 production_canary_hold: true
 jira: not-applicable
@@ -202,9 +205,17 @@ AUTH／QUOTA／source drift／quality rejection fixture 不建立 replacement，
 - verification: focused tests、受影響 suites、`git diff --check`、debug marker
   scan；只記錄本地 evidence，不呼叫 Gemini、不部署。
 
-完成狀態：`SLICE-I18N-REPL-001` 至 `SLICE-I18N-REPL-004` 均已完成；修復已
-無衝突重放到 `v0.3.221`、推送並部署為 `7002e135f`。Production canary 因
-provider unavailable 尚未產生 candidate 或 release，仍由 `SC-004` 鎖定。
+完成狀態：`SLICE-I18N-REPL-001` 至 `SLICE-I18N-REPL-004` 均已完成；原始
+bounded replacement 修復為 `7002e135f`，後續再以 `5386447c1` 收回
+`rebuild_outline` 的 deterministic authority，並以 `f00298681` 補上逐欄
+target-locale Writer 契約。Production actor 與 `origin/main` 最終對齊
+`51d6cbb5c`；full Flash provider capability 試驗已 NO-GO 並安全撤回。
+
+Production canary 已證明 flash-lite provider 可用，並真實走到 candidate、
+deterministic findings 與 Reviewer；但三個獨立 `i18n-new` replacement 仍因
+母語品質、來源句法或搜尋意圖被拒絕，`i18n-rewrite` 亦未產生新 release。
+本卡 production output 仍為 `0`，`SC-004` 與 `production_canary_hold` 保持
+鎖定；不得再把問題記為全域 provider outage，也不得以 run complete 冒充發布。
 
 ## 8. 可改與禁止範圍
 

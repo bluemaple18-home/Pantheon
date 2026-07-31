@@ -5,8 +5,10 @@
 分支：`codex/i18n-bounded-replacement-20260731`
 初始實作基底：`523ad3e4c`
 最終重新驗證主線：`2066de2c2`（`v0.3.221`）
-實作／部署 commit：`7002e135f`
-狀態：`DEPLOYED_CANARY_BLOCKED_PROVIDER`
+原始實作 commit：`7002e135f`
+後續修補：`5386447c1`、`f00298681`
+最終部署 commit：`51d6cbb5c`
+狀態：`DEPLOYED_CANARY_NO_GO_QUALITY`
 Production canary：`HOLD`
 
 ## 結論
@@ -113,11 +115,49 @@ exit 0
 - 本文件前段的本地驗證階段沒有外呼或 production mutation；後續已授權的
   push、部署與 canary 結果另見 `production-canary-20260801.md`。
 
+## 部署後保存 response 修補
+
+正式 lite model 的 provider response 成功後，保存 bytes 重播暴露第二個
+deterministic ownership conflict：模型回傳 `rebuild_outline=true`，但第一代
+pipeline authority 為 `false`。該欄位不是內容判斷，與既有
+`source_structure_not_copied`／fact order canonicalization 同屬 pipeline-owned
+資料。
+
+- RED：`ValueError: locale plan rebuild authority differs for article-01`
+- GREEN：同一保存 response hydrate 成功，`rebuild_outline=false`、
+  `coverage_count=17`
+- 修補：`5386447c1`
+- 契約：provider 欄位仍必須是 boolean；實際 authority 由 pipeline 寫入，
+  其他 locale-plan gate 不變
+
+日文與韓文候選接著一致出現來源繁中殘留，故以 `f00298681` 補上單一逐欄
+硬約束：`title`、`description`、`answer`、`tags`、FAQ、H2、paragraphs 必須
+依 `article input.locale` 完整重寫。英文 production prompt 已直接取證包含該
+句；其三代 deterministic findings 均為 0，證明語言層改善，但 Reviewer 仍因
+來源句法與搜尋意圖拒絕。
+
+最終驗證：
+
+```text
+deterministic authority focused: 4 passed
+multilingual + coordinator: 231 passed
+provider-schema + multilingual + coordinator: 353 passed
+repository-wide: exit 0
+git diff --check: PASS
+```
+
+曾以 `gemini-3.5-flash` 做一個 strict、未切排程的 capability canary；大型 enum
+移除後 provider enum max 為 4，仍立即 `API_HTTP_ERROR`。試驗 commit
+`362e3e474` 已由 `51d6cbb5c` 撤回，production Writer 保持已證實可用的
+`gemini-3.5-flash-lite`。
+
 ## 剩餘風險
 
-1. Provider recheck 尚未成功，兩條 i18n 都沒有 candidate／release；
-   `production_canary_hold` 必須保持。
-2. 六個 LaunchAgent 保持卸載，避免 provider unavailable 時自動消耗後續
-   attempts；恢復排程前必須先做受控 provider recheck。
+1. Provider 並未全面故障；真正未通過的是母語品質。`i18n-new` 已在 ja、ko、
+   en 三個獨立 bounded canary 被 Reviewer 拒絕，兩條 i18n 均沒有本卡新
+   release，`production_canary_hold` 必須保持。
+2. 六個 LaunchAgent 保持卸載。`i18n-rewrite` lane 尚保存一個 immutable
+   `gemini-3.5-flash` transport-attempt-1 outbox job；啟動 runner 會自動外呼，
+   必須先另做明確 cancellation／terminalization 決策。
 3. 舊 external terminal state 若沒有 closed category／attempt metadata，保持
    fail closed；現有 locale-plan terminal state 不受此限制。
