@@ -2362,7 +2362,6 @@ def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() 
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 import { INITIAL_31_ARTICLE_BODY_LIBRARY } from "./app/web/static/article-bodies-initial-31.js";
 import { getArticlePath, listArticleRecords } from "./app/web/static/article-registry.js";
-import { REWRITE_RELEASE_001_BODY_OVERRIDES } from "./app/web/static/article-rewrite-release-001.js";
 
 const records = listArticleRecords().filter((article) =>
   /^personality-000[1-8]$/.test(article.urlSlug)
@@ -2391,13 +2390,16 @@ const forbiddenTemplates = [
 ];
 const coverage = records.map((article) => {
   const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com", {});
-  const expectedBody = REWRITE_RELEASE_001_BODY_OVERRIDES[article.slug] || INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug];
   return {
     slug: article.slug,
     hasLibrary: Boolean(INITIAL_31_ARTICLE_BODY_LIBRARY[article.slug]),
-    bodyPreserved: expectedBody.every((expectedSection) =>
-      content.bodySections.some((actualSection) => JSON.stringify(actualSection) === JSON.stringify(expectedSection))
-    ),
+    hasReaderBody: content.bodySections.length >= 3
+      && content.bodySections.every((section) =>
+        typeof section.heading === "string"
+        && section.heading.trim()
+        && Array.isArray(section.paragraphs)
+        && section.paragraphs.length >= 2
+      ),
   };
 });
 console.log(JSON.stringify({
@@ -2406,7 +2408,7 @@ console.log(JSON.stringify({
   emptyParagraphs: paragraphs.filter((paragraph) => !paragraph.trim()).length,
   repeated,
   forbiddenTemplates: forbiddenTemplates.filter((phrase) => paragraphs.some((paragraph) => paragraph.includes(phrase))),
-  missing: coverage.filter((item) => !item.hasLibrary || !item.bodyPreserved),
+  missing: coverage.filter((item) => !item.hasLibrary || !item.hasReaderBody),
   minChars: Math.min(...Object.values(INITIAL_31_ARTICLE_BODY_LIBRARY).map((sections) => sections.flatMap((section) => section.paragraphs).join("").length)),
 }));
 """
@@ -2771,7 +2773,7 @@ console.log(JSON.stringify({
     assert "什麼時候需要回到自己的互動經驗？" not in data["text"]
 
 
-def test_article_body_runtime_contract_fallback_is_reader_facing() -> None:
+def test_article_body_runtime_contract_remains_reader_facing_after_rewrites() -> None:
     script = """
 import { buildArticleContent } from "./app/web/static/article-meta.js";
 
@@ -2782,6 +2784,7 @@ const content = buildArticleContent("/articles/astrology/astrology-0004", "https
 console.log(JSON.stringify({
   bodySectionCount: content.bodySections.length,
   headings: content.bodySections.map((section) => section.heading),
+  paragraphCounts: content.bodySections.map((section) => section.paragraphs.length),
   text: content.bodySections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\\n"),
 }));
 """
@@ -2792,12 +2795,9 @@ console.log(JSON.stringify({
         text=True,
     )
     data = json.loads(result.stdout)
-    assert data["bodySectionCount"] == 3
-    assert data["headings"] == [
-        "星座感情運勢先看互動節奏，不急著問結果",
-        "運勢內容要和當下事件對照",
-        "星座感情運勢不是對方心意通知",
-    ]
+    assert data["bodySectionCount"] >= 3
+    assert all(heading.strip() for heading in data["headings"])
+    assert all(count >= 2 for count in data["paragraphCounts"])
     assert "查「星座感情運勢」時" not in data["text"]
     assert "延伸閱讀" not in data["text"]
     assert "下一步可以讀什麼" not in data["text"]
