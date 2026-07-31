@@ -2268,7 +2268,6 @@ GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
 )
 GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT = frozenset(
     {
-        "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
     }
 )

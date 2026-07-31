@@ -845,8 +845,7 @@ def test_latest_gemini_models_omit_deprecated_sampling_parameters(model: str) ->
     assert generation_config["responseJsonSchema"] is schema
 
 
-@pytest.mark.parametrize("model", ["gemini-3.5-flash", "gemini-3.5-flash-lite"])
-def test_gemini_35_flash_models_strip_only_large_provider_enums(model: str) -> None:
+def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
     def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
@@ -855,7 +854,7 @@ def test_gemini_35_flash_models_strip_only_large_provider_enums(model: str) -> N
 
     client = GeminiClient(
         api_key="redacted",
-        writer_model=model,
+        writer_model="gemini-3.5-flash-lite",
         transport=transport,
     )
     schema = {
