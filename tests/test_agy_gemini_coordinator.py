@@ -353,6 +353,323 @@ def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) ->
     assert "invalid candidate" not in state
 
 
+def test_seed_failed_translation_replacements_is_bounded_per_i18n_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    failed_states = []
+    for run_id, article_id in [
+        ("i18n-new-base", "NEW-001"),
+        ("i18n-new-later", "NEW-002"),
+        ("i18n-rewrite-base", "LEGACY-001"),
+        ("i18n-rewrite-later", "LEGACY-002"),
+    ]:
+        run_dir = queue_root / "translation-runs" / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "mode": "translate_existing",
+                    "articles": [{"source_article_id": article_id}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir.resolve()),
+            "status": "failed",
+            "error_type": "LocalePlanValidationError",
+            "registered_at": f"2026-07-31T10:0{len(failed_states)}:00+08:00",
+            "updated_at": f"2026-07-31T10:0{len(failed_states)}:00+08:00",
+        }
+        coordinator.atomic_write_json(
+            coordinator._state_path(run_id, queue_root),
+            state,
+        )
+        failed_states.append(state)
+
+    calls: list[tuple[str, str]] = []
+
+    def fake_enqueue(
+        _repo_root: Path,
+        selected_queue_root: Path,
+        *,
+        terminal_state: dict[str, object],
+        recovery_reason: str,
+    ) -> dict[str, str]:
+        base_run_id = str(terminal_state["run_id"])
+        replacement_run_id = f"{base_run_id}-replacement-01"
+        calls.append((base_run_id, recovery_reason))
+        replacement_run_dir = (
+            selected_queue_root / "translation-runs" / replacement_run_id
+        ).resolve()
+        replacement_run_dir.mkdir(parents=True)
+        base_brief = json.loads(
+            (Path(str(terminal_state["run_dir"])) / "brief.json").read_text()
+        )
+        (replacement_run_dir / "brief.json").write_text(
+            json.dumps({**base_brief, "run_id": replacement_run_id}),
+            encoding="utf-8",
+        )
+        coordinator.atomic_write_json(
+            coordinator._state_path(replacement_run_id, selected_queue_root),
+            {
+                "schema_version": 1,
+                "run_id": replacement_run_id,
+                "run_dir": str(replacement_run_dir),
+                "status": "active",
+                "replacement_of": base_run_id,
+                "replacement_reason": recovery_reason,
+            },
+        )
+        return {
+            "run_id": replacement_run_id,
+            "run_dir": str(replacement_run_dir),
+            "state_path": str(
+                coordinator._state_path(replacement_run_id, selected_queue_root)
+            ),
+        }
+
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "enqueue_translation_replacement",
+        fake_enqueue,
+    )
+
+    first = coordinator.seed_failed_translation_replacements(
+        repo_root,
+        queue_root,
+        legacy_article_ids={"LEGACY-001", "LEGACY-002"},
+    )
+    second = coordinator.seed_failed_translation_replacements(
+        repo_root,
+        queue_root,
+        legacy_article_ids={"LEGACY-001", "LEGACY-002"},
+    )
+
+    assert first == {
+        "status": "seeded",
+        "created": 2,
+        "created_run_ids": [
+            "i18n-new-base-replacement-01",
+            "i18n-rewrite-base-replacement-01",
+        ],
+    }
+    assert second == {
+        "status": "idle",
+        "created": 0,
+        "created_run_ids": [],
+    }
+    assert calls == [
+        ("i18n-new-base", "LOCALE_PLAN_VALIDATION"),
+        ("i18n-rewrite-base", "LOCALE_PLAN_VALIDATION"),
+    ]
+
+
+def test_lane_cycle_reports_bounded_translation_replacement_seeding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    calls = 0
+
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "legacy_article_ids",
+        lambda _repo_root: {"LEGACY-001"},
+    )
+
+    def fake_seed(
+        selected_repo_root: Path,
+        selected_queue_root: Path,
+        *,
+        legacy_article_ids: set[str],
+    ) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        assert selected_repo_root == repo_root.resolve()
+        assert selected_queue_root == queue_root.resolve()
+        assert legacy_article_ids == {"LEGACY-001"}
+        return {
+            "status": "seeded",
+            "created": 1,
+            "created_run_ids": ["i18n-new-base-replacement-01"],
+        }
+
+    monkeypatch.setattr(
+        coordinator,
+        "seed_failed_translation_replacements",
+        fake_seed,
+    )
+
+    summary = cycle_once(
+        queue_root,
+        repo_root=repo_root,
+        lane_mode=True,
+        tick=lambda *_args: {"status": "complete"},
+        process=lambda _root: {"status": "idle"},
+    )
+
+    assert calls == 1
+    assert summary["translation_replacements"] == {
+        "status": "seeded",
+        "created": 1,
+        "created_run_ids": ["i18n-new-base-replacement-01"],
+    }
+
+
+def test_failed_translation_replacement_skip_is_persisted_without_log_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    run_id = "i18n-new-source-drift"
+    run_dir = queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "mode": "translate_existing",
+                "articles": [{"source_article_id": "NEW-001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    coordinator.atomic_write_json(
+        coordinator._state_path(run_id, queue_root),
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir.resolve()),
+            "status": "failed",
+            "error_type": "LocalePlanValidationError",
+            "registered_at": "2026-07-31T10:00:00+08:00",
+            "updated_at": "2026-07-31T10:00:00+08:00",
+        },
+    )
+    calls = 0
+
+    def fail_source_drift(*_args: object, **_kwargs: object) -> dict[str, str]:
+        nonlocal calls
+        calls += 1
+        raise ValueError("translation replacement source drift")
+
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "enqueue_translation_replacement",
+        fail_source_drift,
+    )
+
+    first = coordinator.seed_failed_translation_replacements(
+        repo_root,
+        queue_root,
+        legacy_article_ids=set(),
+    )
+    second = coordinator.seed_failed_translation_replacements(
+        repo_root,
+        queue_root,
+        legacy_article_ids=set(),
+    )
+
+    assert first == {
+        "status": "idle",
+        "created": 0,
+        "created_run_ids": [],
+        "skipped": [{"run_id": run_id, "reason": "SOURCE_DRIFT"}],
+    }
+    assert second == {
+        "status": "idle",
+        "created": 0,
+        "created_run_ids": [],
+    }
+    assert calls == 1
+    decision = json.loads(
+        coordinator._translation_replacement_decision_path(
+            queue_root,
+            run_id,
+        ).read_text()
+    )
+    assert decision["run_id"] == run_id
+    assert decision["status"] == "skipped"
+    assert decision["reason"] == "SOURCE_DRIFT"
+
+
+@pytest.mark.parametrize(
+    ("error_type", "failure_category", "transport_attempts", "expected"),
+    [
+        ("LocalePlanValidationError", None, None, "LOCALE_PLAN_VALIDATION"),
+        ("GeminiApiFailure", "NETWORK", 3, "NETWORK"),
+        ("V4BrokerFailure", "SCHEMA_INVALID_PAYLOAD", 3, "SCHEMA_INVALID_PAYLOAD"),
+        ("GeminiApiFailure", "PROVIDER_UNAVAILABLE", 3, "PROVIDER_UNAVAILABLE"),
+        ("GeminiApiFailure", "NETWORK", 2, None),
+        ("GeminiApiFailure", "AUTH", 3, None),
+        ("GeminiApiFailure", "QUOTA", 3, None),
+        ("CandidateValidationError", None, None, None),
+    ],
+)
+def test_translation_replacement_reason_is_closed_and_requires_exhaustion(
+    tmp_path: Path,
+    error_type: str,
+    failure_category: str | None,
+    transport_attempts: int | None,
+    expected: str | None,
+) -> None:
+    state: dict[str, object] = {
+        "status": "failed",
+        "run_id": "translation-base",
+        "error_type": error_type,
+    }
+    if failure_category is not None:
+        state["failure_category"] = failure_category
+    if transport_attempts is not None:
+        state["transport_attempts"] = transport_attempts
+
+    assert coordinator._translation_replacement_reason(tmp_path, state) == expected
+
+
+def test_cycle_persists_closed_external_failure_recovery_metadata(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "run-network-exhausted"
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, "run-network-exhausted")
+    register_run(run_dir, queue_root)
+
+    def fail_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise coordinator.ExternalJobFailed(
+            "public-job-network-exhausted",
+            "GeminiApiFailure",
+            "API_TIMEOUT",
+            failure_category="NETWORK",
+            transport_attempt=2,
+        )
+
+    summary = cycle_once(
+        queue_root,
+        tick=fail_tick,
+        process=lambda _root: {"status": "idle"},
+    )
+    state = read_run_state(run_dir, queue_root)
+
+    assert summary["failed"] == 1
+    assert state["status"] == "failed"
+    assert state["failure_category"] == "NETWORK"
+    assert state["transport_attempts"] == 3
+
+
 def test_cycle_preserves_closed_code_and_failed_run_does_not_block_next(
     tmp_path: Path,
 ) -> None:

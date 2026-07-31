@@ -15,10 +15,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from scripts import agy_content_publisher as publisher
+from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
 from scripts.agy_gemini_outbox import (
     ExternalJobFailed,
     ExternalJobPending,
+    OUTBOX_MAX_TRANSPORT_RETRIES,
     atomic_write_json,
     run_pipeline_tick,
 )
@@ -69,6 +71,14 @@ def _state_path(run_id: str, queue_root: Path) -> Path:
     return queue_root / "runs" / f"{opaque_id}.json"
 
 
+def _translation_replacement_decision_path(
+    queue_root: Path,
+    run_id: str,
+) -> Path:
+    opaque_id = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+    return queue_root / "translation-replacement-decisions" / f"{opaque_id}.json"
+
+
 def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     """將一個本機私密 run 登記為 active；不建立外部 request。"""
     resolved = run_dir.resolve()
@@ -117,7 +127,10 @@ def _advance(
     except ExternalJobPending as pending:
         state["status"] = "active"
         state["last_job_id"] = pending.job_id
+        state.pop("error_type", None)
         state.pop("error_code", None)
+        state.pop("failure_category", None)
+        state.pop("transport_attempts", None)
         _write_state(queue_root, state)
         return "pending"
     except ExternalJobFailed as failed:
@@ -128,18 +141,27 @@ def _advance(
             state["error_code"] = failed.error_code
         else:
             state.pop("error_code", None)
+        if failed.failure_category != "INVALID_RECEIPT":
+            state["failure_category"] = failed.failure_category
+        else:
+            state.pop("failure_category", None)
+        state["transport_attempts"] = failed.transport_attempts
         _write_state(queue_root, state)
         return "failed"
     except Exception as error:
         state["status"] = "failed"
         state["error_type"] = type(error).__name__
         state.pop("error_code", None)
+        state.pop("failure_category", None)
+        state.pop("transport_attempts", None)
         _write_state(queue_root, state)
         return "failed"
     state["status"] = "complete"
     state["result"] = result
     state.pop("error_type", None)
     state.pop("error_code", None)
+    state.pop("failure_category", None)
+    state.pop("transport_attempts", None)
     _write_state(queue_root, state)
     return "complete"
 
@@ -149,6 +171,22 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
     for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("status") == "active":
+            states.append(state)
+    return sorted(
+        states,
+        key=lambda state: (
+            str(state.get("updated_at") or ""),
+            str(state.get("registered_at") or ""),
+            str(state.get("run_id") or ""),
+        ),
+    )
+
+
+def _failed_states(queue_root: Path) -> list[dict[str, Any]]:
+    states = []
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        if state.get("status") == "failed":
             states.append(state)
     return sorted(
         states,
@@ -221,6 +259,110 @@ def _lane_summary(
         }
         for lane in CONTENT_LANES
     }
+
+
+def _translation_replacement_reason(
+    queue_root: Path,
+    state: dict[str, Any],
+) -> str | None:
+    run_id = str(state.get("run_id") or "")
+    if (
+        state.get("status") != "failed"
+        or not run_id
+        or run_id.endswith("-replacement-01")
+        or _state_path(f"{run_id}-replacement-01", queue_root).exists()
+        or _translation_replacement_decision_path(queue_root, run_id).exists()
+    ):
+        return None
+    if state.get("error_type") == "LocalePlanValidationError":
+        return "LOCALE_PLAN_VALIDATION"
+    category = state.get("failure_category")
+    attempts = state.get("transport_attempts")
+    if (
+        category in {"NETWORK", "PROVIDER_UNAVAILABLE", "SCHEMA_INVALID_PAYLOAD"}
+        and attempts == OUTBOX_MAX_TRANSPORT_RETRIES + 1
+    ):
+        return str(category)
+    return None
+
+
+def seed_failed_translation_replacements(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    legacy_article_ids: set[str],
+) -> dict[str, Any]:
+    """每條 i18n lane 最多補一個 terminal run replacement。"""
+    root = queue_root.resolve()
+    busy_lanes: set[str] = set()
+    for state in _active_states(root):
+        if not state.get("replacement_of"):
+            continue
+        try:
+            lane = _lane_for_state(state, legacy_article_ids)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if lane in {"i18n-new", "i18n-rewrite"}:
+            busy_lanes.add(lane)
+
+    selected: dict[str, tuple[dict[str, Any], str]] = {}
+    for state in _failed_states(root):
+        reason = _translation_replacement_reason(root, state)
+        if reason is None:
+            continue
+        try:
+            lane = _lane_for_state(state, legacy_article_ids)
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if (
+            lane not in {"i18n-new", "i18n-rewrite"}
+            or lane in busy_lanes
+            or lane in selected
+        ):
+            continue
+        selected[lane] = (state, reason)
+
+    created_run_ids: list[str] = []
+    skipped: list[dict[str, str]] = []
+    for lane in ("i18n-new", "i18n-rewrite"):
+        selected_item = selected.get(lane)
+        if selected_item is None:
+            continue
+        state, reason = selected_item
+        try:
+            replacement = multilingual.enqueue_translation_replacement(
+                repo_root,
+                root,
+                terminal_state=state,
+                recovery_reason=reason,
+            )
+        except ValueError as error:
+            closed_reason = (
+                "SOURCE_DRIFT"
+                if str(error) == "translation replacement source drift"
+                else "INVALID_TERMINAL_STATE"
+            )
+            atomic_write_json(
+                _translation_replacement_decision_path(root, str(state["run_id"])),
+                {
+                    "schema_version": 1,
+                    "run_id": str(state["run_id"]),
+                    "status": "skipped",
+                    "reason": closed_reason,
+                    "recorded_at": _now(),
+                },
+            )
+            skipped.append({"run_id": str(state["run_id"]), "reason": closed_reason})
+            continue
+        created_run_ids.append(replacement["run_id"])
+    summary: dict[str, Any] = {
+        "status": "seeded" if created_run_ids else "idle",
+        "created": len(created_run_ids),
+        "created_run_ids": created_run_ids,
+    }
+    if skipped:
+        summary["skipped"] = skipped
+    return summary
 
 
 def _migrate_pending_jobs(
@@ -634,8 +776,17 @@ def cycle_once(
                     max_new_runs=legacy_max_new_runs_per_cycle,
                 )
 
-        active_states = _active_states(root)
         legacy_article_ids = publisher.legacy_article_ids(resolved_repo) if lane_mode else set()
+        translation_replacements = (
+            seed_failed_translation_replacements(
+                resolved_repo,
+                root,
+                legacy_article_ids=legacy_article_ids,
+            )
+            if lane_mode and not new_only
+            else None
+        )
+        active_states = _active_states(root)
         migrated_jobs = (
             _migrate_pending_jobs(root, active_states, legacy_article_ids)
             if lane_mode and not new_only
@@ -710,6 +861,11 @@ def cycle_once(
                 legacy_article_ids,
             )
             summary["lanes"] = lane_inventory
+            if translation_replacements and (
+                translation_replacements.get("created", 0)
+                or translation_replacements.get("skipped")
+            ):
+                summary["translation_replacements"] = translation_replacements
             summary["migrated_jobs"] = migrated_jobs
             if new_only:
                 disabled_lanes = {

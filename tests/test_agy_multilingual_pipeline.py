@@ -2083,6 +2083,119 @@ def test_legacy_rewrite_source_is_seeded_once_and_terminal_locale_stays_ineligib
     assert json.loads(state_path.read_text())["status"] == "complete"
 
 
+def test_enqueue_translation_replacement_is_bounded_and_preserves_source_identity(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    records = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    base = next(record for record in records if record["locale"] == "en")
+    state_path = next(
+        path
+        for path in (queue_root / "runs").glob("*.json")
+        if json.loads(path.read_text())["run_id"] == base["run_id"]
+    )
+    state = json.loads(state_path.read_text())
+    state["status"] = "failed"
+    state["error_type"] = "LocalePlanValidationError"
+    multilingual.pipeline.write_json(state_path, state)
+    base_state_bytes = state_path.read_bytes()
+    base_brief_path = Path(base["run_dir"]) / "brief.json"
+    base_brief = json.loads(base_brief_path.read_text())
+    base_brief_bytes = base_brief_path.read_bytes()
+
+    first = multilingual.enqueue_translation_replacement(
+        tmp_path,
+        queue_root,
+        terminal_state=state,
+        recovery_reason="LOCALE_PLAN_VALIDATION",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    second = multilingual.enqueue_translation_replacement(
+        tmp_path,
+        queue_root,
+        terminal_state=state,
+        recovery_reason="LOCALE_PLAN_VALIDATION",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+
+    assert first == second
+    assert first["run_id"] == f"{base['run_id']}-replacement-01"
+    replacement_state = json.loads(Path(first["state_path"]).read_text())
+    replacement_brief = json.loads(
+        (Path(first["run_dir"]) / "brief.json").read_text()
+    )
+    assert replacement_state["status"] == "active"
+    assert replacement_state["replacement_of"] == base["run_id"]
+    assert replacement_state["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
+    assert replacement_brief == {
+        **base_brief,
+        "run_id": first["run_id"],
+    }
+    assert state_path.read_bytes() == base_state_bytes
+    assert base_brief_path.read_bytes() == base_brief_bytes
+    assert len(list((queue_root / "translation-runs").glob("*-replacement-01"))) == 1
+
+    replacement_state["status"] = "failed"
+    with pytest.raises(ValueError, match="lineage is exhausted"):
+        multilingual.enqueue_translation_replacement(
+            tmp_path,
+            queue_root,
+            terminal_state=replacement_state,
+            recovery_reason="LOCALE_PLAN_VALIDATION",
+            source_loader=lambda _repo, _article_id: source_article(),
+        )
+    assert not list(
+        (queue_root / "translation-runs").glob("*-replacement-01-replacement-01")
+    )
+
+
+def test_enqueue_translation_replacement_rejects_source_drift_without_mutation(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    records = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    base = next(record for record in records if record["locale"] == "ja")
+    state_path = next(
+        path
+        for path in (queue_root / "runs").glob("*.json")
+        if json.loads(path.read_text())["run_id"] == base["run_id"]
+    )
+    state = json.loads(state_path.read_text())
+    state["status"] = "failed"
+    state["error_type"] = "LocalePlanValidationError"
+    multilingual.pipeline.write_json(state_path, state)
+    state_bytes = state_path.read_bytes()
+    brief_path = Path(base["run_dir"]) / "brief.json"
+    brief_bytes = brief_path.read_bytes()
+    changed_source = source_article()
+    changed_source["title"] = "來源已更新"
+
+    with pytest.raises(ValueError, match="source drift"):
+        multilingual.enqueue_translation_replacement(
+            tmp_path,
+            queue_root,
+            terminal_state=state,
+            recovery_reason="LOCALE_PLAN_VALIDATION",
+            source_loader=lambda _repo, _article_id: changed_source,
+        )
+
+    assert state_path.read_bytes() == state_bytes
+    assert brief_path.read_bytes() == brief_bytes
+    assert not list((queue_root / "translation-runs").glob("*-replacement-01"))
+
+
 def test_enqueue_article_translations_does_not_overwrite_registered_source(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     multilingual.enqueue_article_translations(

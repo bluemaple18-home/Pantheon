@@ -19,6 +19,12 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 SCHEMA_VERSION = 1
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
+TRANSLATION_REPLACEMENT_REASONS = frozenset({
+    "LOCALE_PLAN_VALIDATION",
+    "NETWORK",
+    "PROVIDER_UNAVAILABLE",
+    "SCHEMA_INVALID_PAYLOAD",
+})
 LOCALE_LABELS = {"en": "English", "ja": "日本語", "ko": "한국어"}
 LOCALE_EDITORIAL_CONTRACTS = {
     "en": {
@@ -413,6 +419,94 @@ def enqueue_article_translations(
             )
         records.append({"run_id": run_id, "locale": locale, "run_dir": str(resolved_run_dir)})
     return records
+
+
+def enqueue_translation_replacement(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    terminal_state: dict[str, Any],
+    recovery_reason: str,
+    source_loader: SourceLoader = load_source_article,
+) -> dict[str, str]:
+    """為 eligible terminal translation run 建立一次、可重入的 replacement。"""
+    if recovery_reason not in TRANSLATION_REPLACEMENT_REASONS:
+        raise ValueError("translation replacement reason is not allowed")
+    if terminal_state.get("status") != "failed":
+        raise ValueError("translation replacement requires a failed terminal run")
+    base_run_id = str(terminal_state.get("run_id") or "")
+    if not base_run_id or base_run_id.endswith("-replacement-01"):
+        raise ValueError("translation replacement lineage is exhausted")
+    queue_root = queue_root.resolve()
+    base_run_dir = (queue_root / "translation-runs" / base_run_id).resolve()
+    if terminal_state.get("run_dir") != str(base_run_dir):
+        raise ValueError("translation replacement base run identity differs")
+    base_brief_path = base_run_dir / "brief.json"
+    if not base_brief_path.is_file():
+        raise ValueError("translation replacement base brief is missing")
+    base_brief = json.loads(base_brief_path.read_text(encoding="utf-8"))
+    validate_translation_brief(base_brief)
+    if base_brief.get("run_id") != base_run_id:
+        raise ValueError("translation replacement base brief identity differs")
+    for article in base_brief["articles"]:
+        current_source = source_loader(repo_root, str(article["source_article_id"]))
+        if source_sha256(current_source) != article["source_sha256"]:
+            raise ValueError("translation replacement source drift")
+
+    replacement_run_id = f"{base_run_id}-replacement-01"
+    replacement_run_dir = (
+        queue_root / "translation-runs" / replacement_run_id
+    ).resolve()
+    replacement_state_path = (
+        queue_root
+        / "runs"
+        / f"{hashlib.sha256(replacement_run_id.encode('utf-8')).hexdigest()[:24]}.json"
+    )
+    replacement_brief = {**base_brief, "run_id": replacement_run_id}
+    validate_translation_brief(replacement_brief)
+    replacement_brief_path = replacement_run_dir / "brief.json"
+    if replacement_brief_path.exists():
+        existing_brief = json.loads(
+            replacement_brief_path.read_text(encoding="utf-8")
+        )
+        if existing_brief != replacement_brief:
+            raise ValueError("translation replacement brief collision")
+    else:
+        _atomic_write_json(replacement_brief_path, replacement_brief)
+
+    if replacement_state_path.exists():
+        replacement_state = json.loads(
+            replacement_state_path.read_text(encoding="utf-8")
+        )
+        expected_identity = {
+            "run_id": replacement_run_id,
+            "run_dir": str(replacement_run_dir),
+            "replacement_of": base_run_id,
+            "replacement_reason": recovery_reason,
+        }
+        if any(
+            replacement_state.get(field) != value
+            for field, value in expected_identity.items()
+        ):
+            raise ValueError("translation replacement state collision")
+    else:
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        replacement_state = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": replacement_run_id,
+            "run_dir": str(replacement_run_dir),
+            "status": "active",
+            "registered_at": now,
+            "updated_at": now,
+            "replacement_of": base_run_id,
+            "replacement_reason": recovery_reason,
+        }
+        _atomic_write_json(replacement_state_path, replacement_state)
+    return {
+        "run_id": replacement_run_id,
+        "run_dir": str(replacement_run_dir),
+        "state_path": str(replacement_state_path),
+    }
 
 
 def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
