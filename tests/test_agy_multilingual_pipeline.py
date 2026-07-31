@@ -336,9 +336,9 @@ def external_locale_plan(
                 "coverage_mapping": [
                     {
                         "source_fact_id": fact["fact_id"],
-                        "planned_h2": headings[
-                            (index + coverage_shift) % len(headings)
-                        ],
+                        "planned_h2_index": (
+                            index + coverage_shift
+                        ) % len(headings),
                         "coverage_note": localized["coverage_note"],
                         "safety_boundary": fact["safety_boundary"],
                     }
@@ -523,18 +523,10 @@ def test_locale_plan_accepts_native_script_with_names_acronyms_and_numbers(
     item["native_search_intent"] += " OpenAI GPT-5 2026"
     item["native_query_phrasings"].append("OpenAI GPT-5 2026")
     item["article_angle"] += " OpenAI GPT-5 2026"
-    old_heading = item["ordered_h2_outline"][0]
     item["ordered_h2_outline"][0] = "OpenAI GPT-5 2026"
-    for mapping in item["coverage_mapping"]:
-        if mapping["planned_h2"] == old_heading:
-            mapping["planned_h2"] = item["ordered_h2_outline"][0]
     item["coverage_mapping"][0]["coverage_note"] = "OpenAI GPT-5 2026"
     if locale == "ja":
-        old_heading = item["ordered_h2_outline"][1]
         item["ordered_h2_outline"][1] = "用神判断基準"
-        for mapping in item["coverage_mapping"]:
-            if mapping["planned_h2"] == old_heading:
-                mapping["planned_h2"] = item["ordered_h2_outline"][1]
 
     multilingual._hydrate_locale_plan(
         brief,
@@ -559,14 +551,8 @@ def _replace_locale_plan_semantic_item(
         return
     if field == "ordered_h2_outline":
         outline = item[field]
-        mappings = item["coverage_mapping"]
-        assert isinstance(outline, list) and isinstance(mappings, list)
-        old_heading = outline[0]
+        assert isinstance(outline, list)
         outline[0] = text
-        for mapping in mappings:
-            assert isinstance(mapping, dict)
-            if mapping["planned_h2"] == old_heading:
-                mapping["planned_h2"] = text
         return
     mappings = item["coverage_mapping"]
     assert isinstance(mappings, list) and isinstance(mappings[0], dict)
@@ -720,11 +706,7 @@ def test_locale_plan_rejects_wrong_language_in_each_critical_item(
     elif field == "native_query_phrasings":
         item[field][0] = wrong_text
     elif field == "ordered_h2_outline":
-        old_heading = item[field][0]
         item[field][0] = wrong_text
-        for mapping in item["coverage_mapping"]:
-            if mapping["planned_h2"] == old_heading:
-                mapping["planned_h2"] = wrong_text
     else:
         item["coverage_mapping"][0]["coverage_note"] = wrong_text
 
@@ -742,11 +724,7 @@ def test_locale_plan_rejects_uppercase_general_english_heading(locale: str) -> N
     brief = non_tarot_translation_brief(locale)
     external = external_locale_plan(brief)
     item = external["articles"][0]
-    old_heading = item["ordered_h2_outline"][0]
     item["ordered_h2_outline"][0] = "HOW TO USE THE USEFUL ELEMENT"
-    for mapping in item["coverage_mapping"]:
-        if mapping["planned_h2"] == old_heading:
-            mapping["planned_h2"] = item["ordered_h2_outline"][0]
 
     with pytest.raises(ValueError, match="native locale language"):
         multilingual._hydrate_locale_plan(
@@ -778,10 +756,7 @@ def test_locale_plan_rejects_wrong_script_semantic_fields(
     item["native_query_phrasings"] = [wrong_text]
     item["article_angle"] = wrong_text
     item["ordered_h2_outline"] = [f"{wrong_text} {index}" for index in range(1, 5)]
-    for index, mapping in enumerate(item["coverage_mapping"]):
-        mapping["planned_h2"] = item["ordered_h2_outline"][
-            index % len(item["ordered_h2_outline"])
-        ]
+    for mapping in item["coverage_mapping"]:
         mapping["coverage_note"] = wrong_text
 
     with pytest.raises(ValueError, match="native locale language"):
@@ -979,6 +954,52 @@ def test_external_locale_plan_schema_locks_current_brief_coverage() -> None:
     assert coverage_schema["items"]["properties"]["source_fact_id"]["enum"] == [
         fact["fact_id"] for fact in facts
     ]
+    assert coverage_schema["items"]["properties"]["planned_h2_index"]["enum"] == [
+        0,
+        1,
+        2,
+        3,
+    ]
+    assert item_schema["properties"]["ordered_h2_outline"]["minItems"] == 4
+    assert item_schema["properties"]["ordered_h2_outline"]["maxItems"] == 4
+
+
+def test_locale_plan_resolves_coverage_by_outline_index() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    assert all(
+        mapping["planned_h2"] in plan["articles"][0]["ordered_h2_outline"]
+        for mapping in plan["articles"][0]["coverage_mapping"]
+    )
+    assert all(
+        "planned_h2_index" not in mapping
+        for mapping in plan["articles"][0]["coverage_mapping"]
+    )
+
+
+@pytest.mark.parametrize("heading_index", [4, 5, True])
+def test_locale_plan_rejects_coverage_outline_index_outside_generated_outline(
+    heading_index: object,
+) -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    external["articles"][0]["coverage_mapping"][0]["planned_h2_index"] = heading_index
+
+    with pytest.raises(ValueError, match="coverage heading index"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=1,
+            rebuild_by_slot={"article-01": False},
+        )
 
 
 @pytest.mark.parametrize(

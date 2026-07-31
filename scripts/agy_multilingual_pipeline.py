@@ -505,13 +505,16 @@ def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "source_fact_id": {"type": "string", "enum": source_fact_ids},
-            "planned_h2": {"type": "string"},
+            "planned_h2_index": {
+                "type": "integer",
+                "enum": [0, 1, 2, 3],
+            },
             "coverage_note": {"type": "string"},
             "safety_boundary": {"type": "boolean"},
         },
         "required": [
             "source_fact_id",
-            "planned_h2",
+            "planned_h2_index",
             "coverage_note",
             "safety_boundary",
         ],
@@ -556,7 +559,7 @@ def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
                 "type": "array",
                 "items": {"type": "string"},
                 "minItems": 4,
-                "maxItems": 5,
+                "maxItems": 4,
             },
             "coverage_mapping": {
                 "type": "array",
@@ -759,7 +762,7 @@ def validate_locale_plan(
         outline = item.get("ordered_h2_outline")
         if (
             not isinstance(outline, list)
-            or not 4 <= len(outline) <= 5
+            or len(outline) != 4
             or len(_normalized_outline(outline)) != len(set(_normalized_outline(outline)))
         ):
             raise ValueError(f"locale plan outline is invalid for {slot}")
@@ -871,9 +874,41 @@ def _hydrate_locale_plan(
         raise ValueError("external locale plan slots differ from brief")
     articles = []
     for slot in expected_slots:
-        item = by_slot[slot]
+        external_item = by_slot[slot]
+        external_mappings = external_item.get("coverage_mapping")
+        if not isinstance(external_mappings, list):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        item = {
+            **external_item,
+            "coverage_mapping": [
+                dict(mapping)
+                for mapping in external_mappings
+                if isinstance(mapping, dict)
+            ],
+        }
         if item.get("rebuild_outline") is not rebuild_by_slot.get(slot, False):
             raise ValueError(f"locale plan rebuild authority differs for {slot}")
+        outline = item.get("ordered_h2_outline")
+        if not isinstance(outline, list):
+            raise ValueError(f"locale plan outline is invalid for {slot}")
+        for mapping in item["coverage_mapping"]:
+            if set(mapping) != {
+                "source_fact_id",
+                "planned_h2_index",
+                "coverage_note",
+                "safety_boundary",
+            }:
+                raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+            heading_index = mapping.pop("planned_h2_index")
+            if (
+                type(heading_index) is not int
+                or type(heading_index) is bool
+                or not 0 <= heading_index < len(outline)
+            ):
+                raise ValueError(f"locale plan coverage heading index differs for {slot}")
+            mapping["planned_h2"] = outline[heading_index]
         articles.append(item)
     plan = {
         "schema_version": SCHEMA_VERSION,
@@ -898,6 +933,7 @@ def _plan_prompt(
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
             "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
+            "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_index 必須使用其零起算索引，不得另寫或改寫 H2 文字。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
             "generation:",

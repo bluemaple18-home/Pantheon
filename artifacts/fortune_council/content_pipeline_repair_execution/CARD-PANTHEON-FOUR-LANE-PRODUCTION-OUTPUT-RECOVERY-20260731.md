@@ -1,7 +1,7 @@
 ---
 card_id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
 chain_id: PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731
-status: BLOCKED
+status: REPAIRING
 user_hold: false
 type: diagnostic-repair-mainline
 ownership: mainline
@@ -15,7 +15,7 @@ timezone: Asia/Taipei
 required_base_ref: origin/main
 required_base_sha: dde0cd214fea9b9e6567ed5ec7b7a82113cc836d
 proposed_branch: codex/four-lane-production-output-recovery-20260731
-thread_status: WAITING_USER_AUTHORIZATION_AND_REPAIR
+thread_status: SECOND_ROUND_REPAIR_IN_PROGRESS
 observe_dispatch_card: CARD-PANTHEON-FOUR-LANE-PRODUCTION-OUTPUT-RECOVERY-20260731-RETRY-1
 observe_dispatch_key: v1:fbc0ab99ea1425b00d27b384ce04942232a2bff7fcf705a70321c19ea6952f4a
 observe_thread_id: 019fb598-204e-7cd0-b6b6-004b159365ba
@@ -65,6 +65,17 @@ production_authorization_scope:
   - one controlled real canary for i18n-new
   - one controlled real canary for i18n-rewrite
 production_authorization_status: CONSUMED_NO_GO
+second_round_authorized: true
+second_round_authorization_received_at: 2026-07-31T11:10:00+08:00
+second_round_authorization_basis: 使用者在得知四條 lane 尚未完成、且第二輪包含必要 Gemini calls 與 gate 通過後的 production publish 後，明確要求「沒好就繼續」
+second_round_authorization_scope:
+  - repair i18n-new LocalePlanValidationError without weakening deterministic gates
+  - execute the preserved new replacement job with bounded retry
+  - execute one fresh controlled rewrite canary
+  - execute one fresh controlled i18n-new canary after repair deployment
+  - execute one fresh controlled i18n-rewrite canary
+  - publish each lane only after candidate, review, dry-run and Publisher gates pass
+second_round_authorization_status: IN_PROGRESS
 canary_execution_sha: 66009a3014ee51ba8977b2cbd33462fc37c029ff
 production_source_ref: origin/main
 production_runtime_ref: exact final origin/main after evidence commit
@@ -78,7 +89,7 @@ production_canary_attempts:
     run_id: auto-new-v1-20260731-121-01
     blocker: API_RATE_LIMITED
     replacement_pending_run_id: auto-new-v1-20260731-122-01
-    replacement_authorized: false
+    replacement_authorized: true
   - lane: rewrite
     status: NO_GO
     run_id: legacy-manual-canary-v1-20260731-astrology-0003-astro-base-03
@@ -443,5 +454,7 @@ Publisher 必須正確接受四類合格 candidate，拒絕不合格 candidate�
 
 本卡已完成 repair、整合、strict review、主線同步與 runtime SHA 對齊，但四條
 production canary 均為 `NO_GO`，沒有 candidate 通過到 Publisher，也沒有
-release commit／tag／公開內容變更。六個相關 LaunchAgent 維持停止；`new`
-另有一筆未授權 replacement repair job 保留在 outbox，不會自動執行。
+release commit／tag／公開內容變更。使用者已授權第二輪修復、受控 Gemini
+canary 與 gate 通過後的 production publish。六個相關 LaunchAgent 暫時維持
+停止；`new` 保留中的 replacement repair job 會在修復版本部署完成後，以
+exact-claim 方式單獨執行。
