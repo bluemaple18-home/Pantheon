@@ -721,6 +721,8 @@ import { AGY_AUTO_NEW_V1_20260731_158_01_ARTICLE_RECORDS } from "./article-expan
 
 import { AGY_AUTO_NEW_V1_20260731_157_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260731-157-01.js?v=agy-auto-new-v1-20260731-157-01";
 
+import { AGY_AGY_REWRITE_20260731_05_REWRITE_POLICY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260731-05.js?v=agy-rewrite-20260731-05";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -2821,7 +2823,7 @@ export function listArticleSectionRecords() {
 }
 
 export function getActiveArticlePolicyOverride(article) {
-  const customPolicy = AGY_AGY_REWRITE_20260731_04_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_02_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_03_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {};
+  const customPolicy = AGY_AGY_REWRITE_20260731_05_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_04_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_02_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_03_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260731_01_REWRITE_POLICY_OVERRIDES[article.id] || AGY_AGY_REWRITE_20260730_01_REWRITE_POLICY_OVERRIDES[article.id] || {};
   return customPolicy;
 }
 
