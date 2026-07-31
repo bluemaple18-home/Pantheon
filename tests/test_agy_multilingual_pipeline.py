@@ -985,6 +985,28 @@ def test_locale_plan_resolves_coverage_by_outline_index() -> None:
     )
 
 
+def test_locale_plan_hydrates_source_structure_blacklist_from_brief() -> None:
+    brief = non_tarot_translation_brief()
+    external = external_locale_plan(brief)
+    external["articles"][0]["source_structure_not_copied"] = [
+        "source_h2_order",
+        "source_section_count",
+        "source_paragraph_counts",
+    ]
+
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    assert plan["articles"][0]["source_structure_not_copied"] == [
+        section["heading"]
+        for section in brief["articles"][0]["source"]["bodySections"]
+    ]
+
+
 @pytest.mark.parametrize("heading_slot", ["h2-0", "h2-5", 1, True])
 def test_locale_plan_rejects_coverage_outline_slot_outside_generated_outline(
     heading_slot: object,

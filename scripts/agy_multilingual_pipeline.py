@@ -873,13 +873,17 @@ def _hydrate_locale_plan(
     if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
         raise ValueError("external locale plan slots differ from brief")
     articles = []
-    for slot in expected_slots:
+    for index, slot in enumerate(expected_slots):
         external_item = by_slot[slot]
         external_mappings = external_item.get("coverage_mapping")
         if not isinstance(external_mappings, list):
             raise ValueError(f"external locale plan coverage differs for {slot}")
         item = {
             **external_item,
+            "source_structure_not_copied": [
+                section["heading"]
+                for section in brief["articles"][index]["source"]["bodySections"]
+            ],
             "coverage_mapping": [
                 dict(mapping)
                 for mapping in external_mappings

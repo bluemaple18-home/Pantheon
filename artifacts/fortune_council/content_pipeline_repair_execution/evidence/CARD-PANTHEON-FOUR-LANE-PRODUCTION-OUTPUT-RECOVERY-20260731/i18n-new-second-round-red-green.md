@@ -147,3 +147,47 @@ git diff --check: PASS
 ```
 
 此變更是本 run 的 schema repair 2/2；尚未執行修補後外呼。
+
+### Second repair production response and deterministic hydration
+
+部署 `ffb0a384d03a886e0b6fd72f7be5c105cb6841a9` 後，官方 Publisher
+preflight 回報 actor、queue、state、runtime SHA、runtime digest 與 push mode
+全部 matched。指定 job
+`27c1b68c63d42928cedbac3d57656030560f4d63` 經 production allocator 呼叫
+成功，成為本輪第 14/40 次外部呼叫；原先的 `API_HTTP_ERROR` 不再出現。
+
+provider transport 成功後，本地 deterministic gate 以同一份 response 穩定
+重現：
+
+```text
+ValueError: locale plan source structure blacklist differs for article-01
+```
+
+排序假說與結果：
+
+1. 大型 fact enum 移除後造成 fact identity 漂移：已否證，22 個 fact identity、
+   order 與 safety boundary 均通過。
+2. `source_structure_not_copied` 的 prompt/schema 語意不清：證實。模型回傳
+   `source_h2_order`、`source_section_count`、`source_paragraph_counts` 三個
+   輸入欄位名，而 validator 要求來源 H2 的精確集合。
+
+這個欄位不是創作內容，而是 brief 已知的 deterministic audit blacklist。
+hydration 現在直接由 brief 寫入來源 H2；模型產生的 intent、query、angle、
+outline、coverage、fact identity、語言與安全邊界仍由原 gate 驗證。既有
+production response 不需重送即可由 RED 轉 GREEN：
+
+```text
+run_id: auto-i18n-en-cfd7211d31136567123c
+articles: 1
+outline_count: 4
+coverage_count: 22
+status: PASS
+```
+
+回歸與全套驗證：
+
+```text
+affected tests: 432 passed
+full suite: 823 passed, 2 warnings
+git diff --check: PASS
+```
