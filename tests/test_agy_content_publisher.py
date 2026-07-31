@@ -789,6 +789,56 @@ def test_apply_rewrite_release_uses_inventory_slug_for_body_override(
     assert "return article ? resolveArticleRecord(article) : null" in registry
 
 
+def test_apply_rewrite_release_refuses_to_overwrite_existing_release_module(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _minimal_article_static(tmp_path)
+    article = make_rewrite_article("EXPANSION-50D-FORTUNE-0039", "fortune-0039")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "rewrite-collision",
+        "mode": "rewrite_existing_body",
+        "articles": [article],
+    }
+    monkeypatch.setattr(
+        publisher,
+        "_assert_rewrite_source_matches",
+        lambda _repo, _candidates: {
+            article["article_id"]: {
+                "record": {"slug": "yongshen-meaning"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "required_policy_findings",
+        lambda _findings: [],
+    )
+    module = (
+        tmp_path
+        / "app/web/static/article-rewrite-agy-rewrite-20260731-01.js"
+    )
+    module.write_text("existing release\n", encoding="utf-8")
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="rewrite release id already exists",
+    ):
+        publisher.apply_rewrite_release(
+            tmp_path,
+            "agy-rewrite-20260731-01",
+            [candidate],
+        )
+
+    assert module.read_text(encoding="utf-8") == "existing release\n"
+
+
 def test_apply_rewrite_release_reuses_validated_inventory_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1679,6 +1729,12 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         "# Pantheon Release Log\n\n## [0.3.0] - 2026-07-23\n\n- Release tag：`v0.3.0`\n- 公開文章總數：353\n- 發布範圍：測試。\n- 驗證：測試。\n- 證據：`test`\n",
         encoding="utf-8",
     )
+    prior_release = (
+        repo_root
+        / "app/web/static"
+        / f"article-rewrite-agy-rewrite-{publisher.date.today().strftime('%Y%m%d')}-01.js"
+    )
+    prior_release.write_text("existing release\n", encoding="utf-8")
     article = make_rewrite_article()
     run_dir = tmp_path / "runs" / "rewrite-approved"
     _write_rewrite_run(queue_root, run_dir, article)
@@ -1741,7 +1797,13 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     assert f'"dateModified": "{expected_updated}"' in hub
     assert f'<time datetime="{expected_updated}" data-articles-updated>{expected_updated}</time>' in hub
     modules = list((repo_root / "app/web/static").glob("article-rewrite-agy-rewrite-*.js"))
-    assert len(modules) == 1
+    assert len(modules) == 2
+    assert prior_release.read_text(encoding="utf-8") == "existing release\n"
+    assert (
+        repo_root
+        / "app/web/static"
+        / f"article-rewrite-agy-rewrite-{publisher.date.today().strftime('%Y%m%d')}-02.js"
+    ).is_file()
     meta = (repo_root / "app/web/static/article-meta.js").read_text(encoding="utf-8")
     assert "REWRITE_BODY_OVERRIDES[article.slug] || ARTICLE_BODY_LIBRARY[article.slug]" in meta
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))

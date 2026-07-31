@@ -139,3 +139,31 @@ production plan replay: ja PASS 22/22; ko PASS 22/22
 publisher cleanup: exit 0; transaction 0; state root 45 MiB
 full suite after acronym repair: 832 passed, 3 existing warnings
 ```
+
+## Production follow-up：rewrite release ID 碰撞
+
+- 失敗 batch 只有 1 個 run；舊程式以 `len(run_ids)` 產生
+  `agy-rewrite-20260731-01`，因此覆寫同日既有 `-01` 模組，把
+  `THEME-LIFE-01` 的 body／policy 換成 `THEME-LIFE-08`。中央 resolver
+  正常讀取最高優先序，但舊文章的正式 override 已被寫入端移除，完整 web
+  suite 因此正確阻擋並回滾。
+- release ID 現改為掃描 repo 當日既有 rewrite 模組，取最大序號加一；
+  production repo 已有 `-01/-02/-03` 時實際配置探針為 `-04`。
+- `apply_rewrite_release()` 另加不可覆寫閘門；即使 allocator 日後退化或
+  收到重複 ID，也會在寫檔前 `PublishBlocked`，舊模組內容保持不變。
+- 舊 runtime 最後一輪因累積 2 個合格 run，使用尚未占用的 `-02`：
+  `v0.3.200` 已真實發布 `THEME-LIFE-10`、`THEME-LIFE-08`。同輪先發布
+  `v0.3.199` 新文 `V2-MBTI-PAIR-ENTJ-INFP-LOVE`；公開文章總數 509。
+- 該輪 transaction 執行中 94 MiB，退出後自動刪除；Publisher state root
+  回到 45 MiB，沒有 orphan。這證明容量上升是受控的單一 active
+  transaction，不再是每輪永久累積。
+- translation ledger 目前仍為 0 個正式 release；i18n candidates 的
+  Reviewer APPROVE／REJECT 均不冒充上線產出。
+
+```text
+production releases: v0.3.199 new 1; v0.3.200 rewrite 2
+rewrite allocator probe: agy-rewrite-20260731-04
+publisher cleanup: transaction 0; state root 45 MiB
+full suite after collision repair: 833 passed, 3 existing warnings
+git diff --check: PASS
+```

@@ -2374,6 +2374,22 @@ def _update_rewrite_policy_override_lookup(registry_path: Path, export_name: str
     registry_path.write_text(text, encoding="utf-8")
 
 
+def _next_rewrite_release_id(repo_root: Path, release_day: date | None = None) -> str:
+    """配置當日尚未使用的 rewrite release ID，避免服務重啟後覆寫舊模組。"""
+    day_token = (release_day or date.today()).strftime("%Y%m%d")
+    pattern = re.compile(
+        rf"^article-rewrite-agy-rewrite-{day_token}-(\d+)\.js$"
+    )
+    sequences = [
+        int(match.group(1))
+        for path in (repo_root / "app/web/static").glob(
+            f"article-rewrite-agy-rewrite-{day_token}-*.js"
+        )
+        if (match := pattern.fullmatch(path.name))
+    ]
+    return f"agy-rewrite-{day_token}-{max(sequences, default=0) + 1:02d}"
+
+
 def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dict[str, Any]]) -> list[Path]:
     if not candidates:
         return []
@@ -2404,6 +2420,8 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
     policy_export_name = f"AGY_{identifier}_REWRITE_POLICY_OVERRIDES"
     module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
+    if module.exists():
+        raise PublishBlocked(f"rewrite release id already exists: {release_id}")
     bodies: dict[str, list[dict[str, Any]]] = {}
     policies: dict[str, dict[str, Any]] = {}
     for candidate in candidates:
@@ -2690,7 +2708,7 @@ def publish_ready_rewrite_runs(
             }
 
         journal.begin()
-        release_id = f"agy-rewrite-{date.today().strftime('%Y%m%d')}-{len(run_ids):02d}"
+        release_id = _next_rewrite_release_id(repo_root)
         changed = [
             str(path.relative_to(repo_root))
             for path in journal.capture(lambda: apply_rewrite_release(repo_root, release_id, candidates))
