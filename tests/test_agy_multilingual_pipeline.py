@@ -469,6 +469,9 @@ def test_writer_prompt_requires_source_claim_traceability_and_rejects_filler() -
     assert "source claim ledger" in prompt
     assert "不得用常識補完" in prompt
     assert "禁止用比喻、口號、華麗形容詞或抽象 AI 套話" in prompt
+    assert "article input.locale 指定的語言完整重寫" in prompt
+    assert "title、description、answer、tags、FAQ、H2 與 paragraphs" in prompt
+    assert "禁止保留來源語言文字" in prompt
 
 
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])

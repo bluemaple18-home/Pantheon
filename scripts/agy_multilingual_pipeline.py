@@ -1144,6 +1144,7 @@ def _article_prompt(
         [
             "你是 Pantheon 的目標語言母語主編。這不是翻譯任務；slot 必須逐字複製。",
             "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
+            "所有可見欄位都必須以 article input.locale 指定的語言完整重寫；title、description、answer、tags、FAQ、H2 與 paragraphs 禁止保留來源語言文字，只有該 locale 慣用的專有名詞與識別符例外。",
             "寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。",
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
