@@ -30,4 +30,6 @@ No production canary was run by contract. The candidate proves the seam offline;
 
 ## Candidate SHA
 
-Recorded in the final thread handoff after the candidate commit is created.
+- Candidate：`cd3833212ad64af0a1b016c7cc7206464bb8575e`。
+- Independent Review：`888bb4090d3f57af116853c2ae30b71afff678b6`，`REVIEW_GO`。
+- 最新主線上的 candidate cherry-pick：`67c6aa00c`；最終 integration／deployment SHA 由主線 integration receipt 記錄。

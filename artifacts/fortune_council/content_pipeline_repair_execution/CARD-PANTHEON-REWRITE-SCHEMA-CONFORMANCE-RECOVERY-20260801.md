@@ -4,7 +4,7 @@ chain_id: PANTHEON-REWRITE-SCHEMA-CONFORMANCE-RECOVERY-20260801
 role: implementation
 cycle: 1
 ownership: rewrite_schema_conformance_only
-status: READY_TO_DISPATCH
+status: ACCEPTED_FOR_INTEGRATION
 user_hold: false
 thickness: strict
 risk: high
@@ -175,8 +175,8 @@ git status --short
 - dispatch_key: v1:cbecc6060ca39e2d6fe2dcf777313242ab74e048e6bd51682b3e22cb2542ed34
 - formal_thread_id: 019fbb55-1846-7b60-a03b-bb30506733cc
 - project_id: c2xpbmdzaG90OmVudl9lXzZhMTdiMzc4MTg1ODgzMmRhZWU4Njk3YzMwZmM3ZTdjCi9Vc2Vycy9tYXR0a3VvL0RvY3VtZW50cy9QYW50aGVvbg==
-- worktree_path: /Users/mattkuo/.codex/worktrees/f4269d89-6ebb-4da0-9ffd-a90614e371a6/Pantheon
-- main_cwd: /Users/mattkuo/Documents/Pantheon
+- local_only_worktree_path: /Users/mattkuo/.codex/worktrees/f4269d89-6ebb-4da0-9ffd-a90614e371a6/Pantheon
+- local_only_main_cwd: /Users/mattkuo/Documents/Pantheon
 - provisioning_source_ref: codex/rewrite-schema-conformance-recovery-20260801-base
 - provisioning_source_sha: 800fba7278b59667269743de7837ea5d579658bc
 - worktree_head: 800fba7278b59667269743de7837ea5d579658bc
@@ -187,4 +187,9 @@ git status --short
 - code_context: NEEDS_PREPARE_IN_IMPLEMENTATION_THREAD
 - gate_1: PASS
 - gate_2: PASS
-- gate_3-5: PENDING
+- candidate_sha: cd3833212ad64af0a1b016c7cc7206464bb8575e
+- review_sha: 888bb4090d3f57af116853c2ae30b71afff678b6
+- review_decision: REVIEW_GO
+- gate_3_candidate_delivery: PASS
+- gate_4_independent_review: PASS
+- gate_5_mainline_acceptance: PENDING
