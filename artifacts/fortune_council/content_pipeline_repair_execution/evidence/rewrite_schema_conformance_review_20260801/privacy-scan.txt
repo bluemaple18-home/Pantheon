@@ -1,0 +1,24 @@
+PRIVACY / SCOPE SCAN
+
+reviewed range:
+  800fba7278b59667269743de7837ea5d579658bc..cd3833212ad64af0a1b016c7cc7206464bb8575e
+
+source/test/fixture secret-shape scan:
+  PASS
+
+source/test/fixture debug-marker scan:
+  PASS
+
+raw data boundary:
+  PASS — Review 只讀 synthetic fixtures、closed keyword/path diagnostics、source diff
+  與既有 implementation evidence；未讀取或保存 raw production response、production
+  prompt、credential、完整 environment 或 CLI log。
+
+local path observation:
+  Candidate Implementation 卡新增兩行本機絕對路徑；未出現在 provider payload、
+  production code、tests 或 synthetic fixture。列為 RSC-REV-001 的交付可攜性
+  residual，不視為 credential。
+
+external actions:
+  無 provider/Gemini 外呼、production replay、push、merge、deploy、publish、tag、
+  Lane/launchctl 操作。
