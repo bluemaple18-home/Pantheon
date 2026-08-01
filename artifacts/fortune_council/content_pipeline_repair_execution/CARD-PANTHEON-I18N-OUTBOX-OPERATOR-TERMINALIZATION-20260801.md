@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-I18N-OUTBOX-OPERATOR-TERMINALIZATION-20260801
-status: READY_FOR_PRODUCTION_EXECUTE
+status: PRODUCTION_TERMINALIZED_PENDING_MAINLINE
 owner: current-thread
 type: strict-production-repair
 risk: high
@@ -9,11 +9,13 @@ timezone: Asia/Taipei
 base_ref: origin/main
 base_sha: fcc4a6a0f6b62b1b773bedfb44b43d16647f23f9
 proposed_branch: codex/i18n-outbox-terminalization-20260801
+implementation_commit: cd00b007bbdeac6da39a9ebb5a5da119992e3357
 user_hold: false
 external_provider_calls_authorized: false
 production_terminalization_authorized: true
 local_verification_status: PASS
-production_terminalization_status: DRY_RUN_PASS
+production_terminalization_status: PASS
+production_terminalized_at: 2026-08-01T09:49:04+08:00
 production_authorization_basis: 使用者在得知將建立可追溯的單筆 pending retry 終止能力後明確要求「開卡做吧」。
 production_authorization_scope:
   - dry-run exact pending retry identity
@@ -173,4 +175,24 @@ terminal state，且不發生 provider call。
   與 lane 全部相符，目標仍只在 outbox。
 - pre-execute hashes：request file `5180e7ef...e8de4`；prior failed receipt
   `188bcdde...a650`；run state `269c0d7c...e61`。
-- review verdict：未發現阻塞問題；production mutation 尚未執行。
+- review verdict：未發現阻塞問題；production mutation 已依本卡 exact target 完成。
+
+## 10. Production 結果
+
+- exact execute：`terminalized`。
+- lane outbox：`0` 個 runnable JSON。
+- request 已原 bytes 移至 `archive/`，SHA-256 仍為
+  `5180e7ef1fb0c8b7d1e9532e5fb43b29499bcdebe1ac6d4314338e828c8e8de4`。
+- operator decision：`terminalized`，request file hash 與 archive 完全相同。
+- global run state：`failed / OperatorTerminalized`，並記錄 lane、job、logical
+  request、model、role、attempt、closed reason 與 state-root-relative decision。
+- 原始 provider failure receipt SHA-256 仍為
+  `188bcdde8df33f3b2ea35c5fdfe4266acc38ad9d1931568337c5b73aafdda650`。
+- 相同 execute 重跑：`already_terminalized`；archive、decision、state、prior
+  failure receipt 四份 hashes 均未變。
+- 六個相關 LaunchAgents：全部 unloaded；Gemini calls：`0`；發布文章：`0`。
+- 容量：228 GiB total、159 GiB used、20 GiB available、89%；queue 133 MiB、
+  repair worktrees 193 MiB、Publisher state 51 MiB。
+
+詳細 receipt：
+`evidence/CARD-PANTHEON-I18N-OUTBOX-OPERATOR-TERMINALIZATION-20260801/production-terminalization.md`。
