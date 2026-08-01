@@ -309,15 +309,21 @@ def create_external_request(
     job_id = request["job_id"]
     known_paths = [
         queue_root / "outbox" / f"{job_id}.json",
+        queue_root / "outbox" / f"{job_id}.json.terminalizing",
         queue_root / "processing" / f"{job_id}.json",
         queue_root / "archive" / f"{job_id}.json",
     ]
+    matched_path: Path | None = None
     for path in known_paths:
         if not path.exists():
             continue
         existing = json.loads(path.read_text(encoding="utf-8"))
         if existing != request:
             raise ValueError(f"external job collision: {job_id}")
+        if matched_path is not None:
+            raise ValueError(f"external job location is ambiguous: {job_id}")
+        matched_path = path
+    if matched_path is not None:
         return request
     atomic_write_json(known_paths[0], request)
     return request
@@ -555,7 +561,7 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
 
 
 def _request_is_known(queue_root: Path, job_id: str) -> bool:
-    return any(
+    return (queue_root / "outbox" / f"{job_id}.json.terminalizing").exists() or any(
         (queue_root / directory / f"{job_id}.json").exists()
         for directory in ("outbox", "processing", "archive", "inbox", "failed")
     )

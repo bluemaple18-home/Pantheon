@@ -3643,6 +3643,38 @@ def test_outbox_client_retry_keeps_logical_request_identity(tmp_path: Path) -> N
     assert retry_request["prompt_sha256"] == first["prompt_sha256"]
 
 
+def test_create_external_request_recognizes_operator_terminalizing_claim(
+    tmp_path: Path,
+) -> None:
+    request = outbox.create_external_request(
+        tmp_path,
+        namespace="operator-claim",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic operator claim",
+        response_schema=SCHEMA,
+        transport_attempt=1,
+    )
+    outbox_path = tmp_path / "outbox" / f"{request['job_id']}.json"
+    claimed_path = tmp_path / "outbox" / f"{request['job_id']}.json.terminalizing"
+    os.replace(outbox_path, claimed_path)
+    claimed_bytes = claimed_path.read_bytes()
+
+    replay = outbox.create_external_request(
+        tmp_path,
+        namespace="operator-claim",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic operator claim",
+        response_schema=SCHEMA,
+        transport_attempt=1,
+    )
+
+    assert replay == request
+    assert claimed_path.read_bytes() == claimed_bytes
+    assert not outbox_path.exists()
+
+
 def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> None:
     client = outbox.OutboxGeminiClient(tmp_path, namespace="retry-stop")
     failed_job_ids: list[str] = []

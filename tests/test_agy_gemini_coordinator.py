@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import plistlib
@@ -1208,6 +1209,514 @@ def test_seed_legacy_rewrite_runs_surfaces_exhausted_terminal_when_inventory_is_
     assert result["status"] == "rewrite_retry_exhausted"
     assert result["created"] == 0
     assert result["backlog"]["retry_exhausted"] == 1
+
+
+def test_terminalize_pending_cli_defaults_to_dry_run_without_mutation(
+    tmp_path: Path,
+) -> None:
+    run_id = "synthetic-operator-terminalization"
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        run_id,
+    )
+    before = _file_snapshot(queue_root)
+
+    completed = _operator_cli(run_dir, queue_root, request)
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "status": "dry_run",
+        "action": "terminalize_pending",
+        "run_id": run_id,
+        "lane": "i18n-rewrite",
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "model": "gemini-3.5-flash",
+        "role": "writer",
+        "transport_attempt": 1,
+        "reason": "UNSUPPORTED_MODEL_CANARY_ABORT",
+        "from": "outbox",
+        "to": "archive",
+    }
+    assert _file_snapshot(queue_root) == before
+    assert not list((queue_root / "archive").glob("*.json"))
+    assert not list((queue_root / "operator-terminalizations").glob("*.json"))
+
+
+def test_terminalize_pending_cli_supports_split_state_and_job_queue_roots(
+    tmp_path: Path,
+) -> None:
+    run_id = "synthetic-operator-split-root"
+    run_dir = tmp_path / "runs" / run_id
+    state_root = tmp_path / "queue"
+    job_root = state_root / "lanes" / "i18n-rewrite"
+    _write_brief(run_dir, run_id)
+    state = register_run(run_dir, state_root)
+    request = create_external_request(
+        job_root,
+        namespace="operator-split-root",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic operator split root",
+        response_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+        },
+        transport_attempt=1,
+    )
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending(str(request["job_id"]))
+
+    assert coordinator._advance(
+        state_root,
+        state,
+        pending_tick,
+        job_queue_root=job_root,
+    ) == "pending"
+    before_state = coordinator._state_path(run_id, state_root).read_bytes()
+    before_request = (
+        job_root / "outbox" / f"{request['job_id']}.json"
+    ).read_bytes()
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agy_gemini_coordinator",
+            "--queue-root",
+            str(state_root),
+            "terminalize-pending",
+            str(run_dir),
+            "--job-queue-root",
+            str(job_root),
+            "--lane",
+            "i18n-rewrite",
+            "--run-id",
+            run_id,
+            "--job-id",
+            str(request["job_id"]),
+            "--request-sha256",
+            str(request["request_sha256"]),
+            "--model",
+            str(request["model"]),
+            "--role",
+            str(request["role"]),
+            "--transport-attempt",
+            "1",
+            "--reason",
+            "UNSUPPORTED_MODEL_CANARY_ABORT",
+        ],
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["lane"] == "i18n-rewrite"
+    assert coordinator._state_path(run_id, state_root).read_bytes() == before_state
+    assert (
+        job_root / "outbox" / f"{request['job_id']}.json"
+    ).read_bytes() == before_request
+
+
+def test_terminalize_pending_execute_writes_state_and_evidence_to_split_roots(
+    tmp_path: Path,
+) -> None:
+    run_id = "synthetic-operator-split-execute"
+    run_dir = tmp_path / "runs" / run_id
+    state_root = tmp_path / "queue"
+    job_root = state_root / "lanes" / "i18n-rewrite"
+    _write_brief(run_dir, run_id)
+    state = register_run(run_dir, state_root)
+    request = create_external_request(
+        job_root,
+        namespace="operator-split-execute",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic operator split execute",
+        response_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+        },
+        transport_attempt=1,
+    )
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending(str(request["job_id"]))
+
+    assert coordinator._advance(
+        state_root,
+        state,
+        pending_tick,
+        job_queue_root=job_root,
+    ) == "pending"
+    result = coordinator.terminalize_pending_job(
+        run_dir,
+        state_root,
+        job_queue_root=job_root,
+        lane="i18n-rewrite",
+        expected_run_id=run_id,
+        job_id=str(request["job_id"]),
+        request_sha256=str(request["request_sha256"]),
+        model=str(request["model"]),
+        role=str(request["role"]),
+        transport_attempt=1,
+        reason="UNSUPPORTED_MODEL_CANARY_ABORT",
+        execute=True,
+    )
+
+    assert result["status"] == "terminalized"
+    assert (job_root / "archive" / f"{request['job_id']}.json").is_file()
+    assert (
+        job_root / "operator-terminalizations" / f"{request['job_id']}.json"
+    ).is_file()
+    terminal_state = read_run_state(run_dir, state_root)
+    assert terminal_state["status"] == "failed"
+    assert terminal_state["operator_terminalization"]["lane"] == "i18n-rewrite"
+    assert terminal_state["operator_terminalization"]["decision"] == (
+        f"lanes/i18n-rewrite/operator-terminalizations/{request['job_id']}.json"
+    )
+
+
+def test_terminalize_pending_execute_preserves_request_and_marks_run_terminal(
+    tmp_path: Path,
+) -> None:
+    run_id = "synthetic-operator-execute"
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        run_id,
+    )
+    outbox_path = queue_root / "outbox" / f"{request['job_id']}.json"
+    request_bytes = outbox_path.read_bytes()
+
+    result = _operator_terminalize(run_dir, queue_root, request)
+
+    assert result["status"] == "terminalized"
+    assert not outbox_path.exists()
+    archive_path = queue_root / "archive" / f"{request['job_id']}.json"
+    assert archive_path.read_bytes() == request_bytes
+    decision = json.loads(
+        (queue_root / "operator-terminalizations" / f"{request['job_id']}.json").read_text()
+    )
+    assert decision["status"] == "terminalized"
+    assert decision["request_file_sha256"] == hashlib.sha256(request_bytes).hexdigest()
+    assert decision["reason"] == "UNSUPPORTED_MODEL_CANARY_ABORT"
+    terminal_state = read_run_state(run_dir, queue_root)
+    assert terminal_state["status"] == "failed"
+    assert terminal_state["error_type"] == "OperatorTerminalized"
+    assert terminal_state["last_job_id"] == request["job_id"]
+    assert terminal_state["operator_terminalization"] == {
+        "decision": f"operator-terminalizations/{request['job_id']}.json",
+        "job_id": request["job_id"],
+        "lane": "i18n-rewrite",
+        "model": "gemini-3.5-flash",
+        "reason": "UNSUPPORTED_MODEL_CANARY_ABORT",
+        "request_sha256": request["request_sha256"],
+        "role": "writer",
+        "transport_attempt": 1,
+    }
+    assert not (queue_root / "failed" / f"{request['job_id']}.json").exists()
+    assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
+
+
+def test_terminalize_pending_cli_execute_wires_public_command(tmp_path: Path) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-cli-execute",
+    )
+
+    completed = _operator_cli(run_dir, queue_root, request, execute=True)
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["status"] == "terminalized"
+    assert read_run_state(run_dir, queue_root)["status"] == "failed"
+
+
+def _operator_pending_fixture(
+    tmp_path: Path,
+    run_id: str,
+) -> tuple[Path, Path, dict[str, object]]:
+    run_dir = tmp_path / "runs" / run_id
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, run_id)
+    state = register_run(run_dir, queue_root)
+    request = create_external_request(
+        queue_root,
+        namespace="operator-fixture",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic operator fixture",
+        response_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+        },
+        transport_attempt=1,
+    )
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending(str(request["job_id"]))
+
+    assert coordinator._advance(queue_root, state, pending_tick) == "pending"
+    return run_dir, queue_root, request
+
+
+def _operator_terminalize(
+    run_dir: Path,
+    queue_root: Path,
+    request: dict[str, object],
+    **overrides: object,
+) -> dict[str, object]:
+    arguments: dict[str, object] = {
+        "job_queue_root": queue_root,
+        "lane": "i18n-rewrite",
+        "expected_run_id": json.loads((run_dir / "brief.json").read_text())["run_id"],
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "model": request["model"],
+        "role": request["role"],
+        "transport_attempt": request.get("transport_attempt", 0),
+        "reason": "UNSUPPORTED_MODEL_CANARY_ABORT",
+        "execute": True,
+    }
+    arguments.update(overrides)
+    return coordinator.terminalize_pending_job(
+        run_dir,
+        queue_root,
+        **arguments,
+    )
+
+
+def _operator_cli(
+    run_dir: Path,
+    queue_root: Path,
+    request: dict[str, object],
+    *,
+    execute: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.agy_gemini_coordinator",
+        "--queue-root",
+        str(queue_root),
+        "terminalize-pending",
+        str(run_dir),
+        "--job-queue-root",
+        str(queue_root),
+        "--lane",
+        "i18n-rewrite",
+        "--run-id",
+        str(json.loads((run_dir / "brief.json").read_text())["run_id"]),
+        "--job-id",
+        str(request["job_id"]),
+        "--request-sha256",
+        str(request["request_sha256"]),
+        "--model",
+        str(request["model"]),
+        "--role",
+        str(request["role"]),
+        "--transport-attempt",
+        str(request.get("transport_attempt", 0)),
+        "--reason",
+        "UNSUPPORTED_MODEL_CANARY_ABORT",
+    ]
+    if execute:
+        command.append("--execute")
+    return subprocess.run(
+        command,
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _file_snapshot(root: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_terminalize_pending_execute_is_byte_idempotent(tmp_path: Path) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-idempotent",
+    )
+    first = _operator_terminalize(run_dir, queue_root, request)
+    after_first = _file_snapshot(queue_root)
+
+    second = _operator_terminalize(run_dir, queue_root, request)
+
+    assert first["status"] == "terminalized"
+    assert second["status"] == "already_terminalized"
+    assert _file_snapshot(queue_root) == after_first
+
+
+@pytest.mark.parametrize(
+    ("override", "value"),
+    [
+        ("expected_run_id", "different-run"),
+        ("job_id", "0" * 40),
+        ("request_sha256", "0" * 64),
+        ("model", "gemini-2.5-flash-lite"),
+        ("role", "reviewer"),
+        ("transport_attempt", 2),
+        ("reason", "UNBOUNDED_OPERATOR_REASON"),
+    ],
+)
+def test_terminalize_pending_rejects_identity_mismatch_without_mutation(
+    tmp_path: Path,
+    override: str,
+    value: object,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        f"synthetic-operator-mismatch-{override}",
+    )
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError):
+        _operator_terminalize(
+            run_dir,
+            queue_root,
+            request,
+            **{override: value},
+        )
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_terminalize_pending_rejects_processing_job_without_operator_write(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-processing",
+    )
+    outbox_path = queue_root / "outbox" / f"{request['job_id']}.json"
+    processing_path = queue_root / "processing" / outbox_path.name
+    processing_path.parent.mkdir(parents=True)
+    os.replace(outbox_path, processing_path)
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match="already processing"):
+        _operator_terminalize(run_dir, queue_root, request)
+
+    assert _file_snapshot(queue_root) == before
+    assert not list((queue_root / "operator-terminalizations").glob("*.json"))
+
+
+def test_terminalize_pending_recovers_after_state_write_interruption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = "synthetic-operator-recovery"
+    run_dir, queue_root, request = _operator_pending_fixture(tmp_path, run_id)
+    state_path = coordinator._state_path(run_id, queue_root)
+    original_atomic_write = coordinator.atomic_write_json
+    interrupted = False
+
+    def interrupt_state_write(path: Path, payload: object) -> None:
+        nonlocal interrupted
+        if path == state_path and isinstance(payload, dict) and payload.get("status") == "failed":
+            interrupted = True
+            raise OSError("synthetic state write interruption")
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", interrupt_state_write)
+    with pytest.raises(OSError, match="synthetic state write interruption"):
+        _operator_terminalize(run_dir, queue_root, request)
+    assert interrupted is True
+    assert read_run_state(run_dir, queue_root)["status"] == "active"
+    assert (
+        queue_root / "archive" / f"{request['job_id']}.json"
+    ).is_file()
+    decision_path = queue_root / "operator-terminalizations" / f"{request['job_id']}.json"
+    assert json.loads(decision_path.read_text())["status"] == "terminalizing"
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", original_atomic_write)
+    recovered = _operator_terminalize(run_dir, queue_root, request)
+
+    assert recovered["status"] == "terminalized"
+    assert read_run_state(run_dir, queue_root)["status"] == "failed"
+    assert json.loads(decision_path.read_text())["status"] == "terminalized"
+
+
+def test_terminalize_pending_rejects_existing_production_attempt_evidence(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-attempted",
+    )
+    attempt_path = queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    attempt_path.parent.mkdir(parents=True)
+    attempt_path.write_text("existing-attempt-evidence\n", encoding="utf-8")
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match="production attempt evidence"):
+        _operator_terminalize(run_dir, queue_root, request)
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_terminalize_pending_rejects_symlink_request(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-symlink",
+    )
+    outbox_path = queue_root / "outbox" / f"{request['job_id']}.json"
+    preserved_path = tmp_path / "preserved-request.json"
+    os.replace(outbox_path, preserved_path)
+    outbox_path.symlink_to(preserved_path)
+    state_before = coordinator._state_path(
+        "synthetic-operator-symlink",
+        queue_root,
+    ).read_bytes()
+    request_before = preserved_path.read_bytes()
+
+    with pytest.raises(ValueError, match="regular request file"):
+        _operator_terminalize(run_dir, queue_root, request)
+
+    assert outbox_path.is_symlink()
+    assert preserved_path.read_bytes() == request_before
+    assert coordinator._state_path(
+        "synthetic-operator-symlink",
+        queue_root,
+    ).read_bytes() == state_before
+    assert not list((queue_root / "operator-terminalizations").glob("*.json"))
+
+
+def test_terminalize_pending_rejects_corrupt_decision_schema_version(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-operator-decision-version",
+    )
+    _operator_terminalize(run_dir, queue_root, request)
+    decision_path = queue_root / "operator-terminalizations" / f"{request['job_id']}.json"
+    decision = json.loads(decision_path.read_text())
+    decision["schema_version"] = 2
+    decision_path.write_text(json.dumps(decision), encoding="utf-8")
+    state_before = read_run_state(run_dir, queue_root)
+
+    with pytest.raises(ValueError, match="decision identity mismatch"):
+        _operator_terminalize(run_dir, queue_root, request)
+
+    assert read_run_state(run_dir, queue_root) == state_before
     assert not (tmp_path / "private-runs").exists()
 
 

@@ -21,8 +21,10 @@ from scripts.agy_gemini_outbox import (
     ExternalJobFailed,
     ExternalJobPending,
     OUTBOX_MAX_TRANSPORT_RETRIES,
+    SHA256_PATTERN,
     atomic_write_json,
     run_pipeline_tick,
+    validate_external_request,
 )
 from scripts.agy_gemini_runner import process_once
 
@@ -35,6 +37,10 @@ DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN = 5
 DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
 MAX_LEGACY_REWRITE_LINEAGE_RETRIES = 100
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
+OPERATOR_TERMINALIZATION_REASONS = frozenset({
+    "UNSUPPORTED_MODEL_CANARY_ABORT",
+})
+JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
 
@@ -108,6 +114,251 @@ def read_run_state(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     if not path.exists():
         raise ValueError("run is not registered")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def terminalize_pending_job(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    job_queue_root: Path | None = None,
+    lane: str,
+    expected_run_id: str,
+    job_id: str,
+    request_sha256: str,
+    model: str,
+    role: str,
+    transport_attempt: int,
+    reason: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    """預覽或終止一筆 identity 完全相符、仍未被 runner claim 的 outbox job。"""
+    if JOB_ID_PATTERN.fullmatch(job_id) is None:
+        raise ValueError("operator terminalization job id is invalid")
+    if SHA256_PATTERN.fullmatch(request_sha256) is None:
+        raise ValueError("operator terminalization request hash is invalid")
+    if role not in {"writer", "reviewer"}:
+        raise ValueError("operator terminalization role is invalid")
+    if (
+        type(transport_attempt) is not int
+        or type(transport_attempt) is bool
+        or not 0 <= transport_attempt <= OUTBOX_MAX_TRANSPORT_RETRIES
+    ):
+        raise ValueError("operator terminalization transport attempt is invalid")
+    if reason not in OPERATOR_TERMINALIZATION_REASONS:
+        raise ValueError("operator terminalization reason is not closed")
+
+    if lane not in CONTENT_LANES:
+        raise ValueError("operator terminalization lane is invalid")
+    state_root = queue_root.resolve()
+    job_root = (job_queue_root or state_root).resolve()
+    if job_root != state_root and (
+        job_root.parent != state_root / "lanes" or job_root.name != lane
+    ):
+        raise ValueError("operator terminalization job queue root does not match lane")
+    resolved_run_dir = run_dir.resolve()
+    brief = _brief(resolved_run_dir)
+    if brief.get("run_id") != expected_run_id:
+        raise ValueError("operator terminalization run id mismatch")
+    state = read_run_state(resolved_run_dir, state_root)
+    if (
+        state.get("run_id") != expected_run_id
+        or state.get("run_dir") != str(resolved_run_dir)
+    ):
+        raise ValueError("operator terminalization state identity mismatch")
+    expected_identity = {
+        "job_id": job_id,
+        "request_sha256": request_sha256,
+        "model": model,
+        "role": role,
+        "transport_attempt": transport_attempt,
+    }
+    decision_path = job_root / "operator-terminalizations" / f"{job_id}.json"
+    state_receipt = {
+        "decision": str(decision_path.relative_to(state_root)),
+        **expected_identity,
+        "lane": lane,
+        "reason": reason,
+    }
+    operator_state_matches = (
+        state.get("status") == "failed"
+        and state.get("error_type") == "OperatorTerminalized"
+        and state.get("last_job_id") == job_id
+        and state.get("operator_terminalization") == state_receipt
+    )
+
+    outbox_path = job_root / "outbox" / f"{job_id}.json"
+    claimed_path = job_root / "outbox" / f"{job_id}.json.terminalizing"
+    processing_path = job_root / "processing" / f"{job_id}.json"
+    archive_path = job_root / "archive" / f"{job_id}.json"
+    resolved_paths = [
+        ("outbox", outbox_path),
+        ("terminalizing", claimed_path),
+        ("processing", processing_path),
+        ("archive", archive_path),
+    ]
+    locations = [(name, path) for name, path in resolved_paths if path.exists()]
+    if len(locations) != 1:
+        raise ValueError("operator terminalization request location is ambiguous")
+    location, request_path = locations[0]
+    if location == "processing":
+        raise ValueError("operator terminalization job is already processing")
+    if request_path.is_symlink() or not request_path.is_file():
+        raise ValueError("operator terminalization requires regular request file")
+    if (job_root / "inbox" / f"{job_id}.json").exists() or (
+        job_root / "failed" / f"{job_id}.json"
+    ).exists():
+        raise ValueError("operator terminalization job already has a provider outcome")
+    if (job_root / "production-attempts" / f"{job_id}.attempt").exists():
+        raise ValueError("operator terminalization job already has production attempt evidence")
+
+    request_bytes = request_path.read_bytes()
+    request = json.loads(request_bytes)
+    validate_external_request(request)
+    actual_identity = {
+        "job_id": request.get("job_id"),
+        "request_sha256": request.get("request_sha256"),
+        "model": request.get("model"),
+        "role": request.get("role"),
+        "transport_attempt": request.get("transport_attempt", 0),
+    }
+    if actual_identity != expected_identity:
+        raise ValueError("operator terminalization request identity mismatch")
+    request_file_sha256 = hashlib.sha256(request_bytes).hexdigest()
+
+    decision: dict[str, Any] | None = None
+    if decision_path.exists():
+        decision = json.loads(decision_path.read_text(encoding="utf-8"))
+        required_decision = {
+            "schema_version",
+            "status",
+            "action",
+            "run_id",
+            "lane",
+            "job_id",
+            "request_sha256",
+            "model",
+            "role",
+            "transport_attempt",
+            "reason",
+            "request_file_sha256",
+            "claimed_at",
+            "from",
+            "to",
+        }
+        allowed_decision = required_decision | {"terminalized_at"}
+        if (
+            type(decision) is not dict
+            or not required_decision <= set(decision)
+            or not set(decision) <= allowed_decision
+            or decision.get("schema_version") != 1
+            or decision.get("status") not in {"terminalizing", "terminalized"}
+            or (decision.get("status") == "terminalized")
+            != ("terminalized_at" in decision)
+            or decision.get("action") != "terminalize_pending"
+            or decision.get("run_id") != expected_run_id
+            or decision.get("lane") != lane
+            or any(decision.get(key) != value for key, value in expected_identity.items())
+            or decision.get("reason") != reason
+            or decision.get("request_file_sha256") != request_file_sha256
+            or decision.get("from") != "outbox"
+            or decision.get("to") != "archive"
+        ):
+            raise ValueError("operator terminalization decision identity mismatch")
+        try:
+            datetime.fromisoformat(str(decision["claimed_at"]))
+            if "terminalized_at" in decision:
+                datetime.fromisoformat(str(decision["terminalized_at"]))
+        except ValueError:
+            raise ValueError("operator terminalization decision timestamp is invalid") from None
+
+    result = {
+        "status": "dry_run",
+        "action": "terminalize_pending",
+        "run_id": expected_run_id,
+        "lane": lane,
+        **expected_identity,
+        "reason": reason,
+        "from": "outbox",
+        "to": "archive",
+    }
+    if operator_state_matches:
+        if location != "archive" or decision is None:
+            raise ValueError("operator terminalization terminal state evidence is incomplete")
+        if decision["status"] == "terminalized":
+            return {
+                **result,
+                "status": "already_terminalized",
+                "from": "archive",
+                "decision": state_receipt["decision"],
+            }
+        if not execute:
+            return {**result, "from": "archive"}
+        decision = {**decision, "status": "terminalized", "terminalized_at": _now()}
+        atomic_write_json(decision_path, decision)
+        return {
+            **result,
+            "status": "terminalized",
+            "from": "archive",
+            "decision": state_receipt["decision"],
+        }
+    if state.get("status") != "active":
+        raise ValueError("operator terminalization requires active run")
+    if state.get("last_job_id") != job_id:
+        raise ValueError("operator terminalization last job mismatch")
+    if decision is not None and location == "outbox":
+        raise ValueError("operator terminalization decision conflicts with pending outbox")
+    if location == "archive" and decision is None:
+        raise ValueError("operator terminalization archive lacks operator decision")
+    if not execute:
+        return {**result, "from": location}
+
+    if location == "outbox":
+        try:
+            os.replace(outbox_path, claimed_path)
+        except FileNotFoundError:
+            if processing_path.exists():
+                raise ValueError("operator terminalization job is already processing") from None
+            raise ValueError("operator terminalization lost atomic claim") from None
+        request_path = claimed_path
+        location = "terminalizing"
+    if decision is None:
+        decision = {
+            "schema_version": 1,
+            "status": "terminalizing",
+            "action": "terminalize_pending",
+            "run_id": expected_run_id,
+            "lane": lane,
+            **expected_identity,
+            "reason": reason,
+            "request_file_sha256": request_file_sha256,
+            "claimed_at": _now(),
+            "from": "outbox",
+            "to": "archive",
+        }
+        atomic_write_json(decision_path, decision)
+    if location == "terminalizing":
+        if archive_path.exists():
+            raise ValueError("operator terminalization archive target already exists")
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(request_path, archive_path)
+
+    state["status"] = "failed"
+    state["last_job_id"] = job_id
+    state["error_type"] = "OperatorTerminalized"
+    state["operator_terminalization"] = state_receipt
+    state.pop("error_code", None)
+    state.pop("failure_category", None)
+    state.pop("transport_attempts", None)
+    state.pop("result", None)
+    _write_state(state_root, state)
+    if decision["status"] != "terminalized":
+        decision = {**decision, "status": "terminalized", "terminalized_at": _now()}
+        atomic_write_json(decision_path, decision)
+    return {
+        **result,
+        "status": "terminalized",
+        "decision": state_receipt["decision"],
+    }
 
 
 def _write_state(queue_root: Path, state: dict[str, Any]) -> None:
@@ -923,6 +1174,22 @@ def parse_args() -> argparse.Namespace:
     resume.add_argument("run_dir", type=Path)
     status = subparsers.add_parser("status")
     status.add_argument("run_dir", type=Path)
+    terminalize = subparsers.add_parser("terminalize-pending")
+    terminalize.add_argument("run_dir", type=Path)
+    terminalize.add_argument("--job-queue-root", type=Path, required=True)
+    terminalize.add_argument("--lane", choices=CONTENT_LANES, required=True)
+    terminalize.add_argument("--run-id", required=True)
+    terminalize.add_argument("--job-id", required=True)
+    terminalize.add_argument("--request-sha256", required=True)
+    terminalize.add_argument("--model", required=True)
+    terminalize.add_argument("--role", choices=("writer", "reviewer"), required=True)
+    terminalize.add_argument("--transport-attempt", type=int, required=True)
+    terminalize.add_argument(
+        "--reason",
+        choices=sorted(OPERATOR_TERMINALIZATION_REASONS),
+        required=True,
+    )
+    terminalize.add_argument("--execute", action="store_true")
     subparsers.add_parser("cycle")
     return parser.parse_args()
 
@@ -936,6 +1203,25 @@ def main() -> int:
         result = resume_run(args.run_dir, queue_root)
     elif args.command == "status":
         result = read_run_state(args.run_dir, queue_root)
+    elif args.command == "terminalize-pending":
+        try:
+            result = terminalize_pending_job(
+                args.run_dir,
+                queue_root,
+                job_queue_root=args.job_queue_root,
+                lane=args.lane,
+                expected_run_id=args.run_id,
+                job_id=args.job_id,
+                request_sha256=args.request_sha256,
+                model=args.model,
+                role=args.role,
+                transport_attempt=args.transport_attempt,
+                reason=args.reason,
+                execute=args.execute,
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
     else:
         result = cycle_once(
             queue_root,
