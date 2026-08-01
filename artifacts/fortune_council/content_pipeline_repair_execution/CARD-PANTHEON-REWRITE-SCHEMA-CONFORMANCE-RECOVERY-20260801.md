@@ -4,7 +4,7 @@ chain_id: PANTHEON-REWRITE-SCHEMA-CONFORMANCE-RECOVERY-20260801
 role: implementation
 cycle: 1
 ownership: rewrite_schema_conformance_only
-status: ACCEPTED_FOR_INTEGRATION
+status: INTEGRATION_READY_DEPLOYMENT_NO_GO_STORAGE
 user_hold: false
 thickness: strict
 risk: high
@@ -192,4 +192,6 @@ git status --short
 - review_decision: REVIEW_GO
 - gate_3_candidate_delivery: PASS
 - gate_4_independent_review: PASS
-- gate_5_mainline_acceptance: PENDING
+- gate_5_mainline_acceptance: PASS_OFFLINE
+- deployment_gate: NO_GO_STORAGE
+- production_canary: NOT_RUN
