@@ -1,6 +1,6 @@
 ---
 card_id: CARD-PANTHEON-I18N-OUTBOX-OPERATOR-TERMINALIZATION-20260801
-status: PRODUCTION_TERMINALIZED_PENDING_MAINLINE
+status: COMPLETE
 owner: current-thread
 type: strict-production-repair
 risk: high
@@ -16,6 +16,9 @@ production_terminalization_authorized: true
 local_verification_status: PASS
 production_terminalization_status: PASS
 production_terminalized_at: 2026-08-01T09:49:04+08:00
+mainline_status: PUSHED
+production_actor_alignment: EXACT_ORIGIN_MAIN_AFTER_FINAL_RECEIPT_COMMIT
+launchagents_status: SIX_RELATED_SERVICES_UNLOADED
 production_authorization_basis: 使用者在得知將建立可追溯的單筆 pending retry 終止能力後明確要求「開卡做吧」。
 production_authorization_scope:
   - dry-run exact pending retry identity
