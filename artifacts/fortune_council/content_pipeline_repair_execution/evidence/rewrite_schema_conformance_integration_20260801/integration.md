@@ -56,3 +56,12 @@ evidence_type: integration
 4. production actor 精確對齊 integration runtime SHA，六個既有 LaunchAgent 恢復。
 5. 一次真實 rewrite 產出通過 provider → local gate → reviewer → publisher，形成新的 rewrite release。
 6. 其他三 Lane 保持 exit 0，且沒有新容量異常。
+
+## Integration push receipt
+
+- Pre-push release-record gate：`PASS`。
+- 已驗收修正／Review／容量 NO-GO 四個 commit 推送後，remote main 精確為 `6c6a38324335db6d1a4d7569fc1304e87918fffa`。
+- Production actor 保持舊 runtime `4256044b72563ce4cdd9faf81ba30ac13d0f45f7`；沒有 checkout 或部署新 code。
+- 六個 LaunchAgent 均保持未載入；未執行 canary。
+- 停損後兩次短間隔取樣一致：Pantheon `.work` 583,860 KiB、actor `.work` 175,300 KiB、Pantheon logs 28,240 KiB，三者沒有增長。
+- 同期主機 available 約 11.4 GiB，仍遠低於 34.2 GiB 上線門檻；最終狀態維持 `INTEGRATED / DEPLOYMENT_NO_GO_STORAGE`。
