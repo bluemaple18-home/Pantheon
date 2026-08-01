@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "id": "legacy-personality-0029-max-first",
+      "section_index": 0,
+      "paragraph_index": 0,
+      "keyword": "maxLength",
+      "delta": 1
+    },
+    {
+      "id": "legacy-personality-0030-max-later",
+      "section_index": 1,
+      "paragraph_index": 2,
+      "keyword": "maxLength",
+      "delta": 7
+    },
+    {
+      "id": "legacy-personality-0031-min-middle",
+      "section_index": 2,
+      "paragraph_index": 1,
+      "keyword": "minLength",
+      "delta": -1
+    },
+    {
+      "id": "legacy-personality-0032-min-last",
+      "section_index": 4,
+      "paragraph_index": 2,
+      "keyword": "minLength",
+      "delta": -7
+    }
+  ]
+}

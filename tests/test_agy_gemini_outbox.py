@@ -208,6 +208,142 @@ def _new_output_contract_fixture() -> dict[str, object]:
     }
 
 
+def _rewrite_length_cases() -> list[dict[str, object]]:
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / "agy_rewrite_schema_conformance"
+        / "length_cases.json"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload["cases"]
+
+
+def _rewrite_length_mismatch_fixture(
+    case: dict[str, object],
+) -> tuple[dict[str, object], dict[str, object]]:
+    current_body = [
+        {
+            "heading": "舊正文",
+            "paragraphs": ["舊正文只作為 synthetic hash 輸入。"],
+        }
+    ]
+    identity = {
+        "id": "REWRITE-SCHEMA-001",
+        "product": "personality",
+        "category": "personality",
+        "serial": "personality-0001",
+        "slug": "rewrite-schema-001",
+        "primaryKeyword": "測試關鍵字",
+        "title": "測試關鍵字的既有標題",
+    }
+    immutable_fields = {
+        "id": identity["id"],
+        "product": identity["product"],
+        "slug": identity["slug"],
+        "serial": identity["serial"],
+        "title": identity["title"],
+        "description": "既有描述",
+        "answer": "既有答案",
+        "faq": [{"question": "既有問題", "answer": "既有回答"}],
+        "tags": ["既有標籤"],
+        "published": "2026-07-01",
+        "updated": "2026-07-02",
+        "urlSlug": identity["slug"],
+        "primaryKeyword": identity["primaryKeyword"],
+    }
+    policy = pipeline.load_article_publication_policy()
+    publication_policy = {
+        "policyVersion": policy["policy_version"],
+        "canonical": (
+            f"{policy['site_origin']}/articles/{identity['category']}/"
+            f"{identity['slug']}"
+        ),
+        "author": {
+            "name": policy["identity"]["author_name"],
+            "url": policy["identity"]["author_url"],
+            "id": policy["identity"]["author_id"],
+        },
+        "editorialResponsibility": policy["identity"][
+            "editorial_responsibility"
+        ],
+        "evidence": {
+            "mode": "cultural_reflection",
+            "sources": [],
+            "disclosure": "本文屬文化脈絡與反思整理，不主張可驗證的預測結果。",
+        },
+        "published": "2026-07-01",
+        "modified": "2026-08-01",
+        "changeType": "substantive_rewrite",
+    }
+
+    def paragraph(section: int, item: int, length: int) -> str:
+        seed = (
+            f"測試關鍵字先核對第{section}節第{item}段的具體情境，"
+            "記錄資料、比較選項並詢問限制；這不代表能替個人下結論。"
+        )
+        return (seed + "再核對一項可觀察細節。" * length)[:length]
+
+    canonical_paragraph_schema = pipeline.candidate_schema(
+        "rewrite_existing_body"
+    )["properties"]["articles"]["items"]["properties"]["bodySections"][
+        "items"
+    ]["properties"]["paragraphs"]["items"]
+    target_length = (
+        int(canonical_paragraph_schema[str(case["keyword"])])
+        + int(case["delta"])
+    )
+    body_sections = [
+        {
+            "heading": f"第 {section} 個觀察面向",
+            "paragraphs": [
+                paragraph(
+                    section,
+                    item,
+                    (
+                        target_length
+                        if section - 1 == int(case["section_index"])
+                        and item - 1 == int(case["paragraph_index"])
+                        else 100
+                    ),
+                )
+                for item in range(1, 4)
+            ],
+        }
+        for section in range(1, 6)
+    ]
+    brief = {
+        "schema_version": 1,
+        "run_id": "rewrite-schema-conformance-red",
+        "mode": "rewrite_existing_body",
+        "source_commit": "0" * 40,
+        "sort_contract": "fixed",
+        "articles": [
+            {
+                "slot": "article-01",
+                "article_id": identity["id"],
+                "identity": identity,
+                "immutable_fields": immutable_fields,
+                "current_body": current_body,
+                "current_body_sha256": pipeline.body_sha256(current_body),
+                "rewrite_brief": ["先回答搜尋問題", "加入生活場景"],
+                "source_file": "synthetic/article-registry.js",
+                "body_source": "synthetic/article-body.js",
+            }
+        ],
+    }
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "bodySections": body_sections,
+                "publicationPolicy": publication_policy,
+            }
+        ]
+    }
+    return brief, external
+
+
 def test_runner_module_entrypoint_and_launchd_template_are_runnable(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -3336,6 +3472,60 @@ def test_runner_classifies_schema_invalid_payload_before_inbox_side_effect(
     assert failed["request_sha256"] == request["request_sha256"]
     assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
     assert failed["broker_diagnostic"]["result_validation"] == "SCHEMA_MISMATCH"
+
+
+@pytest.mark.parametrize(
+    "case",
+    _rewrite_length_cases(),
+    ids=lambda case: str(case["id"]),
+)
+def test_rewrite_provider_length_mismatch_reaches_local_quality_gate(
+    tmp_path: Path,
+    case: dict[str, object],
+) -> None:
+    brief, external = _rewrite_length_mismatch_fixture(case)
+    response_schema = pipeline.external_candidate_schema(
+        "rewrite_existing_body"
+    )
+    canonical_schema = pipeline.candidate_schema("rewrite_existing_body")
+    request = create_external_request(
+        tmp_path,
+        namespace="rewrite-schema-conformance-red",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 rewrite synthetic prompt",
+        response_schema=response_schema,
+    )
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: external,
+        lane="rewrite",
+    )
+
+    assert result == {"status": "processed", "job_id": request["job_id"]}
+    provider_result = consume_external_response(tmp_path, request)
+    assert provider_result == external
+    candidate = pipeline.hydrate_candidate(brief, provider_result)
+    findings = pipeline.rewrite_quality_findings(
+        brief,
+        candidate["articles"],
+    )
+    assert any(finding["code"] == "paragraph_length" for finding in findings)
+    diagnostics = broker._diagnose_json_schema(candidate, canonical_schema)
+    assert [(diagnostic.keyword, diagnostic.path) for diagnostic in diagnostics] == [
+        (
+            case["keyword"],
+            (
+                "articles",
+                0,
+                "bodySections",
+                case["section_index"],
+                "paragraphs",
+                case["paragraph_index"],
+            ),
+        )
+    ]
 
 
 def test_runner_normalizes_new_description_and_paragraph_bounds_without_retry(

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_seo_copy_pipeline as pipeline
 
+from scripts.agy_gemini_outbox import build_external_request
 from scripts.agy_seo_copy_pipeline import (
     CandidateValidationError,
     GeminiClient,
@@ -1917,6 +1918,36 @@ def test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity(
         )
 
 
+def test_rewrite_provider_schema_removes_only_string_length_keywords() -> None:
+    canonical_body = pipeline.candidate_schema("rewrite_existing_body")[
+        "properties"
+    ]["articles"]["items"]["properties"]["bodySections"]
+    provider_body = pipeline.external_candidate_schema(
+        "rewrite_existing_body"
+    )["properties"]["articles"]["items"]["properties"]["bodySections"]
+    expected_provider_body = json.loads(
+        json.dumps(canonical_body, ensure_ascii=False)
+    )
+    canonical_paragraph = expected_provider_body["items"]["properties"][
+        "paragraphs"
+    ]["items"]
+    minimum = canonical_paragraph.pop("minLength")
+    maximum = canonical_paragraph.pop("maxLength")
+
+    assert provider_body == expected_provider_body
+    assert (minimum, maximum) == pipeline._range_bounds(
+        pipeline.publication_presentation_profile("rewrite_existing_body"),
+        "paragraph_characters",
+    )
+    create_paragraph = pipeline.external_candidate_schema("create")[
+        "properties"
+    ]["articles"]["items"]["properties"]["bodySections"]["items"][
+        "properties"
+    ]["paragraphs"]["items"]
+    assert create_paragraph["minLength"] > 0
+    assert create_paragraph["maxLength"] > create_paragraph["minLength"]
+
+
 def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -> None:
     brief = make_rewrite_brief()
     source = brief["articles"][0]
@@ -2045,15 +2076,21 @@ def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) 
 
         def __init__(self) -> None:
             self.calls: list[str] = []
+            self.writer_prompts: list[str] = []
+            self.writer_schemas: list[dict[str, object]] = []
 
         def generate_json(
             self,
             role: str,
-            _prompt: str,
-            _schema: dict[str, object],
+            prompt: str,
+            schema: dict[str, object],
         ) -> dict[str, object]:
             self.calls.append(role)
             if role == "writer":
+                self.writer_prompts.append(prompt)
+                self.writer_schemas.append(
+                    json.loads(json.dumps(schema, ensure_ascii=False))
+                )
                 body = initial_body if self.calls.count("writer") == 1 else repaired_body
                 return {
                     "articles": [
@@ -2083,8 +2120,31 @@ def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) 
     )
 
     assert client.calls == ["writer", "writer", "reviewer"]
+    assert "paragraph_length" not in client.writer_prompts[0]
+    assert "paragraph_length" in client.writer_prompts[1]
+    repair_requests = [
+        build_external_request(
+            namespace="rewrite-length-repair",
+            role="writer",
+            model=client.writer_model,
+            prompt=prompt,
+            response_schema=schema,
+        )
+        for prompt, schema in zip(
+            client.writer_prompts,
+            client.writer_schemas,
+            strict=True,
+        )
+    ]
+    assert (
+        repair_requests[0]["request_sha256"]
+        != repair_requests[1]["request_sha256"]
+    )
     assert pipeline.rewrite_quality_findings(brief, candidate["articles"]) == []
     assert review["articles"][0]["verdict"] == "APPROVE"
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text())
+    assert evidence["content_repairs_used"] == 1
+    assert not (tmp_path / "attempts/03").exists()
 
 
 def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(

@@ -1,0 +1,18 @@
+PRIVACY SCAN
+
+scope:
+  changed production code, changed tests, and tests/fixtures/agy_rewrite_schema_conformance
+patterns:
+  API-key-shaped values, GEMINI_API_KEY assignments, credential file fields, private-key blocks, /Users paths, raw production response markers
+result:
+  PASS — no matches.
+
+debug instrumentation:
+  PASS — no [DBG-...] markers.
+
+data boundary:
+  only synthetic payloads and closed keyword/path diagnostics were used.
+  no raw production response, production prompt, credential, environment dump, or CLI log was read or persisted.
+
+dispatch metadata:
+  the card contains only the explicitly authorized local worktree/main cwd receipt paths; these are not provider payloads or credentials.

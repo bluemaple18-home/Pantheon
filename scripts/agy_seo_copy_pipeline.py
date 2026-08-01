@@ -2700,6 +2700,19 @@ def public_model_brief(brief: dict[str, Any]) -> dict[str, Any]:
     raise ValueError("brief mode must be create, optimize, or rewrite_existing_body")
 
 
+def _rewrite_provider_body_sections_schema() -> dict[str, Any]:
+    """保留 rewrite 結構約束；字串長度仍由 canonical 本機 gate 判定。"""
+    body_sections = _article_json_schema("rewrite_existing_body")[
+        "properties"
+    ]["bodySections"]
+    paragraph_items = body_sections["items"]["properties"]["paragraphs"][
+        "items"
+    ]
+    paragraph_items.pop("minLength", None)
+    paragraph_items.pop("maxLength", None)
+    return body_sections
+
+
 def external_candidate_schema(mode: str) -> dict[str, Any]:
     if mode == "optimize":
         proposed = {
@@ -2720,7 +2733,7 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
             "additionalProperties": False,
             "properties": {
                 "slot": {"type": "string"},
-                "bodySections": _article_json_schema("rewrite_existing_body")["properties"]["bodySections"],
+                "bodySections": _rewrite_provider_body_sections_schema(),
                 "publicationPolicy": _publication_contract_schema(),
             },
             "required": ["slot", "bodySections", "publicationPolicy"],

@@ -1,0 +1,22 @@
+RED
+command:
+  .venv/bin/python -m pytest -q tests/test_agy_gemini_outbox.py::test_rewrite_provider_length_mismatch_reaches_local_quality_gate
+result:
+  FAIL
+failure:
+  expected processed, received failed / V4BrokerFailure
+target symptom:
+  rewrite provider response schema rejects paragraph maxLength before local quality gate
+
+GREEN
+focused commands:
+  .venv/bin/python -m pytest -q tests/test_agy_gemini_outbox.py::test_rewrite_provider_length_mismatch_reaches_local_quality_gate
+  .venv/bin/python -m pytest -q tests/test_agy_seo_copy_pipeline.py::test_rewrite_provider_schema_removes_only_string_length_keywords tests/test_agy_gemini_outbox.py::test_rewrite_provider_length_mismatch_reaches_local_quality_gate
+results:
+  4 passed in 0.11s
+  5 passed in 0.08s
+proof:
+  four synthetic minLength/maxLength paths pass provider structural validation unchanged
+  canonical diagnostics retain exact keyword/path failures
+  deterministic local gate emits paragraph_length
+  create/new provider schema retains its original string length keywords

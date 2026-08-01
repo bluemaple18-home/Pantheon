@@ -196,6 +196,42 @@ def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001
     }
 
 
+def make_schema_conformant_rewrite_article(
+    article_id: str = "LEGACY-SCHEMA-CONFORMANT",
+    slug: str = "legacy-schema-conformant",
+) -> dict[str, object]:
+    article = make_rewrite_article(article_id, slug)
+    keyword = str(article["identity"]["primaryKeyword"])
+    seeds = [
+        (
+            f"{keyword}先回答讀者眼前的疑問：它是一個整理資訊與選擇的角度，"
+            "不能代替個人判斷。下班在會議收到臨時任務時，先記錄期限與責任，再確認缺少哪些資料。"
+        ),
+        (
+            "回家看到帳單與進修通知同時出現時，可以列出本月支出、比較時間成本，"
+            "並詢問承辦人退出條件；這個場景讓抽象概念回到可核對的生活細節。"
+        ),
+        (
+            "另一個例外是資料不足卻急著定案；此時應暫停推測、寫下已知事實，"
+            "再安排一次短對話。這不代表所有人都要採取相同步驟，仍要觀察情境與後果。"
+        ),
+    ]
+    paragraphs: list[str] = []
+    for index in range(15):
+        text = f"{seeds[index % len(seeds)]}第{index + 1}段只處理一個具體問題。"
+        while len(text) < 96:
+            text += "再核對一項可觀察資料。"
+        paragraphs.append(text[:118])
+    article["bodySections"] = [
+        {
+            "heading": f"具體判讀角度 {section + 1}",
+            "paragraphs": paragraphs[section * 3 : section * 3 + 3],
+        }
+        for section in range(5)
+    ]
+    return article
+
+
 def _write_rewrite_run(queue_root: Path, run_dir: Path, article: dict[str, object], verdict: str = "APPROVE") -> None:
     candidate = {"schema_version": 1, "run_id": run_dir.name, "mode": "rewrite_existing_body", "articles": [article]}
     review = {
@@ -1335,6 +1371,116 @@ def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_pat
     ready = publisher.collect_ready_rewrite_runs(queue_root, state_root, limit=10)
 
     assert [state["run_id"] for state, _, _, _ in ready] == ["rewrite-approved"]
+
+
+def test_schema_conformant_rewrite_passes_offline_generation_to_publisher_eligibility(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-schema-conformant"
+    article = make_schema_conformant_rewrite_article()
+    current_body = [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}]
+    article["current_body_sha256"] = body_sha256(current_body)
+    identity = article["identity"]
+    brief = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "mode": "rewrite_existing_body",
+        "source_commit": "0" * 40,
+        "sort_contract": "fixed",
+        "articles": [
+            {
+                "slot": "article-01",
+                "article_id": article["article_id"],
+                "identity": identity,
+                "immutable_fields": {
+                    **identity,
+                    "description": "原 description",
+                    "answer": "原 answer",
+                    "faq": [{"question": "原問題？", "answer": "原回答。"}],
+                    "tags": ["測試"],
+                    "published": "2026-07-01",
+                    "updated": "2026-07-01",
+                    "urlSlug": identity["slug"],
+                },
+                "current_body": current_body,
+                "current_body_sha256": article["current_body_sha256"],
+                "rewrite_brief": ["改得更口語，但保留使用者情境與限制。"],
+                "source_file": "synthetic/article-meta.js",
+                "body_source": "synthetic/article-body.js",
+            }
+        ],
+    }
+    _write_json(run_dir / "brief.json", brief)
+
+    class OfflineApprovedClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                return {
+                    "articles": [
+                        {
+                            "slot": "article-01",
+                            "bodySections": article["bodySections"],
+                            "publicationPolicy": article["publicationPolicy"],
+                        }
+                    ]
+                }
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "APPROVE",
+                        "semantic_findings": [],
+                        "objective_observations": [],
+                    }
+                ]
+            }
+
+    candidate, review = publisher.pipeline.run_writer_reviewer(
+        run_dir,
+        OfflineApprovedClient(),
+        max_repairs=1,
+    )
+    publisher.pipeline.validate_candidate(candidate)
+    assert publisher.pipeline.rewrite_quality_findings(
+        brief,
+        candidate["articles"],
+    ) == []
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    _write_json(
+        queue_root / "runs" / f"{run_dir.name}.json",
+        {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "run_dir": str(run_dir),
+            "status": "complete",
+            "result": {
+                "status": "complete",
+                "run_id": run_dir.name,
+                "candidate": str(run_dir / "candidate.json"),
+            },
+        },
+    )
+
+    ready = publisher.collect_ready_rewrite_runs(
+        queue_root,
+        state_root,
+        limit=1,
+        allowed_article_ids={str(article["article_id"])},
+    )
+
+    assert len(ready) == 1
+    assert ready[0][1] == candidate
+    assert ready[0][2] == review
 
 
 def test_collect_ready_rewrite_runs_skips_non_legacy_articles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
