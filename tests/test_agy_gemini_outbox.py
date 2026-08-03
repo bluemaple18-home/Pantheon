@@ -520,6 +520,41 @@ def test_allocator_lock_path_replacement_cannot_create_parallel_critical_section
     assert "lock file changed" in first_stdout
 
 
+def test_allocator_rebinds_same_lock_inode_after_device_id_changes(
+    tmp_path: Path,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    assert allocator.allocate_production_slot(
+        state,
+        pool_id=str(payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+    ) == (1, "account-1")
+
+    state_payload = json.loads(state.read_text(encoding="utf-8"))
+    current_device = int(state_payload["lock_device"])
+    state_payload["lock_device"] = current_device + 1
+    state.write_text(
+        json.dumps(state_payload, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    state.chmod(0o600)
+
+    allocator.validate_production_allocator_installation(
+        state,
+        pool_id=str(payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+    )
+    assert allocator.allocate_production_slot(
+        state,
+        pool_id=str(payload["pool_id"]),
+        manifest_sha256=manifest_sha256,
+    ) == (2, "account-2")
+    rebound = json.loads(state.read_text(encoding="utf-8"))
+    assert rebound["lock_device"] == current_device
+
+
 def test_production_pool_commit_survives_worker_crash_before_provider(
     tmp_path: Path,
 ) -> None:

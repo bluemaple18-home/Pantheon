@@ -385,6 +385,14 @@ def _read_state(
     )
 
 
+def _lock_identity_matches(
+    expected: tuple[int, int],
+    actual: tuple[int, int],
+) -> bool:
+    """允許重開機後同一 inode 的 APFS device id 漂移。"""
+    return expected == actual or expected[1] == actual[1]
+
+
 def _commit_state(
     path: Path,
     *,
@@ -646,7 +654,10 @@ def production_slot_admission(
             )
             if (
                 state.expected_lock_identity is not None
-                and state.expected_lock_identity != lock_identity
+                and not _lock_identity_matches(
+                    state.expected_lock_identity,
+                    lock_identity,
+                )
             ):
                 raise ValueError(
                     "production allocator lock file changed during allocation"
@@ -767,7 +778,10 @@ def validate_production_allocator_installation(
                     pool_id=pool_id,
                     manifest_sha256=manifest_sha256,
                 )
-                if state.expected_lock_identity != lock_identity:
+                if not _lock_identity_matches(
+                    state.expected_lock_identity,
+                    lock_identity,
+                ):
                     raise ValueError(
                         "production allocator lock file changed during allocation"
                     )
