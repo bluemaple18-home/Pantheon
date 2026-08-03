@@ -1258,21 +1258,25 @@ def test_production_pool_commit_failure_precedes_credential_and_provider(
 
 
 @pytest.mark.parametrize(
-    ("failure", "expected_code", "expected_category"),
+    ("failure", "http_status", "expected_code", "expected_category"),
     [
-        ("auth", "API_AUTH", "AUTH"),
-        ("rate-limit", "API_RATE_LIMITED", "QUOTA"),
-        ("model-unavailable", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
-        ("provider-nonzero", "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
-        ("redirect", "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
-        ("timeout", "API_TIMEOUT", "NETWORK"),
-        ("transport", "API_TRANSPORT_ERROR", "NETWORK"),
+        ("bad-request", 400, "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("auth", 401, "API_AUTH", "AUTH"),
+        ("forbidden", 403, "API_AUTH", "AUTH"),
+        ("model-unavailable", 404, "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
+        ("rate-limit", 429, "API_RATE_LIMITED", "QUOTA"),
+        ("provider-internal", 500, "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("provider-unavailable", 503, "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("redirect", 302, "API_HTTP_ERROR", "PROVIDER_UNAVAILABLE"),
+        ("timeout", None, "API_TIMEOUT", "NETWORK"),
+        ("transport", None, "API_TRANSPORT_ERROR", "NETWORK"),
     ],
 )
 def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
+    http_status: int | None,
     expected_code: str,
     expected_category: str,
 ) -> None:
@@ -1295,15 +1299,10 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
             raise TimeoutError("private-timeout-detail")
         if failure == "transport":
             raise pipeline.urllib.error.URLError(OSError("private-transport-detail"))
-        status = {
-            "auth": 401,
-            "rate-limit": 429,
-            "model-unavailable": 404,
-            "redirect": 302,
-        }.get(failure, 503)
+        assert http_status is not None
         raise pipeline.urllib.error.HTTPError(
             getattr(provider_request, "full_url", "https://example.invalid"),
-            status,
+            http_status,
             "private-provider-detail",
             {},
             io.BytesIO(b"must-not-persist-provider-body"),
@@ -1323,6 +1322,17 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     assert result["error_type"] == "GeminiApiFailure"
     assert result["error_code"] == expected_code
     assert failed["failure_category"] == expected_category
+    if http_status is None:
+        assert "http_status" not in result
+        assert "http_status_class" not in result
+        assert "http_status" not in failed
+        assert "http_status_class" not in failed
+    else:
+        expected_status_class = f"{http_status // 100}xx"
+        assert result["http_status"] == http_status
+        assert result["http_status_class"] == expected_status_class
+        assert failed["http_status"] == http_status
+        assert failed["http_status_class"] == expected_status_class
     assert result["credential_pool"] == failed["credential_pool"]
     assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
     assert (queue_root / "archive" / f"{request['job_id']}.json").exists()
@@ -1353,6 +1363,10 @@ def test_production_pool_failure_is_terminal_without_rotation_or_fallback(
     with pytest.raises(ExternalJobFailed) as raised:
         consume_external_response(queue_root, request)
     assert raised.value.error_code == expected_code
+    assert raised.value.http_status == http_status
+    assert raised.value.http_status_class == (
+        f"{http_status // 100}xx" if http_status is not None else None
+    )
 
 
 def test_all_slots_cooling_denies_two_lanes_before_claim_or_provider(
@@ -2064,6 +2078,12 @@ def test_failure_consumer_closes_untrusted_error_type(
         "invalid-code",
         "invalid-broker",
         "unhashable-broker",
+        "http-status-only",
+        "http-class-only",
+        "invalid-http-status",
+        "mismatched-http-class",
+        "mismatched-http-code",
+        "http-diagnostic-on-cli",
         "invalid-timestamp",
         "non-object",
     ],
@@ -2104,6 +2124,46 @@ def test_failure_consumer_rejects_misbound_or_malformed_receipt(
             "outcome": [],
             "result_validation": {},
         }
+    elif malformation == "http-status-only":
+        receipt.update(
+            error_type="GeminiApiFailure",
+            error_code="API_HTTP_ERROR",
+            http_status=503,
+        )
+    elif malformation == "http-class-only":
+        receipt.update(
+            error_type="GeminiApiFailure",
+            error_code="API_HTTP_ERROR",
+            http_status_class="5xx",
+        )
+    elif malformation == "invalid-http-status":
+        receipt.update(
+            error_type="GeminiApiFailure",
+            error_code="API_HTTP_ERROR",
+            http_status=True,
+            http_status_class="5xx",
+        )
+    elif malformation == "mismatched-http-class":
+        receipt.update(
+            error_type="GeminiApiFailure",
+            error_code="API_HTTP_ERROR",
+            http_status=503,
+            http_status_class="4xx",
+        )
+    elif malformation == "mismatched-http-code":
+        receipt.update(
+            error_type="GeminiApiFailure",
+            error_code="API_AUTH",
+            http_status=503,
+            http_status_class="5xx",
+        )
+    elif malformation == "http-diagnostic-on-cli":
+        receipt.update(
+            error_type="GeminiCliFailure",
+            error_code="CLI_NONZERO",
+            http_status=503,
+            http_status_class="5xx",
+        )
     elif malformation == "invalid-timestamp":
         receipt["completed_at"] = "2026-99-99T99:99:99+08:00"
     else:

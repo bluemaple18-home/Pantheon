@@ -2210,13 +2210,52 @@ class GeminiCliFailure(RuntimeError):
         super().__init__(error_code)
 
 
+def _gemini_error_code_for_http_status(http_status: object) -> str:
+    if http_status in {401, 403}:
+        return "API_AUTH"
+    if http_status == 429:
+        return "API_RATE_LIMITED"
+    if http_status == 404:
+        return "API_MODEL_UNAVAILABLE"
+    return "API_HTTP_ERROR"
+
+
+def closed_gemini_http_diagnostic(
+    error_code: object,
+    http_status: object,
+    http_status_class: object,
+) -> dict[str, object] | None:
+    """只接受能由 HTTP status 與封閉錯誤碼互相驗證的安全診斷。"""
+    if (
+        type(http_status) is not int
+        or not 100 <= http_status <= 599
+        or type(http_status_class) is not str
+        or http_status_class != f"{http_status // 100}xx"
+        or error_code != _gemini_error_code_for_http_status(http_status)
+    ):
+        return None
+    return {
+        "http_status": http_status,
+        "http_status_class": http_status_class,
+    }
+
+
 class GeminiApiFailure(RuntimeError):
     """不攜帶 HTTP response、request header 或 credential 的封閉失敗分類。"""
 
-    def __init__(self, error_code: str) -> None:
+    def __init__(self, error_code: str, *, http_status: int | None = None) -> None:
         if error_code not in CLOSED_GEMINI_ERROR_CODES or not error_code.startswith("API_"):
             raise ValueError("Gemini API error code is not closed")
         self.error_code = error_code
+        diagnostic = closed_gemini_http_diagnostic(
+            error_code,
+            http_status,
+            f"{http_status // 100}xx" if type(http_status) is int else None,
+        )
+        self.http_status = diagnostic["http_status"] if diagnostic is not None else None
+        self.http_status_class = (
+            diagnostic["http_status_class"] if diagnostic is not None else None
+        )
         super().__init__(error_code)
 
 
@@ -2410,15 +2449,8 @@ class GeminiClient:
             ) as response:
                 encoded = response.read()
         except urllib.error.HTTPError as error:
-            if error.code in {401, 403}:
-                code = "API_AUTH"
-            elif error.code == 429:
-                code = "API_RATE_LIMITED"
-            elif error.code == 404:
-                code = "API_MODEL_UNAVAILABLE"
-            else:
-                code = "API_HTTP_ERROR"
-            raise GeminiApiFailure(code) from None
+            code = _gemini_error_code_for_http_status(error.code)
+            raise GeminiApiFailure(code, http_status=error.code) from None
         except urllib.error.URLError as error:
             code = "API_TIMEOUT" if isinstance(error.reason, TimeoutError) else "API_TRANSPORT_ERROR"
             raise GeminiApiFailure(code) from None
@@ -3729,6 +3761,13 @@ def _generate_with_receipt(
         error_code = getattr(error, "error_code", None)
         if type(error_code) is str and error_code in CLOSED_GEMINI_ERROR_CODES:
             receipt["error_code"] = error_code
+        http_diagnostic = closed_gemini_http_diagnostic(
+            error_code,
+            getattr(error, "http_status", None),
+            getattr(error, "http_status_class", None),
+        )
+        if http_diagnostic is not None:
+            receipt.update(http_diagnostic)
         failure_category = getattr(error, "failure_category", None)
         if (
             type(failure_category) is str

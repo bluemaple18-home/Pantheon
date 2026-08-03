@@ -36,6 +36,7 @@ from scripts.agy_gemini_allocator import (
 from scripts.agy_seo_copy_pipeline import (
     CLOSED_GEMINI_ERROR_CODES,
     GeminiClient,
+    closed_gemini_http_diagnostic,
     normalize_new_output_contract,
 )
 from scripts.agy_gemini_v4_broker import (
@@ -1199,6 +1200,11 @@ def process_once(
             return {"status": "failed", "error_type": type(error).__name__}
         cooldown_receipt: dict[str, object] | None = None
         error_code = _closed_error_code(error)
+        http_diagnostic = closed_gemini_http_diagnostic(
+            error_code,
+            getattr(error, "http_status", None),
+            getattr(error, "http_status_class", None),
+        )
         if (
             error_code == RATE_LIMIT_REASON
             and credential_pool is not None
@@ -1226,6 +1232,8 @@ def process_once(
         }
         if error_code is not None:
             failed_record["error_code"] = error_code
+        if http_diagnostic is not None:
+            failed_record.update(http_diagnostic)
         if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
             failed_record["broker_diagnostic"] = broker_diagnostic
         if credential_pool is not None:
@@ -1254,6 +1262,8 @@ def process_once(
         result = {"status": "failed", "job_id": job_id, "error_type": type(error).__name__}
         if error_code is not None:
             result["error_code"] = error_code
+        if http_diagnostic is not None:
+            result.update(http_diagnostic)
         if credential_pool is not None:
             result["credential_pool"] = credential_pool
         if cooldown_receipt is not None:

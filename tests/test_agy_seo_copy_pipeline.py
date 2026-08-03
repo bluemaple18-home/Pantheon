@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
@@ -963,6 +964,47 @@ def test_production_single_request_transport_disables_redirects() -> None:
         )
         is None
     )
+
+
+@pytest.mark.parametrize(
+    ("http_status", "expected_code", "expected_status_class"),
+    [
+        (400, "API_HTTP_ERROR", "4xx"),
+        (401, "API_AUTH", "4xx"),
+        (403, "API_AUTH", "4xx"),
+        (404, "API_MODEL_UNAVAILABLE", "4xx"),
+        (429, "API_RATE_LIMITED", "4xx"),
+        (500, "API_HTTP_ERROR", "5xx"),
+        (503, "API_HTTP_ERROR", "5xx"),
+    ],
+)
+def test_production_http_failure_exposes_only_sanitized_status_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    http_status: int,
+    expected_code: str,
+    expected_status_class: str,
+) -> None:
+    private_body = b"GEMINI_API_KEY=must-not-persist provider response body"
+
+    def fail_provider(provider_request: object, **_kwargs: object) -> object:
+        raise pipeline.urllib.error.HTTPError(
+            getattr(provider_request, "full_url", "https://example.invalid"),
+            http_status,
+            "private-provider-detail",
+            {},
+            io.BytesIO(private_body),
+        )
+
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", fail_provider)
+    client = GeminiClient(api_key="redacted")
+
+    with pytest.raises(pipeline.GeminiApiFailure) as raised:
+        client._single_request_http_transport("gemini-test", {"safe": True})
+
+    assert raised.value.error_code == expected_code
+    assert raised.value.http_status == http_status
+    assert raised.value.http_status_class == expected_status_class
+    assert private_body.decode() not in str(raised.value)
 
 
 @pytest.mark.parametrize(
@@ -4183,6 +4225,45 @@ def test_operation_receipt_persists_closed_cli_code_without_exception_text(
     assert receipt["error_code"] == "CLI_TIMEOUT"
     persisted = receipt_path.read_text(encoding="utf-8")
     for forbidden in ("response", "stdout", "stderr", "GEMINI_API_KEY", "/Users/"):
+        assert forbidden not in persisted
+
+
+def test_operation_receipt_persists_only_closed_http_diagnostic(
+    tmp_path: Path,
+) -> None:
+    private_detail = "/Users/example/private GEMINI_API_KEY=must-not-persist provider body"
+
+    class FailedClient:
+        writer_model = "test-writer"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise pipeline.GeminiApiFailure(
+                "API_HTTP_ERROR",
+                http_status=503,
+            ) from RuntimeError(private_detail)
+
+    receipt_path = tmp_path / "writer-operation.json"
+    with pytest.raises(pipeline.GeminiApiFailure):
+        pipeline._generate_with_receipt(
+            FailedClient(),
+            "writer",
+            "public prompt",
+            {"type": "object"},
+            receipt_path,
+        )
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["error_type"] == "GeminiApiFailure"
+    assert receipt["error_code"] == "API_HTTP_ERROR"
+    assert receipt["http_status"] == 503
+    assert receipt["http_status_class"] == "5xx"
+    persisted = receipt_path.read_text(encoding="utf-8")
+    for forbidden in ("response", "body", "GEMINI_API_KEY", "/Users/"):
         assert forbidden not in persisted
 
 

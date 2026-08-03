@@ -51,6 +51,8 @@ FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({
     "credential_pool",
     "error_code",
     "failure_category",
+    "http_status",
+    "http_status_class",
 })
 FAILURE_TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$"
@@ -131,6 +133,8 @@ class ExternalJobFailed(RuntimeError):
         error_code: str | None = None,
         *,
         failure_category: str | None = None,
+        http_status: int | None = None,
+        http_status_class: str | None = None,
         request_sha256: str | None = None,
         transport_attempt: int = 0,
     ) -> None:
@@ -149,6 +153,17 @@ class ExternalJobFailed(RuntimeError):
             failure_category
             if failure_category in EXTERNAL_FAILURE_CATEGORIES
             else "INVALID_RECEIPT"
+        )
+        http_diagnostic = pipeline.closed_gemini_http_diagnostic(
+            self.error_code,
+            http_status,
+            http_status_class,
+        )
+        self.http_status = (
+            http_diagnostic["http_status"] if http_diagnostic is not None else None
+        )
+        self.http_status_class = (
+            http_diagnostic["http_status_class"] if http_diagnostic is not None else None
         )
         self.request_sha256 = (
             request_sha256
@@ -423,6 +438,20 @@ def _failure_receipt_is_valid(
         or error_code not in CLOSED_EXTERNAL_ERROR_CODES
     ):
         return False
+    has_http_status = "http_status" in failure
+    has_http_status_class = "http_status_class" in failure
+    if has_http_status != has_http_status_class:
+        return False
+    if has_http_status and (
+        failure.get("error_type") != "GeminiApiFailure"
+        or pipeline.closed_gemini_http_diagnostic(
+            error_code,
+            failure.get("http_status"),
+            failure.get("http_status_class"),
+        )
+        is None
+    ):
+        return False
     broker_diagnostic = failure.get("broker_diagnostic")
     if ("broker_diagnostic" in failure) != (failure.get("error_type") == "V4BrokerFailure"):
         return False
@@ -532,6 +561,16 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
             failure["error_type"],
             failure.get("error_code") if type(failure.get("error_code")) is str else None,
             failure_category=classify_external_failure(failure),
+            http_status=(
+                failure.get("http_status")
+                if type(failure.get("http_status")) is int
+                else None
+            ),
+            http_status_class=(
+                failure.get("http_status_class")
+                if type(failure.get("http_status_class")) is str
+                else None
+            ),
             request_sha256=str(request["request_sha256"]),
             transport_attempt=request.get("transport_attempt", 0),
         )
@@ -680,6 +719,9 @@ def main() -> int:
         result = {"status": "failed", "job_id": failed.job_id, "error_type": failed.error_type}
         if failed.error_code is not None:
             result["error_code"] = failed.error_code
+        if failed.http_status is not None:
+            result["http_status"] = failed.http_status
+            result["http_status_class"] = failed.http_status_class
         print(json.dumps(result, ensure_ascii=False))
         return 1
     print(json.dumps(result, ensure_ascii=False))
