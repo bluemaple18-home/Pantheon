@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "locale": "ja",
+      "plan_marker": "日本語の検索者が実際に入力する問いを先に定義",
+      "article_marker": "title と answer は主検索質問へ直答",
+      "reviewer_findings": [
+        {
+          "code": "SOURCE_SYNTAX_TRANSFER",
+          "message": "source の段落順と一文ごとの対応を再利用している"
+        },
+        {
+          "code": "NON_NATIVE_SEARCH_INTENT",
+          "message": "title と FAQ が日本語の検索質問になっていない"
+        }
+      ]
+    },
+    {
+      "locale": "ko",
+      "plan_marker": "한국어 검색자가 실제로 입력할 질문을 먼저 정의",
+      "article_marker": "title과 answer는 핵심 검색 질문에 바로 답하고",
+      "reviewer_findings": [
+        {
+          "code": "SOURCE_SYNTAX_TRANSFER",
+          "message": "source 문단 순서와 문장 대응을 그대로 재사용했다"
+        },
+        {
+          "code": "NON_NATIVE_SEARCH_INTENT",
+          "message": "title과 FAQ가 한국어 검색 질문으로 구성되지 않았다"
+        }
+      ]
+    }
+  ],
+  "english_control": {
+    "fixture": "non_tarot_translation_brief(en), generation=1, no findings",
+    "plan_prompt_sha256": "390cdfdadf817c0b6f79f5d8499df4bdd93e13ef0bca98154e518eb38a06c056",
+    "article_prompt_sha256": "e4b44d2ef162a3fef9f522721b35219000fc211b195bbc2db15a175f6302e2bc"
+  }
+}
