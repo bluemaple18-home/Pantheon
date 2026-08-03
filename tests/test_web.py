@@ -1847,6 +1847,10 @@ const rendered = completionCards.map((article) => {
     bodyLength: [...bodyText].length,
     firstHeading: content.bodySections[0]?.heading || "",
     faqCount: content.faq.length,
+    recordPublished: article.published,
+    recordUpdated: article.updated,
+    policyPublished: article.publicationPolicy?.published || article.published,
+    policyModified: article.publicationPolicy?.modified || article.updated,
     published: content.published,
     updated: content.updated,
     voice: auditArticleVoice(article).status,
@@ -1878,8 +1882,11 @@ console.log(JSON.stringify({
         assert article["bodyLength"] >= 1300, article
         assert "牌面" in article["firstHeading"], article
         assert 3 <= article["faqCount"] <= 5, article
+        assert article["recordPublished"] == ARTICLE_TAROT_COMPLETION_DATE, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
-        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["published"] == article["policyPublished"], article
+        assert article["updated"] == article["recordUpdated"], article
+        assert article["updated"] == article["policyModified"], article
         assert article["voice"] == "pass", article
 
 

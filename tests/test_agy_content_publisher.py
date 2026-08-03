@@ -817,6 +817,18 @@ def test_apply_rewrite_release_uses_inventory_slug_for_body_override(
     text = module.read_text(encoding="utf-8")
     assert '"yongshen-meaning": [' in text
     assert '"fortune-0039": [' not in text
+    policy_marker = (
+        "export const AGY_REWRITE_SPLIT_SLUG_REWRITE_POLICY_OVERRIDES = "
+    )
+    policy_payload = json.loads(
+        text.split(policy_marker, maxsplit=1)[1].strip().removesuffix(";")
+    )
+    override = policy_payload["EXPANSION-50D-FORTUNE-0039"]
+    assert set(override) == {"updated", "publicationPolicy"}
+    assert override["updated"] == "2026-07-25"
+    assert override["publicationPolicy"]["published"] == "2026-07-01"
+    assert override["publicationPolicy"]["modified"] == override["updated"]
+    assert override["publicationPolicy"]["changeType"] == "substantive_rewrite"
     registry = (tmp_path / "app/web/static/article-registry.js").read_text(
         encoding="utf-8"
     )
@@ -1100,6 +1112,69 @@ def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_ret
         capture_output=True,
         text=True,
     ).stdout == ""
+
+
+def test_rewrite_full_test_failure_rolls_back_updated_date_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
+    run_id = "rewrite-updated-date-full-test-failure"
+    owned = repo_root / "app/web/owned.txt"
+    monkeypatch.setattr(
+        publisher,
+        "_assert_clean_origin_head",
+        lambda _repo, _git: base_sha,
+    )
+    test_commands: list[list[str]] = []
+
+    def fail_full_test(_repo: Path, command: list[str]) -> None:
+        test_commands.append(command)
+        if command == publisher.TEST_COMMAND:
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(publisher, "_run_checked", fail_full_test)
+
+    @publisher._recoverable_publish("rewrite", "rewritten")
+    def failing_rewrite(
+        repo: Path,
+        _queue: Path,
+        _state: Path,
+        *,
+        git: publisher.GitRunner = publisher.run_git,
+        _transaction_base_sha: str | None = None,
+        _mutation_journal: publisher.MutationJournal | None = None,
+    ) -> dict[str, object]:
+        assert _transaction_base_sha == base_sha
+        assert _mutation_journal is not None
+        _mutation_journal.select_runs([run_id])
+        _mutation_journal.begin()
+        _mutation_journal.capture(
+            lambda: owned.write_text(
+                "published=2026-07-16\nupdated=2026-08-03\n",
+                encoding="utf-8",
+            )
+        )
+        publisher._run_release_tests(repo)
+        raise AssertionError("full test failure should abort the transaction")
+
+    result = failing_rewrite(repo_root, queue_root, state_root)
+
+    assert test_commands == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND]
+    assert result["status"] == "failed_recovered"
+    assert result["error_type"] == "CalledProcessError"
+    assert owned.read_bytes() == b"base\n"
+    assert subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+    failure = json.loads(Path(str(result["evidence"])).read_text(encoding="utf-8"))
+    assert failure["run_ids"] == [run_id]
+    assert failure["repo_recovered"] is True
+    assert failure["retry_status"] == "candidate_preserved"
 
 
 def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
