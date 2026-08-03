@@ -1,0 +1,29 @@
+CARD-PANTHEON-JA-KO-TRANSLATION-QUALITY-PASS-RATE-REPAIR-20260803
+RED / GREEN receipt
+
+[PLAN-002 RED]
+command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_multilingual_pipeline.py -k saved_japanese_plan_accepts_source_derived_hyphenated_proper_name
+result: FAIL (exit 1)
+signal: ValueError: locale plan native locale language differs for article-01.coverage_note[0]
+matched production replay: auto-i18n-ja-b98b7dc9d6b9f4fa7df9 / external-plan sha256 b044dbd903dd284a462f77d65ab369962eb3136c6250b738a018e5ba3744fdbb
+
+[PLAN-002 GREEN]
+same command result: PASS; 1 passed, 175 deselected
+saved-response offline replay result: PASS
+hydrated plan sha256: 0af4a663d2deea73c5d01d312c7e854d92bf860e4912530efc9209c8384a42ca
+focused negative matrix: 79 passed, 97 deselected
+preserved controls: wrong-language ASCII sentences, wrong script, uppercase general English, missing/duplicate fact, wrong safety flag, illegal H2 slot
+
+[NATIVE-003 RED]
+command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_multilingual_pipeline.py -k native_quality_repair_contract_is_bound_to_locale_prompts
+result: FAIL (exit 1); 2 failed, 179 deselected
+signal: ja/ko locale-specific search-question and article-restructure markers absent from plan/article prompts
+
+[NATIVE-003 GREEN]
+command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_multilingual_pipeline.py -k 'native_quality_repair_contract_is_bound_to_locale_prompts or native_quality_fixture_preserves_reviewer_hard_reject or english_prompt_control_is_byte_for_byte_stable'
+result: PASS; 5 passed, 176 deselected
+guards: SOURCE_SYNTAX_TRANSFER and NON_NATIVE_SEARCH_INTENT remain hard reject; ja/ko repair contracts are prompt-bound; English prompt bytes unchanged
+
+[ENGLISH CONTROL]
+plan_prompt_sha256: 390cdfdadf817c0b6f79f5d8499df4bdd93e13ef0bca98154e518eb38a06c056
+article_prompt_sha256: e4b44d2ef162a3fef9f522721b35219000fc211b195bbc2db15a175f6302e2bc

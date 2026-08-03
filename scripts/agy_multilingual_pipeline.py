@@ -46,6 +46,29 @@ LOCALE_EDITORIAL_CONTRACTS = {
         "avoid": "중국어 어순, 대칭 문장, 원문의 문단 수를 복제하지 않는다. 번역투인 과도한 피동형, '제공합니다' 반복, 부자연스러운 한자어와 전각 문장부호를 피한다.",
     },
 }
+LOCALE_NATIVE_REPAIR_CONTRACTS = {
+    "ja": {
+        "plan": (
+            "日本語の検索者が実際に入力する問いを先に定義し、native_query_phrasings は"
+            "source の見出しの言い換えではなく、検索者の疑問形・名詞句として作る。"
+        ),
+        "article": (
+            "title と answer は主検索質問へ直答し、H2 は補助質問への回答順、FAQ は本文で"
+            "未解決の自然な質問にする。source の見出し順・段落数・一文ごとの対応を再利用しない。"
+        ),
+    },
+    "ko": {
+        "plan": (
+            "한국어 검색자가 실제로 입력할 질문을 먼저 정의하고, native_query_phrasings는 "
+            "source 제목을 바꿔 쓴 문장이 아니라 자연스러운 명사구와 질문형으로 만든다."
+        ),
+        "article": (
+            "title과 answer는 핵심 검색 질문에 바로 답하고, H2는 보조 질문의 답변 순서로, "
+            "FAQ는 본문에 남은 자연스러운 질문으로 구성한다. source 제목 순서, 문단 수, "
+            "문장별 대응을 재사용하지 않는다."
+        ),
+    },
+}
 REBUILD_FINDING_CODES = {
     "AI_TEMPLATE_STYLE",
     "MIRRORED_STRUCTURE",
@@ -763,12 +786,20 @@ def _ascii_is_name_acronym_or_number(text: str) -> bool:
 
 
 def _source_ascii_authorities(source: dict[str, Any]) -> frozenset[str]:
-    return frozenset(
-        re.findall(
-            r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]{1,15}(?![A-Za-z0-9])",
-            _visible_text(source),
-        )
+    visible = _visible_text(source)
+    acronyms = re.findall(
+        r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]{1,15}(?![A-Za-z0-9])",
+        visible,
     )
+    hyphenated_names = {
+        re.sub(r"[‐‑‒–—―]", "-", authority)
+        for authority in re.findall(
+            r"(?<![A-Za-z0-9])[A-Z][A-Za-z0-9]*"
+            r"(?:[-‐‑‒–—―][A-Z][A-Za-z0-9]*)+(?![A-Za-z0-9])",
+            visible,
+        )
+    }
+    return frozenset([*acronyms, *hyphenated_names])
 
 
 def _plan_matches_target_language(
@@ -1084,6 +1115,21 @@ def _hydrate_locale_plan(
     return plan
 
 
+def _native_quality_repair_contracts(
+    brief: dict[str, Any],
+    stage: str,
+) -> list[dict[str, str]]:
+    return [
+        {
+            "slot": f"article-{index + 1:02d}",
+            "locale": str(target["locale"]),
+            "instruction": LOCALE_NATIVE_REPAIR_CONTRACTS[str(target["locale"])][stage],
+        }
+        for index, target in enumerate(brief["articles"])
+        if str(target["locale"]) in LOCALE_NATIVE_REPAIR_CONTRACTS
+    ]
+
+
 def _plan_prompt(
     brief: dict[str, Any],
     *,
@@ -1092,7 +1138,7 @@ def _plan_prompt(
     findings: list[dict[str, str]],
     rebuild_by_slot: dict[str, bool],
 ) -> str:
-    return "\n".join(
+    prompt = "\n".join(
         [
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
@@ -1117,6 +1163,12 @@ def _plan_prompt(
             _canonical_json(rebuild_by_slot),
         ]
     )
+    repair_contracts = _native_quality_repair_contracts(brief, "plan")
+    if repair_contracts:
+        prompt += "\nnative quality repair contracts:\n" + _canonical_json(
+            repair_contracts
+        )
+    return prompt
 
 
 def _article_prompt(
@@ -1140,7 +1192,7 @@ def _article_prompt(
             )
         ]
     }
-    return "\n".join(
+    prompt = "\n".join(
         [
             "你是 Pantheon 的目標語言母語主編。這不是翻譯任務；slot 必須逐字複製。",
             "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
@@ -1157,6 +1209,12 @@ def _article_prompt(
             json.dumps(findings, ensure_ascii=False),
         ]
     )
+    repair_contracts = _native_quality_repair_contracts(brief, "article")
+    if repair_contracts:
+        prompt += "\nnative quality repair contracts:\n" + _canonical_json(
+            repair_contracts
+        )
+    return prompt
 
 
 def _writer_prompt(
