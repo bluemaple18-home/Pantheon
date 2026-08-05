@@ -1209,6 +1209,8 @@ def cycle_once(
 
 def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     state = read_run_state(run_dir, queue_root)
+    if state.get("error_type") == "LocalePlanValidationError":
+        state.pop("last_job_id", None)
     state["status"] = "active"
     state.pop("error_type", None)
     state.pop("error_code", None)

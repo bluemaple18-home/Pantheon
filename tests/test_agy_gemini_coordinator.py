@@ -38,6 +38,50 @@ def test_register_run_is_idempotent_and_keeps_private_path_local(tmp_path: Path)
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+def test_resume_locale_plan_validation_failure_starts_fresh_attempt(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "private-runs" / "run-locale-plan-failed"
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, "run-locale-plan-failed")
+    state = register_run(run_dir, queue_root)
+    state.update(
+        {
+            "status": "failed",
+            "last_job_id": "terminal-locale-plan-job",
+            "error_type": "LocalePlanValidationError",
+        }
+    )
+    coordinator._write_state(queue_root, state)
+
+    resumed = coordinator.resume_run(run_dir, queue_root)
+
+    assert resumed["status"] == "active"
+    assert "last_job_id" not in resumed
+    assert "error_type" not in resumed
+
+
+def test_resume_other_failure_preserves_existing_job_lineage(tmp_path: Path) -> None:
+    run_dir = tmp_path / "private-runs" / "run-provider-failed"
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, "run-provider-failed")
+    state = register_run(run_dir, queue_root)
+    state.update(
+        {
+            "status": "failed",
+            "last_job_id": "terminal-provider-job",
+            "error_type": "V4BrokerFailure",
+        }
+    )
+    coordinator._write_state(queue_root, state)
+
+    resumed = coordinator.resume_run(run_dir, queue_root)
+
+    assert resumed["status"] == "active"
+    assert resumed["last_job_id"] == "terminal-provider-job"
+    assert "error_type" not in resumed
+
+
 def test_register_run_rejects_more_than_five_articles(tmp_path: Path) -> None:
     run_dir = tmp_path / "private-runs" / "run-oversized"
     run_dir.mkdir(parents=True)
