@@ -129,6 +129,108 @@ def test_cycle_advances_oldest_active_runs_instead_of_state_filename_order(tmp_p
     assert advanced == expected
 
 
+def test_cycle_exact_run_ids_never_advances_unlisted_active_run(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    for run_id in ("old-active-run", "target-ja-run"):
+        run_dir = tmp_path / "runs" / run_id
+        _write_brief(run_dir, run_id)
+        register_run(run_dir, queue_root)
+
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda _root, **_kwargs: {"status": "idle"},
+        exact_run_ids=["target-ja-run"],
+    )
+
+    assert advanced == ["target-ja-run"]
+    assert summary["active"] == 1
+    assert read_run_state(tmp_path / "runs" / "old-active-run", queue_root)["status"] == "active"
+
+
+def test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    for index, run_id in enumerate(("old-active-run", "target-ja-run")):
+        run_dir = tmp_path / "runs" / run_id
+        _write_brief(run_dir, run_id)
+        register_run(run_dir, queue_root)
+        state_path = coordinator._state_path(run_id, queue_root)
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["updated_at"] = f"2026-08-05T10:0{index}:00+08:00"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    unlisted_state_path = coordinator._state_path("old-active-run", queue_root)
+    unlisted_state_before = unlisted_state_path.read_bytes()
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda _root, **_kwargs: {
+            "status": "processed",
+            "job_id": "job-target-ja-run",
+        },
+        exact_run_ids=["target-ja-run"],
+    )
+
+    assert advanced == ["target-ja-run", "target-ja-run"]
+    assert unlisted_state_path.read_bytes() == unlisted_state_before
+    assert summary["runner"] == {
+        "status": "processed",
+        "job_id": "job-target-ja-run",
+    }
+
+
+def test_cycle_exact_run_ids_reject_duplicates_before_advancing(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "target-ja-run"
+    _write_brief(run_dir, run_dir.name)
+    register_run(run_dir, queue_root)
+
+    with pytest.raises(ValueError, match="exact run ids must be unique"):
+        cycle_once(
+            queue_root,
+            tick=lambda *_args: pytest.fail("duplicate selector must not advance"),
+            exact_run_ids=[run_dir.name, run_dir.name],
+        )
+
+
+def test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    for run_id in ("target-ja-run", "target-ko-run"):
+        run_dir = tmp_path / "runs" / run_id
+        _write_brief(run_dir, run_id)
+        register_run(run_dir, queue_root)
+    completed_path = coordinator._state_path("target-ja-run", queue_root)
+    completed = json.loads(completed_path.read_text(encoding="utf-8"))
+    completed["status"] = "complete"
+    completed_path.write_text(json.dumps(completed), encoding="utf-8")
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda _root, **_kwargs: {"status": "idle"},
+        exact_run_ids=["target-ja-run", "target-ko-run"],
+    )
+
+    assert advanced == ["target-ko-run"]
+
+
 def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch) -> None:
     queue_root = tmp_path / "queue"
     briefs = {

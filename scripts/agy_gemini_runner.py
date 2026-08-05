@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 import fcntl
 import hashlib
 import json
@@ -96,6 +97,7 @@ SAFE_ATTEMPT_JOB_ID = re.compile(r"^[0-9a-f]{40,64}$")
 SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
+EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PRODUCTION_ATTEMPT_STATES = frozenset({"started", "succeeded", "failed"})
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
@@ -110,6 +112,26 @@ class ProductionCredentialSource:
     slot_id: str
     manifest_sha256: str
     ordinal: int
+
+
+def _normalize_exact_run_ids(
+    run_ids: Iterable[str] | None,
+) -> frozenset[str] | None:
+    if run_ids is None:
+        return None
+    if isinstance(run_ids, str):
+        raise ValueError("exact run ids must be a collection")
+    values = tuple(run_ids)
+    if not values:
+        raise ValueError("exact run ids must not be empty")
+    if any(
+        type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+        for run_id in values
+    ):
+        raise ValueError("exact run id format is invalid")
+    if len(values) != len(set(values)):
+        raise ValueError("exact run ids must be unique")
+    return frozenset(values)
 
 
 class ProductionAttemptEvidenceError(ValueError):
@@ -408,7 +430,10 @@ def _render_v4_effective_prompt(
     ).encode("utf-8")
 
 
-def _requeue_stale_processing(queue_root: Path) -> None:
+def _requeue_stale_processing(
+    queue_root: Path,
+    exact_namespaces: frozenset[str] | None = None,
+) -> None:
     """回收 worker 中斷後遺留的 processing 工作。"""
     processing = queue_root / "processing"
     outbox = queue_root / "outbox"
@@ -416,6 +441,14 @@ def _requeue_stale_processing(queue_root: Path) -> None:
         return
     cutoff = time.time() - STALE_PROCESSING_SECONDS
     for source in sorted(processing.glob("*.json")):
+        if exact_namespaces is not None:
+            try:
+                selected_request = json.loads(source.read_text(encoding="utf-8"))
+                validate_external_request(selected_request)
+            except (OSError, json.JSONDecodeError, ValueError):
+                continue
+            if str(selected_request["namespace"]) not in exact_namespaces:
+                continue
         try:
             if source.stat().st_mtime > cutoff:
                 continue
@@ -469,12 +502,37 @@ def _requeue_stale_processing(queue_root: Path) -> None:
             continue
 
 
-def _claim_next(queue_root: Path) -> Path | None:
-    _requeue_stale_processing(queue_root)
+def _claim_next(
+    queue_root: Path,
+    exact_run_ids: Iterable[str] | None = None,
+) -> Path | None:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    exact_namespaces = (
+        frozenset(
+            hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+            for run_id in selected_run_ids
+        )
+        if selected_run_ids is not None
+        else None
+    )
+    _requeue_stale_processing(queue_root, exact_namespaces)
     outbox = queue_root / "outbox"
     processing = queue_root / "processing"
-    processing.mkdir(parents=True, exist_ok=True)
     sources = list(outbox.glob("*.json")) if outbox.exists() else []
+    if exact_namespaces is not None:
+        selected_sources: list[Path] = []
+        for source in sources:
+            try:
+                request = json.loads(source.read_text(encoding="utf-8"))
+                validate_external_request(request)
+            except (OSError, json.JSONDecodeError, ValueError):
+                continue
+            if str(request["namespace"]) in exact_namespaces:
+                selected_sources.append(source)
+        sources = selected_sources
+        if not sources:
+            return None
+    processing.mkdir(parents=True, exist_ok=True)
 
     def priority(source: Path) -> tuple[int, str]:
         try:
@@ -988,7 +1046,9 @@ def process_once(
     generate_json: GenerateJson = _cli_generate_json,
     clock: Callable[[], float] | None = None,
     lane: str | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     processing_path: Path | None = None
     archive_path: Path | None = None
     job_id = ""
@@ -1038,7 +1098,7 @@ def process_once(
                         "status": "cooldown",
                         "admission": admission.receipt,
                     }
-                processing_path = _claim_next(queue_root)
+                processing_path = _claim_next(queue_root, selected_run_ids)
                 if processing_path is None:
                     return {"status": "idle"}
                 job_id = processing_path.stem
@@ -1061,7 +1121,7 @@ def process_once(
                     admission,
                 )
         else:
-            processing_path = _claim_next(queue_root)
+            processing_path = _claim_next(queue_root, selected_run_ids)
             if processing_path is None:
                 return {"status": "idle"}
             job_id = processing_path.stem
@@ -1277,6 +1337,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
     parser.add_argument("--lane", choices=CONTENT_LANES)
+    parser.add_argument("--exact-run-id", action="append")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("process-once")
     validate = subparsers.add_parser("validate-production-installation")
@@ -1299,12 +1360,20 @@ def main() -> int:
         print('{"status":"valid"}')
         return 0
     if args.command == "process-once":
-        result = process_once(queue_root, lane=args.lane)
+        result = process_once(
+            queue_root,
+            lane=args.lane,
+            exact_run_ids=args.exact_run_id,
+        )
         print(json.dumps(result, ensure_ascii=False))
         return 1 if result["status"] == "failed" else 0
     results = []
     for _ in range(args.max_jobs):
-        result = process_once(queue_root, lane=args.lane)
+        result = process_once(
+            queue_root,
+            lane=args.lane,
+            exact_run_ids=args.exact_run_id,
+        )
         results.append(result)
         if result["status"] in {"idle", "failed"}:
             break

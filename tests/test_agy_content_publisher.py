@@ -422,6 +422,124 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
 
 
+def test_collect_ready_runs_exact_selector_excludes_unlisted_ready_run(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    old_run = tmp_path / "runs" / "old-ready-run"
+    target_run = tmp_path / "runs" / "target-ja-run"
+    _write_run(
+        queue_root,
+        old_run,
+        make_publishable_article("AUTO-OLD"),
+        verdict="REJECT",
+    )
+    _write_run(queue_root, target_run, make_publishable_article("AUTO-TARGET"))
+
+    ready = publisher.collect_ready_runs(
+        queue_root,
+        state_root,
+        limit=10,
+        exact_run_ids=[target_run.name],
+    )
+
+    assert [state["run_id"] for state, _candidate, _review in ready] == [
+        target_run.name
+    ]
+    assert not (state_root / "ledger.json").exists()
+
+
+def test_collect_ready_runs_without_exact_selector_keeps_existing_selection(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    target_run = tmp_path / "runs" / "target-ja-run"
+    _write_run(queue_root, target_run, make_publishable_article("AUTO-TARGET"))
+
+    ready = publisher.collect_ready_runs(queue_root, tmp_path / "state", limit=10)
+
+    assert [state["run_id"] for state, _candidate, _review in ready] == [
+        target_run.name,
+    ]
+
+
+def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    repo_root.mkdir()
+    ledger = publisher._load_ledger(state_root)
+    ledger["published_runs"] = [
+        {
+            "run_id": "unlisted-published-run",
+            "article_ids": ["UNLISTED-001"],
+            "translation_seed_status": "pending",
+        }
+    ]
+    ledger_path = publisher._ledger_path(state_root)
+    _write_json(ledger_path, ledger)
+    ledger_before = ledger_path.read_bytes()
+    unlisted_queue_marker = queue_root / "unlisted-translation-run.json"
+    seed_calls: list[tuple[str, str]] = []
+
+    def seed_unlisted_translation(
+        _repo_root: Path,
+        _queue_root: Path,
+        *,
+        source_run_id: str,
+        article_id: str,
+    ) -> list[dict[str, str]]:
+        seed_calls.append((source_run_id, article_id))
+        _write_json(unlisted_queue_marker, {"run_id": "unlisted-translation-run"})
+        return [
+            {
+                "run_id": "unlisted-translation-run",
+                "locale": "ja",
+                "run_dir": str(tmp_path / "runs" / "unlisted-translation-run"),
+            }
+        ]
+
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "enqueue_article_translations",
+        seed_unlisted_translation,
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo_root: [],
+    )
+
+    def fake_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["rev-parse", "--git-common-dir"]:
+            return ".git"
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return "a" * 40
+        return ""
+
+    result = publisher.publish_ready_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        git=fake_git,
+        run_tests=False,
+        release_gate=False,
+        exact_run_ids=["target-ja-run"],
+    )
+
+    assert result["status"] == "idle"
+    assert result["seeded_translation_runs"] == []
+    assert seed_calls == []
+    assert ledger_path.read_bytes() == ledger_before
+    assert not unlisted_queue_marker.exists()
+
+
 def test_recover_exhausted_create_retry_dry_run_is_read_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

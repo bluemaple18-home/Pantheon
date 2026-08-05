@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 import functools
 import hashlib
@@ -73,6 +73,27 @@ RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
 PUBLISHER_LOG_MAX_BYTES = 32 * 1024 * 1024
 PUBLISHER_LOG_RETAIN_BYTES = 4 * 1024 * 1024
+EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _normalize_exact_run_ids(
+    run_ids: Iterable[str] | None,
+) -> frozenset[str] | None:
+    if run_ids is None:
+        return None
+    if isinstance(run_ids, str):
+        raise ValueError("exact run ids must be a collection")
+    values = tuple(run_ids)
+    if not values:
+        raise ValueError("exact run ids must not be empty")
+    if any(
+        type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+        for run_id in values
+    ):
+        raise ValueError("exact run id format is invalid")
+    if len(values) != len(set(values)):
+        raise ValueError("exact run ids must be unique")
+    return frozenset(values)
 
 
 class PublishBlocked(ValueError):
@@ -1427,6 +1448,26 @@ def _fresh_first_run_files(queue_root: Path, state_root: Path, phase: str) -> li
     return sorted(_run_files(queue_root), key=priority)
 
 
+def _selected_run_files(
+    queue_root: Path,
+    state_root: Path,
+    phase: str,
+    exact_run_ids: frozenset[str] | None,
+) -> list[Path]:
+    paths = _fresh_first_run_files(queue_root, state_root, phase)
+    if exact_run_ids is None:
+        return paths
+    selected: list[Path] = []
+    for path in paths:
+        try:
+            run_id = str(_read_json(path).get("run_id") or "")
+        except (OSError, json.JSONDecodeError):
+            continue
+        if run_id in exact_run_ids:
+            selected.append(path)
+    return selected
+
+
 def _ledger_path(state_root: Path) -> Path:
     return state_root / "ledger.json"
 
@@ -1580,7 +1621,9 @@ def collect_ready_runs(
     *,
     limit: int = DEFAULT_MAX_RUNS,
     repo_root: Path | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     published = {str(item.get("run_id")) for item in ledger["published_runs"]}
     quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
@@ -1590,7 +1633,9 @@ def collect_ready_runs(
         if repo_root is not None
         else None
     )
-    for state_path in _fresh_first_run_files(queue_root, state_root, "create"):
+    for state_path in _selected_run_files(
+        queue_root, state_root, "create", selected_run_ids
+    ):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
@@ -1633,13 +1678,17 @@ def collect_ready_translation_runs(
     state_root: Path,
     *,
     limit: int = DEFAULT_MAX_RUNS,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     """只收乾淨通過的單語 run；其餘保留並移入待修清單。"""
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     published = {str(item.get("run_id")) for item in ledger["translation_published_runs"]}
     deferred = {str(item.get("run_id")) for item in ledger["translation_deferred_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
-    for state_path in _fresh_first_run_files(queue_root, state_root, "translation"):
+    for state_path in _selected_run_files(
+        queue_root, state_root, "translation", selected_run_ids
+    ):
         try:
             state = _read_json(state_path)
             run_id = str(state.get("run_id") or "")
@@ -1734,7 +1783,9 @@ def collect_ready_rewrite_runs(
     limit: int = DEFAULT_MAX_RUNS,
     allowed_article_ids: set[str] | None = None,
     repo_root: Path | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
     quarantined = _rewrite_quarantined_run_ids(ledger)
@@ -1746,7 +1797,9 @@ def collect_ready_rewrite_runs(
         if repo_root is not None
         else None
     )
-    for state_path in _fresh_first_run_files(queue_root, state_root, "rewrite"):
+    for state_path in _selected_run_files(
+        queue_root, state_root, "rewrite", selected_run_ids
+    ):
         try:
             state, candidate, review = _load_completed_run(state_path)
         except PublishBlocked:
@@ -2488,7 +2541,9 @@ def publish_ready_runs(
     git: GitRunner = run_git,
     _transaction_base_sha: str | None = None,
     _mutation_journal: MutationJournal | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     state_root.mkdir(parents=True, exist_ok=True)
     lock_path = state_root / "publisher.lock"
     with lock_path.open("a+") as lock:
@@ -2497,12 +2552,17 @@ def publish_ready_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
-        recovered_translation_runs = [] if dry_run else _seed_pending_translations(repo_root, queue_root, state_root)
+        recovered_translation_runs = (
+            []
+            if dry_run or selected_run_ids is not None
+            else _seed_pending_translations(repo_root, queue_root, state_root)
+        )
         ready = collect_ready_runs(
             queue_root,
             state_root,
             limit=max_runs,
             repo_root=repo_root,
+            exact_run_ids=selected_run_ids,
         )
         if not ready:
             return {
@@ -2602,10 +2662,14 @@ def publish_ready_runs(
                 }
             )
         _write_json(_ledger_path(state_root), ledger)
-        seeded_translation_runs = [
-            *recovered_translation_runs,
-            *_seed_pending_translations(repo_root, queue_root, state_root),
-        ]
+        seeded_translation_runs = (
+            []
+            if selected_run_ids is not None
+            else [
+                *recovered_translation_runs,
+                *_seed_pending_translations(repo_root, queue_root, state_root),
+            ]
+        )
         evidence = {
             "schema_version": SCHEMA_VERSION,
             "status": "PUBLISHED",
@@ -2649,7 +2713,9 @@ def publish_ready_rewrite_runs(
     git: GitRunner = run_git,
     _transaction_base_sha: str | None = None,
     _mutation_journal: MutationJournal | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     state_root.mkdir(parents=True, exist_ok=True)
     lock_path = state_root / "publisher.lock"
     with lock_path.open("a+") as lock:
@@ -2672,6 +2738,7 @@ def publish_ready_rewrite_runs(
             limit=max_runs,
             allowed_article_ids=allowed_article_ids,
             repo_root=repo_root,
+            exact_run_ids=selected_run_ids,
         )
         ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
         if not ready:
@@ -2813,8 +2880,10 @@ def publish_ready_translation_runs(
     git: GitRunner = run_git,
     _transaction_base_sha: str | None = None,
     _mutation_journal: MutationJournal | None = None,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """發布所有已通過的單語 run；退件留待最後修復且不阻塞通過者。"""
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     state_root.mkdir(parents=True, exist_ok=True)
     lock_path = state_root / "publisher.lock"
     with lock_path.open("a+") as lock:
@@ -2823,7 +2892,13 @@ def publish_ready_translation_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "translated": 0}
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
-        ready = collect_ready_translation_runs(repo_root, queue_root, state_root, limit=max_runs)
+        ready = collect_ready_translation_runs(
+            repo_root,
+            queue_root,
+            state_root,
+            limit=max_runs,
+            exact_run_ids=selected_run_ids,
+        )
         if not ready:
             ledger = _load_ledger(state_root)
             status = "idle_rejects_only" if ledger["translation_deferred_runs"] else "idle"
@@ -2950,8 +3025,12 @@ def publish_ready_all(
     run_tests: bool = True,
     release_gate: bool = True,
     git: GitRunner = run_git,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """同一輪先處理新文、舊文，再發布已通過的多語版本。"""
+    selector_kwargs = (
+        {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
+    )
     create_result = publish_ready_runs(
         repo_root,
         queue_root,
@@ -2962,6 +3041,7 @@ def publish_ready_all(
         run_tests=run_tests,
         release_gate=release_gate,
         git=git,
+        **selector_kwargs,
     )
     rewrite_result = publish_ready_rewrite_runs(
         repo_root,
@@ -2973,6 +3053,7 @@ def publish_ready_all(
         run_tests=run_tests,
         release_gate=release_gate,
         git=git,
+        **selector_kwargs,
     )
     translation_result = publish_ready_translation_runs(
         repo_root,
@@ -2984,6 +3065,7 @@ def publish_ready_all(
         run_tests=run_tests,
         release_gate=release_gate,
         git=git,
+        **selector_kwargs,
     )
     create_ok = create_result.get("status") in SUCCESS_STATUSES
     rewrite_ok = rewrite_result.get("status") in SUCCESS_STATUSES
@@ -3003,6 +3085,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--queue-root", type=Path)
     parser.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
+    parser.add_argument("--exact-run-id", action="append")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
@@ -3034,6 +3117,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     _trim_configured_launchd_logs()
     args = parse_args()
+    exact_run_ids = _normalize_exact_run_ids(
+        getattr(args, "exact_run_id", None)
+    )
+    selector_kwargs = (
+        {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
+    )
     repo_root = args.repo_root.resolve()
     if args.legacy_report:
         print(json.dumps(legacy_serial_report(repo_root), ensure_ascii=False))
@@ -3140,6 +3229,7 @@ def main() -> int:
             push=args.push,
             run_tests=not args.skip_tests,
             release_gate=not args.skip_release_gate,
+            **selector_kwargs,
         )
     else:
         with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
@@ -3152,6 +3242,7 @@ def main() -> int:
                 push=args.push,
                 run_tests=not args.skip_tests,
                 release_gate=not args.skip_release_gate,
+                **selector_kwargs,
             )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {*SUCCESS_STATUSES, "ok"} else 1

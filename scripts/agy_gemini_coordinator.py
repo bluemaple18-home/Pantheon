@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 import fcntl
 import hashlib
 import json
@@ -41,8 +42,29 @@ OPERATOR_TERMINALIZATION_REASONS = frozenset({
     "UNSUPPORTED_MODEL_CANARY_ABORT",
 })
 JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
+
+
+def _normalize_exact_run_ids(
+    run_ids: Iterable[str] | None,
+) -> frozenset[str] | None:
+    if run_ids is None:
+        return None
+    if isinstance(run_ids, str):
+        raise ValueError("exact run ids must be a collection")
+    values = tuple(run_ids)
+    if not values:
+        raise ValueError("exact run ids must not be empty")
+    if any(
+        type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+        for run_id in values
+    ):
+        raise ValueError("exact run id format is invalid")
+    if len(values) != len(set(values)):
+        raise ValueError("exact run ids must be unique")
+    return frozenset(values)
 
 
 def _now() -> str:
@@ -431,6 +453,17 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
             str(state.get("run_id") or ""),
         ),
     )
+
+
+def _known_run_ids(queue_root: Path) -> frozenset[str]:
+    run_ids: set[str] = set()
+    runs_root = queue_root / "runs"
+    for path in sorted(runs_root.glob("*.json")) if runs_root.exists() else []:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        run_id = state.get("run_id")
+        if isinstance(run_id, str) and run_id:
+            run_ids.add(run_id)
+    return frozenset(run_ids)
 
 
 def _failed_states(queue_root: Path) -> list[dict[str, Any]]:
@@ -987,8 +1020,12 @@ def cycle_once(
     legacy_max_new_runs_per_cycle: int = DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE,
     lane_mode: bool = False,
     new_only: bool = False,
+    exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    if selected_run_ids is not None and (new_matrix_sweep or legacy_sweep):
+        raise ValueError("exact run ids cannot be combined with automatic sweeps")
     root = queue_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / "coordinator.lock"
@@ -1034,15 +1071,26 @@ def cycle_once(
                 root,
                 legacy_article_ids=legacy_article_ids,
             )
-            if lane_mode and not new_only
+            if lane_mode and not new_only and selected_run_ids is None
             else None
         )
         active_states = _active_states(root)
         migrated_jobs = (
             _migrate_pending_jobs(root, active_states, legacy_article_ids)
-            if lane_mode and not new_only
+            if lane_mode and not new_only and selected_run_ids is None
             else None
         )
+        if selected_run_ids is not None:
+            missing = selected_run_ids - _known_run_ids(root)
+            if missing:
+                raise ValueError(
+                    "exact run ids not found: " + ",".join(sorted(missing))
+                )
+            active_states = [
+                state
+                for state in active_states
+                if str(state.get("run_id") or "") in selected_run_ids
+            ]
         if new_only:
             states = [
                 state
@@ -1071,7 +1119,10 @@ def cycle_once(
         runner: dict[str, str] = {"status": "idle"}
         if pending and not new_only:
             try:
-                runner = process(root)
+                if selected_run_ids is None:
+                    runner = process(root)
+                else:
+                    runner = process(root, exact_run_ids=selected_run_ids)
             except json.JSONDecodeError:
                 job_id = next(
                     (str(state["last_job_id"]) for state in states if state.get("last_job_id")),
@@ -1081,12 +1132,25 @@ def cycle_once(
             if runner.get("status") == "failed":
                 failed += 1
             elif runner.get("status") == "processed" and not lane_mode:
-                for state in _active_states(root)[:MAX_ACTIVE_RUNS_PER_CYCLE]:
+                retry_states = _active_states(root)
+                if selected_run_ids is not None:
+                    retry_states = [
+                        state
+                        for state in retry_states
+                        if str(state.get("run_id") or "") in selected_run_ids
+                    ]
+                for state in retry_states[:MAX_ACTIVE_RUNS_PER_CYCLE]:
                     outcome = _advance(root, state, tick)
                     completed += outcome == "complete"
                     failed += outcome == "failed"
 
         remaining_states = _active_states(root)
+        if selected_run_ids is not None:
+            remaining_states = [
+                state
+                for state in remaining_states
+                if str(state.get("run_id") or "") in selected_run_ids
+            ]
         runnable_remaining = (
             [
                 state
@@ -1190,7 +1254,8 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     terminalize.add_argument("--execute", action="store_true")
-    subparsers.add_parser("cycle")
+    cycle = subparsers.add_parser("cycle")
+    cycle.add_argument("--exact-run-id", action="append")
     return parser.parse_args()
 
 
@@ -1237,6 +1302,7 @@ def main() -> int:
             legacy_max_new_runs_per_cycle=args.legacy_max_new_runs_per_cycle,
             lane_mode=args.lane_mode,
             new_only=_new_only_enabled(),
+            exact_run_ids=args.exact_run_id,
         )
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result.get("status") == "failed" else 0
