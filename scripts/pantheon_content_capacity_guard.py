@@ -195,9 +195,8 @@ def _snapshot(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[st
 
 def preflight(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[str, Any]:
     sample = _snapshot(queue_root, publisher_root, log_root)
-    start_floor = max(30 * GIB, sample["disk_total_bytes"] * 15 // 100)
     reasons: list[str] = []
-    if sample["disk_free_bytes"] < start_floor:
+    if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
         reasons.append("disk_free_below_start_floor")
     if sample["bytes"] > MAX_BYTES:
         reasons.append("project_bytes_over_budget")

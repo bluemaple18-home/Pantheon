@@ -27,7 +27,7 @@ def test_log_rotation_keeps_inode_and_tail(tmp_path: Path) -> None:
 
 
 def test_preflight_rejects_low_disk_without_mutation(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 20 * guard.GIB))
+    monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 19 * guard.GIB))
     monkeypatch.setattr(guard, "_service_rss_bytes", lambda: 0)
     monkeypatch.setattr(guard, "_swap_used_bytes", lambda: 0)
 
@@ -35,6 +35,27 @@ def test_preflight_rejects_low_disk_without_mutation(tmp_path: Path, monkeypatch
 
     assert result["status"] == "NO-GO"
     assert result["reasons"] == ["disk_free_below_start_floor"]
+
+
+def test_preflight_accepts_free_space_above_ten_percent(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 25 * guard.GIB))
+    monkeypatch.setattr(guard, "_service_rss_bytes", lambda: 0)
+    monkeypatch.setattr(guard, "_swap_used_bytes", lambda: 0)
+
+    result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
+
+    assert result["status"] == "PASS"
+    assert result["reasons"] == []
+
+
+def test_preflight_accepts_exactly_ten_percent_free(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 20 * guard.GIB))
+    monkeypatch.setattr(guard, "_service_rss_bytes", lambda: 0)
+    monkeypatch.setattr(guard, "_swap_used_bytes", lambda: 0)
+
+    result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
+
+    assert result["status"] == "PASS"
 
 
 def test_check_over_budget_stops_only_registered_services(tmp_path: Path, monkeypatch) -> None:
