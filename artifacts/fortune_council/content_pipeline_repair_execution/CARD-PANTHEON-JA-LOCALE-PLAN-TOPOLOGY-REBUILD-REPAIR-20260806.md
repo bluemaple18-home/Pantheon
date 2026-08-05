@@ -3,7 +3,7 @@ card_id: CARD-PANTHEON-JA-LOCALE-PLAN-TOPOLOGY-REBUILD-REPAIR-20260806
 chain_id: pantheon-ja-locale-plan-topology-rebuild-20260806
 role: implementation
 cycle: 1
-status: READY_FOR_IMPLEMENTATION
+status: INTEGRATED_TO_MAIN_AWAITING_PRODUCTION_ALIGNMENT
 thickness: standard
 risk: medium
 model: gpt-5.5
@@ -59,3 +59,16 @@ implementation_base_sha: d9380d94910eaedb10b4ad8e8b0398a2cdbcce5d
 ## 交付狀態語意
 
 此任務最多可回報「已交付候選 commit」。只有主線完成獨立 review、整合、驗收與另行授權的單格 production rerun，才可稱為已整合或已修復上線。
+
+## 主線驗收（2026-08-06）
+
+- 正式 thread：`019fd2ef-cae8-71c3-acf4-1e83780e65ee`
+- 原候選 commit：`8c8dfc50e8a3a20fa50fe45710403181e4438d0b`
+- 最新主線重放 commit：`b6f8ac31c9114f8b9a1ce406902e3a8d118a7e73`
+- 變更範圍：只含 `scripts/agy_multilingual_pipeline.py`、`tests/test_agy_multilingual_pipeline.py`
+- 獨立 review：未發現阻塞問題；未放寬 deterministic gate、Reviewer 或 routing isolation
+- Multilingual 完整測試：`176 passed`
+- Exact-run 所屬測試：`6 passed, 168 deselected`
+- Python compile、`git diff --check`、整合 worktree clean：通過
+- `origin/main` 已快轉整合；production actor 尚未對齊，未執行真實 Gemini 單格 canary
+- 剩餘風險：實際模型遵循率仍須另行授權的單格 production rerun 證明
