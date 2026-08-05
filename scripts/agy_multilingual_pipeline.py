@@ -1101,6 +1101,34 @@ def _plan_prompt(
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
+            "rebuild contract:",
+            _canonical_json(
+                {
+                    "required_when": "rebuild_outline=true",
+                    "topology_definition": (
+                        "依 source_fact_id 順序排列的 "
+                        "coverage_mapping.planned_h2_slot 序列"
+                    ),
+                    "prior_comparison": (
+                        "將 prior plan coverage_mapping.planned_h2 對回 prior "
+                        "ordered_h2_outline 的 h2-1 至 h2-4"
+                    ),
+                    "minimum_change": (
+                        "至少一個有意義 fact 的 planned_h2_slot "
+                        "必須與 prior plan 不同"
+                    ),
+                    "must_preserve": [
+                        "全部 source_fact_id",
+                        "safety_boundary",
+                        "locale plan JSON schema",
+                    ],
+                    "insufficient_changes": [
+                        "只換 H2 標題或同義詞",
+                        "只改標題順序文字",
+                        "只改 coverage_note",
+                    ],
+                }
+            ),
             "generation:",
             str(generation),
             "locale contracts:",

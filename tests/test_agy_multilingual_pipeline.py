@@ -1276,6 +1276,87 @@ def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> N
         )
 
 
+def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejection() -> None:
+    brief = non_tarot_translation_brief("ja")
+    prior_external = external_locale_plan(brief)
+    prior = multilingual._hydrate_locale_plan(
+        brief,
+        prior_external,
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+    synonym_only = external_locale_plan(
+        brief,
+        rebuild_outline=True,
+        outline=[
+            "用神が示す中心的な問い",
+            "強弱と季節を合わせて見る理由",
+            "五行の流れから調整方法を選ぶ",
+            "一つの公式で断定しない",
+        ],
+    )
+
+    assert (
+        synonym_only["articles"][0]["ordered_h2_outline"]
+        != prior_external["articles"][0]["ordered_h2_outline"]
+    )
+    assert [
+        mapping["planned_h2_slot"]
+        for mapping in synonym_only["articles"][0]["coverage_mapping"]
+    ] == [
+        mapping["planned_h2_slot"]
+        for mapping in prior_external["articles"][0]["coverage_mapping"]
+    ]
+    with pytest.raises(ValueError, match="reused prior outline topology"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            synonym_only,
+            generation=3,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+        )
+
+    prompt = multilingual._plan_prompt(
+        brief,
+        generation=3,
+        prior_plan=prior,
+        findings=[
+            {
+                "code": "NON_NATIVE_SEARCH_INTENT",
+                "message": "見出しだけでなく構成を作り直してください",
+            }
+        ],
+        rebuild_by_slot={"article-01": True},
+    )
+    contract = json.loads(
+        prompt.split("rebuild contract:\n", 1)[1].split("\n", 1)[0]
+    )
+
+    assert contract == {
+        "required_when": "rebuild_outline=true",
+        "topology_definition": (
+            "依 source_fact_id 順序排列的 coverage_mapping.planned_h2_slot 序列"
+        ),
+        "prior_comparison": (
+            "將 prior plan coverage_mapping.planned_h2 對回 prior "
+            "ordered_h2_outline 的 h2-1 至 h2-4"
+        ),
+        "minimum_change": (
+            "至少一個有意義 fact 的 planned_h2_slot 必須與 prior plan 不同"
+        ),
+        "must_preserve": [
+            "全部 source_fact_id",
+            "safety_boundary",
+            "locale plan JSON schema",
+        ],
+        "insufficient_changes": [
+            "只換 H2 標題或同義詞",
+            "只改標題順序文字",
+            "只改 coverage_note",
+        ],
+    }
+
+
 @pytest.mark.parametrize(
     ("external_rebuild", "pipeline_rebuild"),
     [(True, False), (False, True)],
