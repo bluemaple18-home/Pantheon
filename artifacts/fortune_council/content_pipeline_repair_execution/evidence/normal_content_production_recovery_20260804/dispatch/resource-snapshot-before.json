@@ -1,0 +1,9 @@
+{
+  "schema_version": "ai_core.visible_thread_resource_snapshot.v1",
+  "sampled_at": "2026-08-03T18:33:59Z",
+  "complete": true,
+  "codex": {"active_thread_count": 0, "worktree_count": 13},
+  "host": {"memory_pressure": "normal"},
+  "redacted": true,
+  "redaction_reason": "Removed local paths, worktree identities, thread identifiers, and cross-project resource inventory."
+}

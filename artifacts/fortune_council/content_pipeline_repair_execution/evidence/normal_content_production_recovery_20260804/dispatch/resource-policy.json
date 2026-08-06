@@ -1,0 +1,15 @@
+{
+  "schema_version": "ai_core.visible_thread_resource_policy.v1",
+  "max_worktree_bytes": 21474836480,
+  "max_worktree_count": 20,
+  "max_concurrent_active_threads": 8,
+  "normal_growth_bytes_per_hour": 1073741824,
+  "peak_window_seconds": 1800,
+  "recovery_deadline_seconds": 7200,
+  "retention_seconds": 86400,
+  "sampling_interval_seconds": 300,
+  "fallback_projected_worktree_bytes": 536870912,
+  "fallback_projection_error_bytes": 134217728,
+  "max_rss_growth_bytes_per_sample": 268435456,
+  "max_swap_growth_bytes_per_sample": 268435456
+}

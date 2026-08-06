@@ -65,10 +65,12 @@ implementation_base_sha: d9380d94910eaedb10b4ad8e8b0398a2cdbcce5d
 - 正式 thread：`019fd2ef-cae8-71c3-acf4-1e83780e65ee`
 - 原候選 commit：`8c8dfc50e8a3a20fa50fe45710403181e4438d0b`
 - 最新主線重放 commit：`b6f8ac31c9114f8b9a1ce406902e3a8d118a7e73`
+- 整合 receipt commit：`fb18bdde5942137372cf0882bee4a565e4f7577c`
 - 變更範圍：只含 `scripts/agy_multilingual_pipeline.py`、`tests/test_agy_multilingual_pipeline.py`
 - 獨立 review：未發現阻塞問題；未放寬 deterministic gate、Reviewer 或 routing isolation
 - Multilingual 完整測試：`176 passed`
 - Exact-run 所屬測試：`6 passed, 168 deselected`
 - Python compile、`git diff --check`、整合 worktree clean：通過
-- `origin/main` 已快轉整合；production actor 尚未對齊，未執行真實 Gemini 單格 canary
-- 剩餘風險：實際模型遵循率仍須另行授權的單格 production rerun 證明
+- 全 `tests/ -k exact_run` 的廣域收集另被無關的 `playwright` 未安裝擋住；改以 exact-run 三個所屬測試檔重跑並通過，不影響本卡 verdict
+- `origin/main` 已快轉整合；production actor 仍固定在 `d9380d94910eaedb10b4ad8e8b0398a2cdbcce5d`
+- 剩餘風險：尚未對齊 production actor，亦未執行真實 Gemini 單格 canary

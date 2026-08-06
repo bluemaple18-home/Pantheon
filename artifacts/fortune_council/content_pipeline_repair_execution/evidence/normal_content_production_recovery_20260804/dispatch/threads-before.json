@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "thread_count": 33,
+  "status_counts": {"idle": 33},
+  "redacted": true,
+  "redaction_reason": "Removed thread identifiers, working directories, and cross-project inventory."
+}
