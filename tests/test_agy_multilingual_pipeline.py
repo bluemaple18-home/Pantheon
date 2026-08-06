@@ -2260,6 +2260,30 @@ def test_enqueue_article_translations_creates_three_independent_idempotent_runs(
         assert brief["articles"][0]["locale"] == item["locale"]
 
 
+def test_enqueue_article_translations_can_register_only_one_specified_ja_run(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+
+    records = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        locales=["ja"],
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+
+    assert len(records) == 1
+    assert records[0]["locale"] == "ja"
+    assert len(list((queue_root / "runs").glob("*.json"))) == 1
+    state = json.loads(next((queue_root / "runs").glob("*.json")).read_text())
+    assert state["run_id"] == records[0]["run_id"]
+    assert state["status"] == "active"
+    brief = json.loads((Path(records[0]["run_dir"]) / "brief.json").read_text())
+    assert [article["locale"] for article in brief["articles"]] == ["ja"]
+
+
 def test_legacy_rewrite_source_is_seeded_once_and_terminal_locale_stays_ineligible(
     tmp_path: Path,
 ) -> None:

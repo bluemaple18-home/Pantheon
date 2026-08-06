@@ -1832,6 +1832,42 @@ def publish_exact_fresh_ja_translation_run(
     )
 
 
+def prepare_exact_fresh_ja_translation_run(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    source_run_id: str | None,
+    article_id: str | None,
+    run_id: str | None,
+) -> dict[str, str]:
+    """以既有 multilingual queue contract 建立一個指定的 fresh JA／i18n-new run。"""
+    if type(source_run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(source_run_id) is None:
+        raise PublishBlocked("exact fresh JA source run id must be valid")
+    if type(article_id) is not str or not article_id.strip():
+        raise PublishBlocked("exact fresh JA article id must be non-empty")
+    if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise PublishBlocked("exact fresh JA selector must name exactly one valid run id")
+    if "replacement" in source_run_id.lower() or "replacement" in run_id.lower():
+        raise PublishBlocked("exact fresh JA selector rejects replacement lineage")
+    if article_id in legacy_article_ids(repo_root):
+        raise PublishBlocked("exact fresh JA selector requires i18n-new, not i18n-rewrite")
+    if _selected_run_files(queue_root, state_root, "translation", frozenset({run_id})):
+        raise PublishBlocked("exact fresh JA selector rejects existing run")
+    records = multilingual.enqueue_article_translations(
+        repo_root,
+        queue_root,
+        source_run_id=source_run_id,
+        article_id=article_id,
+        locales=["ja"],
+    )
+    if len(records) != 1 or records[0].get("locale") != "ja":
+        raise PublishBlocked("exact fresh JA queue registration was not singular")
+    record = records[0]
+    if record.get("run_id") != run_id:
+        raise PublishBlocked("exact fresh JA queue registration run id differs")
+    return record
+
+
 def _load_rewrite_brief(run_dir: Path, run_id: str) -> dict[str, Any]:
     brief_path = run_dir / "brief.json"
     if not brief_path.is_file():
@@ -3174,6 +3210,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--exact-run-id", action="append")
     parser.add_argument("--exact-fresh-ja-run-id")
+    parser.add_argument("--prepare-exact-fresh-ja-source-run-id")
+    parser.add_argument("--prepare-exact-fresh-ja-article-id")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
@@ -3209,6 +3247,14 @@ def main() -> int:
         getattr(args, "exact_run_id", None)
     )
     fresh_ja_run_id = getattr(args, "exact_fresh_ja_run_id", None)
+    fresh_ja_prepare_values = (
+        fresh_ja_run_id,
+        getattr(args, "prepare_exact_fresh_ja_source_run_id", None),
+        getattr(args, "prepare_exact_fresh_ja_article_id", None),
+    )
+    fresh_ja_prepare = any(value is not None for value in fresh_ja_prepare_values)
+    if fresh_ja_prepare and not all(value is not None for value in fresh_ja_prepare_values):
+        raise SystemExit("exact fresh JA prepare requires run, source run, and article ids")
     if fresh_ja_run_id is not None and exact_run_ids is not None:
         raise SystemExit("--exact-fresh-ja-run-id cannot be combined with --exact-run-id")
     selector_kwargs = (
@@ -3229,6 +3275,8 @@ def main() -> int:
         or args.skip_release_gate
     ):
         raise SystemExit("exact fresh JA release only supports the publisher transaction contract")
+    if fresh_ja_prepare and (args.dry_run or args.push):
+        raise SystemExit("exact fresh JA prepare only registers a local queue run")
     recovery_run_ids = list(
         getattr(args, "recover_exhausted_create_run", []) or []
     )
@@ -3319,6 +3367,17 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 0
     state_root.mkdir(parents=True, exist_ok=True)
+    if fresh_ja_prepare:
+        result = prepare_exact_fresh_ja_translation_run(
+            repo_root,
+            queue_root,
+            state_root,
+            str(getattr(args, "prepare_exact_fresh_ja_source_run_id")),
+            str(getattr(args, "prepare_exact_fresh_ja_article_id")),
+            str(fresh_ja_run_id),
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
     if args.dry_run:
         if fresh_ja_run_id is not None:
             result = publish_exact_fresh_ja_translation_run(

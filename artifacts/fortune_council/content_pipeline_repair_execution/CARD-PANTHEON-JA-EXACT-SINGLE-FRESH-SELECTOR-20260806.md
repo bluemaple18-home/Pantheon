@@ -49,3 +49,19 @@ fail-closed 與既有 transaction evidence contract 保持完整。
   與 `git diff --check` 通過。
 - 風險：這是本機 fixture 證據，未執行 production、provider、LaunchAgent 或
   push；實際指定 run 仍須由主線核對 fresh state 與另行授權的 transaction。
+
+## Follow-up candidate evidence
+
+- 新增同一 entrypoint 的 local-only prepare 模式：同時提供
+  `--exact-fresh-ja-run-id RUN_ID`、
+  `--prepare-exact-fresh-ja-source-run-id SOURCE_RUN_ID` 與
+  `--prepare-exact-fresh-ja-article-id ARTICLE_ID`。
+- prepare 僅透過既有 `enqueue_article_translations(..., locales=["ja"])`
+  建立 `brief.json` 與 coordinator queue state；不手寫 queue JSON、不建立 EN／KO、
+  不掃描、不呼叫 provider，也不改 Publisher transaction。
+- 三個 ID 缺一、replacement lineage、legacy rewrite source、既有 target run、
+  非預期／非單一 queue 回傳都 fail closed。完成 queue run 後仍須使用既有
+  `--exact-fresh-ja-run-id` transaction path 才會發布。
+- RED：單一 JA queue fixture 因 enqueue API 不接受 `locales` 而失敗。
+- GREEN：單一 JA queue fixture與 selector／prepare cases 通過；完整回歸、compile、
+  `git diff --check` 見本次 candidate receipt。

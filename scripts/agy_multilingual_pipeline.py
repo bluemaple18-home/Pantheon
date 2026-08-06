@@ -371,14 +371,22 @@ def enqueue_article_translations(
     *,
     source_run_id: str,
     article_id: str,
+    locales: list[str] | None = None,
     source_loader: SourceLoader = load_source_article,
 ) -> list[dict[str, str]]:
     """為已發布新文或成功改寫舊文建立英、日、韓三個互不阻塞的翻譯 run。"""
     if not source_run_id.strip() or not article_id.strip():
         raise ValueError("source run id and article id must be non-empty")
+    selected_locales = locales if locales is not None else ["en", "ja", "ko"]
+    if (
+        not selected_locales
+        or len(selected_locales) != len(set(selected_locales))
+        or any(locale not in SUPPORTED_LOCALES for locale in selected_locales)
+    ):
+        raise ValueError("translation locales must be non-empty, unique, and supported")
     queue_root = queue_root.resolve()
     records: list[dict[str, str]] = []
-    for locale in ["en", "ja", "ko"]:
+    for locale in selected_locales:
         identity = f"{source_run_id}\0{article_id}\0{locale}"
         digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
         run_id = f"auto-i18n-{locale}-{digest[:20]}"

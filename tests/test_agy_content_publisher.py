@@ -641,6 +641,71 @@ def test_exact_fresh_ja_selector_uses_existing_publisher_transaction_contract(
     assert evidence["pushed"] is True
 
 
+@pytest.mark.parametrize(
+    ("source_run_id", "article_id", "run_id", "error"),
+    [
+        ("", "V2-NEW-001", "auto-i18n-ja-fresh-001", "source run id"),
+        ("source-run-001", "LEGACY-001", "auto-i18n-ja-fresh-001", "i18n-new"),
+        ("source-replacement-01", "V2-NEW-001", "auto-i18n-ja-fresh-001", "replacement lineage"),
+    ],
+)
+def test_prepare_exact_fresh_ja_run_rejects_other_selectors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_run_id: str,
+    article_id: str,
+    run_id: str,
+    error: str,
+) -> None:
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
+
+    with pytest.raises(publisher.PublishBlocked, match=error):
+        publisher.prepare_exact_fresh_ja_translation_run(
+            tmp_path,
+            tmp_path / "queue",
+            tmp_path / "state",
+            source_run_id,
+            article_id,
+            run_id,
+        )
+
+
+def test_prepare_exact_fresh_ja_run_uses_existing_queue_registration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    source_run_id = "source-run-001"
+    article_id = "V2-NEW-001"
+    run_id = "auto-i18n-ja-expected-001"
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: set())
+
+    def enqueue(*args: object, **kwargs: object) -> list[dict[str, str]]:
+        calls.append(kwargs)
+        return [{"run_id": run_id, "locale": "ja", "run_dir": str(tmp_path / "run")}]
+
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations", enqueue)
+
+    record = publisher.prepare_exact_fresh_ja_translation_run(
+        tmp_path,
+        queue_root,
+        tmp_path / "state",
+        source_run_id,
+        article_id,
+        run_id,
+    )
+
+    assert calls == [
+        {
+            "source_run_id": source_run_id,
+            "article_id": article_id,
+            "locales": ["ja"],
+        }
+    ]
+    assert record == {"run_id": run_id, "locale": "ja", "run_dir": str(tmp_path / "run")}
+
+
 def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
