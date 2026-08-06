@@ -1745,6 +1745,93 @@ def collect_ready_translation_runs(
     return ready
 
 
+def _assert_exact_fresh_ja_translation_run(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    run_id: str | None,
+) -> str:
+    """驗證單一全新 JA／i18n-new run，避免 exact selector 退化成廣域掃描。"""
+    if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise PublishBlocked("exact fresh JA selector must name exactly one valid run id")
+    if "replacement" in run_id.lower():
+        raise PublishBlocked("exact fresh JA selector rejects replacement lineage")
+    state_paths = _selected_run_files(
+        queue_root,
+        state_root,
+        "translation",
+        frozenset({run_id}),
+    )
+    if not state_paths:
+        raise PublishBlocked("exact fresh JA run id was not found")
+    if len(state_paths) != 1:
+        raise PublishBlocked("exact fresh JA selector matched multiple runs")
+    try:
+        state = _read_json(state_paths[0])
+        if state.get("run_id") != run_id:
+            raise PublishBlocked("exact fresh JA run state identity differs")
+        if state.get("status") != "complete":
+            raise PublishBlocked("exact fresh JA run is not complete")
+        if any(state.get(key) for key in ("replacement_of", "replaces", "replaced_by")):
+            raise PublishBlocked("exact fresh JA selector rejects replacement lineage")
+        if _retry_path(state_root, "translation", run_id).exists():
+            raise PublishBlocked("exact fresh JA selector rejects old retry run")
+        run_dir = Path(str(state.get("run_dir") or ""))
+        brief = _read_json(run_dir / "brief.json")
+    except (OSError, json.JSONDecodeError) as error:
+        raise PublishBlocked("exact fresh JA run metadata is unreadable") from error
+    if brief.get("run_id") != run_id or brief.get("mode") != "translate_existing":
+        raise PublishBlocked("exact fresh JA run is not a translation run")
+    articles = brief.get("articles")
+    if not isinstance(articles, list) or not articles:
+        raise PublishBlocked("exact fresh JA translation brief has no articles")
+    if any(not isinstance(article, dict) or article.get("locale") != "ja" for article in articles):
+        raise PublishBlocked("exact fresh JA selector must be JA only")
+    legacy_ids = legacy_article_ids(repo_root)
+    if any(str(article.get("source_article_id") or "") in legacy_ids for article in articles):
+        raise PublishBlocked("exact fresh JA selector requires i18n-new, not i18n-rewrite")
+    ledger = _load_ledger(state_root)
+    recorded = {
+        str(item.get("run_id") or "")
+        for key in ("translation_published_runs", "translation_deferred_runs")
+        for item in ledger[key]
+    }
+    if run_id in recorded:
+        raise PublishBlocked("exact fresh JA selector rejects old terminal run")
+    return run_id
+
+
+def publish_exact_fresh_ja_translation_run(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    run_id: str | None,
+    *,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+) -> dict[str, Any]:
+    """僅將指定的新 JA／i18n-new run 交給既有 publisher transaction。"""
+    selected_run_id = _assert_exact_fresh_ja_translation_run(
+        repo_root,
+        queue_root,
+        state_root,
+        run_id,
+    )
+    return publish_ready_translation_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        max_runs=1,
+        dry_run=dry_run,
+        push=push,
+        run_tests=run_tests,
+        release_gate=release_gate,
+        exact_run_ids=[selected_run_id],
+    )
+
+
 def _load_rewrite_brief(run_dir: Path, run_id: str) -> dict[str, Any]:
     brief_path = run_dir / "brief.json"
     if not brief_path.is_file():
@@ -3086,6 +3173,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--exact-run-id", action="append")
+    parser.add_argument("--exact-fresh-ja-run-id")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
@@ -3120,6 +3208,9 @@ def main() -> int:
     exact_run_ids = _normalize_exact_run_ids(
         getattr(args, "exact_run_id", None)
     )
+    fresh_ja_run_id = getattr(args, "exact_fresh_ja_run_id", None)
+    if fresh_ja_run_id is not None and exact_run_ids is not None:
+        raise SystemExit("--exact-fresh-ja-run-id cannot be combined with --exact-run-id")
     selector_kwargs = (
         {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
     )
@@ -3131,6 +3222,13 @@ def main() -> int:
         raise SystemExit("--queue-root is required unless --legacy-report is set")
     if args.rewrite_release and args.include_rewrites:
         raise SystemExit("--rewrite-release and --include-rewrites cannot be used together")
+    if fresh_ja_run_id is not None and (
+        args.rewrite_release
+        or args.include_rewrites
+        or args.skip_tests
+        or args.skip_release_gate
+    ):
+        raise SystemExit("exact fresh JA release only supports the publisher transaction contract")
     recovery_run_ids = list(
         getattr(args, "recover_exhausted_create_run", []) or []
     )
@@ -3140,7 +3238,9 @@ def main() -> int:
         or args.legacy_report
     ):
         raise SystemExit("retry recovery cannot be combined with release modes")
-    if args.include_rewrites:
+    if fresh_ja_run_id is not None:
+        publisher_fn = None
+    elif args.include_rewrites:
         publisher_fn = publish_ready_all
     elif args.rewrite_release:
         publisher_fn = publish_ready_rewrite_runs
@@ -3220,30 +3320,49 @@ def main() -> int:
         return 0
     state_root.mkdir(parents=True, exist_ok=True)
     if args.dry_run:
-        result = publisher_fn(
-            repo_root,
-            queue_root,
-            state_root,
-            max_runs=args.max_runs,
-            dry_run=True,
-            push=args.push,
-            run_tests=not args.skip_tests,
-            release_gate=not args.skip_release_gate,
-            **selector_kwargs,
-        )
-    else:
-        with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
+        if fresh_ja_run_id is not None:
+            result = publish_exact_fresh_ja_translation_run(
+                repo_root,
+                queue_root,
+                state_root,
+                fresh_ja_run_id,
+                dry_run=True,
+                push=args.push,
+            )
+        else:
             result = publisher_fn(
-                transaction_root,
+                repo_root,
                 queue_root,
                 state_root,
                 max_runs=args.max_runs,
-                dry_run=False,
+                dry_run=True,
                 push=args.push,
                 run_tests=not args.skip_tests,
                 release_gate=not args.skip_release_gate,
                 **selector_kwargs,
             )
+    else:
+        with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
+            if fresh_ja_run_id is not None:
+                result = publish_exact_fresh_ja_translation_run(
+                    transaction_root,
+                    queue_root,
+                    state_root,
+                    fresh_ja_run_id,
+                    push=args.push,
+                )
+            else:
+                result = publisher_fn(
+                    transaction_root,
+                    queue_root,
+                    state_root,
+                    max_runs=args.max_runs,
+                    dry_run=False,
+                    push=args.push,
+                    run_tests=not args.skip_tests,
+                    release_gate=not args.skip_release_gate,
+                    **selector_kwargs,
+                )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {*SUCCESS_STATUSES, "ok"} else 1
 

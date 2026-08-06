@@ -460,6 +460,187 @@ def test_collect_ready_runs_without_exact_selector_keeps_existing_selection(tmp_
     ]
 
 
+def _write_exact_fresh_ja_translation_run(
+    queue_root: Path,
+    run_dir: Path,
+    *,
+    run_id: str = "auto-i18n-ja-fresh-001",
+    locale: str = "ja",
+    source_article_id: str = "V2-NEW-001",
+    replacement_of: str | None = None,
+) -> None:
+    _write_json(
+        run_dir / "brief.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "translate_existing",
+            "articles": [
+                {
+                    "translation_id": f"{source_article_id}:{locale}",
+                    "locale": locale,
+                    "source_article_id": source_article_id,
+                    "source_path": "/articles/mbti/v2-new-001",
+                    "source_sha256": "a" * 64,
+                    "source": {
+                        "article_id": source_article_id,
+                        "canonical_path": "/articles/mbti/v2-new-001",
+                        "title": "元記事",
+                        "description": "元記事の説明です。",
+                        "answer": "元記事の回答です。",
+                        "tags": ["性格"],
+                        "faq": [{"question": "質問ですか？", "answer": "回答です。"}],
+                        "bodySections": [
+                            {"heading": "概要", "paragraphs": ["元記事の段落です。"]}
+                        ],
+                    },
+                }
+            ],
+        },
+    )
+    state: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "complete",
+        "result": {"candidate": str(run_dir / "candidate.json")},
+    }
+    if replacement_of is not None:
+        state["replacement_of"] = replacement_of
+    _write_json(
+        queue_root / "runs" / f"{run_id}.json",
+        state,
+    )
+
+
+@pytest.mark.parametrize(
+    ("run_id", "locale", "source_article_id", "replacement_of", "error"),
+    [
+        ("auto-i18n-ko-fresh-001", "ko", "V2-NEW-001", None, "must be JA"),
+        ("auto-i18n-ja-fresh-001-replacement-01", "ja", "V2-NEW-001", None, "replacement lineage"),
+        ("auto-i18n-ja-fresh-001", "ja", "LEGACY-001", None, "i18n-new"),
+        ("auto-i18n-ja-fresh-001", "ja", "V2-NEW-001", "prior-run", "replacement lineage"),
+    ],
+)
+def test_exact_fresh_ja_selector_rejects_non_fresh_or_wrong_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: str,
+    locale: str,
+    source_article_id: str,
+    replacement_of: str | None,
+    error: str,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / run_id
+    _write_exact_fresh_ja_translation_run(
+        queue_root,
+        run_dir,
+        run_id=run_id,
+        locale=locale,
+        source_article_id=source_article_id,
+        replacement_of=replacement_of,
+    )
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
+
+    with pytest.raises(publisher.PublishBlocked, match=error):
+        publisher.publish_exact_fresh_ja_translation_run(
+            tmp_path,
+            queue_root,
+            state_root,
+            run_id,
+        )
+
+
+def test_exact_fresh_ja_selector_requires_one_existing_fresh_run(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+
+    with pytest.raises(publisher.PublishBlocked, match="must name exactly one"):
+        publisher.publish_exact_fresh_ja_translation_run(
+            tmp_path, queue_root, state_root, None
+        )
+
+    with pytest.raises(publisher.PublishBlocked, match="not found"):
+        publisher.publish_exact_fresh_ja_translation_run(
+            tmp_path, queue_root, state_root, "auto-i18n-ja-missing-001"
+        )
+
+    with pytest.raises(publisher.PublishBlocked, match="must name exactly one"):
+        publisher.publish_exact_fresh_ja_translation_run(
+            tmp_path,
+            queue_root,
+            state_root,
+            ["auto-i18n-ja-first-001", "auto-i18n-ja-second-001"],  # type: ignore[arg-type]
+        )
+
+
+def test_exact_fresh_ja_selector_rejects_old_retry_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_id = "auto-i18n-ja-fresh-001"
+    _write_exact_fresh_ja_translation_run(queue_root, tmp_path / "runs" / run_id)
+    _write_json(publisher._retry_path(state_root, "translation", run_id), {"attempts": 1})
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: set())
+
+    with pytest.raises(publisher.PublishBlocked, match="old retry"):
+        publisher.publish_exact_fresh_ja_translation_run(
+            tmp_path, queue_root, state_root, run_id
+        )
+
+
+def test_exact_fresh_ja_selector_uses_existing_publisher_transaction_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_id = "auto-i18n-ja-fresh-001"
+    _write_exact_fresh_ja_translation_run(queue_root, tmp_path / "runs" / run_id)
+    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: set())
+    calls: list[dict[str, object]] = []
+
+    def publish_transaction(*args: object, **kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {
+            "status": "PUBLISHED_TRANSLATION",
+            "run_ids": [run_id],
+            "commit_sha": "c" * 40,
+            "pushed": True,
+        }
+
+    monkeypatch.setattr(publisher, "publish_ready_translation_runs", publish_transaction)
+
+    evidence = publisher.publish_exact_fresh_ja_translation_run(
+        tmp_path,
+        queue_root,
+        state_root,
+        run_id,
+        push=True,
+    )
+
+    assert calls == [
+        {
+            "max_runs": 1,
+            "dry_run": False,
+            "push": True,
+            "run_tests": True,
+            "release_gate": True,
+            "exact_run_ids": [run_id],
+        }
+    ]
+    assert evidence["status"] == "PUBLISHED_TRANSLATION"
+    assert evidence["run_ids"] == [run_id]
+    assert evidence["commit_sha"] == "c" * 40
+    assert evidence["pushed"] is True
+
+
 def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
