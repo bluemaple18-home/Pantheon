@@ -435,6 +435,20 @@ def test_translation_gate_rejects_traditional_chinese_in_each_japanese_tag(
     } in findings
 
 
+def test_translation_gate_accepts_shared_source_authority_tag_in_japanese() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["tags"].append("MBTI")
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+    candidate["articles"][0]["tags"].append("MBTI")
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert not any(item["code"] == "target_language_tags" for item in findings)
+
+
 def test_translation_gate_rejects_source_structure_mirroring() -> None:
     brief = translation_brief("en")
     candidate = translation_candidate("en")

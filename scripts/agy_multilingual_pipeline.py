@@ -255,10 +255,13 @@ def _metadata_matches_target_language(locale: str, text: str) -> bool:
     return len(re.findall(r"[\uac00-\ud7af]", text)) >= 4 and not re.search(r"[\u3040-\u30ff]", text)
 
 
-def _japanese_tag_matches_target_language(tag: str, source_tags: list[object]) -> bool:
+def _japanese_tag_matches_target_language(tag: str, source: dict[str, Any]) -> bool:
     normalized = tag.strip()
-    if normalized in {str(source_tag).strip() for source_tag in source_tags}:
-        return False
+    if normalized in {str(source_tag).strip() for source_tag in source["tags"]}:
+        return (
+            normalized in _source_ascii_authorities(source)
+            or _ascii_is_name_acronym_or_number(normalized)
+        )
     if re.search(r"(?:人際|[與斷體國學關氣覺實應發讓對從將會這們裡麼戀])", normalized):
         return False
     return _plan_matches_target_language("ja", normalized)
@@ -306,7 +309,7 @@ def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) 
         ):
             findings.append({"article_id": translation_id, "code": "target_language", "message": "可見文字不是指定目標語言"})
         if locale == "ja" and any(
-            not _japanese_tag_matches_target_language(str(tag), source_content["tags"])
+            not _japanese_tag_matches_target_language(str(tag), source_content)
             for tag in article["tags"]
         ):
             findings.append(
