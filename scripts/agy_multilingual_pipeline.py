@@ -365,6 +365,14 @@ def prepare_translation_run(
     return path
 
 
+def translation_run_id(source_run_id: str, article_id: str, locale: str) -> str:
+    """回傳既有 queue contract 唯一且可重算的 translation run ID。"""
+    if not source_run_id.strip() or not article_id.strip() or locale not in SUPPORTED_LOCALES:
+        raise ValueError("translation run identity is invalid")
+    identity = f"{source_run_id}\0{article_id}\0{locale}"
+    return f"auto-i18n-{locale}-{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:20]}"
+
+
 def enqueue_article_translations(
     repo_root: Path,
     queue_root: Path,
@@ -387,9 +395,7 @@ def enqueue_article_translations(
     queue_root = queue_root.resolve()
     records: list[dict[str, str]] = []
     for locale in selected_locales:
-        identity = f"{source_run_id}\0{article_id}\0{locale}"
-        digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
-        run_id = f"auto-i18n-{locale}-{digest[:20]}"
+        run_id = translation_run_id(source_run_id, article_id, locale)
         run_dir = queue_root / "translation-runs" / run_id
         state_path = queue_root / "runs" / f"{hashlib.sha256(run_id.encode('utf-8')).hexdigest()[:24]}.json"
         resolved_run_dir = run_dir.resolve()

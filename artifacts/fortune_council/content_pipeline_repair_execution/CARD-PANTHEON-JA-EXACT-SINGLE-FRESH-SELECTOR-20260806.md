@@ -52,16 +52,28 @@ fail-closed 與既有 transaction evidence contract 保持完整。
 
 ## Follow-up candidate evidence
 
-- 新增同一 entrypoint 的 local-only prepare 模式：同時提供
-  `--exact-fresh-ja-run-id RUN_ID`、
+- 新增同一 entrypoint 的 local-only prepare 模式：提供
   `--prepare-exact-fresh-ja-source-run-id SOURCE_RUN_ID` 與
-  `--prepare-exact-fresh-ja-article-id ARTICLE_ID`。
+  `--prepare-exact-fresh-ja-article-id ARTICLE_ID`，並回傳唯一可重算的 `run_id`。
 - prepare 僅透過既有 `enqueue_article_translations(..., locales=["ja"])`
   建立 `brief.json` 與 coordinator queue state；不手寫 queue JSON、不建立 EN／KO、
   不掃描、不呼叫 provider，也不改 Publisher transaction。
-- 三個 ID 缺一、replacement lineage、legacy rewrite source、既有 target run、
+- 兩個 ID 缺一、replacement lineage、legacy rewrite source、既有 target run、
   非預期／非單一 queue 回傳都 fail closed。完成 queue run 後仍須使用既有
   `--exact-fresh-ja-run-id` transaction path 才會發布。
 - RED：單一 JA queue fixture 因 enqueue API 不接受 `locales` 而失敗。
 - GREEN：單一 JA queue fixture與 selector／prepare cases 通過；完整回歸、compile、
   `git diff --check` 見本次 candidate receipt。
+
+## Review repair — deterministic run-ID contract
+
+- Review 發現原 prepare 同時讓 caller 提供任意 `run_id`，卻要求它等於 enqueue
+  的 deterministic ID；canary alias 因此永遠 fail closed。
+- 選擇契約 A：`translation_run_id(source_run_id, article_id, "ja")` 是唯一可接受
+  ID。prepare 不再接收 caller-supplied run ID，而是透過既有 queue API 回傳
+  `{"run_id", "locale", "run_dir"}`；CLI JSON output 是後續
+  `--exact-fresh-ja-run-id` 的可靠輸入。
+- 真實 integration test 使用實際 repository source、`prepare_exact_fresh_ja_translation_run`
+  與既有 enqueue contract，驗證回傳 ID、queue state 與 `brief.json` 的 ID 完全一致，
+  且僅有一筆 JA run；未 monkeypatch enqueue。
+- 仍拒絕 replacement source、legacy/i18n-rewrite、既有 run 與非單一 queue record。

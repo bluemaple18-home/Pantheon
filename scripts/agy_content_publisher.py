@@ -1838,19 +1838,17 @@ def prepare_exact_fresh_ja_translation_run(
     state_root: Path,
     source_run_id: str | None,
     article_id: str | None,
-    run_id: str | None,
 ) -> dict[str, str]:
-    """以既有 multilingual queue contract 建立一個指定的 fresh JA／i18n-new run。"""
+    """以既有 queue contract 建立一個 fresh JA run，並回傳唯一可重算的 run ID。"""
     if type(source_run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(source_run_id) is None:
         raise PublishBlocked("exact fresh JA source run id must be valid")
     if type(article_id) is not str or not article_id.strip():
         raise PublishBlocked("exact fresh JA article id must be non-empty")
-    if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
-        raise PublishBlocked("exact fresh JA selector must name exactly one valid run id")
-    if "replacement" in source_run_id.lower() or "replacement" in run_id.lower():
+    if "replacement" in source_run_id.lower():
         raise PublishBlocked("exact fresh JA selector rejects replacement lineage")
     if article_id in legacy_article_ids(repo_root):
         raise PublishBlocked("exact fresh JA selector requires i18n-new, not i18n-rewrite")
+    run_id = multilingual.translation_run_id(source_run_id, article_id, "ja")
     if _selected_run_files(queue_root, state_root, "translation", frozenset({run_id})):
         raise PublishBlocked("exact fresh JA selector rejects existing run")
     records = multilingual.enqueue_article_translations(
@@ -3248,13 +3246,14 @@ def main() -> int:
     )
     fresh_ja_run_id = getattr(args, "exact_fresh_ja_run_id", None)
     fresh_ja_prepare_values = (
-        fresh_ja_run_id,
         getattr(args, "prepare_exact_fresh_ja_source_run_id", None),
         getattr(args, "prepare_exact_fresh_ja_article_id", None),
     )
     fresh_ja_prepare = any(value is not None for value in fresh_ja_prepare_values)
     if fresh_ja_prepare and not all(value is not None for value in fresh_ja_prepare_values):
-        raise SystemExit("exact fresh JA prepare requires run, source run, and article ids")
+        raise SystemExit("exact fresh JA prepare requires source run and article ids")
+    if fresh_ja_prepare and fresh_ja_run_id is not None:
+        raise SystemExit("exact fresh JA prepare returns the deterministic run id; publish it in a later command")
     if fresh_ja_run_id is not None and exact_run_ids is not None:
         raise SystemExit("--exact-fresh-ja-run-id cannot be combined with --exact-run-id")
     selector_kwargs = (
@@ -3374,7 +3373,6 @@ def main() -> int:
             state_root,
             str(getattr(args, "prepare_exact_fresh_ja_source_run_id")),
             str(getattr(args, "prepare_exact_fresh_ja_article_id")),
-            str(fresh_ja_run_id),
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0

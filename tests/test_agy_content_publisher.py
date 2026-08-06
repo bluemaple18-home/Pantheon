@@ -642,11 +642,11 @@ def test_exact_fresh_ja_selector_uses_existing_publisher_transaction_contract(
 
 
 @pytest.mark.parametrize(
-    ("source_run_id", "article_id", "run_id", "error"),
+    ("source_run_id", "article_id", "error"),
     [
-        ("", "V2-NEW-001", "auto-i18n-ja-fresh-001", "source run id"),
-        ("source-run-001", "LEGACY-001", "auto-i18n-ja-fresh-001", "i18n-new"),
-        ("source-replacement-01", "V2-NEW-001", "auto-i18n-ja-fresh-001", "replacement lineage"),
+        ("", "V2-NEW-001", "source run id"),
+        ("source-run-001", "LEGACY-001", "i18n-new"),
+        ("source-replacement-01", "V2-NEW-001", "replacement lineage"),
     ],
 )
 def test_prepare_exact_fresh_ja_run_rejects_other_selectors(
@@ -654,7 +654,6 @@ def test_prepare_exact_fresh_ja_run_rejects_other_selectors(
     monkeypatch: pytest.MonkeyPatch,
     source_run_id: str,
     article_id: str,
-    run_id: str,
     error: str,
 ) -> None:
     monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: {"LEGACY-001"})
@@ -666,44 +665,34 @@ def test_prepare_exact_fresh_ja_run_rejects_other_selectors(
             tmp_path / "state",
             source_run_id,
             article_id,
-            run_id,
         )
 
 
 def test_prepare_exact_fresh_ja_run_uses_existing_queue_registration(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     queue_root = tmp_path / "queue"
-    source_run_id = "source-run-001"
-    article_id = "V2-NEW-001"
-    run_id = "auto-i18n-ja-expected-001"
-    calls: list[dict[str, object]] = []
-    monkeypatch.setattr(publisher, "legacy_article_ids", lambda _repo: set())
-
-    def enqueue(*args: object, **kwargs: object) -> list[dict[str, str]]:
-        calls.append(kwargs)
-        return [{"run_id": run_id, "locale": "ja", "run_dir": str(tmp_path / "run")}]
-
-    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations", enqueue)
+    repo_root = Path(__file__).resolve().parents[1]
+    source_run_id = "ja-topology-canary-20260806-01"
+    article_id = "V2-MBTI-PAIR-ISFJ-ESTJ-LOVE"
+    expected_run_id = publisher.multilingual.translation_run_id(source_run_id, article_id, "ja")
 
     record = publisher.prepare_exact_fresh_ja_translation_run(
-        tmp_path,
+        repo_root,
         queue_root,
         tmp_path / "state",
         source_run_id,
         article_id,
-        run_id,
     )
 
-    assert calls == [
-        {
-            "source_run_id": source_run_id,
-            "article_id": article_id,
-            "locales": ["ja"],
-        }
-    ]
-    assert record == {"run_id": run_id, "locale": "ja", "run_dir": str(tmp_path / "run")}
+    assert record["run_id"] == expected_run_id
+    assert record["locale"] == "ja"
+    state_path = next((queue_root / "runs").glob("*.json"))
+    state = publisher._read_json(state_path)
+    assert state["run_id"] == expected_run_id
+    brief = publisher._read_json(Path(record["run_dir"]) / "brief.json")
+    assert brief["run_id"] == expected_run_id
+    assert [article["locale"] for article in brief["articles"]] == ["ja"]
 
 
 def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
