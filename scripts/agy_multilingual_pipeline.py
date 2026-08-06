@@ -1084,6 +1084,54 @@ def _hydrate_locale_plan(
     return plan
 
 
+def _rebuild_topology_constraints(
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    rebuild_by_slot: dict[str, bool],
+) -> dict[str, Any]:
+    """把前代 fact-to-H2 topology 轉成模型可直接比較的 slot 契約。"""
+    prior_by_slot = {
+        str(item.get("slot")): item
+        for item in (prior_plan or {}).get("articles", [])
+        if isinstance(item, dict)
+    }
+    articles = []
+    for index, _target in enumerate(brief["articles"]):
+        slot = f"article-{index + 1:02d}"
+        prior = prior_by_slot.get(slot, {})
+        outline = prior.get("ordered_h2_outline", [])
+        heading_slots = (
+            {
+                str(heading): f"h2-{heading_index + 1}"
+                for heading_index, heading in enumerate(outline)
+            }
+            if isinstance(outline, list)
+            else {}
+        )
+        prior_fact_to_h2_slot = [
+            {
+                "source_fact_id": str(mapping["source_fact_id"]),
+                "planned_h2_slot": heading_slots[str(mapping["planned_h2"])],
+            }
+            for mapping in prior.get("coverage_mapping", [])
+            if isinstance(mapping, dict)
+            and "source_fact_id" in mapping
+            and str(mapping.get("planned_h2")) in heading_slots
+        ]
+        articles.append(
+            {
+                "slot": slot,
+                "rebuild_required": rebuild_by_slot.get(slot, False),
+                "prior_fact_to_h2_slot": prior_fact_to_h2_slot,
+                "forbidden_prior_topology_signature": [
+                    item["planned_h2_slot"]
+                    for item in prior_fact_to_h2_slot
+                ],
+            }
+        )
+    return {"articles": articles}
+
+
 def _plan_prompt(
     brief: dict[str, Any],
     *,
@@ -1101,6 +1149,7 @@ def _plan_prompt(
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
+            "rebuild topology constraints 中 rebuild_required=true 時，輸出的 planned_h2_slot 序列不得等於 forbidden_prior_topology_signature。",
             "rebuild contract:",
             _canonical_json(
                 {
@@ -1128,6 +1177,14 @@ def _plan_prompt(
                         "只改 coverage_note",
                     ],
                 }
+            ),
+            "rebuild topology constraints:",
+            _canonical_json(
+                _rebuild_topology_constraints(
+                    brief,
+                    prior_plan,
+                    rebuild_by_slot,
+                )
             ),
             "generation:",
             str(generation),

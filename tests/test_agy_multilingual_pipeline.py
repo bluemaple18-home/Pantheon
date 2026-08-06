@@ -1357,6 +1357,101 @@ def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejecti
     }
 
 
+def test_replacement_third_generation_gets_explicit_prior_topology_contract(
+    tmp_path: Path,
+) -> None:
+    brief = non_tarot_translation_brief("ja")
+    brief["run_id"] = f"{brief['run_id']}-replacement-01"
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    plan_count = 0
+    review_count = 0
+    last_outline: list[str] | None = None
+
+    class ProductionShapedClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            nonlocal plan_count, review_count, last_outline
+            if "native_search_intent" in json.dumps(schema):
+                plan_count += 1
+                if plan_count < 3:
+                    payload = external_locale_plan(brief)
+                else:
+                    constraints = json.loads(
+                        prompt.split("rebuild topology constraints:\n", 1)[1].split(
+                            "\n", 1
+                        )[0]
+                    )
+                    article_contract = constraints["articles"][0]
+                    assert article_contract["slot"] == "article-01"
+                    assert article_contract["rebuild_required"] is True
+                    expected_prior = external_locale_plan(brief)["articles"][0][
+                        "coverage_mapping"
+                    ]
+                    assert article_contract["prior_fact_to_h2_slot"] == [
+                        {
+                            "source_fact_id": mapping["source_fact_id"],
+                            "planned_h2_slot": mapping["planned_h2_slot"],
+                        }
+                        for mapping in expected_prior
+                    ]
+                    assert article_contract[
+                        "forbidden_prior_topology_signature"
+                    ] == [mapping["planned_h2_slot"] for mapping in expected_prior]
+                    payload = external_locale_plan(
+                        brief,
+                        rebuild_outline=True,
+                        coverage_shift=1,
+                        outline=[
+                            "用神を探す前に確認する条件",
+                            "命式の偏りを分けて読む",
+                            "調整候補を比較する手順",
+                            "判断に残すべき限界",
+                        ],
+                    )
+                last_outline = payload["articles"][0]["ordered_h2_outline"]
+                return payload
+            if role == "writer":
+                return non_tarot_external_candidate(last_outline)
+            review_count += 1
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT" if review_count < 3 else "APPROVE",
+                        "findings": (
+                            [
+                                {
+                                    "code": "MIRRORED_STRUCTURE",
+                                    "message": "見出しだけでなく構成も前世代と同じです",
+                                }
+                            ]
+                            if review_count < 3
+                            else []
+                        ),
+                    }
+                ]
+            }
+
+    multilingual.run_writer_reviewer(
+        tmp_path,
+        ProductionShapedClient(),
+        max_repairs=2,
+    )
+
+    second = json.loads((tmp_path / "attempts/02/locale-plan.json").read_text())
+    third = json.loads((tmp_path / "attempts/03/locale-plan.json").read_text())
+    assert multilingual._outline_topology(third["articles"][0]) != (
+        multilingual._outline_topology(second["articles"][0])
+    )
+
+
 @pytest.mark.parametrize(
     ("external_rebuild", "pipeline_rebuild"),
     [(True, False), (False, True)],
