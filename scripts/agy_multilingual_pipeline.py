@@ -255,6 +255,15 @@ def _metadata_matches_target_language(locale: str, text: str) -> bool:
     return len(re.findall(r"[\uac00-\ud7af]", text)) >= 4 and not re.search(r"[\u3040-\u30ff]", text)
 
 
+def _japanese_tag_matches_target_language(tag: str, source_tags: list[object]) -> bool:
+    normalized = tag.strip()
+    if normalized in {str(source_tag).strip() for source_tag in source_tags}:
+        return False
+    if re.search(r"(?:人際|[與斷體國學關氣覺實應發讓對從將會這們裡麼戀])", normalized):
+        return False
+    return _plan_matches_target_language("ja", normalized)
+
+
 def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> list[dict[str, str]]:
     expected = {str(item["translation_id"]): item for item in brief["articles"]}
     findings: list[dict[str, str]] = []
@@ -296,6 +305,17 @@ def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) 
             or not _metadata_matches_target_language(locale, str(article["description"]))
         ):
             findings.append({"article_id": translation_id, "code": "target_language", "message": "可見文字不是指定目標語言"})
+        if locale == "ja" and any(
+            not _japanese_tag_matches_target_language(str(tag), source_content["tags"])
+            for tag in article["tags"]
+        ):
+            findings.append(
+                {
+                    "article_id": translation_id,
+                    "code": "target_language_tags",
+                    "message": "日文 metadata tags 含繁中殘留或沿用來源語言",
+                }
+            )
         if article["title"] == source_content["title"] or article["description"] == source_content["description"]:
             findings.append({"article_id": translation_id, "code": "untranslated_metadata", "message": "標題或描述仍與原文相同"})
     return findings
@@ -1244,6 +1264,7 @@ def _article_prompt(
             "你是 Pantheon 的目標語言母語主編。這不是翻譯任務；slot 必須逐字複製。",
             "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
             "所有可見欄位都必須以 article input.locale 指定的語言完整重寫；title、description、answer、tags、FAQ、H2 與 paragraphs 禁止保留來源語言文字，只有該 locale 慣用的專有名詞與識別符例外。",
+            "tags 必須逐項以目標語言的自然搜尋用語重寫，不得複製或沿用來源語言 tag。",
             "寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。",
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
@@ -1311,6 +1332,7 @@ def _public_brief(brief: dict[str, Any]) -> dict[str, Any]:
         "policy": {
             "purpose": "母語重寫／SEO 在地化，不是翻譯。原文只提供可用事實、觀點與安全邊界",
             "seo": "依目標語言的實際搜尋語序重做 title、description、answer、tags、H2 與 FAQ，不堆疊關鍵字",
+            "tags": "tags 必須逐項以目標語言的自然搜尋用語重寫，不得複製或沿用來源語言 tag。",
             "safety": "不得新增原文沒有的承諾、診斷、法律、醫療、財務或命運結論",
             "coverage": "原文的重要資訊與限制都要覆蓋，但可改變順序、H2 數量、段落切分、FAQ 問法與例子擺放位置",
             "hard_reject": "逐句對譯、中文語序殘留、相同 H2／段落骨架、非母語搭配、AI 套話或搜尋用語不自然",
