@@ -2846,6 +2846,8 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
 
     assert publisher.DEFAULT_MAX_RUNS == 3
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
+    assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
+    assert 'Set :ProgramArguments:11 --new-only' in installer
     assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
     assert arguments[3:11] == [
         "--repo-root",
@@ -2899,6 +2901,94 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_publish_ready_runs_new_only_does_not_seed_translations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "_seed_pending_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("new-only must not seed translations")
+        ),
+    )
+    monkeypatch.setattr(publisher, "collect_ready_runs", lambda *_args, **_kwargs: [])
+
+    def fake_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return "a" * 40
+        return ""
+
+    result = publisher.publish_ready_runs(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        git=fake_git,
+        run_tests=False,
+        release_gate=False,
+        seed_translations=False,
+    )
+
+    assert result["status"] == "idle"
+    assert result["seeded_translation_runs"] == []
+
+
+def test_main_new_only_passes_translation_seed_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    captured: dict[str, object] = {}
+
+    def fake_publish(*_args: object, **kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"schema_version": 1, "status": "idle", "published": 0}
+
+    monkeypatch.setattr(
+        publisher,
+        "parse_args",
+        lambda: publisher.argparse.Namespace(
+            repo_root=tmp_path,
+            queue_root=queue_root,
+            state_root=state_root,
+            max_runs=3,
+            exact_run_id=None,
+            exact_fresh_ja_run_id=None,
+            prepare_exact_fresh_ja_source_run_id=None,
+            prepare_exact_fresh_ja_article_id=None,
+            dry_run=True,
+            rewrite_release=False,
+            include_rewrites=False,
+            new_only=True,
+            legacy_report=False,
+            push=False,
+            deployment_preflight=False,
+            recover_exhausted_create_run=[],
+            skip_tests=False,
+            skip_release_gate=False,
+            expected_repo_root=None,
+            expected_queue_root=None,
+            expected_state_root=None,
+            expected_runtime_sha=None,
+            expected_runtime_digest=None,
+            expected_push_mode=None,
+        ),
+    )
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+
+    assert publisher.main() == 0
+    assert captured["seed_translations"] is False
+    assert json.loads(capsys.readouterr().out)["status"] == "idle"
 
 
 def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3387,7 +3477,13 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
         text=True,
     ).stdout.strip()
     monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
-    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        publisher,
+        "_seed_pending_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("new-only must not seed translations after publish")
+        ),
+    )
     monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *_args, **_kwargs: {"status": "approved"})
 
     def apply_good(repo: Path, *_args: object, **_kwargs: object) -> list[Path]:
@@ -3412,10 +3508,12 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
         push=False,
         run_tests=False,
         release_gate=False,
+        seed_translations=False,
     )
 
     assert result["status"] == "PUBLISHED"
     assert result["run_ids"] == ["run-good"]
+    assert result["seeded_translation_runs"] == []
     assert published_path.read_text(encoding="utf-8") == "run-good\n"
 
 

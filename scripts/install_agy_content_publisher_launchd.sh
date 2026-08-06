@@ -11,6 +11,7 @@ PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 QUEUE_ROOT="${PANTHEON_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 STATE_ROOT="${REPO_ROOT}/.work/content-publisher"
 MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"
+NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LOG_DIR="${USER_HOME_DIR}/Library/Logs/Pantheon"
 STDOUT_LOG="${LOG_DIR}/agy-content-publisher.stdout.log"
@@ -41,6 +42,14 @@ if ! [[ "${MAX_RUNS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "PANTHEON_PUBLISH_MAX_RUNS 必須是正整數" >&2
   exit 1
 fi
+if [[ "${NEW_ONLY}" != "0" && "${NEW_ONLY}" != "1" ]]; then
+  echo "PANTHEON_PUBLISH_NEW_ONLY 只能是 0 或 1" >&2
+  exit 1
+fi
+PUBLISH_MODE="--include-rewrites"
+if [[ "${NEW_ONLY}" == "1" ]]; then
+  PUBLISH_MODE="--new-only"
+fi
 if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain)" ]]; then
   echo "publisher actor worktree 不乾淨，拒絕部署" >&2
   exit 1
@@ -63,6 +72,9 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:6 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:8 ${STATE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:10 ${MAX_RUNS}" "${TEMP_PLIST}"
+if [[ "${NEW_ONLY}" == "1" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 --new-only" "${TEMP_PLIST}"
+fi
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:14 ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:16 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:18 ${STATE_ROOT}" "${TEMP_PLIST}"
@@ -84,7 +96,7 @@ run_preflight() {
       --queue-root "${QUEUE_ROOT}" \
       --state-root "${STATE_ROOT}" \
       --max-runs "${MAX_RUNS}" \
-      --include-rewrites \
+      "${PUBLISH_MODE}" \
       --push \
       --deployment-preflight \
       --expected-repo-root "${REPO_ROOT}" \

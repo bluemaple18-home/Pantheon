@@ -2663,6 +2663,7 @@ def publish_ready_runs(
     _transaction_base_sha: str | None = None,
     _mutation_journal: MutationJournal | None = None,
     exact_run_ids: Iterable[str] | None = None,
+    seed_translations: bool = True,
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     state_root.mkdir(parents=True, exist_ok=True)
@@ -2675,7 +2676,7 @@ def publish_ready_runs(
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         recovered_translation_runs = (
             []
-            if dry_run or selected_run_ids is not None
+            if dry_run or selected_run_ids is not None or not seed_translations
             else _seed_pending_translations(repo_root, queue_root, state_root)
         )
         ready = collect_ready_runs(
@@ -2785,7 +2786,7 @@ def publish_ready_runs(
         _write_json(_ledger_path(state_root), ledger)
         seeded_translation_runs = (
             []
-            if selected_run_ids is not None
+            if selected_run_ids is not None or not seed_translations
             else [
                 *recovered_translation_runs,
                 *_seed_pending_translations(repo_root, queue_root, state_root),
@@ -3213,6 +3214,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
+    parser.add_argument("--new-only", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--deployment-preflight", action="store_true")
@@ -3241,6 +3243,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     _trim_configured_launchd_logs()
     args = parse_args()
+    new_only = bool(getattr(args, "new_only", False))
     exact_run_ids = _normalize_exact_run_ids(
         getattr(args, "exact_run_id", None)
     )
@@ -3265,11 +3268,12 @@ def main() -> int:
         return 0
     if args.queue_root is None:
         raise SystemExit("--queue-root is required unless --legacy-report is set")
-    if args.rewrite_release and args.include_rewrites:
-        raise SystemExit("--rewrite-release and --include-rewrites cannot be used together")
+    if sum((args.rewrite_release, args.include_rewrites, new_only)) > 1:
+        raise SystemExit("publisher release modes cannot be combined")
     if fresh_ja_run_id is not None and (
         args.rewrite_release
         or args.include_rewrites
+        or new_only
         or args.skip_tests
         or args.skip_release_gate
     ):
@@ -3282,6 +3286,7 @@ def main() -> int:
     if recovery_run_ids and (
         args.rewrite_release
         or args.include_rewrites
+        or new_only
         or args.legacy_report
     ):
         raise SystemExit("retry recovery cannot be combined with release modes")
@@ -3293,6 +3298,8 @@ def main() -> int:
         publisher_fn = publish_ready_rewrite_runs
     else:
         publisher_fn = publish_ready_runs
+        if new_only:
+            selector_kwargs["seed_translations"] = False
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
     contract_values = (
