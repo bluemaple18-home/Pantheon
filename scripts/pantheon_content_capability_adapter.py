@@ -1,22 +1,38 @@
 #!/usr/bin/env python3
-"""執行 production capability 的 bounded、無 mutation 正式 dry-run adapter。"""
+"""薄接 production runtime 的 bounded、無外部副作用 capability dry-run。"""
 
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
-from typing import Any, Callable
+import subprocess
+from typing import Any, Callable, Iterator
+
+from scripts import agy_content_publisher as publisher
+from scripts import agy_gemini_coordinator as coordinator
+from scripts import agy_gemini_runner as runner
+from scripts import pantheon_content_capacity_guard as capacity_guard
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
+from scripts.agy_gemini_outbox import create_external_request
 
 
 CAPABILITIES = ("create", "run", "select", "publish", "transaction", "tag", "push")
 PREVIOUS = dict(zip(CAPABILITIES, (None, *CAPABILITIES[:-1])))
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"ok": {"type": "boolean"}},
+    "required": ["ok"],
+}
 
 
 class AdapterBlocked(ValueError):
-    """正式 dry-run adapter 拒絕不連續或不完整的 handoff。"""
+    """正式 production boundary 拒絕不連續或不完整 handoff。"""
 
 
 def _digest(payload: dict[str, Any]) -> str:
@@ -25,25 +41,246 @@ def _digest(payload: dict[str, Any]) -> str:
     ).hexdigest()
 
 
-def _transition(capability: str, source: dict[str, Any]) -> dict[str, Any]:
-    previous = PREVIOUS[capability]
-    if source.get("capability") != previous:
-        raise AdapterBlocked("previous capability mismatch")
-    run_id = str(source.get("run_id") or "")
-    if capability == "create":
-        run_id = f"probe-{str(source['correlation_id'])[:24]}"
-    elif not run_id:
-        raise AdapterBlocked("run identity is missing")
-    transitions: dict[str, Callable[[], dict[str, Any]]] = {
-        "create": lambda: {"run_id": run_id, "registration": "accepted"},
-        "run": lambda: {"run_id": run_id, "runner": "completed"},
-        "select": lambda: {"run_id": run_id, "selector": "exact"},
-        "publish": lambda: {"run_id": run_id, "publish_preview": "accepted"},
-        "transaction": lambda: {"run_id": run_id, "transaction_plan": "atomic"},
-        "tag": lambda: {"run_id": run_id, "tag_plan": f"probe-{run_id}"},
-        "push": lambda: {"run_id": run_id, "push_plan": "HEAD:main+tag"},
+@contextmanager
+def _formal_environment(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    service_label: str,
+) -> Iterator[None]:
+    values = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+        "PANTHEON_RUNTIME_SERVICE_LABEL": service_label,
+        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest[
+            "publisher_state_root"
+        ],
+        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
     }
-    return transitions[capability]()
+    previous = {key: os.environ.get(key) for key in values}
+    os.environ.update({key: str(value) for key, value in values.items()})
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _load_contract(source: dict[str, Any]) -> tuple[Path, dict[str, Any], Path]:
+    manifest_path = Path(str(source.get("runtime_manifest", "")))
+    sandbox_root = Path(str(source.get("sandbox_root", "")))
+    if (
+        not manifest_path.is_absolute()
+        or not sandbox_root.is_absolute()
+        or not sandbox_root.is_dir()
+        or sandbox_root.resolve(strict=True) != sandbox_root
+    ):
+        raise AdapterBlocked("formal runtime sandbox is invalid")
+    manifest = runtime_manifest.load_manifest(
+        manifest_path,
+        str(source.get("runtime_manifest_digest", "")),
+    )
+    if manifest["runtime_identity_digest"] != source.get(
+        "runtime_identity_digest"
+    ):
+        raise AdapterBlocked("runtime identity digest mismatch")
+    return manifest_path, manifest, sandbox_root
+
+
+def _create_step(
+    source: dict[str, Any],
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    sandbox_root: Path,
+) -> dict[str, Any]:
+    queue_root = Path(manifest["queue_root"])
+    run_ids: dict[str, str] = {}
+    states: dict[str, dict[str, Any]] = {}
+    with _formal_environment(
+        manifest_path, manifest, "com.pantheon.agy-gemini-coordinator"
+    ):
+        for lane in coordinator.CONTENT_LANES:
+            run_id = "probe-" + hashlib.sha256(
+                f"{source['correlation_id']}:{lane}".encode()
+            ).hexdigest()[:24]
+            run_dir = sandbox_root / "runs" / lane
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "brief.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "run_id": run_id,
+                        "mode": "create",
+                        "articles": [],
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            states[lane] = coordinator.register_run(
+                run_dir,
+                queue_root,
+                correlation_id=str(source["correlation_id"]),
+            )
+            run_ids[lane] = run_id
+    return {
+        "run_ids": run_ids,
+        "coordinator_states": states,
+        "production_entrypoints": [
+            "scripts.agy_gemini_coordinator:register_run"
+        ],
+    }
+
+
+def _run_step(
+    source: dict[str, Any],
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    _sandbox_root: Path,
+) -> dict[str, Any]:
+    run_ids = source.get("run_ids")
+    if not isinstance(run_ids, dict) or set(run_ids) != set(coordinator.CONTENT_LANES):
+        raise AdapterBlocked("four-lane run identity is incomplete")
+    results: dict[str, dict[str, Any]] = {}
+    for lane, run_id in run_ids.items():
+        lane_root = Path(manifest["queue_root"]) / "lanes" / lane
+        with _formal_environment(
+            manifest_path, manifest, f"com.pantheon.agy-gemini-{lane}"
+        ):
+            runtime_manifest.validate_runtime_tick(
+                f"com.pantheon.agy-gemini-{lane}",
+                queue_root=lane_root,
+                state_root=Path(manifest["publisher_state_root"]),
+                actor_root=Path(manifest["actor_root"]),
+                log_root=Path(manifest["log_root"]),
+            )
+            request = create_external_request(
+                lane_root,
+                namespace=hashlib.sha256(str(run_id).encode()).hexdigest()[:24],
+                role="writer",
+                model="gemini-test-writer",
+                prompt=f"bounded formal runtime {lane}",
+                response_schema=RESPONSE_SCHEMA,
+            )
+            result = runner.process_once(
+                lane_root,
+                lane=lane,
+                exact_run_ids=[str(run_id)],
+                generate_json=lambda *_args: {"ok": True},
+            )
+        if result.get("status") != "processed":
+            raise AdapterBlocked(f"{lane} production runner did not process")
+        results[lane] = {**result, "request_sha256": request["request_sha256"]}
+    return {
+        "run_ids": run_ids,
+        "lane_results": results,
+        "production_entrypoints": [
+            "scripts.agy_gemini_outbox:create_external_request",
+            "scripts.agy_gemini_runner:process_once",
+        ],
+    }
+
+
+def _publisher_step(
+    capability: str,
+    source: dict[str, Any],
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    sandbox_root: Path,
+) -> dict[str, Any]:
+    run_ids = source.get("run_ids")
+    if not isinstance(run_ids, dict):
+        raise AdapterBlocked("publisher run identity is missing")
+    with _formal_environment(
+        manifest_path, manifest, "com.pantheon.agy-content-publisher"
+    ):
+        runtime_receipt = runtime_manifest.validate_runtime_tick(
+            "com.pantheon.agy-content-publisher",
+            queue_root=Path(manifest["queue_root"]),
+            state_root=Path(manifest["publisher_state_root"]),
+            actor_root=Path(manifest["actor_root"]),
+            log_root=Path(manifest["log_root"]),
+        )
+        result = publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids.values(),
+            correlation_id=str(source["correlation_id"]),
+        )
+    entrypoints = [
+        str(result["entrypoint"]),
+        *(str(value) for value in result.get("called_entrypoints", [])),
+    ]
+    output: dict[str, Any] = {
+        "run_ids": run_ids,
+        "publisher_result": result,
+        "runtime_receipt": runtime_receipt,
+        "production_entrypoints": entrypoints,
+    }
+    if capability == "transaction":
+        def fixture_runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+            if command[:2] == ["launchctl", "print"]:
+                return subprocess.CompletedProcess(command, 3, "", "")
+            if command[:3] == ["sysctl", "-n", "vm.swapusage"]:
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    "total = 0.00M used = 0.00M free = 0.00M\n",
+                    "",
+                )
+            return subprocess.CompletedProcess(command, 1, "", "unexpected command")
+
+        with _formal_environment(
+            manifest_path, manifest, "com.pantheon.content-capacity-guard"
+        ):
+            runtime_manifest.validate_runtime_tick(
+                "com.pantheon.content-capacity-guard",
+                queue_root=Path(manifest["queue_root"]),
+                state_root=Path(manifest["publisher_state_root"]),
+                actor_root=Path(manifest["actor_root"]),
+                log_root=Path(manifest["log_root"]),
+            )
+            guard_result = capacity_guard.preflight(
+                Path(manifest["queue_root"]),
+                Path(manifest["publisher_state_root"]),
+                Path(manifest["log_root"]),
+                runner=fixture_runner,
+            )
+        if guard_result.get("status") != "PASS":
+            raise AdapterBlocked("capacity guard production preflight failed")
+        output["capacity_guard"] = guard_result
+        output["production_entrypoints"].append(
+            "scripts.pantheon_content_capacity_guard:preflight"
+        )
+    return output
+
+
+def _production_transition(
+    capability: str,
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    manifest_path, manifest, sandbox_root = _load_contract(source)
+    if capability == "create":
+        return _create_step(source, manifest_path, manifest, sandbox_root)
+    if capability == "run":
+        return _run_step(source, manifest_path, manifest, sandbox_root)
+    return _publisher_step(
+        capability,
+        source,
+        manifest_path,
+        manifest,
+        sandbox_root,
+    )
 
 
 def invoke(
@@ -56,6 +293,7 @@ def invoke(
     execution_id: str,
     correlation_id: str,
     actor_identity: str,
+    transition: Callable[[str, dict[str, Any]], dict[str, Any]] = _production_transition,
 ) -> dict[str, Any]:
     if capability not in CAPABILITIES:
         raise AdapterBlocked("capability is not registered")
@@ -73,21 +311,22 @@ def invoke(
     ):
         if source.get(field) != value:
             raise AdapterBlocked(f"{field} mismatch")
-    transition = _transition(capability, source)
+    if source.get("capability") != PREVIOUS[capability]:
+        raise AdapterBlocked("previous capability mismatch")
+    transition_result = transition(capability, source)
     payload: dict[str, Any] = {
-        "schema_version": 1,
+        **source,
+        "schema_version": 2,
         "capability": capability,
-        "execution_id": execution_id,
-        "correlation_id": correlation_id,
-        "actor_identity": actor_identity,
         "input_digest": actual_input_digest,
         "expected_input_digest": expected_input_digest,
         "entrypoint_outcome": "PASS",
-        "mode": "bounded-production-dry-run-adapter",
+        "mode": "formal-runtime-production-dry-run",
         "production_mutation": False,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
-        **transition,
+        **transition_result,
     }
+    payload.pop("output_digest", None)
     payload["output_digest"] = _digest(payload)
     output_path.write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8"
@@ -121,9 +360,9 @@ def main() -> int:
             correlation_id=args.correlation_id,
             actor_identity=args.actor_identity,
         )
-    except (AdapterBlocked, OSError, json.JSONDecodeError, KeyError) as error:
+    except (AdapterBlocked, OSError, json.JSONDecodeError, KeyError, ValueError) as error:
         blocked = {
-            "schema_version": 1,
+            "schema_version": 2,
             "capability": args.capability,
             "execution_id": args.execution_id,
             "correlation_id": args.correlation_id,
@@ -133,7 +372,7 @@ def main() -> int:
             "entrypoint_outcome": "BLOCKED",
             "output_digest": "",
             "error": str(error),
-            "mode": "bounded-production-dry-run-adapter",
+            "mode": "formal-runtime-production-dry-run",
             "production_mutation": False,
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
         }

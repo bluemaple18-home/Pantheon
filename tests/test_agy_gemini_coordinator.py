@@ -39,6 +39,46 @@ def test_register_run_is_idempotent_and_keeps_private_path_local(tmp_path: Path)
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+def test_formal_coordinator_rejects_manifest_drift_before_lock_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-coordinator",
+        runtime_digest="1" * 64,
+        generation="generation-coordinator",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"])
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST", manifest["runtime_identity_digest"]
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL",
+        "com.pantheon.agy-gemini-coordinator",
+    )
+    manifest_path.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        cycle_once(queue, repo_root=actor)
+
+    assert not (queue / "coordinator.lock").exists()
+
+
 def test_resume_locale_plan_validation_failure_starts_fresh_attempt(
     tmp_path: Path,
 ) -> None:
@@ -2131,7 +2171,11 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
 
     assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
     assert arguments[3:5] == ["barrier-exec", "--barrier"]
-    assert arguments[12:14] == ["-m", "scripts.agy_gemini_coordinator"]
+    separator = arguments.index("--")
+    assert arguments[separator + 2 : separator + 4] == [
+        "-m",
+        "scripts.agy_gemini_coordinator",
+    ]
     assert "--lane-mode" in arguments
     assert "--new-matrix-sweep" in arguments
     assert "--new-matrix-run-root" in arguments
@@ -2144,7 +2188,12 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
         "-m",
         "scripts.pantheon_content_runtime_manifest",
     ]
-    assert lane_plist["ProgramArguments"][12:14] == ["-m", "scripts.agy_gemini_runner"]
+    lane_arguments = lane_plist["ProgramArguments"]
+    lane_separator = lane_arguments.index("--")
+    assert lane_arguments[lane_separator + 2 : lane_separator + 4] == [
+        "-m",
+        "scripts.agy_gemini_runner",
+    ]
     assert "--lane" in lane_plist["ProgramArguments"]
     assert lane_plist["ProgramArguments"][-1] == "process-once"
     assert plist["EnvironmentVariables"]["AGY_GEMINI_NEW_ONLY"] == "0"
@@ -2741,12 +2790,33 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "com.pantheon.agy-content-publisher",
         "com.pantheon.content-capacity-guard",
     ]
-    previous = b"synthetic-previous-plist\n"
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    barrier = (
+        Path(manifest["publisher_state_root"])
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    previous_payload = {
+        "Label": "com.pantheon.agy-gemini-coordinator",
+        "ProgramArguments": [
+            "python",
+            "-m",
+            "runtime",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+        ],
+        "EnvironmentVariables": {
+            "PANTHEON_RUNTIME_MANIFEST": env["PANTHEON_RUNTIME_MANIFEST_FILE"],
+            "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        },
+    }
+    previous = plistlib.dumps(previous_payload)
     for label in labels:
         (launch_agents / f"{label}.plist").write_bytes(previous)
-    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
-    barrier = Path(manifest["publisher_state_root"]) / "four-lane-activation.barrier"
-    barrier.write_text("previous-barrier\n", encoding="utf-8")
+    ready = tmp_path / "previous-ready"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(ready, manifest, label)
+    runtime_manifest.activate_barrier(barrier, ready, manifest)
     launchctl = tmp_path / "bin" / "launchctl"
     bootstrap_count = tmp_path / "bootstrap-count"
     loaded = tmp_path / "loaded"
@@ -2803,6 +2873,13 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
                             "manifest_digest"
                         ],
                         "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+                        "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+                        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest[
+                            "runtime_identity_digest"
+                        ],
+                        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+                        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+                        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
                         "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
                         "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
                         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest[
@@ -2829,7 +2906,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     assert activated.returncode != 0
     for label in labels:
         assert (launch_agents / f"{label}.plist").read_bytes() == previous
-    assert not barrier.exists()
+    assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
     failure_receipt = launch_agents / ".pantheon-four-lane-stage" / "failure-receipt.json"
     assert json.loads(failure_receipt.read_text(encoding="utf-8"))["status"] == expected_rollback_status
     mutations = mutation_log.read_text(encoding="utf-8")
@@ -2991,6 +3068,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
 
     for key, value in coordinator_variables.items():
         monkeypatch.setenv(key, str(value))
+    monkeypatch.delenv("PANTHEON_FORMAL_RUNTIME")
     monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _root: set())
     queue_root = tmp_path / "canary-off-queue"
     run_dir = tmp_path / "canary-off-run"

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="12.081" timestamp="2026-08-10T15:13:59.446052+08:00" hostname="MattkuodeMac-mini.local"><testcase classname="" name="tests.test_browser_runtime_check" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/tests/test_browser_runtime_check.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.11.14-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_browser_runtime_check.py:1: in &lt;module&gt;
+    from scripts.browser_runtime_check import (
+scripts/browser_runtime_check.py:45: in &lt;module&gt;
+    from playwright.sync_api import sync_playwright  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'playwright'</error></testcase></testsuite></testsuites>

@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,7 @@ from typing import Any, Callable
 from scripts import agy_content_publisher as publisher
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 from scripts.agy_gemini_outbox import (
     ExternalJobFailed,
     ExternalJobPending,
@@ -45,6 +47,21 @@ JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
+
+
+def _validate_formal_runtime(
+    queue_root: Path,
+    actor_root: Path | None = None,
+) -> dict[str, Any]:
+    return formal_runtime.validate_runtime_tick(
+        "com.pantheon.agy-gemini-coordinator",
+        queue_root=queue_root.resolve(),
+        state_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", Path.cwd())
+        ),
+        actor_root=(actor_root or Path.cwd()).resolve(),
+        log_root=Path(os.environ.get("PANTHEON_RUNTIME_LOG_ROOT", Path.cwd())),
+    )
 
 
 def _normalize_exact_run_ids(
@@ -107,8 +124,14 @@ def _translation_replacement_decision_path(
     return queue_root / "translation-replacement-decisions" / f"{opaque_id}.json"
 
 
-def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
+def register_run(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    correlation_id: str | None = None,
+) -> dict[str, Any]:
     """將一個本機私密 run 登記為 active；不建立外部 request。"""
+    _validate_formal_runtime(queue_root)
     resolved = run_dir.resolve()
     brief = _brief(resolved)
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
@@ -118,11 +141,15 @@ def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
             raise ValueError("registered run identity collision")
         return state
     now = _now()
+    effective_correlation_id = correlation_id or secrets.token_hex(16)
+    if not effective_correlation_id or effective_correlation_id.strip() != effective_correlation_id:
+        raise ValueError("correlation id is required")
     state = {
         "schema_version": 1,
         "run_id": brief["run_id"],
         "run_dir": str(resolved),
         "status": "active",
+        "correlation_id": effective_correlation_id,
         "registered_at": now,
         "updated_at": now,
     }
@@ -131,6 +158,7 @@ def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
 
 
 def read_run_state(run_dir: Path, queue_root: Path) -> dict[str, Any]:
+    _validate_formal_runtime(queue_root)
     brief = _brief(run_dir.resolve())
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
     if not path.exists():
@@ -1023,6 +1051,7 @@ def cycle_once(
     exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
+    _validate_formal_runtime(queue_root, repo_root)
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     if selected_run_ids is not None and (new_matrix_sweep or legacy_sweep):
         raise ValueError("exact run ids cannot be combined with automatic sweeps")

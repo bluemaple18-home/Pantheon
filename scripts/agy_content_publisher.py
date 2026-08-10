@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 
 
 SCHEMA_VERSION = 1
@@ -96,6 +97,59 @@ def _normalize_exact_run_ids(
     return frozenset(values)
 
 
+def release_git_plan(version: str) -> dict[str, list[str]]:
+    """回傳正式 release 的 tag/push 命令；只建 plan，不執行 mutation。"""
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+        raise PublishBlocked("release version is invalid")
+    return {
+        "tag": ["tag", "-a", f"v{version}", "-m", f"Pantheon content release v{version}"],
+        "push": ["push", "--atomic", "origin", "HEAD:main", f"v{version}"],
+    }
+
+
+def formal_capability_preflight(
+    capability: str,
+    *,
+    run_ids: Iterable[str],
+    correlation_id: str,
+) -> dict[str, Any]:
+    """正式 publisher 的公開 bounded validation/transaction/tag/push dry-run 入口。"""
+    if capability not in {"select", "publish", "transaction", "tag", "push"}:
+        raise PublishBlocked("publisher capability is invalid")
+    selected = sorted(_normalize_exact_run_ids(run_ids) or ())
+    if not selected or not correlation_id:
+        raise PublishBlocked("publisher capability identity is incomplete")
+    result: dict[str, Any] = {
+        "status": "PASS",
+        "capability": capability,
+        "run_ids": selected,
+        "correlation_id": correlation_id,
+        "production_mutation": False,
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "called_entrypoints": [
+            "scripts.agy_content_publisher:_normalize_exact_run_ids"
+        ],
+    }
+    if capability == "select":
+        result["validation_mode"] = "exact-run-id"
+    elif capability == "publish":
+        result["validation_mode"] = "dry-run"
+    elif capability == "transaction":
+        result["transaction_mode"] = "fail-closed-dry-run"
+    else:
+        plan = release_git_plan("0.0.0")
+        result["called_entrypoints"].append(
+            "scripts.agy_content_publisher:release_git_plan"
+        )
+        result.update(
+            {
+                "command": plan[capability],
+                "fail_closed_dry_run": True,
+            }
+        )
+    return result
+
+
 class PublishBlocked(ValueError):
     """發布 gate fail-closed。"""
 
@@ -115,6 +169,20 @@ class PolicyRejected(PublishBlocked):
 
 class PushOutcomeUnknown(PublishBlocked):
     """遠端 atomic push 結果無法安全判定。"""
+
+
+def _validate_formal_runtime(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+) -> dict[str, Any]:
+    return formal_runtime.validate_runtime_tick(
+        "com.pantheon.agy-content-publisher",
+        queue_root=queue_root.resolve(),
+        state_root=state_root.resolve(),
+        actor_root=repo_root.resolve(),
+        log_root=Path(os.environ.get("PANTHEON_RUNTIME_LOG_ROOT", Path.cwd())),
+    )
 
 
 def runtime_manifest(repo_root: Path) -> dict[str, Any]:
@@ -1338,6 +1406,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
             *args: Any,
             **kwargs: Any,
         ) -> dict[str, Any]:
+            _validate_formal_runtime(repo_root, queue_root, state_root)
             git = kwargs.get("git", run_git)
             state_root.mkdir(parents=True, exist_ok=True)
             with _repo_lock_path(repo_root, git).open("a+") as lock:
@@ -1351,6 +1420,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                 kwargs["_transaction_base_sha"] = base_sha
                 kwargs["_mutation_journal"] = journal
                 try:
+                    _validate_formal_runtime(repo_root, queue_root, state_root)
                     return function(repo_root, queue_root, state_root, *args, **kwargs)
                 except PushOutcomeUnknown:
                     raise
@@ -2404,19 +2474,20 @@ def _stage_commit_tag_push(
     phase: str | None = None,
     run_ids: list[str] | None = None,
 ) -> str:
+    release_plan = release_git_plan(version)
     if push:
         _run_checked(repo_root, [sys.executable, "scripts/verify_host_canonical.py"])
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
         git(repo_root, ["add", *extra_add_paths], None)
     git(repo_root, ["commit", "-m", message or f"chore(content): publish Gemini approved articles v{version}"], None)
-    git(repo_root, ["tag", "-a", f"v{version}", "-m", f"Pantheon content release v{version}"], None)
+    git(repo_root, release_plan["tag"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if release_gate:
         _run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
     if push:
         try:
-            git(repo_root, ["push", "--atomic", "origin", "HEAD:main", f"v{version}"], None)
+            git(repo_root, release_plan["push"], None)
         except Exception as push_error:
             git(repo_root, ["fetch", "origin", "main"], None)
             remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
@@ -3241,7 +3312,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    _trim_configured_launchd_logs()
     args = parse_args()
     new_only = bool(getattr(args, "new_only", False))
     exact_run_ids = _normalize_exact_run_ids(
@@ -3302,6 +3372,8 @@ def main() -> int:
             selector_kwargs["seed_translations"] = False
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
+    _validate_formal_runtime(repo_root, queue_root, state_root)
+    _trim_configured_launchd_logs()
     contract_values = (
         getattr(args, "expected_repo_root", None),
         getattr(args, "expected_queue_root", None),
@@ -3406,6 +3478,7 @@ def main() -> int:
                 **selector_kwargs,
             )
     else:
+        _validate_formal_runtime(repo_root, queue_root, state_root)
         with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
             if fresh_ja_run_id is not None:
                 result = publish_exact_fresh_ja_translation_run(

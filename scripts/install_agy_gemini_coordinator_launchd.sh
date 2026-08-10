@@ -111,18 +111,12 @@ CONTENT_PUBLISHER_ROOT="$(manifest_field publisher_state_root)"
 LOG_DIR="$(manifest_field log_root)"
 RUNTIME_MANIFEST_DIGEST="$(manifest_field manifest_digest)"
 RUNTIME_IDENTITY="$(manifest_field identity)"
-ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation.barrier"
-if [[ "${ACTION}" == "--install" ]]; then
-  ACTIVATION_DIGEST="$("${PYTHON_PATH}" -c 'import secrets; print(secrets.token_hex(32))')"
-elif [[ "${ACTION}" == "--activate" ]]; then
-  ACTIVATION_DIGEST="$(cat "${STAGE_DIR}/activation-digest" 2>/dev/null || true)"
-  if [[ ! "${ACTIVATION_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "找不到 valid private activation stage。" >&2
-    exit 1
-  fi
-else
-  ACTIVATION_DIGEST="${RUNTIME_MANIFEST_DIGEST}"
-fi
+RUNTIME_IDENTITY_DIGEST="$(manifest_field runtime_identity_digest)"
+RUNTIME_CODE_DIGEST="$(manifest_field runtime_digest)"
+RUNTIME_CONFIG_VERSION="$(manifest_field config_version)"
+RUNTIME_GENERATION="$(manifest_field generation)"
+ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
+READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
 if [[ "${ACTOR_ROOT}" != "${REPO_ROOT}" ]]; then
   echo "runtime manifest actor root 與 coordinator installer 不一致。" >&2
@@ -178,13 +172,15 @@ TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${ACTIVATION_DIGEST}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${PYTHON_PATH}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:15 ${QUEUE_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${REPO_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:19 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:22 ${CONTENT_PUBLISHER_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:24 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${QUEUE_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${REPO_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:25 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:28 ${CONTENT_PUBLISHER_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:30 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_NEW_ONLY ${NEW_ONLY}" "${TEMP_PLIST}"
@@ -195,6 +191,11 @@ if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
 fi
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST_DIGEST ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST ${RUNTIME_MANIFEST_FILE}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY_DIGEST ${RUNTIME_IDENTITY_DIGEST}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_CODE_DIGEST ${RUNTIME_CODE_DIGEST}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_CONFIG_VERSION ${RUNTIME_CONFIG_VERSION}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_GENERATION ${RUNTIME_GENERATION}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY ${RUNTIME_IDENTITY}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_ROOT ${ACTOR_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
@@ -219,10 +220,13 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :Label ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${ACTIVATION_DIGEST}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:15 ${QUEUE_ROOT}/lanes/${LANE}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${LANE}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${QUEUE_ROOT}/lanes/${LANE}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${LANE}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_NEW_ONLY ${NEW_ONLY}" "${LANE_TEMP_PLIST}"
@@ -233,6 +237,12 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   fi
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST_DIGEST ${RUNTIME_MANIFEST_DIGEST}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST ${RUNTIME_MANIFEST_FILE}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_SERVICE_LABEL ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY_DIGEST ${RUNTIME_IDENTITY_DIGEST}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_CODE_DIGEST ${RUNTIME_CODE_DIGEST}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_CONFIG_VERSION ${RUNTIME_CONFIG_VERSION}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_GENERATION ${RUNTIME_GENERATION}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY ${RUNTIME_IDENTITY}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_ROOT ${ACTOR_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${LANE_TEMP_PLIST}"
@@ -279,13 +289,14 @@ if [[ "${ACTION}" == "--install" ]]; then
     install -m 600 "${TEMP_PLISTS[${INDEX}]}" "${STAGED_PLISTS[${INDEX}]}"
   done
   printf '%s\n' "${RUNTIME_MANIFEST_DIGEST}" > "${STAGE_DIR}/manifest-digest"
-  printf '%s\n' "${ACTIVATION_DIGEST}" > "${STAGE_DIR}/activation-digest"
+  printf '%s\n' "${RUNTIME_GENERATION}" > "${STAGE_DIR}/generation"
   echo "Pantheon Gemini coordinator 與四條 lane plist 已寫入 private stage；尚未 activation。"
   exit 0
 fi
 
 if [[ ! -d "${STAGE_DIR}" \
-  || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" ]]; then
+  || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
+  || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" ]]; then
   echo "找不到 matching aggregate stage receipt，拒絕 activation。" >&2
   exit 1
 fi
@@ -302,6 +313,9 @@ done
 )
 
 STARTED_LABELS=()
+normalize_control_identity() {
+  sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
+}
 rollback_activation() {
   local RETURN_CODE="$1"
   local ROLLBACK_FAILED=0
@@ -329,23 +343,33 @@ rollback_activation() {
     if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" \
       && -f "${TARGET}" ]]; then
       if ! launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
-        || ! launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+        || ! launchctl print "gui/${USER_ID}/${LABEL}" \
+          > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
         ROLLBACK_FAILED=1
+      else
+        normalize_control_identity "${STAGE_DIR}/${LABEL}.actual_identity" \
+          > "${STAGE_DIR}/${LABEL}.actual_identity.stable"
+        cmp -s "${STAGE_DIR}/${LABEL}.previous_identity.stable" \
+          "${STAGE_DIR}/${LABEL}.actual_identity.stable" || ROLLBACK_FAILED=1
       fi
     elif launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       ROLLBACK_FAILED=1
     fi
   done
   if [[ -f "${STAGE_DIR}/previous-barrier" ]]; then
-    install -m 600 "${STAGE_DIR}/previous-barrier" "${ACTIVATION_BARRIER}" \
+    PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
+    install -m 600 "${STAGE_DIR}/previous-barrier" "${PREVIOUS_BARRIER_PATH}" \
       || ROLLBACK_FAILED=1
     if ! (cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m \
       scripts.pantheon_content_runtime_manifest barrier-validate \
-      --barrier "${ACTIVATION_BARRIER}" \
-      --expected-digest "$(cat "${STAGE_DIR}/previous-activation-digest")") \
+      --barrier "${PREVIOUS_BARRIER_PATH}" \
+      --manifest "${STAGE_DIR}/previous-runtime-manifest.json" \
+      --expected-digest "$(cat "${STAGE_DIR}/previous-manifest-digest")") \
       >/dev/null; then
       ROLLBACK_FAILED=1
     fi
+  elif grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded; then
+    ROLLBACK_FAILED=1
   fi
   if [[ "${ROLLBACK_FAILED}" == "1" ]]; then
     ROLLBACK_STATUS="ROLLBACK_FAILED"
@@ -361,7 +385,8 @@ rollback_activation() {
 rm -rf "${STAGE_DIR}/backups"
 mkdir -p "${STAGE_DIR}/backups"
 rm -f "${STAGE_DIR}/previous-barrier" "${STAGE_DIR}/previous-barrier-missing" \
-  "${STAGE_DIR}/previous-activation-digest"
+  "${STAGE_DIR}/previous-runtime-manifest.json" "${STAGE_DIR}/previous-manifest-digest" \
+  "${STAGE_DIR}/previous-barrier-path"
 for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
@@ -372,27 +397,42 @@ for INDEX in 0 1 2 3 4 5 6; do
   fi
   if launchctl print "gui/${USER_ID}/${LABEL}" > "${STAGE_DIR}/${LABEL}.previous_identity" 2>/dev/null; then
     printf '1\n' > "${STAGE_DIR}/${LABEL}.previous_loaded"
+    normalize_control_identity "${STAGE_DIR}/${LABEL}.previous_identity" \
+      > "${STAGE_DIR}/${LABEL}.previous_identity.stable"
   else
     printf '0\n' > "${STAGE_DIR}/${LABEL}.previous_loaded"
   fi
 done
-PREVIOUS_ACTIVATION_DIGEST=""
+PREVIOUS_MANIFEST=""
+PREVIOUS_MANIFEST_DIGEST=""
+PREVIOUS_BARRIER_PATH=""
 if [[ -f "${STAGE_DIR}/backups/com.pantheon.agy-gemini-coordinator.plist" ]]; then
-  PREVIOUS_ACTIVATION_DIGEST="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:7' \
+  PREVIOUS_MANIFEST="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST' \
+    "${STAGE_DIR}/backups/com.pantheon.agy-gemini-coordinator.plist" 2>/dev/null || true)"
+  PREVIOUS_MANIFEST_DIGEST="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST_DIGEST' \
+    "${STAGE_DIR}/backups/com.pantheon.agy-gemini-coordinator.plist" 2>/dev/null || true)"
+  PREVIOUS_BARRIER_PATH="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:5' \
     "${STAGE_DIR}/backups/com.pantheon.agy-gemini-coordinator.plist" 2>/dev/null || true)"
 fi
-if [[ -f "${ACTIVATION_BARRIER}" && "${PREVIOUS_ACTIVATION_DIGEST}" =~ ^[0-9a-f]{64}$ ]] \
+if [[ "${PREVIOUS_BARRIER_PATH}" == /* && -f "${PREVIOUS_BARRIER_PATH}" \
+  && -f "${PREVIOUS_MANIFEST}" \
+  && "${PREVIOUS_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]] \
   && (cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest \
-    barrier-validate --barrier "${ACTIVATION_BARRIER}" \
-    --expected-digest "${PREVIOUS_ACTIVATION_DIGEST}") >/dev/null; then
-  cp "${ACTIVATION_BARRIER}" "${STAGE_DIR}/previous-barrier"
-  printf '%s\n' "${PREVIOUS_ACTIVATION_DIGEST}" > "${STAGE_DIR}/previous-activation-digest"
+    barrier-validate --barrier "${PREVIOUS_BARRIER_PATH}" \
+    --manifest "${PREVIOUS_MANIFEST}" \
+    --expected-digest "${PREVIOUS_MANIFEST_DIGEST}") >/dev/null; then
+  cp "${PREVIOUS_BARRIER_PATH}" "${STAGE_DIR}/previous-barrier"
+  cp "${PREVIOUS_MANIFEST}" "${STAGE_DIR}/previous-runtime-manifest.json"
+  printf '%s\n' "${PREVIOUS_MANIFEST_DIGEST}" > "${STAGE_DIR}/previous-manifest-digest"
+  printf '%s\n' "${PREVIOUS_BARRIER_PATH}" > "${STAGE_DIR}/previous-barrier-path"
 else
   : > "${STAGE_DIR}/previous-barrier-missing"
 fi
 
 trap 'rollback_activation $?' ERR
 rm -f "${ACTIVATION_BARRIER}"
+rm -rf "${READY_ROOT}"
+mkdir -p "${READY_ROOT}"
 for INDEX in 0 1 2 3 4 5 6; do
   install -m 600 "${STAGED_PLISTS[${INDEX}]}" "${TARGET_PLISTS[${INDEX}]}"
 done
@@ -406,7 +446,7 @@ for INDEX in 0 1 2 3 4 5 6; do
     fi
   fi
 done
-for INDEX in 0 1 2 3 4; do
+for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
   STARTED_LABELS+=("${LABEL}")
@@ -424,18 +464,13 @@ done
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
     "${LIVE_AGGREGATE_ARGS[@]}"
 ) >/dev/null
-BARRIER_TEMP="${ACTIVATION_BARRIER}.tmp.$$"
-printf '{"manifest_digest":"%s","owner_uid":%s,"schema_version":1}\n' \
-  "${ACTIVATION_DIGEST}" "${USER_ID}" > "${BARRIER_TEMP}"
-chmod 600 "${BARRIER_TEMP}"
-mv "${BARRIER_TEMP}" "${ACTIVATION_BARRIER}"
-for INDEX in 5 6; do
-  LABEL="${LABELS[${INDEX}]}"
-  TARGET="${TARGET_PLISTS[${INDEX}]}"
-  STARTED_LABELS+=("${LABEL}")
-  launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
-  launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
-done
+(cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest \
+  barrier-activate \
+  --manifest "${RUNTIME_MANIFEST_FILE}" \
+  --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
+  --ready-root "${READY_ROOT}" \
+  --barrier "${ACTIVATION_BARRIER}" \
+  --timeout 90) >/dev/null
 trap - ERR
 rm -rf "${STAGE_DIR}"
 

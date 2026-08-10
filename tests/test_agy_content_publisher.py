@@ -12,6 +12,7 @@ import pytest
 
 from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
@@ -41,6 +42,51 @@ def make_publication_policy(
         "modified": modified,
         "changeType": change_type,
     }
+
+
+def test_formal_publisher_rejects_manifest_drift_before_state_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-publisher",
+        runtime_digest="3" * 64,
+        generation="generation-publisher",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"])
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST", manifest["runtime_identity_digest"]
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.agy-content-publisher"
+    )
+    manifest_path.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        publisher.publish_ready_runs(
+            actor,
+            queue,
+            state,
+            dry_run=True,
+            git=lambda *_args: pytest.fail("git must not run"),
+        )
+
+    assert not (state / "publisher.lock").exists()
 
 
 def _long(text: str) -> str:
@@ -2848,8 +2894,11 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
     assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
     assert "四軌 recovery 禁止 new-only" in installer
-    assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
-    assert arguments[3:11] == [
+    assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
+    separator = arguments.index("--")
+    service_arguments = arguments[separator + 1 :]
+    assert service_arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
+    assert service_arguments[3:11] == [
         "--repo-root",
         "__REPO_ROOT__",
         "--queue-root",
@@ -2859,7 +2908,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "--max-runs",
         "__MAX_RUNS__",
     ]
-    assert arguments[11:] == [
+    assert service_arguments[11:] == [
         "--include-rewrites",
         "--push",
         "--expected-repo-root",

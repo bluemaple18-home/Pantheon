@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import os
 import plistlib
 import subprocess
 import sys
@@ -30,18 +32,7 @@ def test_runtime_manifest_canonicalizes_one_shared_cross_actor_contract(
         log_root=logs,
         identity="synthetic-operator:501",
     )
-    receipts = [
-        {
-            "label": label,
-            "actor_root": str(actor.resolve()),
-            "queue_root": str(queue.resolve()),
-            "publisher_state_root": str(state.resolve()),
-            "log_root": str(logs.resolve()),
-            "identity": "synthetic-operator:501",
-            "manifest_digest": manifest["manifest_digest"],
-        }
-        for label in runtime.SERVICE_LABELS
-    ]
+    receipts = [runtime.receipt_for_label(manifest, label) for label in runtime.SERVICE_LABELS]
 
     assert runtime.validate_receipts(manifest, receipts)["status"] == "PASS"
     assert manifest["regression_id"] == REGRESSION_ID
@@ -148,6 +139,17 @@ def test_aggregate_gate_rejects_mixed_manifest_plists(tmp_path: Path) -> None:
                             "manifest_digest"
                         ],
                         "PANTHEON_RUNTIME_IDENTITY": manifest_a["identity"],
+                        "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+                        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest_a[
+                            "runtime_identity_digest"
+                        ],
+                        "PANTHEON_RUNTIME_CODE_DIGEST": manifest_a[
+                            "runtime_digest"
+                        ],
+                        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest_a[
+                            "config_version"
+                        ],
+                        "PANTHEON_RUNTIME_GENERATION": manifest_a["generation"],
                         "PANTHEON_RUNTIME_ACTOR_ROOT": manifest_a["actor_root"],
                         "PANTHEON_RUNTIME_QUEUE_ROOT": manifest_a["queue_root"],
                         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest_a[
@@ -210,3 +212,277 @@ def test_stale_or_malformed_activation_barrier_fails_closed(tmp_path: Path) -> N
     completed = subprocess.run(command, check=False)
 
     assert completed.returncode == 78
+
+
+def test_runtime_identity_contract_contains_generation_and_runtime_digest(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-runtime:test",
+        runtime_digest="a" * 64,
+        config_version="runtime-v2",
+        generation="generation-001",
+    )
+
+    assert manifest["schema_version"] == 2
+    assert manifest["runtime_digest"] == "a" * 64
+    assert manifest["config_version"] == "runtime-v2"
+    assert manifest["generation"] == "generation-001"
+    assert len(manifest["runtime_identity_digest"]) == 64
+    receipt = runtime.receipt_for_label(manifest, runtime.SERVICE_LABELS[0])
+    assert receipt["service_label"] == runtime.SERVICE_LABELS[0]
+    assert receipt["runtime_identity_digest"] == manifest["runtime_identity_digest"]
+
+
+def test_seven_service_barrier_requires_complete_matching_acknowledgements(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    ready = tmp_path / "ready"
+    barrier = tmp_path / "activation.barrier"
+    for path in (actor, queue, state, logs, ready):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-runtime:test",
+        runtime_digest="b" * 64,
+        config_version="runtime-v2",
+        generation="generation-002",
+    )
+    for label in runtime.SERVICE_LABELS[:-1]:
+        runtime.write_readiness_ack(ready, manifest, label)
+
+    with pytest.raises(runtime.RuntimeManifestError, match="incomplete"):
+        runtime.activate_barrier(barrier, ready, manifest)
+    assert not barrier.exists()
+
+    runtime.write_readiness_ack(ready, manifest, runtime.SERVICE_LABELS[-1])
+    activation = runtime.activate_barrier(barrier, ready, manifest)
+
+    assert activation["status"] == "PASS"
+    assert runtime.validate_barrier(barrier, manifest)["status"] == "PASS"
+    assert len(activation["acknowledgements"]) == 7
+
+
+def test_runtime_tick_rejects_drift_before_queue_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-runtime:test",
+        runtime_digest="c" * 64,
+        config_version="runtime-v2",
+        generation="generation-003",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"]
+    )
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST",
+        manifest["runtime_identity_digest"],
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", runtime.SERVICE_LABELS[1]
+    )
+    tampered = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tampered["generation"] = "generation-stale"
+    manifest_path.write_text(json.dumps(tampered), encoding="utf-8")
+    marker = queue / "must-not-exist"
+
+    with pytest.raises(runtime.RuntimeManifestError):
+        runtime.validate_runtime_tick(
+            runtime.SERVICE_LABELS[1],
+            queue_root=queue,
+            state_root=state,
+            actor_root=actor,
+            log_root=logs,
+        )
+
+    assert not marker.exists()
+
+
+def test_rollback_identity_requires_saved_actual_control_plane_match() -> None:
+    expected = {
+        label: {
+            "loaded": True,
+            "config_digest": f"{ordinal:064x}",
+            "control_identity_digest": f"{ordinal + 10:064x}",
+        }
+        for ordinal, label in enumerate(runtime.SERVICE_LABELS, 1)
+    }
+    actual = json.loads(json.dumps(expected))
+
+    assert runtime.validate_rollback_identities(expected, actual)["status"] == "PASS"
+
+    actual[runtime.SERVICE_LABELS[-1]]["control_identity_digest"] = "f" * 64
+    with pytest.raises(runtime.RuntimeManifestError, match="ROLLBACK_FAILED"):
+        runtime.validate_rollback_identities(expected, actual)
+
+
+@pytest.mark.parametrize("service_label", runtime.SERVICE_LABELS)
+def test_each_service_identity_mismatch_fails_before_first_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    service_label: str,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="seven-service-matrix",
+        runtime_digest="d" * 64,
+        config_version="runtime-v2",
+        generation="generation-matrix",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    environment = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+        "PANTHEON_RUNTIME_SERVICE_LABEL": service_label,
+        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
+        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+    }
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("PANTHEON_RUNTIME_CONFIG_VERSION", "stale-config")
+    lane = service_label.removeprefix("com.pantheon.agy-gemini-")
+    service_queue = (
+        queue / "lanes" / lane
+        if service_label.startswith("com.pantheon.agy-gemini-")
+        and service_label != "com.pantheon.agy-gemini-coordinator"
+        else queue
+    )
+    marker = queue / "must-not-exist"
+
+    with pytest.raises(runtime.RuntimeManifestError, match="identity mismatch"):
+        runtime.validate_runtime_tick(
+            service_label,
+            queue_root=service_queue,
+            state_root=state,
+            actor_root=actor,
+            log_root=logs,
+        )
+
+    assert not marker.exists()
+
+
+def test_early_service_acknowledges_but_cannot_run_before_barrier(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    ready = tmp_path / "ready"
+    for path in (actor, queue, state, logs, ready):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="early-service",
+        runtime_digest="e" * 64,
+        config_version="runtime-v2",
+        generation="generation-early",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "early-mutation"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PANTHEON_FORMAL_RUNTIME": "1",
+            "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+            "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+            "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+            "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+            "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+            "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+            "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+            "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+            "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+            "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+            "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
+            "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        }
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(tmp_path / "missing.barrier"),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(ready),
+            "--timeout",
+            "1",
+            "--",
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+        ],
+        check=False,
+        env=environment,
+    )
+
+    assert completed.returncode == 75
+    assert (ready / f"{label}.json").is_file()
+    assert not marker.exists()

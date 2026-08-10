@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from scripts import pantheon_content_capacity_guard as guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
@@ -42,6 +44,46 @@ def test_log_rotation_keeps_inode_and_tail(tmp_path: Path) -> None:
     assert path.stat().st_ino == inode
     assert path.stat().st_size == guard.LOG_RETAIN_BYTES
     assert path.read_bytes().endswith(b"final-tail")
+
+
+def test_formal_capacity_guard_rejects_manifest_drift_before_state_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "publisher-state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-capacity",
+        runtime_digest="4" * 64,
+        generation="generation-capacity",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"])
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST", manifest["runtime_identity_digest"]
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.content-capacity-guard"
+    )
+    manifest_path.write_text("{}\n", encoding="utf-8")
+    state_file = tmp_path / "capacity-state.json"
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        guard.check_once(queue, state, logs, state_file)
+
+    assert not state_file.exists()
 
 
 def test_measure_tree_ignores_directory_that_disappears_during_scan(
@@ -357,8 +399,14 @@ def test_stop_loss_is_stopped_only_after_every_registered_identity_is_absent(
 
 def test_bounded_runner_records_two_write_cycles_reclamation_and_stop_loss(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     """REG-PANTHEON-CAPACITY-WRITE-CYCLES-001。"""
+    monkeypatch.setattr(
+        guard,
+        "_swap_used_bytes",
+        lambda: {"value": 0, "available": True, "error": None},
+    )
     receipt_path = tmp_path / "capacity-exercise.json"
     receipt = guard.run_bounded_exercise(
         tmp_path / "exercise",

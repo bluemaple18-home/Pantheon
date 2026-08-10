@@ -16,6 +16,8 @@ import tempfile
 import time
 from typing import Any, Callable
 
+from scripts import pantheon_content_runtime_manifest as formal_runtime
+
 
 GIB = 1024**3
 MIB = 1024**2
@@ -256,12 +258,22 @@ def _stop_services(runner: Runner = _run) -> dict[str, dict[str, Any]]:
     return outcomes
 
 
-def _snapshot(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[str, Any]:
+def _snapshot(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    *,
+    runner: Runner = _run,
+) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
     total_disk, free_disk = _disk_sample(queue_root)
-    rss = _service_rss_bytes()
-    swap = _swap_used_bytes()
+    if runner is _run:
+        rss = _service_rss_bytes()
+        swap = _swap_used_bytes()
+    else:
+        rss = _service_rss_bytes(runner)
+        swap = _swap_used_bytes(runner)
     return {
         "bytes": sum(item[0] for item in measured),
         "file_count": sum(item[1] for item in measured),
@@ -277,8 +289,27 @@ def _snapshot(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[st
     }
 
 
-def preflight(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[str, Any]:
-    sample = _snapshot(queue_root, publisher_root, log_root)
+def preflight(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    *,
+    runner: Runner = _run,
+) -> dict[str, Any]:
+    formal_runtime.validate_runtime_tick(
+        "com.pantheon.content-capacity-guard",
+        queue_root=queue_root.resolve(),
+        state_root=publisher_root.resolve(),
+        actor_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+        ),
+        log_root=log_root.resolve(),
+    )
+    sample = (
+        _snapshot(queue_root, publisher_root, log_root)
+        if runner is _run
+        else _snapshot(queue_root, publisher_root, log_root, runner=runner)
+    )
     reasons: list[str] = []
     if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
         reasons.append("disk_free_below_start_floor")
@@ -302,6 +333,15 @@ def check_once(
     now: float | None = None,
     stop_runner: Runner = _run,
 ) -> dict[str, Any]:
+    formal_runtime.validate_runtime_tick(
+        "com.pantheon.content-capacity-guard",
+        queue_root=queue_root.resolve(),
+        state_root=publisher_root.resolve(),
+        actor_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+        ),
+        log_root=log_root.resolve(),
+    )
     reclaimed = sum(_trim_log(log_root / name) for name in LOG_NAMES)
     current = _snapshot(queue_root, publisher_root, log_root)
     timestamp = time.time() if now is None else now

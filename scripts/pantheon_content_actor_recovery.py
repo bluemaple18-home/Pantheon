@@ -142,6 +142,9 @@ def _provision_and_preflight(
         publisher_state_root=state,
         log_root=logs,
         identity=f"actor-recovery:{source_sha}:{runtime_digest}",
+        runtime_digest=runtime_digest,
+        config_version="formal-runtime-v2",
+        generation=f"actor-recovery-{source_sha[:16]}",
     )
     write_manifest(manifest_path, manifest)
     env.update(
