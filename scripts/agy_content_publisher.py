@@ -1438,8 +1438,19 @@ def _cleanup_stale_transaction_worktrees(
     repo_root: Path,
     state_root: Path,
     git: GitRunner = run_git,
+    *,
+    operation_trace: OperationTraceRecorder | None = None,
+    sandbox_authority: TrustedSandboxDirectoryAuthority | None = None,
 ) -> list[Path]:
     """只回收專用 state root 直屬的 transaction 暫存 worktree。"""
+    if sandbox_authority is not None:
+        return _cleanup_stale_transaction_worktrees_with_authority(
+            repo_root,
+            state_root,
+            git,
+            operation_trace=operation_trace,
+            sandbox_authority=sandbox_authority,
+        )
     cleaned: list[Path] = []
     for transaction_parent in sorted(state_root.iterdir()):
         if (
@@ -1470,6 +1481,71 @@ def _cleanup_stale_transaction_worktrees(
     return cleaned
 
 
+def _cleanup_stale_transaction_worktrees_with_authority(
+    repo_root: Path,
+    state_root: Path,
+    git: GitRunner,
+    *,
+    operation_trace: OperationTraceRecorder | None,
+    sandbox_authority: TrustedSandboxDirectoryAuthority,
+) -> list[Path]:
+    """透過 held sandbox fd 清理 stale transaction，避免 post-lock parent swap。"""
+    try:
+        state_relative = state_root.relative_to(sandbox_authority.root)
+    except ValueError as error:
+        raise FilesystemAuthorityError(
+            "sandbox relative target escaped sandbox"
+        ) from error
+    cleaned: list[Path] = []
+    for transaction_name, entry_kind in sandbox_authority.list_directory_entries(
+        state_relative
+    ):
+        if re.fullmatch(r"transaction-[A-Za-z0-9_-]+", transaction_name) is None:
+            continue
+        if entry_kind != "directory":
+            raise FilesystemAuthorityError(
+                "stale transaction cleanup target is not a directory"
+            )
+        transaction_relative = state_relative / transaction_name
+        transaction_parent = state_root / transaction_name
+        transaction_root = transaction_parent / "repo"
+        transaction_root_relative = transaction_relative / "repo"
+        if sandbox_authority.exists(transaction_root_relative):
+            try:
+                git(
+                    repo_root,
+                    ["worktree", "remove", "--force", str(transaction_root)],
+                    None,
+                )
+            except Exception:
+                if operation_trace is None:
+                    sandbox_authority.remove_tree(transaction_root_relative)
+                else:
+                    operation_trace.record_path_operation(
+                        "filesystem-stale-transaction-repo-remove",
+                        transaction_root,
+                        lambda: sandbox_authority.remove_tree(
+                            transaction_root_relative
+                        ),
+                    )
+        if operation_trace is None:
+            sandbox_authority.remove_tree(transaction_relative)
+        else:
+            operation_trace.record_path_operation(
+                "filesystem-stale-transaction-remove",
+                transaction_parent,
+                lambda: sandbox_authority.remove_tree(transaction_relative),
+            )
+        if sandbox_authority.exists(transaction_relative):
+            raise PublishBlocked(
+                f"stale transaction cleanup failed: {transaction_parent}"
+            )
+        cleaned.append(transaction_parent)
+    if cleaned:
+        git(repo_root, ["worktree", "prune"], None)
+    return cleaned
+
+
 @contextmanager
 def _isolated_transaction_worktree(
     repo_root: Path,
@@ -1491,7 +1567,13 @@ def _isolated_transaction_worktree(
         operation_trace,
         sandbox_authority,
     ):
-        _cleanup_stale_transaction_worktrees(repo_root, state_root, git)
+        _cleanup_stale_transaction_worktrees(
+            repo_root,
+            state_root,
+            git,
+            operation_trace=operation_trace,
+            sandbox_authority=sandbox_authority,
+        )
         git(repo_root, ["fetch", "origin", "main"], None)
         if not _repo_clean(repo_root, git):
             raise PublishBlocked("publisher actor worktree is not clean")

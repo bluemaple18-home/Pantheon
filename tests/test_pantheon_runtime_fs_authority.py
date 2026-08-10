@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 
 from scripts import agy_content_publisher as publisher
+from scripts.pantheon_runtime_fs_authority import (
+    FilesystemAuthorityError,
+    TrustedSandboxDirectoryAuthority,
+)
 
 
 RUNTIME_RECEIPT = {
@@ -189,6 +193,207 @@ def test_formal_transaction_blocks_late_parent_swap_before_git_lock_io(
     assert not (
         external_root / ".git" / "agy-content-publisher.lifecycle.lock"
     ).exists()
+
+
+def test_formal_transaction_post_lock_cleanup_swap_preserves_external_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
+    for path in (queue_root, state_root):
+        path.mkdir(parents=True)
+    (sandbox_root / ".git").mkdir()
+    displaced_root = tmp_path / "displaced-sandbox"
+    external_root = tmp_path / "external"
+    external_stale = external_root / "publisher-state" / "transaction-escape"
+    external_marker = external_stale / "repo" / "marker.txt"
+    external_marker.parent.mkdir(parents=True)
+    external_marker.write_text("external marker\n", encoding="utf-8")
+    before_external = _tree_snapshot(external_root)
+    original_record = publisher.OperationTraceRecorder.record_path_operation
+
+    def swap_after_lock_open(
+        self: publisher.OperationTraceRecorder,
+        operation: str,
+        target: Path,
+        mutation: object,
+    ) -> object:
+        result = original_record(self, operation, target, mutation)
+        if operation == "filesystem-lock-open":
+            sandbox_root.rename(displaced_root)
+            sandbox_root.symlink_to(external_root, target_is_directory=True)
+        return result
+
+    monkeypatch.setattr(
+        publisher.OperationTraceRecorder,
+        "record_path_operation",
+        swap_after_lock_open,
+    )
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="authority|identity|drift|escaped|sandbox",
+    ):
+        publisher.formal_capability_preflight(
+            "transaction",
+            run_ids=["run-a"],
+            correlation_id="post-lock-cleanup-swap-red",
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=RUNTIME_RECEIPT,
+        )
+
+    assert _tree_snapshot(external_root) == before_external
+    assert external_marker.read_text(encoding="utf-8") == "external marker\n"
+
+
+def test_formal_transaction_cleans_stale_worktree_with_authority_trace(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
+    stale_marker = state_root / "transaction-stale" / "repo" / "marker.txt"
+    stale_marker.parent.mkdir(parents=True)
+    stale_marker.write_text("stale\n", encoding="utf-8")
+    queue_root.mkdir()
+    (sandbox_root / ".git").mkdir()
+
+    result = publisher.formal_capability_preflight(
+        "transaction",
+        run_ids=["run-a"],
+        correlation_id="stale-cleanup-authority-green",
+        trusted_sandbox_root=sandbox_root,
+        queue_root=queue_root,
+        state_root=state_root,
+        runtime_receipt=RUNTIME_RECEIPT,
+    )
+
+    assert result["status"] == "PASS"
+    assert not (state_root / "transaction-stale").exists()
+    operations = [event["operation"] for event in result["operation_trace"]]
+    assert "git-worktree-remove" in operations
+    assert "filesystem-stale-transaction-remove" in operations
+    for event in result["operation_trace"]:
+        assert not event["relative_target"].startswith("/")
+
+
+def test_authority_stale_cleanup_keeps_non_transaction_entry(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    state_root = sandbox_root / "publisher-state"
+    marker = state_root / "cache-entry" / "repo" / "marker.txt"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("keep\n", encoding="utf-8")
+
+    with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
+        cleaned = publisher._cleanup_stale_transaction_worktrees(
+            tmp_path,
+            state_root,
+            lambda _repo, _args, _input: "",
+            sandbox_authority=sandbox_authority,
+        )
+
+    assert cleaned == []
+    assert marker.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_authority_stale_cleanup_rejects_transaction_symlink(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    state_root = sandbox_root / "publisher-state"
+    target_root = tmp_path / "target"
+    state_root.mkdir(parents=True)
+    target_root.mkdir()
+    (state_root / "transaction-link").symlink_to(
+        target_root,
+        target_is_directory=True,
+    )
+
+    with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
+        with pytest.raises(FilesystemAuthorityError, match="not a directory"):
+            publisher._cleanup_stale_transaction_worktrees(
+                tmp_path,
+                state_root,
+                lambda _repo, _args, _input: "",
+                sandbox_authority=sandbox_authority,
+            )
+
+    assert (state_root / "transaction-link").is_symlink()
+    assert target_root.exists()
+
+
+def test_authority_stale_cleanup_removes_missing_repo_parent_idempotently(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    state_root = sandbox_root / "publisher-state"
+    stale_parent = state_root / "transaction-empty"
+    stale_parent.mkdir(parents=True)
+    git_calls: list[list[str]] = []
+
+    def git(_repo: Path, args: list[str], _input: str | None) -> str:
+        git_calls.append(args)
+        return ""
+
+    with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
+        cleaned = publisher._cleanup_stale_transaction_worktrees(
+            tmp_path,
+            state_root,
+            git,
+            sandbox_authority=sandbox_authority,
+        )
+
+    assert cleaned == [stale_parent]
+    assert not stale_parent.exists()
+    assert ["worktree", "remove", "--force", str(stale_parent / "repo")] not in git_calls
+    assert ["worktree", "prune"] in git_calls
+
+
+def test_authority_stale_cleanup_exception_keeps_authority_usable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    state_root = sandbox_root / "publisher-state"
+    stale_marker = state_root / "transaction-fail" / "repo" / "marker.txt"
+    stale_marker.parent.mkdir(parents=True)
+    stale_marker.write_text("stale\n", encoding="utf-8")
+    original_remove_tree = TrustedSandboxDirectoryAuthority.remove_tree
+    calls = 0
+
+    def fail_parent_remove(
+        self: TrustedSandboxDirectoryAuthority,
+        relative: Path | str,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if Path(relative).as_posix() == "publisher-state/transaction-fail":
+            raise FilesystemAuthorityError("injected cleanup failure")
+        original_remove_tree(self, relative)
+
+    monkeypatch.setattr(
+        TrustedSandboxDirectoryAuthority,
+        "remove_tree",
+        fail_parent_remove,
+    )
+
+    with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
+        with pytest.raises(FilesystemAuthorityError, match="injected"):
+            publisher._cleanup_stale_transaction_worktrees(
+                tmp_path,
+                state_root,
+                lambda _repo, _args, _input: "",
+                sandbox_authority=sandbox_authority,
+            )
+        assert sandbox_authority.exists("publisher-state")
+
+    assert calls >= 1
 
 
 def test_formal_preflight_blocks_unverified_trace_identity(

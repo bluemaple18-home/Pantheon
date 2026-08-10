@@ -262,6 +262,44 @@ class TrustedSandboxDirectoryAuthority:
             os.close(parent_fd)
             self.assert_current()
 
+    def list_directory_entries(
+        self,
+        relative: os.PathLike[str] | str,
+    ) -> tuple[tuple[str, str], ...]:
+        parts = self._relative_parts(relative)
+        self.assert_current()
+        directory_fd = self._open_parent_fd(parts)
+        try:
+            entries: list[tuple[str, str]] = []
+            for name in sorted(os.listdir(directory_fd)):
+                if name in {"", ".", ".."}:
+                    raise FilesystemAuthorityError(
+                        "sandbox relative entry has unsafe component"
+                    )
+                try:
+                    entry_stat = os.stat(
+                        name,
+                        dir_fd=directory_fd,
+                        follow_symlinks=False,
+                    )
+                except OSError as error:
+                    raise FilesystemAuthorityError(
+                        "sandbox relative entry cannot be inspected"
+                    ) from error
+                if stat.S_ISDIR(entry_stat.st_mode):
+                    kind = "directory"
+                elif stat.S_ISLNK(entry_stat.st_mode):
+                    kind = "symlink"
+                elif stat.S_ISREG(entry_stat.st_mode):
+                    kind = "file"
+                else:
+                    kind = "other"
+                entries.append((name, kind))
+            return tuple(entries)
+        finally:
+            os.close(directory_fd)
+            self.assert_current()
+
     def makedirs(
         self,
         relative: os.PathLike[str] | str,
