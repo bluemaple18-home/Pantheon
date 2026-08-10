@@ -10,6 +10,7 @@ import pytest
 from scripts import pantheon_content_capability_probe as probe
 from scripts import pantheon_content_capability_adapter as adapter
 from scripts import agy_content_publisher as publisher
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
 
 REGRESSION_ID = "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001"
@@ -27,11 +28,183 @@ def _source_identity() -> tuple[str, str]:
     return parent, probe.production_source_digest(SOURCE_ROOT)
 
 
+def _tree_snapshot(root: Path) -> tuple[tuple[str, int, int, str | None], ...]:
+    entries: list[tuple[str, int, int, str | None]] = []
+    for path in root.rglob("*"):
+        stat_result = path.lstat()
+        entries.append(
+            (
+                path.relative_to(root).as_posix(),
+                stat_result.st_mode,
+                stat_result.st_size,
+                str(path.readlink()) if path.is_symlink() else None,
+            )
+        )
+    return tuple(sorted(entries))
+
+
+def test_environment_roots_cannot_self_authorize_publisher_sandbox(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    external_queue = tmp_path / "external-queue"
+    external_state = tmp_path / "external-state"
+    monkeypatch.setenv("PANTHEON_RUNTIME_QUEUE_ROOT", str(external_queue))
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT",
+        str(external_state),
+    )
+    before = _tree_snapshot(tmp_path)
+
+    with pytest.raises(publisher.PublishBlocked, match="sandbox authority"):
+        publisher.formal_capability_preflight(
+            "publish",
+            run_ids=["run-a"],
+            correlation_id="correlation-a",
+        )
+
+    assert _tree_snapshot(tmp_path) == before
+    assert not external_queue.exists()
+    assert not external_state.exists()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "external-queue",
+        "external-state",
+        "queue-symlink-escape",
+        "state-symlink-escape",
+        "sandbox-self",
+        "sandbox-parent",
+        "overlapping-roots",
+    ],
+)
+def test_publisher_preflight_rejects_untrusted_roots_before_io(
+    case: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
+    outside = tmp_path / "outside"
+    if case == "external-queue":
+        queue_root = tmp_path / "external-queue"
+    elif case == "external-state":
+        state_root = tmp_path / "external-state"
+    elif case == "queue-symlink-escape":
+        outside.mkdir()
+        queue_root.symlink_to(outside, target_is_directory=True)
+    elif case == "state-symlink-escape":
+        outside.mkdir()
+        state_root.symlink_to(outside, target_is_directory=True)
+    elif case == "sandbox-self":
+        queue_root = sandbox_root
+    elif case == "sandbox-parent":
+        queue_root = tmp_path
+    elif case == "overlapping-roots":
+        state_root = queue_root / "state"
+    before = _tree_snapshot(tmp_path)
+    events: list[str] = []
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> object:
+        events.append("io")
+        raise AssertionError("I/O must not start for an untrusted root")
+
+    monkeypatch.setattr(publisher, "run_git", fail_if_called)
+
+    with pytest.raises(publisher.PublishBlocked, match="root|overlap"):
+        publisher.formal_capability_preflight(
+            "publish",
+            run_ids=["run-a"],
+            correlation_id="correlation-a",
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+        )
+
+    assert events == []
+    assert _tree_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("external_field", ["queue_root", "publisher_state_root"])
+def test_adapter_contract_blocks_external_runtime_roots_without_mutation(
+    external_field: str,
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
+    log_root = sandbox_root / "logs"
+    external_root = tmp_path / "external"
+    for path in (sandbox_root, queue_root, state_root, log_root, external_root):
+        path.mkdir(parents=True, exist_ok=True)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=SOURCE_ROOT,
+        queue_root=external_root if external_field == "queue_root" else queue_root,
+        publisher_state_root=(
+            external_root
+            if external_field == "publisher_state_root"
+            else state_root
+        ),
+        log_root=log_root,
+        identity="external-root-rejection",
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    source = {
+        "runtime_manifest": str(manifest_path),
+        "runtime_manifest_digest": manifest["manifest_digest"],
+        "runtime_identity_digest": manifest["runtime_identity_digest"],
+        "sandbox_root": str(sandbox_root),
+    }
+    before = _tree_snapshot(tmp_path)
+
+    with pytest.raises(adapter.AdapterBlocked, match="root"):
+        adapter._load_contract(source)
+
+    assert _tree_snapshot(tmp_path) == before
+    assert external_root.is_dir()
+
+
+def test_dry_run_git_blocks_transaction_materialization_outside_sandbox(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
+    external_transaction = tmp_path / "external" / "repo"
+    before = _tree_snapshot(tmp_path)
+
+    with pytest.raises(publisher.PublishBlocked, match="transaction root"):
+        publisher._formal_capability_dry_run_git(
+            SOURCE_ROOT,
+            sandbox_root,
+            "a" * 40,
+            SOURCE_ROOT,
+            [
+                "worktree",
+                "add",
+                "--detach",
+                str(external_transaction),
+                "a" * 40,
+            ],
+        )
+
+    assert _tree_snapshot(tmp_path) == before
+    assert not external_transaction.exists()
+
+
 def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boundaries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[tuple[str, object]] = []
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
 
     def fake_publish(
         repo_root: Path,
@@ -68,7 +241,7 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
                 {"repo_root": repo_root, "state_root": state_root, "git": git},
             )
         )
-        yield tmp_path / "transaction"
+        yield sandbox_root / "transaction"
 
     def fake_release(
         repo_root: Path,
@@ -93,6 +266,9 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
             capability,
             run_ids=["run-a"],
             correlation_id="correlation-a",
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
         )
         for capability in ("publish", "transaction", "tag", "push")
     ]
@@ -131,8 +307,11 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
 
 
 def test_publisher_preflight_blocks_publish_return_without_runtime_identity(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
     monkeypatch.setattr(
         publisher,
         "publish_ready_runs",
@@ -144,6 +323,9 @@ def test_publisher_preflight_blocks_publish_return_without_runtime_identity(
             "publish",
             run_ids=["run-a"],
             correlation_id="correlation-a",
+            trusted_sandbox_root=sandbox_root,
+            queue_root=sandbox_root / "queue",
+            state_root=sandbox_root / "publisher-state",
         )
 
 
@@ -159,9 +341,12 @@ def test_publisher_preflight_blocks_publish_return_without_runtime_identity(
 def test_publisher_preflight_propagates_formal_boundary_rejection(
     capability: str,
     boundary_name: str,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
 
     @contextmanager
     def rejected_transaction(*_args: object, **_kwargs: object):
@@ -186,6 +371,9 @@ def test_publisher_preflight_propagates_formal_boundary_rejection(
             capability,
             run_ids=["run-a"],
             correlation_id="correlation-a",
+            trusted_sandbox_root=sandbox_root,
+            queue_root=sandbox_root / "queue",
+            state_root=sandbox_root / "publisher-state",
         )
 
     assert events == [capability]
@@ -227,6 +415,23 @@ def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path
         assert artifact["adapter_invocation"]["boundary"].endswith(
             f":{artifact['capability']}"
         )
+        if artifact["capability"] in {"select", "publish", "transaction", "tag", "push"}:
+            adapter_artifact = json.loads(
+                Path(artifact["adapter_invocation"]["receipt"]).read_text(
+                    encoding="utf-8"
+                )
+            )
+            publisher_result = adapter_artifact["publisher_result"]
+            assert publisher_result["production_mutation"] is False
+            assert isinstance(publisher_result["sandbox_mutation"], bool)
+            assert (
+                adapter_artifact["production_mutation"]
+                is publisher_result["production_mutation"]
+            )
+            assert (
+                adapter_artifact["sandbox_mutation"]
+                is publisher_result["sandbox_mutation"]
+            )
     assert probe.production_source_digest(SOURCE_ROOT) == source_digest
     assert subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],

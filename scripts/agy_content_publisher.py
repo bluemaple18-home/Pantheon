@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
@@ -107,6 +107,24 @@ def release_git_plan(version: str) -> dict[str, list[str]]:
     }
 
 
+def _require_sandbox_descendant(
+    sandbox_root: Path,
+    candidate: Path,
+    label: str,
+) -> Path:
+    if not candidate.is_absolute():
+        raise PublishBlocked(f"publisher {label} must be absolute")
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise PublishBlocked(f"publisher {label} is invalid") from error
+    if resolved == sandbox_root or not resolved.is_relative_to(sandbox_root):
+        raise PublishBlocked(
+            f"publisher {label} must be a strict sandbox descendant"
+        )
+    return resolved
+
+
 def _formal_capability_dry_run_git(
     actor_root: Path,
     sandbox_root: Path,
@@ -117,7 +135,13 @@ def _formal_capability_dry_run_git(
 ) -> str:
     """只在 capability sandbox 模擬 Git I/O，禁止碰正式 repository。"""
     if args == ["rev-parse", "--git-common-dir"]:
-        return str(sandbox_root / ".git")
+        return str(
+            _require_sandbox_descendant(
+                sandbox_root,
+                sandbox_root / ".git",
+                "Git root",
+            )
+        )
     if args in (
         ["fetch", "origin", "main"],
         ["status", "--porcelain"],
@@ -127,7 +151,11 @@ def _formal_capability_dry_run_git(
     if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
         return actor_sha
     if args[:3] == ["worktree", "add", "--detach"] and len(args) == 5:
-        transaction_root = Path(args[3])
+        transaction_root = _require_sandbox_descendant(
+            sandbox_root,
+            Path(args[3]),
+            "transaction root",
+        )
         for relative in TRANSACTION_RUNTIME_PATHS:
             source = actor_root / relative
             target = transaction_root / relative
@@ -135,7 +163,12 @@ def _formal_capability_dry_run_git(
             shutil.copy2(source, target)
         return ""
     if args[:3] == ["worktree", "remove", "--force"] and len(args) == 4:
-        shutil.rmtree(Path(args[3]), ignore_errors=True)
+        transaction_root = _require_sandbox_descendant(
+            sandbox_root,
+            Path(args[3]),
+            "transaction root",
+        )
+        shutil.rmtree(transaction_root, ignore_errors=True)
         return ""
     if args and args[0] in {"add", "commit", "tag", "push"}:
         return ""
@@ -147,28 +180,55 @@ def formal_capability_preflight(
     *,
     run_ids: Iterable[str],
     correlation_id: str,
+    trusted_sandbox_root: Path | None = None,
+    queue_root: Path | None = None,
+    state_root: Path | None = None,
 ) -> dict[str, Any]:
     """正式 publisher 的公開 bounded validation/transaction/tag/push dry-run 入口。"""
+    if trusted_sandbox_root is None or queue_root is None or state_root is None:
+        raise PublishBlocked("publisher sandbox authority is required")
     if capability not in {"select", "publish", "transaction", "tag", "push"}:
         raise PublishBlocked("publisher capability is invalid")
     selected = sorted(_normalize_exact_run_ids(run_ids) or ())
     if not selected or not correlation_id:
         raise PublishBlocked("publisher capability identity is incomplete")
-    with tempfile.TemporaryDirectory(prefix="pantheon-publisher-capability-") as raw_sandbox:
-        sandbox_root = Path(raw_sandbox)
+    sandbox_root = Path(trusted_sandbox_root)
+    if not sandbox_root.is_absolute():
+        raise PublishBlocked("publisher sandbox authority must be absolute")
+    try:
+        resolved_sandbox = sandbox_root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise PublishBlocked("publisher sandbox authority is invalid") from error
+    if resolved_sandbox != sandbox_root or not resolved_sandbox.is_dir():
+        raise PublishBlocked("publisher sandbox authority is not canonical")
+    sandbox_root = resolved_sandbox
+    queue_root = _require_sandbox_descendant(
+        sandbox_root,
+        Path(queue_root),
+        "queue root",
+    )
+    state_root = _require_sandbox_descendant(
+        sandbox_root,
+        Path(state_root),
+        "publisher state root",
+    )
+    if (
+        queue_root == state_root
+        or queue_root.is_relative_to(state_root)
+        or state_root.is_relative_to(queue_root)
+    ):
+        raise PublishBlocked("publisher queue and state roots must not overlap")
+    with nullcontext(sandbox_root) as sandbox_root:
+        mutation_before = (
+            queue_root.exists(),
+            state_root.exists(),
+            (state_root / "publisher.lock").exists(),
+            (sandbox_root / ".git").exists(),
+        )
         actor_root = Path(
             os.environ.get(
                 "PANTHEON_RUNTIME_ACTOR_ROOT",
                 Path(__file__).resolve().parents[1],
-            )
-        ).resolve()
-        queue_root = Path(
-            os.environ.get("PANTHEON_RUNTIME_QUEUE_ROOT", sandbox_root / "queue")
-        ).resolve()
-        state_root = Path(
-            os.environ.get(
-                "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT",
-                sandbox_root / "state",
             )
         ).resolve()
         queue_root.mkdir(parents=True, exist_ok=True)
@@ -256,13 +316,26 @@ def formal_capability_preflight(
             boundary_result["candidate_sha"] = commit_sha
             boundary_result["release_mode"] = "injected-git-dry-run"
 
+        mutation_after = (
+            queue_root.exists(),
+            state_root.exists(),
+            (state_root / "publisher.lock").exists(),
+            (sandbox_root / ".git").exists(),
+        )
+        production_mutation = any(
+            not path.is_relative_to(sandbox_root)
+            for path in (queue_root, state_root, (sandbox_root / ".git").resolve())
+        )
+        if production_mutation:
+            raise PublishBlocked("publisher capability mutation escaped sandbox")
         return {
             "status": "PASS",
             "boundary_status": boundary_status,
             "capability": capability,
             "run_ids": selected,
             "correlation_id": correlation_id,
-            "production_mutation": False,
+            "production_mutation": production_mutation,
+            "sandbox_mutation": mutation_before != mutation_after,
             "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
             "called_entrypoints": [
                 f"{entrypoint.__module__}:{entrypoint.__name__}"

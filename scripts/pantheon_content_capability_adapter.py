@@ -76,7 +76,9 @@ def _formal_environment(
                 os.environ[key] = value
 
 
-def _load_contract(source: dict[str, Any]) -> tuple[Path, dict[str, Any], Path]:
+def _load_contract(
+    source: dict[str, Any],
+) -> tuple[Path, dict[str, Any], Path, Path, Path]:
     manifest_path = Path(str(source.get("runtime_manifest", "")))
     sandbox_root = Path(str(source.get("sandbox_root", "")))
     if (
@@ -94,7 +96,22 @@ def _load_contract(source: dict[str, Any]) -> tuple[Path, dict[str, Any], Path]:
         "runtime_identity_digest"
     ):
         raise AdapterBlocked("runtime identity digest mismatch")
-    return manifest_path, manifest, sandbox_root
+    try:
+        queue_root = publisher._require_sandbox_descendant(
+            sandbox_root, Path(manifest["queue_root"]), "queue root"
+        )
+        state_root = publisher._require_sandbox_descendant(
+            sandbox_root,
+            Path(manifest["publisher_state_root"]),
+            "publisher state root",
+        )
+        if queue_root.is_relative_to(state_root) or state_root.is_relative_to(
+            queue_root
+        ):
+            raise publisher.PublishBlocked("queue and publisher state roots overlap")
+    except publisher.PublishBlocked as error:
+        raise AdapterBlocked(str(error)) from error
+    return manifest_path, manifest, sandbox_root, queue_root, state_root
 
 
 def _create_step(
@@ -198,6 +215,8 @@ def _publisher_step(
     manifest_path: Path,
     manifest: dict[str, Any],
     sandbox_root: Path,
+    queue_root: Path,
+    state_root: Path,
 ) -> dict[str, Any]:
     run_ids = source.get("run_ids")
     if not isinstance(run_ids, dict):
@@ -216,6 +235,9 @@ def _publisher_step(
             capability,
             run_ids=run_ids.values(),
             correlation_id=str(source["correlation_id"]),
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
         )
     entrypoints = [
         str(result["entrypoint"]),
@@ -226,7 +248,11 @@ def _publisher_step(
         "publisher_result": result,
         "runtime_receipt": runtime_receipt,
         "production_entrypoints": entrypoints,
+        "production_mutation": result["production_mutation"],
+        "sandbox_mutation": result["sandbox_mutation"],
     }
+    if result["production_mutation"]:
+        raise AdapterBlocked("production mutation detected")
     if capability == "transaction":
         def fixture_runner(command: list[str]) -> subprocess.CompletedProcess[str]:
             if command[:2] == ["launchctl", "print"]:
@@ -269,7 +295,9 @@ def _production_transition(
     capability: str,
     source: dict[str, Any],
 ) -> dict[str, Any]:
-    manifest_path, manifest, sandbox_root = _load_contract(source)
+    manifest_path, manifest, sandbox_root, queue_root, state_root = _load_contract(
+        source
+    )
     if capability == "create":
         return _create_step(source, manifest_path, manifest, sandbox_root)
     if capability == "run":
@@ -280,6 +308,8 @@ def _production_transition(
         manifest_path,
         manifest,
         sandbox_root,
+        queue_root,
+        state_root,
     )
 
 
