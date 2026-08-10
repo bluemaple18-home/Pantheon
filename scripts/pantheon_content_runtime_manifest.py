@@ -304,6 +304,17 @@ def validate_runtime_tick(
         actual = actual_paths[field]
         if actual.resolve() != expected.resolve():
             raise RuntimeManifestError(f"formal runtime {field} mismatch")
+    activation_token = os.environ.get("PANTHEON_RUNTIME_ACTIVATION_TOKEN", "")
+    if activation_token:
+        from scripts import pantheon_runtime_activation
+
+        try:
+            pantheon_runtime_activation.validate_token_payload(
+                Path(activation_token),
+                manifest,
+            )
+        except pantheon_runtime_activation.RuntimeActivationError as error:
+            raise RuntimeManifestError(str(error)) from error
     return {"status": "PASS", **receipt_for_label(manifest, service_label)}
 
 

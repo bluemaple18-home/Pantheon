@@ -234,11 +234,12 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
         repo_root: Path,
         state_root: Path,
         git: publisher.GitRunner,
+        **kwargs: object,
     ):
         events.append(
             (
                 "transaction",
-                {"repo_root": repo_root, "state_root": state_root, "git": git},
+                {"repo_root": repo_root, "state_root": state_root, "git": git, **kwargs},
             )
         )
         yield sandbox_root / "transaction"
