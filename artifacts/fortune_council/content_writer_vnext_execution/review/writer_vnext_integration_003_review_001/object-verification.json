@@ -1,0 +1,11 @@
+{
+  "all_added": true,
+  "changed_file_receipt_note": "Candidate diff path set matches changed-files.json; receipt order differs because Integration-003 evidence is grouped after overlay paths.",
+  "diff_total": 46,
+  "extra_paths": [],
+  "integration_evidence_count": 9,
+  "overlay_count": 37,
+  "overlay_equal": 37,
+  "overlay_mismatches": [],
+  "publisher_runtime_forbidden_diff": []
+}

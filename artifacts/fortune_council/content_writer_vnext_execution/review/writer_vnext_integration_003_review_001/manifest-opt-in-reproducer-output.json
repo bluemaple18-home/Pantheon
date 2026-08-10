@@ -1,0 +1,22 @@
+{
+  "expected_opt_in": {
+    "blocking": false,
+    "findings": [],
+    "valid": true
+  },
+  "extra_free_state": {
+    "blocking": false,
+    "findings": [],
+    "valid": true
+  },
+  "missing_orchestration_mode": {
+    "blocking": false,
+    "findings": [],
+    "valid": true
+  },
+  "wrong_orchestration_mode": {
+    "blocking": false,
+    "findings": [],
+    "valid": true
+  }
+}

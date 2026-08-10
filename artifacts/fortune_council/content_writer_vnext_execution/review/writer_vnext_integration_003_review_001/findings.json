@@ -1,0 +1,63 @@
+{
+  "schema_version": "WriterVNextIntegration003ReviewFindingsV1",
+  "review_card_id": "CARD-CONTENT-WRITER-VNEXT-INTEGRATION-003-REVIEW-001",
+  "candidate_sha": "1da55d6fc6b233e008ffff5959f54801a8b927eb",
+  "parent_sha": "cbed615c9c16a03b4d3ccfcf816d9901feea0ed9",
+  "verdict": "REVIEW_NO_GO",
+  "findings": [
+    {
+      "finding_id": "WVNI3-REVIEW-001",
+      "severity": "P1",
+      "blocking": true,
+      "axis": "spec_and_standards",
+      "category": "correctness_fail_closed_contract",
+      "path": "scripts/agy_editorial_contracts.py",
+      "line": 130,
+      "title": "Manifest opt-in boundary accepts missing or wrong orchestration mode",
+      "trigger": "Call validate_manifest() with a structurally valid EditorialManifestV1 that omits orchestration_mode, uses a wrong orchestration_mode, or carries an extra free-state field.",
+      "evidence": [
+        {
+          "path": "scripts/agy_editorial_contracts.py",
+          "lines": "130-137",
+          "summary": "Top-level manifest required fields omit orchestration_mode and use subset acceptance."
+        },
+        {
+          "path": "tests/test_agy_editorial_contracts.py",
+          "lines": "36-53",
+          "summary": "Candidate tests treat a mode-less manifest as valid."
+        },
+        {
+          "path": "docs/pantheon_writer_vnext_orchestration_architecture.md",
+          "lines": "178-187",
+          "summary": "Architecture requires explicit writer_vnext_opt_in_v1 and says mixed mode without valid manifest fails closed."
+        },
+        {
+          "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/architecture-invariants.json",
+          "summary": "WVO-INV-011 requires explicit EditorialManifestV1 mode and no shadow A/B."
+        },
+        {
+          "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_integration_003_review_001/manifest-opt-in-reproducer-output.json",
+          "summary": "missing_orchestration_mode, wrong_orchestration_mode and extra_free_state all return valid=true."
+        }
+      ],
+      "short_reproducer": "PYTHONDONTWRITEBYTECODE=1 <project-venv>/bin/python artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_integration_003_review_001/manifest-opt-in-reproducer.py",
+      "risk": "A stale, shadow, partial, or free-state sidecar can be accepted as a valid vNext manifest, breaking the explicit opt-in and schema-drift fail-closed contract before coordinator or Publisher sidecar checks rely on it.",
+      "recommended_fix": "Require orchestration_mode == writer_vnext_opt_in_v1 in validate_manifest(), reject missing/wrong mode and unexpected free-state top-level fields, then add public negative tests for missing mode, wrong mode and extra fields.",
+      "validation_gap": "The required 10 test groups pass but do not cover WVO-INV-011; the current test helper encodes a mode-less valid manifest.",
+      "confidence": "high"
+    }
+  ],
+  "non_blocking_checks": {
+    "diff_total": 46,
+    "all_added": true,
+    "overlay_blob_equality": "37/37",
+    "integration_evidence_count": 9,
+    "publisher_runtime_forbidden_diff": [],
+    "pytest_required_10_groups": "412 passed, 1 warning",
+    "git_diff_check": "PASS"
+  },
+  "residual_risks": [
+    "Production remains 0/4 and NO-GO.",
+    "CodeGraph task query returned semantic mismatch; review used bounded source inspection fallback."
+  ]
+}

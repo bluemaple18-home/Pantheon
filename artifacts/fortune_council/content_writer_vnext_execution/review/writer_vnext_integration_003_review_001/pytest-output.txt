@@ -1,0 +1,12 @@
+Command:
+
+PYTHONDONTWRITEBYTECODE=1 <project-venv>/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_editorial_contracts.py tests/test_agy_seo_copy_pipeline.py tests/test_agy_content_publisher.py tests/test_pantheon_runtime_fs_authority.py tests/test_pantheon_runtime_activation.py tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_capability_probe.py tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_runner.py tests/test_pantheon_content_capacity_guard.py
+
+Result:
+
+412 passed, 1 warning in 158.50s (0:02:38)
+
+Warning:
+
+tests/test_agy_content_publisher.py::test_preflight_test_command_selectors_resolve_to_top_level_tests
+  <unknown>:1713: DeprecationWarning: invalid escape sequence '\/'
