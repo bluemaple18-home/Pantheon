@@ -107,6 +107,41 @@ def release_git_plan(version: str) -> dict[str, list[str]]:
     }
 
 
+def _formal_capability_dry_run_git(
+    actor_root: Path,
+    sandbox_root: Path,
+    actor_sha: str,
+    _repo_root: Path,
+    args: list[str],
+    _input_text: str | None = None,
+) -> str:
+    """只在 capability sandbox 模擬 Git I/O，禁止碰正式 repository。"""
+    if args == ["rev-parse", "--git-common-dir"]:
+        return str(sandbox_root / ".git")
+    if args in (
+        ["fetch", "origin", "main"],
+        ["status", "--porcelain"],
+        ["worktree", "prune"],
+    ):
+        return ""
+    if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+        return actor_sha
+    if args[:3] == ["worktree", "add", "--detach"] and len(args) == 5:
+        transaction_root = Path(args[3])
+        for relative in TRANSACTION_RUNTIME_PATHS:
+            source = actor_root / relative
+            target = transaction_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        return ""
+    if args[:3] == ["worktree", "remove", "--force"] and len(args) == 4:
+        shutil.rmtree(Path(args[3]), ignore_errors=True)
+        return ""
+    if args and args[0] in {"add", "commit", "tag", "push"}:
+        return ""
+    raise PublishBlocked(f"unsupported capability dry-run git command: {args}")
+
+
 def formal_capability_preflight(
     capability: str,
     *,
@@ -119,35 +154,123 @@ def formal_capability_preflight(
     selected = sorted(_normalize_exact_run_ids(run_ids) or ())
     if not selected or not correlation_id:
         raise PublishBlocked("publisher capability identity is incomplete")
-    result: dict[str, Any] = {
-        "status": "PASS",
-        "capability": capability,
-        "run_ids": selected,
-        "correlation_id": correlation_id,
-        "production_mutation": False,
-        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
-        "called_entrypoints": [
-            "scripts.agy_content_publisher:_normalize_exact_run_ids"
-        ],
-    }
-    if capability == "select":
-        result["validation_mode"] = "exact-run-id"
-    elif capability == "publish":
-        result["validation_mode"] = "dry-run"
-    elif capability == "transaction":
-        result["transaction_mode"] = "fail-closed-dry-run"
-    else:
-        plan = release_git_plan("0.0.0")
-        result["called_entrypoints"].append(
-            "scripts.agy_content_publisher:release_git_plan"
-        )
-        result.update(
-            {
-                "command": plan[capability],
-                "fail_closed_dry_run": True,
-            }
-        )
-    return result
+    with tempfile.TemporaryDirectory(prefix="pantheon-publisher-capability-") as raw_sandbox:
+        sandbox_root = Path(raw_sandbox)
+        actor_root = Path(
+            os.environ.get(
+                "PANTHEON_RUNTIME_ACTOR_ROOT",
+                Path(__file__).resolve().parents[1],
+            )
+        ).resolve()
+        queue_root = Path(
+            os.environ.get("PANTHEON_RUNTIME_QUEUE_ROOT", sandbox_root / "queue")
+        ).resolve()
+        state_root = Path(
+            os.environ.get(
+                "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT",
+                sandbox_root / "state",
+            )
+        ).resolve()
+        queue_root.mkdir(parents=True, exist_ok=True)
+        state_root.mkdir(parents=True, exist_ok=True)
+        actor_sha = run_git(actor_root, ["rev-parse", "HEAD"], None)
+        if re.fullmatch(r"[0-9a-f]{40}", actor_sha) is None:
+            raise PublishBlocked("publisher actor runtime identity is invalid")
+        git_trace: list[list[str]] = []
+
+        def dry_run_git(
+            repo_root: Path,
+            args: list[str],
+            input_text: str | None = None,
+        ) -> str:
+            git_trace.append(list(args))
+            return _formal_capability_dry_run_git(
+                actor_root,
+                sandbox_root,
+                actor_sha,
+                repo_root,
+                args,
+                input_text,
+            )
+
+        called: list[Callable[..., object]] = [_normalize_exact_run_ids]
+        boundary_status = "PASS"
+        boundary_result: dict[str, Any] = {}
+        if capability == "select":
+            boundary_result["validation_mode"] = "exact-run-id"
+        elif capability == "publish":
+            publish_result = publish_ready_runs(
+                actor_root,
+                queue_root,
+                state_root,
+                dry_run=True,
+                push=False,
+                run_tests=False,
+                release_gate=False,
+                git=dry_run_git,
+                exact_run_ids=selected,
+                seed_translations=False,
+            )
+            boundary_status = str(publish_result.get("status") or "")
+            if boundary_status not in {"dry-run", "idle"}:
+                raise PublishBlocked(
+                    f"publisher dry-run returned unexpected status: {boundary_status or 'missing'}"
+                )
+            base_sha = publish_result.get("base_sha")
+            if (
+                type(base_sha) is not str
+                or re.fullmatch(r"[0-9a-f]{40}", base_sha) is None
+            ):
+                raise PublishBlocked("publisher dry-run runtime identity is missing")
+            if boundary_status == "dry-run":
+                ready_runs = publish_result.get("ready_runs")
+                if (
+                    not isinstance(ready_runs, list)
+                    or not ready_runs
+                    or any(run_id not in selected for run_id in ready_runs)
+                ):
+                    raise PublishBlocked("publisher dry-run run identity is invalid")
+            called.append(publish_ready_runs)
+            boundary_result["publisher_result"] = publish_result
+        elif capability == "transaction":
+            with _isolated_transaction_worktree(
+                actor_root,
+                state_root,
+                dry_run_git,
+            ):
+                pass
+            called.append(_isolated_transaction_worktree)
+            boundary_result["transaction_mode"] = "injected-git-dry-run"
+        else:
+            commit_sha = _stage_commit_tag_push(
+                actor_root,
+                "0.0.0",
+                dry_run_git,
+                push=capability == "push",
+                release_gate=False,
+                checked_runner=lambda _repo_root, _args: None,
+            )
+            if re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None:
+                raise PublishBlocked("publisher release dry-run returned invalid commit sha")
+            called.append(_stage_commit_tag_push)
+            boundary_result["candidate_sha"] = commit_sha
+            boundary_result["release_mode"] = "injected-git-dry-run"
+
+        return {
+            "status": "PASS",
+            "boundary_status": boundary_status,
+            "capability": capability,
+            "run_ids": selected,
+            "correlation_id": correlation_id,
+            "production_mutation": False,
+            "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+            "called_entrypoints": [
+                f"{entrypoint.__module__}:{entrypoint.__name__}"
+                for entrypoint in called
+            ],
+            "git_trace": git_trace,
+            **boundary_result,
+        }
 
 
 class PublishBlocked(ValueError):
@@ -2473,10 +2596,12 @@ def _stage_commit_tag_push(
     state_root: Path | None = None,
     phase: str | None = None,
     run_ids: list[str] | None = None,
+    checked_runner: Callable[[Path, list[str]], None] | None = None,
 ) -> str:
     release_plan = release_git_plan(version)
+    run_checked = checked_runner or _run_checked
     if push:
-        _run_checked(repo_root, [sys.executable, "scripts/verify_host_canonical.py"])
+        run_checked(repo_root, [sys.executable, "scripts/verify_host_canonical.py"])
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
         git(repo_root, ["add", *extra_add_paths], None)
@@ -2484,7 +2609,7 @@ def _stage_commit_tag_push(
     git(repo_root, release_plan["tag"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if release_gate:
-        _run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
+        run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
     if push:
         try:
             git(repo_root, release_plan["push"], None)

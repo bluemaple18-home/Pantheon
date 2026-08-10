@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 
@@ -8,6 +9,7 @@ import pytest
 
 from scripts import pantheon_content_capability_probe as probe
 from scripts import pantheon_content_capability_adapter as adapter
+from scripts import agy_content_publisher as publisher
 
 
 REGRESSION_ID = "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001"
@@ -25,8 +27,179 @@ def _source_identity() -> tuple[str, str]:
     return parent, probe.production_source_digest(SOURCE_ROOT)
 
 
+def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, object]] = []
+
+    def fake_publish(
+        repo_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        events.append(
+            (
+                "publish",
+                {
+                    "repo_root": repo_root,
+                    "queue_root": queue_root,
+                    "state_root": state_root,
+                    **kwargs,
+                },
+            )
+        )
+        return {
+            "status": "dry-run",
+            "ready_runs": ["run-a"],
+            "base_sha": "b" * 40,
+        }
+
+    @contextmanager
+    def fake_transaction(
+        repo_root: Path,
+        state_root: Path,
+        git: publisher.GitRunner,
+    ):
+        events.append(
+            (
+                "transaction",
+                {"repo_root": repo_root, "state_root": state_root, "git": git},
+            )
+        )
+        yield tmp_path / "transaction"
+
+    def fake_release(
+        repo_root: Path,
+        version: str,
+        git: publisher.GitRunner,
+        **kwargs: object,
+    ) -> str:
+        events.append(
+            (
+                "push" if kwargs["push"] else "tag",
+                {"repo_root": repo_root, "version": version, "git": git, **kwargs},
+            )
+        )
+        return "a" * 40
+
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+    monkeypatch.setattr(publisher, "_isolated_transaction_worktree", fake_transaction)
+    monkeypatch.setattr(publisher, "_stage_commit_tag_push", fake_release)
+
+    results = [
+        publisher.formal_capability_preflight(
+            capability,
+            run_ids=["run-a"],
+            correlation_id="correlation-a",
+        )
+        for capability in ("publish", "transaction", "tag", "push")
+    ]
+
+    assert [event[0] for event in events] == [
+        "publish",
+        "transaction",
+        "tag",
+        "push",
+    ]
+    publish_call = events[0][1]
+    assert isinstance(publish_call, dict)
+    assert publish_call["dry_run"] is True
+    assert publish_call["exact_run_ids"] == ["run-a"]
+    assert publish_call["seed_translations"] is False
+    transaction_call = events[1][1]
+    tag_call = events[2][1]
+    push_call = events[3][1]
+    assert isinstance(transaction_call, dict)
+    assert isinstance(tag_call, dict)
+    assert isinstance(push_call, dict)
+    assert callable(transaction_call["git"])
+    assert tag_call["version"] == push_call["version"] == "0.0.0"
+    assert tag_call["push"] is False
+    assert push_call["push"] is True
+    assert tag_call["release_gate"] is push_call["release_gate"] is False
+    assert callable(tag_call["checked_runner"])
+    assert callable(push_call["checked_runner"])
+    assert all(result["status"] == "PASS" for result in results)
+    assert [result["boundary_status"] for result in results] == [
+        "dry-run",
+        "PASS",
+        "PASS",
+        "PASS",
+    ]
+
+
+def test_publisher_preflight_blocks_publish_return_without_runtime_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "publish_ready_runs",
+        lambda *_args, **_kwargs: {"status": "idle", "published": 0},
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="runtime identity"):
+        publisher.formal_capability_preflight(
+            "publish",
+            run_ids=["run-a"],
+            correlation_id="correlation-a",
+        )
+
+
+@pytest.mark.parametrize(
+    ("capability", "boundary_name"),
+    [
+        ("publish", "publish_ready_runs"),
+        ("transaction", "_isolated_transaction_worktree"),
+        ("tag", "_stage_commit_tag_push"),
+        ("push", "_stage_commit_tag_push"),
+    ],
+)
+def test_publisher_preflight_propagates_formal_boundary_rejection(
+    capability: str,
+    boundary_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    @contextmanager
+    def rejected_transaction(*_args: object, **_kwargs: object):
+        events.append("transaction")
+        raise publisher.PublishBlocked("formal boundary rejected")
+        yield
+
+    def rejected_boundary(*_args: object, **_kwargs: object) -> object:
+        events.append(capability)
+        raise publisher.PublishBlocked("formal boundary rejected")
+
+    monkeypatch.setattr(
+        publisher,
+        boundary_name,
+        rejected_transaction
+        if capability == "transaction"
+        else rejected_boundary,
+    )
+
+    with pytest.raises(publisher.PublishBlocked, match="formal boundary rejected"):
+        publisher.formal_capability_preflight(
+            capability,
+            run_ids=["run-a"],
+            correlation_id="correlation-a",
+        )
+
+    assert events == [capability]
+
+
 def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path) -> None:
     parent_sha, source_digest = _source_identity()
+    source_status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=SOURCE_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
     receipt = probe.run_probe(
         evidence_root=tmp_path / "positive",
         execution_id="synthetic-execution-001",
@@ -54,6 +227,14 @@ def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path
         assert artifact["adapter_invocation"]["boundary"].endswith(
             f":{artifact['capability']}"
         )
+    assert probe.production_source_digest(SOURCE_ROOT) == source_digest
+    assert subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=SOURCE_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == source_status
 
 
 def test_same_formal_probe_boundary_blocks_corrupted_handoff(tmp_path: Path) -> None:
