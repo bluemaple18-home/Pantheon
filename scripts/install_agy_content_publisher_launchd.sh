@@ -6,7 +6,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ACTION="${1:---install}"
 USER_NAME="$(id -un)"
 USER_ID="$(id -u)"
-USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"
+if [[ -z "${USER_HOME_DIR}" ]]; then
+  USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+fi
+if [[ "${USER_HOME_DIR}" != /* ]]; then
+  echo "Pantheon user home 必須使用 absolute path。" >&2
+  exit 1
+fi
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 QUEUE_ROOT="${PANTHEON_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 STATE_ROOT="${REPO_ROOT}/.work/content-publisher"

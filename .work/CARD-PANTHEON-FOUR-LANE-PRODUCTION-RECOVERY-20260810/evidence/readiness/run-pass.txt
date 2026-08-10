@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=PASS
+formal_boundary=scripts.agy_gemini_runner process-once
+proof=tests/test_agy_gemini_outbox.py::test_runner_processes_one_job_and_archives_request passed

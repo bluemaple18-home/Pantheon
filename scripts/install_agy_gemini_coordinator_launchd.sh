@@ -3,9 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ACTION="${1:---install}"
 USER_NAME="$(id -un)"
 USER_ID="$(id -u)"
-USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"
+if [[ -z "${USER_HOME_DIR}" ]]; then
+  USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+fi
+if [[ "${USER_HOME_DIR}" != /* ]]; then
+  echo "Pantheon user home 必須使用 absolute path。" >&2
+  exit 1
+fi
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3}"
 PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
@@ -36,6 +44,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" ]]; then
+  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install]" >&2
+  exit 2
+fi
 if [[ ! -x "${PYTHON_PATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
@@ -140,6 +152,11 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
   plutil -lint "${LANE_TEMP_PLIST}" >/dev/null
 done
+
+if [[ "${ACTION}" == "--preflight" ]]; then
+  echo "Pantheon Gemini coordinator 與四條 lane runner preflight 通過。"
+  exit 0
+fi
 
 mkdir -p "${LOG_DIR}" "${LAUNCH_AGENTS_DIR}"
 launchctl bootout "gui/${USER_ID}" "${TARGET_PLIST}" >/dev/null 2>&1 || true

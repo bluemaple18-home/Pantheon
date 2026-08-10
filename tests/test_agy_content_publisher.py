@@ -2876,6 +2876,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "push",
     ]
     assert 'ACTION="${1:---install}"' in installer
+    assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
     assert "runtime_manifest_digest" in installer

@@ -2158,6 +2158,7 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-}"' in installer
     assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"' in installer
     assert 'NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"' in installer
+    assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert (
         'RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"'
         in installer
@@ -2508,6 +2509,37 @@ def test_installer_metadata_failure_has_zero_target_or_control_side_effects(
     )
 
     assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
+
+
+def test_installer_preflight_builds_all_lane_plists_without_control_plane_mutation(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--preflight",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "四條 lane runner preflight 通過" in completed.stdout
     assert not fake_home.exists()
     assert not mutation_log.exists()
 

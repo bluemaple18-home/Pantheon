@@ -3,9 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ACTION="${1:---install}"
 USER_NAME="$(id -un)"
 USER_ID="$(id -u)"
-USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"
+if [[ -z "${USER_HOME_DIR}" ]]; then
+  USER_HOME_DIR="$(dscl . -read "/Users/${USER_NAME}" NFSHomeDirectory | awk '{print $2}')"
+fi
+if [[ "${USER_HOME_DIR}" != /* ]]; then
+  echo "Pantheon user home 必須使用 absolute path。" >&2
+  exit 1
+fi
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 QUEUE_ROOT="${AGY_GEMINI_QUEUE_ROOT:-${REPO_ROOT}/.work/gemini-runner}"
 PUBLISHER_ROOT="${PANTHEON_CONTENT_PUBLISHER_ROOT:-${REPO_ROOT}/.work/content-publisher}"
@@ -21,6 +29,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" ]]; then
+  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install]" >&2
+  exit 2
+fi
 for PATH_VALUE in "${QUEUE_ROOT}" "${PUBLISHER_ROOT}" "${LOG_ROOT}" "${STATE_FILE}"; do
   if [[ "${PATH_VALUE}" != /* ]]; then
     echo "容量 watchdog 路徑必須是 absolute path。" >&2
@@ -32,7 +44,9 @@ if [[ ! -x "${PYTHON_PATH}" ]]; then
   exit 1
 fi
 
-mkdir -p "${QUEUE_ROOT}" "${PUBLISHER_ROOT}" "${LOG_ROOT}" "${LAUNCH_AGENTS_DIR}"
+if [[ "${ACTION}" == "--install" ]]; then
+  mkdir -p "${QUEUE_ROOT}" "${PUBLISHER_ROOT}" "${LOG_ROOT}" "${LAUNCH_AGENTS_DIR}"
+fi
 (
   cd "${REPO_ROOT}"
   "${PYTHON_PATH}" -m scripts.pantheon_content_capacity_guard \
@@ -53,6 +67,10 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_ROOT}/pantheon-content-capacity-guard.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_ROOT}/pantheon-content-capacity-guard.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
+
+if [[ "${ACTION}" == "--preflight" ]]; then
+  exit 0
+fi
 
 launchctl bootout "gui/${USER_ID}" "${TARGET_PLIST}" >/dev/null 2>&1 || true
 install -m 600 "${TEMP_PLIST}" "${TARGET_PLIST}"

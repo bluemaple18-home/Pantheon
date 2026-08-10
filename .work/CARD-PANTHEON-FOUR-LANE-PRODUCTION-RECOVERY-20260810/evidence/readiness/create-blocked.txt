@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=BLOCKED
+formal_boundary=scripts.agy_gemini_coordinator register/cycle
+proof=tests/test_agy_gemini_coordinator.py::test_register_run_rejects_more_than_five_articles passed by rejecting invalid input before queue mutation

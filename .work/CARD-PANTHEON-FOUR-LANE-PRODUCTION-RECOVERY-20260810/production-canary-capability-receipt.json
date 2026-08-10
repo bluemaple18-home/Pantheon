@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "execution_line_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810",
+  "production_target": "Pantheon four-lane content publisher",
+  "correlation_id": "four-lane-recovery-probe-20260810-01",
+  "canary_created": false,
+  "steps": {
+    "create": {
+      "entrypoint": "python -m scripts.agy_gemini_coordinator --queue-root QUEUE --repo-root REPO --lane-mode cycle",
+      "inputs": ["bounded run brief with run_id=four-lane-recovery-probe-20260810-01"],
+      "outputs": ["registered run state bound to the same run_id"],
+      "identity": "com.pantheon.agy-gemini-coordinator",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/create-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/create-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "run": {
+      "entrypoint": "python -m scripts.agy_gemini_runner --queue-root LANE_QUEUE --lane LANE process-once",
+      "inputs": ["lane-owned outbox request carrying the probe run_id"],
+      "outputs": ["archived request and correlation-bound response"],
+      "identity": "com.pantheon.agy-gemini-{new,rewrite,i18n-new,i18n-rewrite}",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/run-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/run-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "select": {
+      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --exact-run-id RUN_ID",
+      "inputs": ["reviewer-approved run_id=four-lane-recovery-probe-20260810-01"],
+      "outputs": ["exactly selected ready run; unlisted runs unchanged"],
+      "identity": "com.pantheon.agy-content-publisher",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/select-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/select-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "publish": {
+      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
+      "inputs": ["exact selected reviewed run and clean actor runtime"],
+      "outputs": ["deterministically generated article and release evidence"],
+      "identity": "com.pantheon.agy-content-publisher",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/publish-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/publish-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "transaction": {
+      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
+      "inputs": ["publisher-owned mutation journal for the probe run"],
+      "outputs": ["isolated release commit or byte-preserving rollback"],
+      "identity": "com.pantheon.agy-content-publisher",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/transaction-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/transaction-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "tag": {
+      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
+      "inputs": ["transaction commit SHA and derived release version"],
+      "outputs": ["annotated tag bound to the transaction commit"],
+      "identity": "com.pantheon.agy-content-publisher",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/tag-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/tag-blocked.txt", "outcome": "BLOCKED"}
+    },
+    "push": {
+      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
+      "inputs": ["transaction commit SHA and annotated tag"],
+      "outputs": ["atomic origin main plus tag update with reconciled remote outcome"],
+      "identity": "com.pantheon.agy-content-publisher",
+      "correlation_id": "four-lane-recovery-probe-20260810-01",
+      "positive_evidence": {"artifact": "evidence/readiness/push-pass.txt", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/readiness/push-blocked.txt", "outcome": "BLOCKED"}
+    }
+  }
+}

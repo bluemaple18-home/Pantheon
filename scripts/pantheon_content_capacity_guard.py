@@ -61,9 +61,16 @@ def _measure_tree(root: Path) -> tuple[int, int]:
     stack = [root]
     while stack:
         directory = stack.pop()
-        with os.scandir(directory) as entries:
+        try:
+            entries = os.scandir(directory)
+        except FileNotFoundError:
+            continue
+        with entries:
             for entry in entries:
-                stat_result = entry.stat(follow_symlinks=False)
+                try:
+                    stat_result = entry.stat(follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
                 if entry.is_dir(follow_symlinks=False):
                     stack.append(Path(entry.path))
                 else:

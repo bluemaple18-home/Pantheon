@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=PASS
+formal_boundary=scripts.agy_gemini_coordinator register/cycle
+proof=tests/test_agy_gemini_coordinator.py::test_register_run_is_idempotent_and_keeps_private_path_local passed

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810",
+  "status": "PASS",
+  "production_mutation": false,
+  "sample_interval_seconds": 300,
+  "write_inventory": {
+    "queue_and_state": "<production-queue-root>",
+    "publisher_state_transactions_and_evidence": "<publisher-actor>/.work/content-publisher",
+    "registered_service_logs": "<user-log-root>/Pantheon",
+    "databases_wal_screenshots_downloads_models_containers": "none"
+  },
+  "budget": {
+    "max_bytes": 4294967296,
+    "max_file_count": 120000,
+    "normal_growth_bytes_per_hour": 268435456,
+    "spike_window_seconds": 3600,
+    "stabilization_or_recovery_seconds": 3600,
+    "log_max_bytes_each": 33554432,
+    "log_retain_bytes_each": 4194304,
+    "excess_log_retention_seconds": 300,
+    "durable_queue_retention": "authoritative records are not auto-deleted; total bytes and file-count caps remain hard bounds",
+    "auto_cleanup_allowlist": "only the fourteen registered Pantheon stdout/stderr log paths; queue, publisher state and backlog are excluded"
+  },
+  "host_baseline": {
+    "disk_total_bytes": 245107195904,
+    "start_floor_bytes": 24510719590,
+    "required_runtime_reserve_bytes": 24510719590,
+    "cycle_1_free_bytes": 36435640320,
+    "cycle_2_free_bytes": 36430557184
+  },
+  "representative_read_only_cycles": [
+    {"cycle": 1, "bytes": 208914216, "file_count": 33437, "rss_bytes": 0, "swap_used_bytes": 0, "status": "PASS"},
+    {"cycle": 2, "bytes": 208914216, "file_count": 33437, "rss_bytes": 0, "swap_used_bytes": 0, "status": "PASS"}
+  ],
+  "growth_projection": {
+    "observed_bytes_per_hour": 0,
+    "projected_one_hour_bytes": 208914216,
+    "projected_one_day_bytes": 208914216,
+    "projected_retention_ceiling_bytes": 4294967296,
+    "host_reserve_after_ceiling_bytes": 32135690624
+  },
+  "reclamation_proof": "test_log_rotation_keeps_inode_and_tail",
+  "stop_loss_proof": "test_two_high_growth_cycles_trigger_bounded_stop_loss",
+  "stop_scope": [
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.agy-gemini-coordinator",
+    "com.pantheon.agy-gemini-new",
+    "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new",
+    "com.pantheon.agy-gemini-i18n-rewrite"
+  ],
+  "verification": "10 capacity tests passed; two formal installer --preflight cycles returned PASS; no launchctl mutation"
+}

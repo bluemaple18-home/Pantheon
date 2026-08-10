@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=PASS
+formal_boundary=scripts.agy_content_publisher atomic push
+proof=tests/test_agy_content_publisher.py::test_atomic_push_exception_reconciles_remote_matrix[candidate-candidate-committed] passed by confirming both remote main and tag
