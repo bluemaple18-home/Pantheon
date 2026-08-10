@@ -2847,7 +2847,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert publisher.DEFAULT_MAX_RUNS == 3
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
     assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
-    assert 'Set :ProgramArguments:11 --new-only' in installer
+    assert "四軌 recovery 禁止 new-only" in installer
     assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
     assert arguments[3:11] == [
         "--repo-root",
@@ -2902,6 +2902,36 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(
+    tmp_path: Path,
+) -> None:
+    """REG-PANTHEON-FOUR-LANE-REJECT-NEW-ONLY-001。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    (queue / "runs").mkdir(parents=True)
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": "/usr/bin/true",
+        "PANTHEON_GEMINI_QUEUE_ROOT": str(queue),
+        "PANTHEON_PUBLISH_NEW_ONLY": "1",
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"), "--preflight"],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "四軌 recovery 禁止 new-only" in completed.stderr
+    assert not (tmp_path / "home").exists()
 
 
 def test_publish_ready_runs_new_only_does_not_seed_translations(

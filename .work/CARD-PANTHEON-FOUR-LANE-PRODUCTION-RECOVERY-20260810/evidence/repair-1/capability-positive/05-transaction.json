@@ -1,0 +1,15 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "capability": "transaction",
+  "correlation_id": "repair-1-chain-positive",
+  "entrypoint": "scripts.agy_content_publisher:transaction",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-1-positive-995845b",
+  "expected_input_digest": "b818d49e956bb7b89520bae4f7f887c7302fbd5a2d2ab6e9599aeaae2318a17c",
+  "input_digest": "b818d49e956bb7b89520bae4f7f887c7302fbd5a2d2ab6e9599aeaae2318a17c",
+  "mode": "bounded-synthetic-dry-run",
+  "ordinal": 5,
+  "output_digest": "e2d8e1f098ff9c5e6c976858429217a55fb68ca81ed3e5eefb03df9460010f29",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T04:28:15.438401+00:00"
+}

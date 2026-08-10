@@ -1,0 +1,15 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "capability": "create",
+  "correlation_id": "repair-1-chain-negative",
+  "entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-1-negative-995845b",
+  "expected_input_digest": "6a4cb8fcbd565e6dddac077d674210b444a3d5ee06b893add21c39fdffb03829",
+  "input_digest": "6a4cb8fcbd565e6dddac077d674210b444a3d5ee06b893add21c39fdffb03829",
+  "mode": "bounded-synthetic-dry-run",
+  "ordinal": 1,
+  "output_digest": "84222480e030699e703896a46026d2a581b4f66e1a9ab8ad1b4385d52a44b50d",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T04:28:20.912932+00:00"
+}

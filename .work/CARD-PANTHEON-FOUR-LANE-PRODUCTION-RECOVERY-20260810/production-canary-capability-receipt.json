@@ -1,72 +1,72 @@
 {
   "schema_version": 1,
-  "execution_line_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810",
-  "production_target": "Pantheon four-lane content publisher",
-  "correlation_id": "four-lane-recovery-probe-20260810-01",
+  "execution_line_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810-REPAIR-1",
+  "production_target": "Pantheon four-lane content publisher bounded synthetic dry-run",
+  "correlation_id": "repair-1-chain-positive",
   "canary_created": false,
   "steps": {
     "create": {
-      "entrypoint": "python -m scripts.agy_gemini_coordinator --queue-root QUEUE --repo-root REPO --lane-mode cycle",
-      "inputs": ["bounded run brief with run_id=four-lane-recovery-probe-20260810-01"],
-      "outputs": ["registered run state bound to the same run_id"],
-      "identity": "com.pantheon.agy-gemini-coordinator",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/create-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/create-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+      "inputs": ["9e7037bd597334d65dbd8d2895e96836c6fb4e60315e3a33bb7033482009327a"],
+      "outputs": ["57779d509b1e3e3a5480eb6abc5cf298dd264ce4a22d3f1c4e7867dfde1eb608"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/01-create.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-create/01-create.json", "outcome": "BLOCKED"}
     },
     "run": {
-      "entrypoint": "python -m scripts.agy_gemini_runner --queue-root LANE_QUEUE --lane LANE process-once",
-      "inputs": ["lane-owned outbox request carrying the probe run_id"],
-      "outputs": ["archived request and correlation-bound response"],
-      "identity": "com.pantheon.agy-gemini-{new,rewrite,i18n-new,i18n-rewrite}",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/run-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/run-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_gemini_runner:process-once",
+      "inputs": ["57779d509b1e3e3a5480eb6abc5cf298dd264ce4a22d3f1c4e7867dfde1eb608"],
+      "outputs": ["058845ec8678cb02d1590c946c3a540133c7f1cfd2c8480a83aed4a96a861cac"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/02-run.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-run/02-run.json", "outcome": "BLOCKED"}
     },
     "select": {
-      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --exact-run-id RUN_ID",
-      "inputs": ["reviewer-approved run_id=four-lane-recovery-probe-20260810-01"],
-      "outputs": ["exactly selected ready run; unlisted runs unchanged"],
-      "identity": "com.pantheon.agy-content-publisher",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/select-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/select-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_content_publisher:exact-run-selector",
+      "inputs": ["058845ec8678cb02d1590c946c3a540133c7f1cfd2c8480a83aed4a96a861cac"],
+      "outputs": ["9f778871ee82fe837879277d10c18b398a21e8fb7dd1f9a418cda6717efdd826"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/03-select.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-select/03-select.json", "outcome": "BLOCKED"}
     },
     "publish": {
-      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
-      "inputs": ["exact selected reviewed run and clean actor runtime"],
-      "outputs": ["deterministically generated article and release evidence"],
-      "identity": "com.pantheon.agy-content-publisher",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/publish-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/publish-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_content_publisher:publish",
+      "inputs": ["9f778871ee82fe837879277d10c18b398a21e8fb7dd1f9a418cda6717efdd826"],
+      "outputs": ["b818d49e956bb7b89520bae4f7f887c7302fbd5a2d2ab6e9599aeaae2318a17c"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/04-publish.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative/04-publish.json", "outcome": "BLOCKED"}
     },
     "transaction": {
-      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
-      "inputs": ["publisher-owned mutation journal for the probe run"],
-      "outputs": ["isolated release commit or byte-preserving rollback"],
-      "identity": "com.pantheon.agy-content-publisher",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/transaction-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/transaction-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_content_publisher:transaction",
+      "inputs": ["b818d49e956bb7b89520bae4f7f887c7302fbd5a2d2ab6e9599aeaae2318a17c"],
+      "outputs": ["e2d8e1f098ff9c5e6c976858429217a55fb68ca81ed3e5eefb03df9460010f29"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/05-transaction.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-transaction/05-transaction.json", "outcome": "BLOCKED"}
     },
     "tag": {
-      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
-      "inputs": ["transaction commit SHA and derived release version"],
-      "outputs": ["annotated tag bound to the transaction commit"],
-      "identity": "com.pantheon.agy-content-publisher",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/tag-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/tag-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_content_publisher:tag",
+      "inputs": ["e2d8e1f098ff9c5e6c976858429217a55fb68ca81ed3e5eefb03df9460010f29"],
+      "outputs": ["b9b7bdb7c1e58e40bea6d74be1e0f36432298ac475a9e07085bd8fe1cabce5b4"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/06-tag.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-tag/06-tag.json", "outcome": "BLOCKED"}
     },
     "push": {
-      "entrypoint": "python -m scripts.agy_content_publisher --repo-root REPO --queue-root QUEUE --state-root STATE --push",
-      "inputs": ["transaction commit SHA and annotated tag"],
-      "outputs": ["atomic origin main plus tag update with reconciled remote outcome"],
-      "identity": "com.pantheon.agy-content-publisher",
-      "correlation_id": "four-lane-recovery-probe-20260810-01",
-      "positive_evidence": {"artifact": "evidence/readiness/push-pass.txt", "outcome": "PASS"},
-      "negative_evidence": {"artifact": "evidence/readiness/push-blocked.txt", "outcome": "BLOCKED"}
+      "entrypoint": "scripts.agy_content_publisher:atomic-push",
+      "inputs": ["b9b7bdb7c1e58e40bea6d74be1e0f36432298ac475a9e07085bd8fe1cabce5b4"],
+      "outputs": ["7ca073a94b785cefb7fcad31b6ab8be4c8d170d81749e995fa7817e87802c5c5"],
+      "identity": "synthetic-actor@995845b",
+      "correlation_id": "repair-1-chain-positive",
+      "positive_evidence": {"artifact": "evidence/repair-1/capability-positive/07-push.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-1/capability-negative-push/07-push.json", "outcome": "BLOCKED"}
     }
   }
 }

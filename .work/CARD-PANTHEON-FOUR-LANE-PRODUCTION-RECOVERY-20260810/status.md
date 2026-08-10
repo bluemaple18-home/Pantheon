@@ -1,13 +1,13 @@
 ---
 id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810
-status: delivered_candidate
+status: ready_for_re_review
 type: implementation
+repair_round: 1
 ---
 
 # 狀態
 
-- root question：能否在不碰 production 與 backlog 的前提下，修復正式 actor 與四軌入口並通過前置 gates？
-- current state：DELIVERED_CANDIDATE；repo 修復與前置 gates 已完成，production 未變更。
-- blocker：production control-plane、canary、tag、push 尚未獲明確核准；clean actor 仍不存在。
-- next step：candidate 整合至 `origin/main` 後，重建 exact-SHA clean actor，再依序執行 capacity／readiness 重驗與正式 installer。
-- limits：同一 blocker 第三次停止；任一 gate 不通即 fail closed。
+- current state：`READY_FOR_RE_REVIEW`；八個 P1 的 Repair-1 與 regression evidence 已完成。
+- parent candidate：`995845b2c7a6abf3dc14f28fde7dd309b9812276`。
+- production state：`NO-GO`；沒有執行任何 production actor、installer、launchctl、queue/provider、canary、tag、push 或 merge mutation。
+- next step：由原 Reviewer 對 Repair-1 commit 與 evidence 複審；不得由本實作者宣稱 `REVIEW_GO`。

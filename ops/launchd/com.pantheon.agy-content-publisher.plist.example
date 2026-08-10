@@ -45,6 +45,10 @@
     <string>__STDOUT_LOG__</string>
     <key>PANTHEON_PUBLISHER_STDERR_LOG</key>
     <string>__STDERR_LOG__</string>
+    <key>PANTHEON_RUNTIME_MANIFEST_DIGEST</key>
+    <string>__RUNTIME_MANIFEST_DIGEST__</string>
+    <key>PANTHEON_RUNTIME_IDENTITY</key>
+    <string>__RUNTIME_IDENTITY__</string>
   </dict>
 
   <key>StartInterval</key>

@@ -21,6 +21,13 @@
   </array>
   <key>WorkingDirectory</key>
   <string>__REPO_ROOT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PANTHEON_RUNTIME_MANIFEST_DIGEST</key>
+    <string>__RUNTIME_MANIFEST_DIGEST__</string>
+    <key>PANTHEON_RUNTIME_IDENTITY</key>
+    <string>__RUNTIME_IDENTITY__</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>

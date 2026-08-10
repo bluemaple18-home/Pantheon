@@ -1,0 +1,29 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "correlation_id": "repair-1-chain-negative-create",
+  "execution_id": "repair-1-negative-create-995845b",
+  "mode": "bounded-synthetic-dry-run",
+  "production_mutation": false,
+  "regression_id": "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001",
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "steps": [
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-create/01-create.json",
+      "capability": "create",
+      "correlation_id": "repair-1-chain-negative-create",
+      "entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+      "entrypoint_outcome": "BLOCKED",
+      "error": "input_digest_mismatch",
+      "execution_id": "repair-1-negative-create-995845b",
+      "expected_input_digest": "a35c1721f61eaeea1bfcd74e81d5d20237529da1bea41723b6df13b3cd9b9008",
+      "input_digest": "bd25320990f931f18e7edeff60e3af62b77e279199b9b741c4fb6ebe8aedc826",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 1,
+      "output_digest": "",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.131858+00:00"
+    }
+  ]
+}
