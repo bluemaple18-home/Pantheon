@@ -483,6 +483,6 @@ def test_early_service_acknowledges_but_cannot_run_before_barrier(
         env=environment,
     )
 
-    assert completed.returncode == 75
-    assert (ready / f"{label}.json").is_file()
+    assert completed.returncode == 78
+    assert not (ready / f"{label}.json").exists()
     assert not marker.exists()

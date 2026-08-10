@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from scripts import pantheon_content_runtime_manifest as runtime
+from scripts import agy_gemini_coordinator as coordinator
 from scripts import pantheon_runtime_activation as activation
 
 
@@ -232,6 +233,46 @@ def test_stale_activation_token_fails_before_queue_state_io(
         )
 
     assert calls == []
+
+
+def test_formal_coordinator_requires_activation_token_before_queue_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor, queue, state, logs, ready = _runtime_roots(tmp_path)
+    manifest = _manifest(
+        actor,
+        queue,
+        state,
+        logs,
+        generation="generation-missing-token",
+        digest_seed="1",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    token_path = tmp_path / "activation.token"
+    runtime.write_manifest(manifest_path, manifest)
+    for label in runtime.SERVICE_LABELS:
+        runtime.write_readiness_ack(ready, manifest, label)
+    _install_environment(
+        monkeypatch,
+        manifest_path,
+        manifest,
+        "com.pantheon.agy-gemini-coordinator",
+        token_path,
+    )
+    monkeypatch.delenv("PANTHEON_RUNTIME_ACTIVATION_TOKEN")
+    monkeypatch.chdir(actor)
+    run_dir = tmp_path / "private-run"
+    run_dir.mkdir()
+    (run_dir / "brief.json").write_text(
+        '{"schema_version":1,"run_id":"missing-token-run","mode":"create","articles":[]}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runtime.RuntimeManifestError, match="activation token"):
+        coordinator.register_run(run_dir, queue)
+
+    assert not (queue / "runs").exists()
 
 
 def test_rollback_drift_reports_failed_without_using_config_text() -> None:

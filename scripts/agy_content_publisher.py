@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable, Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
@@ -113,11 +113,13 @@ def release_git_plan(version: str) -> dict[str, list[str]]:
     }
 
 
-def _runtime_identity_digest_for_trace(correlation_id: str) -> str:
-    configured = os.environ.get("PANTHEON_RUNTIME_IDENTITY_DIGEST", "")
-    if re.fullmatch(r"[0-9a-f]{64}", configured):
-        return configured
-    return hashlib.sha256(f"{PUBLISHER_ID}:{correlation_id}".encode()).hexdigest()
+def _runtime_identity_digest_for_trace(runtime_receipt: dict[str, Any] | None) -> str:
+    if not isinstance(runtime_receipt, dict) or runtime_receipt.get("status") != "PASS":
+        raise PublishBlocked("publisher runtime identity receipt is required")
+    digest = runtime_receipt.get("runtime_identity_digest")
+    if type(digest) is not str or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise PublishBlocked("publisher runtime identity receipt is invalid")
+    return digest
 
 
 def _require_sandbox_descendant(
@@ -145,6 +147,8 @@ def _formal_capability_dry_run_git(
     _repo_root: Path,
     args: list[str],
     _input_text: str | None = None,
+    *,
+    sandbox_authority: TrustedSandboxDirectoryAuthority | None = None,
 ) -> str:
     """只在 capability sandbox 模擬 Git I/O，禁止碰正式 repository。"""
     if args == ["rev-parse", "--git-common-dir"]:
@@ -169,11 +173,16 @@ def _formal_capability_dry_run_git(
             Path(args[3]),
             "transaction root",
         )
+        transaction_relative = transaction_root.relative_to(sandbox_root)
         for relative in TRANSACTION_RUNTIME_PATHS:
             source = actor_root / relative
-            target = transaction_root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            target_relative = transaction_relative / relative
+            if sandbox_authority is None:
+                target = transaction_root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+            else:
+                sandbox_authority.copy_file(source, target_relative)
         return ""
     if args[:3] == ["worktree", "remove", "--force"] and len(args) == 4:
         transaction_root = _require_sandbox_descendant(
@@ -181,7 +190,10 @@ def _formal_capability_dry_run_git(
             Path(args[3]),
             "transaction root",
         )
-        shutil.rmtree(transaction_root, ignore_errors=True)
+        if sandbox_authority is None:
+            shutil.rmtree(transaction_root, ignore_errors=True)
+        else:
+            sandbox_authority.remove_tree(transaction_root.relative_to(sandbox_root))
         return ""
     if args and args[0] in {"add", "commit", "tag", "push"}:
         return ""
@@ -196,6 +208,7 @@ def formal_capability_preflight(
     trusted_sandbox_root: Path | None = None,
     queue_root: Path | None = None,
     state_root: Path | None = None,
+    runtime_receipt: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """正式 publisher 的公開 bounded validation/transaction/tag/push dry-run 入口。"""
     if trusted_sandbox_root is None or queue_root is None or state_root is None:
@@ -215,7 +228,7 @@ def formal_capability_preflight(
     if resolved_sandbox != sandbox_root or not resolved_sandbox.is_dir():
         raise PublishBlocked("publisher sandbox authority is not canonical")
     sandbox_root = resolved_sandbox
-    runtime_identity_digest = _runtime_identity_digest_for_trace(correlation_id)
+    runtime_identity_digest = _runtime_identity_digest_for_trace(runtime_receipt)
     operation_trace: OperationTraceRecorder | None = None
     try:
         with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
@@ -259,165 +272,162 @@ def formal_capability_preflight(
                 state_root,
                 lambda: sandbox_authority.makedirs(state_relative),
             )
+            actor_root = Path(
+                os.environ.get(
+                    "PANTHEON_RUNTIME_ACTOR_ROOT",
+                    Path(__file__).resolve().parents[1],
+                )
+            ).resolve()
+            actor_sha = run_git(actor_root, ["rev-parse", "HEAD"], None)
+            if re.fullmatch(r"[0-9a-f]{40}", actor_sha) is None:
+                raise PublishBlocked("publisher actor runtime identity is invalid")
+            git_trace: list[list[str]] = []
+
+            def dry_run_git(
+                repo_root: Path,
+                args: list[str],
+                input_text: str | None = None,
+            ) -> str:
+                git_trace.append(list(args))
+                operation_name = ""
+                operation_target: Path | None = None
+                if args[:3] == ["worktree", "add", "--detach"] and len(args) == 5:
+                    operation_name = "git-worktree-add"
+                    operation_target = Path(args[3])
+                elif args[:3] == ["worktree", "remove", "--force"] and len(args) == 4:
+                    operation_name = "git-worktree-remove"
+                    operation_target = Path(args[3])
+                if operation_name and operation_target is not None:
+                    return operation_trace.record_path_operation(
+                        operation_name,
+                        operation_target,
+                        lambda: _formal_capability_dry_run_git(
+                            actor_root,
+                            sandbox_root,
+                            actor_sha,
+                            repo_root,
+                            args,
+                            input_text,
+                            sandbox_authority=sandbox_authority,
+                        ),
+                    )
+                return _formal_capability_dry_run_git(
+                    actor_root,
+                    sandbox_root,
+                    actor_sha,
+                    repo_root,
+                    args,
+                    input_text,
+                    sandbox_authority=sandbox_authority,
+                )
+
+            called: list[Callable[..., object]] = [_normalize_exact_run_ids]
+            boundary_status = "PASS"
+            boundary_result: dict[str, Any] = {}
+            if capability == "select":
+                boundary_result["validation_mode"] = "exact-run-id"
+            elif capability == "publish":
+                publish_result = publish_ready_runs(
+                    actor_root,
+                    queue_root,
+                    state_root,
+                    dry_run=True,
+                    push=False,
+                    run_tests=False,
+                    release_gate=False,
+                    git=dry_run_git,
+                    exact_run_ids=selected,
+                    seed_translations=False,
+                )
+                boundary_status = str(publish_result.get("status") or "")
+                if boundary_status not in {"dry-run", "idle"}:
+                    raise PublishBlocked(
+                        f"publisher dry-run returned unexpected status: {boundary_status or 'missing'}"
+                    )
+                base_sha = publish_result.get("base_sha")
+                if (
+                    type(base_sha) is not str
+                    or re.fullmatch(r"[0-9a-f]{40}", base_sha) is None
+                ):
+                    raise PublishBlocked("publisher dry-run runtime identity is missing")
+                if boundary_status == "dry-run":
+                    ready_runs = publish_result.get("ready_runs")
+                    if (
+                        not isinstance(ready_runs, list)
+                        or not ready_runs
+                        or any(run_id not in selected for run_id in ready_runs)
+                    ):
+                        raise PublishBlocked("publisher dry-run run identity is invalid")
+                called.append(publish_ready_runs)
+                boundary_result["publisher_result"] = publish_result
+            elif capability == "transaction":
+                with _isolated_transaction_worktree(
+                    actor_root,
+                    state_root,
+                    dry_run_git,
+                    operation_trace=operation_trace,
+                    sandbox_authority=sandbox_authority,
+                    transaction_name=(
+                        "transaction-"
+                        + hashlib.sha256(
+                            f"{correlation_id}:transaction:{actor_sha}".encode()
+                        ).hexdigest()[:24]
+                    ),
+                ):
+                    pass
+                called.append(_isolated_transaction_worktree)
+                boundary_result["transaction_mode"] = "injected-git-dry-run"
+            else:
+                commit_sha = _stage_commit_tag_push(
+                    actor_root,
+                    "0.0.0",
+                    dry_run_git,
+                    push=capability == "push",
+                    release_gate=False,
+                    checked_runner=lambda _repo_root, _args: None,
+                )
+                if re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None:
+                    raise PublishBlocked("publisher release dry-run returned invalid commit sha")
+                called.append(_stage_commit_tag_push)
+                boundary_result["candidate_sha"] = commit_sha
+                boundary_result["release_mode"] = "injected-git-dry-run"
+
+            mutation_after = (
+                sandbox_authority.exists(queue_relative),
+                sandbox_authority.exists(state_relative),
+                sandbox_authority.exists(state_relative / "publisher.lock"),
+                sandbox_authority.exists(".git"),
+            )
+            trace_summary = summarize_operation_trace(operation_trace.events())
+            production_mutation = trace_summary["production_mutation"]
+            if production_mutation:
+                raise PublishBlocked("publisher capability mutation escaped sandbox")
+            operation_trace_events = operation_trace.events()
+            return {
+                "status": "PASS",
+                "boundary_status": boundary_status,
+                "capability": capability,
+                "run_ids": selected,
+                "correlation_id": correlation_id,
+                "production_mutation": production_mutation,
+                "sandbox_mutation": (
+                    mutation_before != mutation_after
+                    or trace_summary["sandbox_mutation"]
+                ),
+                "operation_trace": operation_trace_events,
+                "operation_trace_digest": operation_trace.digest(),
+                "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+                "called_entrypoints": [
+                    f"{entrypoint.__module__}:{entrypoint.__name__}"
+                    for entrypoint in called
+                ],
+                "git_trace": git_trace,
+                **boundary_result,
+            }
     except FilesystemAuthorityError as error:
         raise PublishBlocked("publisher sandbox authority identity drift") from error
     if operation_trace is None:
         raise PublishBlocked("publisher operation trace is unavailable")
-    with nullcontext(sandbox_root) as sandbox_root:
-        actor_root = Path(
-            os.environ.get(
-                "PANTHEON_RUNTIME_ACTOR_ROOT",
-                Path(__file__).resolve().parents[1],
-            )
-        ).resolve()
-        actor_sha = run_git(actor_root, ["rev-parse", "HEAD"], None)
-        if re.fullmatch(r"[0-9a-f]{40}", actor_sha) is None:
-            raise PublishBlocked("publisher actor runtime identity is invalid")
-        git_trace: list[list[str]] = []
-
-        def dry_run_git(
-            repo_root: Path,
-            args: list[str],
-            input_text: str | None = None,
-        ) -> str:
-            git_trace.append(list(args))
-            operation_name = ""
-            operation_target: Path | None = None
-            if args[:3] == ["worktree", "add", "--detach"] and len(args) == 5:
-                operation_name = "git-worktree-add"
-                operation_target = Path(args[3])
-            elif args[:3] == ["worktree", "remove", "--force"] and len(args) == 4:
-                operation_name = "git-worktree-remove"
-                operation_target = Path(args[3])
-            if operation_name and operation_target is not None:
-                return operation_trace.record_path_operation(
-                    operation_name,
-                    operation_target,
-                    lambda: _formal_capability_dry_run_git(
-                        actor_root,
-                        sandbox_root,
-                        actor_sha,
-                        repo_root,
-                        args,
-                        input_text,
-                    ),
-                )
-            return _formal_capability_dry_run_git(
-                actor_root,
-                sandbox_root,
-                actor_sha,
-                repo_root,
-                args,
-                input_text,
-            )
-
-        called: list[Callable[..., object]] = [_normalize_exact_run_ids]
-        boundary_status = "PASS"
-        boundary_result: dict[str, Any] = {}
-        if capability == "select":
-            boundary_result["validation_mode"] = "exact-run-id"
-        elif capability == "publish":
-            publish_result = publish_ready_runs(
-                actor_root,
-                queue_root,
-                state_root,
-                dry_run=True,
-                push=False,
-                run_tests=False,
-                release_gate=False,
-                git=dry_run_git,
-                exact_run_ids=selected,
-                seed_translations=False,
-            )
-            boundary_status = str(publish_result.get("status") or "")
-            if boundary_status not in {"dry-run", "idle"}:
-                raise PublishBlocked(
-                    f"publisher dry-run returned unexpected status: {boundary_status or 'missing'}"
-                )
-            base_sha = publish_result.get("base_sha")
-            if (
-                type(base_sha) is not str
-                or re.fullmatch(r"[0-9a-f]{40}", base_sha) is None
-            ):
-                raise PublishBlocked("publisher dry-run runtime identity is missing")
-            if boundary_status == "dry-run":
-                ready_runs = publish_result.get("ready_runs")
-                if (
-                    not isinstance(ready_runs, list)
-                    or not ready_runs
-                    or any(run_id not in selected for run_id in ready_runs)
-                ):
-                    raise PublishBlocked("publisher dry-run run identity is invalid")
-            called.append(publish_ready_runs)
-            boundary_result["publisher_result"] = publish_result
-        elif capability == "transaction":
-            with _isolated_transaction_worktree(
-                actor_root,
-                state_root,
-                dry_run_git,
-                operation_trace=operation_trace,
-                transaction_name=(
-                    "transaction-"
-                    + hashlib.sha256(
-                        f"{correlation_id}:transaction:{actor_sha}".encode()
-                    ).hexdigest()[:24]
-                ),
-            ):
-                pass
-            called.append(_isolated_transaction_worktree)
-            boundary_result["transaction_mode"] = "injected-git-dry-run"
-        else:
-            commit_sha = _stage_commit_tag_push(
-                actor_root,
-                "0.0.0",
-                dry_run_git,
-                push=capability == "push",
-                release_gate=False,
-                checked_runner=lambda _repo_root, _args: None,
-            )
-            if re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None:
-                raise PublishBlocked("publisher release dry-run returned invalid commit sha")
-            called.append(_stage_commit_tag_push)
-            boundary_result["candidate_sha"] = commit_sha
-            boundary_result["release_mode"] = "injected-git-dry-run"
-
-        mutation_after = (
-            queue_root.exists(),
-            state_root.exists(),
-            (state_root / "publisher.lock").exists(),
-            (sandbox_root / ".git").exists(),
-        )
-        snapshot_production_mutation = any(
-            not path.is_relative_to(sandbox_root)
-            for path in (queue_root, state_root, (sandbox_root / ".git").resolve())
-        )
-        trace_summary = summarize_operation_trace(operation_trace.events())
-        production_mutation = (
-            snapshot_production_mutation or trace_summary["production_mutation"]
-        )
-        if production_mutation:
-            raise PublishBlocked("publisher capability mutation escaped sandbox")
-        operation_trace_events = operation_trace.events()
-        return {
-            "status": "PASS",
-            "boundary_status": boundary_status,
-            "capability": capability,
-            "run_ids": selected,
-            "correlation_id": correlation_id,
-            "production_mutation": production_mutation,
-            "sandbox_mutation": (
-                mutation_before != mutation_after or trace_summary["sandbox_mutation"]
-            ),
-            "operation_trace": operation_trace_events,
-            "operation_trace_digest": operation_trace.digest(),
-            "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
-            "called_entrypoints": [
-                f"{entrypoint.__module__}:{entrypoint.__name__}"
-                for entrypoint in called
-            ],
-            "git_trace": git_trace,
-            **boundary_result,
-        }
 
 
 class PublishBlocked(ValueError):
@@ -639,6 +649,7 @@ def _repo_lock_path(
     repo_root: Path,
     git: GitRunner,
     operation_trace: OperationTraceRecorder | None = None,
+    sandbox_authority: TrustedSandboxDirectoryAuthority | None = None,
 ) -> Path:
     try:
         common_dir = Path(git(repo_root, ["rev-parse", "--git-common-dir"], None))
@@ -648,6 +659,18 @@ def _repo_lock_path(
         common_dir = repo_root / ".git"
     if operation_trace is None:
         common_dir.mkdir(parents=True, exist_ok=True)
+    elif sandbox_authority is not None:
+        try:
+            relative_common_dir = common_dir.relative_to(sandbox_authority.root)
+        except ValueError as error:
+            raise FilesystemAuthorityError(
+                "sandbox relative target escaped sandbox"
+            ) from error
+        operation_trace.record_path_operation(
+            "filesystem-git-common-dir-mkdir",
+            common_dir,
+            lambda: sandbox_authority.makedirs(relative_common_dir),
+        )
     else:
         operation_trace.record_path_operation(
             "filesystem-git-common-dir-mkdir",
@@ -1365,13 +1388,38 @@ def _transaction_lifecycle_lock(
     repo_root: Path,
     git: GitRunner = run_git,
     operation_trace: OperationTraceRecorder | None = None,
+    sandbox_authority: TrustedSandboxDirectoryAuthority | None = None,
 ) -> Iterator[None]:
     """序列化 transaction 建立、回收與執行，讓 crash 後清理可判定安全。"""
-    lock_path = _repo_lock_path(repo_root, git, operation_trace).with_name(
+    lock_path = _repo_lock_path(
+        repo_root,
+        git,
+        operation_trace,
+        sandbox_authority,
+    ).with_name(
         "agy-content-publisher.lifecycle.lock"
     )
     if operation_trace is None:
         lock_context = lock_path.open("a+")
+    elif sandbox_authority is not None:
+        try:
+            relative_lock_path = lock_path.relative_to(sandbox_authority.root)
+        except ValueError as error:
+            raise FilesystemAuthorityError(
+                "sandbox relative target escaped sandbox"
+            ) from error
+        lock_context = operation_trace.record_path_operation(
+            "filesystem-lock-open",
+            lock_path,
+            lambda: os.fdopen(
+                sandbox_authority.open_file(
+                    relative_lock_path,
+                    flags=os.O_RDWR | os.O_CREAT,
+                    mode=0o600,
+                ),
+                "a+",
+            ),
+        )
     else:
         lock_context = operation_trace.record_path_operation(
             "filesystem-lock-open",
@@ -1429,11 +1477,20 @@ def _isolated_transaction_worktree(
     git: GitRunner = run_git,
     *,
     operation_trace: OperationTraceRecorder | None = None,
+    sandbox_authority: TrustedSandboxDirectoryAuthority | None = None,
     transaction_name: str | None = None,
 ) -> Iterator[Path]:
     """從最新 origin/main 建立單輪隔離 worktree，正式 actor 全程唯讀。"""
-    state_root.mkdir(parents=True, exist_ok=True)
-    with _transaction_lifecycle_lock(repo_root, git, operation_trace):
+    if sandbox_authority is None:
+        state_root.mkdir(parents=True, exist_ok=True)
+    else:
+        sandbox_authority.makedirs(state_root.relative_to(sandbox_authority.root))
+    with _transaction_lifecycle_lock(
+        repo_root,
+        git,
+        operation_trace,
+        sandbox_authority,
+    ):
         _cleanup_stale_transaction_worktrees(repo_root, state_root, git)
         git(repo_root, ["fetch", "origin", "main"], None)
         if not _repo_clean(repo_root, git):
@@ -1448,9 +1505,22 @@ def _isolated_transaction_worktree(
                 raise PublishBlocked("transaction operation identity is invalid")
             transaction_parent = state_root / transaction_name
             if transaction_parent.exists():
-                shutil.rmtree(transaction_parent, ignore_errors=True)
+                if sandbox_authority is None:
+                    shutil.rmtree(transaction_parent, ignore_errors=True)
+                else:
+                    sandbox_authority.remove_tree(
+                        transaction_parent.relative_to(sandbox_authority.root)
+                    )
             if operation_trace is None:
                 transaction_parent.mkdir(mode=0o700)
+            elif sandbox_authority is not None:
+                operation_trace.record_path_operation(
+                    "filesystem-transaction-create",
+                    transaction_parent,
+                    lambda: sandbox_authority.makedirs(
+                        transaction_parent.relative_to(sandbox_authority.root)
+                    ),
+                )
             else:
                 operation_trace.record_path_operation(
                     "filesystem-transaction-create",
@@ -1469,11 +1539,19 @@ def _isolated_transaction_worktree(
             _assert_transaction_runtime_matches(repo_root, transaction_root)
             actor_venv = repo_root / ".venv"
             transaction_venv = transaction_root / ".venv"
-            if actor_venv.is_dir() and not transaction_venv.exists():
+            if (
+                operation_trace is None
+                and actor_venv.is_dir()
+                and not transaction_venv.exists()
+            ):
                 transaction_venv.symlink_to(actor_venv, target_is_directory=True)
             actor_node_modules = repo_root / "node_modules"
             transaction_node_modules = transaction_root / "node_modules"
-            if actor_node_modules.is_dir() and not transaction_node_modules.exists():
+            if (
+                operation_trace is None
+                and actor_node_modules.is_dir()
+                and not transaction_node_modules.exists()
+            ):
                 transaction_node_modules.mkdir()
                 for dependency in actor_node_modules.iterdir():
                     (transaction_node_modules / dependency.name).symlink_to(
@@ -1494,6 +1572,14 @@ def _isolated_transaction_worktree(
                     git(repo_root, ["worktree", "prune"], None)
             if operation_trace is None:
                 shutil.rmtree(transaction_parent, ignore_errors=True)
+            elif sandbox_authority is not None:
+                operation_trace.record_path_operation(
+                    "filesystem-transaction-remove",
+                    transaction_parent,
+                    lambda: sandbox_authority.remove_tree(
+                        transaction_parent.relative_to(sandbox_authority.root)
+                    ),
+                )
             else:
                 operation_trace.record_path_operation(
                     "filesystem-transaction-remove",

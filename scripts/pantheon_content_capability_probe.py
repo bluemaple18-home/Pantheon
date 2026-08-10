@@ -124,6 +124,16 @@ def run_probe(
     )
     manifest_path = evidence_root / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
+    ready_root = evidence_root / "runtime-ready"
+    activation_token = evidence_root / "activation.token"
+    ready_root.mkdir()
+    for service_label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(ready_root, manifest, service_label)
+    activation_receipt = runtime_manifest.activate_barrier(
+        activation_token,
+        ready_root,
+        manifest,
+    )
     command_prefix = adapter_command or [sys.executable, "-m", ADAPTER_MODULE]
     initial = {
         "schema_version": SCHEMA_VERSION,
@@ -138,6 +148,8 @@ def run_probe(
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],
         "sandbox_root": str(sandbox_root),
+        "activation_token": str(activation_token),
+        "activation": activation_receipt,
     }
     initial["output_digest"] = _digest(initial)
     previous_digest = initial["output_digest"]

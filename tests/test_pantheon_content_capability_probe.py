@@ -15,6 +15,10 @@ from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
 REGRESSION_ID = "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001"
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_RECEIPT = {
+    "status": "PASS",
+    "runtime_identity_digest": "b" * 64,
+}
 
 
 def _source_identity() -> tuple[str, str]:
@@ -123,6 +127,7 @@ def test_publisher_preflight_rejects_untrusted_roots_before_io(
             trusted_sandbox_root=sandbox_root,
             queue_root=queue_root,
             state_root=state_root,
+            runtime_receipt=RUNTIME_RECEIPT,
         )
 
     assert events == []
@@ -154,11 +159,18 @@ def test_adapter_contract_blocks_external_runtime_roots_without_mutation(
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
+    ready_root = tmp_path / "ready"
+    token_path = tmp_path / "activation.token"
+    ready_root.mkdir()
+    for service_label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(ready_root, manifest, service_label)
+    runtime_manifest.activate_barrier(token_path, ready_root, manifest)
     source = {
         "runtime_manifest": str(manifest_path),
         "runtime_manifest_digest": manifest["manifest_digest"],
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "sandbox_root": str(sandbox_root),
+        "activation_token": str(token_path),
     }
     before = _tree_snapshot(tmp_path)
 
@@ -167,6 +179,45 @@ def test_adapter_contract_blocks_external_runtime_roots_without_mutation(
 
     assert _tree_snapshot(tmp_path) == before
     assert external_root.is_dir()
+
+
+def test_adapter_contract_requires_activation_token_before_create_io(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    queue_root = sandbox_root / "queue"
+    state_root = sandbox_root / "publisher-state"
+    log_root = sandbox_root / "logs"
+    for path in (sandbox_root, queue_root, state_root, log_root):
+        path.mkdir(parents=True, exist_ok=True)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=SOURCE_ROOT,
+        queue_root=queue_root,
+        publisher_state_root=state_root,
+        log_root=log_root,
+        identity="missing-adapter-token",
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    source = {
+        "schema_version": 2,
+        "capability": None,
+        "execution_id": "missing-adapter-token",
+        "correlation_id": "missing-adapter-token",
+        "actor_identity": "missing-adapter-token",
+        "runtime_manifest": str(manifest_path),
+        "runtime_manifest_digest": manifest["manifest_digest"],
+        "runtime_identity_digest": manifest["runtime_identity_digest"],
+        "generation": manifest["generation"],
+        "sandbox_root": str(sandbox_root),
+    }
+    before = _tree_snapshot(sandbox_root)
+
+    with pytest.raises(adapter.AdapterBlocked, match="activation token"):
+        adapter._production_transition("create", source)
+
+    assert _tree_snapshot(sandbox_root) == before
+    assert not list((queue_root / "runs").glob("*.json"))
 
 
 def test_dry_run_git_blocks_transaction_materialization_outside_sandbox(
@@ -270,6 +321,7 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
             trusted_sandbox_root=sandbox_root,
             queue_root=queue_root,
             state_root=state_root,
+            runtime_receipt=RUNTIME_RECEIPT,
         )
         for capability in ("publish", "transaction", "tag", "push")
     ]
@@ -327,6 +379,7 @@ def test_publisher_preflight_blocks_publish_return_without_runtime_identity(
             trusted_sandbox_root=sandbox_root,
             queue_root=sandbox_root / "queue",
             state_root=sandbox_root / "publisher-state",
+            runtime_receipt=RUNTIME_RECEIPT,
         )
 
 
@@ -375,6 +428,7 @@ def test_publisher_preflight_propagates_formal_boundary_rejection(
             trusted_sandbox_root=sandbox_root,
             queue_root=sandbox_root / "queue",
             state_root=sandbox_root / "publisher-state",
+            runtime_receipt=RUNTIME_RECEIPT,
         )
 
     assert events == [capability]

@@ -288,6 +288,71 @@ class TrustedSandboxDirectoryAuthority:
             os.close(parent_fd)
             self.assert_current()
 
+    def open_file(
+        self,
+        relative: os.PathLike[str] | str,
+        *,
+        flags: int,
+        mode: int = 0o600,
+    ) -> int:
+        parts = self._relative_parts(relative)
+        parent_parts = parts[:-1]
+        leaf = parts[-1]
+        if parent_parts:
+            self.makedirs(Path(*parent_parts), mode=0o700)
+        self.assert_current()
+        parent_fd = self._open_parent_fd(parent_parts)
+        try:
+            safe_flags = flags | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                return os.open(leaf, safe_flags, mode, dir_fd=parent_fd)
+            except OSError as error:
+                if error.errno == errno.ELOOP:
+                    raise FilesystemAuthorityError(
+                        "sandbox relative component is a symlink"
+                    ) from error
+                raise FilesystemAuthorityError(
+                    "sandbox relative file cannot be opened"
+                ) from error
+        finally:
+            os.close(parent_fd)
+            self.assert_current()
+
+    def copy_file(self, source: Path, relative: os.PathLike[str] | str) -> None:
+        with source.open("rb") as stream:
+            body = stream.read()
+        fd = self.open_file(
+            relative,
+            flags=os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            mode=0o600,
+        )
+        try:
+            os.write(fd, body)
+        finally:
+            os.close(fd)
+
+    def remove_tree(self, relative: os.PathLike[str] | str) -> None:
+        parts = self._relative_parts(relative)
+        parent_fd = self._open_parent_fd(parts[:-1])
+        leaf = parts[-1]
+        try:
+            try:
+                target_fd = self._open_directory_at(parent_fd, leaf)
+            except FileNotFoundError:
+                return
+            try:
+                self._remove_directory_contents(target_fd)
+            finally:
+                os.close(target_fd)
+            os.rmdir(leaf, dir_fd=parent_fd)
+        except OSError as error:
+            raise FilesystemAuthorityError(
+                "sandbox relative tree cannot be removed"
+            ) from error
+        finally:
+            os.close(parent_fd)
+            self.assert_current()
+
     def _open_directory_at(self, parent_fd: int, segment: str) -> int:
         flags = os.O_RDONLY
         flags |= getattr(os, "O_DIRECTORY", 0)
@@ -315,6 +380,40 @@ class TrustedSandboxDirectoryAuthority:
                 "sandbox relative component is not a directory"
             )
         return child_fd
+
+    def _open_parent_fd(self, parts: tuple[str, ...]) -> int:
+        parent_fd = os.dup(self.fd)
+        try:
+            for segment in parts:
+                child_fd = self._open_directory_at(parent_fd, segment)
+                os.close(parent_fd)
+                parent_fd = child_fd
+            return parent_fd
+        except Exception:
+            os.close(parent_fd)
+            raise
+
+    def _remove_directory_contents(self, directory_fd: int) -> None:
+        for name in os.listdir(directory_fd):
+            try:
+                entry_stat = os.stat(
+                    name,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+            except OSError as error:
+                raise FilesystemAuthorityError(
+                    "sandbox relative tree cannot be inspected"
+                ) from error
+            if stat.S_ISDIR(entry_stat.st_mode):
+                child_fd = self._open_directory_at(directory_fd, name)
+                try:
+                    self._remove_directory_contents(child_fd)
+                finally:
+                    os.close(child_fd)
+                os.rmdir(name, dir_fd=directory_fd)
+            else:
+                os.unlink(name, dir_fd=directory_fd)
 
     @staticmethod
     def _relative_parts(relative: os.PathLike[str] | str) -> tuple[str, ...]:

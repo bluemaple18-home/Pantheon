@@ -46,6 +46,7 @@ def _formal_environment(
     manifest_path: Path,
     manifest: dict[str, Any],
     service_label: str,
+    activation_token: Path,
 ) -> Iterator[None]:
     values = {
         "PANTHEON_FORMAL_RUNTIME": "1",
@@ -63,6 +64,7 @@ def _formal_environment(
             "publisher_state_root"
         ],
         "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(activation_token),
     }
     previous = {key: os.environ.get(key) for key in values}
     os.environ.update({key: str(value) for key, value in values.items()})
@@ -78,7 +80,7 @@ def _formal_environment(
 
 def _load_contract(
     source: dict[str, Any],
-) -> tuple[Path, dict[str, Any], Path, Path, Path]:
+) -> tuple[Path, dict[str, Any], Path, Path, Path, Path, dict[str, Any]]:
     manifest_path = Path(str(source.get("runtime_manifest", "")))
     sandbox_root = Path(str(source.get("sandbox_root", "")))
     if (
@@ -96,6 +98,16 @@ def _load_contract(
         "runtime_identity_digest"
     ):
         raise AdapterBlocked("runtime identity digest mismatch")
+    activation_token = Path(str(source.get("activation_token", "")))
+    if not activation_token.is_absolute():
+        raise AdapterBlocked("activation token is required")
+    try:
+        activation_receipt = runtime_manifest.validate_barrier(
+            activation_token,
+            manifest,
+        )
+    except runtime_manifest.RuntimeManifestError as error:
+        raise AdapterBlocked(str(error)) from error
     try:
         queue_root = publisher._require_sandbox_descendant(
             sandbox_root, Path(manifest["queue_root"]), "queue root"
@@ -111,7 +123,15 @@ def _load_contract(
             raise publisher.PublishBlocked("queue and publisher state roots overlap")
     except publisher.PublishBlocked as error:
         raise AdapterBlocked(str(error)) from error
-    return manifest_path, manifest, sandbox_root, queue_root, state_root
+    return (
+        manifest_path,
+        manifest,
+        sandbox_root,
+        queue_root,
+        state_root,
+        activation_token,
+        activation_receipt,
+    )
 
 
 def _create_step(
@@ -119,12 +139,16 @@ def _create_step(
     manifest_path: Path,
     manifest: dict[str, Any],
     sandbox_root: Path,
+    activation_token: Path,
 ) -> dict[str, Any]:
     queue_root = Path(manifest["queue_root"])
     run_ids: dict[str, str] = {}
     states: dict[str, dict[str, Any]] = {}
     with _formal_environment(
-        manifest_path, manifest, "com.pantheon.agy-gemini-coordinator"
+        manifest_path,
+        manifest,
+        "com.pantheon.agy-gemini-coordinator",
+        activation_token,
     ):
         for lane in coordinator.CONTENT_LANES:
             run_id = "probe-" + hashlib.sha256(
@@ -165,6 +189,7 @@ def _run_step(
     manifest_path: Path,
     manifest: dict[str, Any],
     _sandbox_root: Path,
+    activation_token: Path,
 ) -> dict[str, Any]:
     run_ids = source.get("run_ids")
     if not isinstance(run_ids, dict) or set(run_ids) != set(coordinator.CONTENT_LANES):
@@ -173,7 +198,10 @@ def _run_step(
     for lane, run_id in run_ids.items():
         lane_root = Path(manifest["queue_root"]) / "lanes" / lane
         with _formal_environment(
-            manifest_path, manifest, f"com.pantheon.agy-gemini-{lane}"
+            manifest_path,
+            manifest,
+            f"com.pantheon.agy-gemini-{lane}",
+            activation_token,
         ):
             runtime_manifest.validate_runtime_tick(
                 f"com.pantheon.agy-gemini-{lane}",
@@ -217,12 +245,17 @@ def _publisher_step(
     sandbox_root: Path,
     queue_root: Path,
     state_root: Path,
+    activation_token: Path,
+    activation_receipt: dict[str, Any],
 ) -> dict[str, Any]:
     run_ids = source.get("run_ids")
     if not isinstance(run_ids, dict):
         raise AdapterBlocked("publisher run identity is missing")
     with _formal_environment(
-        manifest_path, manifest, "com.pantheon.agy-content-publisher"
+        manifest_path,
+        manifest,
+        "com.pantheon.agy-content-publisher",
+        activation_token,
     ):
         runtime_receipt = runtime_manifest.validate_runtime_tick(
             "com.pantheon.agy-content-publisher",
@@ -238,6 +271,7 @@ def _publisher_step(
             trusted_sandbox_root=sandbox_root,
             queue_root=queue_root,
             state_root=state_root,
+            runtime_receipt=runtime_receipt,
         )
     entrypoints = [
         str(result["entrypoint"]),
@@ -267,7 +301,10 @@ def _publisher_step(
             return subprocess.CompletedProcess(command, 1, "", "unexpected command")
 
         with _formal_environment(
-            manifest_path, manifest, "com.pantheon.content-capacity-guard"
+            manifest_path,
+            manifest,
+            "com.pantheon.content-capacity-guard",
+            activation_token,
         ):
             runtime_manifest.validate_runtime_tick(
                 "com.pantheon.content-capacity-guard",
@@ -288,6 +325,7 @@ def _publisher_step(
         output["production_entrypoints"].append(
             "scripts.pantheon_content_capacity_guard:preflight"
         )
+    output["activation_receipt"] = activation_receipt
     return output
 
 
@@ -295,13 +333,31 @@ def _production_transition(
     capability: str,
     source: dict[str, Any],
 ) -> dict[str, Any]:
-    manifest_path, manifest, sandbox_root, queue_root, state_root = _load_contract(
-        source
-    )
+    (
+        manifest_path,
+        manifest,
+        sandbox_root,
+        queue_root,
+        state_root,
+        activation_token,
+        activation_receipt,
+    ) = _load_contract(source)
     if capability == "create":
-        return _create_step(source, manifest_path, manifest, sandbox_root)
+        return _create_step(
+            source,
+            manifest_path,
+            manifest,
+            sandbox_root,
+            activation_token,
+        )
     if capability == "run":
-        return _run_step(source, manifest_path, manifest, sandbox_root)
+        return _run_step(
+            source,
+            manifest_path,
+            manifest,
+            sandbox_root,
+            activation_token,
+        )
     return _publisher_step(
         capability,
         source,
@@ -310,6 +366,8 @@ def _production_transition(
         sandbox_root,
         queue_root,
         state_root,
+        activation_token,
+        activation_receipt,
     )
 
 
