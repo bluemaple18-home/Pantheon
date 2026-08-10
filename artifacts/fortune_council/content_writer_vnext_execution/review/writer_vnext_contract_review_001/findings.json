@@ -1,0 +1,25 @@
+[
+  {
+    "id": "WRITER-VNEXT-CONTRACT-REVIEW-001-P1-001",
+    "severity": "P1",
+    "title": "stage sequence accepts JSON boolean and fails open",
+    "source_location": "scripts/agy_editorial_contracts.py:79",
+    "public_reproducer": {
+      "script": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer.py",
+      "output": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer_results.json",
+      "case": "boolean_sequence_ambiguity_fails_closed",
+      "expected": {
+        "valid": false,
+        "findings": [
+          "schema_version_unsupported"
+        ]
+      },
+      "actual": {
+        "valid": true,
+        "findings": []
+      }
+    },
+    "risk": "Python treats bool as a subclass of int, so the stage declaration gate accepts sequence=true as a valid sequence. The task contract requires stage declaration ambiguity to fail closed; a malformed public manifest can pass validation without a blocking finding.",
+    "repair_1": "In _validate_selected, require type(item.get(\"sequence\")) is int, and preferably reject negative sequence values if the manifest contract intends an ordered positive integer. Add a regression case for sequence=true and sequence=false."
+  }
+]

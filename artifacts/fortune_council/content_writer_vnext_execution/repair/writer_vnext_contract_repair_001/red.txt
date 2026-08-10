@@ -1,0 +1,17 @@
+Command: uv run pytest tests/test_agy_editorial_contracts.py -q
+Result: FAILED (expected before the exact-integer repair)
+
+..F...                                                                   [100%]
+=================================== FAILURES ===================================
+________________ test_selected_stage_sequence_rejects_booleans _________________
+
+    def test_selected_stage_sequence_rejects_booleans() -> None:
+        for value in (True, False):
+            report = contracts.validate_manifest(_manifest([_stage("content_plan_v1", value)]))
+>           assert "schema_version_unsupported" in report["findings"]
+E           AssertionError: assert 'schema_version_unsupported' in ['selected_stage_artifact_missing']
+
+tests/test_agy_editorial_contracts.py:81: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agy_editorial_contracts.py::test_selected_stage_sequence_rejects_booleans
+1 failed, 5 passed in 0.05s
