@@ -2882,6 +2882,8 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer
+    assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
+    assert ".pantheon-four-lane-stage" in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert (
         plist["EnvironmentVariables"]["PANTHEON_PUBLISHER_STDOUT_LOG"]

@@ -25,8 +25,16 @@
   <dict>
     <key>PANTHEON_RUNTIME_MANIFEST_DIGEST</key>
     <string>__RUNTIME_MANIFEST_DIGEST__</string>
-    <key>PANTHEON_RUNTIME_IDENTITY</key>
-    <string>__RUNTIME_IDENTITY__</string>
+        <key>PANTHEON_RUNTIME_IDENTITY</key>
+        <string>__RUNTIME_IDENTITY__</string>
+        <key>PANTHEON_RUNTIME_ACTOR_ROOT</key>
+        <string>__REPO_ROOT__</string>
+        <key>PANTHEON_RUNTIME_QUEUE_ROOT</key>
+        <string>__QUEUE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT</key>
+        <string>__PUBLISHER_STATE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_LOG_ROOT</key>
+        <string>__LOG_ROOT__</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:transaction",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "transaction",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/04-publish-adapter.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/05-transaction-adapter.json",
+      "--expected-input-digest",
+      "2be2335d84a74a7bcf5baf3ca43f98dabae8ff39dd4b2e47459b2ae7afbb1589",
+      "--actual-input-digest",
+      "2be2335d84a74a7bcf5baf3ca43f98dabae8ff39dd4b2e47459b2ae7afbb1589",
+      "--execution-id",
+      "repair-2-verified-negative-tag",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/05-transaction-adapter.json",
+    "returncode": 0
+  },
+  "capability": "transaction",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:transaction",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-tag",
+  "expected_input_digest": "2be2335d84a74a7bcf5baf3ca43f98dabae8ff39dd4b2e47459b2ae7afbb1589",
+  "input_digest": "2be2335d84a74a7bcf5baf3ca43f98dabae8ff39dd4b2e47459b2ae7afbb1589",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 5,
+  "output_digest": "23cb372c3eb74d985fd966e5eb6a7511ab0ad094eb4c4c887486924033b53fc1",
+  "production_entrypoint": "scripts.agy_content_publisher:transaction",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.336861+00:00"
+}

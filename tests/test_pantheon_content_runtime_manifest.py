@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import plistlib
+import subprocess
+import sys
 
 import pytest
 
@@ -96,7 +99,114 @@ def test_all_formal_installers_and_plists_consume_shared_manifest_identity() -> 
         assert "scripts.pantheon_content_runtime_manifest field" in body
         assert "PANTHEON_RUNTIME_MANIFEST_DIGEST" in body
         assert "PANTHEON_RUNTIME_IDENTITY" in body
+        assert "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST" in body
+    assert "scripts.pantheon_content_runtime_manifest aggregate" in installers[1].read_text(
+        encoding="utf-8"
+    )
+    assert "launchctl bootstrap" not in installers[0].read_text(encoding="utf-8")
+    assert "launchctl bootstrap" not in installers[2].read_text(encoding="utf-8")
     for plist in plists:
         body = plist.read_text(encoding="utf-8")
         assert "PANTHEON_RUNTIME_MANIFEST_DIGEST" in body
         assert "PANTHEON_RUNTIME_IDENTITY" in body
+
+
+def test_aggregate_gate_rejects_mixed_manifest_plists(tmp_path: Path) -> None:
+    """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 Repair-2。"""
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest_a = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="repair-2-a",
+    )
+    manifest_b = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="repair-2-b",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest_a)
+    plists: list[Path] = []
+    for label in runtime.SERVICE_LABELS:
+        path = tmp_path / f"{label}.plist"
+        with path.open("wb") as stream:
+            plistlib.dump(
+                {
+                    "Label": label,
+                    "WorkingDirectory": str(actor),
+                    "EnvironmentVariables": {
+                        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest_a[
+                            "manifest_digest"
+                        ],
+                        "PANTHEON_RUNTIME_IDENTITY": manifest_a["identity"],
+                        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest_a["actor_root"],
+                        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest_a["queue_root"],
+                        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest_a[
+                            "publisher_state_root"
+                        ],
+                        "PANTHEON_RUNTIME_LOG_ROOT": manifest_a["log_root"],
+                    },
+                },
+                stream,
+            )
+        path.chmod(0o600)
+        plists.append(path)
+
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "aggregate",
+        "--manifest",
+        str(manifest_path),
+        "--expected-digest",
+        manifest_a["manifest_digest"],
+        *sum((["--plist", str(path)] for path in plists), []),
+    ]
+    positive = subprocess.run(command, check=False, capture_output=True, text=True)
+    with plists[-1].open("rb") as stream:
+        mixed = plistlib.load(stream)
+    mixed["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST_DIGEST"] = manifest_b[
+        "manifest_digest"
+    ]
+    with plists[-1].open("wb") as stream:
+        plistlib.dump(mixed, stream)
+    negative = subprocess.run(command, check=False, capture_output=True, text=True)
+
+    assert positive.returncode == 0, positive.stderr
+    assert negative.returncode != 0
+    assert "mismatch" in negative.stdout
+
+
+def test_stale_or_malformed_activation_barrier_fails_closed(tmp_path: Path) -> None:
+    """REG-PANTHEON-FOUR-LANE-INSTALL-ROLLBACK-001 barrier identity。"""
+    barrier = tmp_path / "activation.barrier"
+    barrier.write_text("stale\n", encoding="utf-8")
+    barrier.chmod(0o600)
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "barrier-exec",
+        "--barrier",
+        str(barrier),
+        "--expected-digest",
+        "a" * 64,
+        "--timeout",
+        "1",
+        "--",
+        "/usr/bin/true",
+    ]
+
+    completed = subprocess.run(command, check=False)
+
+    assert completed.returncode == 78

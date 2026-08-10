@@ -20,8 +20,10 @@ NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-content-publisher.plist"
+STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-content-publisher.plist.example"
 RUNTIME_MANIFEST_FILE="${PANTHEON_RUNTIME_MANIFEST_FILE:-${REPO_ROOT}/.work/pantheon-content-runtime-manifest.json}"
+EXPECTED_RUNTIME_MANIFEST_DIGEST="${PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST:-}"
 TEMP_PLIST=""
 
 cleanup() {
@@ -53,16 +55,22 @@ if [[ "${NEW_ONLY}" == "1" ]]; then
   echo "四軌 recovery 禁止 new-only；請改用獨立 maintenance 入口。" >&2
   exit 1
 fi
+if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "缺少 exact runtime manifest expected digest。" >&2
+  exit 1
+fi
 (
   cd "${REPO_ROOT}"
   "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
-    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --manifest "${RUNTIME_MANIFEST_FILE}" \
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
 ) >/dev/null
 manifest_field() {
   (
     cd "${REPO_ROOT}"
     "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
-      --manifest "${RUNTIME_MANIFEST_FILE}" --name "$1"
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
 }
 ACTOR_ROOT="$(manifest_field actor_root)"
@@ -127,6 +135,10 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_PUBLISHER_STDERR_LOG ${STDERR_LOG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST_DIGEST ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY ${RUNTIME_IDENTITY}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_ROOT ${ACTOR_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${STATE_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${STDOUT_LOG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${STDERR_LOG}" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
@@ -157,11 +169,6 @@ if [[ "${ACTION}" == "--preflight" ]]; then
 fi
 
 run_preflight >/dev/null
-mkdir -p "${LOG_DIR}" "${LAUNCH_AGENTS_DIR}" "${STATE_ROOT}"
-launchctl bootout "gui/${USER_ID}" "${TARGET_PLIST}" >/dev/null 2>&1 || true
-install -m 600 "${TEMP_PLIST}" "${TARGET_PLIST}"
-launchctl bootstrap "gui/${USER_ID}" "${TARGET_PLIST}"
-
-echo "Pantheon content publisher 已啟用。"
-echo "狀態：launchctl print gui/${USER_ID}/com.pantheon.agy-content-publisher"
-echo "停止：launchctl bootout gui/${USER_ID} ${TARGET_PLIST}"
+mkdir -p "${STAGE_DIR}"
+install -m 600 "${TEMP_PLIST}" "${STAGE_DIR}/com.pantheon.agy-content-publisher.plist"
+echo "Pantheon content publisher plist 已寫入 private aggregate stage；尚未 activation。"

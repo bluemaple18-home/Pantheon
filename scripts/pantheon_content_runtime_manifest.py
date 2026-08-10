@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
+import stat
 import tempfile
 import time
 from typing import Any
@@ -94,7 +96,7 @@ def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def load_manifest(path: Path) -> dict[str, Any]:
+def load_manifest(path: Path, expected_digest: str | None = None) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
@@ -104,6 +106,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
     digest = str(payload.pop("manifest_digest", ""))
     if payload.get("schema_version") != SCHEMA_VERSION or digest != _manifest_digest(payload):
         raise RuntimeManifestError("runtime manifest digest mismatch")
+    if expected_digest is not None and digest != expected_digest:
+        raise RuntimeManifestError("runtime manifest expected digest mismatch")
     payload["manifest_digest"] = digest
     for field in PATH_FIELDS:
         if _canonical_directory(Path(str(payload.get(field, ""))), field) != payload[field]:
@@ -142,6 +146,67 @@ def validate_receipts(
     return {"status": "PASS", "manifest_digest": manifest["manifest_digest"]}
 
 
+def plist_receipt(path: Path) -> dict[str, Any]:
+    if not path.is_absolute() or not path.is_file() or path.is_symlink():
+        raise RuntimeManifestError("plist must be an absolute regular file")
+    canonical = path.resolve(strict=True)
+    if canonical != path or os.stat(canonical).st_uid != os.getuid():
+        raise RuntimeManifestError("plist canonical realpath or owner mismatch")
+    if stat.S_IMODE(os.stat(canonical).st_mode) != 0o600:
+        raise RuntimeManifestError("plist mode must be 0600")
+    try:
+        with canonical.open("rb") as stream:
+            payload = plistlib.load(stream)
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise RuntimeManifestError("plist is unreadable") from error
+    environment = payload.get("EnvironmentVariables")
+    if not isinstance(environment, dict):
+        raise RuntimeManifestError("plist runtime environment is missing")
+    receipt = {
+        "label": payload.get("Label"),
+        "identity": environment.get("PANTHEON_RUNTIME_IDENTITY"),
+        "manifest_digest": environment.get("PANTHEON_RUNTIME_MANIFEST_DIGEST"),
+        "actor_root": environment.get("PANTHEON_RUNTIME_ACTOR_ROOT"),
+        "queue_root": environment.get("PANTHEON_RUNTIME_QUEUE_ROOT"),
+        "publisher_state_root": environment.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"),
+        "log_root": environment.get("PANTHEON_RUNTIME_LOG_ROOT"),
+        "plist_realpath": str(canonical),
+    }
+    if payload.get("WorkingDirectory") != receipt["actor_root"]:
+        raise RuntimeManifestError("plist working directory actor mismatch")
+    return receipt
+
+
+def aggregate_plist_preflight(
+    manifest: dict[str, Any], plist_paths: list[Path]
+) -> dict[str, Any]:
+    receipts = [plist_receipt(path) for path in plist_paths]
+    result = validate_receipts(
+        manifest,
+        [{key: value for key, value in receipt.items() if key != "plist_realpath"} for receipt in receipts],
+    )
+    return {**result, "receipts": receipts}
+
+
+def _barrier_is_valid(path: Path, expected_digest: str) -> bool:
+    if not path.is_absolute() or not path.is_file() or path.is_symlink():
+        return False
+    try:
+        if path.resolve(strict=True) != path:
+            return False
+        metadata = os.stat(path)
+        if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600:
+            return False
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return payload == {
+        "schema_version": 1,
+        "manifest_digest": expected_digest,
+        "owner_uid": os.getuid(),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -154,18 +219,34 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--output", type=Path, required=True)
     field = subparsers.add_parser("field")
     field.add_argument("--manifest", type=Path, required=True)
+    field.add_argument("--expected-digest", required=True)
     field.add_argument("--name", choices=(*PATH_FIELDS, "identity", "manifest_digest"), required=True)
     validate = subparsers.add_parser("validate")
     validate.add_argument("--manifest", type=Path, required=True)
+    validate.add_argument("--expected-digest", required=True)
+    aggregate = subparsers.add_parser("aggregate")
+    aggregate.add_argument("--manifest", type=Path, required=True)
+    aggregate.add_argument("--expected-digest", required=True)
+    aggregate.add_argument("--plist", type=Path, action="append", required=True)
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
+    barrier.add_argument("--expected-digest", required=True)
     barrier.add_argument("--timeout", type=int, default=90)
     barrier.add_argument("remainder", nargs=argparse.REMAINDER)
+    barrier_validate = subparsers.add_parser("barrier-validate")
+    barrier_validate.add_argument("--barrier", type=Path, required=True)
+    barrier_validate.add_argument("--expected-digest", required=True)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.command == "barrier-validate":
+        if _barrier_is_valid(args.barrier, args.expected_digest):
+            print(json.dumps({"status": "PASS"}, sort_keys=True))
+            return 0
+        print(json.dumps({"status": "NO-GO", "error": "barrier identity mismatch"}, sort_keys=True))
+        return 1
     if args.command == "barrier-exec":
         command = list(args.remainder)
         if command[:1] == ["--"]:
@@ -173,10 +254,12 @@ def main() -> int:
         if not command or not args.barrier.is_absolute() or not 1 <= args.timeout <= 300:
             return 64
         deadline = time.monotonic() + args.timeout
-        while not args.barrier.is_file():
+        while not args.barrier.exists():
             if time.monotonic() >= deadline:
                 return 75
             time.sleep(0.2)
+        if not _barrier_is_valid(args.barrier, args.expected_digest):
+            return 78
         os.execv(command[0], command)
         return 70
     try:
@@ -191,9 +274,11 @@ def main() -> int:
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))
         else:
-            manifest = load_manifest(args.manifest)
+            manifest = load_manifest(args.manifest, args.expected_digest)
             if args.command == "field":
                 print(manifest[args.name])
+            elif args.command == "aggregate":
+                print(json.dumps(aggregate_plist_preflight(manifest, args.plist), sort_keys=True))
             else:
                 print(json.dumps({"status": "PASS", **manifest}, sort_keys=True))
     except RuntimeManifestError as error:

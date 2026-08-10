@@ -1,0 +1,16 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "capability": "create",
+  "correlation_id": "repair-2-verified",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-select",
+  "expected_input_digest": "e1041b3e6fdb7f0ac400f4b7179763dc978268a8a3fd330bf1a4ccab5459b096",
+  "input_digest": "e1041b3e6fdb7f0ac400f4b7179763dc978268a8a3fd330bf1a4ccab5459b096",
+  "mode": "bounded-production-dry-run-adapter",
+  "output_digest": "67c62f72c0b6301dceba33a083a85ac772d26923afc6637aa3f676e56a0c7c0d",
+  "production_mutation": false,
+  "registration": "accepted",
+  "run_id": "probe-repair-2-verified",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.186531+00:00"
+}

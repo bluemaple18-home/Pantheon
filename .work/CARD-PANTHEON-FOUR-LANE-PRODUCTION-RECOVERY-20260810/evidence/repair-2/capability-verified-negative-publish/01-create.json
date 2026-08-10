@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:create",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "create",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-publish/00-probe-input.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-publish/01-create-adapter.json",
+      "--expected-input-digest",
+      "c4bd756f40136971741951ceef3a51a2918b59a631f13af8079713a9e88e3225",
+      "--actual-input-digest",
+      "c4bd756f40136971741951ceef3a51a2918b59a631f13af8079713a9e88e3225",
+      "--execution-id",
+      "repair-2-verified-negative-publish",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-publish/01-create-adapter.json",
+    "returncode": 0
+  },
+  "capability": "create",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:create",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-publish",
+  "expected_input_digest": "c4bd756f40136971741951ceef3a51a2918b59a631f13af8079713a9e88e3225",
+  "input_digest": "c4bd756f40136971741951ceef3a51a2918b59a631f13af8079713a9e88e3225",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 1,
+  "output_digest": "ca53077c0cb7e89de8cdd6c0ce9d51a0b1e657f5dd490110a0f10882a592212a",
+  "production_entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.193405+00:00"
+}

@@ -11,9 +11,11 @@
     <string>-m</string>
     <string>scripts.pantheon_content_runtime_manifest</string>
     <string>barrier-exec</string>
-    <string>--barrier</string>
-    <string>__ACTIVATION_BARRIER__</string>
-    <string>--timeout</string>
+        <string>--barrier</string>
+        <string>__ACTIVATION_BARRIER__</string>
+        <string>--expected-digest</string>
+        <string>__RUNTIME_MANIFEST_DIGEST__</string>
+        <string>--timeout</string>
     <string>90</string>
     <string>--</string>
     <string>__PYTHON__</string>
@@ -50,8 +52,16 @@
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>PANTHEON_RUNTIME_MANIFEST_DIGEST</key>
     <string>__RUNTIME_MANIFEST_DIGEST__</string>
-    <key>PANTHEON_RUNTIME_IDENTITY</key>
-    <string>__RUNTIME_IDENTITY__</string>
+        <key>PANTHEON_RUNTIME_IDENTITY</key>
+        <string>__RUNTIME_IDENTITY__</string>
+        <key>PANTHEON_RUNTIME_ACTOR_ROOT</key>
+        <string>__REPO_ROOT__</string>
+        <key>PANTHEON_RUNTIME_QUEUE_ROOT</key>
+        <string>__QUEUE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT</key>
+        <string>__PUBLISHER_STATE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_LOG_ROOT</key>
+        <string>__LOG_ROOT__</string>
   </dict>
 
   <key>StartInterval</key>

@@ -2131,7 +2131,7 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
 
     assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
     assert arguments[3:5] == ["barrier-exec", "--barrier"]
-    assert arguments[10:12] == ["-m", "scripts.agy_gemini_coordinator"]
+    assert arguments[12:14] == ["-m", "scripts.agy_gemini_coordinator"]
     assert "--lane-mode" in arguments
     assert "--new-matrix-sweep" in arguments
     assert "--new-matrix-run-root" in arguments
@@ -2144,7 +2144,7 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
         "-m",
         "scripts.pantheon_content_runtime_manifest",
     ]
-    assert lane_plist["ProgramArguments"][10:12] == ["-m", "scripts.agy_gemini_runner"]
+    assert lane_plist["ProgramArguments"][12:14] == ["-m", "scripts.agy_gemini_runner"]
     assert "--lane" in lane_plist["ProgramArguments"]
     assert lane_plist["ProgramArguments"][-1] == "process-once"
     assert plist["EnvironmentVariables"]["AGY_GEMINI_NEW_ONLY"] == "0"
@@ -2443,6 +2443,7 @@ def _installer_test_env(
     manifest_path, queue_root, publisher_root, _log_root = _write_installer_runtime_manifest(
         tmp_path
     )
+    manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
     env.update(
         {
@@ -2451,6 +2452,7 @@ def _installer_test_env(
             "AGY_GEMINI_CLI_PATH": str(cli_path),
             "PANTHEON_PYTHON_PATH": sys.executable,
             "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest_digest,
             "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
             "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
             "PATH": f"{fake_bin}:/usr/bin:/bin",
@@ -2458,6 +2460,36 @@ def _installer_test_env(
         }
     )
     return env, fake_home, mutation_log
+
+
+def _write_aggregate_stage_plist(
+    path: Path,
+    *,
+    label: str,
+    manifest: dict[str, object],
+    manifest_digest: str | None = None,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as stream:
+        plistlib.dump(
+            {
+                "Label": label,
+                "WorkingDirectory": manifest["actor_root"],
+                "EnvironmentVariables": {
+                    "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest_digest
+                    or manifest["manifest_digest"],
+                    "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+                    "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+                    "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+                    "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest[
+                        "publisher_state_root"
+                    ],
+                    "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+                },
+            },
+            stream,
+        )
+    path.chmod(0o600)
 
 
 @pytest.mark.parametrize(
@@ -2617,15 +2649,78 @@ def test_four_lane_installer_separates_stage_and_activation_with_rollback() -> N
 
     assert 'ACTION}" == "--install"' in installer
     assert '"--activate"' in installer
-    assert "activation barrier" in installer
+    assert "ACTIVATION_BARRIER" in installer
     assert "rollback_activation" in installer
     assert "previous_loaded" in installer
     install_section = installer.split('if [[ "${ACTION}" == "--install" ]]', 1)[1]
     assert install_section.index("exit 0") < install_section.index("launchctl bootstrap")
 
 
+def test_aggregate_activation_rejects_mixed_installer_manifest_before_mutation(
+    tmp_path: Path,
+) -> None:
+    """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 aggregate caller。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    _write_aggregate_stage_plist(
+        stage_dir / "com.pantheon.agy-content-publisher.plist",
+        label="com.pantheon.agy-content-publisher",
+        manifest=manifest,
+    )
+    _write_aggregate_stage_plist(
+        stage_dir / "com.pantheon.content-capacity-guard.plist",
+        label="com.pantheon.content-capacity-guard",
+        manifest=manifest,
+        manifest_digest="0" * 64,
+    )
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    assert "mismatch" in activated.stdout
+    assert not mutation_log.exists()
+    assert not (fake_home / "Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist").exists()
+
+
+@pytest.mark.parametrize(
+    ("rollback_fail_at", "expected_rollback_status"),
+    [(0, "ROLLBACK_COMPLETE"), (4, "ROLLBACK_FAILED")],
+)
 def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     tmp_path: Path,
+    rollback_fail_at: int,
+    expected_rollback_status: str,
 ) -> None:
     """REG-PANTHEON-FOUR-LANE-INSTALL-ROLLBACK-001 動態 rollback。"""
     repo_root = Path(__file__).resolve().parents[1]
@@ -2643,6 +2738,8 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "com.pantheon.agy-gemini-rewrite",
         "com.pantheon.agy-gemini-i18n-new",
         "com.pantheon.agy-gemini-i18n-rewrite",
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
     ]
     previous = b"synthetic-previous-plist\n"
     for label in labels:
@@ -2652,19 +2749,33 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     barrier.write_text("previous-barrier\n", encoding="utf-8")
     launchctl = tmp_path / "bin" / "launchctl"
     bootstrap_count = tmp_path / "bootstrap-count"
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    for label in labels:
+        (loaded / label).touch()
     launchctl.write_text(
         "#!/bin/sh\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
         "if [ \"$1\" = \"print\" ]; then\n"
         "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
         "  printf '%s\\n' 'pid = 4242'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootstrap\" ]; then\n"
         f"  count=$(cat '{bootstrap_count}' 2>/dev/null || printf 0)\n"
         "  count=$((count + 1))\n"
         f"  printf '%s' \"$count\" > '{bootstrap_count}'\n"
-        "  if [ \"$count\" -eq 3 ]; then exit 1; fi\n"
+        f"  if [ \"$count\" -eq 3 ] || [ \"$count\" -eq {rollback_fail_at} ]; then exit 1; fi\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        f"  touch '{loaded}/'$label\n"
         "fi\n"
         "exit 0\n",
         encoding="utf-8",
@@ -2679,6 +2790,33 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         capture_output=True,
         text=True,
     )
+    assert staged.returncode == 0, staged.stderr
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    for label in labels[-2:]:
+        with (stage_dir / f"{label}.plist").open("wb") as stream:
+            plistlib.dump(
+                {
+                    "Label": label,
+                    "WorkingDirectory": manifest["actor_root"],
+                    "EnvironmentVariables": {
+                        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest[
+                            "manifest_digest"
+                        ],
+                        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+                        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+                        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+                        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest[
+                            "publisher_state_root"
+                        ],
+                        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+                    },
+                },
+                stream,
+            )
+        (stage_dir / f"{label}.plist").chmod(0o600)
+    for label in labels:
+        assert (launch_agents / f"{label}.plist").read_bytes() == previous
+        assert (stage_dir / f"{label}.plist").is_file()
     activated = subprocess.run(
         ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"), "--activate"],
         cwd=tmp_path,
@@ -2688,13 +2826,12 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         text=True,
     )
 
-    assert staged.returncode == 0, staged.stderr
     assert activated.returncode != 0
     for label in labels:
         assert (launch_agents / f"{label}.plist").read_bytes() == previous
-    assert barrier.read_text(encoding="utf-8") == "previous-barrier\n"
+    assert not barrier.exists()
     failure_receipt = launch_agents / ".pantheon-four-lane-stage" / "failure-receipt.json"
-    assert json.loads(failure_receipt.read_text(encoding="utf-8"))["status"] == "ROLLBACK_COMPLETE"
+    assert json.loads(failure_receipt.read_text(encoding="utf-8"))["status"] == expected_rollback_status
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 2
     assert mutations.count("bootstrap") >= len(labels)
@@ -2773,6 +2910,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         tmp_path,
         publisher_root=publisher_root,
     )
+    manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
     env.update(
         {
@@ -2785,6 +2923,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
             "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
             "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
             "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest_digest,
             "PANTHEON_PYTHON_PATH": sys.executable,
             "PATH": f"{fake_bin}:/usr/bin:/bin",
             "TMPDIR": str(tmp_path),
@@ -2807,14 +2946,15 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
             fake_home
             / "Library"
             / "LaunchAgents"
+            / ".pantheon-four-lane-stage"
             / "com.pantheon.agy-gemini-coordinator.plist"
         ).read_bytes()
     )
     coordinator_arguments = coordinator_plist["ProgramArguments"]
     coordinator_variables = coordinator_plist["EnvironmentVariables"]
-    assert coordinator_arguments[17] == str(gsc_copy_root)
-    assert coordinator_arguments[20] == str(publisher_root)
-    assert coordinator_arguments[22] == str(gsc_copy_root)
+    assert coordinator_arguments[coordinator_arguments.index("--new-matrix-run-root") + 1] == str(gsc_copy_root)
+    assert coordinator_arguments[coordinator_arguments.index("--legacy-state-root") + 1] == str(publisher_root)
+    assert coordinator_arguments[coordinator_arguments.index("--legacy-run-root") + 1] == str(gsc_copy_root)
     shared_contract = {
         "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
         "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
@@ -2837,6 +2977,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
                 fake_home
                 / "Library"
                 / "LaunchAgents"
+                / ".pantheon-four-lane-stage"
                 / f"com.pantheon.agy-gemini-{lane}.plist"
             ).read_bytes()
         )
@@ -2908,9 +3049,9 @@ def test_installer_pool_opt_out_preserves_compatibility_without_pool_requirement
     assert completed.returncode == 0, completed.stderr
     assert not mutation_log.exists()
     installed_paths = [
-        fake_home / "Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist",
+        fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.agy-gemini-coordinator.plist",
         *[
-            fake_home / f"Library/LaunchAgents/com.pantheon.agy-gemini-{lane}.plist"
+            fake_home / f"Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.agy-gemini-{lane}.plist"
             for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite")
         ],
     ]

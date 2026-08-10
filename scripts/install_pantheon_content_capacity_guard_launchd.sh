@@ -16,8 +16,10 @@ if [[ "${USER_HOME_DIR}" != /* ]]; then
 fi
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 RUNTIME_MANIFEST_FILE="${PANTHEON_RUNTIME_MANIFEST_FILE:-${REPO_ROOT}/.work/pantheon-content-runtime-manifest.json}"
+EXPECTED_RUNTIME_MANIFEST_DIGEST="${PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST:-}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.content-capacity-guard.plist"
+STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.content-capacity-guard.plist.example"
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-content-capacity-guard.XXXXXX")"
 
@@ -36,16 +38,22 @@ if [[ ! -x "${PYTHON_PATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
 fi
+if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "缺少 exact runtime manifest expected digest。" >&2
+  exit 1
+fi
 (
   cd "${REPO_ROOT}"
   "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
-    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --manifest "${RUNTIME_MANIFEST_FILE}" \
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
 ) >/dev/null
 manifest_field() {
   (
     cd "${REPO_ROOT}"
     "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
-      --manifest "${RUNTIME_MANIFEST_FILE}" --name "$1"
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
 }
 ACTOR_ROOT="$(manifest_field actor_root)"
@@ -77,9 +85,6 @@ if [[ -n "${PANTHEON_CONTENT_PUBLISHER_ROOT:-}" \
   exit 1
 fi
 
-if [[ "${ACTION}" == "--install" ]]; then
-  mkdir -p "${QUEUE_ROOT}" "${PUBLISHER_ROOT}" "${LOG_ROOT}" "${LAUNCH_AGENTS_DIR}"
-fi
 (
   cd "${REPO_ROOT}"
   "${PYTHON_PATH}" -m scripts.pantheon_content_capacity_guard \
@@ -99,6 +104,10 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_MANIFEST_DIGEST ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_IDENTITY ${RUNTIME_IDENTITY}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_ROOT ${ACTOR_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${PUBLISHER_ROOT}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_ROOT}/pantheon-content-capacity-guard.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_ROOT}/pantheon-content-capacity-guard.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
@@ -107,7 +116,6 @@ if [[ "${ACTION}" == "--preflight" ]]; then
   exit 0
 fi
 
-launchctl bootout "gui/${USER_ID}" "${TARGET_PLIST}" >/dev/null 2>&1 || true
-install -m 600 "${TEMP_PLIST}" "${TARGET_PLIST}"
-launchctl bootstrap "gui/${USER_ID}" "${TARGET_PLIST}"
-echo "Pantheon content capacity watchdog 已啟用。"
+mkdir -p "${STAGE_DIR}"
+install -m 600 "${TEMP_PLIST}" "${STAGE_DIR}/com.pantheon.content-capacity-guard.plist"
+echo "Pantheon content capacity watchdog plist 已寫入 private aggregate stage；尚未 activation。"

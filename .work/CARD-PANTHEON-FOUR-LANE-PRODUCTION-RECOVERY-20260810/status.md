@@ -1,13 +1,14 @@
 ---
 id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810
-status: ready_for_re_review
+status: ready_for_final_re_review
 type: implementation
-repair_round: 1
+repair_round: 2
 ---
 
 # 狀態
 
-- current state：`READY_FOR_RE_REVIEW`；八個 P1 的 Repair-1 與 regression evidence 已完成。
-- parent candidate：`995845b2c7a6abf3dc14f28fde7dd309b9812276`。
-- production state：`NO-GO`；沒有執行任何 production actor、installer、launchctl、queue/provider、canary、tag、push 或 merge mutation。
-- next step：由原 Reviewer 對 Repair-1 commit 與 evidence 複審；不得由本實作者宣稱 `REVIEW_GO`。
+- current state：`READY_FOR_FINAL_RE_REVIEW`；re-review OPEN 的 001／003／005／008 已修復並具 regression/evidence。
+- exact parent：`bf4a294da3229eba2d4bf4baf8f3c10d90267e6e`。
+- preserved CLOSED：002／004／006／007 的具體回歸仍全綠。
+- production state：`NO-GO`；未執行任何 production/control-plane mutation。
+- next step：交回原 Reviewer final re-review；不得由本實作者宣稱 `REVIEW_GO`。

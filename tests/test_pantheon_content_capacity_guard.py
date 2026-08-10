@@ -227,7 +227,8 @@ def test_launchd_template_and_installer_keep_five_minute_fail_closed_contract() 
     assert "scripts.pantheon_content_capacity_guard" in template
     assert "preflight" in installer
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
-    assert 'launchctl bootstrap "gui/${USER_ID}"' in installer
+    assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
+    assert ".pantheon-four-lane-stage" in installer
     assert os.access(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh", os.X_OK)
 
 
@@ -285,6 +286,9 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
             "PANTHEON_USER_HOME_DIR": str(fake_home),
             "PANTHEON_PYTHON_PATH": sys.executable,
             "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest[
+                "manifest_digest"
+            ],
             "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
             "TMPDIR": str(tmp_path),
         }
