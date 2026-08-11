@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 import functools
 import hashlib
@@ -81,6 +81,31 @@ MAX_RETRY_ATTEMPTS = 3
 PUBLISHER_LOG_MAX_BYTES = 32 * 1024 * 1024
 PUBLISHER_LOG_RETAIN_BYTES = 4 * 1024 * 1024
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+RECEIPT_CAPABILITY_ORDINALS = {
+    "select": 3,
+    "publish": 4,
+    "transaction": 5,
+    "tag": 6,
+    "push": 7,
+}
+RECEIPT_CONTEXT_KEYS = frozenset(
+    {
+        "execution_line_id",
+        "correlation_id",
+        "actor_identity",
+        "runtime_identity_digest",
+        "input_digest",
+        "evidence_root",
+        "positive_evidence",
+        "negative_evidence",
+        "push_mode",
+        "tag_mode",
+        "canary_created",
+        "production_mutation",
+    }
+)
+RECEIPT_CALLER_VERDICT_KEYS = frozenset({"status", "verdict", "ready", "valid"})
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 def _normalize_exact_run_ids(
@@ -120,6 +145,300 @@ def _runtime_identity_digest_for_trace(runtime_receipt: dict[str, Any] | None) -
     if type(digest) is not str or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
         raise PublishBlocked("publisher runtime identity receipt is invalid")
     return digest
+
+
+def _compact_json_digest(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _receipt_identifier(value: object, field: str) -> str:
+    if type(value) is not str:
+        raise PublishBlocked(f"publisher receipt {field} must be a string")
+    if not value or value.strip() != value:
+        raise PublishBlocked(f"publisher receipt {field} must be non-blank")
+    return value
+
+
+def _receipt_digest(value: object, field: str) -> str:
+    if type(value) is not str or SHA256_PATTERN.fullmatch(value) is None:
+        raise PublishBlocked(f"publisher receipt {field} must be a sha256 digest")
+    return value
+
+
+def _receipt_evidence_identifier(value: object, field: str) -> str:
+    identifier = _receipt_identifier(value, field)
+    if (
+        identifier.startswith("/")
+        or "\\" in identifier
+        or "//" in identifier
+        or ":" in identifier
+    ):
+        raise PublishBlocked(f"publisher receipt {field} must be artifact-relative")
+    parts = identifier.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise PublishBlocked(f"publisher receipt {field} must not traverse")
+    return identifier
+
+
+def _publisher_receipt_context(
+    raw_context: Mapping[str, Any] | None,
+    *,
+    sandbox_root: Path,
+) -> dict[str, Any] | None:
+    if raw_context is None:
+        return None
+    if not isinstance(raw_context, Mapping) or any(type(key) is not str for key in raw_context):
+        raise PublishBlocked("publisher receipt context must be an object")
+    evidence_root_value = raw_context.get("evidence_root")
+    if type(evidence_root_value) is not str:
+        raise PublishBlocked("publisher receipt evidence root must be a string")
+    evidence_root = _require_sandbox_descendant(
+        sandbox_root,
+        Path(evidence_root_value),
+        "receipt evidence root",
+    )
+    positive_evidence = _receipt_evidence_identifier(
+        raw_context.get("positive_evidence"),
+        "positive_evidence",
+    )
+    negative_evidence = _receipt_evidence_identifier(
+        raw_context.get("negative_evidence"),
+        "negative_evidence",
+    )
+    if positive_evidence == negative_evidence:
+        raise PublishBlocked("publisher receipt evidence identifiers must be distinct")
+    return {
+        "execution_line_id": _receipt_identifier(
+            raw_context.get("execution_line_id"),
+            "execution_line_id",
+        ),
+        "correlation_id": raw_context.get("correlation_id"),
+        "actor_identity": _receipt_identifier(
+            raw_context.get("actor_identity"),
+            "actor_identity",
+        ),
+        "runtime_identity_digest": raw_context.get("runtime_identity_digest"),
+        "input_digest": _receipt_digest(raw_context.get("input_digest"), "input_digest"),
+        "evidence_root": evidence_root,
+        "positive_evidence": positive_evidence,
+        "negative_evidence": negative_evidence,
+        "raw_context": raw_context,
+    }
+
+
+def _validate_publisher_receipt_context_policy(
+    receipt_context: dict[str, Any],
+    *,
+    capability: str,
+    correlation_id: str,
+    runtime_identity_digest: str,
+) -> None:
+    raw_context = receipt_context["raw_context"]
+    if RECEIPT_CALLER_VERDICT_KEYS.intersection(raw_context):
+        raise PublishBlocked("publisher receipt context contains caller verdict")
+    unknown_keys = set(raw_context) - RECEIPT_CONTEXT_KEYS
+    if unknown_keys:
+        raise PublishBlocked("publisher receipt context contains unknown keys")
+    context_correlation = raw_context.get("correlation_id")
+    if context_correlation is not None and context_correlation != correlation_id:
+        raise PublishBlocked("publisher receipt correlation identity drift")
+    context_runtime_digest = raw_context.get("runtime_identity_digest")
+    if (
+        context_runtime_digest is not None
+        and context_runtime_digest != runtime_identity_digest
+    ):
+        raise PublishBlocked("publisher receipt runtime identity drift")
+    if raw_context.get("canary_created") not in {None, False}:
+        raise PublishBlocked("publisher receipt canary authority is not allowed")
+    if raw_context.get("production_mutation") not in {None, False}:
+        raise PublishBlocked("publisher receipt production mutation is not allowed")
+    if capability == "tag" and raw_context.get("tag_mode") not in {
+        None,
+        "injected-git-dry-run",
+    }:
+        raise PublishBlocked("publisher receipt tag mode must be dry-run")
+    if capability == "push" and raw_context.get("push_mode") not in {
+        None,
+        "injected-git-dry-run",
+    }:
+        raise PublishBlocked("publisher receipt push mode must be dry-run")
+
+
+def _write_receipt_evidence(
+    *,
+    sandbox_root: Path,
+    receipt_context: dict[str, Any],
+    identifier: str,
+    payload: dict[str, Any],
+) -> None:
+    evidence_root = receipt_context["evidence_root"]
+    evidence_path = evidence_root / identifier
+    evidence_path = _require_sandbox_descendant(
+        sandbox_root,
+        evidence_path,
+        "receipt evidence path",
+    )
+    relative = evidence_path.relative_to(sandbox_root)
+    with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
+        fd = sandbox_authority.open_file(
+            relative,
+            flags=os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            mode=0o600,
+        )
+        try:
+            os.write(
+                fd,
+                (
+                    json.dumps(
+                        payload,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        indent=2,
+                    )
+                    + "\n"
+                ).encode("utf-8"),
+            )
+        finally:
+            os.close(fd)
+
+
+def _receipt_positive_payload(
+    *,
+    receipt_context: dict[str, Any],
+    capability: str,
+    correlation_id: str,
+    runtime_identity_digest: str,
+    boundary_result: dict[str, Any],
+    output_digest: str,
+) -> dict[str, Any]:
+    sandbox_root = receipt_context["evidence_root"].parent
+
+    def artifact_value(value: Any) -> Any:
+        if isinstance(value, list):
+            return [artifact_value(item) for item in value]
+        if isinstance(value, dict):
+            return {key: artifact_value(item) for key, item in value.items()}
+        if isinstance(value, str) and value.startswith("/"):
+            try:
+                return Path(value).resolve(strict=False).relative_to(sandbox_root).as_posix()
+            except ValueError:
+                return "<outside-sandbox-path-redacted>"
+        return value
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "capability": capability,
+        "entrypoint": boundary_result["entrypoint"],
+        "execution_line_id": receipt_context["execution_line_id"],
+        "correlation_id": correlation_id,
+        "actor_identity": receipt_context["actor_identity"],
+        "runtime_identity_digest": runtime_identity_digest,
+        "input_digest": receipt_context["input_digest"],
+        "output_digest": output_digest,
+        "outcome": "PASS",
+        "stable_reason": "publisher_capability_passed",
+        "operation_trace_digest": boundary_result["operation_trace_digest"],
+        "production_mutation": False,
+        "capability_boundary": {
+            "boundary_status": boundary_result["boundary_status"],
+            "called_entrypoints": boundary_result["called_entrypoints"],
+            "git_trace": artifact_value(boundary_result["git_trace"]),
+            "run_ids": boundary_result["run_ids"],
+        },
+    }
+
+
+def _record_positive_receipt_step(
+    *,
+    sandbox_root: Path,
+    receipt_context: dict[str, Any],
+    capability: str,
+    correlation_id: str,
+    runtime_identity_digest: str,
+    boundary_result: dict[str, Any],
+) -> dict[str, Any]:
+    digest_material = {
+        "capability": capability,
+        "input_digest": receipt_context["input_digest"],
+        "boundary_result": boundary_result,
+        "operation_trace": boundary_result["operation_trace"],
+    }
+    output_digest = _compact_json_digest(digest_material)
+    payload = _receipt_positive_payload(
+        receipt_context=receipt_context,
+        capability=capability,
+        correlation_id=correlation_id,
+        runtime_identity_digest=runtime_identity_digest,
+        boundary_result=boundary_result,
+        output_digest=output_digest,
+    )
+    _write_receipt_evidence(
+        sandbox_root=sandbox_root,
+        receipt_context=receipt_context,
+        identifier=receipt_context["positive_evidence"],
+        payload=payload,
+    )
+    return {
+        "capability": capability,
+        "ordinal": RECEIPT_CAPABILITY_ORDINALS[capability],
+        "entrypoint": boundary_result["entrypoint"],
+        "input_digest": receipt_context["input_digest"],
+        "output_digest": output_digest,
+        "execution_line_id": receipt_context["execution_line_id"],
+        "correlation_id": correlation_id,
+        "actor_identity": receipt_context["actor_identity"],
+        "runtime_identity_digest": runtime_identity_digest,
+        "positive_evidence": receipt_context["positive_evidence"],
+        "negative_evidence": receipt_context["negative_evidence"],
+        "positive_outcome": "PASS",
+        "negative_outcome": "BLOCKED",
+    }
+
+
+def _record_blocked_receipt_evidence(
+    *,
+    sandbox_root: Path,
+    receipt_context: dict[str, Any] | None,
+    capability: str,
+    correlation_id: str,
+    runtime_identity_digest: str | None,
+    error: Exception,
+) -> None:
+    if receipt_context is None:
+        return
+    digest_material = {
+        "capability": capability,
+        "input_digest": receipt_context["input_digest"],
+        "error_type": type(error).__name__,
+        "stable_reason": str(error),
+    }
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "capability": capability,
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": receipt_context["execution_line_id"],
+        "correlation_id": correlation_id,
+        "actor_identity": receipt_context["actor_identity"],
+        "runtime_identity_digest": runtime_identity_digest or "",
+        "input_digest": receipt_context["input_digest"],
+        "output_digest": _compact_json_digest(digest_material),
+        "outcome": "BLOCKED",
+        "stable_reason": str(error),
+        "error_type": type(error).__name__,
+        "production_mutation": False,
+    }
+    _write_receipt_evidence(
+        sandbox_root=sandbox_root,
+        receipt_context=receipt_context,
+        identifier=receipt_context["negative_evidence"],
+        payload=payload,
+    )
 
 
 def _require_sandbox_descendant(
@@ -209,28 +528,47 @@ def formal_capability_preflight(
     queue_root: Path | None = None,
     state_root: Path | None = None,
     runtime_receipt: dict[str, Any] | None = None,
+    receipt_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """正式 publisher 的公開 bounded validation/transaction/tag/push dry-run 入口。"""
+    normalized_receipt_context: dict[str, Any] | None = None
+    runtime_identity_digest: str | None = None
     if trusted_sandbox_root is None or queue_root is None or state_root is None:
         raise PublishBlocked("publisher sandbox authority is required")
     if capability not in {"select", "publish", "transaction", "tag", "push"}:
         raise PublishBlocked("publisher capability is invalid")
-    selected = sorted(_normalize_exact_run_ids(run_ids) or ())
-    if not selected or not correlation_id:
-        raise PublishBlocked("publisher capability identity is incomplete")
     sandbox_root = Path(trusted_sandbox_root)
-    if not sandbox_root.is_absolute():
-        raise PublishBlocked("publisher sandbox authority must be absolute")
-    try:
-        resolved_sandbox = sandbox_root.resolve(strict=True)
-    except (OSError, RuntimeError) as error:
-        raise PublishBlocked("publisher sandbox authority is invalid") from error
-    if resolved_sandbox != sandbox_root or not resolved_sandbox.is_dir():
-        raise PublishBlocked("publisher sandbox authority is not canonical")
-    sandbox_root = resolved_sandbox
-    runtime_identity_digest = _runtime_identity_digest_for_trace(runtime_receipt)
     operation_trace: OperationTraceRecorder | None = None
     try:
+        if not correlation_id:
+            raise PublishBlocked("publisher capability identity is incomplete")
+        if not sandbox_root.is_absolute():
+            raise PublishBlocked("publisher sandbox authority must be absolute")
+        try:
+            resolved_sandbox = sandbox_root.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise PublishBlocked("publisher sandbox authority is invalid") from error
+        if resolved_sandbox != sandbox_root or not resolved_sandbox.is_dir():
+            raise PublishBlocked("publisher sandbox authority is not canonical")
+        sandbox_root = resolved_sandbox
+        runtime_identity_digest = _runtime_identity_digest_for_trace(runtime_receipt)
+        normalized_receipt_context = _publisher_receipt_context(
+            receipt_context,
+            sandbox_root=sandbox_root,
+        )
+        if normalized_receipt_context is not None:
+            _validate_publisher_receipt_context_policy(
+                normalized_receipt_context,
+                capability=capability,
+                correlation_id=correlation_id,
+                runtime_identity_digest=runtime_identity_digest,
+            )
+        try:
+            selected = sorted(_normalize_exact_run_ids(run_ids) or ())
+        except ValueError as error:
+            raise PublishBlocked(str(error)) from error
+        if not selected:
+            raise PublishBlocked("publisher capability identity is incomplete")
         with TrustedSandboxDirectoryAuthority(sandbox_root) as sandbox_authority:
             operation_trace = OperationTraceRecorder(
                 anchor_root=sandbox_root,
@@ -403,7 +741,7 @@ def formal_capability_preflight(
             if production_mutation:
                 raise PublishBlocked("publisher capability mutation escaped sandbox")
             operation_trace_events = operation_trace.events()
-            return {
+            result = {
                 "status": "PASS",
                 "boundary_status": boundary_status,
                 "capability": capability,
@@ -424,8 +762,43 @@ def formal_capability_preflight(
                 "git_trace": git_trace,
                 **boundary_result,
             }
+            if normalized_receipt_context is not None:
+                result["receipt_step"] = _record_positive_receipt_step(
+                    sandbox_root=sandbox_root,
+                    receipt_context=normalized_receipt_context,
+                    capability=capability,
+                    correlation_id=correlation_id,
+                    runtime_identity_digest=runtime_identity_digest,
+                    boundary_result=result,
+                )
+            return result
     except FilesystemAuthorityError as error:
-        raise PublishBlocked("publisher sandbox authority identity drift") from error
+        blocked = PublishBlocked("publisher sandbox authority identity drift")
+        try:
+            _record_blocked_receipt_evidence(
+                sandbox_root=sandbox_root,
+                receipt_context=normalized_receipt_context,
+                capability=capability,
+                correlation_id=correlation_id,
+                runtime_identity_digest=runtime_identity_digest,
+                error=blocked,
+            )
+        except Exception:
+            pass
+        raise blocked from error
+    except PublishBlocked as error:
+        try:
+            _record_blocked_receipt_evidence(
+                sandbox_root=sandbox_root,
+                receipt_context=normalized_receipt_context,
+                capability=capability,
+                correlation_id=correlation_id,
+                runtime_identity_digest=runtime_identity_digest,
+                error=error,
+            )
+        except Exception:
+            pass
+        raise
     if operation_trace is None:
         raise PublishBlocked("publisher operation trace is unavailable")
 

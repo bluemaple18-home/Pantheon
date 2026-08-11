@@ -1,0 +1,25 @@
+{
+  "actor_identity": "publisher-actor-identity",
+  "capability": "select",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids"
+    ],
+    "git_trace": [],
+    "run_ids": [
+      "run-a"
+    ]
+  },
+  "correlation_id": "ra-slice-003-correlation",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "ra-slice-003-line",
+  "input_digest": "afe8f40d9f7fdd15a55b8a8f09608f1c7b6d4676dae008e3e4a8dd613ce0e067",
+  "operation_trace_digest": "1d7b10902e459905c2e95268629f9211eefc5452f8606277023cf9cc886e04d2",
+  "outcome": "PASS",
+  "output_digest": "2cf3adedaf0cb627e2a6f895aac6a3d681e444f2c128f4c2379ce43a6763e275",
+  "production_mutation": false,
+  "runtime_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

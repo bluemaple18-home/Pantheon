@@ -1,0 +1,15 @@
+{
+  "actor_identity": "publisher-actor-identity",
+  "capability": "tag",
+  "correlation_id": "ra-slice-003-correlation",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "ra-slice-003-line",
+  "input_digest": "afe8f40d9f7fdd15a55b8a8f09608f1c7b6d4676dae008e3e4a8dd613ce0e067",
+  "outcome": "BLOCKED",
+  "output_digest": "e5ddc59b826e21f0747a555e1d362bd378f7227e247e5bff5d9cbddee70e5618",
+  "production_mutation": false,
+  "runtime_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt tag mode must be dry-run"
+}
