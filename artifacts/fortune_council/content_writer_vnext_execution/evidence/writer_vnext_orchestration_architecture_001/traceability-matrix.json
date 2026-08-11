@@ -1,0 +1,153 @@
+{
+  "schema_version": "TraceabilityMatrixV1",
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-001",
+  "status": "ready_for_review",
+  "source_requirements": [
+    "US-002",
+    "US-003",
+    "US-004",
+    "FR-001",
+    "FR-002",
+    "FR-005",
+    "FR-006",
+    "FR-008",
+    "FR-009",
+    "FR-010",
+    "FR-011",
+    "FR-012",
+    "FR-013",
+    "FR-014",
+    "FR-017"
+  ],
+  "decisions": [
+    {
+      "id": "WVO-ARCH-001",
+      "summary": "Transport uses existing writer/reviewer roles; stage identity is bound by manifest, prompt/schema and request SHA.",
+      "traces_to": ["US-002", "FR-006", "FR-010"],
+      "answers": ["A"]
+    },
+    {
+      "id": "WVO-ARCH-002",
+      "summary": "Forward-only recovery is rebuilt from versioned artifacts and append-only ledger, not free state text.",
+      "traces_to": ["US-003", "FR-005", "FR-008", "FR-009"],
+      "answers": ["B"]
+    },
+    {
+      "id": "WVO-ARCH-003",
+      "summary": "Completed stages dedupe on schema, identity, request SHA, response SHA and artifact SHA; ambiguity fails closed.",
+      "traces_to": ["US-003", "FR-009", "FR-011"],
+      "answers": ["B"]
+    },
+    {
+      "id": "WVO-ARCH-004",
+      "summary": "Publisher handoff keeps legacy candidate/review identity and treats vNext manifest as sidecar integrity evidence.",
+      "traces_to": ["US-004", "FR-012", "FR-013", "FR-014", "FR-017"],
+      "answers": ["C"]
+    },
+    {
+      "id": "WVO-ARCH-005",
+      "summary": "Legacy absence remains legacy; vNext requires explicit versioned opt-in and rollback identities.",
+      "traces_to": ["US-002", "US-003", "FR-001", "FR-002"],
+      "answers": ["D"]
+    },
+    {
+      "id": "WVO-ARCH-006",
+      "summary": "Writer contract and Runtime Authority reviewed commits must be composed by a later integration gate.",
+      "traces_to": ["FR-001", "FR-014", "FR-017"],
+      "answers": ["D"]
+    }
+  ],
+  "slices": [
+    {
+      "id": "WVO-SLICE-001",
+      "summary": "Compose reviewed contract and runtime authority lineage.",
+      "blocking_edges": [],
+      "frontier": true,
+      "traces_to": ["WVO-ARCH-006", "FR-001", "FR-014"],
+      "verification": ["changed-file inventory", "reviewed commit object checks", "targeted tests"]
+    },
+    {
+      "id": "WVO-SLICE-002",
+      "summary": "Add vNext ledger replay and manifest projection.",
+      "blocking_edges": ["WVO-SLICE-001"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-002", "WVO-ARCH-003", "FR-005", "FR-009"],
+      "verification": ["public replay tests", "tamper fail-closed tests"]
+    },
+    {
+      "id": "WVO-SLICE-003",
+      "summary": "Render stage requests through existing writer/reviewer outbox.",
+      "blocking_edges": ["WVO-SLICE-002"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-001", "FR-006", "FR-010"],
+      "verification": ["request SHA stability tests", "no new role compatibility tests"]
+    },
+    {
+      "id": "WVO-SLICE-004",
+      "summary": "Implement forward-only vNext coordinator tick.",
+      "blocking_edges": ["WVO-SLICE-003"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-002", "WVO-ARCH-003", "FR-008", "FR-011"],
+      "verification": ["pending reconstruction tests", "ambiguous next action tests"]
+    },
+    {
+      "id": "WVO-SLICE-005",
+      "summary": "Add compatibility adapter to legacy candidate/review.",
+      "blocking_edges": ["WVO-SLICE-004"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-004", "FR-012", "FR-013"],
+      "verification": ["legacy candidate validation", "blocking findings stop handoff"]
+    },
+    {
+      "id": "WVO-SLICE-006",
+      "summary": "Add Publisher optional sidecar revalidation.",
+      "blocking_edges": ["WVO-SLICE-005"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-004", "FR-014", "FR-017"],
+      "verification": ["legacy sidecar absent compatibility", "invalid sidecar collect-ready block"]
+    },
+    {
+      "id": "WVO-SLICE-007",
+      "summary": "Add rollback identity and runtime activation receipt checks.",
+      "blocking_edges": ["WVO-SLICE-006"],
+      "frontier": false,
+      "traces_to": ["WVO-ARCH-005", "WVO-ARCH-006", "FR-001", "FR-002"],
+      "verification": ["runtime digest mismatch fail-closed", "rollback identity matrix"]
+    },
+    {
+      "id": "WVO-SLICE-008",
+      "summary": "End-to-end vNext public behavior tests.",
+      "blocking_edges": ["WVO-SLICE-007"],
+      "frontier": false,
+      "traces_to": ["US-002", "US-003", "US-004", "FR-005", "FR-006", "FR-008", "FR-009", "FR-010", "FR-011", "FR-012", "FR-013", "FR-014", "FR-017"],
+      "verification": ["targeted test suite", "git diff --check", "evidence receipt"]
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "CHECKPOINT-001",
+      "after_slices": ["WVO-SLICE-001", "WVO-SLICE-002", "WVO-SLICE-003"],
+      "verification": ["contract tests", "outbox tests", "coordinator targeted tests"]
+    },
+    {
+      "id": "CHECKPOINT-002",
+      "after_slices": ["WVO-SLICE-004", "WVO-SLICE-005", "WVO-SLICE-006"],
+      "verification": ["Publisher dry-run", "no publication mutation"]
+    }
+  ],
+  "preflight": {
+    "duplicate_ids": [],
+    "dangling_references": [],
+    "unresolved_blocking_decisions": [],
+    "not_applicable": [
+      {
+        "item": "jira",
+        "reason": "Architecture card does not create Jira issues."
+      },
+      {
+        "item": "executable_tdd",
+        "reason": "This card defines architecture artifacts only; implementation slices must use public-behavior RED/GREEN."
+      }
+    ]
+  }
+}

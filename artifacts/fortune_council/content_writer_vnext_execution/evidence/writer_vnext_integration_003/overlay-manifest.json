@@ -1,0 +1,354 @@
+{
+  "activation_token_seen": "act-v1:8880400aa27f0616c7e502183887deb7ce32b06c532ce1fc0d30225e9a655159",
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-INTEGRATION-003",
+  "dispatch_key": "v1:ecbec7570de100eb87a46065e9fe249f90eaeef4481570b56baa39fc2382b88f",
+  "entries": [
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "eabc98061ec21860f082cc19082a0befa1cda609",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-COMPOSITION-PREFLIGHT-001.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "eabc98061ec21860f082cc19082a0befa1cda609",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "9272363fa85c2d3d0a7906d6b7de3e6644d1203b",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-CONTRACT-REVIEW-001.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "9272363fa85c2d3d0a7906d6b7de3e6644d1203b",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "fefe99b2c40cedf73900c54252f6803330aec601",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-CONTRACT-REVIEW-002.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "fefe99b2c40cedf73900c54252f6803330aec601",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "fd8abb203a94efc8b011792f27b1649eba08c91a",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-001.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "fd8abb203a94efc8b011792f27b1649eba08c91a",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "c15ddfd253082be21532d153319e8c9fda964c84",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-REVIEW-001.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "c15ddfd253082be21532d153319e8c9fda964c84",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "d680a4692511adfceefa40ca72814526cfe5628f",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/composition-manifest.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "d680a4692511adfceefa40ca72814526cfe5628f",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "2ff0810e079f733572cd065edbaf32a095a2d202",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/composition-plan.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "2ff0810e079f733572cd065edbaf32a095a2d202",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "fa993f53c3ebeec8bf1fcd4163a314711ebecc62",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/verification-receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "fa993f53c3ebeec8bf1fcd4163a314711ebecc62",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "4b5e50e699b3835941ca3443816d0f31d1897bb2",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/fixture-matrix.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "4b5e50e699b3835941ca3443816d0f31d1897bb2",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "f0af8e9ed7547f2b7a896971d7fb7fde3ab01ad5",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/handoff.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "f0af8e9ed7547f2b7a896971d7fb7fde3ab01ad5",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "0ff24f986edf1c24c7207a35b0eb5e6b2dee9cd2",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/trace-example.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "0ff24f986edf1c24c7207a35b0eb5e6b2dee9cd2",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "e42e882a843fd330ab998d66a151a83983822b68",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/verification.txt",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "e42e882a843fd330ab998d66a151a83983822b68",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "0babe15c35d1e750a4bef244eabdfd20a13bc8ed",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/architecture-invariants.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "0babe15c35d1e750a4bef244eabdfd20a13bc8ed",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "15ac4e517c4d40ab55ca0804dd4294c71152091b",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/source-inventory.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "15ac4e517c4d40ab55ca0804dd4294c71152091b",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "1975bbb38032bb4226dceee43074487e3f516eed",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/traceability-matrix.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "1975bbb38032bb4226dceee43074487e3f516eed",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "3533e07b297293e403ba8303a504a91d8a5f40b9",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/verification-receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "3533e07b297293e403ba8303a504a91d8a5f40b9",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "5b1353448e0b236a6e7b45a43f7ed96341db948a",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/green.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "5b1353448e0b236a6e7b45a43f7ed96341db948a",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "226c97911087d8019decd90a68a1760816712958",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/red.txt",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "226c97911087d8019decd90a68a1760816712958",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "17ecb63576785cda05c22395bfa0685311b06ef8",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/repair_receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "17ecb63576785cda05c22395bfa0685311b06ef8",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "766e4e8c1fb82d7479f35b0c6f415f50433fc8d9",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/findings.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "766e4e8c1fb82d7479f35b0c6f415f50433fc8d9",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "86cf934bae1998336be6d2fb2c7fabb9fc215695",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer.py",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "86cf934bae1998336be6d2fb2c7fabb9fc215695",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "bfa19c6e290243e8d4c610d8e4cfe5e7bd37f2ef",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer_results.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "bfa19c6e290243e8d4c610d8e4cfe5e7bd37f2ef",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "99731f89a5ca1e3790080323b674c109341cbda4",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/review_report.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "99731f89a5ca1e3790080323b674c109341cbda4",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "4c8accbb22a4a9367e6cdb00810e8997bf7d9199",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/verification_receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "4c8accbb22a4a9367e6cdb00810e8997bf7d9199",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "4c09b113796fdc347c94f2efded555f1ac55b20e",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/findings.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "4c09b113796fdc347c94f2efded555f1ac55b20e",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "dbf02236a8fc237b440e50bde25cf21d2bea1085",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/rerun_review_001_public_reproducer.py",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "dbf02236a8fc237b440e50bde25cf21d2bea1085",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "9b1c9f6958ebb6374918a37e9d43daba87108f56",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/review_001_public_reproducer_rerun_results.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "9b1c9f6958ebb6374918a37e9d43daba87108f56",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "e6de184f5f897c3ad734c32e0d8a7accbcfcefeb",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/review_report.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "e6de184f5f897c3ad734c32e0d8a7accbcfcefeb",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "7f07ed6f7119cd8efcba216e90ca088a47363768",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/sequence_public_probe.py",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "7f07ed6f7119cd8efcba216e90ca088a47363768",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "7468e21e5f27d85ef229d255b3787e8b98985783",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/sequence_public_probe_results.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "7468e21e5f27d85ef229d255b3787e8b98985783",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "4d63ffe12bb892101767fca0e515d219d074ebc2",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/verification_receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "4d63ffe12bb892101767fca0e515d219d074ebc2",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "48fabb7c54fe2842542dad617bfae7d76ef90c4b",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/findings.json",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "48fabb7c54fe2842542dad617bfae7d76ef90c4b",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "d0afb04e214b6c9401f92ede5e7fa69cebc6c845",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/review-report.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "d0afb04e214b6c9401f92ede5e7fa69cebc6c845",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "5c13c882e958d2d65df6a72169274bb1293a9503",
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/verification-receipt.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "5c13c882e958d2d65df6a72169274bb1293a9503",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "41718aa419ef9e620b66a500f0b9c95a3544c954",
+      "path": "docs/pantheon_writer_vnext_orchestration_architecture.md",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "41718aa419ef9e620b66a500f0b9c95a3544c954",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "1ecd354d7280dbf6e129e454ee89f16d7dbbfeec",
+      "path": "scripts/agy_editorial_contracts.py",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "1ecd354d7280dbf6e129e454ee89f16d7dbbfeec",
+      "worktree_equals_overlay_tip": true
+    },
+    {
+      "absent_from_source": true,
+      "overlay_tip_blob": "c12a353de144815cc4965e5c24e95f7ffab13ae8",
+      "path": "tests/test_agy_editorial_contracts.py",
+      "source_blob": null,
+      "status": "A",
+      "worktree_blob": "c12a353de144815cc4965e5c24e95f7ffab13ae8",
+      "worktree_equals_overlay_tip": true
+    }
+  ],
+  "overlay_all_absent_from_source": true,
+  "overlay_all_added": true,
+  "overlay_all_worktree_equals_tip": true,
+  "overlay_base": "e4df0fc4349568cb0a7df2de56a4865885361494",
+  "overlay_path_count": 37,
+  "overlay_tip": "c7ad4881eabc47cbf43e5053f1ac79d7e70af546",
+  "publisher_path": "scripts/agy_content_publisher.py",
+  "publisher_runtime_blob": "633bb011e404c0d6e77564f1885e2b5b2396b981",
+  "publisher_runtime_source_worktree_equal": true,
+  "publisher_source_blob": "633bb011e404c0d6e77564f1885e2b5b2396b981",
+  "publisher_worktree_blob": "633bb011e404c0d6e77564f1885e2b5b2396b981",
+  "runtime_base": "e6d93fba050eac7c22e1a34bf52d8ac4c707a1b3",
+  "schema_version": 1,
+  "source_sha": "cbed615c9c16a03b4d3ccfcf816d9901feea0ed9"
+}

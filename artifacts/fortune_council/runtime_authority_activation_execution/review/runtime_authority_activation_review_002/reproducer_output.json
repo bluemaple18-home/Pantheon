@@ -1,0 +1,133 @@
+{
+  "late_parent_swap": {
+    "error": "PublishBlocked: publisher sandbox authority identity drift",
+    "external_after": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 64,
+        "symlink": null
+      }
+    ],
+    "external_before": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 64,
+        "symlink": null
+      }
+    ],
+    "external_git_exists": false,
+    "external_lock_exists": false,
+    "external_tree_identical": true,
+    "status": "BLOCKED"
+  },
+  "missing_token": {
+    "error": "RuntimeManifestError: formal runtime activation token is required",
+    "io_count": 0,
+    "queue_after": [],
+    "queue_before": [],
+    "status": "BLOCKED"
+  },
+  "post_lock_cleanup_swap": {
+    "error": "PublishBlocked: publisher sandbox authority identity drift",
+    "external_after": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 64,
+        "symlink": null
+      }
+    ],
+    "external_before": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 96,
+        "symlink": null
+      },
+      {
+        "mode": 16877,
+        "path": "publisher-state/transaction-escape",
+        "size": 96,
+        "symlink": null
+      },
+      {
+        "mode": 16877,
+        "path": "publisher-state/transaction-escape/repo",
+        "size": 96,
+        "symlink": null
+      },
+      {
+        "mode": 33188,
+        "path": "publisher-state/transaction-escape/repo/marker.txt",
+        "size": 13,
+        "symlink": null
+      }
+    ],
+    "external_marker_exists": false,
+    "external_stale_exists": false,
+    "external_tree_identical": false,
+    "status": "BLOCKED",
+    "swapped": true
+  },
+  "six_of_seven": {
+    "io_count": 0,
+    "operation_error": "RuntimeActivationError: activation barrier is invalid",
+    "publish_error": "RuntimeActivationError: readiness acknowledgements are incomplete",
+    "queue_after": [],
+    "queue_before": [],
+    "status": "BLOCKED",
+    "token_exists": false
+  },
+  "stale_token": {
+    "error": "RuntimeActivationError: activation barrier is invalid",
+    "io_count": 0,
+    "queue_after": [],
+    "queue_before": [],
+    "status": "BLOCKED"
+  },
+  "unverified_identity": {
+    "error": "PublishBlocked: publisher runtime identity receipt is required",
+    "io_count": 0,
+    "status": "BLOCKED",
+    "tree_after": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 64,
+        "symlink": null
+      },
+      {
+        "mode": 16877,
+        "path": "queue",
+        "size": 64,
+        "symlink": null
+      }
+    ],
+    "tree_before": [
+      {
+        "mode": 16877,
+        "path": "publisher-state",
+        "size": 64,
+        "symlink": null
+      },
+      {
+        "mode": 16877,
+        "path": "queue",
+        "size": 64,
+        "symlink": null
+      }
+    ]
+  },
+  "verified_trace": {
+    "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "production_mutation": false,
+    "sandbox_mutation": true,
+    "status": "PASS",
+    "trace_digests": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "trace_uses_verified_digest": true
+  }
+}

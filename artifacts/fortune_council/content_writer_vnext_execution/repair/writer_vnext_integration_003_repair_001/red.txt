@@ -1,0 +1,16 @@
+Command:
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_editorial_contracts.py
+
+Result: RED / expected failure
+
+Summary:
+.FFF.....                                                                [100%]
+3 failed, 6 passed in 0.06s
+
+Failing public tests:
+- tests/test_agy_editorial_contracts.py::test_manifest_requires_explicit_writer_vnext_opt_in_mode
+  - missing orchestration_mode was accepted with valid=true.
+- tests/test_agy_editorial_contracts.py::test_manifest_rejects_unknown_top_level_fields
+  - projection_state top-level free-state field was accepted with valid=true.
+- tests/test_agy_editorial_contracts.py::test_legacy_candidate_pair_must_be_complete_or_absent
+  - orphan legacy_candidate produced publisher_candidate_incompatible instead of schema_version_unsupported.

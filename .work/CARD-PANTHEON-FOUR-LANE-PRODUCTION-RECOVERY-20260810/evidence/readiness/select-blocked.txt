@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=BLOCKED
+formal_boundary=scripts.agy_content_publisher exact-run selector
+proof=tests/test_agy_content_publisher.py::test_exact_fresh_ja_selector_rejects_non_fresh_or_wrong_lane passed by rejecting lane/identity drift

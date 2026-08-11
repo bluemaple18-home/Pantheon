@@ -1,0 +1,47 @@
+{
+  "actor_identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:run",
+    "command": [
+      "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "run",
+      "--input",
+      "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/01-create-adapter.json",
+      "--output",
+      "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/02-run-adapter.json",
+      "--expected-input-digest",
+      "4761d05073b2778edb5f856a11ad2eac67b506e6efe0d3690f90f3f85180561a",
+      "--actual-input-digest",
+      "4761d05073b2778edb5f856a11ad2eac67b506e6efe0d3690f90f3f85180561a",
+      "--execution-id",
+      "formal-runtime-chain-001-positive",
+      "--correlation-id",
+      "formal-runtime-chain-001-correlation",
+      "--actor-identity",
+      "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b"
+    ],
+    "receipt": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/02-run-adapter.json",
+    "returncode": 0
+  },
+  "capability": "run",
+  "correlation_id": "formal-runtime-chain-001-correlation",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:run",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "formal-runtime-chain-001-positive",
+  "expected_input_digest": "4761d05073b2778edb5f856a11ad2eac67b506e6efe0d3690f90f3f85180561a",
+  "input_digest": "4761d05073b2778edb5f856a11ad2eac67b506e6efe0d3690f90f3f85180561a",
+  "mode": "formal-runtime-production-dry-run",
+  "ordinal": 2,
+  "output_digest": "eb2ff1153ef572d426818090cf725c6c192afcc67d7834fe07508aeb789ce3fe",
+  "production_entrypoints": [
+    "scripts.agy_gemini_outbox:create_external_request",
+    "scripts.agy_gemini_runner:process_once"
+  ],
+  "return_code": 0,
+  "runtime_identity_digest": "83a09af277de6e3bce36d0dbebbc0255021a046de24b7c704d77a6e201fc4fa2",
+  "schema_version": 2,
+  "timestamp": "2026-08-10T07:22:05.701412+00:00"
+}

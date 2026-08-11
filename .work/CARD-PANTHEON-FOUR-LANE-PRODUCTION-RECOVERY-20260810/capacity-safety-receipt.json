@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810",
+  "repair_round": 2,
+  "status": "NO-GO",
+  "production_mutation": false,
+  "production_actor_loaded": false,
+  "reason": "Repair-2 僅完成 bounded dry-run；不得提升為 production capacity PASS。",
+  "repair_evidence": {
+    "status": "PASS",
+    "mode": "bounded-synthetic-dry-run",
+    "artifact": "evidence/repair-2/capacity-exercise.json",
+    "cycles": 2,
+    "cycle_bytes": 4096,
+    "telemetry_unknown": false,
+    "reclamation_triggered": true,
+    "reclamation_bytes_before": 8192,
+    "reclamation_bytes_after": 4096,
+    "stop_loss_triggered": true,
+    "stop_loss_status": "STOPPED",
+    "registered_service_count": 6,
+    "cross_project_deletions": []
+  },
+  "production_acceptance_missing": [
+    "正式 actor 上兩次代表性完整寫入週期",
+    "production launchd loaded identity 與 RSS/swap 連續遙測",
+    "經核准的 production stop-loss 演練"
+  ]
+}

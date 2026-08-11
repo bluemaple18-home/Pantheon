@@ -1,0 +1,15 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "capability": "publish",
+  "correlation_id": "repair-1-chain-negative-transaction",
+  "entrypoint": "scripts.agy_content_publisher:publish",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-1-negative-transaction-995845b",
+  "expected_input_digest": "8320583e1088d0d038f2fa2489f7cc68823944458828875034ad478538d479e2",
+  "input_digest": "8320583e1088d0d038f2fa2489f7cc68823944458828875034ad478538d479e2",
+  "mode": "bounded-synthetic-dry-run",
+  "ordinal": 4,
+  "output_digest": "249e43dba6f7ed49e85a0947b57309cbe8a599f9ac023bc781b40888774ae9c8",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T04:28:58.133665+00:00"
+}

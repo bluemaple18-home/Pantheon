@@ -8,6 +8,23 @@
   <array>
     <string>__PYTHON__</string>
     <string>-m</string>
+    <string>scripts.pantheon_content_runtime_manifest</string>
+    <string>barrier-exec</string>
+    <string>--barrier</string>
+    <string>__ACTIVATION_BARRIER__</string>
+    <string>--expected-digest</string>
+    <string>__RUNTIME_MANIFEST_DIGEST__</string>
+    <string>--manifest</string>
+    <string>__RUNTIME_MANIFEST__</string>
+    <string>--service-label</string>
+    <string>com.pantheon.content-capacity-guard</string>
+    <string>--ready-root</string>
+    <string>__READY_ROOT__</string>
+    <string>--timeout</string>
+    <string>90</string>
+    <string>--</string>
+    <string>__PYTHON__</string>
+    <string>-m</string>
     <string>scripts.pantheon_content_capacity_guard</string>
     <string>--queue-root</string>
     <string>__QUEUE_ROOT__</string>
@@ -21,6 +38,35 @@
   </array>
   <key>WorkingDirectory</key>
   <string>__REPO_ROOT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PANTHEON_RUNTIME_MANIFEST_DIGEST</key>
+    <string>__RUNTIME_MANIFEST_DIGEST__</string>
+    <key>PANTHEON_FORMAL_RUNTIME</key>
+    <string>1</string>
+    <key>PANTHEON_RUNTIME_MANIFEST</key>
+    <string>__RUNTIME_MANIFEST__</string>
+    <key>PANTHEON_RUNTIME_SERVICE_LABEL</key>
+    <string>com.pantheon.content-capacity-guard</string>
+    <key>PANTHEON_RUNTIME_IDENTITY_DIGEST</key>
+    <string>__RUNTIME_IDENTITY_DIGEST__</string>
+    <key>PANTHEON_RUNTIME_CODE_DIGEST</key>
+    <string>__RUNTIME_CODE_DIGEST__</string>
+    <key>PANTHEON_RUNTIME_CONFIG_VERSION</key>
+    <string>__RUNTIME_CONFIG_VERSION__</string>
+    <key>PANTHEON_RUNTIME_GENERATION</key>
+    <string>__RUNTIME_GENERATION__</string>
+        <key>PANTHEON_RUNTIME_IDENTITY</key>
+        <string>__RUNTIME_IDENTITY__</string>
+        <key>PANTHEON_RUNTIME_ACTOR_ROOT</key>
+        <string>__REPO_ROOT__</string>
+        <key>PANTHEON_RUNTIME_QUEUE_ROOT</key>
+        <string>__QUEUE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT</key>
+        <string>__PUBLISHER_STATE_ROOT__</string>
+        <key>PANTHEON_RUNTIME_LOG_ROOT</key>
+        <string>__LOG_ROOT__</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>

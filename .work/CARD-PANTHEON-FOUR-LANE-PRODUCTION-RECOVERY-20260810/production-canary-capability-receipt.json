@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "execution_line_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810-REPAIR-2",
+  "production_target": "Pantheon four-lane bounded production dry-run adapters",
+  "correlation_id": "repair-2-verified",
+  "canary_created": false,
+  "steps": {
+    "create": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:create",
+      "inputs": ["bd0a54d91cb97cbdf76517ad3dd1a58bb2d18447895a2bb8f48b8e11b40790e4"],
+      "outputs": ["b03bb90c8bb16e581f39aa9fc1f48ecb4dc985aac63c1bcd30684ec5e100f1ea"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/01-create.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-create/01-create.json", "outcome": "BLOCKED"}
+    },
+    "run": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:run",
+      "inputs": ["b03bb90c8bb16e581f39aa9fc1f48ecb4dc985aac63c1bcd30684ec5e100f1ea"],
+      "outputs": ["8e1f3d14c4eb60b30e46180de96b21cfca0973295afb8b18adb190f1085c7bb1"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/02-run.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-run/02-run.json", "outcome": "BLOCKED"}
+    },
+    "select": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:select",
+      "inputs": ["8e1f3d14c4eb60b30e46180de96b21cfca0973295afb8b18adb190f1085c7bb1"],
+      "outputs": ["1c453b085d80518964948efb749a3444d1c1519165ce369b0d6406c8c113fc25"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/03-select.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-select/03-select.json", "outcome": "BLOCKED"}
+    },
+    "publish": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:publish",
+      "inputs": ["1c453b085d80518964948efb749a3444d1c1519165ce369b0d6406c8c113fc25"],
+      "outputs": ["7005524e3c7df9aa97a6dc8d4af71a01a1cf4fc4a3c6ab28a2f6104442a4874f"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/04-publish.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-publish/04-publish.json", "outcome": "BLOCKED"}
+    },
+    "transaction": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:transaction",
+      "inputs": ["7005524e3c7df9aa97a6dc8d4af71a01a1cf4fc4a3c6ab28a2f6104442a4874f"],
+      "outputs": ["c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/05-transaction.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-transaction/05-transaction.json", "outcome": "BLOCKED"}
+    },
+    "tag": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:tag",
+      "inputs": ["c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6"],
+      "outputs": ["6958ebba267def4decafc68cd2c0f6e6d94af8ab798f7886dd2de9c08776912a"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/06-tag.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-tag/06-tag.json", "outcome": "BLOCKED"}
+    },
+    "push": {
+      "entrypoint": "scripts.pantheon_content_capability_adapter:push",
+      "inputs": ["6958ebba267def4decafc68cd2c0f6e6d94af8ab798f7886dd2de9c08776912a"],
+      "outputs": ["b92114e6b9d465158254df1bf85442da878d1fc173e1dbc991721198b45aeaf9"],
+      "identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+      "correlation_id": "repair-2-verified",
+      "positive_evidence": {"artifact": "evidence/repair-2/capability-verified-positive/07-push.json", "outcome": "PASS"},
+      "negative_evidence": {"artifact": "evidence/repair-2/capability-verified-negative-push/07-push.json", "outcome": "BLOCKED"}
+    }
+  }
+}

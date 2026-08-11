@@ -1,0 +1,14 @@
+{
+  "schema_version": "WriterVNextMainlineIntegration004ConflictClassificationV1",
+  "merge_command": "git merge --no-ff --no-commit 6f9aa59804a97a71d96fabf32cd6829e2f84918c",
+  "merge_result": "automatic_merge_clean",
+  "conflict_count": 0,
+  "unmerged_paths": [],
+  "classification": "NO_CONFLICTS",
+  "product_code_conflicts": [],
+  "test_conflicts": [],
+  "config_manifest_runtime_conflicts": [],
+  "docs_card_evidence_conflicts": [],
+  "abort_required": false,
+  "object_level_resolution": []
+}

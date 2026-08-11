@@ -1,0 +1,129 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-9.0.3, pluggy-1.6.0
+rootdir: /private/tmp/pantheon-writer-integration-002-source-20260811
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 2 items
+
+tests/test_pantheon_content_capability_probe.py F                        [ 50%]
+tests/test_pantheon_content_capacity_guard.py F                          [100%]
+
+=================================== FAILURES ===================================
+________ test_one_formal_probe_emits_machine_correlated_positive_chain _________
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-316/test_one_formal_probe_emits_ma0')
+
+    def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path) -> None:
+        parent_sha, source_digest = _source_identity()
+        source_status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=SOURCE_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        receipt = probe.run_probe(
+            evidence_root=tmp_path / "positive",
+            execution_id="synthetic-execution-001",
+            correlation_id="synthetic-correlation-001",
+            source_root=SOURCE_ROOT,
+            parent_sha=parent_sha,
+            source_tree_digest=source_digest,
+        )
+
+>       assert receipt["status"] == "PASS"
+E       AssertionError: assert 'BLOCKED' == 'PASS'
+E
+E         - PASS
+E         + BLOCKED
+
+tests/test_pantheon_content_capability_probe.py:455: AssertionError
+__ test_capacity_installer_preflight_has_no_target_or_control_plane_mutation ___
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-316/test_capacity_installer_prefli0')
+
+    def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
+        tmp_path: Path,
+    ) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        fake_bin = tmp_path / "bin"
+        fake_home = tmp_path / "home"
+        queue_root = tmp_path / "queue"
+        publisher_root = tmp_path / "publisher"
+        log_root = tmp_path / "logs"
+        state_file = queue_root / "capacity-state.json"
+        mutation_log = tmp_path / "launchctl-mutations.log"
+        fake_bin.mkdir()
+        queue_root.mkdir()
+        publisher_root.mkdir()
+        log_root.mkdir()
+        manifest = runtime_manifest.build_manifest(
+            actor_root=repo,
+            queue_root=queue_root,
+            publisher_state_root=publisher_root,
+            log_root=log_root,
+            identity="synthetic-capacity:501",
+        )
+        manifest_path = tmp_path / "runtime-manifest.json"
+        runtime_manifest.write_manifest(manifest_path, manifest)
+        dscl = fake_bin / "dscl"
+        dscl.write_text(
+            f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+            encoding="utf-8",
+        )
+        dscl.chmod(0o700)
+        launchctl = fake_bin / "launchctl"
+        launchctl.write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = \"print\" ]; then exit 113; fi\n"
+            f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        launchctl.chmod(0o700)
+        sysctl = fake_bin / "sysctl"
+        sysctl.write_text(
+            "#!/bin/sh\nprintf '%s\\n' 'total = 0.00M  used = 0.00M  free = 0.00M'\n",
+            encoding="utf-8",
+        )
+        sysctl.chmod(0o700)
+        env = os.environ.copy()
+        env.update(
+            {
+                "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
+                "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
+                "PANTHEON_CAPACITY_GUARD_STATE_FILE": str(state_file),
+                "PANTHEON_USER_HOME_DIR": str(fake_home),
+                "PANTHEON_PYTHON_PATH": sys.executable,
+                "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+                "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest[
+                    "manifest_digest"
+                ],
+                "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+                "TMPDIR": str(tmp_path),
+            }
+        )
+
+        completed = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+                "--preflight",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+>       assert completed.returncode == 0, completed.stderr
+E       AssertionError:
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/bin/bash', '/private/tmp/pantheon-writer-integration-002-source-20260811/scripts/install_pant...oaded_labels": []}, "status": "NO-GO", "swap_available": true, "swap_error": null, "swap_used_bytes": 0}\n', stderr='').returncode
+
+tests/test_pantheon_content_capacity_guard.py:352: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_content_capability_probe.py::test_one_formal_probe_emits_machine_correlated_positive_chain
+FAILED tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_preflight_has_no_target_or_control_plane_mutation
+============================== 2 failed in 11.71s ==============================

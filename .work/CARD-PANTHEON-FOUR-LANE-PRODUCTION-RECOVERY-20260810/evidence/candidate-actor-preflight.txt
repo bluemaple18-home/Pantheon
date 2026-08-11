@@ -1,0 +1,15 @@
+status=ready
+operation=deployment-preflight
+mode=read-only
+mutation_permitted=false
+actor=matched
+queue=matched
+state=matched
+tested_code_commit=0b3daa5b9a4e67cac2db9ba44adf01b5bd53f8d2
+runtime_sha_at_probe=0b3daa5b9a4e67cac2db9ba44adf01b5bd53f8d2
+origin_main_sha_at_probe=0b3daa5b9a4e67cac2db9ba44adf01b5bd53f8d2
+runtime_manifest_schema_version=1
+runtime_digest=d070e9798f155058c9297296c52808e3b9ca41a12bc0b8cc693bb38df9bdcd05
+push_mode=push
+scope=local synthetic clean actor clone; no production control-plane or queue mutation
+final_candidate_note=post-probe changes are evidence-only; production exact-SHA preflight must be rerun after integration

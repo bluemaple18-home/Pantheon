@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:publish",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "publish",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-transaction/03-select-adapter.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-transaction/04-publish-adapter.json",
+      "--expected-input-digest",
+      "0fab0579cfeedf991f7aa78c8bd28708d39e4abbc0f2dc36918525e91d1c7821",
+      "--actual-input-digest",
+      "0fab0579cfeedf991f7aa78c8bd28708d39e4abbc0f2dc36918525e91d1c7821",
+      "--execution-id",
+      "repair-2-verified-negative-transaction",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-transaction/04-publish-adapter.json",
+    "returncode": 0
+  },
+  "capability": "publish",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:publish",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-transaction",
+  "expected_input_digest": "0fab0579cfeedf991f7aa78c8bd28708d39e4abbc0f2dc36918525e91d1c7821",
+  "input_digest": "0fab0579cfeedf991f7aa78c8bd28708d39e4abbc0f2dc36918525e91d1c7821",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 4,
+  "output_digest": "69381b67037a5cb95f4ad81c0cc92f3b3de5a60165398fc0fbc4f3a512701f74",
+  "production_entrypoint": "scripts.agy_content_publisher:publish",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.310944+00:00"
+}

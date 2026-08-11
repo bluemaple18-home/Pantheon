@@ -50,6 +50,7 @@ from scripts.agy_gemini_v4_broker import (
     _diagnose_json_schema,
     run_single_shot,
 )
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 
 
 GenerateJson = Callable[[str, str, str, dict[str, Any]], dict[str, Any]]
@@ -1062,6 +1063,26 @@ def process_once(
     cooldown_seconds: int | None = None
     clock_function = clock or time.time
     try:
+        service_label = (
+            f"com.pantheon.agy-gemini-{lane}"
+            if lane is not None
+            else os.environ.get("PANTHEON_RUNTIME_SERVICE_LABEL", "")
+        )
+        formal_runtime.validate_runtime_tick(
+            service_label,
+            queue_root=queue_root.resolve(),
+            state_root=Path(
+                os.environ.get(
+                    "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", Path.cwd()
+                )
+            ),
+            actor_root=Path(
+                os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+            ),
+            log_root=Path(
+                os.environ.get("PANTHEON_RUNTIME_LOG_ROOT", Path.cwd())
+            ),
+        )
         if lane is not None and lane not in CONTENT_LANES:
             raise ValueError("unknown content lane")
         if _new_only_enabled() and lane != "new":

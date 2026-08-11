@@ -418,6 +418,37 @@ def test_translation_gate_rejects_wrong_language() -> None:
     assert any(item["code"] == "target_language" for item in findings)
 
 
+@pytest.mark.parametrize("tag", ["人際", "戀愛心理"])
+def test_translation_gate_rejects_traditional_chinese_in_each_japanese_tag(
+    tag: str,
+) -> None:
+    brief = translation_brief("ja")
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["tags"] = ["タロット", tag]
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert {
+        "article_id": "TEST-001:ja",
+        "code": "target_language_tags",
+        "message": "日文 metadata tags 含繁中殘留或沿用來源語言",
+    } in findings
+
+
+def test_translation_gate_accepts_shared_source_authority_tag_in_japanese() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["tags"].append("MBTI")
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+    candidate["articles"][0]["tags"].append("MBTI")
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert not any(item["code"] == "target_language_tags" for item in findings)
+
+
 def test_translation_gate_rejects_source_structure_mirroring() -> None:
     brief = translation_brief("en")
     candidate = translation_candidate("en")
@@ -472,6 +503,24 @@ def test_writer_prompt_requires_source_claim_traceability_and_rejects_filler() -
     assert "article input.locale 指定的語言完整重寫" in prompt
     assert "title、description、answer、tags、FAQ、H2 與 paragraphs" in prompt
     assert "禁止保留來源語言文字" in prompt
+
+
+def test_writer_and_public_brief_require_native_language_tags() -> None:
+    brief = translation_brief("ja")
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    prompt = multilingual._article_prompt(brief, plan, [])
+    tags_policy = multilingual._public_brief(brief)["policy"]["tags"]
+
+    assert "tags 必須逐項以目標語言的自然搜尋用語重寫" in prompt
+    assert "不得複製或沿用來源語言 tag" in prompt
+    assert "tags 必須逐項以目標語言的自然搜尋用語重寫" in tags_policy
+    assert "不得複製或沿用來源語言 tag" in tags_policy
 
 
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])

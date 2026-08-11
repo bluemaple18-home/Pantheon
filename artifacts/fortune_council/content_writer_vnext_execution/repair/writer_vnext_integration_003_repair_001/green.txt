@@ -1,0 +1,24 @@
+Targeted command:
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_editorial_contracts.py
+
+Targeted result:
+9 passed in 0.05s
+
+Reviewer reproducer command:
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_integration_003_review_001/manifest-opt-in-reproducer.py
+
+Reviewer reproducer result:
+{"expected_opt_in": {"blocking": false, "findings": [], "valid": true}, "extra_free_state": {"blocking": true, "findings": ["schema_version_unsupported"], "valid": false}, "missing_orchestration_mode": {"blocking": true, "findings": ["schema_version_unsupported"], "valid": false}, "wrong_orchestration_mode": {"blocking": true, "findings": ["schema_version_unsupported"], "valid": false}}
+
+Full affected suite command:
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_editorial_contracts.py tests/test_agy_seo_copy_pipeline.py tests/test_agy_content_publisher.py tests/test_pantheon_runtime_fs_authority.py tests/test_pantheon_runtime_activation.py tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_capability_probe.py tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_runner.py tests/test_pantheon_content_capacity_guard.py
+
+Full affected suite result:
+415 passed, 1 warning in 163.99s (0:02:43)
+
+Warning:
+tests/test_agy_content_publisher.py::test_preflight_test_command_selectors_resolve_to_top_level_tests emitted SyntaxWarning: invalid escape sequence '\/' from existing generated content.
+
+Diff check:
+git diff --check
+PASS

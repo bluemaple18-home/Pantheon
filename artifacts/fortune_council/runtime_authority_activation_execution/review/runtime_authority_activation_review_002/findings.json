@@ -1,0 +1,14 @@
+[
+  {
+    "finding_id": "RAA-REVIEW-002",
+    "severity": "P1",
+    "category": "filesystem-authority",
+    "path": "scripts/agy_content_publisher.py:1444",
+    "trigger": "Repair-1 keeps _cleanup_stale_transaction_worktrees() on ordinary absolute Path iteration/removal after the lifecycle lock is opened. If the sandbox parent is swapped after lock open but before stale cleanup, state_root.iterdir() follows the replaced parent and cleanup can remove an external transaction-* tree before the authority drift is reported.",
+    "reproducer": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. REPRODUCER_OUTPUT=artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_002/reproducer_output.json python3 artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_002/public_reproducer.py. See post_lock_cleanup_swap: status=BLOCKED, error='PublishBlocked: publisher sandbox authority identity drift', but external_tree_identical=false, external_stale_exists=false, external_marker_exists=false.",
+    "risk": "FRA-001/SCA-001 still requires fail-closed before any external filesystem mutation and external tree before/after identical. Repair-1 closes the earlier Git-root swap path, but a later lock-open swap can still delete external stale transaction artifacts before fail-closed, so filesystem authority is not live across the whole transaction cleanup lifecycle.",
+    "suggested_fix": "Thread TrustedSandboxDirectoryAuthority through stale cleanup as well: derive state_root relative to the held sandbox fd, enumerate transaction-* entries using dir-fd/no-follow operations, remove transaction roots through sandbox_authority.remove_tree(), and assert_current before and after each cleanup mutation. Avoid absolute state_root.iterdir(), transaction_root.exists(), and shutil.rmtree() in formal capability mode.",
+    "validation_gap": "Repair-1 tests cover Git-root late swap and transaction create/remove, but they do not cover parent swap after filesystem-lock-open and before _cleanup_stale_transaction_worktrees(). The targeted suite passed while this reproducer still mutated the external tree.",
+    "confidence": "high"
+  }
+]

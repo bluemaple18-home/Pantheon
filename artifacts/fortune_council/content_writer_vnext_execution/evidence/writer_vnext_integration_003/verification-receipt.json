@@ -1,0 +1,191 @@
+{
+  "blocker": null,
+  "candidate_commit_created": true,
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-INTEGRATION-003",
+  "checks": [
+    {
+      "detail": {
+        "all_added": true,
+        "count": 37
+      },
+      "name": "overlay_identity_37_all_added",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "equal": 37,
+        "total": 37
+      },
+      "name": "overlay_blob_equality",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "absent": 37,
+        "total": 37
+      },
+      "name": "overlay_absent_from_source",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "runtime": "633bb011e404c0d6e77564f1885e2b5b2396b981",
+        "source": "633bb011e404c0d6e77564f1885e2b5b2396b981",
+        "worktree": "633bb011e404c0d6e77564f1885e2b5b2396b981"
+      },
+      "name": "publisher_runtime_source_worktree_equality",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "runtime": "REVIEW_GO",
+        "writer_contract": "REVIEW_GO",
+        "writer_orchestration": "REVIEW_GO"
+      },
+      "name": "authority_review_verdicts",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "A\tartifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-INTEGRATION-002.md",
+        "A\tartifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-INTEGRATION-003.md"
+      ],
+      "name": "source_vs_runtime_only_integration_cards",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "status_lines": [
+          "A  artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-COMPOSITION-PREFLIGHT-001.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-CONTRACT-REVIEW-001.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-CONTRACT-REVIEW-002.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-001.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-REVIEW-001.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/composition-manifest.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/composition-plan.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_composition_preflight_001/verification-receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/fixture-matrix.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/handoff.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/trace-example.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_contract_001/verification.txt",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/architecture-invariants.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/source-inventory.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/traceability-matrix.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_orchestration_architecture_001/verification-receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/green.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/red.txt",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/repair_receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/findings.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer.py",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/public_reproducer_results.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/review_report.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/verification_receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/findings.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/rerun_review_001_public_reproducer.py",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/review_001_public_reproducer_rerun_results.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/review_report.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/sequence_public_probe.py",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/sequence_public_probe_results.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/verification_receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/findings.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/review-report.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/verification-receipt.md",
+          "A  docs/pantheon_writer_vnext_orchestration_architecture.md",
+          "A  scripts/agy_editorial_contracts.py",
+          "A  tests/test_agy_editorial_contracts.py",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/changed-files.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/composition-receipt.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/host-capacity-recovery.md",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/overlay-manifest.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/pytest-output-resume.txt",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/pytest-output.txt",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/source-cbed-targeted-failures.txt",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/verification-receipt.json",
+          "A  artifacts/fortune_council/content_writer_vnext_execution/evidence/writer_vnext_integration_003/verification-receipt.md"
+        ]
+      },
+      "name": "changed_paths_allowed",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "name": "git_diff_check",
+      "status": "PASS"
+    },
+    {
+      "detail": [],
+      "name": "conflict_marker_scan",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "duration": "160.70s (0:02:40)",
+        "exit_code": 1,
+        "failed": 2,
+        "failed_tests": [
+          "tests/test_pantheon_content_capability_probe.py::test_one_formal_probe_emits_machine_correlated_positive_chain",
+          "tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_preflight_has_no_target_or_control_plane_mutation"
+        ],
+        "passed": 410,
+        "warnings": 1
+      },
+      "name": "historical_pytest_required_10_groups",
+      "status": "HISTORICAL_FAIL",
+      "superseded_by": "pytest_required_10_groups_resumed"
+    },
+    {
+      "detail": {
+        "clean_before_run": true,
+        "duration": "11.71s",
+        "exit_code": 1,
+        "failed": 2,
+        "failed_tests": [
+          "tests/test_pantheon_content_capability_probe.py::test_one_formal_probe_emits_machine_correlated_positive_chain",
+          "tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_preflight_has_no_target_or_control_plane_mutation"
+        ],
+        "head": "cbed615c9c16a03b4d3ccfcf816d9901feea0ed9",
+        "worktree": "/private/tmp/pantheon-writer-integration-002-source-20260811"
+      },
+      "name": "historical_source_cbed_targeted_regression",
+      "status": "HISTORICAL_FAIL",
+      "superseded_by": "host_capacity_recovery"
+    },
+    {
+      "detail": {
+        "blocker_classification": "HOST_CAPACITY_FLOOR",
+        "clean_source_head": "cbed615c9c16a03b4d3ccfcf816d9901feea0ed9",
+        "mainline_reported_available_before_gib": 16,
+        "mainline_reported_available_after_gib": 28,
+        "targeted_result": "2 passed in 12.12s",
+        "worktree_observed_available_gib": 26
+      },
+      "name": "host_capacity_recovery",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "duration": "161.22s (0:02:41)",
+        "exit_code": 0,
+        "failed": 0,
+        "log": "pytest-output-resume.txt",
+        "log_sha256": "9999f3b42629bede3ea4ce2964b07ae479bedd102beb97be4cff4b67756f841e",
+        "passed": 412,
+        "warnings": 1
+      },
+      "name": "pytest_required_10_groups_resumed",
+      "status": "PASS"
+    }
+  ],
+  "minimal_unblock_condition": null,
+  "overlay_base": "e4df0fc4349568cb0a7df2de56a4865885361494",
+  "overlay_tip": "c7ad4881eabc47cbf43e5053f1ac79d7e70af546",
+  "runtime_base": "e6d93fba050eac7c22e1a34bf52d8ac4c707a1b3",
+  "schema_version": 1,
+  "source_sha": "cbed615c9c16a03b4d3ccfcf816d9901feea0ed9",
+  "resolved_blocker": "HOST_CAPACITY_FLOOR",
+  "status": "CANDIDATE_READY_FOR_REVIEW"
+}

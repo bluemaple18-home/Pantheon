@@ -1,0 +1,11 @@
+CARD-CONTENT-WRITER-VNEXT-CONTRACT-001
+
+CodeGraph: CONTEXT_DEGRADED. The pinned CodeGraph runtime was unavailable in this worktree; no install or download was attempted. Fallback scope was limited to scripts/agy_seo_copy_pipeline.py and tests/test_agy_seo_copy_pipeline.py, identifying validate_candidate(), article_sha256(), and validate_review() as the existing side-effect-free candidate/review boundary.
+
+Validation command (shared primary-worktree virtualenv; this clean worktree has no .venv):
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest tests/test_agy_editorial_contracts.py
+
+Result: 5 passed in 0.03s
+
+git diff --check
+Result: passed (no output)

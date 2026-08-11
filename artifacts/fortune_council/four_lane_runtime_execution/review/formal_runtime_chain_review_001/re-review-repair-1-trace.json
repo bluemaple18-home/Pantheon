@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "reviewed_candidate": "12a86f91bc56a3c3566038deb0dc062f1b6a0c4d",
+  "finding_id": "PANTHEON-FORMAL-RUNTIME-001",
+  "boundary_recorder": {
+    "events": [
+      {
+        "function": "publish_ready_runs",
+        "dry_run": true,
+        "push": false,
+        "release_gate": false
+      },
+      {
+        "function": "_isolated_transaction_worktree"
+      },
+      {
+        "function": "_stage_commit_tag_push",
+        "push": false,
+        "release_gate": false,
+        "checked_runner_injected": true
+      },
+      {
+        "function": "_stage_commit_tag_push",
+        "push": true,
+        "release_gate": false,
+        "checked_runner_injected": true
+      }
+    ],
+    "capability_results": {
+      "publish": {
+        "status": "PASS",
+        "boundary_status": "idle",
+        "production_mutation": false
+      },
+      "transaction": {
+        "status": "PASS",
+        "boundary_status": "PASS",
+        "production_mutation": false
+      },
+      "tag": {
+        "status": "PASS",
+        "boundary_status": "PASS",
+        "production_mutation": false
+      },
+      "push": {
+        "status": "PASS",
+        "boundary_status": "PASS",
+        "production_mutation": false
+      }
+    }
+  },
+  "external_root_mutation_proof": {
+    "input": {
+      "queue_root": "<tmp>/external-queue",
+      "publisher_state_root": "<tmp>/external-state"
+    },
+    "before": {
+      "queue_exists": false,
+      "state_exists": false
+    },
+    "after": {
+      "queue_exists": true,
+      "state_exists": true,
+      "publisher_lock_exists": true,
+      "publisher_lock_size": 0
+    },
+    "return": {
+      "status": "PASS",
+      "boundary_status": "idle",
+      "production_mutation": false
+    }
+  },
+  "safety": {
+    "harness_root": "/tmp only",
+    "real_git_mutation": false,
+    "network": false,
+    "launchctl": false,
+    "production": false
+  }
+}

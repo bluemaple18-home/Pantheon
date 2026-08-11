@@ -12,6 +12,7 @@ import pytest
 
 from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
@@ -41,6 +42,51 @@ def make_publication_policy(
         "modified": modified,
         "changeType": change_type,
     }
+
+
+def test_formal_publisher_rejects_manifest_drift_before_state_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-publisher",
+        runtime_digest="3" * 64,
+        generation="generation-publisher",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"])
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST", manifest["runtime_identity_digest"]
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.agy-content-publisher"
+    )
+    manifest_path.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        publisher.publish_ready_runs(
+            actor,
+            queue,
+            state,
+            dry_run=True,
+            git=lambda *_args: pytest.fail("git must not run"),
+        )
+
+    assert not (state / "publisher.lock").exists()
 
 
 def _long(text: str) -> str:
@@ -2846,8 +2892,13 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
 
     assert publisher.DEFAULT_MAX_RUNS == 3
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
-    assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
-    assert arguments[3:11] == [
+    assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
+    assert "四軌 recovery 禁止 new-only" in installer
+    assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
+    separator = arguments.index("--")
+    service_arguments = arguments[separator + 1 :]
+    assert service_arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
+    assert service_arguments[3:11] == [
         "--repo-root",
         "__REPO_ROOT__",
         "--queue-root",
@@ -2857,7 +2908,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "--max-runs",
         "__MAX_RUNS__",
     ]
-    assert arguments[11:] == [
+    assert service_arguments[11:] == [
         "--include-rewrites",
         "--push",
         "--expected-repo-root",
@@ -2874,11 +2925,14 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "push",
     ]
     assert 'ACTION="${1:---install}"' in installer
+    assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer
+    assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
+    assert ".pantheon-four-lane-stage" in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert (
         plist["EnvironmentVariables"]["PANTHEON_PUBLISHER_STDOUT_LOG"]
@@ -2899,6 +2953,124 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(
+    tmp_path: Path,
+) -> None:
+    """REG-PANTHEON-FOUR-LANE-REJECT-NEW-ONLY-001。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    (queue / "runs").mkdir(parents=True)
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": "/usr/bin/true",
+        "PANTHEON_GEMINI_QUEUE_ROOT": str(queue),
+        "PANTHEON_PUBLISH_NEW_ONLY": "1",
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"), "--preflight"],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "四軌 recovery 禁止 new-only" in completed.stderr
+    assert not (tmp_path / "home").exists()
+
+
+def test_publish_ready_runs_new_only_does_not_seed_translations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publisher,
+        "_seed_pending_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("new-only must not seed translations")
+        ),
+    )
+    monkeypatch.setattr(publisher, "collect_ready_runs", lambda *_args, **_kwargs: [])
+
+    def fake_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return "a" * 40
+        return ""
+
+    result = publisher.publish_ready_runs(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        git=fake_git,
+        run_tests=False,
+        release_gate=False,
+        seed_translations=False,
+    )
+
+    assert result["status"] == "idle"
+    assert result["seeded_translation_runs"] == []
+
+
+def test_main_new_only_passes_translation_seed_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    captured: dict[str, object] = {}
+
+    def fake_publish(*_args: object, **kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"schema_version": 1, "status": "idle", "published": 0}
+
+    monkeypatch.setattr(
+        publisher,
+        "parse_args",
+        lambda: publisher.argparse.Namespace(
+            repo_root=tmp_path,
+            queue_root=queue_root,
+            state_root=state_root,
+            max_runs=3,
+            exact_run_id=None,
+            exact_fresh_ja_run_id=None,
+            prepare_exact_fresh_ja_source_run_id=None,
+            prepare_exact_fresh_ja_article_id=None,
+            dry_run=True,
+            rewrite_release=False,
+            include_rewrites=False,
+            new_only=True,
+            legacy_report=False,
+            push=False,
+            deployment_preflight=False,
+            recover_exhausted_create_run=[],
+            skip_tests=False,
+            skip_release_gate=False,
+            expected_repo_root=None,
+            expected_queue_root=None,
+            expected_state_root=None,
+            expected_runtime_sha=None,
+            expected_runtime_digest=None,
+            expected_push_mode=None,
+        ),
+    )
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+
+    assert publisher.main() == 0
+    assert captured["seed_translations"] is False
+    assert json.loads(capsys.readouterr().out)["status"] == "idle"
 
 
 def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3387,7 +3559,13 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
         text=True,
     ).stdout.strip()
     monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
-    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        publisher,
+        "_seed_pending_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("new-only must not seed translations after publish")
+        ),
+    )
     monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *_args, **_kwargs: {"status": "approved"})
 
     def apply_good(repo: Path, *_args: object, **_kwargs: object) -> list[Path]:
@@ -3412,10 +3590,12 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
         push=False,
         run_tests=False,
         release_gate=False,
+        seed_translations=False,
     )
 
     assert result["status"] == "PUBLISHED"
     assert result["run_ids"] == ["run-good"]
+    assert result["seeded_translation_runs"] == []
     assert published_path.read_text(encoding="utf-8") == "run-good\n"
 
 

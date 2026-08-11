@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:tag",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "tag",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-positive/05-transaction-adapter.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-positive/06-tag-adapter.json",
+      "--expected-input-digest",
+      "c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6",
+      "--actual-input-digest",
+      "c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6",
+      "--execution-id",
+      "repair-2-verified-positive",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-positive/06-tag-adapter.json",
+    "returncode": 0
+  },
+  "capability": "tag",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:tag",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-positive",
+  "expected_input_digest": "c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6",
+  "input_digest": "c4ced53bec2061adc61afd9aea8ccec4e5b28481c94a3e759f5bf5cdf40c0ef6",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 6,
+  "output_digest": "6958ebba267def4decafc68cd2c0f6e6d94af8ab798f7886dd2de9c08776912a",
+  "production_entrypoint": "scripts.agy_content_publisher:tag",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.372414+00:00"
+}
