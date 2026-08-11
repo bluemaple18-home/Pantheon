@@ -165,6 +165,132 @@ def test_coordinator_preflight_emits_create_run_steps_from_official_boundaries(
         _assert_no_absolute_strings(artifact)
 
 
+def test_coordinator_preflight_blocked_evidence_comes_from_rejected_calls(
+    tmp_path: Path,
+) -> None:
+    sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+
+    coordinator.coordinator_create_run_receipt_preflight(
+        trusted_sandbox_root=sandbox_root,
+        run_root=run_root,
+        queue_root=queue_root,
+        evidence_root=evidence_root,
+        execution_line_id="exec-ra-slice-002",
+        correlation_id="corr-ra-slice-002",
+        actor_identity="actor-ra-slice-002",
+        runtime_identity_digest=RUNTIME_RECEIPT["runtime_identity_digest"],
+        runtime_receipt=RUNTIME_RECEIPT,
+        brief=_brief(),
+        lane="new",
+    )
+
+    blocked_create = json.loads(
+        (evidence_root / "blocked-create.json").read_text(encoding="utf-8")
+    )
+    blocked_run = json.loads(
+        (evidence_root / "blocked-run.json").read_text(encoding="utf-8")
+    )
+    assert blocked_create["case"] == "missing-brief"
+    assert blocked_create["reason"] == "brief is required"
+    assert blocked_run["case"] == "run-boundary"
+    assert "exact run ids not found" in blocked_run["reason"]
+
+
+def test_coordinator_preflight_digest_is_stable_across_canonical_roots(
+    tmp_path: Path,
+) -> None:
+    def run_preflight(root: Path) -> dict[str, Any]:
+        sandbox_root = root / "sandbox"
+        sandbox_root.mkdir(parents=True)
+        return coordinator.coordinator_create_run_receipt_preflight(
+            trusted_sandbox_root=sandbox_root,
+            run_root=sandbox_root / "runs",
+            queue_root=sandbox_root / "queue",
+            evidence_root=sandbox_root / "evidence",
+            execution_line_id="exec-ra-slice-002",
+            correlation_id="corr-ra-slice-002",
+            actor_identity="actor-ra-slice-002",
+            runtime_identity_digest=RUNTIME_RECEIPT["runtime_identity_digest"],
+            runtime_receipt=RUNTIME_RECEIPT,
+            brief=_brief(),
+            lane="new",
+        )
+
+    first = run_preflight(tmp_path / "first-root")
+    second = run_preflight(tmp_path / "second-root")
+
+    assert [step["output_digest"] for step in first["receipt_steps"]] == [
+        step["output_digest"] for step in second["receipt_steps"]
+    ]
+
+
+def test_coordinator_preflight_propagates_unexpected_runtime_error(
+    tmp_path: Path,
+) -> None:
+    sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+
+    def pending_tick(_run_dir: Path, _queue_root: Path) -> dict[str, object]:
+        raise ExternalJobPending("ra-slice-002-local-job")
+
+    def broken_process(*_args: object, **_kwargs: object) -> dict[str, str]:
+        raise RuntimeError("injected unexpected runtime failure")
+
+    with pytest.raises(RuntimeError, match="injected unexpected runtime failure"):
+        coordinator.coordinator_create_run_receipt_preflight(
+            trusted_sandbox_root=sandbox_root,
+            run_root=run_root,
+            queue_root=queue_root,
+            evidence_root=evidence_root,
+            execution_line_id="exec-ra-slice-002",
+            correlation_id="corr-ra-slice-002",
+            actor_identity="actor-ra-slice-002",
+            runtime_identity_digest=RUNTIME_RECEIPT["runtime_identity_digest"],
+            runtime_receipt=RUNTIME_RECEIPT,
+            brief=_brief(),
+            lane="new",
+            tick=pending_tick,
+            process=broken_process,
+        )
+
+    assert not (evidence_root / "blocked-run.json").exists()
+
+
+def test_coordinator_preflight_evidence_ids_follow_caller_evidence_root(
+    tmp_path: Path,
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    sandbox_root.mkdir()
+    evidence_root = sandbox_root / "caller-approved" / "proofs"
+
+    envelope = coordinator.coordinator_create_run_receipt_preflight(
+        trusted_sandbox_root=sandbox_root,
+        run_root=sandbox_root / "runs",
+        queue_root=sandbox_root / "queue",
+        evidence_root=evidence_root,
+        execution_line_id="exec-ra-slice-002",
+        correlation_id="corr-ra-slice-002",
+        actor_identity="actor-ra-slice-002",
+        runtime_identity_digest=RUNTIME_RECEIPT["runtime_identity_digest"],
+        runtime_receipt=RUNTIME_RECEIPT,
+        brief=_brief(),
+        lane="new",
+    )
+
+    evidence_ids = {
+        step[key]
+        for step in envelope["receipt_steps"]
+        for key in ("positive_evidence", "negative_evidence")
+    }
+    assert evidence_ids == {
+        "caller-approved/proofs/positive-create.json",
+        "caller-approved/proofs/blocked-create.json",
+        "caller-approved/proofs/positive-run.json",
+        "caller-approved/proofs/blocked-run.json",
+    }
+    for evidence_id in evidence_ids:
+        assert not evidence_id.startswith(EVIDENCE_PREFIX)
+
+
 @pytest.mark.parametrize(
     ("case", "overrides", "match"),
     [

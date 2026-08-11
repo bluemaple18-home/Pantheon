@@ -47,10 +47,6 @@ JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
-COORDINATOR_RECEIPT_EVIDENCE_PREFIX = (
-    "artifacts/fortune_council/content_writer_vnext_execution/"
-    "runtime_activation/ra_slice_002/sandbox/evidence"
-)
 COORDINATOR_RECEIPT_RUN_ID = "ra-slice-002-synthetic-create-run"
 COORDINATOR_RECEIPT_ALLOWED_RUNTIME_KEYS = frozenset(
     {
@@ -116,6 +112,23 @@ def _coordinator_receipt_digest(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _coordinator_receipt_evidence_identifier(
+    sandbox_root: Path,
+    evidence_root: Path,
+    artifact_name: str,
+) -> str:
+    artifact_path = (evidence_root / artifact_name).resolve(strict=False)
+    if not artifact_path.is_file():
+        raise CoordinatorReceiptBlocked("evidence: artifact must exist")
+    try:
+        relative = artifact_path.relative_to(sandbox_root)
+    except ValueError as error:
+        raise CoordinatorReceiptBlocked(
+            "evidence: artifact must stay under trusted sandbox root"
+        ) from error
+    return relative.as_posix()
+
+
 def _coordinator_receipt_identifier(value: object, label: str, case: str) -> str:
     if type(value) is not str or not value or value.strip() != value:
         raise CoordinatorReceiptBlocked(f"{case}: {label} is required")
@@ -175,6 +188,95 @@ def _coordinator_receipt_block(
         runtime_identity_digest=runtime_identity_digest,
     )
     raise CoordinatorReceiptBlocked(f"{case}: {reason}")
+
+
+def _coordinator_receipt_create_blocked_probe(
+    *,
+    trusted_sandbox_root: Path,
+    run_root: Path,
+    queue_root: Path,
+    evidence_root: Path,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+    runtime_receipt: Mapping[str, Any],
+) -> None:
+    try:
+        coordinator_create_run_receipt_preflight(
+            trusted_sandbox_root=trusted_sandbox_root,
+            run_root=run_root,
+            queue_root=queue_root,
+            evidence_root=evidence_root,
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_identity_digest,
+            runtime_receipt=dict(runtime_receipt),
+            brief=None,
+            lane="new",
+            tick=lambda *_args: {"status": "unreachable"},
+            process=lambda *_args, **_kwargs: {"status": "unreachable"},
+        )
+    except CoordinatorReceiptBlocked:
+        artifact_path = evidence_root / "blocked-create.json"
+        if artifact_path.is_file():
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            if artifact.get("case") == "missing-brief":
+                return
+    _coordinator_receipt_block(
+        evidence_root,
+        case="missing-brief-probe-drift",
+        reason="missing brief probe did not reject",
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_identity_digest,
+    )
+
+
+def _coordinator_receipt_run_blocked_probe(
+    *,
+    queue_root: Path,
+    evidence_root: Path,
+    repo_root: Path,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+) -> None:
+    try:
+        cycle_once(
+            queue_root,
+            repo_root=repo_root,
+            exact_run_ids=["ra-slice-002-missing-negative-probe"],
+        )
+    except ValueError as error:
+        reason = str(error)
+        if reason.startswith("exact run ids not found:"):
+            _coordinator_receipt_blocked_artifact(
+                evidence_root,
+                case="run-boundary",
+                step="run",
+                entrypoint="scripts.agy_gemini_coordinator:cycle_once",
+                reason=reason,
+                execution_line_id=execution_line_id,
+                correlation_id=correlation_id,
+                actor_identity=actor_identity,
+                runtime_identity_digest=runtime_identity_digest,
+            )
+            return
+        raise
+    _coordinator_receipt_block(
+        evidence_root,
+        case="run-boundary-probe-drift",
+        step="run",
+        reason="missing exact run id probe did not reject",
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_identity_digest,
+    )
 
 
 def _coordinator_receipt_sandbox_root(path: Path) -> Path:
@@ -481,7 +583,7 @@ def coordinator_create_run_receipt_preflight(
 
     try:
         (
-            _sandbox_root,
+            sandbox_root,
             resolved_run_root,
             resolved_queue_root,
             resolved_evidence_root,
@@ -572,7 +674,9 @@ def coordinator_create_run_receipt_preflight(
     create_state_projection = {
         "schema_version": registered.get("schema_version"),
         "run_id": registered.get("run_id"),
-        "run_dir_digest": _coordinator_receipt_digest(str(run_dir.resolve())),
+        "run_dir_digest": _coordinator_receipt_digest(
+            {"root": "run", "run_id": run_id}
+        ),
         "status": registered.get("status"),
         "correlation_id": registered.get("correlation_id"),
     }
@@ -593,16 +697,16 @@ def coordinator_create_run_receipt_preflight(
         "production_mutation": False,
     }
     atomic_write_json(resolved_evidence_root / "positive-create.json", create_positive)
-    _coordinator_receipt_blocked_artifact(
-        resolved_evidence_root,
-        case="missing-brief",
-        step="create",
-        entrypoint="scripts.agy_gemini_coordinator:register_run",
-        reason="missing brief rejects before run state or queue I/O",
+    _coordinator_receipt_create_blocked_probe(
+        trusted_sandbox_root=sandbox_root,
+        run_root=resolved_run_root,
+        queue_root=resolved_queue_root,
+        evidence_root=resolved_evidence_root,
         execution_line_id=execution_line_id,
         correlation_id=correlation_id,
         actor_identity=actor_identity,
         runtime_identity_digest=runtime_digest,
+        runtime_receipt=runtime_receipt,
     )
 
     tick_calls = 0
@@ -633,12 +737,15 @@ def coordinator_create_run_receipt_preflight(
             repo_root=resolved_run_root.parent,
             exact_run_ids=[run_id],
         )
-    except Exception as error:
+    except ValueError as error:
+        reason = str(error)
+        if not reason.startswith("exact run ids not found:"):
+            raise
         _coordinator_receipt_block(
             resolved_evidence_root,
             case="run-boundary",
             step="run",
-            reason=f"coordinator run boundary rejected: {type(error).__name__}",
+            reason=f"coordinator run boundary rejected: {reason}",
             execution_line_id=execution_line_id,
             correlation_id=correlation_id,
             actor_identity=actor_identity,
@@ -660,7 +767,9 @@ def coordinator_create_run_receipt_preflight(
         "summary": summary,
         "state": {
             "run_id": final_state.get("run_id"),
-            "run_dir_digest": _coordinator_receipt_digest(str(run_dir.resolve())),
+            "run_dir_digest": _coordinator_receipt_digest(
+                {"root": "run", "run_id": run_id}
+            ),
             "status": final_state.get("status"),
             "correlation_id": final_state.get("correlation_id"),
             "result": final_state.get("result"),
@@ -684,12 +793,10 @@ def coordinator_create_run_receipt_preflight(
         "production_mutation": False,
     }
     atomic_write_json(resolved_evidence_root / "positive-run.json", run_positive)
-    _coordinator_receipt_blocked_artifact(
-        resolved_evidence_root,
-        case="wrong-lane",
-        step="run",
-        entrypoint="scripts.agy_gemini_coordinator:cycle_once",
-        reason="wrong lane rejects before injected process",
+    _coordinator_receipt_run_blocked_probe(
+        queue_root=resolved_queue_root,
+        evidence_root=resolved_evidence_root,
+        repo_root=resolved_run_root.parent,
         execution_line_id=execution_line_id,
         correlation_id=correlation_id,
         actor_identity=actor_identity,
@@ -724,8 +831,16 @@ def coordinator_create_run_receipt_preflight(
             correlation_id=correlation_id,
             actor_identity=actor_identity,
             runtime_identity_digest=runtime_digest,
-            positive_evidence=f"{COORDINATOR_RECEIPT_EVIDENCE_PREFIX}/positive-create.json",
-            negative_evidence=f"{COORDINATOR_RECEIPT_EVIDENCE_PREFIX}/blocked-create.json",
+            positive_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "positive-create.json",
+            ),
+            negative_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "blocked-create.json",
+            ),
         ),
         _coordinator_receipt_step(
             capability="run",
@@ -736,8 +851,16 @@ def coordinator_create_run_receipt_preflight(
             correlation_id=correlation_id,
             actor_identity=actor_identity,
             runtime_identity_digest=runtime_digest,
-            positive_evidence=f"{COORDINATOR_RECEIPT_EVIDENCE_PREFIX}/positive-run.json",
-            negative_evidence=f"{COORDINATOR_RECEIPT_EVIDENCE_PREFIX}/blocked-run.json",
+            positive_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "positive-run.json",
+            ),
+            negative_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "blocked-run.json",
+            ),
         ),
     ]
     return {
