@@ -34,6 +34,7 @@ RA004_ROOT = RUNTIME_ACTIVATION_ROOT / "ra_slice_004"
 RA005_ROOT = RUNTIME_ACTIVATION_ROOT / "ra_slice_005"
 CALLER_VERDICT_FIELDS = {"status", "verdict", "ready", "valid", "pass"}
 MEASUREMENT_FIELDS = ("before", "peak", "after_cleanup")
+LOCAL_ABSOLUTE_PREFIXES = ("/Users/", "/private/", "/var/folders/")
 
 
 class ReadinessPackagingBlocked(ValueError):
@@ -152,6 +153,23 @@ def _reject_absolute_strings(payload: object, label: str) -> None:
             _reject_absolute_strings(value, f"{label}[{index}]")
     elif isinstance(payload, str) and payload.startswith("/"):
         _blocked("absolute-artifact-path", f"{label} contains an absolute path")
+
+
+def _portable_diagnostic_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _portable_diagnostic_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_portable_diagnostic_value(item) for item in value]
+    if isinstance(value, str) and (
+        value.startswith(LOCAL_ABSOLUTE_PREFIXES)
+        or (len(value) >= 3 and value[1] == ":" and value[2] in {"\\", "/"})
+    ):
+        return "<local-absolute-path-redacted>"
+    return value
+
+
+def _portable_blocked_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return dict(_portable_diagnostic_value(dict(payload)))
 
 
 def _validate_capability_sources(
@@ -419,7 +437,7 @@ def _collect_negative_matrix(
         try:
             _validate_capability_sources(receipt=candidate, evidence_root=root)
         except ReadinessPackagingBlocked as error:
-            payload = dict(error.payload)
+            payload = _portable_blocked_payload(error.payload)
             payload["case"] = case
             cases.append(payload)
             return
@@ -438,7 +456,7 @@ def _collect_negative_matrix(
                 blocked_capacity=blocked_capacity,
             )
         except ReadinessPackagingBlocked as error:
-            payload = dict(error.payload)
+            payload = _portable_blocked_payload(error.payload)
             payload["case"] = case
             cases.append(payload)
             return

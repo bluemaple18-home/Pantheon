@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,9 @@ RA_ROOT = (
 RA004_ROOT = RA_ROOT / "ra_slice_004"
 RA005_ROOT = RA_ROOT / "ra_slice_005"
 AI_CORE_GATE = Path("/Users/mattkuo/ai-core/scripts/production_canary_readiness_gate.py")
+LOCAL_ABSOLUTE_PATTERN = re.compile(
+    r"(/Users/|/private/|/var/folders/|[A-Za-z]:[\\/])"
+)
 
 
 def _source_args(tmp_path: Path) -> dict[str, object]:
@@ -56,6 +60,15 @@ def _write_json(path: Path, payload: object) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _assert_package_json_is_portable(package_root: Path) -> None:
+    leaked: list[str] = []
+    for path in sorted(package_root.rglob("*.json")):
+        serialized = path.read_text(encoding="utf-8")
+        if LOCAL_ABSOLUTE_PATTERN.search(serialized):
+            leaked.append(path.relative_to(package_root).as_posix())
+    assert leaked == []
 
 
 def test_builds_portable_package_that_official_gate_marks_ready(tmp_path: Path) -> None:
@@ -94,6 +107,8 @@ def test_builds_portable_package_that_official_gate_marks_ready(tmp_path: Path) 
     assert len(set(evidence_artifacts)) == 14
     assert all(not Path(artifact).is_absolute() for artifact in evidence_artifacts)
     assert all((package_root / artifact).is_file() for artifact in evidence_artifacts)
+    _assert_package_json_is_portable(package_root)
+    _assert_package_json_is_portable(RA_ROOT / "ra_slice_006/package")
 
     capacity = json.loads(
         (package_root / "capacity-proof-normalized.json").read_text(encoding="utf-8")
