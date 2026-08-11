@@ -147,7 +147,24 @@ def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
 
 def test_capacity_proof_blocks_over_budget_before_second_cycle(tmp_path: Path) -> None:
     calls: list[Path] = []
+    samples: list[dict[str, object]] = []
     policy = {**DEFAULT_POLICY, "max_bytes": 1}
+
+    def sampler(project_root: Path, label: str, _started: float) -> dict[str, object]:
+        project_bytes, file_count = _tree_size(project_root)
+        sample = {
+            "label": label,
+            "sampled_epoch": float(len(samples) + 1),
+            "elapsed_seconds": float(len(samples) + 1),
+            "host_total_bytes": 500 * GIB,
+            "host_free_bytes": 250 * GIB,
+            "project_bytes": project_bytes,
+            "file_count": file_count,
+            "process_rss_bytes": 64 * MIB,
+            "swap_used_bytes": 0,
+        }
+        samples.append(sample)
+        return sample
 
     def workload(**kwargs: object) -> dict[str, object]:
         cycle_root = Path(kwargs["trusted_sandbox_root"])
@@ -163,10 +180,14 @@ def test_capacity_proof_blocks_over_budget_before_second_cycle(tmp_path: Path) -
             actor_identity="actor-ra-slice-005",
             brief=_brief(),
             policy=policy,
+            sampler=sampler,
             workload=workload,
         )
 
     assert len(calls) == 1
+    assert [sample["label"] for sample in samples] == ["cycle-1-before", "cycle-1-peak"]
+    assert samples[0]["project_bytes"] == 0
+    assert samples[0]["host_free_bytes"] > 50 * GIB
     assert blocked.value.payload["status"] == "BLOCKED"
     assert blocked.value.payload["case"] == "project-bytes-over-budget"
     assert blocked.value.payload["next_cycle_started"] is False
