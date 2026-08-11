@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "mode": "plan-only",
+  "execution_authority": "mainline-only",
+  "actions": [],
+  "conservative_reclaimable_bytes": 0,
+  "formal_reserve_deficit_bytes": 0,
+  "minimum_bytes_needed_to_cross_formal_reserve": 0,
+  "reason": "No worktree satisfies the joint eligibility proof. This plan grants no delete, remove, prune, archive, branch, or task authority.",
+  "mainline_revalidation_commands": ["git worktree list --porcelain", "git status --porcelain=v1", "git rev-parse HEAD", "git show-ref --verify <retained-archive-ref>", "git merge-base --is-ancestor <expected-sha> <integrated-tip>"]
+}

@@ -1,0 +1,20 @@
+RA-SLICE-007 verification receipt
+
+Source HEAD: b74bf8a382fe984acb21d3473ace01d7b418812a
+CodeGraph task-semantic context query: PASS
+Query scope: visible_thread_resource_guard collect snapshot precreate runtime worktree cleanup eligibility storage capacity reserve Pantheon Writer vNext
+CodeGraph source confirmation: scripts/pantheon_writer_vnext_runtime_activation_capacity.py and scripts/pantheon_content_runtime_manifest.py
+
+Read-only collection:
+- dual host samples: PASS; interval=55 seconds (<=300)
+- Pantheon worktree inventory: PASS; count=5, duplicates=0
+- retention manifest consulted: PASS
+- destructive commands executed: none
+
+Acceptance verification:
+- resource-snapshot.json parse: PASS
+- worktree-inventory.json parse: PASS
+- cleanup-plan.json parse: PASS
+- allowlist audit: PASS (only this evidence directory changed)
+- git diff --check: PASS
+- candidate commit: delivery-level verification required after commit

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "scope": "Pantheon Writer vNext / Codex worktree capacity preflight",
+  "sample_interval_seconds": 55,
+  "samples": [
+    {
+      "sampled_at": "2026-08-11T11:17:27Z",
+      "host_total_bytes": 245107195904,
+      "host_free_bytes": 25680035840,
+      "host_free_percent": 10.4786,
+      "ten_percent_reserve_bytes": 24510719590,
+      "formal_reserve_bytes": 24510719590,
+      "reserve_deficit_bytes": 0,
+      "vm_allocation_bytes": null,
+      "swap_used_bytes": null,
+      "memory_pressure": null,
+      "codex_rss_bytes": null,
+      "unknown_fields": ["vm_allocation_bytes", "swap_used_bytes", "memory_pressure", "codex_rss_bytes"],
+      "sources": {"disk": "df -k /", "vm": "sysctl unavailable", "swap": "sysctl unavailable", "memory_pressure": "not available from permitted read-only probe", "codex_rss": "ps unavailable"}
+    },
+    {
+      "sampled_at": "2026-08-11T11:18:22Z",
+      "host_total_bytes": 245107195904,
+      "host_free_bytes": 25655296000,
+      "host_free_percent": 10.4685,
+      "ten_percent_reserve_bytes": 24510719590,
+      "formal_reserve_bytes": 24510719590,
+      "reserve_deficit_bytes": 0,
+      "vm_allocation_bytes": null,
+      "swap_used_bytes": null,
+      "memory_pressure": null,
+      "codex_rss_bytes": null,
+      "unknown_fields": ["vm_allocation_bytes", "swap_used_bytes", "memory_pressure", "codex_rss_bytes"],
+      "sources": {"disk": "df -k /", "vm": "sysctl unavailable", "swap": "sysctl unavailable", "memory_pressure": "not available from permitted read-only probe", "codex_rss": "ps unavailable"}
+    }
+  ],
+  "between_samples": {
+    "host_free_bytes_delta": -24739840,
+    "pantheon_worktree_bytes_delta": 0,
+    "stability_confirmed": false,
+    "reason": "Host free bytes declined while required VM, swap, memory-pressure, and Codex RSS measurements were unavailable; anomalous decline cannot be ruled out fail-closed."
+  },
+  "verdict": "NO-GO"
+}

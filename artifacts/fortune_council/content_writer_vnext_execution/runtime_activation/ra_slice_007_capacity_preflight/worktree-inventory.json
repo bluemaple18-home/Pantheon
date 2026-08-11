@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-11T11:18:22Z",
+  "repo": "Pantheon",
+  "source_head": "b74bf8a382fe984acb21d3473ace01d7b418812a",
+  "worktree_count": 5,
+  "total_bytes": 1885515776,
+  "worktrees": [
+    {"logical_id": "main-checkout", "branch": "pantheon-visual-checkpoint-20260730", "head": "e4df0fc4349568cb0a7df2de56a4865885361494", "dirty": true, "dirty_entry_count": 33, "bytes": 1452097536, "unique_commit_relative_to_source": true, "retained_archive_ref": null, "task_state": "NEVER_CLEAN: user checkout with existing dirty work", "classification": "RETAIN", "reason": "Dirty user checkout is explicitly never-clean."},
+    {"logical_id": "current-ra007-task-worktree", "branch": null, "head": "b74bf8a382fe984acb21d3473ace01d7b418812a", "dirty": false, "dirty_entry_count": 0, "bytes": 119775232, "unique_commit_relative_to_source": false, "retained_archive_ref": null, "task_state": "RA-SLICE-007 active", "classification": "RETAIN", "reason": "Current activated implementation worktree must remain available until delivery."},
+    {"logical_id": "ra003-repair-source", "branch": "codex/pantheon-pantheon-writer-vnext-ra-slice-003-repair-source-20260811-161914", "head": "975f492de1690d63ffc6d7502e9f158c5192b838", "dirty": false, "dirty_entry_count": 0, "bytes": 104361984, "unique_commit_relative_to_source": true, "retained_archive_ref": null, "task_state": "integration/archive evidence not proved for this worktree", "classification": "BLOCKED_UNKNOWN", "reason": "Unique commit is not an ancestor of source HEAD and no retained archive ref plus completed handoff is proved."},
+    {"logical_id": "repair-retry-1-source", "branch": "codex/pantheon-pantheon-writer-vnext-repair-retry-1-source-2026-20260811-155100", "head": "538d0c132beb33c716a89d3e9acbaae256152b92", "dirty": false, "dirty_entry_count": 0, "bytes": 104230912, "unique_commit_relative_to_source": false, "retained_archive_ref": null, "task_state": "DO_NOT_CLEAN: unique Repair replacement handoff incomplete", "classification": "RETAIN", "reason": "Committed retention manifest explicitly prohibits cleanup pending handoff and retained archive proof."},
+    {"logical_id": "ra007-capacity-source", "branch": "codex/pantheon-writer-vnext-ra-slice-007-capacity-source-20260811", "head": "b74bf8a382fe984acb21d3473ace01d7b418812a", "dirty": false, "dirty_entry_count": 0, "bytes": 105050112, "unique_commit_relative_to_source": false, "retained_archive_ref": null, "task_state": "RA-SLICE-007 source worktree active", "classification": "RETAIN", "reason": "Source worktree is the active card lineage; no integration and archival completion evidence permits cleanup."}
+  ],
+  "eligibility_rule": "Only clean, integrated, handoff-proved worktrees with no unique unprotected work and an existing retained archive ref may be eligible.",
+  "eligible_reclaimable_bytes": 0
+}
