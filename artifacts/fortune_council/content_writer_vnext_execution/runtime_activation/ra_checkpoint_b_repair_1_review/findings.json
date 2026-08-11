@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "review": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-CHECKPOINT-B-REPAIR-1-001",
+    "candidate": "883db8cbf2033fe5bbb1acb8399a5d021047e63a",
+    "parent": "ff7cbcde9a121aa436bf0333343c10648bbdf24e",
+    "original_blocked_evidence": "4b90fb7f61d52fc0ff50af20acae678b0b1ca149",
+    "reviewed_finding": "Checkpoint B capacity deterministic-test P1",
+    "conclusion": "REVIEW_GO"
+  },
+  "findings": []
+}
