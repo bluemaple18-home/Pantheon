@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate": "1f7f1daa8cfcd40b9799309fa0bf045cf420f7f0",
+  "parent": "e7bb39fdbbbb7795fd91a1ce3cfe7a72c6f0696a",
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_007_capacity_preflight/resource-snapshot.json",
+      "line": 26,
+      "claim": "兩個 measurement_digest 沒有 committed digest contract 或完整 canonical input，因此無法重算。",
+      "evidence": "第一筆 sample 的 stable JSON SHA-256 是 sha256:90ee05cbab769ea5fe906ce9d79e3ef7e0cfc82e3d09011c57e8edafdfe2489d，非 committed sha256:40f6977540af702a0af3f9b1393d105bc6432a289a023a9a25af28e5ed02358c；第二筆同樣不符。canonical resource guard 的 receipt digest 需要 versioned domain 與完整 snapshot，但候選未保存可攜投影。",
+      "reproduction": "讀取每個 sample、移除 measurement_digest，以 UTF-8 stable JSON（sort_keys=true，separators=(',', ':')）算 SHA-256；再比對 committed measurement_digest。",
+      "required_repair": "提交明確的 versioned digest domain 與可攜、完整 canonical projection，或使用已保存且可驗證的 canonical guard receipt digest；不得保留無法從 committed evidence 重建的 digest。"
+    }
+  ]
+}
