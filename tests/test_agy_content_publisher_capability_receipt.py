@@ -250,6 +250,57 @@ def test_formal_publisher_emits_shared_receipt_steps_and_artifacts(
         validate_capability_receipt(drifted)
 
 
+def test_formal_publisher_receipt_digest_is_stable_across_canonical_roots(
+    tmp_path: Path,
+) -> None:
+    def call_in(root_name: str) -> dict[str, Any]:
+        sandbox_root = (tmp_path / root_name / "sandbox").resolve()
+        sandbox_root.mkdir(parents=True)
+        evidence_root = sandbox_root / "receipt-evidence"
+        return _call(
+            "select",
+            sandbox_root=sandbox_root,
+            queue_root=sandbox_root / "queue",
+            state_root=sandbox_root / "publisher-state",
+            receipt_context=_context(
+                evidence_root=evidence_root,
+                capability="select",
+                input_digest=_digest({"input": "select"}),
+            ),
+        )
+
+    first = call_in("first-root")
+    second = call_in("second-root")
+
+    assert first["receipt_step"]["output_digest"] == second["receipt_step"]["output_digest"]
+
+
+def test_formal_publisher_blocked_evidence_write_failure_is_observable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+
+    def broken_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("injected evidence write failure")
+
+    monkeypatch.setattr(publisher, "_write_receipt_evidence", broken_write)
+
+    with pytest.raises(publisher.PublishBlocked, match="evidence"):
+        _call(
+            "select",
+            sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            receipt_context=_context(
+                evidence_root=evidence_root,
+                capability="select",
+                input_digest=_digest({"input": "select"}),
+            ),
+            run_ids=[],
+        )
+
+
 @pytest.mark.parametrize(
     "context_patch",
     [

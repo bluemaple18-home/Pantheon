@@ -363,11 +363,16 @@ def _record_positive_receipt_step(
     runtime_identity_digest: str,
     boundary_result: dict[str, Any],
 ) -> dict[str, Any]:
+    trace_summary = summarize_operation_trace(boundary_result["operation_trace"])
     digest_material = {
         "capability": capability,
         "input_digest": receipt_context["input_digest"],
-        "boundary_result": boundary_result,
-        "operation_trace": boundary_result["operation_trace"],
+        "boundary_status": boundary_result["boundary_status"],
+        "called_entrypoints": boundary_result["called_entrypoints"],
+        "run_ids": boundary_result["run_ids"],
+        "production_mutation": boundary_result["production_mutation"],
+        "sandbox_mutation": boundary_result["sandbox_mutation"],
+        "trace_summary": trace_summary,
     }
     output_digest = _compact_json_digest(digest_material)
     payload = _receipt_positive_payload(
@@ -399,6 +404,31 @@ def _record_positive_receipt_step(
         "positive_outcome": "PASS",
         "negative_outcome": "BLOCKED",
     }
+
+
+def _record_blocked_receipt_evidence_or_fail(
+    *,
+    sandbox_root: Path,
+    receipt_context: dict[str, Any] | None,
+    capability: str,
+    correlation_id: str,
+    runtime_identity_digest: str | None,
+    error: Exception,
+) -> None:
+    try:
+        _record_blocked_receipt_evidence(
+            sandbox_root=sandbox_root,
+            receipt_context=receipt_context,
+            capability=capability,
+            correlation_id=correlation_id,
+            runtime_identity_digest=runtime_identity_digest,
+            error=error,
+        )
+    except Exception as write_error:
+        raise PublishBlocked(
+            "publisher blocked receipt evidence write failed: "
+            f"{type(write_error).__name__}"
+        ) from write_error
 
 
 def _record_blocked_receipt_evidence(
@@ -774,30 +804,24 @@ def formal_capability_preflight(
             return result
     except FilesystemAuthorityError as error:
         blocked = PublishBlocked("publisher sandbox authority identity drift")
-        try:
-            _record_blocked_receipt_evidence(
-                sandbox_root=sandbox_root,
-                receipt_context=normalized_receipt_context,
-                capability=capability,
-                correlation_id=correlation_id,
-                runtime_identity_digest=runtime_identity_digest,
-                error=blocked,
-            )
-        except Exception:
-            pass
+        _record_blocked_receipt_evidence_or_fail(
+            sandbox_root=sandbox_root,
+            receipt_context=normalized_receipt_context,
+            capability=capability,
+            correlation_id=correlation_id,
+            runtime_identity_digest=runtime_identity_digest,
+            error=blocked,
+        )
         raise blocked from error
     except PublishBlocked as error:
-        try:
-            _record_blocked_receipt_evidence(
-                sandbox_root=sandbox_root,
-                receipt_context=normalized_receipt_context,
-                capability=capability,
-                correlation_id=correlation_id,
-                runtime_identity_digest=runtime_identity_digest,
-                error=error,
-            )
-        except Exception:
-            pass
+        _record_blocked_receipt_evidence_or_fail(
+            sandbox_root=sandbox_root,
+            receipt_context=normalized_receipt_context,
+            capability=capability,
+            correlation_id=correlation_id,
+            runtime_identity_digest=runtime_identity_digest,
+            error=error,
+        )
         raise
     if operation_trace is None:
         raise PublishBlocked("publisher operation trace is unavailable")
