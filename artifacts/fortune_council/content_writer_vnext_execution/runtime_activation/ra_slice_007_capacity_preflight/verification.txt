@@ -1,11 +1,12 @@
 RA-SLICE-007 repair verification receipt
 
-Candidate parent: e7bb39fdbbbb7795fd91a1ce3cfe7a72c6f0696a
-Review evidence: 19bc8c2be8927a246341665bb0a28eb3cd8788f7
+Candidate parent: dd6dac202edef2bde3f060c09078295ed31691ba
+Review evidence: RA007-DIGEST-NOT-RECOMPUTABLE-P1
 Canonical probe: <ai-core>/scripts/visible_thread_resource_guard.py
 Canonical probe source digest: sha256:ecc743361bce3b4ca7cf78aae17b282dc5c22065717c0a00dd45773de493131a
 Code changes: none
 Destructive commands executed: none
+Production verdict: NO-GO
 
 Read-only collection:
 - dual complete host samples: PASS; interval=3 seconds (1..300)
@@ -14,8 +15,25 @@ Read-only collection:
 - cleanup eligibility: PASS; no joint-eligible worktree, reclaimable=0, delete authority=none
 - stability: PASS; host free delta=+1085440, Codex RSS delta=-87883776, swap delta=0
 
+Digest contract:
+- domain: pantheon.writer_vnext.ra_slice_007.capacity_preflight.measurement_digest
+- version: 1
+- algorithm: sha256
+- serialization: UTF-8 JSON; sort_keys=true; separators=(',', ':'); ensure_ascii=false; no whitespace
+- hash input: {"domain": digest_contract.domain, "version": digest_contract.version, "sample": committed sample fields excluding measurement_digest}
+- excluded fields: samples[].measurement_digest and digest_inputs[].expected_digest
+- external dependencies: none
+
+Portable recomputation:
+- sample 0 expected: sha256:e7b2aa52c8070fc95a7f791d8941a4dee40bb53ab0cfd4b8582a307d84d8d79f
+- sample 0 actual:   sha256:e7b2aa52c8070fc95a7f791d8941a4dee40bb53ab0cfd4b8582a307d84d8d79f
+- sample 0 result: PASS
+- sample 1 expected: sha256:b7332c4dcc88b64b35634803450f9eb05513d1a955afb551792a35de33fda224
+- sample 1 actual:   sha256:b7332c4dcc88b64b35634803450f9eb05513d1a955afb551792a35de33fda224
+- sample 1 result: PASS
+
 Acceptance verification:
-- resource-snapshot.json parse, sample digest, and arithmetic: PASS
+- resource-snapshot.json parse, versioned digest contract, sample digest, and arithmetic: PASS
 - worktree-inventory.json parse and total: PASS
 - cleanup-plan.json parse: PASS
 - portable path audit: PASS
