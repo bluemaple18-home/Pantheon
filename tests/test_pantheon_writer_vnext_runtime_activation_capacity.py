@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,8 @@ import pytest
 from scripts.pantheon_writer_vnext_runtime_activation_capacity import (
     CapacityProofBlocked,
     DEFAULT_POLICY,
+    GIB,
+    MIB,
     run_capacity_negative_matrix,
     run_capacity_proof,
 )
@@ -59,10 +62,22 @@ def _fake_e2e_receipt(cycle: int) -> dict[str, object]:
     }
 
 
+def _tree_size(root: Path) -> tuple[int, int]:
+    total_bytes = 0
+    file_count = 0
+    for directory, _directories, filenames in os.walk(root):
+        for filename in filenames:
+            path = Path(directory) / filename
+            total_bytes += path.stat().st_size
+            file_count += 1
+    return total_bytes, file_count
+
+
 def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
     tmp_path: Path,
 ) -> None:
     calls: list[Path] = []
+    sample_labels: list[str] = []
 
     def workload(**kwargs: object) -> dict[str, object]:
         cycle_root = Path(kwargs["trusted_sandbox_root"])
@@ -74,6 +89,21 @@ def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
         )
         return _fake_e2e_receipt(cycle_number)
 
+    def sampler(project_root: Path, label: str, _started: float) -> dict[str, object]:
+        sample_labels.append(label)
+        project_bytes, file_count = _tree_size(project_root)
+        return {
+            "label": label,
+            "sampled_epoch": float(len(sample_labels)),
+            "elapsed_seconds": float(len(sample_labels)),
+            "host_total_bytes": 500 * GIB,
+            "host_free_bytes": 250 * GIB,
+            "project_bytes": project_bytes,
+            "file_count": file_count,
+            "process_rss_bytes": 64 * MIB,
+            "swap_used_bytes": 0,
+        }
+
     result = run_capacity_proof(
         capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
         evidence_root=(tmp_path / "evidence").resolve(),
@@ -81,6 +111,7 @@ def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
         actor_identity="actor-ra-slice-005",
         brief=_brief(),
         policy=DEFAULT_POLICY,
+        sampler=sampler,
         workload=workload,
     )
 
@@ -97,6 +128,17 @@ def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
     assert all(not root.exists() for root in calls)
     assert all(cycle["cleanup"]["root_exists_after_cleanup"] is False for cycle in result["cycles"])
     assert all(cycle["cleanup"]["reclaimed_bytes"] > 0 for cycle in result["cycles"])
+    assert sample_labels == [
+        "cycle-1-before",
+        "cycle-1-peak",
+        "cycle-1-after-cleanup",
+        "cycle-2-before",
+        "cycle-2-peak",
+        "cycle-2-after-cleanup",
+    ]
+    assert result["projections"]["host_free_after_projection_bytes"] > result[
+        "projections"
+    ]["host_reserve_bytes"]
     assert (tmp_path / "evidence" / "capacity-receipt.json").is_file()
     assert json.loads((tmp_path / "evidence" / "capacity-receipt.json").read_text())[
         "status"
