@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "source_sha": "1f2dbce31827bc254d8860625512570d0bde6aef",
+  "validator": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+  "test_file": "tests/test_pantheon_content_capability_receipt.py",
+  "command": "uv run pytest tests/test_pantheon_content_capability_receipt.py",
+  "result": "PASS",
+  "cases": [
+    {
+      "group": "step_sequence",
+      "expected_error_code": "step_sequence",
+      "coverage": [
+        "missing step",
+        "extra step",
+        "duplicate step",
+        "wrong ordinal",
+        "out-of-order capability"
+      ]
+    },
+    {
+      "group": "identity_continuity",
+      "expected_error_code": "identity_mismatch",
+      "coverage": [
+        "execution_line_id drift",
+        "correlation_id drift",
+        "actor_identity drift",
+        "runtime_identity_digest drift"
+      ]
+    },
+    {
+      "group": "digest_contract",
+      "expected_error_codes": [
+        "digest_continuity",
+        "digest_format"
+      ],
+      "coverage": [
+        "later input digest differs from previous output digest",
+        "non-sha256 digest",
+        "blank output digest"
+      ]
+    },
+    {
+      "group": "evidence_contract",
+      "expected_error_codes": [
+        "evidence_identifier",
+        "evidence_pair",
+        "evidence_outcome"
+      ],
+      "coverage": [
+        "missing positive evidence",
+        "missing fail-closed evidence",
+        "absolute evidence path",
+        "parent traversal",
+        "same positive and fail-closed artifact",
+        "positive outcome not PASS",
+        "negative outcome not BLOCKED"
+      ]
+    },
+    {
+      "group": "production_boundary",
+      "expected_error_codes": [
+        "production_boundary",
+        "caller_verdict"
+      ],
+      "coverage": [
+        "canary_created true",
+        "production_mutation true",
+        "unknown or production mode",
+        "caller supplied status",
+        "caller supplied verdict",
+        "caller supplied ready",
+        "caller supplied valid"
+      ]
+    },
+    {
+      "group": "strict_json_shape",
+      "expected_error_codes": [
+        "unknown_key",
+        "identifier",
+        "type"
+      ],
+      "coverage": [
+        "unknown top-level key",
+        "unknown step key",
+        "blank identifier",
+        "steps not a list",
+        "ordinal wrong type",
+        "non-finite JSON value"
+      ]
+    }
+  ]
+}

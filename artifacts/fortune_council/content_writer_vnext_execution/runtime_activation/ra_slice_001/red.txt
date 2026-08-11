@@ -1,0 +1,16 @@
+RA-SLICE-001 RED evidence
+
+Source SHA: 1f2dbce31827bc254d8860625512570d0bde6aef
+Command: uv run pytest tests/test_pantheon_content_capability_receipt.py
+Result: exit 2
+
+Relevant output:
+
+tests/test_pantheon_content_capability_receipt.py:8: in <module>
+    from scripts.pantheon_content_capability_receipt import (
+E   ModuleNotFoundError: No module named 'scripts.pantheon_content_capability_receipt'
+
+Summary:
+The public-behavior tests were written before the schema authority existed.
+Collection failed on the missing public module, which is the expected RED state
+for this slice.
