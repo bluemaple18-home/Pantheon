@@ -286,7 +286,7 @@ def test_formal_publisher_blocked_evidence_write_failure_is_observable(
 
     monkeypatch.setattr(publisher, "_write_receipt_evidence", broken_write)
 
-    with pytest.raises(publisher.PublishBlocked, match="evidence"):
+    with pytest.raises(publisher.PublishBlocked, match="evidence") as captured:
         _call(
             "select",
             sandbox_root=sandbox_root,
@@ -299,6 +299,17 @@ def test_formal_publisher_blocked_evidence_write_failure_is_observable(
             ),
             run_ids=[],
         )
+
+    final_error = captured.value
+    chain_messages: list[str] = []
+    current: BaseException | None = final_error
+    while current is not None:
+        chain_messages.append(str(current))
+        current = current.__cause__ or current.__context__
+    assert "injected evidence write failure" in str(final_error)
+    assert "exact run ids must not be empty" in str(final_error)
+    assert any("injected evidence write failure" in message for message in chain_messages)
+    assert any("exact run ids must not be empty" in message for message in chain_messages)
 
 
 @pytest.mark.parametrize(

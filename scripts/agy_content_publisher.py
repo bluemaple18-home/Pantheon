@@ -425,9 +425,11 @@ def _record_blocked_receipt_evidence_or_fail(
             error=error,
         )
     except Exception as write_error:
+        write_error.__context__ = error
         raise PublishBlocked(
             "publisher blocked receipt evidence write failed: "
-            f"{type(write_error).__name__}"
+            f"{type(write_error).__name__}: {write_error}; "
+            f"original blocked reason: {error}"
         ) from write_error
 
 
