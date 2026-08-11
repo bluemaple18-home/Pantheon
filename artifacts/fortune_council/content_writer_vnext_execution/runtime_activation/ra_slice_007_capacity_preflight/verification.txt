@@ -1,20 +1,24 @@
-RA-SLICE-007 verification receipt
+RA-SLICE-007 repair verification receipt
 
-Source HEAD: b74bf8a382fe984acb21d3473ace01d7b418812a
-CodeGraph task-semantic context query: PASS
-Query scope: visible_thread_resource_guard collect snapshot precreate runtime worktree cleanup eligibility storage capacity reserve Pantheon Writer vNext
-CodeGraph source confirmation: scripts/pantheon_writer_vnext_runtime_activation_capacity.py and scripts/pantheon_content_runtime_manifest.py
+Candidate parent: e7bb39fdbbbb7795fd91a1ce3cfe7a72c6f0696a
+Review evidence: 19bc8c2be8927a246341665bb0a28eb3cd8788f7
+Canonical probe: <ai-core>/scripts/visible_thread_resource_guard.py
+Canonical probe source digest: sha256:ecc743361bce3b4ca7cf78aae17b282dc5c22065717c0a00dd45773de493131a
+Code changes: none
+Destructive commands executed: none
 
 Read-only collection:
-- dual host samples: PASS; interval=55 seconds (<=300)
-- Pantheon worktree inventory: PASS; count=5, duplicates=0
-- retention manifest consulted: PASS
-- destructive commands executed: none
+- dual complete host samples: PASS; interval=3 seconds (1..300)
+- VM allocation, swap, memory pressure, Codex RSS: PASS; no unknown values
+- Pantheon worktree inventory: PASS; count=7, duplicates=0
+- cleanup eligibility: PASS; no joint-eligible worktree, reclaimable=0, delete authority=none
+- stability: PASS; host free delta=+1085440, Codex RSS delta=-87883776, swap delta=0
 
 Acceptance verification:
-- resource-snapshot.json parse: PASS
-- worktree-inventory.json parse: PASS
+- resource-snapshot.json parse, sample digest, and arithmetic: PASS
+- worktree-inventory.json parse and total: PASS
 - cleanup-plan.json parse: PASS
-- allowlist audit: PASS (only this evidence directory changed)
+- portable path audit: PASS
+- allowlist audit: PASS
 - git diff --check: PASS
 - candidate commit: delivery-level verification required after commit
