@@ -132,7 +132,10 @@ def _evidence_identifier(value: object, field: str) -> str:
 
 def _validate_top_level(receipt: Mapping[str, Any]) -> dict[str, str]:
     _reject_unknown_keys(receipt, _TOP_LEVEL_KEYS, "receipt")
-    if receipt.get("schema_version") != SCHEMA_VERSION:
+    schema_version = receipt.get("schema_version")
+    if type(schema_version) is not int:
+        _fail("type", "schema_version must be an integer")
+    if schema_version != SCHEMA_VERSION:
         _fail("schema_version", "receipt schema version is unsupported")
     identities = {
         "execution_line_id": _identifier(

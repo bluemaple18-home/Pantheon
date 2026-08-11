@@ -73,6 +73,16 @@ def test_valid_receipt_returns_canonical_copy_without_mutating_input() -> None:
     assert validated["steps"] is not receipt["steps"]
 
 
+@pytest.mark.parametrize("schema_version", [True, False, 1.0, "1", None])
+def test_schema_version_wrong_json_scalar_types_reject_as_type(
+    schema_version: object,
+) -> None:
+    receipt = _valid_receipt()
+    receipt["schema_version"] = schema_version
+
+    _rejects(receipt, "type")
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
