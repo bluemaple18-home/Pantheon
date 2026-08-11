@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "collector": "<ai-core>/scripts/visible_thread_resource_guard.py collect",
+  "input_threads_file": "current-host-threads.json",
+  "reserve_rule": "max(20 GiB, ceil(10% host total bytes))",
+  "production_flags": {
+    "canary_created": false,
+    "production_authorized": false,
+    "production_mutation": false,
+    "formal_services": "0/4"
+  },
+  "samples": [
+    {
+      "sample_index": 0,
+      "sampled_at": "2026-08-11T13:03:00Z",
+      "complete": true,
+      "missing": [],
+      "host_total_bytes": 245107195904,
+      "host_available_bytes": 27053355008,
+      "ten_percent_reserve_bytes": 24510719591,
+      "formal_reserve_bytes": 24510719591,
+      "reserve_deficit_bytes": 0,
+      "reserve_margin_bytes": 2542635417,
+      "memory_pressure": "normal",
+      "swap_used_bytes": 15750922240,
+      "vm_allocated_bytes": 17179869184,
+      "codex_rss_bytes": 2519891968,
+      "codex_worktree_bytes": 1431871488,
+      "codex_worktree_count": 8,
+      "active_thread_count": 0,
+      "receipt_digest": "7f171fb7d2bfd26b1270c6ff06ee023f484ea2713809a145c0f4c5e7f4bb3a1e"
+    },
+    {
+      "sample_index": 1,
+      "sampled_at": "2026-08-11T13:03:21Z",
+      "complete": true,
+      "missing": [],
+      "host_total_bytes": 245107195904,
+      "host_available_bytes": 27053330432,
+      "ten_percent_reserve_bytes": 24510719591,
+      "formal_reserve_bytes": 24510719591,
+      "reserve_deficit_bytes": 0,
+      "reserve_margin_bytes": 2542610841,
+      "memory_pressure": "normal",
+      "swap_used_bytes": 15750922240,
+      "vm_allocated_bytes": 17179869184,
+      "codex_rss_bytes": 2903097344,
+      "codex_worktree_bytes": 1431871488,
+      "codex_worktree_count": 8,
+      "active_thread_count": 0,
+      "receipt_digest": "1f71892a6ac0b81b0eee14fbe519f4e4e5d2dc402c2ab33d631c71f7601d4acc"
+    }
+  ],
+  "between_samples": {
+    "interval_seconds": 21,
+    "host_available_bytes_delta": -24576,
+    "codex_rss_bytes_delta": 383205376,
+    "swap_used_bytes_delta": 0
+  },
+  "current_host_capacity_gate": "PASS"
+}
