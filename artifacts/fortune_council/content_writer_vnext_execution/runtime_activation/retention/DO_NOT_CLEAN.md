@@ -1,7 +1,7 @@
 # Writer vNext Runtime Activation Retention Manifest
 
-狀態：`ACTIVE / FAIL-CLOSED`  
-更新日：2026-08-11  
+狀態：`ACTIVE / FAIL-CLOSED`
+更新日：2026-08-11
 規則：本清單不授權任何 archive、remove、prune 或 delete；只有主線完成 integration、evidence、handoff、retained-ref 與 cleanup eligibility 聯合驗證後，才可另行交 recovery gate。
 
 ## NEVER_CLEAN

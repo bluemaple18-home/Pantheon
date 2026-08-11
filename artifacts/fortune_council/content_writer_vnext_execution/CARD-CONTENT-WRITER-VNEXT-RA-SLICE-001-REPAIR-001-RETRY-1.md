@@ -88,4 +88,3 @@ git diff --check
 
 - `RA_SLICE_002_REPAIR_READY_FOR_REVIEW`：附 candidate SHA、parent SHA、changed files、RED/GREEN、四項 finding 對應 regression、retention manifest 未變更聲明。
 - `BLOCKED`：附可重現 blocker；不得擴 scope 或自行 Review。
-
