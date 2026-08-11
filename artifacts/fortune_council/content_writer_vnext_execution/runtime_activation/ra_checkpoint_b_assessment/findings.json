@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "assessment": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-CHECKPOINT-B-ASSESSMENT-001",
+    "card_source": "4467df070a74a7f91c18176fd26e8d5264e85182",
+    "integrated_parent": "136c737316b28bc119f667591ac15a4938f04f7d",
+    "conclusion": "BLOCKED"
+  },
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "tests/test_pantheon_writer_vnext_runtime_activation_capacity.py",
+      "line": 169,
+      "claim": "Checkpoint B 的限域 capacity pytest 在 card source 上失敗，授權前 regression gate 不可宣告 READY。",
+      "evidence": "命令 `uv run --frozen pytest tests/test_pantheon_writer_vnext_runtime_activation_readiness.py tests/test_pantheon_writer_vnext_runtime_activation_e2e.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py -q -p no:cacheprovider` 結果為 1 failed, 12 passed；失敗 assertion 為 `assert len(calls) == 1`，實際 `len(calls) == 0`。",
+      "reproduction": "在 card source `4467df070a74a7f91c18176fd26e8d5264e85182` 執行同一 pytest 命令。"
+    },
+    {
+      "severity": "P3",
+      "file": "artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_005/capacity-receipt.json",
+      "line": 52,
+      "claim": "RA005 raw capacity source retains local root provenance fields, but repo package normalization removes them before Checkpoint B boundary.",
+      "evidence": "Raw RA005 path audit found local root provenance in source measurement artifacts. `package/capacity-proof-normalized.json` omits cycle `root`, package path audit has no local absolute path matches, and package manifest remains package-relative.",
+      "reproduction": "Scan raw RA005 artifacts and compare them with `ra_checkpoint_b_assessment/package/capacity-proof-normalized.json`."
+    }
+  ]
+}
