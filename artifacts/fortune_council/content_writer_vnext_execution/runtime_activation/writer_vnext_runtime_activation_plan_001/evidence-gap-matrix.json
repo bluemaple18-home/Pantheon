@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "overall_readiness": "BLOCKED_FOR_RUNTIME_ACTIVATION",
+  "plan_readiness": "READY_FOR_REVIEW",
+  "gaps": [
+    {
+      "id": "RA-GAP-001",
+      "title": "No single execution-line receipt",
+      "steps": ["create", "run", "select", "publish", "transaction", "tag", "push"],
+      "required_evidence": "One correlation_id and execution_line_id across all seven non-production probes",
+      "minimum_slice": "RA-SLICE-001"
+    },
+    {
+      "id": "RA-GAP-002",
+      "title": "Coordinator create/run lacks normalized capability receipt",
+      "steps": ["create", "run"],
+      "required_evidence": "Coordinator/runner positive and fail-closed receipts matching publisher receipt schema",
+      "minimum_slice": "RA-SLICE-002"
+    },
+    {
+      "id": "RA-GAP-003",
+      "title": "Publisher preflight output not yet stored as canary readiness artifacts",
+      "steps": ["select", "publish", "transaction", "tag", "push"],
+      "required_evidence": "Separate PASS and BLOCKED artifact files for each publisher capability",
+      "minimum_slice": "RA-SLICE-003"
+    },
+    {
+      "id": "RA-GAP-004",
+      "title": "No two-cycle capacity measurement",
+      "steps": ["create", "run", "publish", "transaction"],
+      "required_evidence": "Two representative non-production cycles with bytes, file count, host free, RSS, swap, growth, cleanup and stop-loss proof",
+      "minimum_slice": "RA-SLICE-005"
+    },
+    {
+      "id": "RA-GAP-005",
+      "title": "Production mutation remains unauthorized",
+      "steps": ["push"],
+      "required_evidence": "Later explicit production canary authorization after capability READY, capacity PASS and independent Review",
+      "minimum_slice": "post-review authorization gate"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "frontier": ["RA-SLICE-001"],
+  "slices": [
+    {
+      "id": "RA-SLICE-001",
+      "title": "Shared seven-step capability receipt schema",
+      "traces_to": ["SC-capability-receipt", "SC-fail-closed"],
+      "dependencies": [],
+      "blocking_edges": [],
+      "acceptance": ["schema covers create, run, select, publish, transaction, tag, push", "invalid or missing evidence fails closed"],
+      "verification": ["schema validation", "negative fixture"],
+      "likely_files": ["future receipt template or evidence schema"],
+      "tdd": "required_if_executable_schema_is_added"
+    },
+    {
+      "id": "RA-SLICE-002",
+      "title": "Coordinator create/run non-production preflight",
+      "traces_to": ["SC-create", "SC-run", "SC-correlation"],
+      "dependencies": ["RA-SLICE-001"],
+      "blocking_edges": ["shared receipt schema"],
+      "acceptance": ["synthetic brief creates one run", "run advances without production write", "bad input and bad correlation block"],
+      "verification": ["positive probe", "missing brief negative probe", "wrong correlation negative probe"],
+      "likely_files": ["scripts/agy_gemini_coordinator.py", "tests"],
+      "tdd": "RED_GREEN_required"
+    },
+    {
+      "id": "RA-SLICE-003",
+      "title": "Publisher preflight receipt normalization",
+      "traces_to": ["SC-select", "SC-publish", "SC-transaction", "SC-tag", "SC-push"],
+      "dependencies": ["RA-SLICE-001"],
+      "blocking_edges": ["shared receipt schema"],
+      "acceptance": ["formal_capability_preflight emits schema-compatible artifacts", "sandbox mutation is bounded", "production mutation remains false"],
+      "verification": ["positive probes for select/publish/transaction/tag/push", "negative probes for no selector, identity drift, sandbox escape and push mode mismatch"],
+      "likely_files": ["scripts/agy_content_publisher.py", "tests"],
+      "tdd": "RED_GREEN_required"
+    },
+    {
+      "id": "RA-CHECKPOINT-A",
+      "title": "Entry parity independent review",
+      "traces_to": ["SC-review-contract"],
+      "dependencies": ["RA-SLICE-001", "RA-SLICE-002", "RA-SLICE-003"],
+      "blocking_edges": ["create/run and publisher receipt parity"],
+      "acceptance": ["strict review fixed to candidate SHA returns GO"],
+      "verification": ["independent review report"],
+      "likely_files": ["review artifacts"],
+      "tdd": "not-applicable"
+    },
+    {
+      "id": "RA-SLICE-004",
+      "title": "Synthetic non-production E2E harness",
+      "traces_to": ["SC-e2e", "SC-correlation"],
+      "dependencies": ["RA-CHECKPOINT-A"],
+      "blocking_edges": ["entry parity review"],
+      "acceptance": ["one execution_line_id covers all seven steps", "positive and negative artifacts are separate"],
+      "verification": ["harness run in sandbox", "readiness receipt remains canary_created=false"],
+      "likely_files": ["future harness and tests"],
+      "tdd": "RED_GREEN_required"
+    },
+    {
+      "id": "RA-SLICE-005",
+      "title": "Two-cycle capacity and stop-loss proof",
+      "traces_to": ["SC-capacity"],
+      "dependencies": ["RA-SLICE-004"],
+      "blocking_edges": ["synthetic E2E harness"],
+      "acceptance": ["two cycles measured", "cleanup reclaims temp roots", "stop-loss blocks over-budget run"],
+      "verification": ["capacity receipt PASS", "stop-loss negative probe"],
+      "likely_files": ["capacity harness or receipt"],
+      "tdd": "required_if_executable_guard_changes"
+    },
+    {
+      "id": "RA-SLICE-006",
+      "title": "Readiness gate packaging",
+      "traces_to": ["SC-production-canary-readiness"],
+      "dependencies": ["RA-SLICE-004", "RA-SLICE-005"],
+      "blocking_edges": ["E2E artifacts", "capacity PASS"],
+      "acceptance": ["production canary readiness gate returns READY only with complete artifacts", "production authorization remains separate"],
+      "verification": ["readiness gate READY/BLOCKED fixtures"],
+      "likely_files": ["receipt template and gate wiring"],
+      "tdd": "RED_GREEN_required"
+    },
+    {
+      "id": "RA-CHECKPOINT-B",
+      "title": "Production canary authorization decision",
+      "traces_to": ["SC-human-authorization"],
+      "dependencies": ["RA-SLICE-006"],
+      "blocking_edges": ["readiness READY", "capacity PASS", "independent Review"],
+      "acceptance": ["mainline asks for explicit authorization before canary"],
+      "verification": ["authorization receipt or maintained NO-GO"],
+      "likely_files": ["mainline authorization artifact"],
+      "tdd": "not-applicable"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "verdict_scope": "planning_only",
+  "production_authorization": "NO-GO",
+  "runtime_enabled": false,
+  "capabilities": [
+    {
+      "step": "create",
+      "status": "ENTRY_EXISTS_EVIDENCE_GAP",
+      "official_entry": "scripts/agy_gemini_coordinator.py register | cycle --new-matrix-sweep",
+      "source_confirmation": ["scripts/agy_gemini_coordinator.py"],
+      "input_artifacts": ["brief.json", "content matrix source", "formal runtime env", "queue_root"],
+      "output_artifacts": ["queue_root/runs/<opaque>.json"],
+      "identity": ["run_id", "run_dir", "correlation_id", "com.pantheon.agy-gemini-coordinator"],
+      "positive_probe_design": "Create one synthetic non-production brief and register it with an explicit correlation_id.",
+      "fail_closed_probe_design": "Missing brief, duplicate run identity, invalid correlation_id and wrong formal runtime env must be rejected.",
+      "blocking_edge": "needs shared capability receipt schema and non-production coordinator probe"
+    },
+    {
+      "step": "run",
+      "status": "ENTRY_EXISTS_EVIDENCE_GAP",
+      "official_entry": "scripts/agy_gemini_coordinator.py cycle + scripts/agy_gemini_runner.py process-once",
+      "source_confirmation": ["scripts/agy_gemini_coordinator.py", "scripts/agy_gemini_runner.py"],
+      "input_artifacts": ["active run state", "outbox job", "lane queue"],
+      "output_artifacts": ["candidate.json", "review.json", "run-evidence.json", "updated run state"],
+      "identity": ["run_id", "job_id", "request_sha256", "lane", "correlation_id"],
+      "positive_probe_design": "Advance the synthetic run through a local/sandbox transport and capture candidate/review hashes.",
+      "fail_closed_probe_design": "Wrong lane, unknown exact run id, invalid JSON, stale job identity and missing runtime token must block.",
+      "blocking_edge": "needs non-production runner transport authorization or deterministic local fixture boundary"
+    },
+    {
+      "step": "select",
+      "status": "ENTRY_EXISTS_NEEDS_PROBE_ARTIFACT",
+      "official_entry": "scripts.agy_content_publisher:formal_capability_preflight(capability='select')",
+      "source_confirmation": ["scripts/agy_content_publisher.py"],
+      "input_artifacts": ["completed run_ids", "runtime_receipt", "trusted_sandbox_root"],
+      "output_artifacts": ["selected run_ids in capability receipt"],
+      "identity": ["run_id", "correlation_id", "runtime_identity_digest"],
+      "positive_probe_design": "Select exactly the synthetic completed run id.",
+      "fail_closed_probe_design": "Empty, duplicate, unknown or wrongly formatted run ids must block.",
+      "blocking_edge": "depends on create/run synthetic artifact"
+    },
+    {
+      "step": "publish",
+      "status": "ENTRY_EXISTS_NEEDS_PROBE_ARTIFACT",
+      "official_entry": "scripts.agy_content_publisher:formal_capability_preflight(capability='publish')",
+      "source_confirmation": ["scripts/agy_content_publisher.py"],
+      "input_artifacts": ["selected run ids", "queue_root", "state_root", "runtime_receipt"],
+      "output_artifacts": ["publisher dry-run result", "operation_trace_digest"],
+      "identity": ["run_id", "base_sha", "correlation_id", "runtime_identity_digest"],
+      "positive_probe_design": "Dry-run publish for synthetic completed run without production mutation.",
+      "fail_closed_probe_design": "Policy rejection, missing candidate/review, wrong runtime identity and sandbox escape must block.",
+      "blocking_edge": "depends on selected completed run"
+    },
+    {
+      "step": "transaction",
+      "status": "ENTRY_EXISTS_NEEDS_PROBE_ARTIFACT",
+      "official_entry": "scripts.agy_content_publisher:formal_capability_preflight(capability='transaction')",
+      "source_confirmation": ["scripts/agy_content_publisher.py"],
+      "input_artifacts": ["state_root", "actor_sha", "runtime files"],
+      "output_artifacts": ["sandbox transaction operation trace"],
+      "identity": ["transaction_name", "actor_sha", "correlation_id", "runtime_identity_digest"],
+      "positive_probe_design": "Create and remove sandbox transaction worktree through injected dry-run git.",
+      "fail_closed_probe_design": "Dirty actor, runtime digest drift, non-canonical sandbox and overlapping queue/state roots must block.",
+      "blocking_edge": "depends on publisher runtime identity receipt"
+    },
+    {
+      "step": "tag",
+      "status": "ENTRY_EXISTS_NEEDS_PROBE_ARTIFACT",
+      "official_entry": "scripts.agy_content_publisher:formal_capability_preflight(capability='tag')",
+      "source_confirmation": ["scripts/agy_content_publisher.py"],
+      "input_artifacts": ["version", "staged release change", "transaction boundary"],
+      "output_artifacts": ["candidate_sha", "git_trace including tag"],
+      "identity": ["version", "candidate_sha", "correlation_id"],
+      "positive_probe_design": "Injected dry-run stage/commit/tag with version 0.0.0 inside sandbox.",
+      "fail_closed_probe_design": "Invalid version, missing staged files or runtime drift must block.",
+      "blocking_edge": "depends on transaction preflight"
+    },
+    {
+      "step": "push",
+      "status": "ENTRY_EXISTS_PRODUCTION_MUTATION_NOT_AUTHORIZED",
+      "official_entry": "scripts.agy_content_publisher:formal_capability_preflight(capability='push') and production _stage_commit_tag_push(push=True)",
+      "source_confirmation": ["scripts/agy_content_publisher.py", "docs/pantheon_deployment_workflow.md"],
+      "input_artifacts": ["release commit", "annotated tag", "origin remote"],
+      "output_artifacts": ["atomic push result or unresolved push control record"],
+      "identity": ["candidate_sha", "version", "remote_main", "remote_tag", "correlation_id"],
+      "positive_probe_design": "Sandbox preflight only in this phase; production push requires later explicit authorization.",
+      "fail_closed_probe_design": "Push mode mismatch, unresolved push control, remote divergence and push outcome inconsistency must block.",
+      "blocking_edge": "depends on production authorization after readiness and capacity PASS"
+    }
+  ]
+}
