@@ -1,0 +1,13 @@
+allowlist: PASS
+
+Allowed changed paths:
+- scripts/pantheon_writer_vnext_runtime_activation_capacity.py
+- tests/test_pantheon_writer_vnext_runtime_activation_capacity.py
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_005/**
+
+Out-of-scope tracked diff:
+- uv.lock: unchanged
+
+Positive cycle cleanup:
+- capacity-sandbox/cycle-1: absent
+- capacity-sandbox/cycle-2: absent

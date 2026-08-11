@@ -1,0 +1,60 @@
+{
+  "after_cleanup": {
+    "elapsed_seconds": 11.25181120808702,
+    "file_count": 0,
+    "host_free_bytes": 26212278272,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-1-after-cleanup",
+    "process_rss_bytes": 38748160,
+    "project_bytes": 0,
+    "sampled_epoch": 1786441494.2771509,
+    "swap_used_bytes": 0
+  },
+  "before": {
+    "elapsed_seconds": 5.3875031881034374e-05,
+    "file_count": 0,
+    "host_free_bytes": 26211729408,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-1-before",
+    "process_rss_bytes": 31588352,
+    "project_bytes": 0,
+    "sampled_epoch": 1786441483.025439,
+    "swap_used_bytes": 0
+  },
+  "canary_created": false,
+  "capability_receipt_status": "PASS",
+  "cleanup": {
+    "elapsed_seconds": 0.0026323340134695172,
+    "reclaimed_bytes": 33123,
+    "reclaimed_file_count": 36,
+    "root_exists_after_cleanup": false
+  },
+  "correlation_id": "corr-ra-slice-005-cycle-1",
+  "cycle": 1,
+  "execution_line_id": "exec-ra-slice-005-cycle-1",
+  "growth_bytes_per_hour": 10605313,
+  "peak": {
+    "elapsed_seconds": 11.2437384580262,
+    "file_count": 36,
+    "host_free_bytes": 26212114432,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-1-peak",
+    "process_rss_bytes": 38748160,
+    "project_bytes": 33123,
+    "sampled_epoch": 1786441494.269078,
+    "swap_used_bytes": 0
+  },
+  "peak_transaction_temp_bytes": 33123,
+  "production_mutation": false,
+  "root": "/Users/mattkuo/.codex/worktrees/4a42/Pantheon/artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_005/capacity-sandbox/cycle-1",
+  "root_unique": true,
+  "seven_step_capabilities": [
+    "create",
+    "run",
+    "select",
+    "publish",
+    "transaction",
+    "tag",
+    "push"
+  ]
+}
