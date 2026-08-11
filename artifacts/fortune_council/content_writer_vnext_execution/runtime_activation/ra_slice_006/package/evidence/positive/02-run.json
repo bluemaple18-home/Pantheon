@@ -1,0 +1,20 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "e8e4e7df0d37f2b940fa8a9b0122b37730cd32894c80eff5b74541ca996f374a",
+  "outcome": "PASS",
+  "output_digest": "40d985fd3995293983fbca086435b43b3c16a0d122bc5ec6141aa50b86a5ee0f",
+  "packaged_source_artifact": "positive/02-run.json",
+  "packaged_source_digest": "9c7eafe580753d1cc7e5a9440e6ad5b943bb27e629e14e7ec7f6fa061f68db58",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/positive-run.json",
+  "state_digest": "1592ba63825a8654649e3071ae7fb080cedadbc05933744dffef9998f8253cf3",
+  "step": "run",
+  "summary_digest": "74918012b55a85b9cd4020016368ddb25e6b9c16128f0730feafc915e7300dca"
+}

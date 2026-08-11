@@ -1,0 +1,18 @@
+Commands:
+uv run --frozen pytest tests/test_pantheon_writer_vnext_runtime_activation_readiness.py -q
+uv run --frozen pytest tests/test_pantheon_writer_vnext_runtime_activation_e2e.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py -q
+<repo-root>/.venv/bin/python <ai-core-root>/scripts/production_canary_readiness_gate.py --receipt artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_006/package/production-canary-capability-receipt.json
+<repo-root>/.venv/bin/python <ai-core-root>/scripts/production_canary_readiness_gate.py --receipt artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_006/package/missing-step-receipt.json
+python3 -m json.tool package JSON files
+local absolute path scan over artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_006
+git diff --check
+
+Results:
+- RA-SLICE-006 pytest: 5 passed.
+- RA-SLICE-004/005 regression pytest: 8 passed.
+- Official complete package gate: READY.
+- Official missing-step fixture gate: BLOCKED.
+- Official thin-gate adversarial probe: READY, as expected for the thin gate gap.
+- JSON parse: PASS.
+- Absolute local path scan: no matches.
+- git diff --check: PASS.
