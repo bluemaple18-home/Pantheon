@@ -38,6 +38,7 @@ def _manifest(selected: list[dict[str, object]] | None = None, artifacts: dict[s
     artifacts = artifacts or {"brief": brief}
     return {
         "version": "EditorialManifestV1",
+        "orchestration_mode": "writer_vnext_opt_in_v1",
         "run_id": brief["run_id"],
         "article_identity": brief["article_identity"],
         "brief_sha256": contracts.artifact_sha256(brief),
@@ -48,9 +49,61 @@ def _manifest(selected: list[dict[str, object]] | None = None, artifacts: dict[s
     }
 
 
+def _legacy_candidate() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "run_id": "legacy-001",
+        "mode": "optimize",
+        "articles": [{
+            "article_id": "TEST-001", "canonical_path": "/test-001/", "source_file": "content/test.md",
+            "current": {"title": "原標題", "description": "原描述", "answer": "原答案"},
+            "proposed": {"title": "新標題", "description": "新描述", "answer": "新答案"},
+        }],
+    }
+
+
 def test_core_only_and_unselected_artifacts_are_valid() -> None:
     report = contracts.validate_manifest(_manifest())
     assert report == {"blocking": False, "findings": [], "valid": True}
+
+
+def test_manifest_requires_explicit_writer_vnext_opt_in_mode() -> None:
+    missing_mode = _manifest()
+    missing_mode.pop("orchestration_mode")
+    report = contracts.validate_manifest(missing_mode)
+    assert report["valid"] is False
+    assert "schema_version_unsupported" in report["findings"]
+
+    wrong_mode = _manifest()
+    wrong_mode["orchestration_mode"] = "legacy_shadow_ab"
+    report = contracts.validate_manifest(wrong_mode)
+    assert report["valid"] is False
+    assert "schema_version_unsupported" in report["findings"]
+
+
+def test_manifest_rejects_unknown_top_level_fields() -> None:
+    manifest = _manifest()
+    manifest["projection_state"] = "complete"
+    report = contracts.validate_manifest(manifest)
+    assert report["valid"] is False
+    assert "schema_version_unsupported" in report["findings"]
+
+
+def test_legacy_candidate_pair_must_be_complete_or_absent() -> None:
+    candidate = _legacy_candidate()
+    validate_candidate(candidate)
+
+    missing_legacy_sha = _manifest()
+    missing_legacy_sha["legacy_candidate"] = candidate
+    report = contracts.validate_manifest(missing_legacy_sha)
+    assert report["valid"] is False
+    assert "schema_version_unsupported" in report["findings"]
+
+    missing_legacy_candidate = _manifest()
+    missing_legacy_candidate["legacy_candidate_sha256"] = contracts.artifact_sha256(candidate)
+    report = contracts.validate_manifest(missing_legacy_candidate)
+    assert report["valid"] is False
+    assert "schema_version_unsupported" in report["findings"]
 
 
 def test_optional_stages_are_independent_reorderable_and_content_plan_is_unbounded() -> None:
@@ -112,16 +165,7 @@ def test_hash_mismatch_and_nonblocking_subjective_blind_evidence() -> None:
 
 
 def test_legacy_candidate_uses_existing_publisher_validation_boundary() -> None:
-    candidate = {
-        "schema_version": 1,
-        "run_id": "legacy-001",
-        "mode": "optimize",
-        "articles": [{
-            "article_id": "TEST-001", "canonical_path": "/test-001/", "source_file": "content/test.md",
-            "current": {"title": "原標題", "description": "原描述", "answer": "原答案"},
-            "proposed": {"title": "新標題", "description": "新描述", "answer": "新答案"},
-        }],
-    }
+    candidate = _legacy_candidate()
     validate_candidate(candidate)
     manifest = _manifest()
     manifest["legacy_candidate"] = candidate

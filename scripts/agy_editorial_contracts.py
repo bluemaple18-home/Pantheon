@@ -13,6 +13,19 @@ STAGE_ARTIFACTS = {
     "claim_classification_v1": "claim_classification",
     "blind_read_v1": "blind_read",
 }
+MANIFEST_REQUIRED_FIELDS = {
+    "version",
+    "orchestration_mode",
+    "run_id",
+    "article_identity",
+    "brief_sha256",
+    "selected_stages",
+    "artifacts",
+    "artifact_sha256",
+    "final_candidate_sha256",
+}
+MANIFEST_OPTIONAL_FIELDS = {"legacy_candidate", "legacy_candidate_sha256"}
+MANIFEST_ORCHESTRATION_MODE = "writer_vnext_opt_in_v1"
 CLAIM_TYPES = {"verifiable_fact", "interpretation", "product_explanation", "subjective_guidance", "common_knowledge"}
 FINDING_CODES = {
     "missing_required_artifact", "schema_version_unsupported", "artifact_sha_mismatch", "article_identity_mismatch",
@@ -132,8 +145,16 @@ def validate_manifest(manifest: object) -> dict[str, object]:
     findings: set[str] = set()
     if not isinstance(manifest, dict):
         raise TypeError("EditorialManifestV1 must be an object")
-    required = {"version", "run_id", "article_identity", "brief_sha256", "selected_stages", "artifacts", "artifact_sha256", "final_candidate_sha256"}
-    if not required <= set(manifest) or manifest.get("version") != "EditorialManifestV1":
+    fields = set(manifest)
+    has_legacy_candidate = "legacy_candidate" in manifest
+    has_legacy_sha = "legacy_candidate_sha256" in manifest
+    if (
+        not MANIFEST_REQUIRED_FIELDS <= fields
+        or bool(fields - MANIFEST_REQUIRED_FIELDS - MANIFEST_OPTIONAL_FIELDS)
+        or manifest.get("version") != "EditorialManifestV1"
+        or manifest.get("orchestration_mode") != MANIFEST_ORCHESTRATION_MODE
+        or has_legacy_candidate != has_legacy_sha
+    ):
         _add(findings, "schema_version_unsupported")
     artifacts = manifest.get("artifacts")
     hashes = manifest.get("artifact_sha256")
@@ -162,8 +183,8 @@ def validate_manifest(manifest: object) -> dict[str, object]:
             _validate_claims(artifacts[name], findings)
         else:
             _validate_blind(artifacts[name], manifest.get("final_candidate_sha256"), findings)
-    legacy = manifest.get("legacy_candidate")
-    if legacy is not None:
+    if has_legacy_candidate and has_legacy_sha:
+        legacy = manifest.get("legacy_candidate")
         try:
             validate_candidate(legacy)
         except (CandidateValidationError, ValueError, TypeError):
