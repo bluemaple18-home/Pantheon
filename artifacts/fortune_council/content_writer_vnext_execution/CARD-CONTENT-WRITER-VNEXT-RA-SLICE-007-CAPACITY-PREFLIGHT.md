@@ -91,4 +91,3 @@ depends_on:
 
 - `RA_SLICE_007_CAPACITY_PREFLIGHT_READY_FOR_REVIEW` + candidate SHA + verdict；或
 - `BLOCKED` + blocker evidence。
-
