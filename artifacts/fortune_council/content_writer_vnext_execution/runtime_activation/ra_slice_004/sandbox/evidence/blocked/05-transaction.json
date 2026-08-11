@@ -1,0 +1,15 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "capability": "transaction",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "38fcccf869b00fc8c589c7dc0eef13840ed62c925551179cf428c3476cf1b6d2",
+  "outcome": "BLOCKED",
+  "output_digest": "5be48e10fdb04bc613722868bcebe5220cec4fd6ab12e1b76f71dd90bf7ed3f5",
+  "production_mutation": false,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "stable_reason": "publisher queue and state roots must not overlap"
+}

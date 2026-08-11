@@ -1,0 +1,36 @@
+Command:
+uv run pytest tests/test_pantheon_writer_vnext_runtime_activation_e2e.py -q
+
+Result:
+4 passed in 32.33s
+
+Command:
+.venv/bin/python -m scripts.pantheon_writer_vnext_runtime_activation_e2e
+
+Result:
+{"status": "PASS", "created_run_id": "ra-slice-002-synthetic-create-run"}
+
+Command:
+uv run pytest tests/test_agy_gemini_coordinator_capability_receipt.py tests/test_agy_content_publisher_capability_receipt.py tests/test_pantheon_content_capability_receipt.py -q
+
+Result:
+66 passed in 0.17s
+
+Command:
+.venv/bin/python -c '<JSON parse audit for ra_slice_004>'
+
+Result:
+JSON_PARSE_PASS 31 files
+
+Command:
+.venv/bin/python -c '<JSON path audit for ra_slice_004>'
+
+Result:
+JSON_PATH_AUDIT_PASS
+0
+
+Command:
+.venv/bin/python -c '<validate positive-receipt.json with validate_capability_receipt>'
+
+Result:
+PASS
