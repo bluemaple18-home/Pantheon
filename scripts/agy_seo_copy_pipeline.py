@@ -2745,6 +2745,17 @@ def _rewrite_provider_body_sections_schema() -> dict[str, Any]:
     return body_sections
 
 
+def _create_provider_body_sections_schema() -> dict[str, Any]:
+    """保留 create 結構約束；段落字數交給 canonical 本機 gate 與 repair。"""
+    body_sections = _article_json_schema()["properties"]["bodySections"]
+    paragraph_items = body_sections["items"]["properties"]["paragraphs"][
+        "items"
+    ]
+    paragraph_items.pop("minLength", None)
+    paragraph_items.pop("maxLength", None)
+    return body_sections
+
+
 def external_candidate_schema(mode: str) -> dict[str, Any]:
     if mode == "optimize":
         proposed = {
@@ -2775,7 +2786,11 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         properties = {"slot": {"type": "string"}}
         properties.update(
             {
-                field: full["properties"][field]
+                field: (
+                    _create_provider_body_sections_schema()
+                    if field == "bodySections"
+                    else full["properties"][field]
+                )
                 for field in sorted(EXTERNAL_CREATE_FIELDS)
             }
         )

@@ -1,0 +1,14 @@
+RED command:
+.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py::test_rewrite_provider_schema_removes_only_string_length_keywords tests/test_agy_seo_copy_pipeline.py::test_create_transport_short_paragraph_reaches_local_repair_gate -q
+
+Result before repair:
+exit 1
+1 passed, 1 failed
+
+Failing coverage:
+- `external_candidate_schema("create")` provider `bodySections.items.properties.paragraphs.items` still contained `minLength` and `maxLength`.
+- That meant a single short create paragraph could die at provider/broker transport before local canonical quality gate and bounded repair.
+
+Card source note:
+- Requested object `6cfb3d0ed56` was not present locally (`git show` invalid object).
+- The matching local card commit is `6cfb3d0ed5` with message `Add create paragraph schema repair card`; card content was read from that commit.

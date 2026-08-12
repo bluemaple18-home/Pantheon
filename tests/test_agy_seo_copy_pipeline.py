@@ -1981,13 +1981,73 @@ def test_rewrite_provider_schema_removes_only_string_length_keywords() -> None:
         pipeline.publication_presentation_profile("rewrite_existing_body"),
         "paragraph_characters",
     )
-    create_paragraph = pipeline.external_candidate_schema("create")[
+    canonical_create_body = pipeline.candidate_schema("create")[
         "properties"
-    ]["articles"]["items"]["properties"]["bodySections"]["items"][
+    ]["articles"]["items"]["properties"]["bodySections"]
+    provider_create_body = pipeline.external_candidate_schema("create")[
+        "properties"
+    ]["articles"]["items"]["properties"]["bodySections"]
+    expected_create_provider_body = json.loads(
+        json.dumps(canonical_create_body, ensure_ascii=False)
+    )
+    canonical_create_paragraph = expected_create_provider_body["items"][
         "properties"
     ]["paragraphs"]["items"]
-    assert create_paragraph["minLength"] > 0
-    assert create_paragraph["maxLength"] > create_paragraph["minLength"]
+    create_minimum = canonical_create_paragraph.pop("minLength")
+    create_maximum = canonical_create_paragraph.pop("maxLength")
+
+    assert provider_create_body == expected_create_provider_body
+    assert (create_minimum, create_maximum) == pipeline._range_bounds(
+        pipeline.publication_presentation_profile("create"),
+        "paragraph_characters",
+    )
+
+
+def test_create_transport_short_paragraph_reaches_local_repair_gate() -> None:
+    target = make_deterministic_green_create_article("CREATE-SHORT-PARAGRAPH")
+    brief = {
+        "schema_version": 1,
+        "run_id": "create-short-paragraph-transport",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": target["id"],
+                    "primaryKeyword": target["primaryKeyword"],
+                    "title": target["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: target[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    external = {"articles": [make_external_create_article(target)]}
+    external["articles"][0]["bodySections"][0]["paragraphs"][0] = "太短"
+
+    candidate = pipeline.hydrate_candidate(brief, external, enforce_policy=False)
+    findings = pipeline.quality_findings(candidate["articles"])
+
+    assert any(finding["code"] == "paragraph_length" for finding in findings)
+    assert pipeline._create_repair_fields(candidate["articles"][0], findings) == {
+        "bodySections"
+    }
+    assert pipeline.candidate_schema("create")["properties"]["articles"]["items"][
+        "properties"
+    ]["bodySections"]["items"]["properties"]["paragraphs"]["items"]["minLength"] > 0
 
 
 def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -> None:
