@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "assessment": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-CHECKPOINT-B-REASSESSMENT-001",
+    "card_source": "5c957e42c5ddb7f4d4220f1cebaaee19cda476c2",
+    "integrated_parent": "95798b7ec62df617b22a4a7f4257d029506a25c9",
+    "previous_blocked_assessment": "4b90fb7f61d52fc0ff50af20acae678b0b1ca149",
+    "repair_1_review_go": "95798b7ec62df617b22a4a7f4257d029506a25c9",
+    "conclusion": "CHECKPOINT_B_READY_FOR_CANARY_AUTHORIZATION"
+  },
+  "findings": []
+}

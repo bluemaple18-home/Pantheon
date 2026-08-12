@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "mode": "plan-only",
+  "execution_authority": "mainline-only",
+  "delete_authority": "none",
+  "actions": [],
+  "conservative_reclaimable_bytes": 0,
+  "formal_reserve_deficit_bytes": 0,
+  "minimum_bytes_needed_to_cross_formal_reserve": 0,
+  "reason": "No Pantheon worktree satisfies the joint proof of clean, integrated, handoff-proved, no unique unprotected work, and retained archive ref. This plan grants no deletion authority.",
+  "mainline_revalidation_commands": [
+    "git worktree list --porcelain",
+    "git status --porcelain=v1",
+    "git rev-parse HEAD",
+    "git show-ref --verify <retained-archive-ref>",
+    "git merge-base --is-ancestor <expected-sha> <integrated-tip>"
+  ]
+}

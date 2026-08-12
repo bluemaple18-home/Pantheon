@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "card_source": "5c957e42c5ddb7f4d4220f1cebaaee19cda476c2",
+  "integrated_parent": "95798b7ec62df617b22a4a7f4257d029506a25c9",
+  "source_decision": {
+    "codegraph": "UNAVAILABLE",
+    "fallback": "bounded git, rg, JSON parsing, repo scripts, official thin gate"
+  },
+  "repo_packager": {
+    "command": "python3 scripts/pantheon_writer_vnext_runtime_activation_readiness.py --output-root artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_checkpoint_b_reassessment",
+    "exit_code": 0,
+    "status": "PACKAGED",
+    "capability_steps": [
+      "create",
+      "run",
+      "select",
+      "publish",
+      "transaction",
+      "tag",
+      "push"
+    ],
+    "evidence_file_count": 14,
+    "negative_case_count": 15,
+    "canary_created": false,
+    "production_authorized": false,
+    "production_mutation": false
+  },
+  "official_thin_gate": {
+    "positive": {
+      "receipt": "package/production-canary-capability-receipt.json",
+      "exit_code": 0,
+      "status": "READY",
+      "failures": []
+    },
+    "missing_step": {
+      "receipt": "package/missing-step-receipt.json",
+      "exit_code": 1,
+      "status": "BLOCKED",
+      "failures": [
+        "missing push step",
+        "push step is not an object"
+      ]
+    },
+    "adversarial_thin": {
+      "receipt": "package/adversarial-thin-gate-receipt.json",
+      "exit_code": 0,
+      "status": "READY",
+      "interpretation": "official thin gate alone does not validate identity drift, digest discontinuity, or source provenance"
+    }
+  },
+  "repo_negative_matrix": {
+    "status": "PASS",
+    "case_count": 15,
+    "canary_created": false,
+    "production_authorized": false,
+    "production_mutation": false
+  },
+  "pytest": {
+    "capacity": {
+      "command": "uv run --frozen pytest tests/test_pantheon_writer_vnext_runtime_activation_capacity.py -q -p no:cacheprovider",
+      "exit_code": 0,
+      "summary": "4 passed in 0.10s"
+    },
+    "combined": {
+      "command": "uv run --frozen pytest tests/test_pantheon_writer_vnext_runtime_activation_readiness.py tests/test_pantheon_writer_vnext_runtime_activation_e2e.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py -q -p no:cacheprovider",
+      "exit_code": 0,
+      "summary": "13 passed in 31.94s"
+    }
+  },
+  "checkpoint_verdict": "CHECKPOINT_B_READY_FOR_CANARY_AUTHORIZATION"
+}

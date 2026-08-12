@@ -1,0 +1,57 @@
+{
+  "actor_identity": "publisher-actor-identity",
+  "capability": "transaction",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:_isolated_transaction_worktree"
+    ],
+    "git_trace": [
+      [
+        "rev-parse",
+        "--git-common-dir"
+      ],
+      [
+        "fetch",
+        "origin",
+        "main"
+      ],
+      [
+        "status",
+        "--porcelain"
+      ],
+      [
+        "rev-parse",
+        "origin/main"
+      ],
+      [
+        "worktree",
+        "add",
+        "--detach",
+        "ra_slice_003/publisher-state/transaction-48caa4e1e715e2467fa1fe92/repo",
+        "2971af65d49e842c81d99c4703d05ef21f13aa1d"
+      ],
+      [
+        "worktree",
+        "remove",
+        "--force",
+        "ra_slice_003/publisher-state/transaction-48caa4e1e715e2467fa1fe92/repo"
+      ]
+    ],
+    "run_ids": [
+      "run-a"
+    ]
+  },
+  "correlation_id": "ra-slice-003-correlation",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "ra-slice-003-line",
+  "input_digest": "7652440e6dcbf5f2d269989ecf17d5ae7eb9d7aaa69373fa8da3d7d6f0475dcb",
+  "operation_trace_digest": "7f8fc88cbd4124b8831eca84c27495283543b0cf02c6c45ff98aadec20dd77bd",
+  "outcome": "PASS",
+  "output_digest": "9b7e3e800fbaae0808a04d07345792d39d21f02b9b7fc4b24c0f439b50257cc7",
+  "production_mutation": false,
+  "runtime_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

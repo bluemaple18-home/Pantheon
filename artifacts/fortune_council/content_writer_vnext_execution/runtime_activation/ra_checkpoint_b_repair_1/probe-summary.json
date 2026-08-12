@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "repair": "ra_checkpoint_b_repair_1",
+  "source_commit": "ff7cbcde9a121aa436bf0333343c10648bbdf24e",
+  "blocked_evidence_commit": "4b90fb7f61d52fc0ff50af20acae678b0b1ca149",
+  "finding": {
+    "severity": "P1",
+    "file": "tests/test_pantheon_writer_vnext_runtime_activation_capacity.py",
+    "line": 169,
+    "summary": "over-budget test depended on the production default sampler, so host-free-below-reserve could preempt the intended project-bytes-over-budget assertion"
+  },
+  "deterministic_probe": {
+    "case": "project-bytes-over-budget",
+    "len_calls": 1,
+    "next_cycle_started": false,
+    "sample_labels": [
+      "cycle-1-before",
+      "cycle-1-peak"
+    ],
+    "initial_project_bytes": 0,
+    "host_total_bytes": 536870912000,
+    "host_free_bytes": 268435456000,
+    "host_reserve_bytes": 53687091200
+  },
+  "production_guard_changed": false,
+  "external_cleanup_performed": false,
+  "production_mutation": false
+}

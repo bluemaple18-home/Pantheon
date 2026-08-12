@@ -1,0 +1,48 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "capability": "publish",
+  "capability_boundary": {
+    "boundary_status": "idle",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:publish_ready_runs"
+    ],
+    "git_trace": [
+      [
+        "rev-parse",
+        "--git-common-dir"
+      ],
+      [
+        "fetch",
+        "origin",
+        "main"
+      ],
+      [
+        "status",
+        "--porcelain"
+      ],
+      [
+        "rev-parse",
+        "HEAD"
+      ],
+      [
+        "rev-parse",
+        "origin/main"
+      ]
+    ],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "9ee12f191e23fbbdf90eb68ee6811011e318873dc88dac9a5b57ae53215d9bc6",
+  "operation_trace_digest": "47d00262a128f2f379a993681e6441bf2346c5b85d2923a4d8d1d0d8475956b9",
+  "outcome": "PASS",
+  "output_digest": "38fcccf869b00fc8c589c7dc0eef13840ed62c925551179cf428c3476cf1b6d2",
+  "production_mutation": false,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

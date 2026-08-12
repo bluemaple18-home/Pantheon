@@ -1,0 +1,11 @@
+Command:
+uv run pytest tests/test_pantheon_writer_vnext_runtime_activation_e2e.py -q
+
+Result:
+ERROR tests/test_pantheon_writer_vnext_runtime_activation_e2e.py
+
+Key failure:
+ModuleNotFoundError: No module named 'scripts.pantheon_writer_vnext_runtime_activation_e2e'
+
+Summary:
+1 error in 0.12s

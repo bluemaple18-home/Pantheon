@@ -1,0 +1,9 @@
+{
+  "execution_line_id": "exec-ra-slice-004",
+  "failures": [
+    "steps 不完整：missing=['push'] unknown=none",
+    "steps.push 必須是 object"
+  ],
+  "next_action": "在同一 execution_line_id 建立入口修補卡；不得建立 canary 或平行 selector/canary 線",
+  "status": "BLOCKED"
+}

@@ -9,10 +9,14 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any, Callable
+
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 
 
 GIB = 1024**3
@@ -61,9 +65,16 @@ def _measure_tree(root: Path) -> tuple[int, int]:
     stack = [root]
     while stack:
         directory = stack.pop()
-        with os.scandir(directory) as entries:
+        try:
+            entries = os.scandir(directory)
+        except FileNotFoundError:
+            continue
+        with entries:
             for entry in entries:
-                stat_result = entry.stat(follow_symlinks=False)
+                try:
+                    stat_result = entry.stat(follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
                 if entry.is_dir(follow_symlinks=False):
                     stack.append(Path(entry.path))
                 else:
@@ -109,33 +120,96 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=False, capture_output=True, text=True)
 
 
-def _service_rss_bytes(runner: Runner = _run) -> int:
+def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
     pids: list[str] = []
+    loaded: list[dict[str, Any]] = []
+    absent: list[dict[str, Any]] = []
     domain = f"gui/{os.getuid()}"
     for label in SERVICE_LABELS:
         result = runner(["launchctl", "print", f"{domain}/{label}"])
-        if result.returncode != 0:
+        if result.returncode in {3, 113}:
+            absent.append({"label": label, "returncode": result.returncode})
             continue
+        if result.returncode != 0:
+            return {
+                "value": None,
+                "available": False,
+                "error": f"launchctl_print_failed:{label}:{result.returncode}",
+                "identity": {"loaded_labels": loaded, "absent_labels": absent},
+            }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
-        if match:
-            pids.append(match.group(1))
+        if not match:
+            return {
+                "value": None,
+                "available": False,
+                "error": f"loaded_service_pid_missing:{label}",
+                "identity": {"loaded_labels": loaded, "absent_labels": absent},
+            }
+        pid = match.group(1)
+        pids.append(pid)
+        loaded.append({"label": label, "pid": int(pid)})
     if not pids:
-        return 0
+        return {
+            "value": 0,
+            "available": True,
+            "error": None,
+            "identity": {"loaded_labels": [], "absent_labels": absent},
+        }
     result = runner(["ps", "-o", "rss=", "-p", ",".join(pids)])
     if result.returncode != 0:
-        return 0
-    return sum(int(value) for value in result.stdout.split() if value.isdigit()) * 1024
+        return {
+            "value": None,
+            "available": False,
+            "error": f"ps_failed:{result.returncode}",
+            "identity": {"loaded_labels": loaded, "absent_labels": absent},
+        }
+    values = [int(value) for value in result.stdout.split() if value.isdigit()]
+    if len(values) != len(pids):
+        return {
+            "value": None,
+            "available": False,
+            "error": "ps_parse_failed",
+            "identity": {"loaded_labels": loaded, "absent_labels": absent},
+        }
+    return {
+        "value": sum(values) * 1024,
+        "available": True,
+        "error": None,
+        "identity": {"loaded_labels": loaded, "absent_labels": absent},
+    }
 
 
-def _swap_used_bytes(runner: Runner = _run) -> int:
+def _swap_used_bytes(runner: Runner = _run) -> dict[str, Any]:
     result = runner(["sysctl", "-n", "vm.swapusage"])
-    if result.returncode != 0:
-        return 0
-    match = re.search(r"used = ([0-9.]+)([MG])", result.stdout)
-    if not match:
-        return 0
-    factor = GIB if match.group(2) == "G" else MIB
-    return int(float(match.group(1)) * factor)
+    if result.returncode == 0:
+        match = re.search(r"used = ([0-9.]+)([MG])", result.stdout)
+        if match:
+            factor = GIB if match.group(2) == "G" else MIB
+            return {
+                "value": int(float(match.group(1)) * factor),
+                "available": True,
+                "error": None,
+            }
+        return {"value": None, "available": False, "error": "swap_parse_failed"}
+    try:
+        values = {
+            line.split(":", 1)[0]: int(line.split()[1]) * 1024
+            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()
+            if line.startswith(("SwapTotal:", "SwapFree:"))
+        }
+    except (FileNotFoundError, OSError, ValueError, IndexError):
+        values = {}
+    if set(values) == {"SwapTotal", "SwapFree"}:
+        return {
+            "value": values["SwapTotal"] - values["SwapFree"],
+            "available": True,
+            "error": None,
+        }
+    return {
+        "value": None,
+        "available": False,
+        "error": f"swap_command_failed:{result.returncode}",
+    }
 
 
 def _read_state(path: Path) -> dict[str, Any]:
@@ -169,32 +243,73 @@ def _write_state(path: Path, payload: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _stop_services(runner: Runner = _run) -> list[str]:
-    stopped: list[str] = []
+def _stop_services(runner: Runner = _run) -> dict[str, dict[str, Any]]:
+    outcomes: dict[str, dict[str, Any]] = {}
     domain = f"gui/{os.getuid()}"
     for label in SERVICE_LABELS:
-        result = runner(["launchctl", "bootout", f"{domain}/{label}"])
-        if result.returncode in {0, 3, 113}:
-            stopped.append(label)
-    return stopped
+        bootout = runner(["launchctl", "bootout", f"{domain}/{label}"])
+        verified = runner(["launchctl", "print", f"{domain}/{label}"])
+        outcomes[label] = {
+            "bootout_returncode": bootout.returncode,
+            "verify_returncode": verified.returncode,
+            "absent": verified.returncode in {3, 113},
+            "loaded_identity": verified.stdout.strip() if verified.returncode == 0 else "",
+        }
+    return outcomes
 
 
-def _snapshot(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[str, int]:
+def _snapshot(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    *,
+    runner: Runner = _run,
+) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
     total_disk, free_disk = _disk_sample(queue_root)
+    if runner is _run:
+        rss = _service_rss_bytes()
+        swap = _swap_used_bytes()
+    else:
+        rss = _service_rss_bytes(runner)
+        swap = _swap_used_bytes(runner)
     return {
         "bytes": sum(item[0] for item in measured),
         "file_count": sum(item[1] for item in measured),
         "disk_total_bytes": total_disk,
         "disk_free_bytes": free_disk,
-        "rss_bytes": _service_rss_bytes(),
-        "swap_used_bytes": _swap_used_bytes(),
+        "rss_bytes": rss["value"],
+        "rss_available": rss["available"],
+        "rss_error": rss["error"],
+        "rss_identity": rss["identity"],
+        "swap_used_bytes": swap["value"],
+        "swap_available": swap["available"],
+        "swap_error": swap["error"],
     }
 
 
-def preflight(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[str, Any]:
-    sample = _snapshot(queue_root, publisher_root, log_root)
+def preflight(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    *,
+    runner: Runner = _run,
+) -> dict[str, Any]:
+    formal_runtime.validate_runtime_tick(
+        "com.pantheon.content-capacity-guard",
+        queue_root=queue_root.resolve(),
+        state_root=publisher_root.resolve(),
+        actor_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+        ),
+        log_root=log_root.resolve(),
+    )
+    sample = (
+        _snapshot(queue_root, publisher_root, log_root)
+        if runner is _run
+        else _snapshot(queue_root, publisher_root, log_root, runner=runner)
+    )
     reasons: list[str] = []
     if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
         reasons.append("disk_free_below_start_floor")
@@ -202,6 +317,10 @@ def preflight(queue_root: Path, publisher_root: Path, log_root: Path) -> dict[st
         reasons.append("project_bytes_over_budget")
     if sample["file_count"] > MAX_FILE_COUNT:
         reasons.append("project_files_over_budget")
+    if sample.get("rss_available") is not True:
+        reasons.append("rss_telemetry_unknown")
+    if sample.get("swap_available") is not True:
+        reasons.append("swap_telemetry_unknown")
     return {"status": "PASS" if not reasons else "NO-GO", "reasons": reasons, **sample}
 
 
@@ -214,6 +333,15 @@ def check_once(
     now: float | None = None,
     stop_runner: Runner = _run,
 ) -> dict[str, Any]:
+    formal_runtime.validate_runtime_tick(
+        "com.pantheon.content-capacity-guard",
+        queue_root=queue_root.resolve(),
+        state_root=publisher_root.resolve(),
+        actor_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+        ),
+        log_root=log_root.resolve(),
+    )
     reclaimed = sum(_trim_log(log_root / name) for name in LOG_NAMES)
     current = _snapshot(queue_root, publisher_root, log_root)
     timestamp = time.time() if now is None else now
@@ -226,6 +354,12 @@ def check_once(
         reasons.append("project_files_over_budget")
     if current["disk_free_bytes"] < stop_floor:
         reasons.append("disk_free_below_stop_floor")
+    if current.get("rss_available") is not True:
+        reasons.append("rss_telemetry_unknown")
+    if current.get("swap_available") is not True:
+        reasons.append("swap_telemetry_unknown")
+    if previous.get("status") == "STOP_FAILED":
+        reasons.append("stop_verification_pending")
 
     elapsed = max(1.0, timestamp - float(previous.get("sampled_epoch", timestamp)))
     delta = current["bytes"] - int(previous.get("bytes", current["bytes"]))
@@ -244,17 +378,31 @@ def check_once(
     if growth_streak >= 12:
         reasons.append("no_stabilization_within_recovery_window")
 
-    rss_growth = current["rss_bytes"] - int(previous.get("rss_bytes", current["rss_bytes"]))
-    swap_growth = current["swap_used_bytes"] - int(previous.get("swap_used_bytes", current["swap_used_bytes"]))
+    current_rss = current.get("rss_bytes")
+    current_swap = current.get("swap_used_bytes")
+    rss_growth = (
+        int(current_rss) - int(previous.get("rss_bytes", current_rss))
+        if current_rss is not None
+        else 0
+    )
+    swap_growth = (
+        int(current_swap) - int(previous.get("swap_used_bytes", current_swap))
+        if current_swap is not None
+        else 0
+    )
     memory_risk = rss_growth > MEMORY_STEP_BYTES and swap_growth > MEMORY_STEP_BYTES
     memory_streak = int(previous.get("memory_streak", 0)) + 1 if memory_risk else 0
     if memory_streak >= 2:
         reasons.append("rss_and_swap_growth")
 
-    stopped = _stop_services(stop_runner) if reasons else []
+    stop_verification = _stop_services(stop_runner) if reasons else {}
+    all_absent = bool(stop_verification) and all(
+        outcome["absent"] for outcome in stop_verification.values()
+    )
+    status = "PASS" if not reasons else "STOPPED" if all_absent else "STOP_FAILED"
     receipt: dict[str, Any] = {
         "schema_version": 1,
-        "status": "STOPPED" if reasons else "PASS",
+        "status": status,
         "sampled_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "sampled_epoch": timestamp,
         "reclaimed_log_bytes": reclaimed,
@@ -263,26 +411,134 @@ def check_once(
         "growth_streak": growth_streak,
         "memory_streak": memory_streak,
         "reasons": reasons,
-        "stopped_services": stopped,
+        "stopped_services": [
+            label for label, outcome in stop_verification.items() if outcome["absent"]
+        ],
+        "stop_verification": stop_verification,
         **current,
     }
     _write_state(state_file, receipt)
     return receipt
 
 
+def _exercise_sample(root: Path) -> dict[str, Any]:
+    used_bytes, file_count = _measure_tree(root)
+    total, free = _disk_sample(root)
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    rss_bytes = int(rss if sys.platform == "darwin" else rss * 1024)
+    swap = _swap_used_bytes()
+    return {
+        "bytes": used_bytes,
+        "file_count": file_count,
+        "host_total": total,
+        "host_free": free,
+        "rss": rss_bytes,
+        "rss_available": True,
+        "swap": swap["value"],
+        "swap_available": swap["available"],
+        "swap_error": swap["error"],
+    }
+
+
+def run_bounded_exercise(
+    exercise_root: Path,
+    receipt_path: Path,
+    *,
+    cycle_bytes: int = MIB,
+) -> dict[str, Any]:
+    if not 1 <= cycle_bytes <= 8 * MIB:
+        raise ValueError("cycle_bytes must be between 1 byte and 8 MiB")
+    if exercise_root.exists():
+        raise ValueError("exercise root must not already exist")
+    exercise_root.mkdir(parents=True)
+    cycles: list[dict[str, Any]] = []
+    for number in (1, 2):
+        before = _exercise_sample(exercise_root)
+        started = time.monotonic()
+        path = exercise_root / f"cycle-{number}.bin"
+        path.write_bytes(bytes([number]) * cycle_bytes)
+        after = _exercise_sample(exercise_root)
+        cycles.append(
+            {
+                "cycle": number,
+                "before_bytes": before["bytes"],
+                "after_bytes": after["bytes"],
+                "before_file_count": before["file_count"],
+                "after_file_count": after["file_count"],
+                "host_free_before": before["host_free"],
+                "host_free_after": after["host_free"],
+                "rss_before": before["rss"],
+                "rss_after": after["rss"],
+                "swap_before": before["swap"],
+                "swap_after": after["swap"],
+                "elapsed_seconds": max(time.monotonic() - started, 0.000001),
+                "growth_bytes": after["bytes"] - before["bytes"],
+                "rss_available": before["rss_available"] and after["rss_available"],
+                "swap_available": before["swap_available"] and after["swap_available"],
+            }
+        )
+    before_reclaim = _exercise_sample(exercise_root)
+    (exercise_root / "cycle-1.bin").unlink()
+    after_reclaim = _exercise_sample(exercise_root)
+    simulated_loaded = set(SERVICE_LABELS)
+    simulated_stop_outcomes = {
+        label: {"loaded_before": True, "absent_after": True, "controller": "bounded-synthetic"}
+        for label in SERVICE_LABELS
+    }
+    simulated_loaded.difference_update(SERVICE_LABELS)
+    telemetry_available = all(
+        cycle["rss_available"] and cycle["swap_available"] for cycle in cycles
+    )
+    receipt = {
+        "schema_version": 1,
+        "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+        "status": "PASS" if telemetry_available else "NO-GO",
+        "mode": "bounded-synthetic-dry-run",
+        "production_mutation": False,
+        "exercise_root": str(exercise_root),
+        "cycles": cycles,
+        "reclamation": {
+            "bytes_before": before_reclaim["bytes"],
+            "bytes_after": after_reclaim["bytes"],
+            "allowlist": [str(exercise_root / "cycle-1.bin")],
+        },
+        "stop_loss": {
+            "status": "STOPPED" if not simulated_loaded else "STOP_FAILED",
+            "triggered": True,
+            "registered_labels": list(SERVICE_LABELS),
+            "outcomes": simulated_stop_outcomes,
+            "remaining_loaded": sorted(simulated_loaded),
+            "cross_project_deletions": [],
+        },
+    }
+    _write_state(receipt_path, receipt)
+    return receipt
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--queue-root", type=Path, required=True)
-    parser.add_argument("--publisher-root", type=Path, required=True)
-    parser.add_argument("--log-root", type=Path, required=True)
-    parser.add_argument("--state-file", type=Path, required=True)
-    parser.add_argument("command", choices=("preflight", "check"))
+    parser.add_argument("--queue-root", type=Path)
+    parser.add_argument("--publisher-root", type=Path)
+    parser.add_argument("--log-root", type=Path)
+    parser.add_argument("--state-file", type=Path)
+    parser.add_argument("--exercise-root", type=Path)
+    parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--cycle-bytes", type=int, default=MIB)
+    parser.add_argument("command", choices=("preflight", "check", "exercise"))
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    if args.command == "preflight":
+    if args.command == "exercise":
+        if args.exercise_root is None or args.receipt is None:
+            raise SystemExit("exercise requires --exercise-root and --receipt")
+        result = run_bounded_exercise(
+            args.exercise_root, args.receipt, cycle_bytes=args.cycle_bytes
+        )
+    elif None in (args.queue_root, args.publisher_root, args.log_root, args.state_file):
+        raise SystemExit("preflight/check require queue, publisher, log, and state paths")
+    elif args.command == "preflight":
         result = preflight(args.queue_root, args.publisher_root, args.log_root)
     else:
         result = check_once(

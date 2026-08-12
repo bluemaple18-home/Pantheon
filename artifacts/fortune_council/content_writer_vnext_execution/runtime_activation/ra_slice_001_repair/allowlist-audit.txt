@@ -1,0 +1,10 @@
+changed_files:
+- scripts/pantheon_content_capability_receipt.py
+- tests/test_pantheon_content_capability_receipt.py
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/adversarial-matrix.json
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/allowlist-audit.txt
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/green.txt
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/json-parse.txt
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/red.txt
+- artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/ra_slice_001_repair/verification-receipt.md
+allowlist_result: PASS

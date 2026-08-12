@@ -1,0 +1,62 @@
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Installed 28 packages in 64ms
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/db89/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 41 items
+
+tests/test_pantheon_content_capability_receipt.py .FFFFF................ [ 53%]
+...................                                                      [100%]
+
+=================================== FAILURES ===================================
+_______ test_schema_version_wrong_json_scalar_types_reject_as_type[True] _______
+tests/test_pantheon_content_capability_receipt.py:83: in test_schema_version_wrong_json_scalar_types_reject_as_type
+    _rejects(receipt, "type")
+tests/test_pantheon_content_capability_receipt.py:57: in _rejects
+    with pytest.raises(CapabilityReceiptError) as error:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_content_capability_receipt.CapabilityReceiptError'>
+______ test_schema_version_wrong_json_scalar_types_reject_as_type[False] _______
+tests/test_pantheon_content_capability_receipt.py:83: in test_schema_version_wrong_json_scalar_types_reject_as_type
+    _rejects(receipt, "type")
+tests/test_pantheon_content_capability_receipt.py:59: in _rejects
+    assert error.value.code == code
+E   AssertionError: assert 'schema_version' == 'type'
+E
+E     - type
+E     + schema_version
+_______ test_schema_version_wrong_json_scalar_types_reject_as_type[1.0] ________
+tests/test_pantheon_content_capability_receipt.py:83: in test_schema_version_wrong_json_scalar_types_reject_as_type
+    _rejects(receipt, "type")
+tests/test_pantheon_content_capability_receipt.py:57: in _rejects
+    with pytest.raises(CapabilityReceiptError) as error:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_content_capability_receipt.CapabilityReceiptError'>
+________ test_schema_version_wrong_json_scalar_types_reject_as_type[1] _________
+tests/test_pantheon_content_capability_receipt.py:83: in test_schema_version_wrong_json_scalar_types_reject_as_type
+    _rejects(receipt, "type")
+tests/test_pantheon_content_capability_receipt.py:59: in _rejects
+    assert error.value.code == code
+E   AssertionError: assert 'schema_version' == 'type'
+E
+E     - type
+E     + schema_version
+_______ test_schema_version_wrong_json_scalar_types_reject_as_type[None] _______
+tests/test_pantheon_content_capability_receipt.py:83: in test_schema_version_wrong_json_scalar_types_reject_as_type
+    _rejects(receipt, "type")
+tests/test_pantheon_content_capability_receipt.py:59: in _rejects
+    assert error.value.code == code
+E   AssertionError: assert 'schema_version' == 'type'
+E
+E     - type
+E     + schema_version
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_content_capability_receipt.py::test_schema_version_wrong_json_scalar_types_reject_as_type[True]
+FAILED tests/test_pantheon_content_capability_receipt.py::test_schema_version_wrong_json_scalar_types_reject_as_type[False]
+FAILED tests/test_pantheon_content_capability_receipt.py::test_schema_version_wrong_json_scalar_types_reject_as_type[1.0]
+FAILED tests/test_pantheon_content_capability_receipt.py::test_schema_version_wrong_json_scalar_types_reject_as_type[1]
+FAILED tests/test_pantheon_content_capability_receipt.py::test_schema_version_wrong_json_scalar_types_reject_as_type[None]
+========================= 5 failed, 36 passed in 0.05s =========================

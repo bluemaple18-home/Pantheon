@@ -1,0 +1,59 @@
+{
+  "schema_version": "WriterVNextMainlineIntegration004LineageReceiptV1",
+  "verdict": "PENDING_FINAL_COMMIT",
+  "activation_token": "act-v1:ddfb83cfd445d2ddcab996f58e7e8d7c89ffc5bb7de5a712fa1b608b6fbfc406",
+  "dispatch_key": "v1:7b7d62c78bc6f7f6b7cc9d0a6d5c7730839b4fe4ccf539a0e787b57ae2429a18",
+  "formal_thread_id": "019feebe-87a5-7b31-ada7-9f72154b4373",
+  "cwd": "/Users/mattkuo/.codex/worktrees/1017/Pantheon",
+  "source_commit": "280884e61872f84f0186f2f1a6a6b51d4c689109",
+  "source_head_actual": "280884e61872f84f0186f2f1a6a6b51d4c689109",
+  "source_parent_expected": "fe91f3f7fd96d57791b569022fad06f7a3b3c497",
+  "source_parent_actual": "fe91f3f7fd96d57791b569022fad06f7a3b3c497",
+  "accepted_candidate": "6f9aa59804a97a71d96fabf32cd6829e2f84918c",
+  "candidate_parent_actual": "75a74d832f72aa5e74b8dc0aec2b26ee0f533e67",
+  "final_review_commit": "1faf26aa18baa02ead68cf49cd8bfc17deb6685c",
+  "final_review_parent_actual": "6f9aa59804a97a71d96fabf32cd6829e2f84918c",
+  "merge_base_expected": "36845c9052546e8ee732f54ea1aa8765f552bde1",
+  "merge_base_actual": "36845c9052546e8ee732f54ea1aa8765f552bde1",
+  "main_only_commit_count": 1,
+  "candidate_only_commit_count": 25,
+  "main_only_path_count": 15,
+  "candidate_path_count": 996,
+  "merge_result_path_count_from_source": 996,
+  "review_findings_path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_integration_003_review_001/rereview-001/findings.json",
+  "review_ledger_path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_integration_003_review_001/rereview-001/generation-ledger.json",
+  "review_verdict_findings": "REVIEW_GO",
+  "review_verdict_ledger": "REVIEW_GO",
+  "finding_disposition_findings": [
+    {
+      "finding_id": "WVNI3-REVIEW-001",
+      "severity": "P1",
+      "blocking": false,
+      "disposition": "RESOLVED",
+      "evidence": [
+        "Original manifest-opt-in reproducer now fails closed for missing orchestration_mode, wrong orchestration_mode, and extra free-state top-level field.",
+        "validate_manifest requires orchestration_mode == writer_vnext_opt_in_v1 and rejects unknown top-level fields.",
+        "legacy_candidate and legacy_candidate_sha256 are only accepted as a complete pair.",
+        "Targeted editorial contracts suite and full affected 10-group regression suite passed."
+      ]
+    }
+  ],
+  "finding_disposition_ledger": "RESOLVED",
+  "codegraph": {
+    "status": "READY",
+    "files_indexed": 539,
+    "total_nodes": 5139,
+    "total_edges": 9942,
+    "backend": "native (better-sqlite3)",
+    "task_semantic_query": "Writer vNext mainline integration: verify content publisher/runtime/coordinator/runner/capacity manifest opt-in paths and related tests before merging accepted candidate into fixed main base",
+    "surfaced_entry_points": [
+      "scripts/agy_content_publisher.py:PublishBlocked",
+      "scripts/agy_content_publisher.py:runtime_manifest",
+      "scripts/pantheon_content_capacity_guard.py:Runner"
+    ]
+  },
+  "production_state": {
+    "formal_service_count": "0/4",
+    "production_verdict": "NO-GO"
+  }
+}

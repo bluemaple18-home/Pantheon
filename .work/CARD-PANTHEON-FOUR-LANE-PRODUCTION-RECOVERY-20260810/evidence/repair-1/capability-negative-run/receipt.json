@@ -1,0 +1,45 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "correlation_id": "repair-1-chain-negative-run",
+  "execution_id": "repair-1-negative-run-995845b",
+  "mode": "bounded-synthetic-dry-run",
+  "production_mutation": false,
+  "regression_id": "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001",
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "steps": [
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-run/01-create.json",
+      "capability": "create",
+      "correlation_id": "repair-1-chain-negative-run",
+      "entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+      "entrypoint_outcome": "PASS",
+      "execution_id": "repair-1-negative-run-995845b",
+      "expected_input_digest": "564bf41153971541a434fd616af3386ed3408bc485c79c1653ec5ba1f68c188e",
+      "input_digest": "564bf41153971541a434fd616af3386ed3408bc485c79c1653ec5ba1f68c188e",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 1,
+      "output_digest": "36be5001ad12caffdcfea4238a959daae15bb71c1f2e68b57e33afc9df9eece2",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.131953+00:00"
+    },
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-run/02-run.json",
+      "capability": "run",
+      "correlation_id": "repair-1-chain-negative-run",
+      "entrypoint": "scripts.agy_gemini_runner:process-once",
+      "entrypoint_outcome": "BLOCKED",
+      "error": "input_digest_mismatch",
+      "execution_id": "repair-1-negative-run-995845b",
+      "expected_input_digest": "36be5001ad12caffdcfea4238a959daae15bb71c1f2e68b57e33afc9df9eece2",
+      "input_digest": "ef8a0e5bd89de72406ec46ad1c71ea4efb8c79f87928d81a8aba5d447a070e6b",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 2,
+      "output_digest": "",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.132414+00:00"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "schema_version": "WriterVNextArchitectureInvariantsV1",
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-ORCHESTRATION-ARCHITECTURE-001",
+  "invariants": [
+    {
+      "id": "WVO-INV-001",
+      "decision": "WVO-ARCH-001",
+      "statement": "vNext transport requests only use role writer or reviewer.",
+      "test_hint": "Build each selected stage request and assert role in {'writer','reviewer'}; unknown stage fails before request creation."
+    },
+    {
+      "id": "WVO-INV-002",
+      "decision": "WVO-ARCH-001",
+      "statement": "Stage request identity is deterministic from public prompt and response schema through existing request_sha256.",
+      "test_hint": "Rebuild request twice from same manifest and inputs; request_sha256 and job_id must match."
+    },
+    {
+      "id": "WVO-INV-003",
+      "decision": "WVO-ARCH-002",
+      "statement": "Deleting projection cache does not change reconstructed next action.",
+      "test_hint": "Remove vnext/projection.json and replay manifest plus ledger; next action is identical."
+    },
+    {
+      "id": "WVO-INV-004",
+      "decision": "WVO-ARCH-002",
+      "statement": "Ledger parent hash chain must be intact before any request, adapter or handoff action.",
+      "test_hint": "Mutate a historical ledger event and assert WVO-FC-ARTIFACT_TAMPER."
+    },
+    {
+      "id": "WVO-INV-005",
+      "decision": "WVO-ARCH-003",
+      "statement": "An accepted stage with matching schema, identity, request SHA, response SHA and artifact SHA is not resent.",
+      "test_hint": "Run two ticks after accepting a stage and assert no additional outbox file appears."
+    },
+    {
+      "id": "WVO-INV-006",
+      "decision": "WVO-ARCH-003",
+      "statement": "Any request job_id collision with different request bytes fails closed.",
+      "test_hint": "Seed outbox with same job id and altered payload; vNext tick raises WVO-FC-REQUEST_COLLISION."
+    },
+    {
+      "id": "WVO-INV-007",
+      "decision": "WVO-ARCH-003",
+      "statement": "Ambiguous next action is terminal until repaired.",
+      "test_hint": "Create duplicate valid next stage sequences and assert WVO-FC-AMBIGUOUS_NEXT_ACTION or schema rejection."
+    },
+    {
+      "id": "WVO-INV-008",
+      "decision": "WVO-ARCH-004",
+      "statement": "Publisher handoff preserves legacy candidate and review identity.",
+      "test_hint": "Compare artifact_sha256(candidate.json) before and after sidecar validation; Publisher must not rewrite candidate."
+    },
+    {
+      "id": "WVO-INV-009",
+      "decision": "WVO-ARCH-004",
+      "statement": "Invalid vNext sidecar blocks opt-in Publisher collect-ready, while absent sidecar remains legacy-compatible.",
+      "test_hint": "Run collect_ready with absent sidecar and with tampered sidecar; only tampered opt-in blocks."
+    },
+    {
+      "id": "WVO-INV-010",
+      "decision": "WVO-ARCH-005",
+      "statement": "A run without vNext manifest always follows existing legacy coordinator behavior.",
+      "test_hint": "Existing outbox cross-tick writer/reviewer test remains unchanged."
+    },
+    {
+      "id": "WVO-INV-011",
+      "decision": "WVO-ARCH-005",
+      "statement": "vNext opt-in requires explicit EditorialManifestV1 mode and never runs as shadow A/B.",
+      "test_hint": "Brief with partial vNext artifacts and no valid manifest fails closed."
+    },
+    {
+      "id": "WVO-INV-012",
+      "decision": "WVO-ARCH-006",
+      "statement": "Integration cannot proceed unless both reviewed commit lineages are readable and represented in changed-file inventory.",
+      "test_hint": "Integration preflight rejects missing Writer contract or Runtime Authority candidate/review objects."
+    }
+  ],
+  "failure_codes": [
+    "WVO-FC-SCHEMA_VERSION",
+    "WVO-FC-UNKNOWN_STAGE",
+    "WVO-FC-MISSING_DEPENDENCY",
+    "WVO-FC-REQUEST_COLLISION",
+    "WVO-FC-ARTIFACT_TAMPER",
+    "WVO-FC-AMBIGUOUS_NEXT_ACTION",
+    "WVO-FC-TRANSPORT_RETRY_EXHAUSTED",
+    "WVO-FC-PUBLISHER_INCOMPATIBLE",
+    "WVO-FC-RUNTIME_IDENTITY",
+    "WVO-FC-COMPOSITION_LINEAGE"
+  ]
+}

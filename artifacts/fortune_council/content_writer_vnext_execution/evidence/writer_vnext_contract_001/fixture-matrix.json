@@ -1,0 +1,16 @@
+{
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-CONTRACT-001",
+  "fixtures": [
+    {"name": "core_only", "selected_stages": [], "expected_valid": true},
+    {"name": "content_plan_0_sections", "selected_stages": ["content_plan_v1"], "expected_valid": true},
+    {"name": "content_plan_3_sections", "selected_stages": ["content_plan_v1"], "expected_valid": true},
+    {"name": "content_plan_7_sections", "selected_stages": ["content_plan_v1"], "expected_valid": true},
+    {"name": "three_stages_reordered", "selected_stages": ["blind_read_v1", "content_plan_v1", "claim_classification_v1"], "expected_valid": true},
+    {"name": "missing_thesis", "expected_findings": ["missing_thesis"]},
+    {"name": "selected_stage_missing", "expected_findings": ["selected_stage_artifact_missing"]},
+    {"name": "verifiable_fact_without_evidence", "expected_findings": ["verifiable_fact_evidence_missing"]},
+    {"name": "blind_thesis_mismatch", "expected_findings": ["blind_thesis_mismatch"]},
+    {"name": "artifact_hash_mismatch", "expected_findings": ["artifact_sha_mismatch"]},
+    {"name": "legacy_publisher_boundary", "expected_valid": true}
+  ]
+}

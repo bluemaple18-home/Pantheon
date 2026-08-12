@@ -1,0 +1,68 @@
+[
+  {
+    "capability": "select",
+    "case_id": "select-empty-selector",
+    "outcome": "BLOCKED",
+    "stable_reason": "exact run ids must not be empty"
+  },
+  {
+    "capability": "select",
+    "case_id": "select-duplicate-selector",
+    "outcome": "BLOCKED",
+    "stable_reason": "exact run ids must be unique"
+  },
+  {
+    "capability": "select",
+    "case_id": "select-illegal-selector",
+    "outcome": "BLOCKED",
+    "stable_reason": "exact run id format is invalid"
+  },
+  {
+    "capability": "publish",
+    "case_id": "publish-runtime-drift",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt runtime identity drift"
+  },
+  {
+    "capability": "publish",
+    "case_id": "publish-correlation-drift",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt correlation identity drift"
+  },
+  {
+    "capability": "transaction",
+    "case_id": "transaction-overlap",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher queue and state roots must not overlap"
+  },
+  {
+    "capability": "tag",
+    "case_id": "tag-real-authority",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt tag mode must be dry-run"
+  },
+  {
+    "capability": "push",
+    "case_id": "push-production-mode",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt push mode must be dry-run"
+  },
+  {
+    "capability": "select",
+    "case_id": "unknown-context-key",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt context contains unknown keys"
+  },
+  {
+    "capability": "select",
+    "case_id": "caller-verdict",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt context contains caller verdict"
+  },
+  {
+    "capability": "push",
+    "case_id": "production-mutation-flag",
+    "outcome": "BLOCKED",
+    "stable_reason": "publisher receipt production mutation is not allowed"
+  }
+]

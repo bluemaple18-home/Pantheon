@@ -54,6 +54,34 @@ PANTHEON_GEMINI_QUEUE_ROOT=<repo-root>/.work/gemini-runner \
 不建立 publisher state，也不發布或 push。確認 actor 已同步最新 remote refs
 後才執行 preflight；此命令本身不執行 `git fetch`。
 
+### 單次 Canary actor provisioning
+
+單篇 Canary 必須先用 repo-owned 的準備入口產生固定 actor 與單次 publisher
+plan。此入口只接受 sandbox 內的 absolute canonical paths，並要求 actor source
+是完整 40 字元 SHA、為指定 remote ref 的 descendant、publisher state root 為空、
+Python executable 與 runtime manifest digest 已固定。
+
+```bash
+.venv/bin/python -m scripts.prepare_pantheon_canary_actor preflight \
+  --repo-root <repo-root> \
+  --sandbox-root /absolute/sandbox/root \
+  --actor-root /absolute/sandbox/root/actor \
+  --queue-root /absolute/sandbox/root/queue \
+  --publisher-state-root /absolute/sandbox/root/state \
+  --log-root /absolute/sandbox/root/logs \
+  --runtime-manifest /absolute/sandbox/root/runtime-manifest.json \
+  --python /absolute/python \
+  --actor-sha <40-char-sha> \
+  --remote-ref origin/main \
+  --exact-run-id <run-id>
+```
+
+`prepare` 只會建立指定 sandbox actor worktree、空白 queue/state/log roots 與
+runtime manifest；不會載入 launchd、不會建立 run、不會呼叫模型、不會 publish、
+不會 tag 或 push。產生的 publisher plan 必須同時包含
+`--exact-run-id <run-id>`、`--max-runs 1`、`--deployment-preflight`、fixed actor
+SHA 與 runtime digest；任一漂移都 fail closed。
+
 ## 3. 改版前檢查
 
 每次部署前先確認變更類型。

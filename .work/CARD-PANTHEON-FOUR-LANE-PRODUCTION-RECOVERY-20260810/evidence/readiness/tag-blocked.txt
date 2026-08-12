@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=BLOCKED
+formal_boundary=scripts.agy_content_publisher tag
+proof=tests/test_agy_content_publisher.py::test_recovery_removes_unpushed_commit_and_tag_but_preserves_failure_evidence passed by removing the unpushed tag fail closed

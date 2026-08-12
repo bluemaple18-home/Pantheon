@@ -1,0 +1,157 @@
+{
+  "canary_created": false,
+  "cases": [
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "canary_created": false,
+      "case": "missing-capability-step",
+      "code": "step_sequence",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "receipt must contain exactly seven steps",
+      "schema_version": 1
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "canary_created": false,
+      "case": "identity-drift",
+      "code": "identity_mismatch",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "actor_identity drifted across receipt steps",
+      "schema_version": 1
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "canary_created": false,
+      "case": "digest-discontinuity",
+      "code": "digest_continuity",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "step input digest must match previous output",
+      "schema_version": 1
+    },
+    {
+      "artifact": "positive/missing.json",
+      "canary_created": false,
+      "case": "positive-evidence-missing",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "create.positive_evidence is missing",
+      "schema_version": 1
+    },
+    {
+      "artifact": "positive/01-create.json",
+      "canary_created": false,
+      "case": "evidence-reuse",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capability evidence artifact must be unique across all steps",
+      "schema_version": 1
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "canary_created": false,
+      "case": "absolute-artifact-path",
+      "code": "evidence_identifier",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "positive_evidence must be repo-relative",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "positive-evidence-empty",
+      "outcome": "BLOCKED",
+      "path": "<local-absolute-path-redacted>",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capability evidence root must be canonical directory",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "positive-evidence-outcome",
+      "outcome": "BLOCKED",
+      "path": "<local-absolute-path-redacted>",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capability evidence root must be canonical directory",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "symlink-escape",
+      "outcome": "BLOCKED",
+      "path": "<local-absolute-path-redacted>",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capability evidence root must be canonical directory",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-not-pass",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capacity status must be PASS",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-missing-cycle",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "capacity proof must contain exactly two cycles",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-missing-measurement",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "cycle-1.peak.host_total_bytes must be non-negative number",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-cleanup-reclaim-missing",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "cleanup must reclaim bytes and files",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-stop-loss-not-blocked",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "stop-loss negative result must be BLOCKED",
+      "schema_version": 1
+    },
+    {
+      "canary_created": false,
+      "case": "capacity-projection-below-reserve",
+      "outcome": "BLOCKED",
+      "production_authorized": false,
+      "production_mutation": false,
+      "reason": "host free after projection must stay above reserve",
+      "schema_version": 1
+    }
+  ],
+  "production_authorized": false,
+  "production_mutation": false,
+  "schema_version": 1,
+  "status": "PASS"
+}

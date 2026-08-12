@@ -1,0 +1,15 @@
+{
+  "actor_identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+  "capability": "publish",
+  "correlation_id": "formal-runtime-chain-001-correlation-negative",
+  "entrypoint_outcome": "BLOCKED",
+  "error": "input digest mismatch",
+  "execution_id": "formal-runtime-chain-001-negative",
+  "expected_input_digest": "509b99ebec47edf4895a19968c24c2fa3db9c74fa3ff1029c4152391810c8b50",
+  "input_digest": "3c76eb07537047fe1f92bff62575d1b9f38c8bcb96cb73de2e60e6bc143e9958",
+  "mode": "formal-runtime-production-dry-run",
+  "output_digest": "",
+  "production_mutation": false,
+  "schema_version": 2,
+  "timestamp": "2026-08-10T07:22:12.580077+00:00"
+}

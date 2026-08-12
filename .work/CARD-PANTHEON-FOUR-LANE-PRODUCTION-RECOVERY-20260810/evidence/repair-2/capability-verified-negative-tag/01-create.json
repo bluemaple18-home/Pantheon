@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:create",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "create",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/00-probe-input.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/01-create-adapter.json",
+      "--expected-input-digest",
+      "a2b2c05fdad8c953cb2ae4b1da9405ec84aaedb904f976f1fc88503779e4910b",
+      "--actual-input-digest",
+      "a2b2c05fdad8c953cb2ae4b1da9405ec84aaedb904f976f1fc88503779e4910b",
+      "--execution-id",
+      "repair-2-verified-negative-tag",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-tag/01-create-adapter.json",
+    "returncode": 0
+  },
+  "capability": "create",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:create",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-tag",
+  "expected_input_digest": "a2b2c05fdad8c953cb2ae4b1da9405ec84aaedb904f976f1fc88503779e4910b",
+  "input_digest": "a2b2c05fdad8c953cb2ae4b1da9405ec84aaedb904f976f1fc88503779e4910b",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 1,
+  "output_digest": "7114c158170159de64bdc831010c66eea27529e8aba75488f0da129d74b31a58",
+  "production_entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.193517+00:00"
+}

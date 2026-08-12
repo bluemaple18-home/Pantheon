@@ -1,0 +1,61 @@
+{
+  "finding_id": "RA-SLICE-001-REVIEW-P1-BOOL-SCHEMA-VERSION",
+  "results": [
+    {
+      "actual": "PASS",
+      "case": "exact_integer_1",
+      "expected": "PASS",
+      "input_repr": "1",
+      "input_type": "int",
+      "pass": true
+    },
+    {
+      "actual": "schema_version",
+      "case": "unsupported_integer_2",
+      "expected": "schema_version",
+      "input_repr": "2",
+      "input_type": "int",
+      "pass": true
+    },
+    {
+      "actual": "type",
+      "case": "bool_true",
+      "expected": "type",
+      "input_repr": "True",
+      "input_type": "bool",
+      "pass": true
+    },
+    {
+      "actual": "type",
+      "case": "bool_false",
+      "expected": "type",
+      "input_repr": "False",
+      "input_type": "bool",
+      "pass": true
+    },
+    {
+      "actual": "type",
+      "case": "float_1_0",
+      "expected": "type",
+      "input_repr": "1.0",
+      "input_type": "float",
+      "pass": true
+    },
+    {
+      "actual": "type",
+      "case": "string_1",
+      "expected": "type",
+      "input_repr": "'1'",
+      "input_type": "str",
+      "pass": true
+    },
+    {
+      "actual": "type",
+      "case": "null",
+      "expected": "type",
+      "input_repr": "None",
+      "input_type": "NoneType",
+      "pass": true
+    }
+  ]
+}

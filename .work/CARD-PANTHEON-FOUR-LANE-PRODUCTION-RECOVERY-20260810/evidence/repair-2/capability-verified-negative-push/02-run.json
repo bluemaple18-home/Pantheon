@@ -1,0 +1,42 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:run",
+    "command": [
+      "/Users/mattkuo/.codex/worktrees/eb00/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "run",
+      "--input",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-push/01-create-adapter.json",
+      "--output",
+      ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-push/02-run-adapter.json",
+      "--expected-input-digest",
+      "ccbd3e5be887c463f7b341cdde84db882141d7d7aa5a73f8631011ea407d84aa",
+      "--actual-input-digest",
+      "ccbd3e5be887c463f7b341cdde84db882141d7d7aa5a73f8631011ea407d84aa",
+      "--execution-id",
+      "repair-2-verified-negative-push",
+      "--correlation-id",
+      "repair-2-verified",
+      "--actor-identity",
+      "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5"
+    ],
+    "receipt": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-2/capability-verified-negative-push/02-run-adapter.json",
+    "returncode": 0
+  },
+  "capability": "run",
+  "correlation_id": "repair-2-verified",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:run",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "repair-2-verified-negative-push",
+  "expected_input_digest": "ccbd3e5be887c463f7b341cdde84db882141d7d7aa5a73f8631011ea407d84aa",
+  "input_digest": "ccbd3e5be887c463f7b341cdde84db882141d7d7aa5a73f8631011ea407d84aa",
+  "mode": "bounded-production-dry-run-adapter",
+  "ordinal": 2,
+  "output_digest": "542993dd0d2fed76a0841492163cbeedf52e43a33831784c27f75a4273a4d754",
+  "production_entrypoint": "scripts.agy_gemini_runner:process-once",
+  "schema_version": 1,
+  "timestamp": "2026-08-10T05:48:49.252842+00:00"
+}

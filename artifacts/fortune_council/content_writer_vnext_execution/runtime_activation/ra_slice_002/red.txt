@@ -1,0 +1,685 @@
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Installed 28 packages in 59ms
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/9f02/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 12 items
+
+tests/test_agy_gemini_coordinator_capability_receipt.py FFFFFFFFFFFF     [100%]
+
+=================================== FAILURES ===================================
+__ test_coordinator_preflight_emits_create_run_steps_from_official_boundaries __
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_emi0')
+
+    def test_coordinator_preflight_emits_create_run_steps_from_official_boundaries(
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        events: list[tuple[str, object]] = []
+        tick_calls = 0
+
+        def local_tick(run_dir: Path, job_queue_root: Path) -> dict[str, object]:
+            nonlocal tick_calls
+            tick_calls += 1
+            events.append(("tick", run_dir.name, job_queue_root == queue_root))
+            if tick_calls == 1:
+                raise ExternalJobPending("ra-slice-002-local-job")
+            return {"status": "complete", "bounded": True}
+
+        def local_process(queue: Path, **kwargs: object) -> dict[str, str]:
+            events.append(("process", queue == queue_root, kwargs.get("exact_run_ids")))
+            return {"status": "processed", "job_id": "ra-slice-002-local-job"}
+
+>       envelope = coordinator.coordinator_create_run_receipt_preflight(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            trusted_sandbox_root=sandbox_root,
+            run_root=run_root,
+            queue_root=queue_root,
+            evidence_root=evidence_root,
+            execution_line_id="exec-ra-slice-002",
+            correlation_id="corr-ra-slice-002",
+            actor_identity="actor-ra-slice-002",
+            runtime_identity_digest=RUNTIME_RECEIPT["runtime_identity_digest"],
+            runtime_receipt=RUNTIME_RECEIPT,
+            brief=_brief(),
+            lane="new",
+            tick=local_tick,
+            process=local_process,
+        )
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'coordinator_create_run_receipt_preflight'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:123: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[missing-brief-overrides0-brief] _
+
+case = 'missing-brief', overrides = {'brief': None}, match = 'brief'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo0')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[too-many-articles-overrides1-brief] _
+
+case = 'too-many-articles'
+overrides = {'brief': {'articles': [{}, {}], 'mode': 'create', 'run_id': 'ra-slice-002-synthetic-create-run', 'schema_version': 1}}
+match = 'brief'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo1')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[blank-correlation-overrides2-correlation] _
+
+case = 'blank-correlation', overrides = {'correlation_id': ' '}
+match = 'correlation'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo2')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[wrong-lane-overrides3-lane] _
+
+case = 'wrong-lane', overrides = {'lane': 'rewrite'}, match = 'lane'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo3')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[runtime-missing-digest-overrides4-runtime identity] _
+
+case = 'runtime-missing-digest'
+overrides = {'runtime_receipt': {'status': 'PASS'}}, match = 'runtime identity'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo4')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[runtime-digest-mismatch-overrides5-runtime identity] _
+
+case = 'runtime-digest-mismatch'
+overrides = {'runtime_identity_digest': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'}
+match = 'runtime identity'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo5')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[caller-verdict-overrides6-caller] _
+
+case = 'caller-verdict'
+overrides = {'runtime_receipt': {'runtime_identity_digest': 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'status': 'PASS', 'valid': True}}
+match = 'caller'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo6')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_blocks_invalid_identity_before_queue_io[extra-runtime-key-overrides7-runtime identity] _
+
+case = 'extra-runtime-key'
+overrides = {'runtime_receipt': {'extra': 'nope', 'runtime_identity_digest': 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'status': 'PASS'}}
+match = 'runtime identity'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_blo7')
+
+    @pytest.mark.parametrize(
+        ("case", "overrides", "match"),
+        [
+            ("missing-brief", {"brief": None}, "brief"),
+            ("too-many-articles", {"brief": {**_brief(), "articles": [{}, {}]}}, "brief"),
+            ("blank-correlation", {"correlation_id": " "}, "correlation"),
+            ("wrong-lane", {"lane": "rewrite"}, "lane"),
+            ("runtime-missing-digest", {"runtime_receipt": {"status": "PASS"}}, "runtime identity"),
+            (
+                "runtime-digest-mismatch",
+                {"runtime_identity_digest": "d" * 64},
+                "runtime identity",
+            ),
+            (
+                "caller-verdict",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "valid": True}},
+                "caller",
+            ),
+            (
+                "extra-runtime-key",
+                {"runtime_receipt": {**RUNTIME_RECEIPT, "extra": "nope"}},
+                "runtime identity",
+            ),
+        ],
+    )
+    def test_coordinator_preflight_blocks_invalid_identity_before_queue_io(
+        case: str,
+        overrides: dict[str, object],
+        match: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        process_called = False
+
+        def process_must_not_run(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal process_called
+            process_called = True
+            raise AssertionError(f"{case} must block before process")
+
+        kwargs: dict[str, object] = {
+            "trusted_sandbox_root": sandbox_root,
+            "run_root": run_root,
+            "queue_root": queue_root,
+            "evidence_root": evidence_root,
+            "execution_line_id": "exec-ra-slice-002",
+            "correlation_id": "corr-ra-slice-002",
+            "actor_identity": "actor-ra-slice-002",
+            "runtime_identity_digest": RUNTIME_RECEIPT["runtime_identity_digest"],
+            "runtime_receipt": RUNTIME_RECEIPT,
+            "brief": _brief(),
+            "lane": "new",
+            "tick": lambda *_args: pytest.fail(f"{case} must block before tick"),
+            "process": process_must_not_run,
+        }
+        kwargs.update(overrides)
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match=match):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:224: AttributeError
+_ test_coordinator_preflight_rejects_untrusted_roots_before_run_io[external-queue] _
+
+case = 'external-queue'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_rej0')
+
+    @pytest.mark.parametrize("case", ["external-queue", "symlink-escape", "overlap"])
+    def test_coordinator_preflight_rejects_untrusted_roots_before_run_io(
+        case: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        external = tmp_path / "external"
+        external.mkdir()
+        if case == "external-queue":
+            queue_root = external / "queue"
+        elif case == "symlink-escape":
+            queue_root.parent.mkdir(parents=True, exist_ok=True)
+            queue_root.symlink_to(external, target_is_directory=True)
+        elif case == "overlap":
+            evidence_root = queue_root / "evidence"
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match="root|overlap"):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:253: AttributeError
+_ test_coordinator_preflight_rejects_untrusted_roots_before_run_io[symlink-escape] _
+
+case = 'symlink-escape'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_rej1')
+
+    @pytest.mark.parametrize("case", ["external-queue", "symlink-escape", "overlap"])
+    def test_coordinator_preflight_rejects_untrusted_roots_before_run_io(
+        case: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        external = tmp_path / "external"
+        external.mkdir()
+        if case == "external-queue":
+            queue_root = external / "queue"
+        elif case == "symlink-escape":
+            queue_root.parent.mkdir(parents=True, exist_ok=True)
+            queue_root.symlink_to(external, target_is_directory=True)
+        elif case == "overlap":
+            evidence_root = queue_root / "evidence"
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match="root|overlap"):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:253: AttributeError
+__ test_coordinator_preflight_rejects_untrusted_roots_before_run_io[overlap] ___
+
+case = 'overlap'
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-333/test_coordinator_preflight_rej2')
+
+    @pytest.mark.parametrize("case", ["external-queue", "symlink-escape", "overlap"])
+    def test_coordinator_preflight_rejects_untrusted_roots_before_run_io(
+        case: str,
+        tmp_path: Path,
+    ) -> None:
+        sandbox_root, run_root, queue_root, evidence_root = _paths(tmp_path)
+        external = tmp_path / "external"
+        external.mkdir()
+        if case == "external-queue":
+            queue_root = external / "queue"
+        elif case == "symlink-escape":
+            queue_root.parent.mkdir(parents=True, exist_ok=True)
+            queue_root.symlink_to(external, target_is_directory=True)
+        elif case == "overlap":
+            evidence_root = queue_root / "evidence"
+
+>       with pytest.raises(coordinator.CoordinatorReceiptBlocked, match="root|overlap"):
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'scripts.agy_gemini_coordinator' has no attribute 'CoordinatorReceiptBlocked'
+
+tests/test_agy_gemini_coordinator_capability_receipt.py:253: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_emits_create_run_steps_from_official_boundaries
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[missing-brief-overrides0-brief]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[too-many-articles-overrides1-brief]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[blank-correlation-overrides2-correlation]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[wrong-lane-overrides3-lane]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[runtime-missing-digest-overrides4-runtime identity]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[runtime-digest-mismatch-overrides5-runtime identity]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[caller-verdict-overrides6-caller]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_blocks_invalid_identity_before_queue_io[extra-runtime-key-overrides7-runtime identity]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_rejects_untrusted_roots_before_run_io[external-queue]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_rejects_untrusted_roots_before_run_io[symlink-escape]
+FAILED tests/test_agy_gemini_coordinator_capability_receipt.py::test_coordinator_preflight_rejects_untrusted_roots_before_run_io[overlap]
+============================== 12 failed in 0.17s ==============================

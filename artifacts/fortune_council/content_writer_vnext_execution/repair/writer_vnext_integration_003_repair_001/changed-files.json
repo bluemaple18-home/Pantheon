@@ -1,0 +1,15 @@
+{
+  "schema_version": "WriterVNextIntegration003Repair001ChangedFilesV1",
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-INTEGRATION-003-REPAIR-001",
+  "finding_id": "WVNI3-REVIEW-001",
+  "allowlist_status": "PASS",
+  "forbidden_path_diff": [],
+  "changed_files": [
+    "scripts/agy_editorial_contracts.py",
+    "tests/test_agy_editorial_contracts.py",
+    "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_integration_003_repair_001/red.txt",
+    "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_integration_003_repair_001/green.txt",
+    "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_integration_003_repair_001/verification-receipt.md",
+    "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_integration_003_repair_001/changed-files.json"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_gemini_coordinator:register_run",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "129d2f43907399b76f30d00dadcf6a1ef036b78213fbd24e2a4c09c6ac8c0957",
+  "outcome": "PASS",
+  "output_digest": "e8e4e7df0d37f2b940fa8a9b0122b37730cd32894c80eff5b74541ca996f374a",
+  "packaged_source_artifact": "positive/01-create.json",
+  "packaged_source_digest": "a655bb85af5327587e0245518b2f2b14d6d8ec81e8b147d2fd04a82b0b83bc10",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/positive-create.json",
+  "state_digest": "e8e4e7df0d37f2b940fa8a9b0122b37730cd32894c80eff5b74541ca996f374a",
+  "step": "create"
+}

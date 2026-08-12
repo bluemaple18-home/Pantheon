@@ -1,0 +1,4 @@
+correlation_id=four-lane-recovery-probe-20260810-01
+capability_outcome=PASS
+formal_boundary=scripts.agy_content_publisher tag
+proof=tests/test_agy_content_publisher.py::test_stage_commit_pushes_release_commit_and_tag_atomically passed with annotated tag before atomic push

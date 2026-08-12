@@ -1,0 +1,500 @@
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Installed 28 packages in 25ms
+FFFFFFF                                                                  [100%]
+=================================== FAILURES ===================================
+________ test_formal_publisher_emits_shared_receipt_steps_and_artifacts ________
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_formal_publisher_emits_sh0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109190350>
+
+    def test_formal_publisher_emits_shared_receipt_steps_and_artifacts(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        initial_digest = _digest({"fixture": "start"})
+        create_output = _digest({"fixture": "create", "input": initial_digest})
+        run_output = _digest({"fixture": "run", "input": create_output})
+        previous_digest = run_output
+        steps = [
+            _synthetic_step(
+                capability="create",
+                ordinal=1,
+                input_digest=initial_digest,
+                output_digest=create_output,
+            ),
+            _synthetic_step(
+                capability="run",
+                ordinal=2,
+                input_digest=create_output,
+                output_digest=run_output,
+            ),
+        ]
+
+        for capability in ("select", "publish", "transaction", "tag", "push"):
+>           result = _call(
+                capability,
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=_context(
+                    evidence_root=evidence_root,
+                    capability=capability,
+                    input_digest=previous_digest,
+                ),
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:162:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch0] _
+
+context_patch = {'unexpected': True}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109195c70>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch1] _
+
+context_patch = {'status': 'PASS'}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109196360>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch2] _
+
+context_patch = {'positive_evidence': '/tmp/pass.json'}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109196b70>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch3] _
+
+context_patch = {'negative_evidence': '../blocked.json'}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109197500>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch4] _
+
+context_patch = {'actor_identity': ''}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1091968a0>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+_ test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch5] _
+
+context_patch = {'input_digest': 'not-a-digest'}
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-334/test_receipt_context_rejects_c5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1091957c0>
+
+    @pytest.mark.parametrize(
+        "context_patch",
+        [
+            {"unexpected": True},
+            {"status": "PASS"},
+            {"positive_evidence": "/tmp/pass.json"},
+            {"negative_evidence": "../blocked.json"},
+            {"actor_identity": ""},
+            {"input_digest": "not-a-digest"},
+        ],
+    )
+    def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
+        context_patch: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sandbox_root, queue_root, state_root, evidence_root = _sandbox(tmp_path)
+        _stub_boundaries(monkeypatch, sandbox_root)
+        context = _context(
+            evidence_root=evidence_root,
+            capability="select",
+            input_digest=_digest({"input": "select"}),
+        )
+        context.update(context_patch)
+
+        with pytest.raises(publisher.PublishBlocked):
+>           _call(
+                "select",
+                sandbox_root=sandbox_root,
+                queue_root=queue_root,
+                state_root=state_root,
+                receipt_context=context,
+            )
+
+tests/test_agy_content_publisher_capability_receipt.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+capability = 'select'
+
+    def _call(
+        capability: str,
+        *,
+        sandbox_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        receipt_context: dict[str, object],
+        run_ids: list[str] | None = None,
+        correlation_id: str = CORRELATION_ID,
+        runtime_receipt: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+>       return publisher.formal_capability_preflight(
+            capability,
+            run_ids=run_ids if run_ids is not None else ["run-a"],
+            correlation_id=correlation_id,
+            trusted_sandbox_root=sandbox_root,
+            queue_root=queue_root,
+            state_root=state_root,
+            runtime_receipt=runtime_receipt if runtime_receipt is not None else RUNTIME_RECEIPT,
+            receipt_context=receipt_context,
+        )
+E       TypeError: formal_capability_preflight() got an unexpected keyword argument 'receipt_context'
+
+tests/test_agy_content_publisher_capability_receipt.py:100: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_formal_publisher_emits_shared_receipt_steps_and_artifacts
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch0]
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch1]
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch2]
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch3]
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch4]
+FAILED tests/test_agy_content_publisher_capability_receipt.py::test_receipt_context_rejects_caller_authority_and_unsafe_paths[context_patch5]
+7 failed in 0.12s

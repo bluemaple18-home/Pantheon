@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/71f72df0-ba81-48ed-8a38-73ab11dc302a/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 412 items
+
+tests/test_agy_editorial_contracts.py ......                             [  1%]
+tests/test_agy_seo_copy_pipeline.py .................................... [ 10%]
+........................................................................ [ 27%]
+.......................                                                  [ 33%]
+tests/test_agy_content_publisher.py .................................... [ 41%]
+........................................................................ [ 59%]
+.                                                                        [ 59%]
+tests/test_pantheon_runtime_fs_authority.py ..........                   [ 62%]
+tests/test_pantheon_runtime_activation.py ......                         [ 63%]
+tests/test_pantheon_content_runtime_manifest.py .................        [ 67%]
+tests/test_pantheon_content_capability_probe.py ........................ [ 73%]
+.....                                                                    [ 74%]
+tests/test_agy_gemini_coordinator.py ................................... [ 83%]
+....................................................                     [ 95%]
+tests/test_agy_gemini_runner.py ...                                      [ 96%]
+tests/test_pantheon_content_capacity_guard.py ..............             [100%]
+
+=============================== warnings summary ===============================
+tests/test_agy_content_publisher.py::test_preflight_test_command_selectors_resolve_to_top_level_tests
+  <unknown>:1713: DeprecationWarning: invalid escape sequence '\/'
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 412 passed, 1 warning in 161.22s (0:02:41) ==================

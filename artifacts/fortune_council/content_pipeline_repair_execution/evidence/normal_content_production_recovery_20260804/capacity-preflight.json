@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "policy": {
+    "max_bytes": 4294967296,
+    "max_file_count": 120000,
+    "normal_growth_bytes_per_hour": 268435456,
+    "sample_interval_seconds": 300,
+    "start_floor_bytes": 32212254720,
+    "stop_floor_bytes": 21474836480
+  },
+  "preflight": {
+    "bytes": 217275804,
+    "file_count": 28184,
+    "disk_free_bytes": 39034482688,
+    "reasons": []
+  },
+  "activation_samples": [
+    {"sampled_at": "2026-08-04T10:12:18+08:00", "status": "PASS", "bytes": 217276007, "file_count": 28185, "disk_free_bytes": 39034200064, "growth_bytes_per_hour": 7620},
+    {"sampled_at": "2026-08-04T10:17:19+08:00", "status": "PASS", "bytes": 306888588, "file_count": 31982, "disk_free_bytes": 38919770112, "growth_bytes_per_hour": 1071690512},
+    {"sampled_at": "2026-08-04T10:22:20+08:00", "status": "PASS", "bytes": 308579491, "file_count": 32006, "disk_free_bytes": 38895919104, "growth_bytes_per_hour": 20183998},
+    {"sampled_at": "2026-08-04T10:27:21+08:00", "status": "PASS", "bytes": 217653132, "file_count": 28235, "disk_free_bytes": 38768893952, "growth_bytes_per_hour": 0},
+    {"sampled_at": "2026-08-04T11:07:34+08:00", "status": "PASS", "bytes": 309689301, "file_count": 32146, "disk_free_bytes": 41190252544, "growth_bytes_per_hour": 1823295}
+  ],
+  "recovery_verified": true,
+  "stop_loss_triggered": false,
+  "reasons": []
+}

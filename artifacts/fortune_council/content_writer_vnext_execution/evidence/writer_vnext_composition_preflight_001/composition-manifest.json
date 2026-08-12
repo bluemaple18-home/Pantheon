@@ -1,0 +1,112 @@
+{
+  "schema_version": "WriterVNextCompositionPreflightManifestV1",
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-COMPOSITION-PREFLIGHT-001",
+  "authorized_action": "PREPARE_ONLY",
+  "source_sha": "194779b6d5057e683db399965cb16231baaf7f3b",
+  "inputs": {
+    "orchestration": {
+      "candidate_sha": "4cd768e353e6e349d15f57c5366a3275f7eefb8c",
+      "review_sha": "6476719ca652216785166f6c278f073b9b3be760",
+      "final_evidence": {
+        "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_orchestration_architecture_review_001/findings.json",
+        "verdict": "REVIEW_GO"
+      }
+    },
+    "writer_contract": {
+      "candidate_sha": "671fdba9bf1b5655cc9182bbf375cadae3efb0b5",
+      "review_sha": "038cf4d2979bf2a1a8ceaf4d44964c3fde5816c6",
+      "declared_base": "9e83230fae234ebd5981635d7bf6d6ce4136db99",
+      "final_evidence": {
+        "path": "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_002/findings.json",
+        "verdict": "REVIEW_GO"
+      },
+      "obsolete_evidence": [
+        "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/findings.json",
+        "artifacts/fortune_council/content_writer_vnext_execution/review/writer_vnext_contract_review_001/review_report.md"
+      ],
+      "file_inventory": [
+        "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/green.md",
+        "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/red.txt",
+        "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/repair_receipt.md",
+        "scripts/agy_editorial_contracts.py",
+        "tests/test_agy_editorial_contracts.py"
+      ]
+    },
+    "runtime_authority": {
+      "candidate_sha": "e6d93fba050eac7c22e1a34bf52d8ac4c707a1b3",
+      "review_sha": "38774ddf1bccc77a0b40917322bb100d238469d7",
+      "declared_base": "bcd35b090dd37b118632d3b4153308964218f0c8",
+      "final_evidence": {
+        "path": "artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_003/findings.json",
+        "verdict": "REVIEW_GO"
+      },
+      "obsolete_evidence": [
+        "artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_001/findings.json",
+        "artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_001/review_report.md",
+        "artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_002/findings.json",
+        "artifacts/fortune_council/runtime_authority_activation_execution/review/runtime_authority_activation_review_002/review_report.md"
+      ],
+      "file_inventory": [
+        "artifacts/fortune_council/runtime_authority_activation_execution/CARD-PANTHEON-RUNTIME-AUTHORITY-ACTIVATION-REPAIR-002.md",
+        "artifacts/fortune_council/runtime_authority_activation_execution/repair/runtime_authority_activation_repair_002/repair_receipt.md",
+        "scripts/agy_content_publisher.py",
+        "scripts/pantheon_runtime_fs_authority.py",
+        "tests/test_pantheon_runtime_fs_authority.py"
+      ]
+    }
+  },
+  "lineage": {
+    "unique_common_ancestor": "1e9e505f3a40627abbf797e0fe8d8572fa72f192",
+    "activated_source_contains_writer_contract": true,
+    "activated_source_contains_runtime_authority": false
+  },
+  "file_union": {
+    "count": 10,
+    "paths": [
+      "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/green.md",
+      "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/red.txt",
+      "artifacts/fortune_council/content_writer_vnext_execution/repair/writer_vnext_contract_repair_001/repair_receipt.md",
+      "scripts/agy_content_publisher.py",
+      "scripts/agy_editorial_contracts.py",
+      "scripts/pantheon_runtime_fs_authority.py",
+      "tests/test_agy_editorial_contracts.py",
+      "tests/test_pantheon_runtime_fs_authority.py",
+      "artifacts/fortune_council/runtime_authority_activation_execution/CARD-PANTHEON-RUNTIME-AUTHORITY-ACTIVATION-REPAIR-002.md",
+      "artifacts/fortune_council/runtime_authority_activation_execution/repair/runtime_authority_activation_repair_002/repair_receipt.md"
+    ],
+    "overlap": []
+  },
+  "conflict_classes": [
+    {
+      "code": "WVO-FC-COMPOSITION_LINEAGE",
+      "severity": "blocking",
+      "evidence": "Reviewed-delta analysis used git merge-tree bcd35b090dd37b118632d3b4153308964218f0c8 194779b6d5057e683db399965cb16231baaf7f3b e6d93fba050eac7c22e1a34bf52d8ac4c707a1b3. It reports exactly one changed-in-both path: scripts/agy_content_publisher.py. The two artifacts are added in remote; scripts/pantheon_runtime_fs_authority.py and tests/test_pantheon_runtime_fs_authority.py apply without conflict.",
+      "disposition": "No explicit Publisher conflict owner or independently reviewed resolution exists."
+    }
+  ],
+  "integration_glue_candidates": [
+    "An explicitly owned and independently reviewed resolution for scripts/agy_content_publisher.py.",
+    "On the activated source, WVO-SLICE-001 allowlist limited to the five Runtime candidate-delta paths, with scripts/agy_content_publisher.py as the only resolution path.",
+    "Later, separately authorized slices own coordinator/outbox, compatibility adapter, Publisher sidecar revalidation, and runtime receipt checks."
+  ],
+  "required_tests": [
+    "tests/test_agy_editorial_contracts.py",
+    "tests/test_agy_seo_copy_pipeline.py",
+    "tests/test_agy_content_publisher.py",
+    "tests/test_pantheon_runtime_fs_authority.py",
+    "tests/test_pantheon_runtime_activation.py",
+    "tests/test_pantheon_content_runtime_manifest.py",
+    "tests/test_pantheon_content_capability_probe.py",
+    "tests/test_agy_gemini_coordinator.py",
+    "tests/test_agy_gemini_runner.py",
+    "tests/test_pantheon_content_capacity_guard.py",
+    "git diff --check"
+  ],
+  "unresolved_blockers": [
+    {
+      "code": "WVO-FC-COMPOSITION_LINEAGE",
+      "minimum_clear_condition": "A new integration card must name scripts/agy_content_publisher.py as the single conflict owner and obtain independent review for its explicit resolution; the remaining four Runtime candidate-delta paths may be applied unchanged."
+    }
+  ],
+  "verdict": "BLOCKED"
+}

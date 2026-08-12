@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-08-11T07:52:51Z",
+  "chain_id": "PANTHEON-WRITER-VNEXT-RUNTIME-ACTIVATION",
+  "role": "repair",
+  "cycle": 2,
+  "authorization": "USER_EXPLICIT",
+  "authorization_text": "我授權",
+  "original": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-SLICE-001-REPAIR-001",
+    "dispatch_key": "v1:2f1330d43cf4d5c8812c1a4c337622f784cf258997b237485020a45ab9dcda51",
+    "formal_thread_id": "019fef88-5c00-7f51-a98d-6d9c1629e889",
+    "state": "SUPERSEDED",
+    "failure_mode": "AUTO_ARCHIVE_REMOVED_WORKTREE",
+    "missing_worktree": "<codex-worktree-root>/db89/Pantheon"
+  },
+  "replacement": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-SLICE-001-REPAIR-001-RETRY-1",
+    "dispatch_key": "v1:e95ba38668509d059cbc7268fd94c5ab7d5fad1c1e0c1436c7a3ed54745d71be",
+    "reservation_state": "RESERVED"
+  },
+  "identity_continuity": {
+    "repo_identity": "local-git:184f883b7080bc76a35a92801f3aad1163a775f0347702618a849aa0a5f671b0",
+    "same_chain": true,
+    "same_role": true,
+    "same_cycle": true,
+    "next_retry_generation": true
+  },
+  "handoff": {
+    "unsaved_unique_work": false,
+    "preserved_repair_candidate": "b9719ad5d6b409d91b8f188d8bdfab28f8d9e08a",
+    "preserved_review_evidence": "0895268067c97ca3e1eec1d99f54083df1ecf160",
+    "cleanup_self_attested": false,
+    "retention_manifest": "artifacts/fortune_council/content_writer_vnext_execution/runtime_activation/retention/DO_NOT_CLEAN.md"
+  }
+}

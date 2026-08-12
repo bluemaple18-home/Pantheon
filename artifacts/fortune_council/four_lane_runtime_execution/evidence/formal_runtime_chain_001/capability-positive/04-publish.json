@@ -1,0 +1,47 @@
+{
+  "actor_identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+  "adapter_invocation": {
+    "boundary": "scripts.pantheon_content_capability_adapter:publish",
+    "command": [
+      "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+      "-m",
+      "scripts.pantheon_content_capability_adapter",
+      "--capability",
+      "publish",
+      "--input",
+      "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/03-select-adapter.json",
+      "--output",
+      "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/04-publish-adapter.json",
+      "--expected-input-digest",
+      "d01685168de3c8d783377ef772eb630fcbad6c845449784ed49ab630d2420616",
+      "--actual-input-digest",
+      "d01685168de3c8d783377ef772eb630fcbad6c845449784ed49ab630d2420616",
+      "--execution-id",
+      "formal-runtime-chain-001-positive",
+      "--correlation-id",
+      "formal-runtime-chain-001-correlation",
+      "--actor-identity",
+      "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b"
+    ],
+    "receipt": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/04-publish-adapter.json",
+    "returncode": 0
+  },
+  "capability": "publish",
+  "correlation_id": "formal-runtime-chain-001-correlation",
+  "entrypoint": "scripts.pantheon_content_capability_adapter:publish",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "formal-runtime-chain-001-positive",
+  "expected_input_digest": "d01685168de3c8d783377ef772eb630fcbad6c845449784ed49ab630d2420616",
+  "input_digest": "d01685168de3c8d783377ef772eb630fcbad6c845449784ed49ab630d2420616",
+  "mode": "formal-runtime-production-dry-run",
+  "ordinal": 4,
+  "output_digest": "a6ba49d6fed4f9103fdfceda5c8aca8d22e7b313aec106312421b80e851131d3",
+  "production_entrypoints": [
+    "scripts.agy_content_publisher:formal_capability_preflight",
+    "scripts.agy_content_publisher:_normalize_exact_run_ids"
+  ],
+  "return_code": 0,
+  "runtime_identity_digest": "83a09af277de6e3bce36d0dbebbc0255021a046de24b7c704d77a6e201fc4fa2",
+  "schema_version": 2,
+  "timestamp": "2026-08-10T07:22:05.788578+00:00"
+}

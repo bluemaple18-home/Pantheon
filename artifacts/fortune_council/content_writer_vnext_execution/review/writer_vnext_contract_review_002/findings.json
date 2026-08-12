@@ -1,0 +1,28 @@
+{
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-CONTRACT-REVIEW-002",
+  "verdict": "REVIEW_GO",
+  "reviewed_candidate_sha": "671fdba9bf1b5655cc9182bbf375cadae3efb0b5",
+  "reviewed_parent_sha": "9e83230fae234ebd5981635d7bf6d6ce4136db99",
+  "blocking_findings": [],
+  "p0_findings": [],
+  "p1_findings": [],
+  "re_review_scope": [
+    "WVN-REVIEW-001 boolean sequence ambiguity finding",
+    "Repair-1 exact-int regression",
+    "Writer vNext contract regression suites"
+  ],
+  "closed_findings": [
+    {
+      "id": "WVN-REVIEW-001-P1-BOOLEAN-SEQUENCE",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": [
+        "sequence_public_probe.py: sequence_true_blocks passed",
+        "sequence_public_probe.py: sequence_false_blocks passed",
+        "sequence_public_probe.py: sequence_integer_accepts passed",
+        "review_001_public_reproducer_rerun_results.json: 27/27 passed"
+      ]
+    }
+  ],
+  "new_regressions": []
+}

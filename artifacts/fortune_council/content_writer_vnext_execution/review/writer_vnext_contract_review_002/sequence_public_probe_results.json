@@ -1,0 +1,44 @@
+{
+  "cases": [
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "sequence_true_blocks",
+      "passed": true,
+      "sequence_repr": "True"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "sequence_false_blocks",
+      "passed": true,
+      "sequence_repr": "False"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "sequence_integer_accepts",
+      "passed": true,
+      "sequence_repr": "1"
+    }
+  ],
+  "summary": {
+    "failed_cases": [],
+    "passed_cases": 3,
+    "total_cases": 3
+  }
+}

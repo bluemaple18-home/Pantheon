@@ -1,0 +1,8 @@
+{
+  "actor_identity": "parent:bf4a294da3229eba2d4bf4baf8f3c10d90267e6e;tree:14fe95fed7f3f984b230a89462136446ca0ebd1661630e538dbacef5355572e5",
+  "capability": null,
+  "correlation_id": "repair-2-verified",
+  "execution_id": "repair-2-verified-negative-transaction",
+  "output_digest": "80f1dbd7a89886ce8545ebebe89be4c2369f0534b5329efb218aeeaecccb20b9",
+  "schema_version": 1
+}

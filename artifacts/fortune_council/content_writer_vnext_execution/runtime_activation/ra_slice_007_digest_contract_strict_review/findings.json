@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "review": {
+    "card_id": "CARD-CONTENT-WRITER-VNEXT-RA-SLICE-007-DIGEST-CONTRACT-STRICT-SUCCESSOR-001",
+    "strict_card_source": "dd6dac202edef2bde3f060c09078295ed31691ba",
+    "candidate": "def554580ced5af1399a1edfe8a9debc90a4b83b",
+    "reviewed_finding": "RA007-DIGEST-NOT-RECOMPUTABLE-P1",
+    "conclusion": "REVIEW_GO"
+  },
+  "findings": []
+}

@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 import fcntl
 import hashlib
 import json
 import os
 import re
+import secrets
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,7 @@ from typing import Any, Callable
 from scripts import agy_content_publisher as publisher
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 from scripts.agy_gemini_outbox import (
     ExternalJobFailed,
     ExternalJobPending,
@@ -45,6 +47,39 @@ JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
+COORDINATOR_RECEIPT_RUN_ID = "ra-slice-002-synthetic-create-run"
+COORDINATOR_RECEIPT_ALLOWED_RUNTIME_KEYS = frozenset(
+    {
+        "status",
+        "runtime_identity_digest",
+    }
+)
+COORDINATOR_RECEIPT_CALLER_VERDICT_KEYS = frozenset(
+    {
+        "valid",
+        "ready",
+        "verdict",
+    }
+)
+
+
+class CoordinatorReceiptBlocked(ValueError):
+    """Coordinator create/run receipt preflight 的穩定 fail-closed boundary。"""
+
+
+def _validate_formal_runtime(
+    queue_root: Path,
+    actor_root: Path | None = None,
+) -> dict[str, Any]:
+    return formal_runtime.validate_runtime_tick(
+        "com.pantheon.agy-gemini-coordinator",
+        queue_root=queue_root.resolve(),
+        state_root=Path(
+            os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", Path.cwd())
+        ),
+        actor_root=(actor_root or Path.cwd()).resolve(),
+        log_root=Path(os.environ.get("PANTHEON_RUNTIME_LOG_ROOT", Path.cwd())),
+    )
 
 
 def _normalize_exact_run_ids(
@@ -65,6 +100,385 @@ def _normalize_exact_run_ids(
     if len(values) != len(set(values)):
         raise ValueError("exact run ids must be unique")
     return frozenset(values)
+
+
+def _coordinator_receipt_digest(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _coordinator_receipt_evidence_identifier(
+    sandbox_root: Path,
+    evidence_root: Path,
+    artifact_name: str,
+) -> str:
+    artifact_path = (evidence_root / artifact_name).resolve(strict=False)
+    if not artifact_path.is_file():
+        raise CoordinatorReceiptBlocked("evidence: artifact must exist")
+    try:
+        relative = artifact_path.relative_to(sandbox_root)
+    except ValueError as error:
+        raise CoordinatorReceiptBlocked(
+            "evidence: artifact must stay under trusted sandbox root"
+        ) from error
+    return relative.as_posix()
+
+
+def _coordinator_receipt_identifier(value: object, label: str, case: str) -> str:
+    if type(value) is not str or not value or value.strip() != value:
+        raise CoordinatorReceiptBlocked(f"{case}: {label} is required")
+    return value
+
+
+def _coordinator_receipt_blocked_artifact(
+    evidence_root: Path | None,
+    *,
+    case: str,
+    step: str,
+    entrypoint: str,
+    reason: str,
+    execution_line_id: str | None = None,
+    correlation_id: str | None = None,
+    actor_identity: str | None = None,
+    runtime_identity_digest: str | None = None,
+) -> None:
+    if evidence_root is None:
+        return
+    artifact = {
+        "schema_version": 1,
+        "case": case,
+        "step": step,
+        "entrypoint": entrypoint,
+        "outcome": "BLOCKED",
+        "reason": reason,
+        "execution_line_id": execution_line_id or "unavailable",
+        "correlation_id": correlation_id or "unavailable",
+        "actor_identity": actor_identity or "unavailable",
+        "runtime_identity_digest": runtime_identity_digest or "0" * 64,
+        "production_mutation": False,
+    }
+    atomic_write_json(evidence_root / f"blocked-{step}.json", artifact)
+
+
+def _coordinator_receipt_block(
+    evidence_root: Path | None,
+    *,
+    case: str,
+    step: str = "create",
+    reason: str,
+    execution_line_id: str | None = None,
+    correlation_id: str | None = None,
+    actor_identity: str | None = None,
+    runtime_identity_digest: str | None = None,
+) -> None:
+    _coordinator_receipt_blocked_artifact(
+        evidence_root,
+        case=case,
+        step=step,
+        entrypoint="scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+        reason=reason,
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_identity_digest,
+    )
+    raise CoordinatorReceiptBlocked(f"{case}: {reason}")
+
+
+def _coordinator_receipt_create_blocked_probe(
+    *,
+    trusted_sandbox_root: Path,
+    run_root: Path,
+    queue_root: Path,
+    evidence_root: Path,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+    runtime_receipt: Mapping[str, Any],
+) -> None:
+    try:
+        coordinator_create_run_receipt_preflight(
+            trusted_sandbox_root=trusted_sandbox_root,
+            run_root=run_root,
+            queue_root=queue_root,
+            evidence_root=evidence_root,
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_identity_digest,
+            runtime_receipt=dict(runtime_receipt),
+            brief=None,
+            lane="new",
+            tick=lambda *_args: {"status": "unreachable"},
+            process=lambda *_args, **_kwargs: {"status": "unreachable"},
+        )
+    except CoordinatorReceiptBlocked:
+        artifact_path = evidence_root / "blocked-create.json"
+        if artifact_path.is_file():
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            if artifact.get("case") == "missing-brief":
+                return
+    _coordinator_receipt_block(
+        evidence_root,
+        case="missing-brief-probe-drift",
+        reason="missing brief probe did not reject",
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_identity_digest,
+    )
+
+
+def _coordinator_receipt_run_blocked_probe(
+    *,
+    queue_root: Path,
+    evidence_root: Path,
+    repo_root: Path,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+) -> None:
+    try:
+        cycle_once(
+            queue_root,
+            repo_root=repo_root,
+            exact_run_ids=["ra-slice-002-missing-negative-probe"],
+        )
+    except ValueError as error:
+        reason = str(error)
+        if reason.startswith("exact run ids not found:"):
+            _coordinator_receipt_blocked_artifact(
+                evidence_root,
+                case="run-boundary",
+                step="run",
+                entrypoint="scripts.agy_gemini_coordinator:cycle_once",
+                reason=reason,
+                execution_line_id=execution_line_id,
+                correlation_id=correlation_id,
+                actor_identity=actor_identity,
+                runtime_identity_digest=runtime_identity_digest,
+            )
+            return
+        raise
+    _coordinator_receipt_block(
+        evidence_root,
+        case="run-boundary-probe-drift",
+        step="run",
+        reason="missing exact run id probe did not reject",
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_identity_digest,
+    )
+
+
+def _coordinator_receipt_sandbox_root(path: Path) -> Path:
+    root = Path(path)
+    if not root.is_absolute():
+        raise CoordinatorReceiptBlocked("sandbox-root: trusted sandbox root must be absolute")
+    try:
+        resolved = root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise CoordinatorReceiptBlocked(
+            "sandbox-root: trusted sandbox root is invalid"
+        ) from error
+    if resolved != root or not resolved.is_dir() or root.is_symlink():
+        raise CoordinatorReceiptBlocked(
+            "sandbox-root: trusted sandbox root must be canonical"
+        )
+    return resolved
+
+
+def _coordinator_receipt_descendant(
+    sandbox_root: Path,
+    path: Path,
+    label: str,
+) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise CoordinatorReceiptBlocked(f"{label}: root must be absolute")
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise CoordinatorReceiptBlocked(f"{label}: root is invalid") from error
+    if resolved == sandbox_root or not resolved.is_relative_to(sandbox_root):
+        raise CoordinatorReceiptBlocked(
+            f"{label}: root must be a strict trusted sandbox descendant"
+        )
+    return resolved
+
+
+def _coordinator_receipt_validate_roots(
+    *,
+    trusted_sandbox_root: Path,
+    run_root: Path,
+    queue_root: Path,
+    evidence_root: Path,
+) -> tuple[Path, Path, Path, Path]:
+    sandbox_root = _coordinator_receipt_sandbox_root(trusted_sandbox_root)
+    resolved_run = _coordinator_receipt_descendant(sandbox_root, run_root, "run")
+    resolved_queue = _coordinator_receipt_descendant(sandbox_root, queue_root, "queue")
+    resolved_evidence = _coordinator_receipt_descendant(
+        sandbox_root,
+        evidence_root,
+        "evidence",
+    )
+    pairs = (
+        ("run", resolved_run, "queue", resolved_queue),
+        ("run", resolved_run, "evidence", resolved_evidence),
+        ("queue", resolved_queue, "evidence", resolved_evidence),
+    )
+    for left_label, left, right_label, right in pairs:
+        if left == right or left.is_relative_to(right) or right.is_relative_to(left):
+            raise CoordinatorReceiptBlocked(
+                f"{left_label}/{right_label}: roots must not overlap"
+            )
+    return sandbox_root, resolved_run, resolved_queue, resolved_evidence
+
+
+def _coordinator_receipt_runtime_digest(
+    runtime_identity_digest: object,
+    runtime_receipt: object,
+    evidence_root: Path,
+    *,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+) -> str:
+    if not isinstance(runtime_receipt, Mapping):
+        _coordinator_receipt_block(
+            evidence_root,
+            case="runtime-missing-digest",
+            reason="runtime identity receipt is required",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+        )
+    if COORDINATOR_RECEIPT_CALLER_VERDICT_KEYS.intersection(runtime_receipt):
+        _coordinator_receipt_block(
+            evidence_root,
+            case="caller-verdict",
+            reason="caller-supplied verdict is not accepted",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+        )
+    if set(runtime_receipt) - COORDINATOR_RECEIPT_ALLOWED_RUNTIME_KEYS:
+        _coordinator_receipt_block(
+            evidence_root,
+            case="extra-runtime-key",
+            reason="runtime identity receipt contains unsupported keys",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+        )
+    if runtime_receipt.get("status") != "PASS":
+        _coordinator_receipt_block(
+            evidence_root,
+            case="runtime-missing-digest",
+            reason="runtime identity receipt must be PASS",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+        )
+    digest = runtime_receipt.get("runtime_identity_digest")
+    if (
+        type(digest) is not str
+        or SHA256_PATTERN.fullmatch(digest) is None
+        or digest != runtime_identity_digest
+    ):
+        _coordinator_receipt_block(
+            evidence_root,
+            case=(
+                "runtime-digest-mismatch"
+                if type(digest) is str
+                and type(runtime_identity_digest) is str
+                and SHA256_PATTERN.fullmatch(runtime_identity_digest) is not None
+                else "runtime-missing-digest"
+            ),
+            reason="runtime identity digest is invalid",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=digest if type(digest) is str else None,
+        )
+    return digest
+
+
+def _coordinator_receipt_brief(
+    brief: object,
+    evidence_root: Path,
+    *,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+) -> dict[str, Any]:
+    if not isinstance(brief, Mapping):
+        _coordinator_receipt_block(
+            evidence_root,
+            case="missing-brief",
+            reason="brief is required",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_identity_digest,
+        )
+    articles = brief.get("articles")
+    if (
+        brief.get("schema_version") != 1
+        or brief.get("run_id") != COORDINATOR_RECEIPT_RUN_ID
+        or brief.get("mode") != "create"
+        or not isinstance(articles, list)
+        or len(articles) > 1
+    ):
+        _coordinator_receipt_block(
+            evidence_root,
+            case="too-many-articles",
+            reason="brief must be the fixed synthetic create brief with at most one article",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_identity_digest,
+        )
+    return dict(brief)
+
+
+def _coordinator_receipt_step(
+    *,
+    capability: str,
+    ordinal: int,
+    input_digest: str,
+    output_digest: str,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+    positive_evidence: str,
+    negative_evidence: str,
+) -> dict[str, Any]:
+    return {
+        "capability": capability,
+        "ordinal": ordinal,
+        "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+        "input_digest": input_digest,
+        "output_digest": output_digest,
+        "execution_line_id": execution_line_id,
+        "correlation_id": correlation_id,
+        "actor_identity": actor_identity,
+        "runtime_identity_digest": runtime_identity_digest,
+        "positive_evidence": positive_evidence,
+        "negative_evidence": negative_evidence,
+        "positive_outcome": "PASS",
+        "negative_outcome": "BLOCKED",
+    }
 
 
 def _now() -> str:
@@ -107,8 +521,14 @@ def _translation_replacement_decision_path(
     return queue_root / "translation-replacement-decisions" / f"{opaque_id}.json"
 
 
-def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
+def register_run(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    correlation_id: str | None = None,
+) -> dict[str, Any]:
     """將一個本機私密 run 登記為 active；不建立外部 request。"""
+    _validate_formal_runtime(queue_root)
     resolved = run_dir.resolve()
     brief = _brief(resolved)
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
@@ -118,11 +538,15 @@ def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
             raise ValueError("registered run identity collision")
         return state
     now = _now()
+    effective_correlation_id = correlation_id or secrets.token_hex(16)
+    if not effective_correlation_id or effective_correlation_id.strip() != effective_correlation_id:
+        raise ValueError("correlation id is required")
     state = {
         "schema_version": 1,
         "run_id": brief["run_id"],
         "run_dir": str(resolved),
         "status": "active",
+        "correlation_id": effective_correlation_id,
         "registered_at": now,
         "updated_at": now,
     }
@@ -131,11 +555,327 @@ def register_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
 
 
 def read_run_state(run_dir: Path, queue_root: Path) -> dict[str, Any]:
+    _validate_formal_runtime(queue_root)
     brief = _brief(run_dir.resolve())
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
     if not path.exists():
         raise ValueError("run is not registered")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def coordinator_create_run_receipt_preflight(
+    *,
+    trusted_sandbox_root: Path,
+    run_root: Path,
+    queue_root: Path,
+    evidence_root: Path,
+    execution_line_id: str,
+    correlation_id: str,
+    actor_identity: str,
+    runtime_identity_digest: str,
+    runtime_receipt: dict[str, Any] | None,
+    brief: Mapping[str, Any] | None,
+    lane: str = "new",
+    tick: Tick | None = None,
+    process: Callable[..., dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """在 trusted sandbox 內產生 coordinator create/run normalized receipt。"""
+
+    try:
+        (
+            sandbox_root,
+            resolved_run_root,
+            resolved_queue_root,
+            resolved_evidence_root,
+        ) = _coordinator_receipt_validate_roots(
+            trusted_sandbox_root=trusted_sandbox_root,
+            run_root=run_root,
+            queue_root=queue_root,
+            evidence_root=evidence_root,
+        )
+    except CoordinatorReceiptBlocked:
+        raise
+
+    execution_line_id = _coordinator_receipt_identifier(
+        execution_line_id,
+        "execution_line_id",
+        "execution-line",
+    )
+    if type(correlation_id) is not str or not correlation_id or correlation_id.strip() != correlation_id:
+        _coordinator_receipt_block(
+            resolved_evidence_root,
+            case="blank-correlation",
+            reason="correlation_id is required",
+            execution_line_id=execution_line_id,
+            correlation_id=None if type(correlation_id) is not str else correlation_id,
+        )
+    actor_identity = _coordinator_receipt_identifier(
+        actor_identity,
+        "actor_identity",
+        "actor",
+    )
+    if lane != "new":
+        _coordinator_receipt_block(
+            resolved_evidence_root,
+            case="wrong-lane",
+            reason="lane must be the fixed synthetic new lane",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_identity_digest,
+        )
+    runtime_digest = _coordinator_receipt_runtime_digest(
+        runtime_identity_digest,
+        runtime_receipt,
+        resolved_evidence_root,
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+    )
+    synthetic_brief = _coordinator_receipt_brief(
+        brief,
+        resolved_evidence_root,
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_digest,
+    )
+    run_id = str(synthetic_brief["run_id"])
+    run_dir = resolved_run_root / run_id
+    create_input_digest = _coordinator_receipt_digest(
+        {
+            "brief": synthetic_brief,
+            "execution_line_id": execution_line_id,
+            "correlation_id": correlation_id,
+            "actor_identity": actor_identity,
+            "runtime_identity_digest": runtime_digest,
+        }
+    )
+    atomic_write_json(run_dir / "brief.json", synthetic_brief)
+    registered = register_run(
+        run_dir,
+        resolved_queue_root,
+        correlation_id=correlation_id,
+    )
+    if (
+        registered.get("run_id") != run_id
+        or registered.get("run_dir") != str(run_dir.resolve())
+        or registered.get("correlation_id") != correlation_id
+    ):
+        _coordinator_receipt_block(
+            resolved_evidence_root,
+            case="create-identity-drift",
+            reason="registered run identity drifted",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_digest,
+        )
+    create_state_projection = {
+        "schema_version": registered.get("schema_version"),
+        "run_id": registered.get("run_id"),
+        "run_dir_digest": _coordinator_receipt_digest(
+            {"root": "run", "run_id": run_id}
+        ),
+        "status": registered.get("status"),
+        "correlation_id": registered.get("correlation_id"),
+    }
+    create_output_digest = _coordinator_receipt_digest(create_state_projection)
+    create_positive = {
+        "schema_version": 1,
+        "step": "create",
+        "entrypoint": "scripts.agy_gemini_coordinator:register_run",
+        "outcome": "PASS",
+        "execution_line_id": execution_line_id,
+        "correlation_id": correlation_id,
+        "actor_identity": actor_identity,
+        "runtime_identity_digest": runtime_digest,
+        "input_digest": create_input_digest,
+        "output_digest": create_output_digest,
+        "run_id": run_id,
+        "state_digest": create_output_digest,
+        "production_mutation": False,
+    }
+    atomic_write_json(resolved_evidence_root / "positive-create.json", create_positive)
+    _coordinator_receipt_create_blocked_probe(
+        trusted_sandbox_root=sandbox_root,
+        run_root=resolved_run_root,
+        queue_root=resolved_queue_root,
+        evidence_root=resolved_evidence_root,
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_digest,
+        runtime_receipt=runtime_receipt,
+    )
+
+    tick_calls = 0
+
+    def local_tick(local_run_dir: Path, job_queue_root: Path) -> dict[str, object]:
+        nonlocal tick_calls
+        tick_calls += 1
+        if tick_calls == 1:
+            raise ExternalJobPending("ra-slice-002-local-job")
+        return {
+            "status": "complete",
+            "bounded": True,
+            "job_queue": job_queue_root.name,
+            "run_id": local_run_dir.name,
+        }
+
+    def local_process(
+        _queue_root: Path,
+        **_kwargs: object,
+    ) -> dict[str, str]:
+        return {"status": "processed", "job_id": "ra-slice-002-local-job"}
+
+    try:
+        summary = cycle_once(
+            resolved_queue_root,
+            tick=tick or local_tick,
+            process=process or local_process,
+            repo_root=resolved_run_root.parent,
+            exact_run_ids=[run_id],
+        )
+    except ValueError as error:
+        reason = str(error)
+        if not reason.startswith("exact run ids not found:"):
+            raise
+        _coordinator_receipt_block(
+            resolved_evidence_root,
+            case="run-boundary",
+            step="run",
+            reason=f"coordinator run boundary rejected: {reason}",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_digest,
+        )
+    final_state = read_run_state(run_dir, resolved_queue_root)
+    if final_state.get("correlation_id") != correlation_id:
+        _coordinator_receipt_block(
+            resolved_evidence_root,
+            case="correlation-drift",
+            step="run",
+            reason="correlation drifted across create/run",
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_digest,
+        )
+    run_projection = {
+        "summary": summary,
+        "state": {
+            "run_id": final_state.get("run_id"),
+            "run_dir_digest": _coordinator_receipt_digest(
+                {"root": "run", "run_id": run_id}
+            ),
+            "status": final_state.get("status"),
+            "correlation_id": final_state.get("correlation_id"),
+            "result": final_state.get("result"),
+        },
+    }
+    run_output_digest = _coordinator_receipt_digest(run_projection)
+    run_positive = {
+        "schema_version": 1,
+        "step": "run",
+        "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+        "outcome": "PASS",
+        "execution_line_id": execution_line_id,
+        "correlation_id": correlation_id,
+        "actor_identity": actor_identity,
+        "runtime_identity_digest": runtime_digest,
+        "input_digest": create_output_digest,
+        "output_digest": run_output_digest,
+        "run_id": run_id,
+        "summary_digest": _coordinator_receipt_digest(summary),
+        "state_digest": _coordinator_receipt_digest(run_projection["state"]),
+        "production_mutation": False,
+    }
+    atomic_write_json(resolved_evidence_root / "positive-run.json", run_positive)
+    _coordinator_receipt_run_blocked_probe(
+        queue_root=resolved_queue_root,
+        evidence_root=resolved_evidence_root,
+        repo_root=resolved_run_root.parent,
+        execution_line_id=execution_line_id,
+        correlation_id=correlation_id,
+        actor_identity=actor_identity,
+        runtime_identity_digest=runtime_digest,
+    )
+    negative_matrix = {
+        "schema_version": 1,
+        "execution_line_id": execution_line_id,
+        "correlation_id": correlation_id,
+        "actor_identity": actor_identity,
+        "runtime_identity_digest": runtime_digest,
+        "production_mutation": False,
+        "blocked_cases": [
+            "missing-brief",
+            "blank-correlation",
+            "wrong-lane",
+            "untrusted-root",
+            "runtime-missing-digest",
+            "runtime-digest-mismatch",
+            "caller-verdict",
+            "extra-runtime-key",
+        ],
+    }
+    atomic_write_json(resolved_evidence_root / "negative-matrix.json", negative_matrix)
+    receipt_steps = [
+        _coordinator_receipt_step(
+            capability="create",
+            ordinal=1,
+            input_digest=create_input_digest,
+            output_digest=create_output_digest,
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_digest,
+            positive_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "positive-create.json",
+            ),
+            negative_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "blocked-create.json",
+            ),
+        ),
+        _coordinator_receipt_step(
+            capability="run",
+            ordinal=2,
+            input_digest=create_output_digest,
+            output_digest=run_output_digest,
+            execution_line_id=execution_line_id,
+            correlation_id=correlation_id,
+            actor_identity=actor_identity,
+            runtime_identity_digest=runtime_digest,
+            positive_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "positive-run.json",
+            ),
+            negative_evidence=_coordinator_receipt_evidence_identifier(
+                sandbox_root,
+                resolved_evidence_root,
+                "blocked-run.json",
+            ),
+        ),
+    ]
+    return {
+        "schema_version": 1,
+        "mode": "synthetic-non-production",
+        "execution_line_id": execution_line_id,
+        "correlation_id": correlation_id,
+        "actor_identity": actor_identity,
+        "runtime_identity_digest": runtime_digest,
+        "canary_created": False,
+        "production_mutation": False,
+        "created_run_id": run_id,
+        "receipt_steps": receipt_steps,
+        "run_summary": summary,
+    }
 
 
 def terminalize_pending_job(
@@ -1023,6 +1763,7 @@ def cycle_once(
     exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
+    _validate_formal_runtime(queue_root, repo_root)
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     if selected_run_ids is not None and (new_matrix_sweep or legacy_sweep):
         raise ValueError("exact run ids cannot be combined with automatic sweeps")

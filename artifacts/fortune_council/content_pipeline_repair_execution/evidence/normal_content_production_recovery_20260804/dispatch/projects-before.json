@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "project_count": 1,
+  "project_labels": ["Pantheon"],
+  "redacted": true,
+  "redaction_reason": "Removed local host, filesystem path, and machine-specific project identifier."
+}

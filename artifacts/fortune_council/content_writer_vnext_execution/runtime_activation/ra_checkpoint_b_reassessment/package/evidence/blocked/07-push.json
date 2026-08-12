@@ -1,0 +1,18 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "capability": "push",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "6cdfdc771c5a4fc7d7b22a96e7e34d49140ffb44a23230f9834e2f98fbc3916c",
+  "outcome": "BLOCKED",
+  "output_digest": "463b61b148b0195d9ba7eed87ec287556e94db848ffb92e19261f6a5c96f9005",
+  "packaged_source_artifact": "blocked/07-push.json",
+  "packaged_source_digest": "8667e7da5c70488aa396d4d9bff8c4f56510da0d22c0efc78d6af68b7ac4e9d5",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt push mode must be dry-run"
+}

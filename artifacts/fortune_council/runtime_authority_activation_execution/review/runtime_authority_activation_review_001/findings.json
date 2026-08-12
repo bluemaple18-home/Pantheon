@@ -1,0 +1,38 @@
+[
+  {
+    "finding_id": "RAA-REVIEW-001",
+    "severity": "P1",
+    "category": "activation-barrier",
+    "path": "scripts/pantheon_content_runtime_manifest.py:307",
+    "trigger": "正式 runtime env 完整但未設定 PANTHEON_RUNTIME_ACTIVATION_TOKEN 時，validate_runtime_tick() 仍回 PASS；pantheon_content_capability_adapter._formal_environment() 也未注入 activation token，導致 create/run/publisher/capacity paths 可以在未取得 7/7 barrier token 前進入 queue/state I/O。",
+    "reproducible_evidence": "PYTHONDONTWRITEBYTECODE=1 python3 -c minimal public API reproducer returned {'validate_status': 'PASS', 'token_present': False, 'io_mutated': True}. 相關 call chain: pantheon_content_capability_adapter._formal_environment() -> runtime_manifest.validate_runtime_tick() -> caller queue/state operation。",
+    "risk": "FRA-004/SCA-004 的 activation token 不是唯一 I/O authority；6/7 或尚未 activation 的正式服務只要 env manifest identity 一致，就可在 barrier 前讀寫 queue/state。",
+    "suggested_fix": "PANTHEON_FORMAL_RUNTIME=1 時將 PANTHEON_RUNTIME_ACTIVATION_TOKEN 改為必填，validate_runtime_tick() 必須在缺 token 時 fail-closed；adapter input/contract 需攜帶 activation token 並由 _formal_environment() 注入，所有 queue/state public entrypoint 在第一次 I/O 前走同一驗證。",
+    "validation_gap": "現有 tests/test_pantheon_runtime_activation.py 只驗 run_after_activation_token() helper；tests/test_pantheon_content_runtime_manifest.py 沒有覆蓋 formal env 缺 token 時 validate_runtime_tick() 必須拒絕；adapter tests 也沒有證明 token 是 create/run/publisher/capacity 的必備 authority。",
+    "confidence": "high"
+  },
+  {
+    "finding_id": "RAA-REVIEW-002",
+    "severity": "P1",
+    "category": "filesystem-authority",
+    "path": "scripts/agy_content_publisher.py:638",
+    "trigger": "TrustedSandboxDirectoryAuthority 只包住 initial queue/state mkdir；離開 fd authority context 後，_repo_lock_path()、_transaction_lifecycle_lock() 與 _formal_capability_dry_run_git() 又用 absolute Path mkdir/open/copy2/rmtree 操作 sandbox 內 Git/transaction target。若 parent 在 descendant check 返回後被替換成 symlink，外部樹會先被建立/開啟。",
+    "reproducible_evidence": "PYTHONDONTWRITEBYTECODE=1 python3 -c late parent-swap reproducer monkeypatches _require_sandbox_descendant() after label='Git root'; output returned {'raised': 'FileNotFoundError', 'external_entries': ['.git', '.git/agy-content-publisher.lifecycle.lock']}. 雖然最後失敗，但已在 fail-closed 前碰到外部 tree。",
+    "risk": "FRA-001/SCA-001 要求任何外部 mkdir/open/tempfile/Git 前 fail-closed 且外部 tree before/after identical；candidate 仍可在 late parent-swap 下對 sandbox 外部建立 .git 與 lock，代表主要 filesystem authority 可繞過。",
+    "suggested_fix": "讓可信 directory authority 覆蓋整個 formal_capability_preflight transaction lifecycle；Git common-dir mkdir、lock open、transaction create/remove/copy 都必須透過 dir-fd/no-follow/identity-checked relative operations，或每個 absolute target operation 前後重新核對 anchor identity 並在 mutation 前 fail-closed。",
+    "validation_gap": "現有 parent-swap test 只交換 initial queue/state validation；沒有覆蓋 authority context 關閉後的 Git root、lock open、transaction materialization/remove late swap。",
+    "confidence": "high"
+  },
+  {
+    "finding_id": "RAA-REVIEW-003",
+    "severity": "P2",
+    "category": "operation-trace-identity",
+    "path": "scripts/agy_content_publisher.py:116",
+    "trigger": "_runtime_identity_digest_for_trace() 在未配置 PANTHEON_RUNTIME_IDENTITY_DIGEST 時，用 publisher_id + correlation_id 自產 64-hex digest；formal_capability_preflight('select') 可在 env digest absent 下回 PASS 並把此值寫入 operation_trace。",
+    "reproducible_evidence": "PYTHONDONTWRITEBYTECODE=1 python3 -c fallback reproducer returned {'status': 'PASS', 'trace_digest': '549596c84b6f82b0a4f1998eec0f68058b0ae43d92d9d2963aaaf383715f605f', 'env_digest_present': False}.",
+    "risk": "trace identity 看起來像合法 runtime identity digest，但不是 manifest/barrier 驗證來源；若後續 receipt consumer 把它當 verified identity，會形成自證 trace。",
+    "suggested_fix": "在 formal capability path 要求已驗證 manifest identity digest；若只是 fallback trace，輸出應明確標記 unverified 並不得讓 status PASS 代表 runtime identity verified。",
+    "validation_gap": "現有 trace 測試只檢查 digest 長度，沒有區分 configured/verified digest 與 fallback digest。",
+    "confidence": "medium"
+  }
+]

@@ -1,0 +1,175 @@
+{
+  "actor_identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+  "capability": "push",
+  "capacity_guard": {
+    "bytes": 5176,
+    "disk_free_bytes": 35374534656,
+    "disk_total_bytes": 245107195904,
+    "file_count": 12,
+    "reasons": [],
+    "rss_available": true,
+    "rss_bytes": 0,
+    "rss_error": null,
+    "rss_identity": {
+      "absent_labels": [
+        {
+          "label": "com.pantheon.agy-content-publisher",
+          "returncode": 3
+        },
+        {
+          "label": "com.pantheon.agy-gemini-coordinator",
+          "returncode": 3
+        },
+        {
+          "label": "com.pantheon.agy-gemini-new",
+          "returncode": 3
+        },
+        {
+          "label": "com.pantheon.agy-gemini-rewrite",
+          "returncode": 3
+        },
+        {
+          "label": "com.pantheon.agy-gemini-i18n-new",
+          "returncode": 3
+        },
+        {
+          "label": "com.pantheon.agy-gemini-i18n-rewrite",
+          "returncode": 3
+        }
+      ],
+      "loaded_labels": []
+    },
+    "status": "PASS",
+    "swap_available": true,
+    "swap_error": null,
+    "swap_used_bytes": 0
+  },
+  "coordinator_states": {
+    "i18n-new": {
+      "correlation_id": "formal-runtime-chain-001-correlation",
+      "registered_at": "2026-08-10T15:22:05+08:00",
+      "run_dir": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/runs/i18n-new",
+      "run_id": "probe-6afb230d23a6279dd4905dfa",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-10T15:22:05+08:00"
+    },
+    "i18n-rewrite": {
+      "correlation_id": "formal-runtime-chain-001-correlation",
+      "registered_at": "2026-08-10T15:22:05+08:00",
+      "run_dir": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/runs/i18n-rewrite",
+      "run_id": "probe-3a9d3b63391efa4525b6b1ec",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-10T15:22:05+08:00"
+    },
+    "new": {
+      "correlation_id": "formal-runtime-chain-001-correlation",
+      "registered_at": "2026-08-10T15:22:05+08:00",
+      "run_dir": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/runs/new",
+      "run_id": "probe-5419052aede5dd024491ba1d",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-10T15:22:05+08:00"
+    },
+    "rewrite": {
+      "correlation_id": "formal-runtime-chain-001-correlation",
+      "registered_at": "2026-08-10T15:22:05+08:00",
+      "run_dir": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/runs/rewrite",
+      "run_id": "probe-6310ffa882d264cc94b4fff3",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-10T15:22:05+08:00"
+    }
+  },
+  "correlation_id": "formal-runtime-chain-001-correlation",
+  "entrypoint_outcome": "PASS",
+  "execution_id": "formal-runtime-chain-001-positive",
+  "expected_input_digest": "e033654e23925c60fc0d8aafac65469c80257a1ada96c5ed15ca8056e4b47a29",
+  "generation": "probe-a24856d2b475579c5c6f20ec",
+  "input_digest": "e033654e23925c60fc0d8aafac65469c80257a1ada96c5ed15ca8056e4b47a29",
+  "lane_results": {
+    "i18n-new": {
+      "job_id": "e76a706f223df0a4feac30d90938a134d42e374b",
+      "request_sha256": "e76a706f223df0a4feac30d90938a134d42e374bbb070d1b83896b3b11dbbdf6",
+      "status": "processed"
+    },
+    "i18n-rewrite": {
+      "job_id": "2bba93f3158c1f1dc2ce4c8d11dea9e5c1ad361a",
+      "request_sha256": "2bba93f3158c1f1dc2ce4c8d11dea9e5c1ad361a076f794c5017d6144dec77b8",
+      "status": "processed"
+    },
+    "new": {
+      "job_id": "8835e01e9860b3eaefae70e2ca58dd51bad40145",
+      "request_sha256": "8835e01e9860b3eaefae70e2ca58dd51bad40145c235ae986250edcb06ecf8af",
+      "status": "processed"
+    },
+    "rewrite": {
+      "job_id": "bfedb54c41786d8266512b6d94d20c3ca16afb90",
+      "request_sha256": "bfedb54c41786d8266512b6d94d20c3ca16afb90154ca9d1176d7161fe6adb02",
+      "status": "processed"
+    }
+  },
+  "mode": "formal-runtime-production-dry-run",
+  "output_digest": "be697d5b88a9af8d2a8a7d9c6a8af3d7a10fff2f12781e8fdddae3184c178a01",
+  "parent_sha": "f31ef017170c69543528708fd1314dc87ff7528a",
+  "production_entrypoints": [
+    "scripts.agy_content_publisher:formal_capability_preflight",
+    "scripts.agy_content_publisher:_normalize_exact_run_ids",
+    "scripts.agy_content_publisher:release_git_plan"
+  ],
+  "production_mutation": false,
+  "publisher_result": {
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:release_git_plan"
+    ],
+    "capability": "push",
+    "command": [
+      "push",
+      "--atomic",
+      "origin",
+      "HEAD:main",
+      "v0.0.0"
+    ],
+    "correlation_id": "formal-runtime-chain-001-correlation",
+    "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+    "fail_closed_dry_run": true,
+    "production_mutation": false,
+    "run_ids": [
+      "probe-3a9d3b63391efa4525b6b1ec",
+      "probe-5419052aede5dd024491ba1d",
+      "probe-6310ffa882d264cc94b4fff3",
+      "probe-6afb230d23a6279dd4905dfa"
+    ],
+    "status": "PASS"
+  },
+  "run_ids": {
+    "i18n-new": "probe-6afb230d23a6279dd4905dfa",
+    "i18n-rewrite": "probe-3a9d3b63391efa4525b6b1ec",
+    "new": "probe-5419052aede5dd024491ba1d",
+    "rewrite": "probe-6310ffa882d264cc94b4fff3"
+  },
+  "runtime_identity_digest": "83a09af277de6e3bce36d0dbebbc0255021a046de24b7c704d77a6e201fc4fa2",
+  "runtime_manifest": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime-manifest.json",
+  "runtime_manifest_digest": "128160f9b9f98021310c10395b740ee72cb5c57a1ea449287871b3b418814d0f",
+  "runtime_receipt": {
+    "actor_root": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon",
+    "config_version": "formal-runtime-v2",
+    "generation": "probe-a24856d2b475579c5c6f20ec",
+    "identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+    "label": "com.pantheon.agy-content-publisher",
+    "log_root": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/logs",
+    "manifest_digest": "128160f9b9f98021310c10395b740ee72cb5c57a1ea449287871b3b418814d0f",
+    "publisher_state_root": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/publisher-state",
+    "queue_root": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime/queue",
+    "runtime_digest": "e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+    "runtime_identity_digest": "83a09af277de6e3bce36d0dbebbc0255021a046de24b7c704d77a6e201fc4fa2",
+    "service_label": "com.pantheon.agy-content-publisher",
+    "status": "PASS"
+  },
+  "sandbox_root": "/Users/mattkuo/.codex/worktrees/2a6f/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime",
+  "schema_version": 2,
+  "source_tree_digest": "e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+  "timestamp": "2026-08-10T07:22:05.916116+00:00"
+}

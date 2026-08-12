@@ -1,0 +1,27 @@
+RA-SLICE-001 GREEN evidence
+
+Source SHA before candidate commit: 1f2dbce31827bc254d8860625512570d0bde6aef
+
+Command: uv run pytest tests/test_pantheon_content_capability_receipt.py
+Result: exit 0
+Output summary:
+- collected 36 items
+- tests/test_pantheon_content_capability_receipt.py: 36 passed in 0.02s
+
+Existing capability probe regression:
+
+Command: uv run pytest tests/test_pantheon_content_capability_probe.py
+Result: exit 0
+Output summary:
+- collected 29 items
+- tests/test_pantheon_content_capability_probe.py: 29 passed in 11.76s
+
+Final combined targeted suite:
+
+Command: uv run pytest tests/test_pantheon_content_capability_receipt.py tests/test_pantheon_content_capability_probe.py
+Result: exit 0
+Output summary:
+- collected 65 items
+- tests/test_pantheon_content_capability_receipt.py: passed
+- tests/test_pantheon_content_capability_probe.py: passed
+- 65 passed in 11.55s

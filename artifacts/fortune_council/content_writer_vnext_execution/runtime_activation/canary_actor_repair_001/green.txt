@@ -1,0 +1,19 @@
+GREEN commands:
+.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py -q
+=> 22 passed in 0.65s
+
+.venv/bin/python -m pytest tests/test_agy_content_publisher.py -q
+=> 111 passed, 1 warning in 4.66s
+
+.venv/bin/python -m pytest tests/test_prepare_pantheon_canary_actor.py -q
+=> 9 passed in 1.39s
+
+.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_prepare_pantheon_canary_actor.py tests/test_agy_content_publisher.py -q
+=> 142 passed, 1 warning in 6.70s
+
+GREEN generation 2 commands:
+.venv/bin/python -m pytest tests/test_agy_content_publisher.py::test_launchd_template_runs_content_publisher_and_installer_is_valid_shell tests/test_agy_content_publisher.py::test_content_publisher_installer_rejects_python_symlink_to_non_executable tests/test_agy_content_publisher.py::test_content_publisher_installer_accepts_python_symlink_and_uses_realpath -q
+=> 3 passed in 0.85s
+
+.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_prepare_pantheon_canary_actor.py tests/test_agy_content_publisher.py -q
+=> 143 passed, 1 warning in 6.64s

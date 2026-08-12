@@ -1,0 +1,61 @@
+{
+  "actor_identity": "synthetic-actor@995845b",
+  "correlation_id": "repair-1-chain-negative-select",
+  "execution_id": "repair-1-negative-select-995845b",
+  "mode": "bounded-synthetic-dry-run",
+  "production_mutation": false,
+  "regression_id": "REG-PANTHEON-READINESS-CORRELATED-CHAIN-001",
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "steps": [
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-select/01-create.json",
+      "capability": "create",
+      "correlation_id": "repair-1-chain-negative-select",
+      "entrypoint": "scripts.agy_gemini_coordinator:register/cycle",
+      "entrypoint_outcome": "PASS",
+      "execution_id": "repair-1-negative-select-995845b",
+      "expected_input_digest": "42f9b17d18166bce5ea242be25f47378cd2097cac66e79498102c5b7c583d48a",
+      "input_digest": "42f9b17d18166bce5ea242be25f47378cd2097cac66e79498102c5b7c583d48a",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 1,
+      "output_digest": "35ba2bb4a3909a0894fe2cd07970b5680c21274c7d27a7d5b7968b74c9787f8a",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.131849+00:00"
+    },
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-select/02-run.json",
+      "capability": "run",
+      "correlation_id": "repair-1-chain-negative-select",
+      "entrypoint": "scripts.agy_gemini_runner:process-once",
+      "entrypoint_outcome": "PASS",
+      "execution_id": "repair-1-negative-select-995845b",
+      "expected_input_digest": "35ba2bb4a3909a0894fe2cd07970b5680c21274c7d27a7d5b7968b74c9787f8a",
+      "input_digest": "35ba2bb4a3909a0894fe2cd07970b5680c21274c7d27a7d5b7968b74c9787f8a",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 2,
+      "output_digest": "cee511fc72323481bfec698c6f9d0b40816eb191d1bb0cc279c17ff5f7056de9",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.132416+00:00"
+    },
+    {
+      "actor_identity": "synthetic-actor@995845b",
+      "artifact": ".work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-RECOVERY-20260810/evidence/repair-1/capability-negative-select/03-select.json",
+      "capability": "select",
+      "correlation_id": "repair-1-chain-negative-select",
+      "entrypoint": "scripts.agy_content_publisher:exact-run-selector",
+      "entrypoint_outcome": "BLOCKED",
+      "error": "input_digest_mismatch",
+      "execution_id": "repair-1-negative-select-995845b",
+      "expected_input_digest": "cee511fc72323481bfec698c6f9d0b40816eb191d1bb0cc279c17ff5f7056de9",
+      "input_digest": "e9fcf969f30082a7e0b7894242be1f19caf4b5db5cbe2e95caa8bb7b4bffc1de",
+      "mode": "bounded-synthetic-dry-run",
+      "ordinal": 3,
+      "output_digest": "",
+      "schema_version": 1,
+      "timestamp": "2026-08-10T04:28:58.132562+00:00"
+    }
+  ]
+}

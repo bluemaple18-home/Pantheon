@@ -1,0 +1,126 @@
+{
+  "schema_version": 2,
+  "scope": "Pantheon Writer vNext / Codex worktree capacity preflight",
+  "probe": {
+    "identifier": "<ai-core>/scripts/visible_thread_resource_guard.py",
+    "source_digest": "sha256:ecc743361bce3b4ca7cf78aae17b282dc5c22065717c0a00dd45773de493131a",
+    "mode": "canonical-equivalent read-only host probes; Pantheon-only Git worktree inventory",
+    "path_normalization": "no local absolute paths committed"
+  },
+  "sample_interval_seconds": 3,
+  "digest_contract": {
+    "schema_version": 1,
+    "domain": "pantheon.writer_vnext.ra_slice_007.capacity_preflight.measurement_digest",
+    "version": 1,
+    "algorithm": "sha256",
+    "digest_format": "sha256:<64 lowercase hex>",
+    "serialization": {
+      "encoding": "UTF-8",
+      "json_key_ordering": "lexicographic ascending by key, equivalent to Python json.dumps(sort_keys=True)",
+      "json_separators": {
+        "item_separator": ",",
+        "key_separator": ":"
+      },
+      "json_whitespace": "none",
+      "ensure_ascii": false
+    },
+    "digest_field_exclusion": "samples[].measurement_digest is excluded from the hash input; digest_inputs[].expected_digest is verification evidence and is excluded from the hash input.",
+    "input_projection_rule": "For each sample, hash the committed object {\"domain\": digest_contract.domain, \"version\": digest_contract.version, \"sample\": <sample fields listed in sample_field_order, excluding measurement_digest>}.",
+    "sample_field_order": [
+      "sampled_at",
+      "host_total_bytes",
+      "host_free_bytes",
+      "host_free_percent",
+      "ten_percent_reserve_bytes",
+      "formal_reserve_bytes",
+      "reserve_deficit_bytes",
+      "vm_allocation_bytes",
+      "swap_used_bytes",
+      "memory_pressure",
+      "codex_rss_bytes"
+    ],
+    "digest_inputs": [
+      {
+        "sample_index": 0,
+        "canonical_projection": {
+          "domain": "pantheon.writer_vnext.ra_slice_007.capacity_preflight.measurement_digest",
+          "version": 1,
+          "sample": {
+            "sampled_at": "2026-08-11T11:53:55Z",
+            "host_total_bytes": 245107195904,
+            "host_free_bytes": 26156351488,
+            "host_free_percent": 10.6719,
+            "ten_percent_reserve_bytes": 24510719591,
+            "formal_reserve_bytes": 24510719591,
+            "reserve_deficit_bytes": 0,
+            "vm_allocation_bytes": 16106127360,
+            "swap_used_bytes": 14620420997,
+            "memory_pressure": "normal",
+            "codex_rss_bytes": 3440574464
+          }
+        },
+        "expected_digest": "sha256:e7b2aa52c8070fc95a7f791d8941a4dee40bb53ab0cfd4b8582a307d84d8d79f"
+      },
+      {
+        "sample_index": 1,
+        "canonical_projection": {
+          "domain": "pantheon.writer_vnext.ra_slice_007.capacity_preflight.measurement_digest",
+          "version": 1,
+          "sample": {
+            "sampled_at": "2026-08-11T11:53:58Z",
+            "host_total_bytes": 245107195904,
+            "host_free_bytes": 26157436928,
+            "host_free_percent": 10.6723,
+            "ten_percent_reserve_bytes": 24510719591,
+            "formal_reserve_bytes": 24510719591,
+            "reserve_deficit_bytes": 0,
+            "vm_allocation_bytes": 16106127360,
+            "swap_used_bytes": 14620420997,
+            "memory_pressure": "normal",
+            "codex_rss_bytes": 3352690688
+          }
+        },
+        "expected_digest": "sha256:b7332c4dcc88b64b35634803450f9eb05513d1a955afb551792a35de33fda224"
+      }
+    ]
+  },
+  "samples": [
+    {
+      "sampled_at": "2026-08-11T11:53:55Z",
+      "host_total_bytes": 245107195904,
+      "host_free_bytes": 26156351488,
+      "host_free_percent": 10.6719,
+      "ten_percent_reserve_bytes": 24510719591,
+      "formal_reserve_bytes": 24510719591,
+      "reserve_deficit_bytes": 0,
+      "vm_allocation_bytes": 16106127360,
+      "swap_used_bytes": 14620420997,
+      "memory_pressure": "normal",
+      "codex_rss_bytes": 3440574464,
+      "measurement_digest": "sha256:e7b2aa52c8070fc95a7f791d8941a4dee40bb53ab0cfd4b8582a307d84d8d79f"
+    },
+    {
+      "sampled_at": "2026-08-11T11:53:58Z",
+      "host_total_bytes": 245107195904,
+      "host_free_bytes": 26157436928,
+      "host_free_percent": 10.6723,
+      "ten_percent_reserve_bytes": 24510719591,
+      "formal_reserve_bytes": 24510719591,
+      "reserve_deficit_bytes": 0,
+      "vm_allocation_bytes": 16106127360,
+      "swap_used_bytes": 14620420997,
+      "memory_pressure": "normal",
+      "codex_rss_bytes": 3352690688,
+      "measurement_digest": "sha256:b7332c4dcc88b64b35634803450f9eb05513d1a955afb551792a35de33fda224"
+    }
+  ],
+  "between_samples": {
+    "host_free_bytes_delta": 1085440,
+    "pantheon_worktree_bytes_delta": 0,
+    "codex_rss_bytes_delta": -87883776,
+    "swap_used_bytes_delta": 0,
+    "stability_confirmed": true,
+    "reason": "完整指標均可取得；3 秒間 host free 小幅增加、Codex RSS 下降且 swap 未增加，沒有連續異常下降或同步記憶體壓力證據。"
+  },
+  "verdict": "NO-GO"
+}

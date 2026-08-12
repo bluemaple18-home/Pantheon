@@ -1,0 +1,322 @@
+{
+  "cases": [
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "core_only_without_optional_artifacts",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "reordered_all_stages_three_sections",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "content_plan_0_sections",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "content_plan_3_sections",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "content_plan_7_sections",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "all_claim_types_without_nonfact_citations",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [
+        "verifiable_fact_evidence_missing"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "verifiable_fact_evidence_missing"
+      ],
+      "expected_valid": false,
+      "name": "verifiable_fact_without_evidence_fails",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"verifiable_fact_evidence_missing\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "unverified_high_risk_claim"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "unverified_high_risk_claim"
+      ],
+      "expected_valid": false,
+      "name": "high_risk_without_evidence_fails",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"unverified_high_risk_claim\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "claim_type_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "claim_type_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "unsupported_claim_type_fails",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"claim_type_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "blind_evidence_lists_do_not_block",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [
+        "blind_thesis_mismatch"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "blind_thesis_mismatch"
+      ],
+      "expected_valid": false,
+      "name": "blind_thesis_mismatch_blocks",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"blind_thesis_mismatch\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "artifact_sha_mismatch"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "artifact_sha_mismatch"
+      ],
+      "expected_valid": false,
+      "name": "blind_candidate_sha_mismatch_fails",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"artifact_sha_mismatch\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "missing_required_artifact"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "missing_required_artifact"
+      ],
+      "expected_valid": false,
+      "name": "missing_core_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"missing_required_artifact\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "unsupported_manifest_version_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "artifact_sha_mismatch"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "artifact_sha_mismatch"
+      ],
+      "expected_valid": false,
+      "name": "artifact_sha_mismatch_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"artifact_sha_mismatch\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "article_identity_mismatch"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "article_identity_mismatch"
+      ],
+      "expected_valid": false,
+      "name": "article_identity_mismatch_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"article_identity_mismatch\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "selected_stage_artifact_missing"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "selected_stage_artifact_missing"
+      ],
+      "expected_valid": false,
+      "name": "selected_artifact_missing_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"selected_stage_artifact_missing\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "free_action_in_stage_declaration_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "duplicate_stage_id_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "duplicate_sequence_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "artifact_mapping_collision_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "publication_policy_rejected",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "schema_version_unsupported"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "schema_version_unsupported"
+      ],
+      "expected_valid": false,
+      "name": "boolean_sequence_ambiguity_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"schema_version_unsupported\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [],
+      "actual_valid": true,
+      "expected_findings": [],
+      "expected_valid": true,
+      "name": "legacy_candidate_boundary_valid",
+      "passed": true,
+      "stable_summary": "{\"blocking\":false,\"findings\":[],\"valid\":true}"
+    },
+    {
+      "actual_findings": [
+        "publisher_candidate_incompatible"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "publisher_candidate_incompatible"
+      ],
+      "expected_valid": false,
+      "name": "legacy_candidate_hash_tamper_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"publisher_candidate_incompatible\"],\"valid\":false}"
+    },
+    {
+      "actual_findings": [
+        "publisher_candidate_incompatible"
+      ],
+      "actual_valid": false,
+      "expected_findings": [
+        "publisher_candidate_incompatible"
+      ],
+      "expected_valid": false,
+      "name": "legacy_candidate_schema_invalid_fails_closed",
+      "passed": true,
+      "stable_summary": "{\"blocking\":true,\"findings\":[\"publisher_candidate_incompatible\"],\"valid\":false}"
+    }
+  ],
+  "legacy_mutation_check": {
+    "after_sha256": "3679af49180979dbd8eba0a3bb50cca50b3c2467302c3e972335998dd8605d47",
+    "before_sha256": "3679af49180979dbd8eba0a3bb50cca50b3c2467302c3e972335998dd8605d47",
+    "name": "legacy_candidate_not_mutated_by_vnext_validation",
+    "passed": true
+  },
+  "summary": {
+    "failed_cases": [],
+    "mutation_check_passed": true,
+    "passed_cases": 27,
+    "total_cases": 27
+  }
+}

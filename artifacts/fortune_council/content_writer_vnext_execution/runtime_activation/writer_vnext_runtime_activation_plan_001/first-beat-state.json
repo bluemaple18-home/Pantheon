@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-RUNTIME-ACTIVATION-PLAN-001",
+  "dispatch_key": "v1:7f12b5300513dd1bb4e7196409bf38f4df7b0653610a62c1b6dcb1015e446708",
+  "activation_token_received": true,
+  "formal_thread_id": "019fef3a-4fdc-76d1-8a52-e28cc8b56124",
+  "project_id": {
+    "expected": "local-0020d4379451d545eb08362962f1def0",
+    "list_projects_pantheon": "local-0020d4379451d545eb08362962f1def0",
+    "list_threads_projection": null,
+    "mainline_activation_result": "bound_by_source_thread"
+  },
+  "cwd": "/Users/mattkuo/.codex/worktrees/3eb7/Pantheon",
+  "head": "7af82c40439af642a9f91cb7a4c3b3146325c404",
+  "required_base_ref": "codex/pantheon-pantheon-writer-vnext-runtime-activation-001-sou-20260811-130524",
+  "required_base_sha": "7af82c40439af642a9f91cb7a4c3b3146325c404",
+  "main_sha": "c758f34362b1503a41c8ff48885ede896ce26335",
+  "branch": "detached",
+  "clean": true,
+  "index_lock": "absent",
+  "card_blob_readable": true,
+  "handoff_blob_readable": true,
+  "integration_reviewer_report_blob_readable": true,
+  "integration_reviewer_findings_blob_readable": true,
+  "formal_services": {
+    "expected": "0/4",
+    "source": "handoff_and_card_fixed_fact",
+    "live_launchctl_checked": false,
+    "reason": "launchctl and service control are forbidden in this activation"
+  },
+  "production_authorization": "NO-GO",
+  "forbidden_actions_performed": []
+}

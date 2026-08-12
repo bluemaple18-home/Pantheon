@@ -12,6 +12,7 @@ import pytest
 
 from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 
 
@@ -41,6 +42,51 @@ def make_publication_policy(
         "modified": modified,
         "changeType": change_type,
     }
+
+
+def test_formal_publisher_rejects_manifest_drift_before_state_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-publisher",
+        runtime_digest="3" * 64,
+        generation="generation-publisher",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"])
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", manifest["generation"])
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST", manifest["runtime_identity_digest"]
+    )
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.agy-content-publisher"
+    )
+    manifest_path.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        publisher.publish_ready_runs(
+            actor,
+            queue,
+            state,
+            dry_run=True,
+            git=lambda *_args: pytest.fail("git must not run"),
+        )
+
+    assert not (state / "publisher.lock").exists()
 
 
 def _long(text: str) -> str:
@@ -2630,6 +2676,79 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
     assert plan["origin_main_sha"] == origin_main_sha
 
 
+def test_deployment_preflight_canary_requires_exact_single_run(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return runtime_sha
+        raise AssertionError(f"unexpected git command: {args}")
+
+    plan = publisher.deployment_preflight(
+        actor,
+        queue_root,
+        state_root,
+        expected_repo_root=actor,
+        expected_queue_root=queue_root,
+        expected_state_root=state_root,
+        expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
+        push=True,
+        expected_push_mode="push",
+        max_runs=1,
+        expected_exact_run_ids=["canary-run-001"],
+        git=fake_git,
+    )
+
+    assert plan["exact_run_ids"] == ["canary-run-001"]
+    assert plan["max_runs"] == 1
+
+    with pytest.raises(publisher.PublishBlocked, match="max-runs 1"):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            max_runs=2,
+            expected_exact_run_ids=["canary-run-001"],
+            git=fake_git,
+        )
+    with pytest.raises(publisher.PublishBlocked, match="one exact run"):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            max_runs=1,
+            expected_exact_run_ids=["canary-run-001", "canary-run-002"],
+            git=fake_git,
+        )
+
+
 def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2846,10 +2965,15 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
 
     assert publisher.DEFAULT_MAX_RUNS == 3
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
+    assert 'EXACT_RUN_ID="${PANTHEON_PUBLISH_EXACT_RUN_ID:-}"' in installer
+    assert "Canary exact run 必須搭配 PANTHEON_PUBLISH_MAX_RUNS=1" in installer
     assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
-    assert 'Set :ProgramArguments:11 --new-only' in installer
-    assert arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
-    assert arguments[3:11] == [
+    assert "四軌 recovery 禁止 new-only" in installer
+    assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
+    separator = arguments.index("--")
+    service_arguments = arguments[separator + 1 :]
+    assert service_arguments[1:3] == ["-m", "scripts.agy_content_publisher"]
+    assert service_arguments[3:11] == [
         "--repo-root",
         "__REPO_ROOT__",
         "--queue-root",
@@ -2859,7 +2983,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "--max-runs",
         "__MAX_RUNS__",
     ]
-    assert arguments[11:] == [
+    assert service_arguments[11:] == [
         "--include-rewrites",
         "--push",
         "--expected-repo-root",
@@ -2876,11 +3000,19 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         "push",
     ]
     assert 'ACTION="${1:---install}"' in installer
+    assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
+    assert "--exact-run-id" in installer
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
+    assert "--expected-python-executable" in installer
+    assert 'PYTHON_BIN="${PYTHON_REALPATH}"' in installer
+    assert "ProgramArguments:0 ${PYTHON_BIN}" in installer
+    assert "ProgramArguments:17 ${PYTHON_BIN}" in installer
     assert 'run_preflight >/dev/null' in installer
+    assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
+    assert ".pantheon-four-lane-stage" in installer
     assert plist["EnvironmentVariables"]["PATH"] == "__PATH__"
     assert (
         plist["EnvironmentVariables"]["PANTHEON_PUBLISHER_STDOUT_LOG"]
@@ -2901,6 +3033,206 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_content_publisher_installer_rejects_python_symlink_to_non_executable(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    python_target = tmp_path / "python-target"
+    python_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python_alias = tmp_path / "python-alias"
+    python_alias.symlink_to(python_target)
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": str(python_alias),
+        "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": "a" * 64,
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"), "--preflight"],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "找不到 Pantheon Python" in completed.stderr
+    assert not (tmp_path / "home").exists()
+
+
+@pytest.mark.skipif(
+    not Path("/usr/libexec/PlistBuddy").exists(),
+    reason="content publisher installer preflight is macOS launchd specific",
+)
+def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    fake_bin = tmp_path / "bin"
+    for path in (queue / "runs", state, logs, fake_bin):
+        path.mkdir(parents=True)
+    python_target = tmp_path / "python-target"
+    python_alias = tmp_path / "python-alias"
+    manifest = tmp_path / "runtime-manifest.json"
+    invocations = tmp_path / "python-invocations.log"
+    runtime_digest = "d" * 64
+    runtime_sha = "e" * 40
+    fields = {
+        "actor_root": str(repo_root),
+        "queue_root": str(queue),
+        "publisher_state_root": str(state),
+        "log_root": str(logs),
+        "manifest_digest": "a" * 64,
+        "identity": "canary-symlink-positive",
+        "runtime_identity_digest": "b" * 64,
+        "runtime_digest": runtime_digest,
+        "config_version": "formal-runtime-v2-canary",
+        "generation": "canary-symlink-positive",
+    }
+    python_target.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                f"echo \"$0 $*\" >> {invocations}",
+                "if [ \"$1\" = \"-m\" ] && [ \"$2\" = "
+                "\"scripts.pantheon_content_runtime_manifest\" ]; then",
+                "  if [ \"$3\" = \"validate\" ]; then",
+                "    expected=\"\"",
+                "    while [ \"$#\" -gt 0 ]; do",
+                "      if [ \"$1\" = \"--expected-python-executable\" ]; then",
+                "        expected=\"$2\"",
+                "      fi",
+                "      shift",
+                "    done",
+                "    [ \"$expected\" = \"$0\" ] || exit 9",
+                "    exit 0",
+                "  fi",
+                "  if [ \"$3\" = \"field\" ]; then",
+                "    name=\"\"",
+                "    while [ \"$#\" -gt 0 ]; do",
+                "      if [ \"$1\" = \"--name\" ]; then",
+                "        name=\"$2\"",
+                "      fi",
+                "      shift",
+                "    done",
+                "    case \"$name\" in",
+                *[
+                    f"      {name}) echo \"{value}\" ;;"
+                    for name, value in fields.items()
+                ],
+                "      *) exit 8 ;;",
+                "    esac",
+                "    exit 0",
+                "  fi",
+                "fi",
+                "if [ \"$1\" = \"-c\" ]; then",
+                f"  echo \"{runtime_digest}\"",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"-m\" ] && [ \"$2\" = "
+                "\"scripts.agy_content_publisher\" ]; then",
+                "  echo '{\"schema_version\":1,\"status\":\"ready\"}'",
+                "  exit 0",
+                "fi",
+                "exit 7",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    python_target.chmod(0o755)
+    python_alias.symlink_to(python_target)
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "if [ \"$1\" = \"-C\" ]; then shift 2; fi",
+                "if [ \"$1\" = \"status\" ] && [ \"$2\" = \"--porcelain\" ]; then",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"rev-parse\" ]; then",
+                f"  echo \"{runtime_sha}\"",
+                "  exit 0",
+                "fi",
+                "exit 6",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": str(python_alias),
+        "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest),
+        "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": "a" * 64,
+        "PANTHEON_PUBLISH_EXACT_RUN_ID": "canary-run-001",
+        "PANTHEON_PUBLISH_MAX_RUNS": "1",
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"),
+            "--preflight",
+        ],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    lines = invocations.read_text(encoding="utf-8").splitlines()
+    assert lines
+    assert all(line.startswith(str(python_target)) for line in lines)
+    assert any(
+        f"--expected-python-executable {python_target}" in line
+        for line in lines
+    )
+    assert not any(line.startswith(str(python_alias)) for line in lines)
+
+
+def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(
+    tmp_path: Path,
+) -> None:
+    """REG-PANTHEON-FOUR-LANE-REJECT-NEW-ONLY-001。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    (queue / "runs").mkdir(parents=True)
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": "/usr/bin/true",
+        "PANTHEON_GEMINI_QUEUE_ROOT": str(queue),
+        "PANTHEON_PUBLISH_NEW_ONLY": "1",
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"), "--preflight"],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "四軌 recovery 禁止 new-only" in completed.stderr
+    assert not (tmp_path / "home").exists()
 
 
 def test_publish_ready_runs_new_only_does_not_seed_translations(

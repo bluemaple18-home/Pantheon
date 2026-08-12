@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO_UNTIL_TWO_CYCLE_MEASUREMENT",
+  "write_paths": [
+    {
+      "path": ".work/gemini-runner/runs",
+      "type": "run_state",
+      "max_bytes": 2097152,
+      "max_file_count": 64,
+      "retention": "until review acceptance, then explicit cleanup gate"
+    },
+    {
+      "path": ".work/gemini-runner/outbox_processing_inbox_archive_failed",
+      "type": "transport_queue",
+      "max_bytes": 8388608,
+      "max_file_count": 128,
+      "retention": "two-cycle probe window"
+    },
+    {
+      "path": ".work/gsc-copy/<run_id>",
+      "type": "brief_candidate_review_evidence",
+      "max_bytes": 20971520,
+      "max_file_count": 96,
+      "retention": "review evidence retained"
+    },
+    {
+      "path": ".work/content-publisher",
+      "type": "publisher_state_ledger_evidence_lock",
+      "max_bytes": 67108864,
+      "max_file_count": 256,
+      "retention": "review evidence retained"
+    },
+    {
+      "path": ".work/content-publisher/transaction-*",
+      "type": "isolated_transaction_worktree",
+      "max_bytes": 268435456,
+      "max_file_count": 10000,
+      "retention": "must be removed before PASS"
+    },
+    {
+      "path": "configured publisher stdout/stderr logs",
+      "type": "log",
+      "max_bytes": 33554432,
+      "retain_bytes": 4194304,
+      "retention": "rotated"
+    }
+  ],
+  "required_measurements": [
+    "host_free_before_after",
+    "project_bytes_before_after",
+    "file_count_before_after",
+    "rss_before_after",
+    "swap_before_after",
+    "hourly_growth_estimate",
+    "peak_transaction_bytes",
+    "cleanup_reclaim_bytes",
+    "stop_loss_result"
+  ],
+  "stop_loss": [
+    "project_bytes_or_file_count_exceeds_budget",
+    "host_free_below_max_20GiB_or_10_percent",
+    "growth_rate_exceeds_2x_estimate_for_two_samples",
+    "transaction_temp_root_survives_cleanup",
+    "unregistered_write_path_detected"
+  ],
+  "canary_gate": "NO-GO until all required measurements exist and pass"
+}
