@@ -2819,11 +2819,15 @@ def normalize_new_output_contract(
     try:
         normalized = json.loads(json.dumps(payload, ensure_ascii=False))
         article_schema = response_schema["properties"]["articles"]["items"]
+        canonical_article_schema = candidate_schema("create")["properties"][
+            "articles"
+        ]["items"]
         properties = article_schema["properties"]
+        canonical_properties = canonical_article_schema["properties"]
         description_schema = properties["description"]
-        paragraph_schema = properties["bodySections"]["items"]["properties"][
-            "paragraphs"
-        ]
+        paragraph_schema = canonical_properties["bodySections"]["items"][
+            "properties"
+        ]["paragraphs"]
         description_minimum = int(description_schema["minLength"])
         description_maximum = int(description_schema["maxLength"])
         paragraph_count_minimum = int(paragraph_schema["minItems"])

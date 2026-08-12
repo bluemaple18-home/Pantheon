@@ -19,6 +19,16 @@
       "case": "short_paragraph_hydrates_to_local_quality_gate",
       "expected": "hydrate succeeds at transport seam, quality_findings emits paragraph_length, repair fields are bounded to bodySections",
       "status": "PASS"
+    },
+    {
+      "case": "normalization_uses_canonical_paragraph_bounds",
+      "expected": "normalize_new_output_contract accepts relaxed create provider schema and reads paragraph min/max from canonical candidate schema",
+      "status": "PASS"
+    },
+    {
+      "case": "gemini_outbox_new_normalization_regression",
+      "expected": "test_runner_normalizes_new_description_and_paragraph_bounds_without_retry processes once without V4BrokerFailure or retry",
+      "status": "PASS"
     }
   ],
   "negative_cases": [
@@ -35,6 +45,11 @@
     {
       "case": "publisher_regression",
       "expected": "publisher-related regression tests still pass without replacement/Gemini/runtime/publish operations",
+      "status": "PASS"
+    },
+    {
+      "case": "retry_behavior_unchanged",
+      "expected": "normalization repair does not change retry or external behavior",
       "status": "PASS"
     }
   ],

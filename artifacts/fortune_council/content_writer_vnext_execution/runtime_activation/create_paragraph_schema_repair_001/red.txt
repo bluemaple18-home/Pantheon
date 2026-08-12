@@ -9,6 +9,12 @@ Failing coverage:
 - `external_candidate_schema("create")` provider `bodySections.items.properties.paragraphs.items` still contained `minLength` and `maxLength`.
 - That meant a single short create paragraph could die at provider/broker transport before local canonical quality gate and bounded repair.
 
+REVIEW_BLOCKED P1:
+- `normalize_new_output_contract()` still read paragraph `minLength`/`maxLength` from `external_candidate_schema("create")`.
+- After provider schema relaxed those transport keys, normalization returned `None`, and `tests/test_agy_gemini_outbox.py::test_runner_normalizes_new_description_and_paragraph_bounds_without_retry` failed as `V4BrokerFailure`.
+- RED command: `.venv/bin/python -m pytest tests/test_agy_gemini_outbox.py::test_runner_normalizes_new_description_and_paragraph_bounds_without_retry -q`
+- RED result: `1 failed`
+
 Card source note:
 - Requested object `6cfb3d0ed56` was not present locally (`git show` invalid object).
 - The matching local card commit is `6cfb3d0ed5` with message `Add create paragraph schema repair card`; card content was read from that commit.

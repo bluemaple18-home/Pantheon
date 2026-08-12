@@ -2050,6 +2050,28 @@ def test_create_transport_short_paragraph_reaches_local_repair_gate() -> None:
     ]["bodySections"]["items"]["properties"]["paragraphs"]["items"]["minLength"] > 0
 
 
+def test_create_normalization_reads_paragraph_bounds_from_canonical_schema() -> None:
+    target = make_deterministic_green_create_article("CREATE-NORMALIZE-PARAGRAPH")
+    response_schema = pipeline.external_candidate_schema("create")
+    paragraph_items = response_schema["properties"]["articles"]["items"][
+        "properties"
+    ]["bodySections"]["items"]["properties"]["paragraphs"]["items"]
+    assert "minLength" not in paragraph_items
+    assert "maxLength" not in paragraph_items
+    payload = {"articles": [make_external_create_article(target)]}
+    section = payload["articles"][0]["bodySections"][0]
+    original = "".join(section["paragraphs"])
+    section["paragraphs"] = [original[:100], original[100:]]
+
+    normalized = pipeline.normalize_new_output_contract(payload, response_schema)
+
+    assert normalized is not None
+    paragraphs = normalized["articles"][0]["bodySections"][0]["paragraphs"]
+    assert 2 <= len(paragraphs) <= 4
+    assert all(80 <= len(paragraph) <= 160 for paragraph in paragraphs)
+    assert "".join(paragraphs) == original
+
+
 def test_rewrite_hydration_locks_publication_metadata_and_preserves_evidence() -> None:
     brief = make_rewrite_brief()
     source = brief["articles"][0]
