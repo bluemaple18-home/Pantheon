@@ -1854,9 +1854,15 @@ def prepare_matrix_runs(
     limit: int | None = None,
     exclude_ids: set[str] | None = None,
     max_articles_per_run: int = MAX_RUN_ARTICLES,
+    exact_run_id: str | None = None,
 ) -> list[Path]:
     if not 1 <= max_articles_per_run <= MAX_RUN_ARTICLES:
         raise ValueError(f"max_articles_per_run must be between 1 and {MAX_RUN_ARTICLES}")
+    if exact_run_id is not None and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", exact_run_id) is None:
+        raise ValueError("exact run id format is invalid")
+    output_root = output_root or repo_root / RUN_ROOT
+    if exact_run_id is not None and (output_root / exact_run_id).exists():
+        raise ValueError("exact run identity is already in use")
     full_backlog = build_matrix_backlog(repo_root)
     targets = _matrix_targets(repo_root, full_backlog)
     excluded = exclude_ids or set()
@@ -1865,13 +1871,12 @@ def prepare_matrix_runs(
         if limit < 1:
             raise ValueError("limit must be positive")
         backlog = backlog[:limit]
-    output_root = output_root or repo_root / RUN_ROOT
     article_briefs = [{"matrix": row, "target": targets[row["id"]], "policy": compact_publication_policy()} for row in backlog]
     batches: list[list[dict[str, Any]]] = []
     current_batch: list[dict[str, Any]] = []
     for article in article_briefs:
         candidate_batch = [*current_batch, article]
-        run_id = f"{run_prefix}-{len(batches) + 1:02d}"
+        run_id = exact_run_id or f"{run_prefix}-{len(batches) + 1:02d}"
         candidate = {
             "schema_version": SCHEMA_VERSION,
             "run_id": run_id,
@@ -1889,10 +1894,12 @@ def prepare_matrix_runs(
             current_batch = candidate_batch
     if current_batch:
         batches.append(current_batch)
+    if exact_run_id is not None and len(batches) != 1:
+        raise ValueError("exact run identity must resolve to exactly one run")
 
     paths = []
     for index, articles in enumerate(batches, start=1):
-        run_id = f"{run_prefix}-{index:02d}"
+        run_id = exact_run_id or f"{run_prefix}-{index:02d}"
         brief = {
             "schema_version": SCHEMA_VERSION,
             "run_id": run_id,
@@ -1901,7 +1908,10 @@ def prepare_matrix_runs(
             "articles": articles,
         }
         validate_new_brief(brief)
-        path = output_root / run_id / "brief.json"
+        run_dir = output_root / run_id
+        if exact_run_id is not None:
+            run_dir.mkdir(parents=True, exist_ok=False)
+        path = run_dir / "brief.json"
         write_json(path, brief)
         paths.append(path)
     return paths
@@ -5626,7 +5636,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     subparsers = parser.add_subparsers(dest="command", required=True)
     prepare = subparsers.add_parser("prepare-matrix")
-    prepare.add_argument("--run-prefix", required=True)
+    prepare_identity = prepare.add_mutually_exclusive_group(required=True)
+    prepare_identity.add_argument("--run-prefix")
+    prepare_identity.add_argument("--exact-run-id")
     prepare.add_argument("--limit", type=int)
     prepare.add_argument("--exclude", action="append", default=[])
     prepare.add_argument("--max-articles-per-run", type=int, default=MAX_RUN_ARTICLES)
@@ -5696,10 +5708,11 @@ def main() -> int:
     if args.command == "prepare-matrix":
         paths = prepare_matrix_runs(
             repo_root,
-            args.run_prefix,
+            args.run_prefix or args.exact_run_id,
             limit=args.limit,
             exclude_ids=set(args.exclude),
             max_articles_per_run=args.max_articles_per_run,
+            exact_run_id=args.exact_run_id,
         )
         print(json.dumps({"backlog": sum(len(json.loads(path.read_text())["articles"]) for path in paths), "runs": [str(path.parent) for path in paths]}, ensure_ascii=False))
         return 0

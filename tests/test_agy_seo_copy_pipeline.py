@@ -4168,6 +4168,70 @@ def test_matrix_prepare_can_isolate_every_article_in_its_own_run(
     assert all(len(json.loads(path.read_text(encoding="utf-8"))["articles"]) == 1 for path in paths)
 
 
+def test_matrix_prepare_reserves_exact_run_identity_before_writing_brief(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: [])
+
+    paths = prepare_matrix_runs(
+        repo_root,
+        exact_run_id,
+        output_root=tmp_path,
+        limit=1,
+        max_articles_per_run=1,
+        exact_run_id=exact_run_id,
+    )
+
+    assert paths == [tmp_path / exact_run_id / "brief.json"]
+    assert json.loads(paths[0].read_text(encoding="utf-8"))["run_id"] == exact_run_id
+    with pytest.raises(ValueError, match="exact run identity is already in use"):
+        prepare_matrix_runs(
+            repo_root,
+            exact_run_id,
+            output_root=tmp_path,
+            limit=1,
+            max_articles_per_run=1,
+            exact_run_id=exact_run_id,
+        )
+
+
+def test_matrix_prepare_rejects_unclosed_exact_identity_before_writing_brief(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: [])
+
+    with pytest.raises(ValueError, match="exact run identity must resolve to exactly one run"):
+        prepare_matrix_runs(
+            repo_root,
+            exact_run_id,
+            output_root=tmp_path,
+            limit=2,
+            max_articles_per_run=1,
+            exact_run_id=exact_run_id,
+        )
+
+    assert not (tmp_path / exact_run_id).exists()
+
+
+def test_prepare_matrix_cli_accepts_exact_run_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agy_seo_copy_pipeline.py", "prepare-matrix", "--exact-run-id", "auto-new-v1-20260812-001-02"],
+    )
+
+    args = pipeline.parse_args()
+
+    assert args.run_prefix is None
+    assert args.exact_run_id == "auto-new-v1-20260812-001-02"
+
+
 def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     source_commit = subprocess.run(

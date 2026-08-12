@@ -1556,28 +1556,41 @@ def seed_new_matrix_runs(
     min_active_runs: int = DEFAULT_NEW_MATRIX_MIN_ACTIVE_RUNS,
     max_new_runs: int = DEFAULT_NEW_MATRIX_MAX_NEW_RUNS_PER_CYCLE,
     max_articles_per_run: int = DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN,
+    exact_run_id: str | None = None,
 ) -> dict[str, Any]:
     """自動從內容矩陣挑未登記的新文，建立 create run 並交給 coordinator。"""
-    if min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0:
+    if exact_run_id is None and (min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0):
         return {"status": "disabled", "created": 0, "created_run_ids": []}
+    if exact_run_id is not None:
+        if EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
+            raise ValueError("exact run id format is invalid")
+        if (run_root / exact_run_id).exists() or _state_path(exact_run_id, queue_root).exists():
+            raise ValueError("exact run identity is already in use")
     active_create = _active_count_by_mode(queue_root, "create")
-    if active_create >= min_active_runs:
+    if exact_run_id is None and active_create >= min_active_runs:
         return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
 
     created: list[str] = []
     excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
-    for _ in range(min(1, max_new_runs, min_active_runs - active_create)):
-        run_prefix = _next_new_matrix_run_prefix(run_root, queue_root)
-        paths = pipeline.prepare_matrix_runs(
-            repo_root,
-            run_prefix,
-            output_root=run_root,
-            limit=min(1, max_articles_per_run),
-            exclude_ids=excluded_ids,
-            max_articles_per_run=min(1, max_articles_per_run),
-        )
+    allocation_count = 1 if exact_run_id is not None else min(1, max_new_runs, min_active_runs - active_create)
+    for _ in range(allocation_count):
+        run_prefix = exact_run_id or _next_new_matrix_run_prefix(run_root, queue_root)
+        prepare_kwargs: dict[str, Any] = {
+            "output_root": run_root,
+            "limit": min(1, max_articles_per_run),
+            "exclude_ids": excluded_ids,
+            "max_articles_per_run": min(1, max_articles_per_run),
+        }
+        if exact_run_id is not None:
+            prepare_kwargs["exact_run_id"] = exact_run_id
+        paths = pipeline.prepare_matrix_runs(repo_root, run_prefix, **prepare_kwargs)
         if not paths:
+            if exact_run_id is not None:
+                raise ValueError("exact run identity could not be allocated")
             break
+        if exact_run_id is not None:
+            if len(paths) != 1 or paths[0].parent.name != exact_run_id or _brief(paths[0].parent).get("run_id") != exact_run_id:
+                raise ValueError("exact run identity closure failed")
         for brief_path in paths[:1]:
             state = register_run(brief_path.parent, queue_root)
             created.append(str(state["run_id"]))

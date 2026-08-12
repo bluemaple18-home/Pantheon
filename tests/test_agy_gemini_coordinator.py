@@ -2108,6 +2108,105 @@ def test_seed_new_matrix_runs_registers_only_one_run_and_article_per_cycle(
     assert len(brief["articles"]) == 1
 
 
+def test_seed_new_matrix_runs_reserves_exact_replacement_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    repo_root.mkdir()
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "build_matrix_backlog",
+        lambda _repo: [{"id": "V2-MBTI-INTJ-WORK", "primaryKeyword": "INTJ 工作"}],
+    )
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "_matrix_targets",
+        lambda _repo, _backlog: {
+            "V2-MBTI-INTJ-WORK": {
+                "id": "V2-MBTI-INTJ-WORK",
+                "section": "mbti",
+                "product": "mbti",
+                "slug": "v2-mbti-intj-work",
+                "serial": "mbti-0001",
+                "urlSlug": "mbti-0001",
+                "published": "2026-08-12",
+                "updated": "2026-08-12",
+                "primaryKeyword": "INTJ 工作",
+            }
+        },
+    )
+    monkeypatch.setattr(coordinator.pipeline, "compact_publication_policy", lambda: {})
+
+    summary = seed_new_matrix_runs(
+        repo_root,
+        queue_root,
+        run_root,
+        exact_run_id=exact_run_id,
+    )
+
+    assert summary["created_run_ids"] == [exact_run_id]
+    brief_path = run_root / exact_run_id / "brief.json"
+    assert json.loads(brief_path.read_text(encoding="utf-8"))["run_id"] == exact_run_id
+
+
+@pytest.mark.parametrize("collision_source", ["run_root", "queue"])
+def test_seed_new_matrix_runs_rejects_exact_identity_collision_before_prepare(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    collision_source: str,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    repo_root.mkdir()
+    if collision_source == "run_root":
+        (run_root / exact_run_id).mkdir(parents=True)
+    else:
+        state_path = coordinator._state_path(exact_run_id, queue_root)
+        state_path.parent.mkdir(parents=True)
+        state_path.write_text(json.dumps({"run_id": exact_run_id, "status": "complete"}), encoding="utf-8")
+    prepare_calls = 0
+
+    def fail_if_prepared(*_args, **_kwargs) -> list[Path]:
+        nonlocal prepare_calls
+        prepare_calls += 1
+        return []
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", fail_if_prepared)
+
+    with pytest.raises(ValueError, match="exact run identity is already in use"):
+        seed_new_matrix_runs(repo_root, queue_root, run_root, exact_run_id=exact_run_id)
+
+    assert prepare_calls == 0
+    assert not (run_root / exact_run_id / "brief.json").exists()
+
+
+def test_seed_new_matrix_runs_rejects_unclosed_exact_identity_before_register(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", lambda *_args, **_kwargs: [])
+
+    with pytest.raises(ValueError, match="exact run identity could not be allocated"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id="auto-new-v1-20260812-001-02",
+        )
+
+    assert not (queue_root / "runs").exists()
+
+
 def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
