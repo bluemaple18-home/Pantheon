@@ -40,19 +40,16 @@ if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" ]]; then
   echo "用法：scripts/install_agy_content_publisher_launchd.sh [--preflight|--install]" >&2
   exit 2
 fi
-if [[ ! -x "${PYTHON_PATH}" ]]; then
+if [[ "${PYTHON_PATH}" != /* ]]; then
+  echo "Pantheon Python 必須使用 absolute path：${PYTHON_PATH}" >&2
+  exit 1
+fi
+PYTHON_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${PYTHON_PATH}")"
+if [[ -z "${PYTHON_REALPATH}" || ! -f "${PYTHON_REALPATH}" || ! -x "${PYTHON_REALPATH}" || -L "${PYTHON_REALPATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
 fi
-if [[ "${PYTHON_PATH}" != /* || ! -f "${PYTHON_PATH}" || -L "${PYTHON_PATH}" ]]; then
-  echo "Pantheon Python 必須是 canonical executable regular file：${PYTHON_PATH}" >&2
-  exit 1
-fi
-PYTHON_REALPATH="$(cd "$(dirname "${PYTHON_PATH}")" && pwd -P)/$(basename "${PYTHON_PATH}")"
-if [[ "${PYTHON_PATH}" != "${PYTHON_REALPATH}" ]]; then
-  echo "Pantheon Python 必須使用 canonical realpath：${PYTHON_PATH}" >&2
-  exit 1
-fi
+PYTHON_BIN="${PYTHON_REALPATH}"
 if ! [[ "${MAX_RUNS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "PANTHEON_PUBLISH_MAX_RUNS 必須是正整數" >&2
   exit 1
@@ -81,15 +78,15 @@ if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
 fi
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest validate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
-    --expected-python-executable "${PYTHON_PATH}"
+    --expected-python-executable "${PYTHON_BIN}"
 ) >/dev/null
 manifest_field() {
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
       --manifest "${RUNTIME_MANIFEST_FILE}" \
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
@@ -141,17 +138,17 @@ if [[ "${RUNTIME_SHA}" != "${ORIGIN_MAIN_SHA}" ]]; then
 fi
 RUNTIME_DIGEST="$(
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -c \
+  "${PYTHON_BIN}" -c \
     'from pathlib import Path; from scripts.agy_content_publisher import runtime_manifest_digest; print(runtime_manifest_digest(Path.cwd()))'
 )"
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:25 ${STATE_ROOT}" "${TEMP_PLIST}"
@@ -191,7 +188,7 @@ run_preflight() {
   fi
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.agy_content_publisher \
+    "${PYTHON_BIN}" -m scripts.agy_content_publisher \
       --repo-root "${REPO_ROOT}" \
       --queue-root "${QUEUE_ROOT}" \
       --state-root "${STATE_ROOT}" \

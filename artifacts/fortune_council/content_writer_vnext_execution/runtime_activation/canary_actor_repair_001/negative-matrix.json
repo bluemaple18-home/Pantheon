@@ -29,8 +29,15 @@
       "status": "PASS"
     },
     {
-      "case": "installer_python_symlink",
-      "expected": "installer exits before manifest/preflight with canonical executable regular file error",
+      "case": "installer_python_symlink_to_non_executable",
+      "expected": "installer exits before manifest/preflight with missing Python error",
+      "status": "PASS"
+    }
+  ],
+  "positive_cases": [
+    {
+      "case": "installer_python_symlink_to_executable_realpath",
+      "expected": "installer resolves symlink and uses canonical executable for manifest validate and preflight",
       "status": "PASS"
     }
   ],

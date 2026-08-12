@@ -12,7 +12,14 @@
 - `load_manifest()` keeps legacy compatibility when `actor_head` is absent.
 - When `actor_head` is present, `actor_root` must be a canonical Git worktree root, clean, and `git rev-parse HEAD` must exactly equal the manifest SHA.
 - `load_manifest(..., expected_python_executable=...)` now fails closed when the manifest Python is missing or differs from the actual deployment Python realpath.
-- The content publisher installer rejects non-canonical/symlink Python paths before invoking Python modules, then validates the manifest with `--expected-python-executable`.
+- The content publisher installer resolves the configured/default Python to a canonical executable realpath, uses that resolved executable for manifest validation, plist arguments, runtime digest, and publisher preflight, and still rejects missing or non-executable targets.
+
+## Generation 2
+
+- Re-review finding: generation 1 rejected uv-style `.venv/bin/python` symlinks before manifest/preflight.
+- Fix: allow symlink input only after resolving it to a canonical executable realpath; use the resolved executable for all downstream identity surfaces.
+- Regression: `.venv/bin/python`-style symlink positive path now passes and proves `--expected-python-executable` receives the resolved executable.
+- Negative: symlink to a non-executable target still fails before manifest/preflight.
 
 ## Verification
 
@@ -23,3 +30,4 @@
 - JSON parse: `negative-matrix.json` => PASS after receipt parse
 - allowlist: PASS; changed source/test/evidence files are within the repair card allowlist
 - git diff check: `git diff --check` => PASS
+- generation 2 targeted: `.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_prepare_pantheon_canary_actor.py tests/test_agy_content_publisher.py -q` => `143 passed, 1 warning`

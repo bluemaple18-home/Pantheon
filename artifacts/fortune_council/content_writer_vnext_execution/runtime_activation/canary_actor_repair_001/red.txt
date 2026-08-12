@@ -11,3 +11,7 @@ Failing coverage:
 - non-git actor_root with actor_head still loaded
 - git executable failure was not classified before actor_head validation existed
 - load_manifest did not accept expected_python_executable, so deployment Python drift could not be checked
+
+Generation 2 re-review NO_GO:
+- The generation 1 installer rejected any `PANTHEON_PYTHON_PATH` symlink with `-L`, which regressed the common uv `.venv/bin/python` layout.
+- New focused positive coverage requires a symlink input to resolve to its executable realpath and use that resolved Python for manifest validation and publisher preflight.
