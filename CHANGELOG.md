@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.362] - 2026-08-12
+
+- Release tag：`v0.3.362`
+- 公開文章總數：619
+- 發布範圍：Writer vNext exact identity 原子交易修復，確保 replacement run 的 reservation、staging、activation 與 cleanup 皆維持 fail-closed ownership。
+- 驗證：18 focused transaction tests、235 affected regression tests、Reviewer `REVIEW_GO` 與 release record gate。
+- 證據：`artifacts/fortune_council/content_writer_vnext_execution/exact_identity_release_0362/`
+
 ## [0.3.361] - 2026-08-07
 
 - Release tag：`v0.3.361`
