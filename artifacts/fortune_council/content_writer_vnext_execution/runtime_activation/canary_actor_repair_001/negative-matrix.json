@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-CANARY-ACTOR-REPAIR-001",
+  "finding": "actor_head and python_executable runtime identity drift",
+  "negative_cases": [
+    {
+      "case": "actor_head_stale_a_b",
+      "expected": "RuntimeManifestError: runtime actor head drift",
+      "status": "PASS"
+    },
+    {
+      "case": "actor_worktree_dirty",
+      "expected": "RuntimeManifestError: runtime actor worktree is dirty",
+      "status": "PASS"
+    },
+    {
+      "case": "actor_root_non_repo",
+      "expected": "RuntimeManifestError: actor root must be a git worktree",
+      "status": "PASS"
+    },
+    {
+      "case": "actor_git_failure",
+      "expected": "RuntimeManifestError: actor git validation failed",
+      "status": "PASS"
+    },
+    {
+      "case": "python_executable_drift",
+      "expected": "RuntimeManifestError: runtime python executable drift",
+      "status": "PASS"
+    },
+    {
+      "case": "installer_python_symlink",
+      "expected": "installer exits before manifest/preflight with canonical executable regular file error",
+      "status": "PASS"
+    }
+  ],
+  "legacy_manifest_compatibility": {
+    "actor_head_missing": "no git validation required",
+    "python_executable_missing": "allowed unless caller provides expected_python_executable",
+    "status": "PASS"
+  }
+}

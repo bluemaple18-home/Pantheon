@@ -15,6 +15,30 @@ from scripts import pantheon_content_runtime_manifest as runtime
 REGRESSION_ID = "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001"
 
 
+def _run_git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+def _git_actor_repo(tmp_path: Path) -> tuple[Path, str]:
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    _run_git(actor, "init", "--initial-branch", "main")
+    _run_git(actor, "config", "user.email", "runtime@example.com")
+    _run_git(actor, "config", "user.name", "Pantheon Runtime")
+    (actor / "runtime.txt").write_text("A\n", encoding="utf-8")
+    _run_git(actor, "add", ".")
+    _run_git(actor, "commit", "-m", "runtime A")
+    return actor, _run_git(actor, "rev-parse", "HEAD")
+
+
 def test_runtime_manifest_canonicalizes_one_shared_cross_actor_contract(
     tmp_path: Path,
 ) -> None:
@@ -36,6 +60,128 @@ def test_runtime_manifest_canonicalizes_one_shared_cross_actor_contract(
 
     assert runtime.validate_receipts(manifest, receipts)["status"] == "PASS"
     assert manifest["regression_id"] == REGRESSION_ID
+
+
+def test_manifest_actor_head_must_match_clean_actor_git_head(tmp_path: Path) -> None:
+    actor, head_a = _git_actor_repo(tmp_path)
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="canary-actor:head-a",
+        actor_head=head_a,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+
+    assert (
+        runtime.load_manifest(manifest_path, manifest["manifest_digest"])["actor_head"]
+        == head_a
+    )
+
+    (actor / "runtime.txt").write_text("B\n", encoding="utf-8")
+    _run_git(actor, "add", ".")
+    _run_git(actor, "commit", "-m", "runtime B")
+    with pytest.raises(runtime.RuntimeManifestError, match="actor head drift"):
+        runtime.load_manifest(manifest_path, manifest["manifest_digest"])
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("dirty", "actor worktree is dirty"),
+        ("non-repo", "actor root must be a git worktree"),
+        ("git-failure", "actor git validation failed"),
+    ],
+)
+def test_manifest_actor_head_git_negative_matrix_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    message: str,
+) -> None:
+    actor, head = _git_actor_repo(tmp_path)
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity=f"canary-actor:{mutation}",
+        actor_head=head,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    if mutation == "dirty":
+        (actor / "runtime.txt").write_text("dirty\n", encoding="utf-8")
+    elif mutation == "non-repo":
+        actor = tmp_path / "plain-actor"
+        actor.mkdir()
+        manifest["actor_root"] = str(actor)
+        manifest["runtime_identity_digest"] = runtime._runtime_identity_digest(manifest)
+        digest_payload = dict(manifest)
+        digest_payload.pop("manifest_digest")
+        manifest["manifest_digest"] = runtime._manifest_digest(digest_payload)
+        runtime.write_manifest(manifest_path, manifest)
+    else:
+        monkeypatch.setattr(
+            runtime.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                OSError("git unavailable")
+            ),
+        )
+
+    with pytest.raises(runtime.RuntimeManifestError, match=message):
+        runtime.load_manifest(manifest_path, manifest["manifest_digest"])
+
+
+def test_manifest_python_expected_executable_must_match_exact_realpath(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    expected_python = tmp_path / "python-expected"
+    drift_python = tmp_path / "python-drift"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    for executable in (expected_python, drift_python):
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="canary-python:expected",
+        python_executable=expected_python,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+
+    assert runtime.load_manifest(
+        manifest_path,
+        manifest["manifest_digest"],
+        expected_python_executable=expected_python,
+    )["python_executable"] == str(expected_python)
+    with pytest.raises(runtime.RuntimeManifestError, match="python executable drift"):
+        runtime.load_manifest(
+            manifest_path,
+            manifest["manifest_digest"],
+            expected_python_executable=drift_python,
+        )
 
 
 def test_runtime_manifest_rejects_alias_and_cross_installer_drift(tmp_path: Path) -> None:

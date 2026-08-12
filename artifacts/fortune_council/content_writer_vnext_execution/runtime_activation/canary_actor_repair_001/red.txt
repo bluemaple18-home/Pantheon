@@ -1,0 +1,13 @@
+RED command:
+.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py -q
+
+Result before repair:
+exit 1
+17 passed, 5 failed
+
+Failing coverage:
+- stale manifest built at actor HEAD A continued to load after actor root advanced to HEAD B
+- dirty actor root with actor_head still loaded
+- non-git actor_root with actor_head still loaded
+- git executable failure was not classified before actor_head validation existed
+- load_manifest did not accept expected_python_executable, so deployment Python drift could not be checked

@@ -44,6 +44,15 @@ if [[ ! -x "${PYTHON_PATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
 fi
+if [[ "${PYTHON_PATH}" != /* || ! -f "${PYTHON_PATH}" || -L "${PYTHON_PATH}" ]]; then
+  echo "Pantheon Python 必須是 canonical executable regular file：${PYTHON_PATH}" >&2
+  exit 1
+fi
+PYTHON_REALPATH="$(cd "$(dirname "${PYTHON_PATH}")" && pwd -P)/$(basename "${PYTHON_PATH}")"
+if [[ "${PYTHON_PATH}" != "${PYTHON_REALPATH}" ]]; then
+  echo "Pantheon Python 必須使用 canonical realpath：${PYTHON_PATH}" >&2
+  exit 1
+fi
 if ! [[ "${MAX_RUNS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "PANTHEON_PUBLISH_MAX_RUNS 必須是正整數" >&2
   exit 1
@@ -74,7 +83,8 @@ fi
   cd "${REPO_ROOT}"
   "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
-    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+    --expected-python-executable "${PYTHON_PATH}"
 ) >/dev/null
 manifest_field() {
   (

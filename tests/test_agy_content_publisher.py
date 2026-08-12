@@ -3006,6 +3006,8 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert "--exact-run-id" in installer
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
+    assert "--expected-python-executable" in installer
+    assert "Pantheon Python 必須使用 canonical realpath" in installer
     assert 'run_preflight >/dev/null' in installer
     assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
     assert ".pantheon-four-lane-stage" in installer
@@ -3029,6 +3031,37 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_content_publisher_installer_rejects_python_symlink_before_manifest(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    python_target = tmp_path / "python-target"
+    python_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python_target.chmod(0o755)
+    python_alias = tmp_path / "python-alias"
+    python_alias.symlink_to(python_target)
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": str(python_alias),
+        "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": "a" * 64,
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"), "--preflight"],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "canonical executable regular file" in completed.stderr
+    assert not (tmp_path / "home").exists()
 
 
 def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(

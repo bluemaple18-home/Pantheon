@@ -11,6 +11,7 @@ from pathlib import Path
 import plistlib
 import re
 import stat
+import subprocess
 import tempfile
 import time
 from typing import Any
@@ -61,6 +62,39 @@ def _canonical_executable(path: Path, field: str) -> str:
     if path.is_symlink() or not os.access(resolved, os.X_OK):
         raise RuntimeManifestError(f"{field} must be an executable regular file")
     return str(resolved)
+
+
+def _git_output(repo: Path, *args: str) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        raise RuntimeManifestError("actor git validation failed") from error
+    if completed.returncode != 0:
+        raise RuntimeManifestError("actor git command failed")
+    return completed.stdout.strip()
+
+
+def _validate_actor_head(actor_root: Path, expected_head: str) -> None:
+    try:
+        toplevel = Path(
+            _git_output(actor_root, "rev-parse", "--show-toplevel")
+        ).resolve(strict=True)
+    except RuntimeManifestError as error:
+        if str(error) == "actor git validation failed":
+            raise
+        raise RuntimeManifestError("actor root must be a git worktree") from error
+    if toplevel != actor_root:
+        raise RuntimeManifestError("actor root must be a git worktree")
+    actual_head = _git_output(actor_root, "rev-parse", "HEAD")
+    if actual_head != expected_head:
+        raise RuntimeManifestError("runtime actor head drift")
+    if _git_output(actor_root, "status", "--porcelain") != "":
+        raise RuntimeManifestError("runtime actor worktree is dirty")
 
 
 def _manifest_digest(payload: dict[str, Any]) -> str:
@@ -155,7 +189,12 @@ def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def load_manifest(path: Path, expected_digest: str | None = None) -> dict[str, Any]:
+def load_manifest(
+    path: Path,
+    expected_digest: str | None = None,
+    *,
+    expected_python_executable: Path | None = None,
+) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
@@ -177,14 +216,27 @@ def load_manifest(path: Path, expected_digest: str | None = None) -> dict[str, A
         raise RuntimeManifestError("runtime digest is invalid")
     if GENERATION_PATTERN.fullmatch(str(payload.get("generation", ""))) is None:
         raise RuntimeManifestError("runtime generation is invalid")
-    if "actor_head" in payload and SHA1_PATTERN.fullmatch(str(payload["actor_head"])) is None:
-        raise RuntimeManifestError("runtime actor head is invalid")
+    actor_root = Path(str(payload["actor_root"]))
+    if "actor_head" in payload:
+        actor_head = str(payload["actor_head"])
+        if SHA1_PATTERN.fullmatch(actor_head) is None:
+            raise RuntimeManifestError("runtime actor head is invalid")
+        _validate_actor_head(actor_root, actor_head)
     if "python_executable" in payload:
         if _canonical_executable(
             Path(str(payload["python_executable"])),
             "python_executable",
         ) != payload["python_executable"]:
             raise RuntimeManifestError("runtime python executable mismatch")
+    if expected_python_executable is not None:
+        if "python_executable" not in payload:
+            raise RuntimeManifestError("runtime python executable is missing")
+        expected_python = _canonical_executable(
+            expected_python_executable,
+            "expected_python_executable",
+        )
+        if payload["python_executable"] != expected_python:
+            raise RuntimeManifestError("runtime python executable drift")
     identity_digest = str(payload.get("runtime_identity_digest", ""))
     if identity_digest != _runtime_identity_digest(payload):
         raise RuntimeManifestError("runtime identity digest mismatch")
@@ -527,12 +579,15 @@ def parse_args() -> argparse.Namespace:
             "runtime_digest",
             "config_version",
             "generation",
+            "actor_head",
+            "python_executable",
         ),
         required=True,
     )
     validate = subparsers.add_parser("validate")
     validate.add_argument("--manifest", type=Path, required=True)
     validate.add_argument("--expected-digest", required=True)
+    validate.add_argument("--expected-python-executable", type=Path)
     aggregate = subparsers.add_parser("aggregate")
     aggregate.add_argument("--manifest", type=Path, required=True)
     aggregate.add_argument("--expected-digest", required=True)
@@ -651,8 +706,18 @@ def main() -> int:
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))
         else:
-            manifest = load_manifest(args.manifest, args.expected_digest)
+            manifest = load_manifest(
+                args.manifest,
+                args.expected_digest,
+                expected_python_executable=(
+                    args.expected_python_executable
+                    if args.command == "validate"
+                    else None
+                ),
+            )
             if args.command == "field":
+                if args.name not in manifest:
+                    raise RuntimeManifestError(f"{args.name} is missing")
                 print(manifest[args.name])
             elif args.command == "aggregate":
                 print(json.dumps(aggregate_plist_preflight(manifest, args.plist), sort_keys=True))
