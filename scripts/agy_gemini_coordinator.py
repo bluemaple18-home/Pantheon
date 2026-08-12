@@ -513,6 +513,44 @@ def _state_path(run_id: str, queue_root: Path) -> Path:
     return queue_root / "runs" / f"{opaque_id}.json"
 
 
+def _reserve_run_identity(
+    run_id: str,
+    run_dir: Path,
+    queue_root: Path,
+    correlation_id: str,
+    reservation_token: str,
+) -> Path:
+    path = _state_path(run_id, queue_root.resolve())
+    reservation = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir.resolve()),
+        "status": "reserved",
+        "correlation_id": correlation_id,
+        "reservation_token": reservation_token,
+        "reserved_at": _now(),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(reservation, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as error:
+        raise ValueError("exact run identity is already in use") from error
+    return path
+
+
+def _release_run_reservation(path: Path, reservation_token: str) -> None:
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    if state.get("status") == "reserved" and state.get("reservation_token") == reservation_token:
+        path.unlink(missing_ok=True)
+
+
 def _translation_replacement_decision_path(
     queue_root: Path,
     run_id: str,
@@ -526,12 +564,40 @@ def register_run(
     queue_root: Path,
     *,
     correlation_id: str | None = None,
+    reservation_token: str | None = None,
 ) -> dict[str, Any]:
     """將一個本機私密 run 登記為 active；不建立外部 request。"""
     _validate_formal_runtime(queue_root)
     resolved = run_dir.resolve()
     brief = _brief(resolved)
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
+    if reservation_token is not None:
+        if correlation_id is None:
+            raise ValueError("reservation correlation id is required")
+        try:
+            reservation = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError) as error:
+            raise ValueError("reservation ownership mismatch") from error
+        if (
+            reservation.get("status") != "reserved"
+            or reservation.get("run_id") != brief["run_id"]
+            or reservation.get("run_dir") != str(resolved)
+            or reservation.get("correlation_id") != correlation_id
+            or reservation.get("reservation_token") != reservation_token
+        ):
+            raise ValueError("reservation ownership mismatch")
+        now = _now()
+        state = {
+            "schema_version": 1,
+            "run_id": brief["run_id"],
+            "run_dir": str(resolved),
+            "status": "active",
+            "correlation_id": correlation_id,
+            "registered_at": now,
+            "updated_at": now,
+        }
+        atomic_write_json(path, state)
+        return state
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("run_dir") != str(resolved) or state.get("run_id") != brief["run_id"]:
@@ -1561,50 +1627,73 @@ def seed_new_matrix_runs(
     """自動從內容矩陣挑未登記的新文，建立 create run 並交給 coordinator。"""
     if exact_run_id is None and (min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0):
         return {"status": "disabled", "created": 0, "created_run_ids": []}
+    reservation: tuple[Path, str, str] | None = None
     if exact_run_id is not None:
         if EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
             raise ValueError("exact run id format is invalid")
-        if (run_root / exact_run_id).exists() or _state_path(exact_run_id, queue_root).exists():
+        exact_run_dir = run_root / exact_run_id
+        if exact_run_dir.exists():
             raise ValueError("exact run identity is already in use")
-    active_create = _active_count_by_mode(queue_root, "create")
-    if exact_run_id is None and active_create >= min_active_runs:
-        return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
+        correlation_id = secrets.token_hex(16)
+        reservation_token = secrets.token_hex(16)
+        reservation_path = _reserve_run_identity(
+            exact_run_id,
+            exact_run_dir,
+            queue_root,
+            correlation_id,
+            reservation_token,
+        )
+        reservation = (reservation_path, correlation_id, reservation_token)
+    try:
+        active_create = _active_count_by_mode(queue_root, "create")
+        if exact_run_id is None and active_create >= min_active_runs:
+            return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
 
-    created: list[str] = []
-    excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
-    allocation_count = 1 if exact_run_id is not None else min(1, max_new_runs, min_active_runs - active_create)
-    for _ in range(allocation_count):
-        run_prefix = exact_run_id or _next_new_matrix_run_prefix(run_root, queue_root)
-        prepare_kwargs: dict[str, Any] = {
-            "output_root": run_root,
-            "limit": min(1, max_articles_per_run),
-            "exclude_ids": excluded_ids,
-            "max_articles_per_run": min(1, max_articles_per_run),
-        }
-        if exact_run_id is not None:
-            prepare_kwargs["exact_run_id"] = exact_run_id
-        paths = pipeline.prepare_matrix_runs(repo_root, run_prefix, **prepare_kwargs)
-        if not paths:
+        created: list[str] = []
+        excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
+        allocation_count = 1 if exact_run_id is not None else min(1, max_new_runs, min_active_runs - active_create)
+        for _ in range(allocation_count):
+            run_prefix = exact_run_id or _next_new_matrix_run_prefix(run_root, queue_root)
+            prepare_kwargs: dict[str, Any] = {
+                "output_root": run_root,
+                "limit": min(1, max_articles_per_run),
+                "exclude_ids": excluded_ids,
+                "max_articles_per_run": min(1, max_articles_per_run),
+            }
             if exact_run_id is not None:
-                raise ValueError("exact run identity could not be allocated")
-            break
-        if exact_run_id is not None:
-            if len(paths) != 1 or paths[0].parent.name != exact_run_id or _brief(paths[0].parent).get("run_id") != exact_run_id:
-                raise ValueError("exact run identity closure failed")
-        for brief_path in paths[:1]:
-            state = register_run(brief_path.parent, queue_root)
-            created.append(str(state["run_id"]))
-            brief = _brief(brief_path.parent)
-            excluded_ids.update(_create_article_ids_from_brief(brief))
-        if len(created) >= max_new_runs:
-            break
+                prepare_kwargs["exact_run_id"] = exact_run_id
+            paths = pipeline.prepare_matrix_runs(repo_root, run_prefix, **prepare_kwargs)
+            if not paths:
+                if exact_run_id is not None:
+                    raise ValueError("exact run identity could not be allocated")
+                break
+            if exact_run_id is not None:
+                if len(paths) != 1 or paths[0].parent.name != exact_run_id or _brief(paths[0].parent).get("run_id") != exact_run_id:
+                    raise ValueError("exact run identity closure failed")
+            for brief_path in paths[:1]:
+                register_kwargs: dict[str, str] = {}
+                if reservation is not None:
+                    register_kwargs = {
+                        "correlation_id": reservation[1],
+                        "reservation_token": reservation[2],
+                    }
+                state = register_run(brief_path.parent, queue_root, **register_kwargs)
+                created.append(str(state["run_id"]))
+                brief = _brief(brief_path.parent)
+                excluded_ids.update(_create_article_ids_from_brief(brief))
+            if len(created) >= max_new_runs:
+                break
 
-    return {
-        "status": "seeded" if created else "idle",
-        "created": len(created),
-        "created_run_ids": created,
-        "active_create_before": active_create,
-    }
+        return {
+            "status": "seeded" if created else "idle",
+            "created": len(created),
+            "created_run_ids": created,
+            "active_create_before": active_create,
+        }
+    except BaseException:
+        if reservation is not None:
+            _release_run_reservation(reservation[0], reservation[2])
+        raise
 
 
 def _legacy_rewrite_article_brief(

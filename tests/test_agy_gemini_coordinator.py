@@ -2151,6 +2151,10 @@ def test_seed_new_matrix_runs_reserves_exact_replacement_identity(
     assert summary["created_run_ids"] == [exact_run_id]
     brief_path = run_root / exact_run_id / "brief.json"
     assert json.loads(brief_path.read_text(encoding="utf-8"))["run_id"] == exact_run_id
+    state = json.loads(coordinator._state_path(exact_run_id, queue_root).read_text(encoding="utf-8"))
+    assert state["status"] == "active"
+    assert state["correlation_id"]
+    assert "reservation_token" not in state
 
 
 @pytest.mark.parametrize("collision_source", ["run_root", "queue"])
@@ -2204,7 +2208,105 @@ def test_seed_new_matrix_runs_rejects_unclosed_exact_identity_before_register(
             exact_run_id="auto-new-v1-20260812-001-02",
         )
 
-    assert not (queue_root / "runs").exists()
+    assert not coordinator._state_path("auto-new-v1-20260812-001-02", queue_root).exists()
+
+
+def test_seed_new_matrix_runs_cleans_owned_reservation_after_prepare_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    repo_root.mkdir()
+
+    def fail_prepare(*_args, **_kwargs) -> list[Path]:
+        raise RuntimeError("prepare failed")
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", fail_prepare)
+
+    with pytest.raises(RuntimeError, match="prepare failed"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert not coordinator._state_path(exact_run_id, queue_root).exists()
+    assert not (run_root / exact_run_id / "brief.json").exists()
+    assert not (queue_root / "outbox").exists()
+
+
+def test_register_run_rejects_reservation_ownership_mismatch(
+    tmp_path: Path,
+) -> None:
+    run_id = "auto-new-v1-20260812-001-02"
+    run_dir = tmp_path / "private-runs" / run_id
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, run_id)
+    state_path = coordinator._reserve_run_identity(
+        run_id,
+        run_dir,
+        queue_root,
+        "owned-correlation",
+        "owned-token",
+    )
+    reservation = json.loads(state_path.read_text(encoding="utf-8"))
+
+    with pytest.raises(ValueError, match="reservation ownership mismatch"):
+        register_run(
+            run_dir,
+            queue_root,
+            correlation_id="owned-correlation",
+            reservation_token="foreign-token",
+        )
+
+    assert json.loads(state_path.read_text(encoding="utf-8")) == reservation
+
+
+def test_seed_new_matrix_runs_rejects_foreign_state_inserted_after_prepare(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    run_dir = run_root / exact_run_id
+    state_path = coordinator._state_path(exact_run_id, queue_root)
+    repo_root.mkdir()
+    foreign_state = {
+        "schema_version": 1,
+        "run_id": exact_run_id,
+        "run_dir": str(run_dir.resolve()),
+        "status": "complete",
+        "correlation_id": "other",
+    }
+
+    def prepare_then_replace_reservation(*_args, **_kwargs) -> list[Path]:
+        _write_brief(run_dir, exact_run_id)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(foreign_state), encoding="utf-8")
+        return [run_dir / "brief.json"]
+
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "prepare_matrix_runs",
+        prepare_then_replace_reservation,
+    )
+
+    with pytest.raises(ValueError, match="reservation ownership mismatch"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert json.loads(state_path.read_text(encoding="utf-8")) == foreign_state
+    assert not (queue_root / "outbox").exists()
 
 
 def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
