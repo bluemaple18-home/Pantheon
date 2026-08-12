@@ -2745,6 +2745,17 @@ def _rewrite_provider_body_sections_schema() -> dict[str, Any]:
     return body_sections
 
 
+def _create_provider_body_sections_schema() -> dict[str, Any]:
+    """保留 create 結構約束；段落字數交給 canonical 本機 gate 與 repair。"""
+    body_sections = _article_json_schema()["properties"]["bodySections"]
+    paragraph_items = body_sections["items"]["properties"]["paragraphs"][
+        "items"
+    ]
+    paragraph_items.pop("minLength", None)
+    paragraph_items.pop("maxLength", None)
+    return body_sections
+
+
 def external_candidate_schema(mode: str) -> dict[str, Any]:
     if mode == "optimize":
         proposed = {
@@ -2775,7 +2786,11 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         properties = {"slot": {"type": "string"}}
         properties.update(
             {
-                field: full["properties"][field]
+                field: (
+                    _create_provider_body_sections_schema()
+                    if field == "bodySections"
+                    else full["properties"][field]
+                )
                 for field in sorted(EXTERNAL_CREATE_FIELDS)
             }
         )
@@ -2804,11 +2819,15 @@ def normalize_new_output_contract(
     try:
         normalized = json.loads(json.dumps(payload, ensure_ascii=False))
         article_schema = response_schema["properties"]["articles"]["items"]
+        canonical_article_schema = candidate_schema("create")["properties"][
+            "articles"
+        ]["items"]
         properties = article_schema["properties"]
+        canonical_properties = canonical_article_schema["properties"]
         description_schema = properties["description"]
-        paragraph_schema = properties["bodySections"]["items"]["properties"][
-            "paragraphs"
-        ]
+        paragraph_schema = canonical_properties["bodySections"]["items"][
+            "properties"
+        ]["paragraphs"]
         description_minimum = int(description_schema["minLength"])
         description_maximum = int(description_schema["maxLength"])
         paragraph_count_minimum = int(paragraph_schema["minItems"])

@@ -1,0 +1,28 @@
+GREEN commands:
+.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py::test_rewrite_writer_can_return_only_body_and_local_hydration_locks_identity tests/test_agy_seo_copy_pipeline.py::test_rewrite_provider_schema_removes_only_string_length_keywords tests/test_agy_seo_copy_pipeline.py::test_create_transport_short_paragraph_reaches_local_repair_gate -q
+=> 3 passed in 0.13s
+
+.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py -q
+=> 132 passed in 111.52s
+
+.venv/bin/python -m pytest tests/test_agy_content_publisher.py -q
+=> 112 passed, 1 warning in 5.98s
+
+.venv/bin/python -m py_compile scripts/agy_seo_copy_pipeline.py scripts/agy_content_publisher.py
+=> PASS
+
+git diff --check
+=> PASS
+
+REVIEW_BLOCKED P1 repair:
+.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py::test_create_normalization_reads_paragraph_bounds_from_canonical_schema tests/test_agy_gemini_outbox.py::test_runner_normalizes_new_description_and_paragraph_bounds_without_retry -q
+=> 2 passed in 0.15s
+
+.venv/bin/python -m pytest tests/test_agy_seo_copy_pipeline.py -q
+=> 133 passed in 110.36s
+
+.venv/bin/python -m pytest tests/test_agy_content_publisher.py -q
+=> 112 passed, 1 warning in 5.62s
+
+.venv/bin/python -m py_compile scripts/agy_seo_copy_pipeline.py scripts/agy_content_publisher.py scripts/agy_gemini_runner.py scripts/agy_gemini_outbox.py
+=> PASS

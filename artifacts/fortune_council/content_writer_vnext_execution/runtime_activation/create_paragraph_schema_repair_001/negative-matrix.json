@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-CONTENT-WRITER-VNEXT-CREATE-PARAGRAPH-SCHEMA-REPAIR-001",
+  "source_commit_requested": "6cfb3d0ed56",
+  "source_commit_read": "6cfb3d0ed5",
+  "finding": "create provider transport paragraph minLength/maxLength blocks local repair seam",
+  "positive_cases": [
+    {
+      "case": "create_provider_body_sections_remove_only_paragraph_string_min_max",
+      "expected": "provider create bodySections equals canonical create bodySections after only paragraph item minLength/maxLength are removed",
+      "status": "PASS"
+    },
+    {
+      "case": "canonical_create_schema_retains_paragraph_min_max",
+      "expected": "candidate_schema('create') still contains paragraph item minLength/maxLength",
+      "status": "PASS"
+    },
+    {
+      "case": "short_paragraph_hydrates_to_local_quality_gate",
+      "expected": "hydrate succeeds at transport seam, quality_findings emits paragraph_length, repair fields are bounded to bodySections",
+      "status": "PASS"
+    },
+    {
+      "case": "normalization_uses_canonical_paragraph_bounds",
+      "expected": "normalize_new_output_contract accepts relaxed create provider schema and reads paragraph min/max from canonical candidate schema",
+      "status": "PASS"
+    },
+    {
+      "case": "gemini_outbox_new_normalization_regression",
+      "expected": "test_runner_normalizes_new_description_and_paragraph_bounds_without_retry processes once without V4BrokerFailure or retry",
+      "status": "PASS"
+    }
+  ],
+  "negative_cases": [
+    {
+      "case": "hard_policy_not_relaxed",
+      "expected": "no publication policy hard min/max changes",
+      "status": "PASS"
+    },
+    {
+      "case": "rewrite_provider_schema_no_regression",
+      "expected": "rewrite provider schema remains the existing min/max-stripped transport shape",
+      "status": "PASS"
+    },
+    {
+      "case": "publisher_regression",
+      "expected": "publisher-related regression tests still pass without replacement/Gemini/runtime/publish operations",
+      "status": "PASS"
+    },
+    {
+      "case": "retry_behavior_unchanged",
+      "expected": "normalization repair does not change retry or external behavior",
+      "status": "PASS"
+    }
+  ],
+  "forbidden_operations": {
+    "replacement_run": false,
+    "gemini": false,
+    "runtime_v2_queue_state": false,
+    "publish_tag_push": false
+  }
+}
