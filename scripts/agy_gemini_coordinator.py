@@ -5,16 +5,18 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from scripts import agy_content_publisher as publisher
 from scripts import agy_multilingual_pipeline as multilingual
@@ -513,6 +515,56 @@ def _state_path(run_id: str, queue_root: Path) -> Path:
     return queue_root / "runs" / f"{opaque_id}.json"
 
 
+def _run_identity_lock_path(run_id: str, queue_root: Path) -> Path:
+    opaque_id = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+    return queue_root / "run-identity-locks" / f"{opaque_id}.lock"
+
+
+@contextmanager
+def _run_identity_lock(run_id: str, queue_root: Path) -> Iterator[None]:
+    path = _run_identity_lock_path(run_id, queue_root.resolve())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _reservation_is_owned(
+    state: object,
+    *,
+    run_id: str,
+    run_dir: Path,
+    correlation_id: str,
+    reservation_token: str,
+) -> bool:
+    return (
+        isinstance(state, dict)
+        and state.get("status") == "reserved"
+        and state.get("run_id") == run_id
+        and state.get("run_dir") == str(run_dir.resolve())
+        and state.get("correlation_id") == correlation_id
+        and state.get("reservation_token") == reservation_token
+    )
+
+
+def _reservation_marker_path(path: Path, reservation_token: str, phase: str) -> Path:
+    return path.with_name(f".{path.name}.{reservation_token}.{phase}")
+
+
+def _write_json_exclusive(path: Path, payload: object) -> None:
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as error:
+        raise ValueError("reservation ownership mismatch") from error
+
+
 def _reserve_run_identity(
     run_id: str,
     run_dir: Path,
@@ -530,25 +582,141 @@ def _reserve_run_identity(
         "reservation_token": reservation_token,
         "reserved_at": _now(),
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with path.open("x", encoding="utf-8") as handle:
-            json.dump(reservation, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-    except FileExistsError as error:
-        raise ValueError("exact run identity is already in use") from error
+    with _run_identity_lock(run_id, queue_root):
+        if run_dir.exists():
+            raise ValueError("exact run identity is already in use")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if any(path.parent.glob(f".{path.name}.*.transition")) or any(
+            path.parent.glob(f".{path.name}.*.cleanup")
+        ):
+            raise ValueError("exact run identity has a stale transaction")
+        try:
+            _write_json_exclusive(path, reservation)
+        except ValueError as error:
+            raise ValueError("exact run identity is already in use") from error
     return path
 
 
-def _release_run_reservation(path: Path, reservation_token: str) -> None:
+def _release_run_reservation(
+    run_id: str,
+    run_dir: Path,
+    queue_root: Path,
+    correlation_id: str,
+    reservation_token: str,
+) -> None:
+    path = _state_path(run_id, queue_root.resolve())
+    cleanup_path = _reservation_marker_path(path, reservation_token, "cleanup")
+    with _run_identity_lock(run_id, queue_root):
+        try:
+            os.rename(path, cleanup_path)
+        except FileNotFoundError:
+            return
+        try:
+            state = json.loads(cleanup_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            state = None
+        if not _reservation_is_owned(
+            state,
+            run_id=run_id,
+            run_dir=run_dir,
+            correlation_id=correlation_id,
+            reservation_token=reservation_token,
+        ):
+            if not path.exists():
+                os.rename(cleanup_path, path)
+            return
+        cleanup_path.unlink()
+
+
+def _activate_run_reservation(
+    run_id: str,
+    staging_run_dir: Path,
+    run_dir: Path,
+    queue_root: Path,
+    correlation_id: str,
+    reservation_token: str,
+) -> dict[str, Any]:
+    state_path = _state_path(run_id, queue_root.resolve())
+    transition_path = _reservation_marker_path(
+        state_path,
+        reservation_token,
+        "transition",
+    )
+    with _run_identity_lock(run_id, queue_root):
+        try:
+            os.rename(state_path, transition_path)
+        except FileNotFoundError as error:
+            raise ValueError("reservation ownership mismatch") from error
+        try:
+            reservation = json.loads(transition_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            reservation = None
+        if not _reservation_is_owned(
+            reservation,
+            run_id=run_id,
+            run_dir=run_dir,
+            correlation_id=correlation_id,
+            reservation_token=reservation_token,
+        ):
+            if not state_path.exists():
+                os.rename(transition_path, state_path)
+            raise ValueError("reservation ownership mismatch")
+        staging_identity = None
+        published = False
+        active_created = False
+        try:
+            brief = _brief(staging_run_dir)
+            if brief.get("run_id") != run_id or staging_run_dir.name != run_id:
+                raise ValueError("exact run identity closure failed")
+            if run_dir.exists():
+                raise ValueError("exact run identity is already in use")
+            staging_identity = staging_run_dir.stat()
+            os.rename(staging_run_dir, run_dir)
+            published = True
+            _cleanup_staging(staging_run_dir.parent)
+            now = _now()
+            state = {
+                "schema_version": 1,
+                "run_id": run_id,
+                "run_dir": str(run_dir.resolve()),
+                "status": "active",
+                "correlation_id": correlation_id,
+                "registered_at": now,
+                "updated_at": now,
+            }
+            transition_path.unlink()
+            _write_json_exclusive(state_path, state)
+            active_created = True
+            return state
+        except BaseException:
+            if published and not active_created and staging_identity is not None:
+                try:
+                    published_identity = run_dir.stat()
+                except FileNotFoundError:
+                    published_identity = None
+                if (
+                    published_identity is not None
+                    and published_identity.st_dev == staging_identity.st_dev
+                    and published_identity.st_ino == staging_identity.st_ino
+                    and not staging_run_dir.exists()
+                ):
+                    staging_run_dir.parent.mkdir(parents=True, exist_ok=True)
+                    os.rename(run_dir, staging_run_dir)
+            if transition_path.exists():
+                transition_path.unlink()
+            raise
+
+
+def _cleanup_staging(staging_token_root: Path) -> None:
+    if staging_token_root.exists():
+        shutil.rmtree(staging_token_root)
+    if staging_token_root.exists():
+        raise ValueError("exact run staging cleanup failed")
+    staging_root = staging_token_root.parent
     try:
-        state = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return
-    if state.get("status") == "reserved" and state.get("reservation_token") == reservation_token:
-        path.unlink(missing_ok=True)
+        staging_root.rmdir()
+    except OSError:
+        pass
 
 
 def _translation_replacement_decision_path(
@@ -564,40 +732,12 @@ def register_run(
     queue_root: Path,
     *,
     correlation_id: str | None = None,
-    reservation_token: str | None = None,
 ) -> dict[str, Any]:
     """將一個本機私密 run 登記為 active；不建立外部 request。"""
     _validate_formal_runtime(queue_root)
     resolved = run_dir.resolve()
     brief = _brief(resolved)
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
-    if reservation_token is not None:
-        if correlation_id is None:
-            raise ValueError("reservation correlation id is required")
-        try:
-            reservation = json.loads(path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError) as error:
-            raise ValueError("reservation ownership mismatch") from error
-        if (
-            reservation.get("status") != "reserved"
-            or reservation.get("run_id") != brief["run_id"]
-            or reservation.get("run_dir") != str(resolved)
-            or reservation.get("correlation_id") != correlation_id
-            or reservation.get("reservation_token") != reservation_token
-        ):
-            raise ValueError("reservation ownership mismatch")
-        now = _now()
-        state = {
-            "schema_version": 1,
-            "run_id": brief["run_id"],
-            "run_dir": str(resolved),
-            "status": "active",
-            "correlation_id": correlation_id,
-            "registered_at": now,
-            "updated_at": now,
-        }
-        atomic_write_json(path, state)
-        return state
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("run_dir") != str(resolved) or state.get("run_id") != brief["run_id"]:
@@ -1614,6 +1754,69 @@ def _next_new_matrix_run_prefix(run_root: Path, queue_root: Path) -> str:
         index += 1
 
 
+def _seed_exact_new_matrix_run(
+    repo_root: Path,
+    queue_root: Path,
+    run_root: Path,
+    exact_run_id: str,
+    max_articles_per_run: int,
+) -> dict[str, Any]:
+    if EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
+        raise ValueError("exact run id format is invalid")
+    run_dir = run_root / exact_run_id
+    correlation_id = secrets.token_hex(16)
+    reservation_token = secrets.token_hex(16)
+    staging_token_root = run_root / ".exact-run-staging" / reservation_token
+    staging_run_dir = staging_token_root / exact_run_id
+    _reserve_run_identity(
+        exact_run_id,
+        run_dir,
+        queue_root,
+        correlation_id,
+        reservation_token,
+    )
+    try:
+        active_create_before = _active_count_by_mode(queue_root, "create")
+        excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
+        paths = pipeline.prepare_matrix_runs(
+            repo_root,
+            exact_run_id,
+            output_root=staging_token_root,
+            limit=min(1, max_articles_per_run),
+            exclude_ids=excluded_ids,
+            max_articles_per_run=min(1, max_articles_per_run),
+            exact_run_id=exact_run_id,
+        )
+        if paths != [staging_run_dir / "brief.json"]:
+            raise ValueError("exact run identity could not be allocated")
+        state = _activate_run_reservation(
+            exact_run_id,
+            staging_run_dir,
+            run_dir,
+            queue_root,
+            correlation_id,
+            reservation_token,
+        )
+        return {
+            "status": "seeded",
+            "created": 1,
+            "created_run_ids": [str(state["run_id"])],
+            "active_create_before": active_create_before,
+        }
+    except BaseException:
+        try:
+            _cleanup_staging(staging_token_root)
+        finally:
+            _release_run_reservation(
+                exact_run_id,
+                run_dir,
+                queue_root,
+                correlation_id,
+                reservation_token,
+            )
+        raise
+
+
 def seed_new_matrix_runs(
     repo_root: Path,
     queue_root: Path,
@@ -1625,75 +1828,48 @@ def seed_new_matrix_runs(
     exact_run_id: str | None = None,
 ) -> dict[str, Any]:
     """自動從內容矩陣挑未登記的新文，建立 create run 並交給 coordinator。"""
-    if exact_run_id is None and (min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0):
-        return {"status": "disabled", "created": 0, "created_run_ids": []}
-    reservation: tuple[Path, str, str] | None = None
     if exact_run_id is not None:
-        if EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
-            raise ValueError("exact run id format is invalid")
-        exact_run_dir = run_root / exact_run_id
-        if exact_run_dir.exists():
-            raise ValueError("exact run identity is already in use")
-        correlation_id = secrets.token_hex(16)
-        reservation_token = secrets.token_hex(16)
-        reservation_path = _reserve_run_identity(
-            exact_run_id,
-            exact_run_dir,
+        return _seed_exact_new_matrix_run(
+            repo_root,
             queue_root,
-            correlation_id,
-            reservation_token,
+            run_root,
+            exact_run_id,
+            max_articles_per_run,
         )
-        reservation = (reservation_path, correlation_id, reservation_token)
-    try:
-        active_create = _active_count_by_mode(queue_root, "create")
-        if exact_run_id is None and active_create >= min_active_runs:
-            return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
+    if min_active_runs <= 0 or max_new_runs <= 0 or max_articles_per_run <= 0:
+        return {"status": "disabled", "created": 0, "created_run_ids": []}
+    active_create = _active_count_by_mode(queue_root, "create")
+    if active_create >= min_active_runs:
+        return {"status": "active_floor_met", "created": 0, "created_run_ids": [], "active_create": active_create}
 
-        created: list[str] = []
-        excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
-        allocation_count = 1 if exact_run_id is not None else min(1, max_new_runs, min_active_runs - active_create)
-        for _ in range(allocation_count):
-            run_prefix = exact_run_id or _next_new_matrix_run_prefix(run_root, queue_root)
-            prepare_kwargs: dict[str, Any] = {
-                "output_root": run_root,
-                "limit": min(1, max_articles_per_run),
-                "exclude_ids": excluded_ids,
-                "max_articles_per_run": min(1, max_articles_per_run),
-            }
-            if exact_run_id is not None:
-                prepare_kwargs["exact_run_id"] = exact_run_id
-            paths = pipeline.prepare_matrix_runs(repo_root, run_prefix, **prepare_kwargs)
-            if not paths:
-                if exact_run_id is not None:
-                    raise ValueError("exact run identity could not be allocated")
-                break
-            if exact_run_id is not None:
-                if len(paths) != 1 or paths[0].parent.name != exact_run_id or _brief(paths[0].parent).get("run_id") != exact_run_id:
-                    raise ValueError("exact run identity closure failed")
-            for brief_path in paths[:1]:
-                register_kwargs: dict[str, str] = {}
-                if reservation is not None:
-                    register_kwargs = {
-                        "correlation_id": reservation[1],
-                        "reservation_token": reservation[2],
-                    }
-                state = register_run(brief_path.parent, queue_root, **register_kwargs)
-                created.append(str(state["run_id"]))
-                brief = _brief(brief_path.parent)
-                excluded_ids.update(_create_article_ids_from_brief(brief))
-            if len(created) >= max_new_runs:
-                break
+    created: list[str] = []
+    excluded_ids = _registered_article_ids_by_mode(queue_root, "create")
+    for _ in range(min(1, max_new_runs, min_active_runs - active_create)):
+        run_prefix = _next_new_matrix_run_prefix(run_root, queue_root)
+        paths = pipeline.prepare_matrix_runs(
+            repo_root,
+            run_prefix,
+            output_root=run_root,
+            limit=min(1, max_articles_per_run),
+            exclude_ids=excluded_ids,
+            max_articles_per_run=min(1, max_articles_per_run),
+        )
+        if not paths:
+            break
+        for brief_path in paths[:1]:
+            state = register_run(brief_path.parent, queue_root)
+            created.append(str(state["run_id"]))
+            brief = _brief(brief_path.parent)
+            excluded_ids.update(_create_article_ids_from_brief(brief))
+        if len(created) >= max_new_runs:
+            break
 
-        return {
-            "status": "seeded" if created else "idle",
-            "created": len(created),
-            "created_run_ids": created,
-            "active_create_before": active_create,
-        }
-    except BaseException:
-        if reservation is not None:
-            _release_run_reservation(reservation[0], reservation[2])
-        raise
+    return {
+        "status": "seeded" if created else "idle",
+        "created": len(created),
+        "created_run_ids": created,
+        "active_create_before": active_create,
+    }
 
 
 def _legacy_rewrite_article_brief(

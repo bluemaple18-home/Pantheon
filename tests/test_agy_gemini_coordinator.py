@@ -2108,6 +2108,19 @@ def test_seed_new_matrix_runs_registers_only_one_run_and_article_per_cycle(
     assert len(brief["articles"]) == 1
 
 
+def _prepare_exact_brief_stub(
+    _repo_root: Path,
+    _run_prefix: str,
+    *,
+    output_root: Path,
+    exact_run_id: str,
+    **_kwargs,
+) -> list[Path]:
+    run_dir = output_root / exact_run_id
+    _write_brief(run_dir, exact_run_id)
+    return [run_dir / "brief.json"]
+
+
 def test_seed_new_matrix_runs_reserves_exact_replacement_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2155,6 +2168,7 @@ def test_seed_new_matrix_runs_reserves_exact_replacement_identity(
     assert state["status"] == "active"
     assert state["correlation_id"]
     assert "reservation_token" not in state
+    assert not (run_root / ".exact-run-staging").exists()
 
 
 @pytest.mark.parametrize("collision_source", ["run_root", "queue"])
@@ -2239,13 +2253,15 @@ def test_seed_new_matrix_runs_cleans_owned_reservation_after_prepare_failure(
     assert not (queue_root / "outbox").exists()
 
 
-def test_register_run_rejects_reservation_ownership_mismatch(
+def test_activate_run_reservation_rejects_ownership_mismatch(
     tmp_path: Path,
 ) -> None:
     run_id = "auto-new-v1-20260812-001-02"
-    run_dir = tmp_path / "private-runs" / run_id
+    run_root = tmp_path / "private-runs"
+    run_dir = run_root / run_id
+    staging_run_dir = run_root / ".exact-run-staging" / "owned-token" / run_id
     queue_root = tmp_path / "queue"
-    _write_brief(run_dir, run_id)
+    _write_brief(staging_run_dir, run_id)
     state_path = coordinator._reserve_run_identity(
         run_id,
         run_dir,
@@ -2256,14 +2272,17 @@ def test_register_run_rejects_reservation_ownership_mismatch(
     reservation = json.loads(state_path.read_text(encoding="utf-8"))
 
     with pytest.raises(ValueError, match="reservation ownership mismatch"):
-        register_run(
+        coordinator._activate_run_reservation(
+            run_id,
+            staging_run_dir,
             run_dir,
             queue_root,
-            correlation_id="owned-correlation",
-            reservation_token="foreign-token",
+            "owned-correlation",
+            "foreign-token",
         )
 
     assert json.loads(state_path.read_text(encoding="utf-8")) == reservation
+    assert not run_dir.exists()
 
 
 def test_seed_new_matrix_runs_rejects_foreign_state_inserted_after_prepare(
@@ -2284,12 +2303,17 @@ def test_seed_new_matrix_runs_rejects_foreign_state_inserted_after_prepare(
         "status": "complete",
         "correlation_id": "other",
     }
+    foreign_bytes = json.dumps(foreign_state, indent=2).encode("utf-8") + b"\n"
 
-    def prepare_then_replace_reservation(*_args, **_kwargs) -> list[Path]:
-        _write_brief(run_dir, exact_run_id)
+    staging_paths: list[Path] = []
+
+    def prepare_then_replace_reservation(*_args, **kwargs) -> list[Path]:
+        staging_run_dir = Path(kwargs["output_root"]) / exact_run_id
+        staging_paths.append(staging_run_dir)
+        _write_brief(staging_run_dir, exact_run_id)
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps(foreign_state), encoding="utf-8")
-        return [run_dir / "brief.json"]
+        state_path.write_bytes(foreign_bytes)
+        return [staging_run_dir / "brief.json"]
 
     monkeypatch.setattr(
         coordinator.pipeline,
@@ -2305,8 +2329,184 @@ def test_seed_new_matrix_runs_rejects_foreign_state_inserted_after_prepare(
             exact_run_id=exact_run_id,
         )
 
-    assert json.loads(state_path.read_text(encoding="utf-8")) == foreign_state
+    assert state_path.read_bytes() == foreign_bytes
+    assert not (run_root / exact_run_id / "brief.json").exists()
+    assert staging_paths and all(not path.exists() for path in staging_paths)
+    assert not (run_root / ".exact-run-staging").exists()
     assert not (queue_root / "outbox").exists()
+
+
+def test_exact_run_cleanup_does_not_unlink_foreign_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    state_path = coordinator._state_path(exact_run_id, queue_root)
+    repo_root.mkdir()
+    foreign_bytes = b'{"run_id":"foreign","status":"complete"}\n'
+    original_rename = coordinator.os.rename
+
+    def interleave_cleanup(source, target) -> None:
+        if str(target).endswith(".cleanup"):
+            state_path.write_bytes(foreign_bytes)
+        original_rename(source, target)
+
+    monkeypatch.setattr(coordinator.os, "rename", interleave_cleanup)
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "prepare_matrix_runs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("prepare failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="prepare failed"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert state_path.read_bytes() == foreign_bytes
+    assert not (run_root / exact_run_id).exists()
+    assert not (run_root / ".exact-run-staging").exists()
+
+
+def test_exact_run_activation_does_not_replace_interleaved_foreign_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    state_path = coordinator._state_path(exact_run_id, queue_root)
+    repo_root.mkdir()
+    foreign_bytes = b'{"run_id":"foreign","status":"complete"}\n'
+    original_write = coordinator._write_json_exclusive
+
+    def interleave_activation(path: Path, payload: object) -> None:
+        if isinstance(payload, dict) and payload.get("status") == "active":
+            path.write_bytes(foreign_bytes)
+        original_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "_write_json_exclusive", interleave_activation)
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", _prepare_exact_brief_stub)
+
+    with pytest.raises(ValueError, match="reservation ownership mismatch"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert state_path.read_bytes() == foreign_bytes
+    assert not (run_root / exact_run_id).exists()
+    assert not (run_root / ".exact-run-staging").exists()
+
+
+def test_exact_run_publish_failure_cleans_only_owned_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    run_dir = run_root / exact_run_id
+    repo_root.mkdir()
+    original_rename = coordinator.os.rename
+
+    def fail_publish(source, target) -> None:
+        if Path(target) == run_dir:
+            raise OSError("publish failed")
+        original_rename(source, target)
+
+    monkeypatch.setattr(coordinator.os, "rename", fail_publish)
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", _prepare_exact_brief_stub)
+
+    with pytest.raises(OSError, match="publish failed"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert not coordinator._state_path(exact_run_id, queue_root).exists()
+    assert not run_dir.exists()
+    assert not (run_root / ".exact-run-staging").exists()
+
+
+def test_exact_run_foreign_directory_is_preserved_before_activation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    run_dir = run_root / exact_run_id
+    sentinel = run_dir / "foreign.bin"
+    repo_root.mkdir()
+    original_activate = coordinator._activate_run_reservation
+
+    def insert_foreign_directory(*args, **kwargs) -> dict[str, object]:
+        run_dir.mkdir(parents=True)
+        sentinel.write_bytes(b"foreign-directory-bytes")
+        return original_activate(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator, "_activate_run_reservation", insert_foreign_directory)
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", _prepare_exact_brief_stub)
+
+    with pytest.raises(ValueError, match="exact run identity is already in use"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert sentinel.read_bytes() == b"foreign-directory-bytes"
+    assert not coordinator._state_path(exact_run_id, queue_root).exists()
+    assert not (run_root / ".exact-run-staging").exists()
+
+
+def test_exact_run_stale_transition_fails_closed_before_prepare(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    run_root = tmp_path / "private-runs"
+    exact_run_id = "auto-new-v1-20260812-001-02"
+    state_path = coordinator._state_path(exact_run_id, queue_root)
+    stale = state_path.with_name(f".{state_path.name}.stale.transition")
+    repo_root.mkdir()
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"stale-token")
+    prepare_calls = 0
+
+    def count_prepare(*_args, **_kwargs) -> list[Path]:
+        nonlocal prepare_calls
+        prepare_calls += 1
+        return []
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", count_prepare)
+
+    with pytest.raises(ValueError, match="stale transaction"):
+        seed_new_matrix_runs(
+            repo_root,
+            queue_root,
+            run_root,
+            exact_run_id=exact_run_id,
+        )
+
+    assert prepare_calls == 0
+    assert stale.read_bytes() == b"stale-token"
 
 
 def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path, monkeypatch) -> None:
