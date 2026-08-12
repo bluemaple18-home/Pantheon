@@ -16,6 +16,7 @@ if [[ "${USER_HOME_DIR}" != /* ]]; then
 fi
 PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"
+EXACT_RUN_ID="${PANTHEON_PUBLISH_EXACT_RUN_ID:-}"
 NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
@@ -46,6 +47,16 @@ fi
 if ! [[ "${MAX_RUNS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "PANTHEON_PUBLISH_MAX_RUNS 必須是正整數" >&2
   exit 1
+fi
+if [[ -n "${EXACT_RUN_ID}" ]]; then
+  if ! [[ "${EXACT_RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ ]]; then
+    echo "PANTHEON_PUBLISH_EXACT_RUN_ID 格式不合法" >&2
+    exit 1
+  fi
+  if [[ "${MAX_RUNS}" != "1" ]]; then
+    echo "Canary exact run 必須搭配 PANTHEON_PUBLISH_MAX_RUNS=1" >&2
+    exit 1
+  fi
 fi
 if [[ "${NEW_ONLY}" != "0" && "${NEW_ONLY}" != "1" ]]; then
   echo "PANTHEON_PUBLISH_NEW_ONLY 只能是 0 或 1" >&2
@@ -157,9 +168,17 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${STDOUT_LOG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${STDERR_LOG}" "${TEMP_PLIST}"
+if [[ -n "${EXACT_RUN_ID}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :ProgramArguments:28 string --exact-run-id" "${TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :ProgramArguments:29 string ${EXACT_RUN_ID}" "${TEMP_PLIST}"
+fi
 plutil -lint "${TEMP_PLIST}" >/dev/null
 
 run_preflight() {
+  local EXACT_RUN_ARGS=()
+  if [[ -n "${EXACT_RUN_ID}" ]]; then
+    EXACT_RUN_ARGS=(--exact-run-id "${EXACT_RUN_ID}")
+  fi
   (
     cd "${REPO_ROOT}"
     "${PYTHON_PATH}" -m scripts.agy_content_publisher \
@@ -167,6 +186,7 @@ run_preflight() {
       --queue-root "${QUEUE_ROOT}" \
       --state-root "${STATE_ROOT}" \
       --max-runs "${MAX_RUNS}" \
+      "${EXACT_RUN_ARGS[@]}" \
       "${PUBLISH_MODE}" \
       --push \
       --deployment-preflight \

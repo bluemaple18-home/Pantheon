@@ -1678,6 +1678,8 @@ def deployment_preflight(
     expected_runtime_digest: str,
     push: bool,
     expected_push_mode: str,
+    max_runs: int | None = None,
+    expected_exact_run_ids: Iterable[str] | None = None,
     git: GitRunner = run_git,
 ) -> dict[str, Any]:
     """唯讀核對 publisher actor 與部署契約，不建立或搬動任何狀態。"""
@@ -1696,6 +1698,12 @@ def deployment_preflight(
         raise PublishBlocked(
             "publisher push mode differs from deployment contract"
         )
+    selected_run_ids = _normalize_exact_run_ids(expected_exact_run_ids)
+    if selected_run_ids is not None:
+        if len(selected_run_ids) != 1:
+            raise PublishBlocked("canary deployment requires one exact run id")
+        if max_runs != 1:
+            raise PublishBlocked("canary deployment requires --max-runs 1")
     if not re.fullmatch(r"[0-9a-f]{40}", expected_runtime_sha):
         raise PublishBlocked("publisher expected runtime SHA is invalid")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_runtime_digest):
@@ -1740,7 +1748,7 @@ def deployment_preflight(
                 "publisher runtime differs from origin/main: "
                 + ", ".join(runtime_drift)
             )
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "status": "ready",
         "operation": "deployment-preflight",
@@ -1756,6 +1764,10 @@ def deployment_preflight(
         "origin_main_sha": origin_main_sha,
         "push_mode": actual_push_mode,
     }
+    if selected_run_ids is not None:
+        result["exact_run_ids"] = sorted(selected_run_ids)
+        result["max_runs"] = max_runs
+    return result
 
 
 def _assert_clean_origin_head(repo_root: Path, git: GitRunner = run_git) -> str:
@@ -4286,6 +4298,8 @@ def main() -> int:
             expected_runtime_digest=contract_values[4],
             push=args.push,
             expected_push_mode=contract_values[5],
+            max_runs=args.max_runs,
+            expected_exact_run_ids=exact_run_ids,
         )
         if getattr(args, "deployment_preflight", False):
             print(json.dumps(preflight, ensure_ascii=False))

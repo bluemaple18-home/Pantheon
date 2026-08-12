@@ -2676,6 +2676,79 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
     assert plan["origin_main_sha"] == origin_main_sha
 
 
+def test_deployment_preflight_canary_requires_exact_single_run(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
+
+    def fake_git(_repo_root: Path, args: list[str], _input_text: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return runtime_sha
+        raise AssertionError(f"unexpected git command: {args}")
+
+    plan = publisher.deployment_preflight(
+        actor,
+        queue_root,
+        state_root,
+        expected_repo_root=actor,
+        expected_queue_root=queue_root,
+        expected_state_root=state_root,
+        expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
+        push=True,
+        expected_push_mode="push",
+        max_runs=1,
+        expected_exact_run_ids=["canary-run-001"],
+        git=fake_git,
+    )
+
+    assert plan["exact_run_ids"] == ["canary-run-001"]
+    assert plan["max_runs"] == 1
+
+    with pytest.raises(publisher.PublishBlocked, match="max-runs 1"):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            max_runs=2,
+            expected_exact_run_ids=["canary-run-001"],
+            git=fake_git,
+        )
+    with pytest.raises(publisher.PublishBlocked, match="one exact run"):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            max_runs=1,
+            expected_exact_run_ids=["canary-run-001", "canary-run-002"],
+            git=fake_git,
+        )
+
+
 def test_main_deployment_preflight_returns_before_state_or_publish_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2892,6 +2965,8 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
 
     assert publisher.DEFAULT_MAX_RUNS == 3
     assert 'MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"' in installer
+    assert 'EXACT_RUN_ID="${PANTHEON_PUBLISH_EXACT_RUN_ID:-}"' in installer
+    assert "Canary exact run 必須搭配 PANTHEON_PUBLISH_MAX_RUNS=1" in installer
     assert 'NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"' in installer
     assert "四軌 recovery 禁止 new-only" in installer
     assert arguments[1:3] == ["-m", "scripts.pantheon_content_runtime_manifest"]
@@ -2928,6 +3003,7 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
+    assert "--exact-run-id" in installer
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
     assert 'run_preflight >/dev/null' in installer

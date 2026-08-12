@@ -29,6 +29,7 @@ SERVICE_LABELS = (
 )
 PATH_FIELDS = ("actor_root", "queue_root", "publisher_state_root", "log_root")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 GENERATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
@@ -49,6 +50,19 @@ def _canonical_directory(path: Path, field: str) -> str:
     return str(resolved)
 
 
+def _canonical_executable(path: Path, field: str) -> str:
+    if not path.is_absolute():
+        raise RuntimeManifestError(f"{field} must be absolute")
+    if not path.exists() or not path.is_file():
+        raise RuntimeManifestError(f"{field} is missing")
+    resolved = path.resolve(strict=True)
+    if path != resolved:
+        raise RuntimeManifestError(f"{field} must use its canonical realpath")
+    if path.is_symlink() or not os.access(resolved, os.X_OK):
+        raise RuntimeManifestError(f"{field} must be an executable regular file")
+    return str(resolved)
+
+
 def _manifest_digest(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -63,6 +77,9 @@ def _runtime_identity_digest(payload: dict[str, Any]) -> str:
         "generation": payload["generation"],
         **{field: payload[field] for field in PATH_FIELDS},
     }
+    for field in ("actor_head", "python_executable"):
+        if field in payload:
+            identity[field] = payload[field]
     return _manifest_digest(identity)
 
 
@@ -76,6 +93,8 @@ def build_manifest(
     runtime_digest: str | None = None,
     config_version: str = "runtime-v2",
     generation: str = "legacy-generation",
+    actor_head: str | None = None,
+    python_executable: Path | None = None,
 ) -> dict[str, Any]:
     if not identity or identity.strip() != identity:
         raise RuntimeManifestError("identity is required")
@@ -104,6 +123,15 @@ def build_manifest(
         "log_root": _canonical_directory(log_root, "log_root"),
         "service_labels": list(SERVICE_LABELS),
     }
+    if actor_head is not None:
+        if SHA1_PATTERN.fullmatch(actor_head) is None:
+            raise RuntimeManifestError("actor head must be exact git sha")
+        payload["actor_head"] = actor_head
+    if python_executable is not None:
+        payload["python_executable"] = _canonical_executable(
+            python_executable,
+            "python_executable",
+        )
     payload["runtime_identity_digest"] = _runtime_identity_digest(payload)
     payload["manifest_digest"] = _manifest_digest(payload)
     return payload
@@ -149,6 +177,14 @@ def load_manifest(path: Path, expected_digest: str | None = None) -> dict[str, A
         raise RuntimeManifestError("runtime digest is invalid")
     if GENERATION_PATTERN.fullmatch(str(payload.get("generation", ""))) is None:
         raise RuntimeManifestError("runtime generation is invalid")
+    if "actor_head" in payload and SHA1_PATTERN.fullmatch(str(payload["actor_head"])) is None:
+        raise RuntimeManifestError("runtime actor head is invalid")
+    if "python_executable" in payload:
+        if _canonical_executable(
+            Path(str(payload["python_executable"])),
+            "python_executable",
+        ) != payload["python_executable"]:
+            raise RuntimeManifestError("runtime python executable mismatch")
     identity_digest = str(payload.get("runtime_identity_digest", ""))
     if identity_digest != _runtime_identity_digest(payload):
         raise RuntimeManifestError("runtime identity digest mismatch")
@@ -158,7 +194,7 @@ def load_manifest(path: Path, expected_digest: str | None = None) -> dict[str, A
 def receipt_for_label(manifest: dict[str, Any], label: str) -> dict[str, Any]:
     if label not in SERVICE_LABELS:
         raise RuntimeManifestError("service label is not registered")
-    return {
+    receipt = {
         "label": label,
         "service_label": label,
         "identity": manifest["identity"],
@@ -169,6 +205,10 @@ def receipt_for_label(manifest: dict[str, Any], label: str) -> dict[str, Any]:
         "generation": manifest["generation"],
         **{field: manifest[field] for field in PATH_FIELDS},
     }
+    for field in ("actor_head", "python_executable"):
+        if field in manifest:
+            receipt[field] = manifest[field]
+    return receipt
 
 
 def validate_receipts(

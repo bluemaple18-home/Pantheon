@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "dirty_or_non_empty_state_root",
+      "test": "test_canary_actor_negative_matrix_fails_closed[state-non-empty-publisher state root must be empty]",
+      "expected": "publisher state root must be empty",
+      "result": "PASS"
+    },
+    {
+      "case": "symlink_escape_path",
+      "test": "test_canary_actor_negative_matrix_fails_closed[symlink-escape-must not be a symlink alias]",
+      "expected": "must not be a symlink alias",
+      "result": "PASS"
+    },
+    {
+      "case": "same_checkout_actor_root",
+      "test": "test_canary_actor_negative_matrix_fails_closed[same-checkout-current checkout]",
+      "expected": "actor root must not be the current checkout",
+      "result": "PASS"
+    },
+    {
+      "case": "non_descendant_actor_sha",
+      "test": "test_canary_actor_negative_matrix_fails_closed[non-descendant-descendant]",
+      "expected": "actor source is not a descendant of remote ref",
+      "result": "PASS"
+    },
+    {
+      "case": "duplicate_exact_run_selector",
+      "test": "test_canary_actor_negative_matrix_fails_closed[duplicate-plan-selector-exactly one exact run selector]",
+      "expected": "publisher plan must contain exactly one exact run selector",
+      "result": "PASS"
+    },
+    {
+      "case": "max_runs_not_one",
+      "test": "test_canary_actor_negative_matrix_fails_closed[max-runs-bounded to one run]",
+      "expected": "publisher plan must be bounded to one run",
+      "result": "PASS"
+    },
+    {
+      "case": "deployment_preflight_exact_selector_drift",
+      "test": "test_deployment_preflight_canary_requires_exact_single_run",
+      "expected": "one exact run id and --max-runs 1",
+      "result": "PASS"
+    }
+  ]
+}

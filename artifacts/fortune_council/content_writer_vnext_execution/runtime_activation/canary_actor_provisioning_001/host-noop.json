@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "launchctl": {
+    "called": false,
+    "result": "no launchd load/unload/bootstrap command was executed"
+  },
+  "production_roots": {
+    "actor_root": "not created",
+    "queue_root": "not read or written",
+    "publisher_state_root": "not read or written",
+    "log_root": "not read or written"
+  },
+  "remote_refs": {
+    "fetch": false,
+    "push": false,
+    "tag": false
+  },
+  "model_or_publish": {
+    "model_provider_call": false,
+    "run_created": false,
+    "publisher_transaction": false,
+    "content_published": false
+  },
+  "local_validation_note": "uv run created/used a local ignored test environment for pytest; candidate tracked files stay within the card allowlist."
+}

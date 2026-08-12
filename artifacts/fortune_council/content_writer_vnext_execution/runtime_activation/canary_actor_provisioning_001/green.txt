@@ -1,0 +1,18 @@
+GREEN: PASS
+
+Command:
+uv run pytest tests/test_prepare_pantheon_canary_actor.py tests/test_pantheon_content_runtime_manifest.py tests/test_agy_content_publisher.py -q
+
+Result:
+136 passed, 1 existing SyntaxWarning in tests/test_agy_content_publisher.py.
+
+Covered happy path:
+- temp git repo with origin/main-equivalent ref
+- plan -> prepare -> re-preflight
+- detached actor worktree at fixed 40-char SHA
+- empty queue/state/log roots under sandbox
+- runtime manifest with actor_head, python_executable, owner UID, paths, runtime digest, manifest digest
+- publisher plan containing exactly one --exact-run-id and --max-runs 1
+
+Production mutation:
+- None. No launchctl, model call, run creation, publish, tag, push, deploy, or production state path was used.

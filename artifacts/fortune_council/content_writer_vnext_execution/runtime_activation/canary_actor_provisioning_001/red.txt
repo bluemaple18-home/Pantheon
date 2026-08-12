@@ -1,0 +1,16 @@
+RED: PASS
+
+Command exercised:
+uv run pytest tests/test_prepare_pantheon_canary_actor.py tests/test_pantheon_content_runtime_manifest.py tests/test_agy_content_publisher.py -q
+
+Coverage:
+- test_canary_actor_preflight_blocks_missing_actor_and_selector
+- test_canary_actor_cli_writes_no_go_receipt
+
+Observed blockers:
+- actor source SHA shorter than 40 hex chars fails closed.
+- missing/empty exact run selector fails closed.
+- CLI writes a NO-GO receipt for malformed actor SHA.
+
+Production mutation:
+- None. Tests use temp git repositories and temp sandbox roots.
