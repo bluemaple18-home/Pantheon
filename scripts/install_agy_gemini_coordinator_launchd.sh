@@ -105,6 +105,14 @@ manifest_field() {
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
 }
+optional_manifest_field() {
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1" --optional
+  )
+}
 ACTOR_ROOT="$(manifest_field actor_root)"
 QUEUE_ROOT="$(manifest_field queue_root)"
 CONTENT_PUBLISHER_ROOT="$(manifest_field publisher_state_root)"
@@ -115,6 +123,17 @@ RUNTIME_IDENTITY_DIGEST="$(manifest_field runtime_identity_digest)"
 RUNTIME_CODE_DIGEST="$(manifest_field runtime_digest)"
 RUNTIME_CONFIG_VERSION="$(manifest_field config_version)"
 RUNTIME_GENERATION="$(manifest_field generation)"
+RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
+RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
+add_hardened_runtime_identity() {
+  local PLIST_PATH="$1"
+  if [[ -n "${RUNTIME_ACTOR_HEAD}" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_HEAD string ${RUNTIME_ACTOR_HEAD}" "${PLIST_PATH}"
+  fi
+  if [[ -n "${RUNTIME_PYTHON_EXECUTABLE}" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_PYTHON_EXECUTABLE string ${RUNTIME_PYTHON_EXECUTABLE}" "${PLIST_PATH}"
+  fi
+}
 ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
@@ -201,6 +220,7 @@ fi
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${CONTENT_PUBLISHER_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${TEMP_PLIST}"
+add_hardened_runtime_identity "${TEMP_PLIST}"
 if [[ -n "${WRITER_MODEL}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${TEMP_PLIST}"
 fi
@@ -248,6 +268,7 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${CONTENT_PUBLISHER_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${LANE_TEMP_PLIST}"
+  add_hardened_runtime_identity "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
   plutil -lint "${LANE_TEMP_PLIST}" >/dev/null

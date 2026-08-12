@@ -237,6 +237,13 @@ def test_all_formal_installers_and_plists_consume_shared_manifest_identity() -> 
         assert "PANTHEON_RUNTIME_MANIFEST_DIGEST" in body
         assert "PANTHEON_RUNTIME_IDENTITY" in body
         assert "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST" in body
+        assert "optional_manifest_field actor_head" in body
+        assert "optional_manifest_field python_executable" in body
+        assert "PANTHEON_RUNTIME_ACTOR_HEAD" in body
+        assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in body
+    coordinator = installers[1].read_text(encoding="utf-8")
+    assert coordinator.count('add_hardened_runtime_identity "${TEMP_PLIST}"') == 1
+    assert coordinator.count('add_hardened_runtime_identity "${LANE_TEMP_PLIST}"') == 1
     assert "scripts.pantheon_content_runtime_manifest aggregate" in installers[1].read_text(
         encoding="utf-8"
     )
@@ -333,6 +340,107 @@ def test_aggregate_gate_rejects_mixed_manifest_plists(tmp_path: Path) -> None:
     assert positive.returncode == 0, positive.stderr
     assert negative.returncode != 0
     assert "mismatch" in negative.stdout
+
+
+def _write_hardened_aggregate_fixture(
+    tmp_path: Path,
+) -> tuple[dict[str, object], list[Path]]:
+    actor, actor_head = _git_actor_repo(tmp_path)
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    python_executable = Path(sys.executable).resolve(strict=True)
+    for path in (queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="repair-3-hardened",
+        actor_head=actor_head,
+        python_executable=python_executable,
+    )
+    plists: list[Path] = []
+    for label in runtime.SERVICE_LABELS:
+        path = tmp_path / f"{label}.plist"
+        receipt = runtime.receipt_for_label(manifest, label)
+        environment = {
+            "PANTHEON_RUNTIME_SERVICE_LABEL": receipt["service_label"],
+            "PANTHEON_RUNTIME_IDENTITY": receipt["identity"],
+            "PANTHEON_RUNTIME_MANIFEST_DIGEST": receipt["manifest_digest"],
+            "PANTHEON_RUNTIME_IDENTITY_DIGEST": receipt["runtime_identity_digest"],
+            "PANTHEON_RUNTIME_CODE_DIGEST": receipt["runtime_digest"],
+            "PANTHEON_RUNTIME_CONFIG_VERSION": receipt["config_version"],
+            "PANTHEON_RUNTIME_GENERATION": receipt["generation"],
+            "PANTHEON_RUNTIME_ACTOR_ROOT": receipt["actor_root"],
+            "PANTHEON_RUNTIME_QUEUE_ROOT": receipt["queue_root"],
+            "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": receipt[
+                "publisher_state_root"
+            ],
+            "PANTHEON_RUNTIME_LOG_ROOT": receipt["log_root"],
+            "PANTHEON_RUNTIME_ACTOR_HEAD": receipt["actor_head"],
+            "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": receipt["python_executable"],
+        }
+        with path.open("wb") as stream:
+            plistlib.dump(
+                {
+                    "Label": label,
+                    "WorkingDirectory": manifest["actor_root"],
+                    "EnvironmentVariables": environment,
+                },
+                stream,
+            )
+        path.chmod(0o600)
+        plists.append(path)
+
+    return manifest, plists
+
+
+def test_hardened_aggregate_reads_actor_and_python_identity_from_all_plists(
+    tmp_path: Path,
+) -> None:
+    manifest, plists = _write_hardened_aggregate_fixture(tmp_path)
+
+    result = runtime.aggregate_plist_preflight(manifest, plists)
+
+    assert result["status"] == "PASS"
+    assert len(result["receipts"]) == len(runtime.SERVICE_LABELS)
+    assert all(
+        receipt["actor_head"] == manifest["actor_head"]
+        and receipt["python_executable"] == manifest["python_executable"]
+        for receipt in result["receipts"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "environment_name", "remove"),
+    [
+        ("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD", True),
+        ("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD", False),
+        ("python_executable", "PANTHEON_RUNTIME_PYTHON_EXECUTABLE", True),
+        ("python_executable", "PANTHEON_RUNTIME_PYTHON_EXECUTABLE", False),
+    ],
+)
+def test_hardened_aggregate_identity_negative_matrix_fails_closed(
+    tmp_path: Path,
+    field: str,
+    environment_name: str,
+    remove: bool,
+) -> None:
+    manifest, plists = _write_hardened_aggregate_fixture(tmp_path)
+    target = plists[-1]
+    with target.open("rb") as stream:
+        payload = plistlib.load(stream)
+    if remove:
+        payload["EnvironmentVariables"].pop(environment_name)
+    else:
+        payload["EnvironmentVariables"][environment_name] = "wrong-identity"
+    with target.open("wb") as stream:
+        plistlib.dump(payload, stream)
+
+    with pytest.raises(runtime.RuntimeManifestError, match=field):
+        runtime.aggregate_plist_preflight(manifest, plists)
 
 
 def test_stale_or_malformed_activation_barrier_fails_closed(tmp_path: Path) -> None:

@@ -271,6 +271,10 @@ def test_launchd_template_and_installer_keep_five_minute_fail_closed_contract() 
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'launchctl bootstrap "gui/${USER_ID}"' not in installer
     assert ".pantheon-four-lane-stage" in installer
+    assert "optional_manifest_field actor_head" in installer
+    assert "optional_manifest_field python_executable" in installer
+    assert "PANTHEON_RUNTIME_ACTOR_HEAD" in installer
+    assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in installer
     assert os.access(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh", os.X_OK)
 
 

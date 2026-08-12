@@ -3024,6 +3024,10 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     )
     assert "PANTHEON_PUBLISHER_STDOUT_LOG" in installer
     assert "PANTHEON_PUBLISHER_STDERR_LOG" in installer
+    assert "optional_manifest_field actor_head" in installer
+    assert "optional_manifest_field python_executable" in installer
+    assert "PANTHEON_RUNTIME_ACTOR_HEAD" in installer
+    assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in installer
     assert plist["StartInterval"] == 60
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],
@@ -3117,9 +3121,13 @@ def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
                 "  fi",
                 "  if [ \"$3\" = \"field\" ]; then",
                 "    name=\"\"",
+                "    optional=0",
                 "    while [ \"$#\" -gt 0 ]; do",
                 "      if [ \"$1\" = \"--name\" ]; then",
                 "        name=\"$2\"",
+                "      fi",
+                "      if [ \"$1\" = \"--optional\" ]; then",
+                "        optional=1",
                 "      fi",
                 "      shift",
                 "    done",
@@ -3128,7 +3136,7 @@ def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
                     f"      {name}) echo \"{value}\" ;;"
                     for name, value in fields.items()
                 ],
-                "      *) exit 8 ;;",
+                "      *) [ \"$optional\" = 1 ] || exit 8 ;;",
                 "    esac",
                 "    exit 0",
                 "  fi",

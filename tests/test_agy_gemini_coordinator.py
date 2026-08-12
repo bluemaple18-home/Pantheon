@@ -2645,6 +2645,10 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     )
     assert "Add :EnvironmentVariables:AGY_WRITER_MODEL string" in installer
     assert "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string" in installer
+    assert "optional_manifest_field actor_head" in installer
+    assert "optional_manifest_field python_executable" in installer
+    assert 'add_hardened_runtime_identity "${TEMP_PLIST}"' in installer
+    assert 'add_hardened_runtime_identity "${LANE_TEMP_PLIST}"' in installer
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
     preflight_end = installer.index(
         'if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner"'

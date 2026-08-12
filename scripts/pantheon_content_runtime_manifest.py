@@ -314,6 +314,13 @@ def plist_receipt(path: Path) -> dict[str, Any]:
         "log_root": environment.get("PANTHEON_RUNTIME_LOG_ROOT"),
         "plist_realpath": str(canonical),
     }
+    optional_environment_fields = {
+        "actor_head": "PANTHEON_RUNTIME_ACTOR_HEAD",
+        "python_executable": "PANTHEON_RUNTIME_PYTHON_EXECUTABLE",
+    }
+    for field, environment_name in optional_environment_fields.items():
+        if environment_name in environment:
+            receipt[field] = environment[environment_name]
     if payload.get("WorkingDirectory") != receipt["actor_root"]:
         raise RuntimeManifestError("plist working directory actor mismatch")
     return receipt
@@ -584,6 +591,7 @@ def parse_args() -> argparse.Namespace:
         ),
         required=True,
     )
+    field.add_argument("--optional", action="store_true")
     validate = subparsers.add_parser("validate")
     validate.add_argument("--manifest", type=Path, required=True)
     validate.add_argument("--expected-digest", required=True)
@@ -717,6 +725,11 @@ def main() -> int:
             )
             if args.command == "field":
                 if args.name not in manifest:
+                    if args.optional and args.name in (
+                        "actor_head",
+                        "python_executable",
+                    ):
+                        return 0
                     raise RuntimeManifestError(f"{args.name} is missing")
                 print(manifest[args.name])
             elif args.command == "aggregate":

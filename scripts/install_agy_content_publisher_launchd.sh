@@ -91,6 +91,14 @@ manifest_field() {
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
 }
+optional_manifest_field() {
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1" --optional
+  )
+}
 ACTOR_ROOT="$(manifest_field actor_root)"
 QUEUE_ROOT="$(manifest_field queue_root)"
 STATE_ROOT="$(manifest_field publisher_state_root)"
@@ -101,6 +109,8 @@ RUNTIME_IDENTITY_DIGEST="$(manifest_field runtime_identity_digest)"
 RUNTIME_CODE_DIGEST="$(manifest_field runtime_digest)"
 RUNTIME_CONFIG_VERSION="$(manifest_field config_version)"
 RUNTIME_GENERATION="$(manifest_field generation)"
+RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
+RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
 ACTIVATION_BARRIER="${STATE_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 if [[ ! -d "${QUEUE_ROOT}/runs" ]]; then
@@ -173,6 +183,12 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${STATE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${TEMP_PLIST}"
+if [[ -n "${RUNTIME_ACTOR_HEAD}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_HEAD string ${RUNTIME_ACTOR_HEAD}" "${TEMP_PLIST}"
+fi
+if [[ -n "${RUNTIME_PYTHON_EXECUTABLE}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_PYTHON_EXECUTABLE string ${RUNTIME_PYTHON_EXECUTABLE}" "${TEMP_PLIST}"
+fi
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${STDOUT_LOG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${STDERR_LOG}" "${TEMP_PLIST}"
 if [[ -n "${EXACT_RUN_ID}" ]]; then
