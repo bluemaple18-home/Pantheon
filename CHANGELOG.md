@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.363] - 2026-08-13
+
+- Release tag：`v0.3.363`
+- 公開文章總數：619（未執行 Canary，不新增 registry 條目）
+- 發布範圍：Production Canary payload authority alignment；新 release identity 為 `v0.3.363`，production model 鎖定 `gemini-3.5-flash`。
+- 驗證：release record tests、release record gate、pre-push gate 與 `git diff --check`。
+- 證據：本 release commit 與 annotated tag `v0.3.363`。
+
 ## [0.3.362] - 2026-08-12
 
 - Release tag：`v0.3.362`
