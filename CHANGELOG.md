@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.364] - 2026-08-13
+
+- Release tag：`v0.3.364`（本地 release candidate；本卡未建立 tag）
+- 公開文章總數：619（未執行 Canary，不新增 registry 條目）
+- 發布範圍：整合 hardened plist receipt 與 Python execution identity fail-closed 修復。
+- 驗證：Frozen focused、targeted 四檔、release 固定組合、installer syntax、manifest py_compile、release record gate 與 `git diff --check`。
+- 證據：本地 release candidate commit，待取得 tag/push 授權後建立遠端 release identity。
+
 ## [0.3.363] - 2026-08-13
 
 - Release tag：`v0.3.363`
