@@ -4,7 +4,7 @@
 
 ## 範圍
 
-- Source SHA：`af1d00b6721e32e3e1aefb55371ac6e3617d25a1`
+- Base SHA：`3fafa941569e0eb736c1333eb2eac843e30f9c14`
 - Campaign version：`apf-001-v1`
 - 未啟動 Publisher、LaunchAgent、scheduler 或 production runtime。
 
@@ -19,11 +19,11 @@
 | i18n-new | 4392 |
 | i18n-rewrite | 1059 |
 
-共 7268 項，所有項目都有 source kind、article id、locale、campaign version、work id、lane 與 reason。空 fixture 的既有 queue 去重為 0；實際 caller 傳入既有 queue/state 時會排除所有已存在 create/rewrite/translation identity。
+共 7268 項，所有項目都有 source kind、article id、locale、campaign version、work id、lane 與 reason。空 fixture 的既有 queue 去重為 0；create 仍以 article identity 去重，rewrite 與 translation 則只排除同一個 trim 後 campaign version 的既有 identity；舊版或缺 campaign version 的 run 不會阻擋新 campaign。
 
 ## 驗證命令
 
-- `.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k campaign_dry_run_workset -q`
+- `.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q`
 - `.venv/bin/python -m scripts.agy_gemini_coordinator ... dry-run-campaign ... --output ...`（兩次後 `cmp`）
 
 ## 已知 gap 與下一 frontier

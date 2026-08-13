@@ -1700,6 +1700,31 @@ def _active_count_by_mode(queue_root: Path, mode: str) -> int:
     return count
 
 
+def _campaign_version_from_brief(brief: dict[str, Any] | None) -> str | None:
+    if not isinstance(brief, dict):
+        return None
+    value = brief.get("campaign_version")
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized or "\n" in normalized or "\r" in normalized:
+        return None
+    return normalized
+
+
+def _registered_rewrite_article_ids_for_campaign(queue_root: Path, campaign_version: str) -> set[str]:
+    article_ids: set[str] = set()
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        brief = _read_run_brief_from_state(state)
+        if _campaign_version_from_brief(brief) == campaign_version:
+            article_ids.update(_article_ids_from_brief(brief))
+    return article_ids
+
+
 def _registered_rewrite_article_ids(queue_root: Path) -> set[str]:
     return _registered_article_ids_by_mode(queue_root, "rewrite_existing_body")
 
@@ -1729,12 +1754,16 @@ def _campaign_work_id(
     return f"apf-work-{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:24]}"
 
 
-def _translation_identities_in_queue(queue_root: Path) -> set[tuple[str, str]]:
+def _translation_identities_in_queue(queue_root: Path, campaign_version: str) -> set[tuple[str, str]]:
     identities: set[tuple[str, str]] = set()
     for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
         state = json.loads(path.read_text(encoding="utf-8"))
         brief = _read_run_brief_from_state(state)
-        if not isinstance(brief, dict) or brief.get("mode") != "translate_existing":
+        if (
+            not isinstance(brief, dict)
+            or brief.get("mode") != "translate_existing"
+            or _campaign_version_from_brief(brief) != campaign_version
+        ):
             continue
         articles = brief.get("articles")
         if not isinstance(articles, list):
@@ -1758,17 +1787,22 @@ def build_campaign_dry_run_workset(
     locales: Iterable[str] = ("en", "ja", "ko"),
 ) -> dict[str, Any]:
     """讀取既有來源與狀態，回傳四 lane 的純 dry-run campaign workset。"""
+    if not isinstance(campaign_version, str):
+        raise ValueError("campaign version and locales must be valid")
+    campaign_version = campaign_version.strip()
     selected_locales = tuple(sorted(set(locales)))
     if (
         not campaign_version.strip()
+        or "\n" in campaign_version
+        or "\r" in campaign_version
         or not selected_locales
         or any(locale not in multilingual.SUPPORTED_LOCALES for locale in selected_locales)
     ):
         raise ValueError("campaign version and locales must be valid")
     root = queue_root.resolve()
     registered_new = _registered_article_ids_by_mode(root, "create")
-    registered_rewrite = _registered_rewrite_article_ids(root)
-    queued_translations = _translation_identities_in_queue(root)
+    registered_rewrite = _registered_rewrite_article_ids_for_campaign(root, campaign_version)
+    queued_translations = _translation_identities_in_queue(root, campaign_version)
     matrix_rows = sorted(
         pipeline.build_matrix_backlog(repo_root),
         key=lambda row: str(row.get("id") or ""),
