@@ -636,6 +636,8 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--runtime-digest", required=True)
     create.add_argument("--config-version", required=True)
     create.add_argument("--generation", required=True)
+    create.add_argument("--actor-head", required=True)
+    create.add_argument("--python-executable", type=Path, required=True)
     create.add_argument("--output", type=Path, required=True)
     field = subparsers.add_parser("field")
     field.add_argument("--manifest", type=Path, required=True)
@@ -776,6 +778,8 @@ def main() -> int:
                 runtime_digest=args.runtime_digest,
                 config_version=args.config_version,
                 generation=args.generation,
+                actor_head=args.actor_head,
+                python_executable=args.python_executable,
             )
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))

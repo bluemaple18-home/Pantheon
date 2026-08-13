@@ -184,6 +184,148 @@ def test_manifest_python_expected_executable_must_match_exact_realpath(
         )
 
 
+def test_manifest_create_cli_requires_and_validates_hardened_identity(
+    tmp_path: Path,
+) -> None:
+    actor, actor_head = _git_actor_repo(tmp_path)
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    manifest_path = tmp_path / "runtime-manifest.json"
+    for path in (queue, state, logs):
+        path.mkdir()
+    python_executable = Path(sys.executable).resolve(strict=True)
+    base_command = [
+        sys.executable,
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "create",
+        "--actor-root",
+        str(actor),
+        "--queue-root",
+        str(queue),
+        "--publisher-state-root",
+        str(state),
+        "--log-root",
+        str(logs),
+        "--identity",
+        "repair-create-hardened",
+        "--runtime-digest",
+        "1" * 64,
+        "--config-version",
+        "runtime-v2",
+        "--generation",
+        "generation-create",
+        "--output",
+        str(manifest_path),
+    ]
+
+    missing = subprocess.run(base_command, check=False, capture_output=True, text=True)
+    created = subprocess.run(
+        [
+            *base_command,
+            "--actor-head",
+            actor_head,
+            "--python-executable",
+            str(python_executable),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert missing.returncode != 0
+    assert "actor-head" in missing.stderr
+    assert created.returncode == 0, created.stderr
+    manifest = json.loads(created.stdout)
+    assert manifest["actor_head"] == actor_head
+    assert manifest["python_executable"] == str(python_executable)
+    validate = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "validate",
+            "--manifest",
+            str(manifest_path),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--expected-python-executable",
+            str(python_executable),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert validate.returncode == 0, validate.stdout + validate.stderr
+
+
+@pytest.mark.parametrize(
+    ("actor_head", "python_mode", "message"),
+    [
+        ("not-a-sha", "valid", "actor head"),
+        ("valid", "missing", "python_executable"),
+        ("valid", "non-executable", "python_executable"),
+    ],
+)
+def test_manifest_create_cli_hardened_identity_negative_matrix_fails_closed(
+    tmp_path: Path,
+    actor_head: str,
+    python_mode: str,
+    message: str,
+) -> None:
+    actor, actual_head = _git_actor_repo(tmp_path)
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    manifest_path = tmp_path / "runtime-manifest.json"
+    for path in (queue, state, logs):
+        path.mkdir()
+    python_path = tmp_path / "python-target"
+    if python_mode == "missing":
+        pass
+    else:
+        python_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        python_path.chmod(0o644 if python_mode == "non-executable" else 0o755)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "create",
+            "--actor-root",
+            str(actor),
+            "--queue-root",
+            str(queue),
+            "--publisher-state-root",
+            str(state),
+            "--log-root",
+            str(logs),
+            "--identity",
+            "repair-create-negative",
+            "--runtime-digest",
+            "2" * 64,
+            "--config-version",
+            "runtime-v2",
+            "--generation",
+            "generation-create-negative",
+            "--output",
+            str(manifest_path),
+            "--actor-head",
+            actual_head if actor_head == "valid" else actor_head,
+            "--python-executable",
+            str(python_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert message in completed.stdout
+    assert not manifest_path.exists()
+
+
 def test_runtime_manifest_rejects_alias_and_cross_installer_drift(tmp_path: Path) -> None:
     actor = tmp_path / "actor"
     queue = tmp_path / "queue"
