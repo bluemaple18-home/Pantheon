@@ -4097,6 +4097,13 @@ def _write_aggregate_stage_plist(
                     "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest_digest
                     or manifest["manifest_digest"],
                     "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+                    "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+                    "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest[
+                        "runtime_identity_digest"
+                    ],
+                    "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+                    "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+                    "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
                     "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
                     "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
                     "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest[
@@ -4274,8 +4281,18 @@ def test_four_lane_installer_separates_stage_and_activation_with_rollback() -> N
     assert install_section.index("exit 0") < install_section.index("launchctl bootstrap")
 
 
-def test_aggregate_activation_rejects_mixed_installer_manifest_before_mutation(
+@pytest.mark.parametrize(
+    ("external_correlation", "expected_correlation", "expected_phase"),
+    [
+        ("apf-004-private-red", "apf-004-private-red", "aggregate_preflight"),
+        ("invalid correlation", None, "correlation_validation"),
+    ],
+)
+def test_aggregate_activation_rejects_before_mutation_with_failure_receipt(
     tmp_path: Path,
+    external_correlation: str,
+    expected_correlation: str | None,
+    expected_phase: str,
 ) -> None:
     """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 aggregate caller。"""
     repo_root = Path(__file__).resolve().parents[1]
@@ -4285,6 +4302,7 @@ def test_aggregate_activation_rejects_mixed_installer_manifest_before_mutation(
         pool=pool,
         state=tmp_path / "state.json",
     )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = external_correlation
     staged = subprocess.run(
         [
             "/bin/bash",
@@ -4326,9 +4344,32 @@ def test_aggregate_activation_rejects_mixed_installer_manifest_before_mutation(
     )
 
     assert activated.returncode != 0
-    assert "mismatch" in activated.stdout
+    if expected_phase == "aggregate_preflight":
+        assert "mismatch" in activated.stdout
+    else:
+        assert "correlation id 格式無效" in activated.stderr
     assert not mutation_log.exists()
     assert not (fake_home / "Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist").exists()
+    receipt_path = stage_dir / "failure-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["schema_version"] == 1
+    assert receipt["status"] == "ACTIVATION_REJECTED"
+    assert receipt["failed"] is True
+    if expected_correlation is None:
+        assert receipt["correlation_id"].startswith(
+            f"activation-{manifest['generation']}-"
+        )
+        assert receipt["correlation_id"] != external_correlation
+    else:
+        assert receipt["correlation_id"] == expected_correlation
+    assert receipt["stage_identity"] == {
+        "manifest_digest": manifest["manifest_digest"],
+        "generation": manifest["generation"],
+    }
+    assert receipt["exit_reason"] == {
+        "phase": expected_phase,
+        "exit_code": 1,
+    }
 
 
 @pytest.mark.parametrize(
@@ -4347,6 +4388,9 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         tmp_path,
         pool=pool,
         state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = (
+        f"apf-004-rollback-{expected_rollback_status.lower()}"
     )
     launch_agents = fake_home / "Library" / "LaunchAgents"
     launch_agents.mkdir(parents=True)
@@ -4477,10 +4521,121 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         assert (launch_agents / f"{label}.plist").read_bytes() == previous
     assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
     failure_receipt = launch_agents / ".pantheon-four-lane-stage" / "failure-receipt.json"
-    assert json.loads(failure_receipt.read_text(encoding="utf-8"))["status"] == expected_rollback_status
+    receipt = json.loads(failure_receipt.read_text(encoding="utf-8"))
+    assert receipt["status"] == expected_rollback_status
+    assert receipt["correlation_id"] == (
+        f"apf-004-rollback-{expected_rollback_status.lower()}"
+    )
+    assert receipt["stage_identity"] == {
+        "manifest_digest": manifest["manifest_digest"],
+        "generation": manifest["generation"],
+    }
+    assert receipt["exit_reason"] == {
+        "phase": "bootstrap_staged_services",
+        "exit_code": 1,
+    }
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 2
     assert mutations.count("bootstrap") >= len(labels)
+
+
+def test_four_lane_activation_success_commits_matching_private_stage(
+    tmp_path: Path,
+) -> None:
+    """APF-004 aggregate activation 成功 fixture；全程只用 fake launchctl。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "apf-004-private-green"
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    ready_root = stage_dir / "readiness" / str(manifest["generation"])
+    readiness_fixture = tmp_path / "readiness-fixture"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(readiness_fixture, manifest, label)
+    launchctl = tmp_path / "bin" / "launchctl"
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' 'service = fixture'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        f"  touch '{loaded}/'$label\n"
+        f"  mkdir -p '{ready_root}'\n"
+        f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    for label in runtime_manifest.SERVICE_LABELS:
+        if label not in {
+            "com.pantheon.agy-content-publisher",
+            "com.pantheon.content-capacity-guard",
+        }:
+            continue
+        _write_aggregate_stage_plist(
+            stage_dir / f"{label}.plist",
+            label=label,
+            manifest=manifest,
+        )
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert "aggregate activation 已完成" in activated.stdout
+    assert not stage_dir.exists()
+    barrier = (
+        Path(manifest["publisher_state_root"])
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
 
 
 @pytest.mark.parametrize("fail_plutil_call", [1, 2, 3, 4, 5])

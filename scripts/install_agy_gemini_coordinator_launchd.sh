@@ -328,6 +328,36 @@ if [[ ! -d "${STAGE_DIR}" \
   echo "找不到 matching aggregate stage receipt，拒絕 activation。" >&2
   exit 1
 fi
+ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
+ACTIVATION_PHASE="correlation_validation"
+write_failure_receipt() {
+  local STATUS="$1"
+  local RETURN_CODE="$2"
+  local EXIT_PHASE="$3"
+  local RECEIPT_TEMP="${STAGE_DIR}/failure-receipt.json.tmp.$$"
+  printf '{"schema_version":1,"status":"%s","failed":true,"correlation_id":"%s","stage_identity":{"manifest_digest":"%s","generation":"%s"},"exit_reason":{"phase":"%s","exit_code":%d}}\n' \
+    "${STATUS}" "${ACTIVATION_CORRELATION_ID}" "${RUNTIME_MANIFEST_DIGEST}" \
+    "${RUNTIME_GENERATION}" "${EXIT_PHASE}" "${RETURN_CODE}" > "${RECEIPT_TEMP}"
+  chmod 600 "${RECEIPT_TEMP}"
+  mv "${RECEIPT_TEMP}" "${STAGE_DIR}/failure-receipt.json"
+}
+reject_activation() {
+  local RETURN_CODE="$1"
+  local EXIT_PHASE="$2"
+  trap - ERR
+  set +e
+  write_failure_receipt "ACTIVATION_REJECTED" "${RETURN_CODE}" "${EXIT_PHASE}"
+  exit "${RETURN_CODE}"
+}
+trap 'reject_activation $? "${ACTIVATION_PHASE}"' ERR
+if [[ -n "${PANTHEON_ACTIVATION_CORRELATION_ID:-}" ]]; then
+  if [[ ! "${PANTHEON_ACTIVATION_CORRELATION_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ ]]; then
+    echo "activation correlation id 格式無效。" >&2
+    false
+  fi
+  ACTIVATION_CORRELATION_ID="${PANTHEON_ACTIVATION_CORRELATION_ID}"
+fi
+ACTIVATION_PHASE="aggregate_preflight"
 AGGREGATE_ARGS=()
 for STAGED_PLIST in "${STAGED_PLISTS[@]}"; do
   AGGREGATE_ARGS+=(--plist "${STAGED_PLIST}")
@@ -346,6 +376,7 @@ normalize_control_identity() {
 }
 rollback_activation() {
   local RETURN_CODE="$1"
+  local EXIT_PHASE="$2"
   local ROLLBACK_FAILED=0
   trap - ERR
   set +e
@@ -404,12 +435,12 @@ rollback_activation() {
   else
     ROLLBACK_STATUS="ROLLBACK_COMPLETE"
   fi
-  printf '{"status":"%s","failed":true,"manifest_digest":"%s"}\n' \
-    "${ROLLBACK_STATUS}" "${RUNTIME_MANIFEST_DIGEST}" > "${STAGE_DIR}/failure-receipt.json"
+  write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
   exit "${RETURN_CODE}"
 }
 
 # aggregate activation 前才 snapshot live config/state；stage 不碰 live target 或 barrier。
+ACTIVATION_PHASE="snapshot_previous_state"
 rm -rf "${STAGE_DIR}/backups"
 mkdir -p "${STAGE_DIR}/backups"
 rm -f "${STAGE_DIR}/previous-barrier" "${STAGE_DIR}/previous-barrier-missing" \
@@ -457,13 +488,15 @@ else
   : > "${STAGE_DIR}/previous-barrier-missing"
 fi
 
-trap 'rollback_activation $?' ERR
+ACTIVATION_PHASE="replace_live_plists"
+trap 'rollback_activation $? "${ACTIVATION_PHASE}"' ERR
 rm -f "${ACTIVATION_BARRIER}"
 rm -rf "${READY_ROOT}"
 mkdir -p "${READY_ROOT}"
 for INDEX in 0 1 2 3 4 5 6; do
   install -m 600 "${STAGED_PLISTS[${INDEX}]}" "${TARGET_PLISTS[${INDEX}]}"
 done
+ACTIVATION_PHASE="bootout_previous_services"
 for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
@@ -474,6 +507,7 @@ for INDEX in 0 1 2 3 4 5 6; do
     fi
   fi
 done
+ACTIVATION_PHASE="bootstrap_staged_services"
 for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
@@ -481,6 +515,7 @@ for INDEX in 0 1 2 3 4 5 6; do
   launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
   launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
 done
+ACTIVATION_PHASE="live_aggregate_validation"
 LIVE_AGGREGATE_ARGS=()
 for TARGET_PLIST_PATH in "${TARGET_PLISTS[@]}"; do
   LIVE_AGGREGATE_ARGS+=(--plist "${TARGET_PLIST_PATH}")
@@ -492,6 +527,7 @@ done
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
     "${LIVE_AGGREGATE_ARGS[@]}"
 ) >/dev/null
+ACTIVATION_PHASE="barrier_activation"
 (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
   barrier-activate \
   --manifest "${RUNTIME_MANIFEST_FILE}" \
