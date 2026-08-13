@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "status": "BLOCKED",
+  "dispatch_key": "v1:e36d2c4bfb8b950a0531a30d41ed94644f2357f16416c25e2a84616c13f824f4",
+  "activation_token_sha256": "9172d05950d924014248c5fd3cef1bc640398783a65e0f779a4b0d7ca273fe9d",
+  "formal_thread_id": "019ffad9-c48e-70e3-9497-8c055f23bffe",
+  "created_at": "2026-08-13T11:46:57Z",
+  "source_head": "69e6c90e41eee5be9a687400cc1fae53ac88d396",
+  "phase": "FINAL_PAYLOAD_CONFIRMED pre-mutation gate",
+  "confirmed_payload": [
+    {
+      "lane": "new",
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "locale": "zh-TW",
+      "work_id": "apf-work-b1666341df10a14c1a586141",
+      "exact_run_id": null,
+      "status": "not_created"
+    },
+    {
+      "lane": "rewrite",
+      "article_id": "ASC-AQUARIUS",
+      "locale": "zh-TW",
+      "work_id": "apf-work-0146edbbed78ec5debf138d4",
+      "exact_run_id": null,
+      "status": "not_created"
+    },
+    {
+      "lane": "i18n-new",
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "locale": "ja",
+      "work_id": "apf-work-44bd155e28231d25d65f3394",
+      "exact_run_id": null,
+      "status": "not_created"
+    },
+    {
+      "lane": "i18n-rewrite",
+      "article_id": "ASC-AQUARIUS",
+      "locale": "ja",
+      "work_id": "apf-work-1eeac7f0a8fff378eb65c190",
+      "exact_run_id": null,
+      "status": "not_created"
+    }
+  ],
+  "preflight": {
+    "readiness": {
+      "command": "<repo-root>/.venv/bin/python <ai-core-root>/scripts/production_canary_readiness_gate.py --receipt <repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/package/production-canary-capability-receipt.json",
+      "status": "READY",
+      "execution_line_id": "exec-apf-004-readiness",
+      "failures": []
+    },
+    "capacity": {
+      "committed_receipt": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "host_available_bytes_sampled": 34419056640,
+      "host_reserve_bytes": 24510719591,
+      "swap_sample": "total=21504.00MiB used=20485.75MiB free=1018.25MiB encrypted",
+      "runtime_queue_kib": 0,
+      "runtime_state_kib": 0,
+      "runtime_log_kib": 0
+    },
+    "runtime": {
+      "actor_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+      "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+      "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+      "log_root": "<repo-parent>/Pantheon-canary-runtime-v8/logs",
+      "actor_head": "038cb1fd1cc29ffe234ac213222938b699ab4082",
+      "actor_clean": true,
+      "origin_main_sha": "038cb1fd1cc29ffe234ac213222938b699ab4082",
+      "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+      "manifest_digest": "2b367cb6e434e02e4c8f74c9c2b29ee9ac25064706d871bcf13f497ace36af70",
+      "runtime_identity_digest": "404973c1cc493ba96a90c38515f2b806f828015101c2d022548cb886fc0805c2",
+      "runtime_processes_matching_canary": 0,
+      "queue_state_files": 0
+    },
+    "origin_and_push_mode": {
+      "remote": "origin git@github.com:bluemaple18-home/Pantheon.git",
+      "publisher_push_mode": "push",
+      "publisher_canary_bound": "--max-runs 1 with one exact selector"
+    },
+    "credential_boundary": {
+      "status": "masked",
+      "authority": "production Gemini credential pool / environment contract",
+      "secret_material_recorded": false,
+      "external_model_invoked": false
+    }
+  },
+  "formal_entrypoint_audit": {
+    "coordinator_cli": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/actor/scripts/agy_gemini_coordinator.py",
+      "commands": [
+        "register",
+        "resume",
+        "status",
+        "terminalize-pending",
+        "cycle"
+      ],
+      "exact_selector_behavior": "cycle --exact-run-id only advances already known run IDs; exact IDs cannot be combined with automatic sweeps",
+      "new_create_behavior": "seed_new_matrix_runs accepts an exact run id in library code but the formal CLI exposes only automatic new-matrix sweep and does not bind the confirmed article/work_id",
+      "rewrite_create_behavior": "seed_legacy_rewrite_runs derives legacy-auto-sweep run IDs from oldest unattempted backlog and does not expose an exact article/work_id selector"
+    },
+    "publisher_prepare_cli": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/actor/scripts/prepare_pantheon_canary_actor.py",
+      "behavior": "builds a publisher actor plan for a caller-supplied existing exact_run_id; it does not create Writer/Reviewer runs from confirmed work items"
+    },
+    "publisher_cli": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py",
+      "behavior": "supports exact publish selectors and deployment preflight after runs exist; it is not the create-run authority"
+    }
+  },
+  "blocker": {
+    "type": "missing_formal_exact_create_run_entrypoint",
+    "summary": "FINAL_PAYLOAD_CONFIRMED authorizes mutation only after exact run IDs are deterministically locked. The existing formal entrypoints available in the production runtime cannot deterministically create all four confirmed lane run IDs from the four work items without using automatic sweeps or hand-made queue files.",
+    "unique_frontier": "Add or identify a formally approved create-run entrypoint that accepts the confirmed work_id/article_id/locale tuple, returns exact Writer/Reviewer/Publisher handoff run IDs, and preserves queue/state authority without manual queue file construction.",
+    "stop_decision": "No production mutation executed."
+  },
+  "mutation_summary": {
+    "writer_reviewer_create_run": "not_executed",
+    "external_model_calls": "not_executed",
+    "publisher_publication": "not_executed",
+    "transaction": "not_executed",
+    "tag": "not_executed",
+    "push": "not_executed",
+    "deploy": "not_executed",
+    "schedule_or_launchctl": "not_executed"
+  },
+  "remote_and_tag_identities": {
+    "remote_before": "origin/main@038cb1fd1cc29ffe234ac213222938b699ab4082",
+    "remote_after": null,
+    "tags_created": [],
+    "release_records_created": []
+  },
+  "stop_rollback": {
+    "stop_action": "stopped before mutation",
+    "rollback_required": false,
+    "rollback_reason": "no production publication, transaction, tag, push, deploy, schedule, or launchctl mutation occurred"
+  }
+}
