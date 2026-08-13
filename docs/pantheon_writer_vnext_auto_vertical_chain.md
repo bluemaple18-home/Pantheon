@@ -22,3 +22,9 @@
 兩個 lane 都在暫存目錄走完既有 `run_writer_reviewer`、`validate_translation_brief`、`validate_translation_candidate`、`pipeline.validate_review` 與 deterministic findings。只有 new／rewrite 全部通過，才呼叫既有 `enqueue_article_translations` 寫入 queue，保存 candidate／review SHA 並把 state 標成 complete。已完成且 SHA／identity 一致的 run 直接重用；source SHA、translation SHA、locale、article identity 或 review identity 任一漂移，都在 queue／handoff 新增寫入前 fail closed。
 
 最後以同一份未發布 campaign source snapshot 呼叫未修改的 `collect_ready_translation_runs`。collector 仍執行完整 source-current、multilingual validation、Reviewer 與 deterministic acceptance，但不需把 APF candidate 寫進 production registry。此入口只回傳 `status: dry-run` 與 `published: 0`，不呼叫 publish、ledger transaction、tag、commit、push、deploy 或 production activation。
+
+## CHECKPOINT-A 私有四 lane E2E
+
+`execute_private_campaign_e2e` 是 APF-001～003 的唯一私有組合入口。它只接受一個固定 `new`、`rewrite`、`i18n-new`、`i18n-rewrite` 的 `ja` workset；任何第三個 editorial 或 translation work item 都會在 Writer、Reviewer 與 Publisher collector 前拒絕。
+
+入口在可丟棄的 staging 目錄依序執行 editorial、既有 Publisher dry-run collector 與既有 translation collector。只有四 lane 都成功才將私有 receipt 複製至呼叫端 root；翻譯失敗不會留下可被 Publisher 收集的半套結果。既有 receipt 會在 staging 與私有 root 間重綁路徑，因此 retry／resume 不重跑已完成 Writer／Reviewer／translation 工作，並回傳 contract-stable 的四 lane receipt。

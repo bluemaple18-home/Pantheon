@@ -2502,6 +2502,179 @@ def replay_campaign_editorial_workset_through_translation(
     }
 
 
+def _private_campaign_e2e_workset(workset: object, locale: str) -> dict[str, Any]:
+    """驗證 CHECKPOINT-A 固定四 lane 私有 workset，先拒絕超量。"""
+    if (
+        not isinstance(workset, dict)
+        or set(workset) != {"schema_version", "campaign_version", "lanes", "items", "summary"}
+        or workset.get("schema_version") != 1
+        or not isinstance(workset.get("items"), list)
+        or workset.get("lanes") != list(CONTENT_LANES)
+        or locale != "ja"
+    ):
+        raise ValueError("private campaign workset is invalid")
+    items = workset["items"]
+    editorial_count = sum(
+        isinstance(item, dict) and item.get("lane") in {"new", "rewrite"}
+        for item in items
+    )
+    translation_count = sum(
+        isinstance(item, dict) and item.get("lane") in {"i18n-new", "i18n-rewrite"}
+        for item in items
+    )
+    if editorial_count > 2:
+        raise ValueError("private campaign capacity exceeds two editorial work items")
+    if translation_count > 2:
+        raise ValueError("private campaign capacity exceeds two translation work items")
+    if len(items) != 4:
+        raise ValueError("private campaign capacity requires exactly four work items")
+
+    by_lane: dict[str, dict[str, str]] = {}
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            raise ValueError("private campaign work item is invalid")
+        lane = raw_item.get("lane")
+        if lane in {"new", "rewrite"}:
+            item = _campaign_editorial_work_item(raw_item)
+        elif lane in {"i18n-new", "i18n-rewrite"}:
+            expected_source = "matrix" if lane == "i18n-new" else "legacy"
+            expected_id = _campaign_work_id(
+                expected_source,
+                str(raw_item.get("article_id") or ""),
+                locale,
+                str(workset["campaign_version"]),
+            )
+            item = {key: value for key, value in raw_item.items() if isinstance(value, str)}
+            if (
+                len(item) != 7
+                or set(item) != {"source_kind", "article_id", "locale", "campaign_version", "work_id", "lane", "reason"}
+                or any(not value.strip() for value in item.values())
+                or item["source_kind"] != expected_source
+                or item["locale"] != locale
+                or item["campaign_version"] != workset["campaign_version"]
+                or item["work_id"] != expected_id
+            ):
+                raise ValueError("private campaign translation work item is invalid")
+        else:
+            raise ValueError("private campaign lane is invalid")
+        if lane in by_lane:
+            raise ValueError("private campaign lane is duplicated")
+        by_lane[str(lane)] = item
+    if set(by_lane) != set(CONTENT_LANES):
+        raise ValueError("private campaign must contain four lanes")
+    for editorial_lane, translation_lane in (("new", "i18n-new"), ("rewrite", "i18n-rewrite")):
+        editorial = by_lane[editorial_lane]
+        translation = by_lane[translation_lane]
+        if editorial["article_id"] != translation["article_id"]:
+            raise ValueError("private campaign translation source identity drift")
+    return {
+        "schema_version": 1,
+        "campaign_version": workset["campaign_version"],
+        "lanes": ["new", "rewrite"],
+        "items": [by_lane["new"], by_lane["rewrite"]],
+        "summary": workset["summary"],
+    }
+
+
+def _rebase_private_campaign_state_paths(
+    queue_root: Path,
+    replacements: Iterable[tuple[Path, Path]],
+) -> None:
+    """只在私有 staging 與 receipt 間搬移時更新既有 run_dir 路徑。"""
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        state = _read_editorial_artifact(path)
+        changed = False
+        for container, key in ((state, "run_dir"), (state.get("result"), "candidate")):
+            if not isinstance(container, dict) or not isinstance(container.get(key), str):
+                continue
+            value = container[key]
+            for source, target in replacements:
+                source_text = str(source.resolve())
+                if value == source_text or value.startswith(source_text + os.sep):
+                    container[key] = str(target.resolve()) + value[len(source_text):]
+                    changed = True
+                    break
+        if changed:
+            atomic_write_json(path, state)
+
+
+def execute_private_campaign_e2e(
+    repo_root: Path,
+    workset: object,
+    run_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    client: pipeline.GeminiClient,
+    *,
+    brief_factory: EditorialFactory,
+    writer: EditorialWriter,
+    reviewer: EditorialReviewer,
+    rewrite_brief_factory: Callable[[dict[str, Any]], dict[str, Any]],
+    locale: str = "ja",
+    max_repairs: int = 0,
+) -> dict[str, Any]:
+    """在可丟棄 staging 內串接四 lane，全部驗證後才保留私有 receipt。"""
+    editorial_workset = _private_campaign_e2e_workset(workset, locale)
+    with tempfile.TemporaryDirectory(prefix="pantheon-checkpoint-a-") as temporary:
+        staging = Path(temporary)
+        staged_runs = staging / "runs"
+        staged_queue = staging / "queue"
+        staged_state = staging / "publisher-state"
+        for source, target in ((run_root, staged_runs), (queue_root, staged_queue), (state_root, staged_state)):
+            if source.exists():
+                shutil.copytree(source, target)
+        _rebase_private_campaign_state_paths(
+            staged_queue,
+            ((run_root, staged_runs), (queue_root, staged_queue)),
+        )
+        editorial = execute_campaign_editorial_workset(
+            editorial_workset,
+            staged_runs,
+            brief_factory=brief_factory,
+            writer=writer,
+            reviewer=reviewer,
+        )
+        rewrite_briefs = {
+            str(run["run_id"]): rewrite_brief_factory(run["candidate"])
+            for run in editorial["runs"]
+            if run["lane"] == "rewrite"
+        }
+        publisher_receipt = replay_campaign_editorial_workset_through_publisher(
+            editorial,
+            staged_queue,
+            staged_state,
+            rewrite_briefs=rewrite_briefs,
+        )
+        translation_receipt = replay_campaign_editorial_workset_through_translation(
+            repo_root,
+            editorial,
+            staged_queue,
+            staged_state,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale=locale,
+            max_repairs=max_repairs,
+        )
+        _rebase_private_campaign_state_paths(
+            staged_queue,
+            ((staged_runs, run_root), (staged_queue, queue_root)),
+        )
+        for source, target in ((staged_runs, run_root), (staged_queue, queue_root), (staged_state, state_root)):
+            if source.exists():
+                shutil.copytree(source, target, dirs_exist_ok=True)
+    for run in editorial["runs"]:
+        run["run_dir"] = str((run_root / str(run["work_id"])).resolve())
+    return {
+        "status": "dry-run",
+        "published": 0,
+        "campaign_version": editorial["campaign_version"],
+        "lanes": list(CONTENT_LANES),
+        "editorial_runs": editorial["runs"],
+        "publisher": publisher_receipt,
+        "translation": translation_receipt,
+    }
+
+
 def _slug_part(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-").lower()
     return slug[:80] or "article"
