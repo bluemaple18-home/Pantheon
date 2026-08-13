@@ -13,7 +13,7 @@ import pytest
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
-from scripts.agy_gemini_coordinator import cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
+from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
 
 
@@ -987,6 +987,72 @@ def test_cycle_isolates_runner_malformed_json_and_keeps_run_retryable(tmp_path: 
     }
     assert state["status"] == "active"
     assert state["last_job_id"] == "public-job-malformed"
+
+
+def test_campaign_dry_run_workset_is_stable_and_side_effect_free(tmp_path: Path, monkeypatch) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    repo_root.mkdir()
+    records = [
+        {"id": "LEGACY-001", "serial": "tarot-001", "path": "articles/tarot/tarot-001"},
+        {"id": "LEGACY-002", "serial": "tarot-002", "path": "articles/tarot/tarot-002"},
+    ]
+    inventory = {record["id"]: {"id": record["id"], "record": record} for record in records}
+    monkeypatch.setattr(
+        coordinator.pipeline,
+        "build_matrix_backlog",
+        lambda _repo: [
+            {"id": "NEW-001", "primaryKeyword": "新主題一"},
+            {"id": "NEW-002", "primaryKeyword": "新主題二"},
+        ],
+    )
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: records)
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: {"unattempted": 1, "active_or_incomplete": 1, "released": 0},
+    )
+
+    new_run = tmp_path / "new-run"
+    rewrite_run = tmp_path / "rewrite-run"
+    translation_run = tmp_path / "translation-run"
+    for run_dir, run_id, brief in (
+        (new_run, "new-run", {"mode": "create", "articles": [{"target": {"id": "NEW-002"}}]}),
+        (rewrite_run, "rewrite-run", {"mode": "rewrite_existing_body", "articles": [{"article_id": "LEGACY-002"}]}),
+        (translation_run, "translation-run", {"mode": "translate_existing", "articles": [{"source_article_id": "NEW-001", "locale": "en"}]}),
+    ):
+        run_dir.mkdir()
+        (run_dir / "brief.json").write_text(
+            json.dumps({"schema_version": 1, "run_id": run_id, **brief}),
+            encoding="utf-8",
+        )
+        state_path = queue_root / "runs" / f"{run_id}.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps({"run_id": run_id, "run_dir": str(run_dir), "status": "active"}), encoding="utf-8")
+
+    before = {str(path.relative_to(tmp_path)): path.read_bytes() for path in sorted(tmp_path.rglob("*")) if path.is_file()}
+    first = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="apf-001-v1")
+    second = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="apf-001-v1")
+    next_campaign = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="apf-001-v2")
+    after = {str(path.relative_to(tmp_path)): path.read_bytes() for path in sorted(tmp_path.rglob("*")) if path.is_file()}
+
+    assert json.dumps(first, ensure_ascii=False, sort_keys=True, separators=(",", ":")) == json.dumps(second, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    assert after == before
+    assert [item["lane"] for item in first["items"]] == ["new", "rewrite", "i18n-new", "i18n-new", "i18n-rewrite", "i18n-rewrite", "i18n-rewrite"]
+    assert {(item["article_id"], item["locale"]) for item in first["items"]} == {
+        ("NEW-001", "zh-TW"),
+        ("LEGACY-001", "zh-TW"),
+        ("NEW-001", "ja"),
+        ("NEW-001", "ko"),
+        ("LEGACY-001", "en"),
+        ("LEGACY-001", "ja"),
+        ("LEGACY-001", "ko"),
+    }
+    assert len({item["work_id"] for item in first["items"]}) == len(first["items"])
+    assert all({"source_kind", "article_id", "locale", "campaign_version", "work_id", "lane", "reason"} <= set(item) for item in first["items"])
+    assert {item["work_id"] for item in first["items"]}.isdisjoint({item["work_id"] for item in next_campaign["items"]})
 
 
 def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path: Path, monkeypatch) -> None:

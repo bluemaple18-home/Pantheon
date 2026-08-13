@@ -1704,6 +1704,169 @@ def _registered_rewrite_article_ids(queue_root: Path) -> set[str]:
     return _registered_article_ids_by_mode(queue_root, "rewrite_existing_body")
 
 
+def _campaign_work_id(
+    source_kind: str,
+    article_id: str,
+    locale: str,
+    campaign_version: str,
+) -> str:
+    """回傳可重跑的 campaign work identity，不配置或寫入任何 runtime state。"""
+    if source_kind not in {"matrix", "legacy"}:
+        raise ValueError("campaign source kind is invalid")
+    if not article_id or not locale or not campaign_version:
+        raise ValueError("campaign identity fields must be non-empty")
+    canonical = json.dumps(
+        {
+            "article_id": article_id,
+            "campaign_version": campaign_version,
+            "locale": locale,
+            "source_kind": source_kind,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return f"apf-work-{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:24]}"
+
+
+def _translation_identities_in_queue(queue_root: Path) -> set[tuple[str, str]]:
+    identities: set[tuple[str, str]] = set()
+    for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        brief = _read_run_brief_from_state(state)
+        if not isinstance(brief, dict) or brief.get("mode") != "translate_existing":
+            continue
+        articles = brief.get("articles")
+        if not isinstance(articles, list):
+            continue
+        for article in articles:
+            if not isinstance(article, dict):
+                continue
+            article_id = str(article.get("source_article_id") or "")
+            locale = str(article.get("locale") or "")
+            if article_id and locale:
+                identities.add((article_id, locale))
+    return identities
+
+
+def build_campaign_dry_run_workset(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    campaign_version: str,
+    locales: Iterable[str] = ("en", "ja", "ko"),
+) -> dict[str, Any]:
+    """讀取既有來源與狀態，回傳四 lane 的純 dry-run campaign workset。"""
+    selected_locales = tuple(sorted(set(locales)))
+    if (
+        not campaign_version.strip()
+        or not selected_locales
+        or any(locale not in multilingual.SUPPORTED_LOCALES for locale in selected_locales)
+    ):
+        raise ValueError("campaign version and locales must be valid")
+    root = queue_root.resolve()
+    registered_new = _registered_article_ids_by_mode(root, "create")
+    registered_rewrite = _registered_rewrite_article_ids(root)
+    queued_translations = _translation_identities_in_queue(root)
+    matrix_rows = sorted(
+        pipeline.build_matrix_backlog(repo_root),
+        key=lambda row: str(row.get("id") or ""),
+    )
+    legacy_records = publisher.legacy_article_records(repo_root)
+    legacy_inventory = pipeline._existing_rewrite_inventory(repo_root)
+    legacy_ids = {str(record.get("id") or "") for record in legacy_records}
+    rewrite_backlog = publisher.summarize_legacy_rewrite_backlog(
+        root,
+        state_root.resolve(),
+        allowed_article_ids=legacy_ids,
+        legacy_records=legacy_records,
+    )
+
+    items: list[dict[str, str]] = []
+    source_candidates: list[tuple[str, str, str]] = []
+    excluded_new = 0
+    for row in matrix_rows:
+        article_id = str(row.get("id") or "")
+        if not article_id or article_id in registered_new:
+            excluded_new += 1
+            continue
+        source_candidates.append(("matrix", article_id, "new"))
+        items.append(
+            {
+                "source_kind": "matrix",
+                "article_id": article_id,
+                "locale": "zh-TW",
+                "campaign_version": campaign_version,
+                "work_id": _campaign_work_id("matrix", article_id, "zh-TW", campaign_version),
+                "lane": "new",
+                "reason": "matrix_backlog_unpublished_and_unregistered",
+            }
+        )
+
+    excluded_rewrite = 0
+    for record in legacy_records:
+        article_id = str(record.get("id") or "")
+        if not article_id or article_id in registered_rewrite or article_id not in legacy_inventory:
+            excluded_rewrite += 1
+            continue
+        source_candidates.append(("legacy", article_id, "rewrite"))
+        items.append(
+            {
+                "source_kind": "legacy",
+                "article_id": article_id,
+                "locale": "zh-TW",
+                "campaign_version": campaign_version,
+                "work_id": _campaign_work_id("legacy", article_id, "zh-TW", campaign_version),
+                "lane": "rewrite",
+                "reason": "legacy_inventory_unregistered",
+            }
+        )
+
+    excluded_i18n = 0
+    for source_kind, article_id, source_lane in source_candidates:
+        lane = "i18n-new" if source_lane == "new" else "i18n-rewrite"
+        for locale in selected_locales:
+            if (article_id, locale) in queued_translations:
+                excluded_i18n += 1
+                continue
+            items.append(
+                {
+                    "source_kind": source_kind,
+                    "article_id": article_id,
+                    "locale": locale,
+                    "campaign_version": campaign_version,
+                    "work_id": _campaign_work_id(source_kind, article_id, locale, campaign_version),
+                    "lane": lane,
+                    "reason": "derived_from_source_publication_candidate",
+                }
+            )
+
+    lane_order = {lane: index for index, lane in enumerate(CONTENT_LANES)}
+    items.sort(key=lambda item: (lane_order[item["lane"]], item["source_kind"], item["article_id"], item["locale"], item["work_id"]))
+    work_ids = [item["work_id"] for item in items]
+    if len(work_ids) != len(set(work_ids)):
+        raise ValueError("campaign work identities must be unique")
+    return {
+        "schema_version": 1,
+        "campaign_version": campaign_version,
+        "lanes": list(CONTENT_LANES),
+        "items": items,
+        "summary": {
+            "counts": {lane: sum(item["lane"] == lane for item in items) for lane in CONTENT_LANES},
+            "excluded": {
+                "new_registered": excluded_new,
+                "rewrite_registered_or_unavailable": excluded_rewrite,
+                "i18n_existing_queue": excluded_i18n,
+            },
+            "rewrite_backlog": {
+                key: rewrite_backlog.get(key, 0)
+                for key in ("released", "active_or_incomplete", "unattempted")
+            },
+        },
+    }
+
+
 def _slug_part(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-").lower()
     return slug[:80] or "article"
@@ -2275,6 +2438,11 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     terminalize.add_argument("--execute", action="store_true")
+    campaign = subparsers.add_parser("dry-run-campaign")
+    campaign.add_argument("--campaign-version", required=True)
+    campaign.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
+    campaign.add_argument("--locale", action="append", choices=sorted(multilingual.SUPPORTED_LOCALES))
+    campaign.add_argument("--output", type=Path)
     cycle = subparsers.add_parser("cycle")
     cycle.add_argument("--exact-run-id", action="append")
     return parser.parse_args()
@@ -2308,6 +2476,21 @@ def main() -> int:
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
             print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
             return 1
+    elif args.command == "dry-run-campaign":
+        result = build_campaign_dry_run_workset(
+            args.repo_root.resolve(),
+            queue_root,
+            args.state_root.resolve(),
+            campaign_version=args.campaign_version,
+            locales=args.locale or ("en", "ja", "ko"),
+        )
+        if args.output is not None:
+            output = args.output.resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
     else:
         result = cycle_once(
             queue_root,
