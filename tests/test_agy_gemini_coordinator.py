@@ -17,6 +17,72 @@ from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
 
 
+def _article_brief_v2(run_id: str, article_id: str) -> dict[str, object]:
+    return {
+        "version": "ArticleBriefV2", "run_id": run_id,
+        "article_identity": {"id": article_id, "canonical_path": f"/{article_id.lower()}/"},
+        "reader_question": "這個概念應如何用在選擇上？", "target_reader": "正在比較選項的讀者",
+        "search_intent": "informational", "thesis": "先查證事實，再判斷適用性。",
+        "reader_outcome": "讀者能列出下一步。", "scope": "一般資訊整理",
+        "anti_goals": ["不替讀者決定"], "evidence_policy": "cite-verifiable-claims", "risk_class": "medium",
+    }
+
+
+def _campaign_item(source_kind: str, article_id: str, campaign_version: str = "apf-002-v1") -> dict[str, str]:
+    lane = "new" if source_kind == "matrix" else "rewrite"
+    return {
+        "source_kind": source_kind, "article_id": article_id, "locale": "zh-TW",
+        "campaign_version": campaign_version,
+        "work_id": coordinator._campaign_work_id(source_kind, article_id, "zh-TW", campaign_version),
+        "lane": lane, "reason": "fixture",
+    }
+
+
+def test_campaign_editorial_work_item_resumes_successful_stages_and_keeps_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"brief": 0, "writer": 0, "reviewer": 0}
+    item = _campaign_item("matrix", "NEW-001")
+    brief = _article_brief_v2("new-run-001", "NEW-001")
+    candidate = {"schema_version": 1, "run_id": "new-run-001", "mode": "create", "articles": [{"id": "NEW-001"}]}
+    review = {"schema_version": 1, "run_id": "new-run-001", "articles": [{"article_id": "NEW-001", "candidate_sha256": "a", "verdict": "APPROVE", "findings": []}]}
+    monkeypatch.setattr(coordinator.pipeline, "validate_candidate", lambda value: value == candidate or pytest.fail("candidate drift"))
+    monkeypatch.setattr(coordinator.pipeline, "validate_review", lambda value, articles: value == review and articles == candidate["articles"] or pytest.fail("review drift"))
+    monkeypatch.setattr(coordinator.editorial_contracts, "validate_manifest", lambda _value: {"blocking": False, "findings": [], "valid": True})
+
+    def make_brief(_item: dict[str, object]) -> dict[str, object]:
+        calls["brief"] += 1
+        return brief
+
+    def write_candidate(_brief: dict[str, object]) -> dict[str, object]:
+        calls["writer"] += 1
+        return candidate
+
+    def write_review(_brief: dict[str, object], _candidate: dict[str, object]) -> dict[str, object]:
+        calls["reviewer"] += 1
+        return review
+
+    first = coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
+    second = coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
+
+    assert first["work_id"] == second["work_id"] == item["work_id"]
+    assert calls == {"brief": 1, "writer": 1, "reviewer": 1}
+
+
+def test_campaign_editorial_work_item_fails_closed_for_blocking_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item = _campaign_item("legacy", "LEGACY-001")
+    brief = _article_brief_v2("rewrite-run-001", "LEGACY-001")
+    candidate = {"schema_version": 1, "run_id": "rewrite-run-001", "mode": "rewrite_existing_body", "articles": [{"article_id": "LEGACY-001"}]}
+    review = {"schema_version": 1, "run_id": "rewrite-run-001", "articles": [{"article_id": "LEGACY-001", "candidate_sha256": "a", "verdict": "REJECT", "findings": [{"code": "blocked", "message": "fixture"}]}]}
+    monkeypatch.setattr(coordinator.pipeline, "validate_candidate", lambda _value: None)
+    monkeypatch.setattr(coordinator.pipeline, "validate_review", lambda _value, _articles: None)
+
+    with pytest.raises(ValueError, match="blocking findings"):
+        coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=lambda _item: brief, writer=lambda _brief: candidate, reviewer=lambda _brief, _candidate: review)
+
+
 def _write_brief(run_dir: Path, run_id: str = "private-run-001") -> None:
     run_dir.mkdir(parents=True)
     (run_dir / "brief.json").write_text(

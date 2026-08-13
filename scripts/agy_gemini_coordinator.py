@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from scripts import agy_content_publisher as publisher
+from scripts import agy_editorial_contracts as editorial_contracts
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as formal_runtime
@@ -49,6 +50,9 @@ JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
 Process = Callable[[Path], dict[str, str]]
+EditorialFactory = Callable[[dict[str, Any]], dict[str, Any]]
+EditorialWriter = Callable[[dict[str, Any]], dict[str, Any]]
+EditorialReviewer = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
 COORDINATOR_RECEIPT_RUN_ID = "ra-slice-002-synthetic-create-run"
 COORDINATOR_RECEIPT_ALLOWED_RUNTIME_KEYS = frozenset(
     {
@@ -1898,6 +1902,128 @@ def build_campaign_dry_run_workset(
                 for key in ("released", "active_or_incomplete", "unattempted")
             },
         },
+    }
+
+
+def _campaign_editorial_work_item(work_item: object) -> dict[str, str]:
+    """驗證 APF workset 的可執行新文／重寫 item，不自行補值。"""
+    required = {
+        "source_kind", "article_id", "locale", "campaign_version", "work_id", "lane", "reason",
+    }
+    if not isinstance(work_item, dict) or set(work_item) != required:
+        raise ValueError("campaign work item schema is invalid")
+    item = {key: value for key, value in work_item.items() if isinstance(value, str)}
+    if len(item) != len(required) or any(not value.strip() for value in item.values()):
+        raise ValueError("campaign work item fields must be non-empty strings")
+    expected_lane = {"matrix": "new", "legacy": "rewrite"}.get(item["source_kind"])
+    if expected_lane != item["lane"] or item["locale"] != "zh-TW":
+        raise ValueError("campaign work item is not a supported editorial lane")
+    if item["work_id"] != _campaign_work_id(
+        item["source_kind"], item["article_id"], item["locale"], item["campaign_version"]
+    ):
+        raise ValueError("campaign work identity differs from source contract")
+    return item
+
+
+def _editorial_candidate_id(candidate: dict[str, Any]) -> str:
+    articles = candidate.get("articles")
+    if not isinstance(articles, list) or len(articles) != 1 or not isinstance(articles[0], dict):
+        raise ValueError("legacy candidate must contain exactly one article")
+    value = articles[0].get("id", articles[0].get("article_id"))
+    if not isinstance(value, str) or not value:
+        raise ValueError("legacy candidate article identity is invalid")
+    return value
+
+
+def _read_editorial_artifact(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"editorial artifact is unreadable: {path.name}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"editorial artifact is invalid: {path.name}")
+    return value
+
+
+def execute_campaign_editorial_work_item(
+    work_item: object,
+    run_dir: Path,
+    *,
+    brief_factory: EditorialFactory,
+    writer: EditorialWriter,
+    reviewer: EditorialReviewer,
+) -> dict[str, Any]:
+    """把單一 APF work item 推進至既有 Publisher 相容、無 side effect 的邊界。"""
+    item = _campaign_editorial_work_item(work_item)
+    root = run_dir / "editorial-vnext"
+    root.mkdir(parents=True, exist_ok=True)
+    brief_path = root / "article-brief-v2.json"
+    candidate_path = root / "legacy-candidate.json"
+    review_path = root / "legacy-review.json"
+    manifest_path = root / "editorial-manifest-v1.json"
+
+    if brief_path.exists():
+        brief = editorial_contracts.validate_article_brief(_read_editorial_artifact(brief_path))
+    else:
+        brief = editorial_contracts.validate_article_brief(brief_factory(dict(item)))
+        atomic_write_json(brief_path, brief)
+    identity = brief.get("article_identity")
+    if not isinstance(identity, dict) or identity.get("id") != item["article_id"]:
+        raise ValueError("article brief identity differs from campaign work item")
+
+    expected_mode = "create" if item["lane"] == "new" else "rewrite_existing_body"
+    if candidate_path.exists():
+        candidate = _read_editorial_artifact(candidate_path)
+    else:
+        candidate = writer(brief)
+        atomic_write_json(candidate_path, candidate)
+    pipeline.validate_candidate(candidate)
+    if candidate.get("run_id") != brief["run_id"] or candidate.get("mode") != expected_mode:
+        raise ValueError("legacy candidate run identity or mode differs from article brief")
+    if _editorial_candidate_id(candidate) != item["article_id"]:
+        raise ValueError("legacy candidate identity differs from campaign work item")
+
+    if review_path.exists():
+        review = _read_editorial_artifact(review_path)
+    else:
+        review = reviewer(brief, candidate)
+        atomic_write_json(review_path, review)
+    pipeline.validate_review(review, candidate["articles"])
+    if review.get("run_id") != brief["run_id"]:
+        raise ValueError("legacy review run identity differs from article brief")
+    if any(
+        item.get("verdict") != "APPROVE" or item.get("hard_failure") is True or item.get("findings")
+        for item in review["articles"]
+    ):
+        raise ValueError("reviewer reported blocking findings")
+
+    manifest = {
+        "version": "EditorialManifestV1",
+        "orchestration_mode": editorial_contracts.MANIFEST_ORCHESTRATION_MODE,
+        "run_id": brief["run_id"],
+        "article_identity": identity,
+        "brief_sha256": editorial_contracts.artifact_sha256(brief),
+        "selected_stages": [],
+        "artifacts": {"brief": brief, "campaign_work": item, "legacy_review": review},
+        "artifact_sha256": {
+            "brief": editorial_contracts.artifact_sha256(brief),
+            "campaign_work": editorial_contracts.artifact_sha256(item),
+            "legacy_review": editorial_contracts.artifact_sha256(review),
+        },
+        "final_candidate_sha256": editorial_contracts.artifact_sha256(candidate),
+        "legacy_candidate": candidate,
+        "legacy_candidate_sha256": editorial_contracts.artifact_sha256(candidate),
+    }
+    report = editorial_contracts.validate_manifest(manifest)
+    if report["blocking"]:
+        raise ValueError("editorial manifest is blocked: " + editorial_contracts.stable_json_summary(report))
+    atomic_write_json(manifest_path, manifest)
+    return {
+        "work_id": item["work_id"],
+        "run_id": brief["run_id"],
+        "candidate": candidate,
+        "review": review,
+        "manifest": manifest,
     }
 
 

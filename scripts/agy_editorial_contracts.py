@@ -78,6 +78,15 @@ def _validate_brief(brief: object, findings: set[str]) -> dict[str, Any] | None:
     return brief
 
 
+def validate_article_brief(brief: object) -> dict[str, Any]:
+    """驗證 Writer vNext 的 ArticleBriefV2，缺欄位時 fail closed。"""
+    findings: set[str] = set()
+    result = _validate_brief(brief, findings)
+    if findings or result is None:
+        raise ValueError(stable_json_summary({"findings": sorted(findings)}))
+    return result
+
+
 def _validate_selected(selected: object, findings: set[str]) -> dict[str, dict[str, Any]]:
     if not isinstance(selected, list):
         _add(findings, "missing_required_artifact")
