@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 from pathlib import Path
 import subprocess
 import sys
@@ -275,6 +276,8 @@ def test_launchd_template_and_installer_keep_five_minute_fail_closed_contract() 
     assert "optional_manifest_field python_executable" in installer
     assert "PANTHEON_RUNTIME_ACTOR_HEAD" in installer
     assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in installer
+    assert 'PYTHON_BIN="${PYTHON_REALPATH}"' in installer
+    assert '--expected-python-executable "${PYTHON_BIN}"' in installer
     assert os.access(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh", os.X_OK)
 
 
@@ -358,6 +361,171 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
     assert list(publisher_root.iterdir()) == []
     assert list(log_root.iterdir()) == []
     assert not fake_home.exists()
+    assert not mutation_log.exists()
+
+
+def test_hardened_capacity_installer_uses_canonical_python_in_staged_plist(
+    tmp_path: Path,
+) -> None:
+    repo = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    queue_root = tmp_path / "queue"
+    publisher_root = tmp_path / "publisher"
+    log_root = tmp_path / "logs"
+    state_file = queue_root / "capacity-state.json"
+    mutation_log = tmp_path / "launchctl-mutations.log"
+    python_target = Path(sys.executable).resolve(strict=True)
+    python_link = tmp_path / "python-link"
+    for path in (fake_bin, queue_root, publisher_root, log_root):
+        path.mkdir()
+    python_link.symlink_to(python_target)
+    (fake_bin / "dscl").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "dscl").chmod(0o700)
+    (fake_bin / "launchctl").write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then exit 113; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "launchctl").chmod(0o700)
+    (fake_bin / "sysctl").write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'total = 0.00M  used = 0.00M  free = 0.00M'\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "sysctl").chmod(0o700)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=repo,
+        queue_root=queue_root,
+        publisher_state_root=publisher_root,
+        log_root=log_root,
+        identity="synthetic-capacity:python",
+        python_executable=python_target,
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
+            "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
+            "PANTHEON_CAPACITY_GUARD_STATE_FILE": str(state_file),
+            "PANTHEON_USER_HOME_DIR": str(fake_home),
+            "PANTHEON_PYTHON_PATH": str(python_link),
+            "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest[
+                "manifest_digest"
+            ],
+            "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not mutation_log.exists()
+    staged = (
+        fake_home
+        / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    )
+    payload = plistlib.loads(staged.read_bytes())
+    assert payload["ProgramArguments"][0] == str(python_target)
+    assert payload["ProgramArguments"][17] == str(python_target)
+    assert payload["EnvironmentVariables"]["PANTHEON_RUNTIME_PYTHON_EXECUTABLE"] == str(
+        python_target
+    )
+
+
+def test_hardened_capacity_installer_rejects_python_drift_before_stage_mutation(
+    tmp_path: Path,
+) -> None:
+    repo = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    queue_root = tmp_path / "queue"
+    publisher_root = tmp_path / "publisher"
+    log_root = tmp_path / "logs"
+    state_file = queue_root / "capacity-state.json"
+    mutation_log = tmp_path / "launchctl-mutations.log"
+    drift_python = tmp_path / "python-drift"
+    for path in (fake_bin, queue_root, publisher_root, log_root):
+        path.mkdir()
+    drift_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    drift_python.chmod(0o755)
+    (fake_bin / "dscl").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'NFSHomeDirectory: {fake_home}'\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "dscl").chmod(0o700)
+    (fake_bin / "launchctl").write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then exit 113; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "launchctl").chmod(0o700)
+    (fake_bin / "sysctl").write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'total = 0.00M  used = 0.00M  free = 0.00M'\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "sysctl").chmod(0o700)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=repo,
+        queue_root=queue_root,
+        publisher_state_root=publisher_root,
+        log_root=log_root,
+        identity="synthetic-capacity:python-drift",
+        python_executable=drift_python,
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
+            "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
+            "PANTHEON_CAPACITY_GUARD_STATE_FILE": str(state_file),
+            "PANTHEON_USER_HOME_DIR": str(fake_home),
+            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest[
+                "manifest_digest"
+            ],
+            "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--preflight",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert list(publisher_root.iterdir()) == []
+    assert list(log_root.iterdir()) == []
     assert not mutation_log.exists()
 
 

@@ -2647,6 +2647,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string" in installer
     assert "optional_manifest_field actor_head" in installer
     assert "optional_manifest_field python_executable" in installer
+    assert 'PYTHON_BIN="${PYTHON_REALPATH}"' in installer
+    assert '--expected-python-executable "${PYTHON_BIN}"' in installer
     assert 'add_hardened_runtime_identity "${TEMP_PLIST}"' in installer
     assert 'add_hardened_runtime_identity "${LANE_TEMP_PLIST}"' in installer
     assert "for LANE in new rewrite i18n-new i18n-rewrite" in installer
@@ -2833,6 +2835,7 @@ def _write_installer_runtime_manifest(
     tmp_path: Path,
     *,
     publisher_root: Path | None = None,
+    python_executable: Path | None = None,
 ) -> tuple[Path, Path, Path, Path]:
     repo_root = Path(__file__).resolve().parents[1]
     queue_root = tmp_path / "runtime-queue"
@@ -2846,6 +2849,7 @@ def _write_installer_runtime_manifest(
         publisher_state_root=state_root,
         log_root=log_root,
         identity="synthetic-installer:501",
+        python_executable=python_executable,
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -2858,6 +2862,8 @@ def _installer_test_env(
     pool: Path,
     state: Path,
     fail_plutil_call: int | None = None,
+    python_executable: Path | None = None,
+    python_path: Path | None = None,
 ) -> tuple[dict[str, str], Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_home = tmp_path / "home"
@@ -2895,7 +2901,8 @@ def _installer_test_env(
         )
         plutil.chmod(0o700)
     manifest_path, queue_root, publisher_root, _log_root = _write_installer_runtime_manifest(
-        tmp_path
+        tmp_path,
+        python_executable=python_executable,
     )
     manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
@@ -2904,7 +2911,7 @@ def _installer_test_env(
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool),
             "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state),
             "AGY_GEMINI_CLI_PATH": str(cli_path),
-            "PANTHEON_PYTHON_PATH": sys.executable,
+            "PANTHEON_PYTHON_PATH": str(python_path or sys.executable),
             "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
             "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": manifest_digest,
             "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
@@ -3504,6 +3511,82 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
 
     assert summary["runner"] == {"status": "idle"}
     assert observed == [(queue_root.resolve(), shared_contract)]
+
+
+def test_hardened_installer_uses_canonical_python_for_coordinator_and_lanes(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    python_target = Path(sys.executable).resolve(strict=True)
+    python_link = tmp_path / "python-link"
+    python_link.symlink_to(python_target)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+        python_executable=python_target,
+        python_path=python_link,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not mutation_log.exists()
+    stage = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    staged_labels = [
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite",
+    ]
+    for label in staged_labels:
+        payload = plistlib.loads((stage / f"{label}.plist").read_bytes())
+        arguments = payload["ProgramArguments"]
+        variables = payload["EnvironmentVariables"]
+        assert arguments[0] == str(python_target)
+        assert arguments[17] == str(python_target)
+        assert variables["PANTHEON_RUNTIME_PYTHON_EXECUTABLE"] == str(python_target)
+
+
+def test_hardened_installer_rejects_python_drift_before_stage_or_control_mutation(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    drift_python = tmp_path / "python-drift"
+    drift_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    drift_python.chmod(0o755)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=state,
+        python_executable=drift_python,
+        python_path=Path(sys.executable),
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
 
 
 def test_installer_pool_opt_out_preserves_compatibility_without_pool_requirements(

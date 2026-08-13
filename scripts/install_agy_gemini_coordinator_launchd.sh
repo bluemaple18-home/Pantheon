@@ -54,10 +54,16 @@ if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate]" >&2
   exit 2
 fi
-if [[ ! -x "${PYTHON_PATH}" ]]; then
+if [[ "${PYTHON_PATH}" != /* ]]; then
+  echo "Pantheon Python 必須使用 absolute path：${PYTHON_PATH}" >&2
+  exit 1
+fi
+PYTHON_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${PYTHON_PATH}")"
+if [[ -z "${PYTHON_REALPATH}" || ! -f "${PYTHON_REALPATH}" || ! -x "${PYTHON_REALPATH}" || -L "${PYTHON_REALPATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
 fi
+PYTHON_BIN="${PYTHON_REALPATH}"
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
   exit 1
@@ -93,14 +99,15 @@ if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
 fi
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest validate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
-    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+    --expected-python-executable "${PYTHON_BIN}"
 ) >/dev/null
 manifest_field() {
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
       --manifest "${RUNTIME_MANIFEST_FILE}" \
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
@@ -108,7 +115,7 @@ manifest_field() {
 optional_manifest_field() {
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
       --manifest "${RUNTIME_MANIFEST_FILE}" \
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1" --optional
   )
@@ -172,7 +179,7 @@ if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
   fi
   if ! (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.agy_gemini_runner \
+    "${PYTHON_BIN}" -m scripts.agy_gemini_runner \
       --queue-root "${QUEUE_ROOT}" \
       validate-production-installation \
       --pool-file "${PRODUCTION_POOL_FILE}" \
@@ -189,12 +196,12 @@ fi
 
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${REPO_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:25 ${GSC_COPY_ROOT}" "${TEMP_PLIST}"
@@ -238,13 +245,13 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   LANE_TARGET_PLISTS+=("${LAUNCH_AGENTS_DIR}/${LANE_LABEL}.plist")
   cp "${LANE_TEMPLATE_PLIST}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :Label ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:11 ${LANE_LABEL}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_BIN}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${QUEUE_ROOT}/lanes/${LANE}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${LANE}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :WorkingDirectory ${REPO_ROOT}" "${LANE_TEMP_PLIST}"
@@ -327,7 +334,7 @@ for STAGED_PLIST in "${STAGED_PLISTS[@]}"; do
 done
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest aggregate \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
     "${AGGREGATE_ARGS[@]}"
@@ -381,7 +388,7 @@ rollback_activation() {
     PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
     install -m 600 "${STAGE_DIR}/previous-barrier" "${PREVIOUS_BARRIER_PATH}" \
       || ROLLBACK_FAILED=1
-    if ! (cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m \
+    if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
       scripts.pantheon_content_runtime_manifest barrier-validate \
       --barrier "${PREVIOUS_BARRIER_PATH}" \
       --manifest "${STAGE_DIR}/previous-runtime-manifest.json" \
@@ -438,7 +445,7 @@ fi
 if [[ "${PREVIOUS_BARRIER_PATH}" == /* && -f "${PREVIOUS_BARRIER_PATH}" \
   && -f "${PREVIOUS_MANIFEST}" \
   && "${PREVIOUS_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]] \
-  && (cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest \
+  && (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
     barrier-validate --barrier "${PREVIOUS_BARRIER_PATH}" \
     --manifest "${PREVIOUS_MANIFEST}" \
     --expected-digest "${PREVIOUS_MANIFEST_DIGEST}") >/dev/null; then
@@ -480,12 +487,12 @@ for TARGET_PLIST_PATH in "${TARGET_PLISTS[@]}"; do
 done
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest aggregate \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
     "${LIVE_AGGREGATE_ARGS[@]}"
 ) >/dev/null
-(cd "${REPO_ROOT}" && "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest \
+(cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
   barrier-activate \
   --manifest "${RUNTIME_MANIFEST_FILE}" \
   --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \

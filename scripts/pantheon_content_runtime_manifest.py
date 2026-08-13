@@ -12,6 +12,7 @@ import plistlib
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -60,6 +61,21 @@ def _canonical_executable(path: Path, field: str) -> str:
     if path != resolved:
         raise RuntimeManifestError(f"{field} must use its canonical realpath")
     if path.is_symlink() or not os.access(resolved, os.X_OK):
+        raise RuntimeManifestError(f"{field} must be an executable regular file")
+    return str(resolved)
+
+
+def _resolve_executable_reference(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise RuntimeManifestError(f"{field} is missing")
+    path = Path(value)
+    if not path.is_absolute():
+        raise RuntimeManifestError(f"{field} must be absolute")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise RuntimeManifestError(f"{field} is missing") from error
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
         raise RuntimeManifestError(f"{field} must be an executable regular file")
     return str(resolved)
 
@@ -228,9 +244,7 @@ def load_manifest(
             "python_executable",
         ) != payload["python_executable"]:
             raise RuntimeManifestError("runtime python executable mismatch")
-    if expected_python_executable is not None:
-        if "python_executable" not in payload:
-            raise RuntimeManifestError("runtime python executable is missing")
+    if expected_python_executable is not None and "python_executable" in payload:
         expected_python = _canonical_executable(
             expected_python_executable,
             "expected_python_executable",
@@ -321,6 +335,32 @@ def plist_receipt(path: Path) -> dict[str, Any]:
     for field, environment_name in optional_environment_fields.items():
         if environment_name in environment:
             receipt[field] = environment[environment_name]
+    if "python_executable" in receipt:
+        arguments = payload.get("ProgramArguments")
+        if not isinstance(arguments, list) or len(arguments) <= 17:
+            raise RuntimeManifestError("plist python_executable arguments are incomplete")
+        if arguments[1:4] != [
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+        ] or arguments[16] != "--":
+            raise RuntimeManifestError("plist barrier-exec arguments are invalid")
+        outer_python = _resolve_executable_reference(
+            arguments[0],
+            "plist python_executable",
+        )
+        child_python = _resolve_executable_reference(
+            arguments[17],
+            "plist python_executable",
+        )
+        expected_python = _resolve_executable_reference(
+            receipt["python_executable"],
+            "plist python_executable",
+        )
+        if outer_python != expected_python or child_python != expected_python:
+            raise RuntimeManifestError("plist python_executable mismatch")
+        receipt["program_python_executable"] = outer_python
+        receipt["barrier_child_python_executable"] = child_python
     if payload.get("WorkingDirectory") != receipt["actor_root"]:
         raise RuntimeManifestError("plist working directory actor mismatch")
     return receipt
@@ -377,6 +417,12 @@ def validate_runtime_tick(
         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
         "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
     }
+    for field, environment_name in (
+        ("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD"),
+        ("python_executable", "PANTHEON_RUNTIME_PYTHON_EXECUTABLE"),
+    ):
+        if field in manifest:
+            expected_environment[environment_name] = manifest[field]
     if any(os.environ.get(key) != value for key, value in expected_environment.items()):
         raise RuntimeManifestError("formal runtime generation or identity mismatch")
     if service_label not in SERVICE_LABELS:
@@ -541,6 +587,24 @@ def validate_barrier(path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_execution_python_identity(
+    manifest: dict[str, Any], command: list[str]
+) -> None:
+    if "python_executable" not in manifest:
+        return
+    expected = str(manifest["python_executable"])
+    runtime_python = _resolve_executable_reference(
+        sys.executable,
+        "runtime python_executable",
+    )
+    child_python = _resolve_executable_reference(
+        command[0] if command else "",
+        "child python_executable",
+    )
+    if runtime_python != expected or child_python != expected:
+        raise RuntimeManifestError("runtime python_executable drift")
+
+
 def validate_rollback_identities(
     expected: dict[str, dict[str, Any]],
     actual: dict[str, dict[str, Any]],
@@ -685,6 +749,7 @@ def main() -> int:
                 actor_root=Path(manifest["actor_root"]),
                 log_root=Path(manifest["log_root"]),
             )
+            validate_execution_python_identity(manifest, command)
             write_readiness_ack(args.ready_root, manifest, args.service_label)
         except RuntimeManifestError:
             return 78
@@ -695,6 +760,7 @@ def main() -> int:
             time.sleep(0.2)
         try:
             validate_barrier(args.barrier, manifest)
+            validate_execution_python_identity(manifest, command)
         except RuntimeManifestError:
             return 78
         os.execv(command[0], command)

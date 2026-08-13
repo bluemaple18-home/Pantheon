@@ -365,6 +365,28 @@ def _write_hardened_aggregate_fixture(
     for label in runtime.SERVICE_LABELS:
         path = tmp_path / f"{label}.plist"
         receipt = runtime.receipt_for_label(manifest, label)
+        program_arguments = [
+            receipt["python_executable"],
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(state / f"four-lane-activation-{manifest['generation']}.barrier"),
+            "--expected-digest",
+            receipt["manifest_digest"],
+            "--manifest",
+            str(tmp_path / "runtime-manifest.json"),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(tmp_path / "ready" / str(manifest["generation"])),
+            "--timeout",
+            "90",
+            "--",
+            receipt["python_executable"],
+            "-m",
+            "scripts.agy_gemini_runner",
+        ]
         environment = {
             "PANTHEON_RUNTIME_SERVICE_LABEL": receipt["service_label"],
             "PANTHEON_RUNTIME_IDENTITY": receipt["identity"],
@@ -386,6 +408,7 @@ def _write_hardened_aggregate_fixture(
             plistlib.dump(
                 {
                     "Label": label,
+                    "ProgramArguments": program_arguments,
                     "WorkingDirectory": manifest["actor_root"],
                     "EnvironmentVariables": environment,
                 },
@@ -409,8 +432,45 @@ def test_hardened_aggregate_reads_actor_and_python_identity_from_all_plists(
     assert all(
         receipt["actor_head"] == manifest["actor_head"]
         and receipt["python_executable"] == manifest["python_executable"]
+        and receipt["program_python_executable"] == manifest["python_executable"]
+        and receipt["barrier_child_python_executable"] == manifest["python_executable"]
         for receipt in result["receipts"]
     )
+
+
+@pytest.mark.parametrize(
+    ("argument_index", "failure_kind"),
+    [
+        (0, "missing"),
+        (17, "missing"),
+        (0, "mismatch"),
+        (17, "mismatch"),
+        (0, "non-executable"),
+        (17, "non-executable"),
+    ],
+)
+def test_hardened_aggregate_effective_python_arguments_fail_closed(
+    tmp_path: Path,
+    argument_index: int,
+    failure_kind: str,
+) -> None:
+    manifest, plists = _write_hardened_aggregate_fixture(tmp_path)
+    if failure_kind == "missing":
+        replacement = ""
+    else:
+        drift_python = tmp_path / f"python-{failure_kind}"
+        drift_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        drift_python.chmod(0o755 if failure_kind == "mismatch" else 0o644)
+        replacement = str(drift_python)
+    target = plists[-1]
+    with target.open("rb") as stream:
+        payload = plistlib.load(stream)
+    payload["ProgramArguments"][argument_index] = replacement
+    with target.open("wb") as stream:
+        plistlib.dump(payload, stream)
+
+    with pytest.raises(runtime.RuntimeManifestError, match="python_executable"):
+        runtime.aggregate_plist_preflight(manifest, plists)
 
 
 @pytest.mark.parametrize(
@@ -665,6 +725,175 @@ def test_each_service_identity_mismatch_fails_before_first_io(
             log_root=logs,
         )
 
+    assert not marker.exists()
+
+
+def _write_formal_activation_barrier(
+    tmp_path: Path,
+    manifest: dict[str, object],
+) -> tuple[Path, Path]:
+    ready = tmp_path / "ready"
+    barrier = tmp_path / "activation.barrier"
+    ready.mkdir()
+    for label in runtime.SERVICE_LABELS:
+        runtime.write_readiness_ack(ready, manifest, label)
+    runtime.activate_barrier(barrier, ready, manifest)
+    return ready, barrier
+
+
+def _formal_barrier_exec_environment(
+    manifest_path: Path,
+    manifest: dict[str, object],
+    label: str,
+    barrier: Path,
+) -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PANTHEON_FORMAL_RUNTIME": "1",
+            "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+            "PANTHEON_RUNTIME_MANIFEST_DIGEST": str(manifest["manifest_digest"]),
+            "PANTHEON_RUNTIME_IDENTITY": str(manifest["identity"]),
+            "PANTHEON_RUNTIME_IDENTITY_DIGEST": str(
+                manifest["runtime_identity_digest"]
+            ),
+            "PANTHEON_RUNTIME_CODE_DIGEST": str(manifest["runtime_digest"]),
+            "PANTHEON_RUNTIME_CONFIG_VERSION": str(manifest["config_version"]),
+            "PANTHEON_RUNTIME_GENERATION": str(manifest["generation"]),
+            "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+            "PANTHEON_RUNTIME_ACTOR_ROOT": str(manifest["actor_root"]),
+            "PANTHEON_RUNTIME_QUEUE_ROOT": str(manifest["queue_root"]),
+            "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": str(
+                manifest["publisher_state_root"]
+            ),
+            "PANTHEON_RUNTIME_LOG_ROOT": str(manifest["log_root"]),
+            "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(barrier),
+        }
+    )
+    if "python_executable" in manifest:
+        environment["PANTHEON_RUNTIME_PYTHON_EXECUTABLE"] = str(
+            manifest["python_executable"]
+        )
+    return environment
+
+
+def test_barrier_exec_rejects_runtime_python_drift_before_ack_or_exec(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    drift_python = tmp_path / "python-manifest"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    drift_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    drift_python.chmod(0o755)
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="barrier-python-runtime-drift",
+        python_executable=drift_python,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    _token_ready, barrier = _write_formal_activation_barrier(tmp_path, manifest)
+    ready = tmp_path / "exec-ready"
+    ready.mkdir()
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "must-not-exec"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(ready),
+            "--timeout",
+            "1",
+            "--",
+            str(drift_python),
+            "-c",
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+        ],
+        check=False,
+        env=_formal_barrier_exec_environment(manifest_path, manifest, label, barrier),
+    )
+
+    assert completed.returncode == 78
+    assert not (ready / f"{label}.json").exists()
+    assert not marker.exists()
+
+
+def test_barrier_exec_rejects_child_python_drift_before_ack_or_exec(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    drift_python = tmp_path / "python-child"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    drift_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    drift_python.chmod(0o755)
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="barrier-python-child-drift",
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    _token_ready, barrier = _write_formal_activation_barrier(tmp_path, manifest)
+    ready = tmp_path / "exec-ready"
+    ready.mkdir()
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "must-not-exec"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(ready),
+            "--timeout",
+            "1",
+            "--",
+            str(drift_python),
+            "-c",
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+        ],
+        check=False,
+        env=_formal_barrier_exec_environment(manifest_path, manifest, label, barrier),
+    )
+
+    assert completed.returncode == 78
+    assert not (ready / f"{label}.json").exists()
     assert not marker.exists()
 
 

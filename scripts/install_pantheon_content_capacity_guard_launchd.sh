@@ -34,24 +34,31 @@ if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" ]]; then
   echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install]" >&2
   exit 2
 fi
-if [[ ! -x "${PYTHON_PATH}" ]]; then
+if [[ "${PYTHON_PATH}" != /* ]]; then
+  echo "Pantheon Python 必須使用 absolute path：${PYTHON_PATH}" >&2
+  exit 1
+fi
+PYTHON_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${PYTHON_PATH}")"
+if [[ -z "${PYTHON_REALPATH}" || ! -f "${PYTHON_REALPATH}" || ! -x "${PYTHON_REALPATH}" || -L "${PYTHON_REALPATH}" ]]; then
   echo "找不到 Pantheon Python：${PYTHON_PATH}" >&2
   exit 1
 fi
+PYTHON_BIN="${PYTHON_REALPATH}"
 if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
   echo "缺少 exact runtime manifest expected digest。" >&2
   exit 1
 fi
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest validate \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest validate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
-    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+    --expected-python-executable "${PYTHON_BIN}"
 ) >/dev/null
 manifest_field() {
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
       --manifest "${RUNTIME_MANIFEST_FILE}" \
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1"
   )
@@ -59,7 +66,7 @@ manifest_field() {
 optional_manifest_field() {
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_PATH}" -m scripts.pantheon_content_runtime_manifest field \
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest field \
       --manifest "${RUNTIME_MANIFEST_FILE}" \
       --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" --name "$1" --optional
   )
@@ -103,7 +110,7 @@ fi
 
 (
   cd "${REPO_ROOT}"
-  "${PYTHON_PATH}" -m scripts.pantheon_content_capacity_guard \
+  "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
     --queue-root "${QUEUE_ROOT}" \
     --publisher-root "${PUBLISHER_ROOT}" \
     --log-root "${LOG_ROOT}" \
@@ -112,12 +119,12 @@ fi
 )
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:5 ${ACTIVATION_BARRIER}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:7 ${RUNTIME_MANIFEST_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:9 ${RUNTIME_MANIFEST_FILE}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:13 ${READY_ROOT}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:17 ${PYTHON_BIN}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:21 ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:23 ${PUBLISHER_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:25 ${LOG_ROOT}" "${TEMP_PLIST}"
