@@ -457,7 +457,10 @@ def test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain(
     assert coordinator.multilingual.load_source_article is original_loader
 
 
-def test_private_campaign_e2e_composes_four_lanes_without_publishing(tmp_path: Path) -> None:
+def test_private_campaign_e2e_composes_four_lanes_without_publishing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     workset = {
         "schema_version": 1,
         "campaign_version": "checkpoint-a-v1",
@@ -494,14 +497,28 @@ def test_private_campaign_e2e_composes_four_lanes_without_publishing(tmp_path: P
         for lane, article_id in (("new", "NEW-001"), ("rewrite", "LEGACY-001"))
     ]
     client = _CampaignTranslationClient(briefs)
+    builder_calls: list[tuple[Path, Path, Path, str, tuple[str, ...]]] = []
+
+    def build_workset(
+        repo_root: Path,
+        queue_root: Path,
+        state_root: Path,
+        *,
+        campaign_version: str,
+        locales: tuple[str, ...],
+    ) -> dict[str, object]:
+        builder_calls.append((repo_root, queue_root, state_root, campaign_version, locales))
+        return workset
+
+    monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", build_workset)
 
     first = coordinator.execute_private_campaign_e2e(
         Path(__file__).resolve().parents[1],
-        workset,
         tmp_path / "runs",
         tmp_path / "queue",
         tmp_path / "publisher-state",
         client,
+        campaign_version="checkpoint-a-v1",
         brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
         writer=_valid_campaign_candidate,
         reviewer=_clean_review,
@@ -518,11 +535,11 @@ def test_private_campaign_e2e_composes_four_lanes_without_publishing(tmp_path: P
 
     second = coordinator.execute_private_campaign_e2e(
         Path(__file__).resolve().parents[1],
-        workset,
         tmp_path / "runs",
         tmp_path / "queue",
         tmp_path / "publisher-state",
         client,
+        campaign_version="checkpoint-a-v1",
         brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
         writer=_valid_campaign_candidate,
         reviewer=_clean_review,
@@ -532,6 +549,10 @@ def test_private_campaign_e2e_composes_four_lanes_without_publishing(tmp_path: P
     )
     assert second == first
     assert len(client.calls) == 6
+    assert [call[3:] for call in builder_calls] == [
+        ("checkpoint-a-v1", ("ja",)),
+        ("checkpoint-a-v1", ("ja",)),
+    ]
 
 
 def test_private_campaign_e2e_rejects_capacity_and_rolls_back_translation_failure(
@@ -549,10 +570,19 @@ def test_private_campaign_e2e_rejects_capacity_and_rolls_back_translation_failur
         ],
         "summary": {},
     }
-    over_capacity = {**workset, "items": [*workset["items"], _campaign_item("matrix", "NEW-002", "checkpoint-a-v1")]}
+    editorial_over_capacity = {
+        **workset,
+        "items": [*workset["items"], _campaign_item("matrix", "NEW-002", "checkpoint-a-v1")],
+    }
     with pytest.raises(ValueError, match="capacity exceeds two editorial"):
+        coordinator._private_campaign_e2e_workset(editorial_over_capacity, "ja")
+
+    over_capacity = {**workset, "items": [*workset["items"], dict(workset["items"][2])]}
+    monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", lambda *_args, **_kwargs: over_capacity)
+    with pytest.raises(ValueError, match="invalid translation selection"):
         coordinator.execute_private_campaign_e2e(
-            Path(__file__).resolve().parents[1], over_capacity, tmp_path / "runs", tmp_path / "queue", tmp_path / "state", object(),
+            Path(__file__).resolve().parents[1], tmp_path / "runs", tmp_path / "queue", tmp_path / "state", object(),
+            campaign_version="checkpoint-a-v1",
             brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])), writer=_valid_campaign_candidate,
             reviewer=_clean_review, rewrite_brief_factory=_publisher_rewrite_brief,
         )
@@ -563,16 +593,93 @@ def test_private_campaign_e2e_rejects_capacity_and_rolls_back_translation_failur
         raise ValueError("injected translation failure")
 
     monkeypatch.setattr(coordinator.multilingual, "run_writer_reviewer", fail_translation)
+    monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", lambda *_args, **_kwargs: workset)
 
     with pytest.raises(ValueError, match="injected translation failure"):
         coordinator.execute_private_campaign_e2e(
-            Path(__file__).resolve().parents[1], workset, tmp_path / "failed-runs", tmp_path / "failed-queue", tmp_path / "failed-state", object(),
+            Path(__file__).resolve().parents[1], tmp_path / "failed-runs", tmp_path / "failed-queue", tmp_path / "failed-state", object(),
+            campaign_version="checkpoint-a-v1",
             brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])), writer=_valid_campaign_candidate,
             reviewer=_clean_review, rewrite_brief_factory=_publisher_rewrite_brief,
         )
     assert not (tmp_path / "failed-runs").exists()
     assert not (tmp_path / "failed-queue").exists()
     assert not (tmp_path / "failed-state").exists()
+
+
+def test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workset = {
+        "schema_version": 1,
+        "campaign_version": "checkpoint-a-v1",
+        "lanes": ["new", "rewrite", "i18n-new", "i18n-rewrite"],
+        "items": [
+            _campaign_item("matrix", "NEW-001", "checkpoint-a-v1"),
+            _campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"),
+            {**_campaign_item("matrix", "NEW-001", "checkpoint-a-v1"), "locale": "ja", "work_id": coordinator._campaign_work_id("matrix", "NEW-001", "ja", "checkpoint-a-v1"), "lane": "i18n-new"},
+            {**_campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"), "locale": "ja", "work_id": coordinator._campaign_work_id("legacy", "LEGACY-001", "ja", "checkpoint-a-v1"), "lane": "i18n-rewrite"},
+        ],
+        "summary": {},
+    }
+    briefs = [
+        coordinator._campaign_translation_brief(
+            {"run_id": f"{lane}-run-001", "article_id": article_id, "lane": lane},
+            coordinator._campaign_translation_source({
+                "candidate": _valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id)),
+                "article_id": article_id,
+                "lane": lane,
+                "brief": _publisher_rewrite_brief(_valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id))) if lane == "rewrite" else {"articles": []},
+            }),
+            "ja",
+        )
+        for lane, article_id in (("new", "NEW-001"), ("rewrite", "LEGACY-001"))
+    ]
+    client = _CampaignTranslationClient(briefs)
+    calls = {"writer": 0, "reviewer": 0}
+
+    def writer(brief: dict[str, object]) -> dict[str, object]:
+        calls["writer"] += 1
+        return _valid_campaign_candidate(brief)
+
+    def reviewer(brief: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
+        calls["reviewer"] += 1
+        return _clean_review(brief, candidate)
+
+    monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", lambda *_args, **_kwargs: workset)
+    arguments = (
+        Path(__file__).resolve().parents[1],
+        tmp_path / "runs",
+        tmp_path / "queue",
+        tmp_path / "publisher-state",
+        client,
+    )
+    options = {
+        "campaign_version": "checkpoint-a-v1",
+        "brief_factory": lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+        "writer": writer,
+        "reviewer": reviewer,
+        "rewrite_brief_factory": _publisher_rewrite_brief,
+        "locale": "ja",
+        "max_repairs": 0,
+    }
+    first = coordinator.execute_private_campaign_e2e(*arguments, **options)
+    rewrite = next(run for run in first["editorial_runs"] if run["lane"] == "rewrite")
+    rewrite_dir = tmp_path / "runs" / rewrite["work_id"] / "editorial-vnext"
+    for name in ("legacy-candidate.json", "legacy-review.json", "editorial-manifest-v1.json"):
+        (rewrite_dir / name).unlink()
+
+    second = coordinator.execute_private_campaign_e2e(*arguments, **options)
+
+    assert calls == {"writer": 3, "reviewer": 3}
+    assert len(client.calls) == 6
+    assert second["lanes"] == ["new", "rewrite", "i18n-new", "i18n-rewrite"]
+    assert second["published"] == 0
+    assert all((rewrite_dir / name).is_file() for name in ("legacy-candidate.json", "legacy-review.json", "editorial-manifest-v1.json"))
+    states = [json.loads(path.read_text(encoding="utf-8")) for path in sorted((tmp_path / "queue" / "runs").glob("*.json"))]
+    run_ids = [str(state["run_id"]) for state in states]
+    assert len(run_ids) == len(set(run_ids)) == 4
 
 
 @pytest.mark.parametrize(

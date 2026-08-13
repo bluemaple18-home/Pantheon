@@ -2576,6 +2576,40 @@ def _private_campaign_e2e_workset(workset: object, locale: str) -> dict[str, Any
     }
 
 
+def _select_private_campaign_e2e_workset(workset: object, locale: str) -> dict[str, Any]:
+    """從 APF-001 完整 workset 穩定挑選 CHECKPOINT-A 的四個 lane。"""
+    if not isinstance(workset, dict) or not isinstance(workset.get("items"), list):
+        raise ValueError("private campaign source workset is invalid")
+    selected: dict[str, dict[str, Any]] = {}
+    for lane in ("new", "rewrite"):
+        candidates = [
+            item
+            for item in workset["items"]
+            if isinstance(item, dict) and item.get("lane") == lane
+        ]
+        if not candidates:
+            raise ValueError("private campaign source workset is missing editorial lane")
+        selected[lane] = candidates[0]
+        translation_lane = f"i18n-{lane}"
+        translations = [
+            item
+            for item in workset["items"]
+            if (
+                isinstance(item, dict)
+                and item.get("lane") == translation_lane
+                and item.get("locale") == locale
+                and item.get("article_id") == selected[lane].get("article_id")
+            )
+        ]
+        if len(translations) != 1:
+            raise ValueError("private campaign source workset has invalid translation selection")
+        selected[translation_lane] = translations[0]
+    return _private_campaign_e2e_workset(
+        {**workset, "items": [selected[lane] for lane in CONTENT_LANES]},
+        locale,
+    )
+
+
 def _rebase_private_campaign_state_paths(
     queue_root: Path,
     replacements: Iterable[tuple[Path, Path]],
@@ -2600,12 +2634,12 @@ def _rebase_private_campaign_state_paths(
 
 def execute_private_campaign_e2e(
     repo_root: Path,
-    workset: object,
     run_root: Path,
     queue_root: Path,
     state_root: Path,
     client: pipeline.GeminiClient,
     *,
+    campaign_version: str,
     brief_factory: EditorialFactory,
     writer: EditorialWriter,
     reviewer: EditorialReviewer,
@@ -2614,7 +2648,14 @@ def execute_private_campaign_e2e(
     max_repairs: int = 0,
 ) -> dict[str, Any]:
     """在可丟棄 staging 內串接四 lane，全部驗證後才保留私有 receipt。"""
-    editorial_workset = _private_campaign_e2e_workset(workset, locale)
+    workset = build_campaign_dry_run_workset(
+        repo_root,
+        queue_root,
+        state_root,
+        campaign_version=campaign_version,
+        locales=(locale,),
+    )
+    editorial_workset = _select_private_campaign_e2e_workset(workset, locale)
     with tempfile.TemporaryDirectory(prefix="pantheon-checkpoint-a-") as temporary:
         staging = Path(temporary)
         staged_runs = staging / "runs"

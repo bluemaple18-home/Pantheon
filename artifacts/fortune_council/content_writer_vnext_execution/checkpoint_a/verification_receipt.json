@@ -1,0 +1,45 @@
+{
+  "card_id": "CHECKPOINT-A-REPAIR-1",
+  "status": "PASS",
+  "base_sha": "da4ac9abf1014d98e32b2637bf649200e8edbf03",
+  "candidate_commit": "self",
+  "findings": {
+    "CHECKPOINT-A-P1-001": "execute_private_campaign_e2e calls build_campaign_dry_run_workset and deterministically selects matching ja lanes",
+    "CHECKPOINT-A-P1-002": "seeded partial editorial state resumes without repeating completed Writer, Reviewer, or translation calls"
+  },
+  "capacity": {
+    "third_matching_translation": "fail closed before Writer, Reviewer, or collector"
+  },
+  "codegraph": {
+    "status": "degraded",
+    "reason": "CodeGraph not initialized in canonical worktree",
+    "fallback_scope": [
+      "scripts/agy_gemini_coordinator.py execute_private_campaign_e2e",
+      "tests/test_agy_gemini_coordinator.py private campaign tests"
+    ]
+  },
+  "focused_tests": {
+    "command": ".venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q -k private_campaign_e2e",
+    "result": "3 passed, 120 deselected in 0.28s",
+    "exit_code": 0
+  },
+  "full_tests": {
+    "command": "uv run pytest tests/test_agy_gemini_coordinator.py tests/test_agy_multilingual_pipeline.py tests/test_agy_content_publisher.py -q",
+    "result": "417 passed, 1 warning in 38.24s",
+    "exit_code": 0,
+    "warning": "existing SyntaxWarning: invalid escape sequence '\\/'; non-blocking"
+  },
+  "diff_check": {
+    "command": "git diff --check",
+    "exit_code": 0
+  },
+  "external_actions": {
+    "published": 0,
+    "publish": false,
+    "tag": false,
+    "push": false,
+    "deploy": false,
+    "schedule": false,
+    "production_activation": false
+  }
+}
