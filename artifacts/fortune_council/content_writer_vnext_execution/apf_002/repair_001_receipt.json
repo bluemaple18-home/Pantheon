@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-002-REPAIR-001",
+  "findings": {
+    "APF002-VERTICAL-001": "execute_campaign_editorial_workset 固定從 APF-001 workset 各取一個 new 與 rewrite，依固定順序自動執行。",
+    "APF002-COMPAT-002": "new 與 rewrite fixture 直接通過 candidate、review、manifest 的既有 validator；無效 candidate 不會保存，重跑可重新產生。"
+  },
+  "verification": [
+    "uv run pytest tests/test_agy_gemini_coordinator.py -q",
+    "git diff --check"
+  ],
+  "external_actions": {
+    "pushed": false,
+    "deployed": false,
+    "published": false,
+    "production_started": false
+  }
+}

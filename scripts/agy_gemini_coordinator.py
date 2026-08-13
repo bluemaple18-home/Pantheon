@@ -1976,18 +1976,18 @@ def execute_campaign_editorial_work_item(
         candidate = _read_editorial_artifact(candidate_path)
     else:
         candidate = writer(brief)
-        atomic_write_json(candidate_path, candidate)
     pipeline.validate_candidate(candidate)
     if candidate.get("run_id") != brief["run_id"] or candidate.get("mode") != expected_mode:
         raise ValueError("legacy candidate run identity or mode differs from article brief")
     if _editorial_candidate_id(candidate) != item["article_id"]:
         raise ValueError("legacy candidate identity differs from campaign work item")
+    if not candidate_path.exists():
+        atomic_write_json(candidate_path, candidate)
 
     if review_path.exists():
         review = _read_editorial_artifact(review_path)
     else:
         review = reviewer(brief, candidate)
-        atomic_write_json(review_path, review)
     pipeline.validate_review(review, candidate["articles"])
     if review.get("run_id") != brief["run_id"]:
         raise ValueError("legacy review run identity differs from article brief")
@@ -1996,6 +1996,8 @@ def execute_campaign_editorial_work_item(
         for item in review["articles"]
     ):
         raise ValueError("reviewer reported blocking findings")
+    if not review_path.exists():
+        atomic_write_json(review_path, review)
 
     manifest = {
         "version": "EditorialManifestV1",
@@ -2024,6 +2026,52 @@ def execute_campaign_editorial_work_item(
         "candidate": candidate,
         "review": review,
         "manifest": manifest,
+    }
+
+
+def execute_campaign_editorial_workset(
+    workset: object,
+    run_root: Path,
+    *,
+    brief_factory: EditorialFactory,
+    writer: EditorialWriter,
+    reviewer: EditorialReviewer,
+    max_items: int = 2,
+) -> dict[str, Any]:
+    """一次 bounded 執行 APF workset 的 new 與 rewrite，拒絕不完整輸入。"""
+    if (
+        not isinstance(workset, dict)
+        or set(workset) != {"schema_version", "campaign_version", "lanes", "items", "summary"}
+        or workset.get("schema_version") != 1
+        or not isinstance(workset.get("items"), list)
+        or type(max_items) is not int
+        or max_items != 2
+    ):
+        raise ValueError("campaign editorial workset is invalid")
+    selected: dict[str, dict[str, str]] = {}
+    for raw_item in workset["items"]:
+        item = _campaign_editorial_work_item(raw_item)
+        if item["lane"] not in {"new", "rewrite"}:
+            continue
+        if item["lane"] in selected:
+            continue
+        selected[item["lane"]] = item
+    if set(selected) != {"new", "rewrite"}:
+        raise ValueError("campaign editorial workset must contain one new and one rewrite item")
+    results = [
+        execute_campaign_editorial_work_item(
+            selected[lane],
+            run_root / selected[lane]["work_id"],
+            brief_factory=brief_factory,
+            writer=writer,
+            reviewer=reviewer,
+        )
+        for lane in ("new", "rewrite")
+    ]
+    return {
+        "campaign_version": workset["campaign_version"],
+        "work_ids": [result["work_id"] for result in results],
+        "runs": results,
     }
 
 

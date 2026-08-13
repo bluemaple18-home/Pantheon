@@ -38,35 +38,94 @@ def _campaign_item(source_kind: str, article_id: str, campaign_version: str = "a
     }
 
 
-def test_campaign_editorial_work_item_resumes_successful_stages_and_keeps_identity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _publication_policy(*, canonical: str, change_type: str) -> dict[str, object]:
+    identity = coordinator.pipeline.load_article_publication_policy()["identity"]
+    return {
+        "policyVersion": coordinator.pipeline.publication_policy_version(),
+        "canonical": canonical,
+        "author": {"name": identity["author_name"], "url": identity["author_url"], "id": identity["author_id"]},
+        "editorialResponsibility": identity["editorial_responsibility"],
+        "evidence": {"mode": "cultural_reflection", "sources": [], "disclosure": "本文屬文化脈絡與反思整理，不主張可驗證的預測結果。"},
+        "published": "2026-07-23", "modified": "2026-07-23", "changeType": change_type,
+    }
+
+
+def _long_paragraph(seed: str) -> str:
+    return (seed + "再核對一項具體資料，避免把通用描述當成個人結論。" * 8)[:108]
+
+
+def _valid_campaign_candidate(brief: dict[str, object]) -> dict[str, object]:
+    article_id = str(brief["article_identity"]["id"])
+    run_id = str(brief["run_id"])
+    keyword = "測試關鍵字" if article_id.startswith("NEW") else "舊文測試"
+    paragraphs = [_long_paragraph(f"{keyword}在第{index + 1}個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。") for index in range(15)]
+    if article_id.startswith("NEW"):
+        article = {
+            "id": article_id, "section": "mbti", "product": "personality", "slug": article_id.lower(),
+            "serial": "personality-9999", "urlSlug": f"{article_id.lower()}-9999", "primaryKeyword": "測試關鍵字",
+            "secondaryKeywords": ["具體場景", "通用觀察"], "title": "測試關鍵字是什麼？用生活場景理解限制與選擇",
+            "description": "測試關鍵字適合整理具體情境、可觀察行動與使用限制；本文只提供通用理解，不替個人下結論，也不承諾任何結果，仍需回到現況判斷與實際資料再做選擇。",
+            "answer": "測試關鍵字提供通用觀察，不能替個人下結論。", "tags": ["AEO", "GEO", "Pantheon", "SEO", "公開文章", "繁體中文", "通用知識", "人格", "自我理解"],
+            "published": "2026-07-23", "updated": "2026-07-23",
+            "faq": [{"question": "能直接判定結果嗎？", "answer": "不能，仍要回到實際情境與行動。"}, {"question": "應該先看什麼？", "answer": "先分開記錄事實、推測與期待。"}, {"question": "什麼時候不適用？", "answer": "需要專業判斷時不應只靠這篇文章。"}],
+            "bodySections": [{"heading": f"測試關鍵字的觀察角度 {index + 1}", "paragraphs": paragraphs[index * 3 : index * 3 + 3]} for index in range(5)],
+            "publicationPolicy": _publication_policy(canonical=f"https://www.mysticpantheon.com/articles/personality/{article_id.lower()}-9999", change_type="created"),
+        }
+        return {"schema_version": 1, "run_id": run_id, "mode": "create", "articles": [article]}
+    body_sections = [{"heading": f"具體判讀角度 {index + 1}", "paragraphs": paragraphs[index * 3 : index * 3 + 3]} for index in range(5)]
+    article = {
+        "article_id": article_id,
+        "identity": {"id": article_id, "product": "astrology", "category": "astrology", "serial": "astrology-0001", "slug": article_id.lower(), "primaryKeyword": "舊文測試", "title": "舊文測試標題"},
+        "current_body_sha256": coordinator.pipeline.body_sha256([{"heading": "舊內容", "paragraphs": [_long_paragraph("舊文原始內容。")] }]),
+        "bodySections": body_sections,
+        "publicationPolicy": _publication_policy(canonical=f"https://www.mysticpantheon.com/articles/astrology/{article_id.lower()}", change_type="substantive_rewrite"),
+    }
+    return {"schema_version": 1, "run_id": run_id, "mode": "rewrite_existing_body", "articles": [article]}
+
+
+def _clean_review(brief: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
+    article = candidate["articles"][0]
+    article_id = str(article.get("id", article.get("article_id")))
+    return {"schema_version": 1, "run_id": brief["run_id"], "articles": [{"article_id": article_id, "candidate_sha256": coordinator.pipeline.article_sha256(article), "verdict": "APPROVE", "hard_failure": False, "findings": []}]}
+
+
+def test_campaign_editorial_workset_executes_new_and_rewrite_with_real_contracts(tmp_path: Path) -> None:
     calls = {"brief": 0, "writer": 0, "reviewer": 0}
-    item = _campaign_item("matrix", "NEW-001")
-    brief = _article_brief_v2("new-run-001", "NEW-001")
-    candidate = {"schema_version": 1, "run_id": "new-run-001", "mode": "create", "articles": [{"id": "NEW-001"}]}
-    review = {"schema_version": 1, "run_id": "new-run-001", "articles": [{"article_id": "NEW-001", "candidate_sha256": "a", "verdict": "APPROVE", "findings": []}]}
-    monkeypatch.setattr(coordinator.pipeline, "validate_candidate", lambda value: value == candidate or pytest.fail("candidate drift"))
-    monkeypatch.setattr(coordinator.pipeline, "validate_review", lambda value, articles: value == review and articles == candidate["articles"] or pytest.fail("review drift"))
-    monkeypatch.setattr(coordinator.editorial_contracts, "validate_manifest", lambda _value: {"blocking": False, "findings": [], "valid": True})
+    workset = {"schema_version": 1, "campaign_version": "apf-002-v1", "lanes": ["new", "rewrite"], "items": [_campaign_item("matrix", "NEW-001"), _campaign_item("legacy", "LEGACY-001")], "summary": {}}
 
-    def make_brief(_item: dict[str, object]) -> dict[str, object]:
+    def make_brief(item: dict[str, object]) -> dict[str, object]:
         calls["brief"] += 1
-        return brief
+        return _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"]))
 
-    def write_candidate(_brief: dict[str, object]) -> dict[str, object]:
+    def write_candidate(brief: dict[str, object]) -> dict[str, object]:
         calls["writer"] += 1
-        return candidate
+        return _valid_campaign_candidate(brief)
 
-    def write_review(_brief: dict[str, object], _candidate: dict[str, object]) -> dict[str, object]:
+    def write_review(brief: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
         calls["reviewer"] += 1
-        return review
+        return _clean_review(brief, candidate)
 
-    first = coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
-    second = coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
+    first = coordinator.execute_campaign_editorial_workset(workset, tmp_path / "runs", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
+    second = coordinator.execute_campaign_editorial_workset(workset, tmp_path / "runs", brief_factory=make_brief, writer=write_candidate, reviewer=write_review)
 
-    assert first["work_id"] == second["work_id"] == item["work_id"]
-    assert calls == {"brief": 1, "writer": 1, "reviewer": 1}
+    assert first["work_ids"] == second["work_ids"] == [item["work_id"] for item in workset["items"]]
+    assert calls == {"brief": 2, "writer": 2, "reviewer": 2}
+
+
+def test_campaign_editorial_work_item_validates_before_persisting_and_retries(tmp_path: Path) -> None:
+    item = _campaign_item("matrix", "NEW-001")
+    attempts = 0
+
+    def writer(brief: dict[str, object]) -> dict[str, object]:
+        nonlocal attempts
+        attempts += 1
+        return {"schema_version": 1} if attempts == 1 else _valid_campaign_candidate(brief)
+
+    with pytest.raises(ValueError):
+        coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=lambda _item: _article_brief_v2("new-run-001", "NEW-001"), writer=writer, reviewer=_clean_review)
+    assert not (tmp_path / "run" / "editorial-vnext" / "legacy-candidate.json").exists()
+    coordinator.execute_campaign_editorial_work_item(item, tmp_path / "run", brief_factory=lambda _item: _article_brief_v2("new-run-001", "NEW-001"), writer=writer, reviewer=_clean_review)
+    assert attempts == 2
 
 
 def test_campaign_editorial_work_item_fails_closed_for_blocking_review(
