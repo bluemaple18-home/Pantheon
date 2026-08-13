@@ -2783,26 +2783,30 @@ def _create_run_adapter_work_item(
 ) -> dict[str, str]:
     if not isinstance(raw_item, dict):
         raise ValueError("create-run adapter work item is invalid")
+    if APF_CREATE_RUN_ADAPTER_FORBIDDEN_CALLER_KEYS.intersection(raw_item):
+        raise ValueError("caller-supplied run identity or status is not accepted")
     lane = raw_item.get("lane")
     if lane in APF_CREATE_RUN_ADAPTER_SOURCE_LANES:
         item = _campaign_editorial_work_item(raw_item)
     elif lane in APF_CREATE_RUN_ADAPTER_TRANSLATION_LANES:
         expected_source_kind = "matrix" if lane == "i18n-new" else "legacy"
-        item = {key: value for key, value in raw_item.items() if isinstance(value, str)}
+        required = {
+            "source_kind",
+            "article_id",
+            "locale",
+            "campaign_version",
+            "work_id",
+            "lane",
+            "reason",
+        }
+        if set(raw_item) != required:
+            raise ValueError("create-run adapter translation work item is invalid")
+        item = {
+            key: _create_run_adapter_required_string(raw_item.get(key), key)
+            for key in required
+        }
         if (
-            set(item)
-            != {
-                "source_kind",
-                "article_id",
-                "locale",
-                "campaign_version",
-                "work_id",
-                "lane",
-                "reason",
-            }
-            or len(item) != 7
-            or any(not value.strip() for value in item.values())
-            or item["source_kind"] != expected_source_kind
+            item["source_kind"] != expected_source_kind
             or item["campaign_version"] != campaign_version
             or item["locale"] == "zh-TW"
             or item["locale"] not in multilingual.SUPPORTED_LOCALES

@@ -890,6 +890,33 @@ def test_apf_004_create_run_adapter_negative_matrix_fails_before_write(
     assert _tree_bytes(tmp_path) == {}
 
 
+@pytest.mark.parametrize(
+    ("forbidden_key", "value"),
+    [
+        ("run_id", 123),
+        ("status", False),
+        ("verdict", None),
+        ("ready", 0),
+    ],
+)
+def test_apf_004_create_run_adapter_rejects_non_string_forbidden_workset_keys_before_write(
+    tmp_path: Path,
+    forbidden_key: str,
+    value: object,
+) -> None:
+    workset = _apf_004_workset()
+    items = list(workset["items"])
+    items[1] = {**dict(items[1]), forbidden_key: value}
+    workset = {**workset, "items": items}
+    kwargs = _apf_004_kwargs(tmp_path, workset)
+    kwargs["workset_sha256"] = _apf_004_digest(workset)
+
+    with pytest.raises(ValueError, match="caller-supplied run identity or status"):
+        coordinator.create_campaign_run_adapter(**kwargs, plan_only=True)
+
+    assert _tree_bytes(tmp_path) == {}
+
+
 def test_apf_004_create_run_adapter_rejects_root_overlap_and_state_collision(
     tmp_path: Path,
 ) -> None:
