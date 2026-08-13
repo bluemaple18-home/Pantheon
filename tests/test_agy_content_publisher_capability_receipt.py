@@ -10,8 +10,10 @@ import pytest
 
 from scripts import agy_content_publisher as publisher
 from scripts.pantheon_content_capability_receipt import (
+    build_apf_004_readiness_candidate,
     CAPABILITIES,
     SCHEMA_VERSION,
+    _resolve_ai_core_root,
     validate_capability_receipt,
 )
 
@@ -345,3 +347,81 @@ def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
             state_root=state_root,
             receipt_context=context,
         )
+
+
+def test_apf_004_readiness_builder_packages_capability_capacity_and_gate(
+    tmp_path: Path,
+) -> None:
+    gate = tmp_path / "ai-core/scripts/production_canary_readiness_gate.py"
+    gate.parent.mkdir(parents=True)
+    gate.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import sys",
+                "receipt = sys.argv[-1]",
+                "blocked = receipt.endswith('missing-step-receipt.json')",
+                "print(json.dumps({'status': 'BLOCKED' if blocked else 'READY', 'failures': []}))",
+                "raise SystemExit(1 if blocked else 0)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_apf_004_readiness_candidate(
+        output_root=tmp_path / "apf_004_readiness",
+        ai_core_root=tmp_path / "ai-core",
+    )
+
+    assert result["status"] == "READY"
+    assert result["canary_created"] is False
+    assert result["production_mutation"] is False
+    assert result["publish"] is False
+    assert result["tag"] is False
+    assert result["push"] is False
+    assert result["deploy"] is False
+    assert result["schedule"] is False
+    assert result["production_activation"] is False
+    assert result["capabilities"] == list(CAPABILITIES)
+    assert result["capacity_cycles"] == 2
+
+    root = tmp_path / "apf_004_readiness"
+    official = root / "package/production-canary-capability-receipt.json"
+    capacity = root / "capacity/capacity-receipt.json"
+    ready_gate = root / "official-gate-ready.json"
+    blocked_gate = root / "official-gate-blocked.json"
+    assert official.is_file()
+    assert capacity.is_file()
+    assert json.loads(ready_gate.read_text(encoding="utf-8"))["status"] == "READY"
+    assert json.loads(blocked_gate.read_text(encoding="utf-8"))["status"] == "BLOCKED"
+
+    official_payload = json.loads(official.read_text(encoding="utf-8"))
+    assert official_payload["canary_created"] is False
+    assert set(official_payload["steps"]) == set(CAPABILITIES)
+    evidence = [
+        step[field]["artifact"]
+        for step in official_payload["steps"].values()
+        for field in ("positive_evidence", "negative_evidence")
+    ]
+    assert len(evidence) == 14
+    assert len(set(evidence)) == 14
+
+    leaked = [
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and str(tmp_path) in path.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert leaked == []
+
+
+def test_ai_core_root_discovery_fails_closed_without_machine_specific_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AI_CORE_ROOT", raising=False)
+    monkeypatch.delenv("AI_CORE_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "empty-home"))
+
+    assert _resolve_ai_core_root(None) is None

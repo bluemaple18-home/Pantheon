@@ -1,0 +1,13 @@
+{
+  "canary_created": false,
+  "case": "missing-required-measurement",
+  "complete_pass_receipt_written": false,
+  "cycle": 1,
+  "external_cleanup_performed": false,
+  "last_safe_sample": {},
+  "next_cycle_started": false,
+  "production_mutation": false,
+  "reason": "required measurement is invalid: host_free_bytes",
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

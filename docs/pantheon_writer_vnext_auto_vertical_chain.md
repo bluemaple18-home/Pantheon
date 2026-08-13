@@ -28,3 +28,9 @@
 `execute_private_campaign_e2e` 是 APF-001～003 的唯一私有組合入口。它自行以 `repo_root`、queue/state root、`campaign_version` 與 `locale` 呼叫 `build_campaign_dry_run_workset`，再穩定選取第一個 `new`、第一個 `rewrite` 與各自唯一匹配的 `i18n-new`／`i18n-rewrite` work item；呼叫端不得手工傳入四 lane workset。缺少或重複匹配的 translation work item 都會在 Writer、Reviewer 與 Publisher collector 前拒絕。
 
 入口在可丟棄的 staging 目錄依序執行 editorial、既有 Publisher dry-run collector 與既有 translation collector。只有四 lane 都成功才將私有 receipt 複製至呼叫端 root；翻譯失敗不會留下可被 Publisher 收集的半套結果。既有 receipt 會在 staging 與私有 root 間重綁路徑，因此 retry／resume 不重跑已完成 Writer／Reviewer／translation 工作，並回傳 contract-stable 的四 lane receipt。
+
+## APF-004 Existing Publisher Canary Readiness
+
+`build_apf_004_readiness_candidate` 只建立 synthetic readiness package，不建立 production canary。它重用既有 `coordinator_create_run_receipt_preflight` 產生 `create → run` receipt，再重用 `formal_capability_preflight` 覆蓋 `select → publish → transaction → tag → push`，全鏈固定 `exec-apf-004-readiness` 與 `corr-apf-004-readiness`。
+
+APF-004 evidence 保存於 `artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/`。`package/production-canary-capability-receipt.json` 是 ai-core official readiness gate 的輸入；`official-gate-ready.json` 必須為 `READY`，而 `official-gate-blocked.json` 以 missing-step fixture 證明 fail closed。容量證據在 `capacity/capacity-receipt.json`，包含兩個 synthetic cycle、cleanup reclaim、retention projection 與 stop-loss negative matrix。所有 APF-004 readiness receipt 都明示 `canary_created=false`、`production_mutation=false`，且未 publish、tag、push、deploy、schedule 或 production activation。
