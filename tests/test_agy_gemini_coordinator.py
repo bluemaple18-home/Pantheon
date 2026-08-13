@@ -72,7 +72,12 @@ def _valid_campaign_candidate(brief: dict[str, object]) -> dict[str, object]:
             "publicationPolicy": _publication_policy(canonical=f"https://www.mysticpantheon.com/articles/personality/{article_id.lower()}-9999", change_type="created"),
         }
         return {"schema_version": 1, "run_id": run_id, "mode": "create", "articles": [article]}
-    body_sections = [{"heading": f"具體判讀角度 {index + 1}", "paragraphs": paragraphs[index * 3 : index * 3 + 3]} for index in range(5)]
+    scenes = ["工作會議", "轉職面試", "家人聚會", "收入盤點", "伴侶溝通"]
+    rewrite_paragraphs = [
+        f"舊文測試在{scenes[index // 3]}的第{index % 3 + 1}次情境裡，先記錄可確認的事實，再列出兩個選項並比較差異；不能預先承諾結果，仍要寫下下一步、詢問相關的人並回顧時間，再核對可用資源與設定期限，避免只憑一時感受做決定。"
+        for index in range(15)
+    ]
+    body_sections = [{"heading": f"具體判讀角度 {index + 1}", "paragraphs": rewrite_paragraphs[index * 3 : index * 3 + 3]} for index in range(5)]
     article = {
         "article_id": article_id,
         "identity": {"id": article_id, "product": "astrology", "category": "astrology", "serial": "astrology-0001", "slug": article_id.lower(), "primaryKeyword": "舊文測試", "title": "舊文測試標題"},
@@ -87,6 +92,33 @@ def _clean_review(brief: dict[str, object], candidate: dict[str, object]) -> dic
     article = candidate["articles"][0]
     article_id = str(article.get("id", article.get("article_id")))
     return {"schema_version": 1, "run_id": brief["run_id"], "articles": [{"article_id": article_id, "candidate_sha256": coordinator.pipeline.article_sha256(article), "verdict": "APPROVE", "hard_failure": False, "findings": []}]}
+
+
+def _publisher_rewrite_brief(candidate: dict[str, object]) -> dict[str, object]:
+    article = candidate["articles"][0]
+    current_body = [{"heading": "舊內容", "paragraphs": [_long_paragraph("舊文原始內容。")]}]
+    identity = article["identity"]
+    return {
+        "schema_version": 1,
+        "run_id": candidate["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [{
+            "slot": "article-01",
+            "article_id": article["article_id"],
+            "identity": identity,
+            "immutable_fields": {
+                "id": identity["id"], "product": identity["product"], "slug": identity["slug"],
+                "serial": identity["serial"], "title": identity["title"], "description": "舊文描述",
+                "answer": "舊文回答", "faq": [], "tags": [], "published": "2026-07-23",
+                "updated": "2026-07-23", "urlSlug": identity["slug"], "primaryKeyword": identity["primaryKeyword"],
+            },
+            "current_body": current_body,
+            "current_body_sha256": coordinator.pipeline.body_sha256(current_body),
+            "rewrite_brief": ["保留原本搜尋意圖與主題邊界，不承諾任何結果。"],
+            "source_file": "app/web/static/article-meta.js",
+            "body_source": "buildArticleContent",
+        }],
+    }
 
 
 def test_campaign_editorial_workset_executes_new_and_rewrite_with_real_contracts(tmp_path: Path) -> None:
@@ -110,6 +142,121 @@ def test_campaign_editorial_workset_executes_new_and_rewrite_with_real_contracts
 
     assert first["work_ids"] == second["work_ids"] == [item["work_id"] for item in workset["items"]]
     assert calls == {"brief": 2, "writer": 2, "reviewer": 2}
+
+
+def test_campaign_editorial_workset_replays_both_lanes_through_real_publisher_collectors(tmp_path: Path) -> None:
+    workset = {"schema_version": 1, "campaign_version": "apf-002-v1", "lanes": ["new", "rewrite"], "items": [_campaign_item("matrix", "NEW-001"), _campaign_item("legacy", "LEGACY-001")], "summary": {}}
+    result = coordinator.execute_campaign_editorial_workset(
+        workset,
+        tmp_path / "runs",
+        brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+        writer=_valid_campaign_candidate,
+        reviewer=_clean_review,
+    )
+    rewrite = next(run for run in result["runs"] if run["lane"] == "rewrite")
+    state_root = tmp_path / "publisher-state"
+    before = {str(path.relative_to(tmp_path)): path.read_bytes() for path in sorted(tmp_path.rglob("*")) if path.is_file()}
+
+    replay = coordinator.replay_campaign_editorial_workset_through_publisher(
+        result,
+        tmp_path / "queue",
+        state_root,
+        rewrite_briefs={rewrite["run_id"]: _publisher_rewrite_brief(rewrite["candidate"])},
+    )
+
+    after = {str(path.relative_to(tmp_path)): path.read_bytes() for path in sorted(tmp_path.rglob("*")) if path.is_file()}
+    assert replay == {"status": "dry-run", "published": 0, "new_run_id": "new-run-001", "rewrite_run_id": "rewrite-run-001"}
+    assert not (state_root / "ledger.json").exists()
+    assert all(path.startswith(("runs/", "queue/")) for path in set(after) - set(before))
+
+
+@pytest.mark.parametrize("field, expected", [("candidate_sha256", "campaign candidate SHA drift"), ("review_sha256", "campaign review SHA drift")])
+def test_campaign_editorial_publisher_replay_fails_closed_for_artifact_drift(
+    tmp_path: Path, field: str, expected: str,
+) -> None:
+    workset = {"schema_version": 1, "campaign_version": "apf-002-v1", "lanes": ["new", "rewrite"], "items": [_campaign_item("matrix", "NEW-001"), _campaign_item("legacy", "LEGACY-001")], "summary": {}}
+    result = coordinator.execute_campaign_editorial_workset(
+        workset,
+        tmp_path / "runs",
+        brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+        writer=_valid_campaign_candidate,
+        reviewer=_clean_review,
+    )
+    result["runs"][0][field] = "0" * 64
+    rewrite = next(run for run in result["runs"] if run["lane"] == "rewrite")
+
+    with pytest.raises(ValueError, match=expected):
+        coordinator.replay_campaign_editorial_workset_through_publisher(
+            result,
+            tmp_path / "queue",
+            tmp_path / "publisher-state",
+            rewrite_briefs={rewrite["run_id"]: _publisher_rewrite_brief(rewrite["candidate"])},
+        )
+    assert not (tmp_path / "queue").exists()
+
+
+def test_campaign_editorial_publisher_replay_fails_closed_for_identity_drift(tmp_path: Path) -> None:
+    workset = {"schema_version": 1, "campaign_version": "apf-002-v1", "lanes": ["new", "rewrite"], "items": [_campaign_item("matrix", "NEW-001"), _campaign_item("legacy", "LEGACY-001")], "summary": {}}
+    result = coordinator.execute_campaign_editorial_workset(
+        workset,
+        tmp_path / "runs",
+        brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+        writer=_valid_campaign_candidate,
+        reviewer=_clean_review,
+    )
+    result["runs"][0]["article_identity"] = {"id": "IDENTITY-DRIFT"}
+    rewrite = next(run for run in result["runs"] if run["lane"] == "rewrite")
+
+    with pytest.raises(ValueError, match="campaign article identity drift"):
+        coordinator.replay_campaign_editorial_workset_through_publisher(
+            result,
+            tmp_path / "queue",
+            tmp_path / "publisher-state",
+            rewrite_briefs={rewrite["run_id"]: _publisher_rewrite_brief(rewrite["candidate"])},
+        )
+    assert not (tmp_path / "queue").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("candidate_sha", "campaign candidate SHA drift"),
+        ("identity", "campaign article identity drift"),
+        ("work_id", "campaign work identity drift"),
+        ("missing_rewrite_brief", "rewrite publisher brief is required"),
+    ],
+)
+def test_campaign_editorial_publisher_replay_preflights_every_lane_before_writing(
+    tmp_path: Path, mutation: str, expected: str,
+) -> None:
+    workset = {"schema_version": 1, "campaign_version": "apf-002-v1", "lanes": ["new", "rewrite"], "items": [_campaign_item("matrix", "NEW-001"), _campaign_item("legacy", "LEGACY-001")], "summary": {}}
+    result = coordinator.execute_campaign_editorial_workset(
+        workset,
+        tmp_path / "runs",
+        brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+        writer=_valid_campaign_candidate,
+        reviewer=_clean_review,
+    )
+    rewrite = next(run for run in result["runs"] if run["lane"] == "rewrite")
+    briefs = {rewrite["run_id"]: _publisher_rewrite_brief(rewrite["candidate"])}
+    if mutation == "candidate_sha":
+        rewrite["candidate_sha256"] = "0" * 64
+    elif mutation == "identity":
+        rewrite["article_identity"] = {"id": "IDENTITY-DRIFT"}
+    elif mutation == "work_id":
+        rewrite["work_id"] = "apf-work-drift"
+    else:
+        briefs = {}
+
+    with pytest.raises(ValueError, match=expected):
+        coordinator.replay_campaign_editorial_workset_through_publisher(
+            result,
+            tmp_path / "queue",
+            tmp_path / "publisher-state",
+            rewrite_briefs=briefs,
+        )
+    assert not (tmp_path / "queue").exists()
+    assert all(not (Path(run["run_dir"]) / "publisher-dry-run").exists() for run in result["runs"])
 
 
 def test_campaign_editorial_work_item_validates_before_persisting_and_retries(tmp_path: Path) -> None:

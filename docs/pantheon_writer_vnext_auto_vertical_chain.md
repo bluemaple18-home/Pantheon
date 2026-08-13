@@ -13,4 +13,4 @@
 
 已存在的合格 artifact 會被重用，所以 resume 不會再次呼叫已完成 stage 的 factory、Writer 或 Reviewer。任何 artifact、run identity、article identity、candidate mode、SHA 或 review 發現漂移時，流程停止且不會產生相容結果。
 
-此接點不呼叫 Publisher mutation、publication transaction、queue、scheduler 或外部發文；它的輸出僅是已驗證的 legacy candidate 與 review，交由既有 Publisher 擁有後續 authority。
+`replay_campaign_editorial_workset_through_publisher` 分成兩階段：先在記憶體完整核對 new／rewrite 的 campaign work ID、run ID、article identity、candidate SHA、review SHA 與 rewrite brief，全部通過才批次映射為既有 queue/run contract，再實際呼叫 `collect_ready_runs` 與 `collect_ready_rewrite_runs`。任何漂移都在 queue 或 handoff 目錄寫入前 fail closed。此 dry-run seam 不呼叫 Publisher mutation、publication transaction、tag、push、scheduler 或外部發文，兩個 collector 都接受才回傳 `published: 0`。

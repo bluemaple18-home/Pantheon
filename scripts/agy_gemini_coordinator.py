@@ -2022,10 +2022,15 @@ def execute_campaign_editorial_work_item(
     atomic_write_json(manifest_path, manifest)
     return {
         "work_id": item["work_id"],
+        "lane": item["lane"],
         "run_id": brief["run_id"],
+        "run_dir": str(run_dir.resolve()),
+        "article_identity": identity,
         "candidate": candidate,
         "review": review,
         "manifest": manifest,
+        "candidate_sha256": editorial_contracts.artifact_sha256(candidate),
+        "review_sha256": editorial_contracts.artifact_sha256(review),
     }
 
 
@@ -2072,6 +2077,140 @@ def execute_campaign_editorial_workset(
         "campaign_version": workset["campaign_version"],
         "work_ids": [result["work_id"] for result in results],
         "runs": results,
+    }
+
+
+def replay_campaign_editorial_workset_through_publisher(
+    campaign_result: object,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    rewrite_briefs: Mapping[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """把已驗證 APF 結果重放至既有 Publisher collector，不發布。"""
+    if not isinstance(campaign_result, dict) or not isinstance(campaign_result.get("runs"), list):
+        raise ValueError("campaign editorial result is invalid")
+    prepared: list[dict[str, Any]] = []
+    by_lane: dict[str, dict[str, Any]] = {}
+    for result in campaign_result["runs"]:
+        if not isinstance(result, dict):
+            raise ValueError("campaign editorial run is invalid")
+        lane = result.get("lane")
+        if lane not in {"new", "rewrite"} or lane in by_lane:
+            raise ValueError("campaign editorial lanes must be unique new and rewrite")
+        candidate = result.get("candidate")
+        review = result.get("review")
+        manifest = result.get("manifest")
+        identity = result.get("article_identity")
+        run_id = result.get("run_id")
+        work_id = result.get("work_id")
+        run_dir = result.get("run_dir")
+        if not all(isinstance(value, str) and value for value in (run_id, work_id, run_dir)):
+            raise ValueError("campaign editorial handoff identity is invalid")
+        if not isinstance(candidate, dict) or not isinstance(review, dict) or not isinstance(manifest, dict):
+            raise ValueError("campaign editorial handoff artifacts are invalid")
+        report = editorial_contracts.validate_manifest(manifest)
+        if report["blocking"]:
+            raise ValueError("campaign editorial manifest is blocked: " + editorial_contracts.stable_json_summary(report))
+        if (
+            result.get("candidate_sha256") != editorial_contracts.artifact_sha256(candidate)
+            or manifest.get("legacy_candidate") != candidate
+            or manifest.get("legacy_candidate_sha256") != editorial_contracts.artifact_sha256(candidate)
+        ):
+            raise ValueError("campaign candidate SHA drift")
+        legacy_review = manifest.get("artifacts", {}).get("legacy_review") if isinstance(manifest.get("artifacts"), dict) else None
+        if result.get("review_sha256") != editorial_contracts.artifact_sha256(review) or legacy_review != review:
+            raise ValueError("campaign review SHA drift")
+        pipeline.validate_candidate(candidate)
+        pipeline.validate_review(review, candidate["articles"])
+        article = candidate["articles"][0]
+        article_id = str(article.get("id") or article.get("article_id") or "")
+        if not isinstance(identity, dict) or identity.get("id") != article_id:
+            raise ValueError("campaign article identity drift")
+        artifacts = manifest.get("artifacts")
+        campaign_work = artifacts.get("campaign_work") if isinstance(artifacts, dict) else None
+        try:
+            manifest_work = _campaign_editorial_work_item(campaign_work)
+        except ValueError as error:
+            raise ValueError("campaign work identity drift") from error
+        if (
+            manifest_work["work_id"] != work_id
+            or manifest_work["lane"] != lane
+            or manifest_work["article_id"] != article_id
+        ):
+            raise ValueError("campaign work identity drift")
+        expected_mode = "create" if lane == "new" else "rewrite_existing_body"
+        if candidate.get("run_id") != run_id or candidate.get("mode") != expected_mode:
+            raise ValueError("campaign candidate run identity drift")
+        if lane == "rewrite":
+            brief = rewrite_briefs.get(run_id)
+            if not isinstance(brief, dict):
+                raise ValueError("rewrite publisher brief is required")
+            pipeline.validate_rewrite_brief(brief)
+            if brief.get("run_id") != run_id or brief["articles"][0].get("article_id") != article_id:
+                raise ValueError("rewrite publisher brief identity drift")
+        else:
+            brief = {"schema_version": 1, "run_id": run_id, "mode": "create", "articles": []}
+        prepared.append(
+            {
+                "lane": lane,
+                "run_id": run_id,
+                "work_id": work_id,
+                "article_id": article_id,
+                "run_dir": run_dir,
+                "brief": brief,
+                "candidate": candidate,
+                "review": review,
+                "candidate_sha256": result["candidate_sha256"],
+                "review_sha256": result["review_sha256"],
+            }
+        )
+        by_lane[lane] = {"run_id": run_id, "article_id": article_id}
+    if set(by_lane) != {"new", "rewrite"}:
+        raise ValueError("campaign editorial result must contain new and rewrite")
+    for item in prepared:
+        handoff_dir = Path(str(item["run_dir"])) / "publisher-dry-run"
+        handoff_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(handoff_dir / "brief.json", item["brief"])
+        atomic_write_json(handoff_dir / "candidate.json", item["candidate"])
+        atomic_write_json(handoff_dir / "review.json", item["review"])
+        atomic_write_json(
+            _state_path(str(item["run_id"]), queue_root.resolve()),
+            {
+                "schema_version": 1,
+                "run_id": item["run_id"],
+                "run_dir": str(handoff_dir.resolve()),
+                "status": "complete",
+                "result": {
+                    "status": "complete",
+                    "run_id": item["run_id"],
+                    "candidate": str((handoff_dir / "candidate.json").resolve()),
+                    "campaign_work_id": item["work_id"],
+                    "candidate_sha256": item["candidate_sha256"],
+                    "review_sha256": item["review_sha256"],
+                },
+            },
+        )
+    new_ready = publisher.collect_ready_runs(
+        queue_root,
+        state_root,
+        exact_run_ids=[by_lane["new"]["run_id"]],
+    )
+    rewrite_ready = publisher.collect_ready_rewrite_runs(
+        queue_root,
+        state_root,
+        allowed_article_ids={by_lane["rewrite"]["article_id"]},
+        exact_run_ids=[by_lane["rewrite"]["run_id"]],
+    )
+    if [state["run_id"] for state, _candidate, _review in new_ready] != [by_lane["new"]["run_id"]]:
+        raise ValueError("publisher rejected campaign new handoff")
+    if [state["run_id"] for state, _candidate, _review, _brief in rewrite_ready] != [by_lane["rewrite"]["run_id"]]:
+        raise ValueError("publisher rejected campaign rewrite handoff")
+    return {
+        "status": "dry-run",
+        "published": 0,
+        "new_run_id": by_lane["new"]["run_id"],
+        "rewrite_run_id": by_lane["rewrite"]["run_id"],
     }
 
 

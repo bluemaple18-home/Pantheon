@@ -1,0 +1,47 @@
+{
+  "card_id": "APF-002-RETRY-1",
+  "status": "PASS",
+  "base_sha": "1b88ea427494e30e4b49633807efd920a49c33fb",
+  "codegraph": {
+    "indexed_head": "1b88ea427494e30e4b49633807efd920a49c33fb",
+    "semantic_query": "APF-002 coordinator completed new and rewrite candidate/review outputs must be handed to existing agy_content_publisher collector or publish dry_run=True seam, preserving campaign work ID, run ID, article identity, candidate SHA, and review SHA; identify public side-effect-free acceptance boundary and relevant tests.",
+    "exact_symbol_results": [
+      "scripts/agy_content_publisher.py:2582 collect_ready_runs",
+      "scripts/agy_content_publisher.py:2864 collect_ready_rewrite_runs",
+      "scripts/agy_content_publisher.py:3619 publish_ready_runs",
+      "scripts/agy_content_publisher.py:4085 publish_ready_all"
+    ]
+  },
+  "publisher_seam": {
+    "new": "scripts.agy_content_publisher.collect_ready_runs",
+    "rewrite": "scripts.agy_content_publisher.collect_ready_rewrite_runs",
+    "result": {
+      "status": "dry-run",
+      "published": 0,
+      "new_run_id": "new-run-001",
+      "rewrite_run_id": "rewrite-run-001"
+    },
+    "publication_mutation": false
+  },
+  "fail_closed_evidence": [
+    "candidate SHA drift raises campaign candidate SHA drift before queue write",
+    "review SHA drift raises campaign review SHA drift before queue write",
+    "article identity drift raises campaign article identity drift before queue write",
+    "two-phase preflight validates both lanes before any queue or publisher-dry-run directory write",
+    "second rewrite lane candidate SHA and identity drift leave queue and both publisher-dry-run directories absent",
+    "campaign work ID drift leaves queue and both publisher-dry-run directories absent",
+    "missing rewrite brief leaves queue and both publisher-dry-run directories absent"
+  ],
+  "focused_tests": {
+    "command": "uv run pytest tests/test_agy_gemini_coordinator.py tests/test_agy_editorial_contracts.py tests/test_agy_content_publisher.py -q",
+    "result": "235 passed, 1 warning in 42.34s",
+    "exit_code": 0,
+    "warning": "existing SyntaxWarning: invalid escape sequence '\\/'; non-blocking"
+  },
+  "external_actions": {
+    "publish": false,
+    "tag": false,
+    "push": false,
+    "deploy": false
+  }
+}
