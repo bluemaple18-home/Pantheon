@@ -209,7 +209,7 @@ run_preflight() {
       --queue-root "${QUEUE_ROOT}" \
       --state-root "${STATE_ROOT}" \
       --max-runs "${MAX_RUNS}" \
-      "${EXACT_RUN_ARGS[@]}" \
+      ${EXACT_RUN_ARGS[@]+"${EXACT_RUN_ARGS[@]}"} \
       "${PUBLISH_MODE}" \
       --push \
       --deployment-preflight \

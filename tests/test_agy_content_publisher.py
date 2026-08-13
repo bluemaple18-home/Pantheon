@@ -3210,7 +3210,142 @@ def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
         f"--expected-python-executable {python_target}" in line
         for line in lines
     )
+    publisher_invocations = [
+        line for line in lines if " -m scripts.agy_content_publisher " in line
+    ]
+    assert len(publisher_invocations) == 1
+    assert publisher_invocations[0].count("--exact-run-id") == 1
+    assert "canary-run-001" in publisher_invocations[0]
     assert not any(line.startswith(str(python_alias)) for line in lines)
+
+
+@pytest.mark.skipif(
+    not Path("/usr/libexec/PlistBuddy").exists(),
+    reason="content publisher installer preflight is macOS launchd specific",
+)
+@pytest.mark.parametrize("action", ["--preflight", "--install"])
+def test_content_publisher_installer_omits_unset_exact_run_args_under_bash32_set_u(
+    tmp_path: Path,
+    action: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    fake_bin = tmp_path / "bin"
+    home = tmp_path / "home"
+    for path in (queue / "runs", state, logs, fake_bin, home / "Library" / "LaunchAgents"):
+        path.mkdir(parents=True)
+    python_target = tmp_path / "python-target"
+    manifest = tmp_path / "runtime-manifest.json"
+    invocations = tmp_path / "python-invocations.log"
+    runtime_digest = "d" * 64
+    runtime_sha = "e" * 40
+    fields = {
+        "actor_root": str(repo_root),
+        "queue_root": str(queue),
+        "publisher_state_root": str(state),
+        "log_root": str(logs),
+        "manifest_digest": "a" * 64,
+        "identity": "canary-exact-unset",
+        "runtime_identity_digest": "b" * 64,
+        "runtime_digest": runtime_digest,
+        "config_version": "formal-runtime-v2-canary",
+        "generation": "canary-exact-unset",
+    }
+    python_target.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                f"echo \"$0 $*\" >> {invocations}",
+                "if [ \"$1\" = \"-m\" ] && [ \"$2\" = "
+                "\"scripts.pantheon_content_runtime_manifest\" ]; then",
+                "  if [ \"$3\" = \"validate\" ]; then exit 0; fi",
+                "  if [ \"$3\" = \"field\" ]; then",
+                "    name=\"\"",
+                "    optional=0",
+                "    while [ \"$#\" -gt 0 ]; do",
+                "      if [ \"$1\" = \"--name\" ]; then name=\"$2\"; fi",
+                "      if [ \"$1\" = \"--optional\" ]; then optional=1; fi",
+                "      shift",
+                "    done",
+                "    case \"$name\" in",
+                *[
+                    f"      {name}) echo \"{value}\" ;;"
+                    for name, value in fields.items()
+                ],
+                "      *) [ \"$optional\" = 1 ] || exit 8 ;;",
+                "    esac",
+                "    exit 0",
+                "  fi",
+                "fi",
+                "if [ \"$1\" = \"-c\" ]; then",
+                f"  echo \"{runtime_digest}\"",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"-m\" ] && [ \"$2\" = "
+                "\"scripts.agy_content_publisher\" ]; then",
+                "  case \" $* \" in *\" --exact-run-id \"*) exit 11 ;; esac",
+                "  echo '{\"schema_version\":1,\"status\":\"ready\"}'",
+                "  exit 0",
+                "fi",
+                "exit 7",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    python_target.chmod(0o755)
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "if [ \"$1\" = \"-C\" ]; then shift 2; fi",
+                "if [ \"$1\" = \"status\" ] && [ \"$2\" = \"--porcelain\" ]; then exit 0; fi",
+                "if [ \"$1\" = \"rev-parse\" ]; then",
+                f"  echo \"{runtime_sha}\"",
+                "  exit 0",
+                "fi",
+                "exit 6",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(home),
+        "PANTHEON_PYTHON_PATH": str(python_target),
+        "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest),
+        "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": "a" * 64,
+        "TMPDIR": str(tmp_path),
+    }
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"),
+            action,
+        ],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    lines = invocations.read_text(encoding="utf-8").splitlines()
+    publisher_invocations = [
+        line for line in lines if " -m scripts.agy_content_publisher " in line
+    ]
+    assert len(publisher_invocations) == 1
+    assert all("--exact-run-id" not in line for line in publisher_invocations)
+    if action == "--install":
+        staged = home / "Library" / "LaunchAgents" / ".pantheon-four-lane-stage"
+        assert (staged / "com.pantheon.agy-content-publisher.plist").is_file()
 
 
 def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(
