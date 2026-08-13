@@ -1,0 +1,70 @@
+{
+  "card_id": "APF-003",
+  "status": "PASS",
+  "base_sha": "a1b223be3a36b73693361505ee4f136136b60db7",
+  "candidate_commit": "self",
+  "locale": "ja",
+  "codegraph": {
+    "indexed_head": "a1b223be3a36b73693361505ee4f136136b60db7",
+    "semantic_query": "Connect APF-002 new and rewrite campaign results to multilingual prepare and enqueue using deterministic translation_run_id, existing brief and candidate validators, translation Reviewer validate_review, and side-effect-free Publisher collect_ready_translation_runs with atomic two-lane preflight and retry resume deduplication",
+    "semantic_results": [
+      "scripts/agy_multilingual_pipeline.py:391 translation_run_id",
+      "scripts/agy_multilingual_pipeline.py:399 enqueue_article_translations",
+      "scripts/agy_multilingual_pipeline.py:151 validate_translation_brief",
+      "scripts/agy_multilingual_pipeline.py:189 validate_translation_candidate",
+      "scripts/agy_multilingual_pipeline.py:2051 run_writer_reviewer",
+      "scripts/agy_seo_copy_pipeline.py validate_review",
+      "scripts/agy_content_publisher.py:2639 collect_ready_translation_runs"
+    ]
+  },
+  "vertical_chain": {
+    "source_lanes": [
+      "new",
+      "rewrite"
+    ],
+    "translation_lanes": [
+      "i18n-new",
+      "i18n-rewrite"
+    ],
+    "translation_run_count": 2,
+    "deterministic_run_id": "translation_run_id(source_run_id, article_id, locale)",
+    "validators": [
+      "validate_translation_brief",
+      "validate_translation_candidate",
+      "translation_findings",
+      "pipeline.validate_review"
+    ],
+    "reviewer": "multilingual.run_writer_reviewer",
+    "publisher_collector": "agy_content_publisher.collect_ready_translation_runs",
+    "published": 0
+  },
+  "atomicity": {
+    "strategy": "validate both campaign lanes and complete both translation runs in temporary staging before queue or handoff writes",
+    "fail_closed_drift": [
+      "source_sha256",
+      "translation_sha256",
+      "locale",
+      "source_article_identity",
+      "translation_article_identity",
+      "review_identity"
+    ],
+    "retry_resume": "completed deterministic run IDs and byte-identical artifacts are reused without duplicate queue state or additional Writer/Reviewer calls"
+  },
+  "focused_tests": {
+    "command": "uv run pytest tests/test_agy_gemini_coordinator.py tests/test_agy_multilingual_pipeline.py tests/test_agy_content_publisher.py -q",
+    "result": "414 passed, 1 warning in 40.59s",
+    "exit_code": 0,
+    "warning": "existing SyntaxWarning: invalid escape sequence '\\/'; non-blocking"
+  },
+  "diff_check": {
+    "command": "git diff --check",
+    "exit_code": 0
+  },
+  "external_actions": {
+    "publish": false,
+    "tag": false,
+    "push": false,
+    "deploy": false,
+    "production_activation": false
+  }
+}

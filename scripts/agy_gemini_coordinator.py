@@ -14,9 +14,11 @@ import re
 import secrets
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterator
+from urllib.parse import urlsplit
 
 from scripts import agy_content_publisher as publisher
 from scripts import agy_editorial_contracts as editorial_contracts
@@ -2080,14 +2082,12 @@ def execute_campaign_editorial_workset(
     }
 
 
-def replay_campaign_editorial_workset_through_publisher(
+def _preflight_campaign_editorial_handoffs(
     campaign_result: object,
-    queue_root: Path,
-    state_root: Path,
     *,
     rewrite_briefs: Mapping[str, dict[str, Any]],
-) -> dict[str, Any]:
-    """把已驗證 APF 結果重放至既有 Publisher collector，不發布。"""
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """完整驗證 APF 雙 lane handoff，不配置或寫入 runtime state。"""
     if not isinstance(campaign_result, dict) or not isinstance(campaign_result.get("runs"), list):
         raise ValueError("campaign editorial result is invalid")
     prepared: list[dict[str, Any]] = []
@@ -2168,6 +2168,21 @@ def replay_campaign_editorial_workset_through_publisher(
         by_lane[lane] = {"run_id": run_id, "article_id": article_id}
     if set(by_lane) != {"new", "rewrite"}:
         raise ValueError("campaign editorial result must contain new and rewrite")
+    return prepared, by_lane
+
+
+def replay_campaign_editorial_workset_through_publisher(
+    campaign_result: object,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    rewrite_briefs: Mapping[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """把已驗證 APF 結果重放至既有 Publisher collector，不發布。"""
+    prepared, by_lane = _preflight_campaign_editorial_handoffs(
+        campaign_result,
+        rewrite_briefs=rewrite_briefs,
+    )
     for item in prepared:
         handoff_dir = Path(str(item["run_dir"])) / "publisher-dry-run"
         handoff_dir.mkdir(parents=True, exist_ok=True)
@@ -2211,6 +2226,279 @@ def replay_campaign_editorial_workset_through_publisher(
         "published": 0,
         "new_run_id": by_lane["new"]["run_id"],
         "rewrite_run_id": by_lane["rewrite"]["run_id"],
+    }
+
+
+def _campaign_translation_source(item: Mapping[str, Any]) -> dict[str, Any]:
+    """把已驗證 Publisher handoff 正規化為 multilingual source contract。"""
+    article = item["candidate"]["articles"][0]
+    if item["lane"] == "new":
+        metadata = article
+    else:
+        metadata = item["brief"]["articles"][0]["immutable_fields"]
+    policy = article.get("publicationPolicy")
+    canonical = policy.get("canonical") if isinstance(policy, dict) else None
+    path = urlsplit(str(canonical or "")).path
+    source = {
+        "article_id": item["article_id"],
+        "canonical_path": path,
+        "title": metadata.get("title"),
+        "description": metadata.get("description"),
+        "answer": metadata.get("answer"),
+        "tags": metadata.get("tags"),
+        "faq": metadata.get("faq"),
+        "bodySections": article.get("bodySections"),
+    }
+    return multilingual._validate_source(source)
+
+
+def _campaign_translation_brief(
+    item: Mapping[str, Any],
+    source: dict[str, Any],
+    locale: str,
+) -> dict[str, Any]:
+    run_id = multilingual.translation_run_id(
+        str(item["run_id"]),
+        str(item["article_id"]),
+        locale,
+    )
+    brief = {
+        "schema_version": multilingual.SCHEMA_VERSION,
+        "run_id": run_id,
+        "mode": "translate_existing",
+        "articles": [
+            {
+                "translation_id": f"{item['article_id']}:{locale}",
+                "locale": locale,
+                "source_article_id": item["article_id"],
+                "source_path": source["canonical_path"],
+                "source_sha256": multilingual.source_sha256(source),
+                "source": source,
+            }
+        ],
+    }
+    multilingual.validate_translation_brief(brief)
+    return brief
+
+
+def _preflight_translation_registration(
+    queue_root: Path,
+    brief: dict[str, Any],
+) -> tuple[dict[str, Any] | None, Path]:
+    run_id = str(brief["run_id"])
+    run_dir = (queue_root / "translation-runs" / run_id).resolve()
+    state_path = _state_path(run_id, queue_root)
+    if state_path.exists() != run_dir.exists():
+        raise ValueError("translation registration is incomplete")
+    if not state_path.exists():
+        return None, run_dir
+    state = _read_editorial_artifact(state_path)
+    if (
+        state.get("run_id") != run_id
+        or state.get("run_dir") != str(run_dir)
+        or state.get("status") not in {"active", "complete"}
+    ):
+        raise ValueError("translation run identity collision")
+    existing_brief = _read_editorial_artifact(run_dir / "brief.json")
+    multilingual.validate_translation_brief(existing_brief)
+    if existing_brief != brief:
+        raise ValueError("registered translation run source, locale, or identity drift")
+    if state["status"] == "complete":
+        candidate = _read_editorial_artifact(run_dir / "candidate.json")
+        review = _read_editorial_artifact(run_dir / "review.json")
+        multilingual.validate_translation_candidate(brief, candidate)
+        pipeline.validate_review(review, candidate["articles"])
+        result = state.get("result")
+        if (
+            not isinstance(result, dict)
+            or result.get("candidate_sha256")
+            != editorial_contracts.artifact_sha256(candidate)
+            or result.get("review_sha256")
+            != editorial_contracts.artifact_sha256(review)
+        ):
+            raise ValueError("registered translation candidate or review SHA drift")
+    return state, run_dir
+
+
+def _validate_staged_translation(
+    brief: dict[str, Any],
+    candidate: dict[str, Any],
+    review: dict[str, Any],
+) -> tuple[str, str]:
+    multilingual.validate_translation_brief(brief)
+    multilingual.validate_translation_candidate(brief, candidate)
+    pipeline.validate_review(review, candidate["articles"])
+    if review.get("run_id") != brief["run_id"]:
+        raise ValueError("translation review identity drift")
+    if any(
+        item.get("verdict") != "APPROVE"
+        or item.get("hard_failure") is True
+        or item.get("findings")
+        for item in review["articles"]
+    ):
+        raise ValueError("translation reviewer reported blocking findings")
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+    if findings:
+        raise ValueError("translation deterministic validation failed")
+    return (
+        editorial_contracts.artifact_sha256(candidate),
+        editorial_contracts.artifact_sha256(review),
+    )
+
+
+@contextmanager
+def _campaign_translation_source_snapshot(
+    sources: Mapping[str, dict[str, Any]],
+) -> Iterator[None]:
+    """讓既有 Publisher collector 對 APF 尚未發布的 source snapshot 驗證。"""
+    original = multilingual.load_source_article
+
+    def load_snapshot(_repo_root: Path, article_id: str) -> dict[str, Any]:
+        source = sources.get(article_id)
+        if source is None:
+            raise ValueError("campaign translation source is not registered")
+        return source
+
+    multilingual.load_source_article = load_snapshot
+    try:
+        yield
+    finally:
+        multilingual.load_source_article = original
+
+
+def replay_campaign_editorial_workset_through_translation(
+    repo_root: Path,
+    campaign_result: object,
+    queue_root: Path,
+    state_root: Path,
+    client: pipeline.GeminiClient,
+    *,
+    rewrite_briefs: Mapping[str, dict[str, Any]],
+    locale: str = "ja",
+    max_repairs: int = 2,
+) -> dict[str, Any]:
+    """把 APF new／rewrite 原子送入單一 locale translation dry-run。"""
+    if locale not in multilingual.SUPPORTED_LOCALES:
+        raise ValueError("campaign translation locale is unsupported")
+    prepared, _by_lane = _preflight_campaign_editorial_handoffs(
+        campaign_result,
+        rewrite_briefs=rewrite_briefs,
+    )
+    sources = {
+        str(item["article_id"]): _campaign_translation_source(item)
+        for item in prepared
+    }
+    plans = []
+    for item in prepared:
+        source = sources[str(item["article_id"])]
+        brief = _campaign_translation_brief(item, source, locale)
+        state, run_dir = _preflight_translation_registration(queue_root, brief)
+        plans.append(
+            {
+                "item": item,
+                "brief": brief,
+                "state": state,
+                "run_dir": run_dir,
+                "lane": "i18n-new" if item["lane"] == "new" else "i18n-rewrite",
+            }
+        )
+    if {plan["lane"] for plan in plans} != {"i18n-new", "i18n-rewrite"}:
+        raise ValueError("campaign translation must contain new and rewrite lanes")
+
+    with tempfile.TemporaryDirectory(prefix="pantheon-apf-003-") as temporary:
+        staging_root = Path(temporary)
+        for plan in plans:
+            staged_dir = staging_root / str(plan["brief"]["run_id"])
+            if plan["state"] is None:
+                atomic_write_json(staged_dir / "brief.json", plan["brief"])
+            else:
+                shutil.copytree(plan["run_dir"], staged_dir)
+            if plan["state"] is not None and plan["state"]["status"] == "complete":
+                candidate = _read_editorial_artifact(staged_dir / "candidate.json")
+                review = _read_editorial_artifact(staged_dir / "review.json")
+            else:
+                candidate, review = multilingual.run_writer_reviewer(
+                    staged_dir,
+                    client,
+                    max_repairs=max_repairs,
+                )
+            candidate_sha, review_sha = _validate_staged_translation(
+                plan["brief"],
+                candidate,
+                review,
+            )
+            plan.update(
+                {
+                    "staged_dir": staged_dir,
+                    "candidate_sha256": candidate_sha,
+                    "review_sha256": review_sha,
+                }
+            )
+
+        source_loader = lambda _root, article_id: sources[article_id]
+        for plan in plans:
+            item = plan["item"]
+            records = multilingual.enqueue_article_translations(
+                repo_root,
+                queue_root,
+                source_run_id=str(item["run_id"]),
+                article_id=str(item["article_id"]),
+                locales=[locale],
+                source_loader=source_loader,
+            )
+            if [record["run_id"] for record in records] != [plan["brief"]["run_id"]]:
+                raise ValueError("translation enqueue identity drift")
+            if plan["state"] is not None and plan["state"]["status"] == "complete":
+                continue
+            shutil.copytree(plan["staged_dir"], plan["run_dir"], dirs_exist_ok=True)
+            state = _read_editorial_artifact(_state_path(plan["brief"]["run_id"], queue_root))
+            state.update(
+                {
+                    "status": "complete",
+                    "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "result": {
+                        "status": "complete",
+                        "run_id": plan["brief"]["run_id"],
+                        "candidate": str((plan["run_dir"] / "candidate.json").resolve()),
+                        "candidate_sha256": plan["candidate_sha256"],
+                        "review_sha256": plan["review_sha256"],
+                        "source_run_id": item["run_id"],
+                        "source_article_id": item["article_id"],
+                        "locale": locale,
+                        "lane": plan["lane"],
+                    },
+                }
+            )
+            atomic_write_json(_state_path(plan["brief"]["run_id"], queue_root), state)
+
+    run_ids = [str(plan["brief"]["run_id"]) for plan in plans]
+    with _campaign_translation_source_snapshot(sources):
+        ready = publisher.collect_ready_translation_runs(
+            repo_root,
+            queue_root,
+            state_root,
+            exact_run_ids=run_ids,
+        )
+    ready_by_id = {str(state["run_id"]): (brief, candidate, review) for state, brief, candidate, review in ready}
+    if set(ready_by_id) != set(run_ids):
+        raise ValueError("publisher rejected campaign translation handoff")
+    return {
+        "status": "dry-run",
+        "published": 0,
+        "locale": locale,
+        "translation_runs": [
+            {
+                "lane": plan["lane"],
+                "source_run_id": plan["item"]["run_id"],
+                "source_article_id": plan["item"]["article_id"],
+                "source_sha256": plan["brief"]["articles"][0]["source_sha256"],
+                "translation_run_id": plan["brief"]["run_id"],
+                "translation_article_id": plan["brief"]["articles"][0]["translation_id"],
+                "translation_sha256": plan["candidate_sha256"],
+                "review_sha256": plan["review_sha256"],
+            }
+            for plan in plans
+        ],
     }
 
 

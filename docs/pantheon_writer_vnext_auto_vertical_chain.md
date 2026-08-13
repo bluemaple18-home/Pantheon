@@ -1,4 +1,4 @@
-# Writer vNext APF-002 垂直鏈
+# Writer vNext APF-002／APF-003 垂直鏈
 
 `execute_campaign_editorial_work_item` 是 APF-001 campaign workset 到既有 Publisher 相容邊界的唯一新接點。它只接受 `matrix/new` 與 `legacy/rewrite` 的 zh-TW work item，並重新計算 `work_id`，因此來源 identity、campaign version、locale 與 lane 不可漂移。
 
@@ -14,3 +14,11 @@
 已存在的合格 artifact 會被重用，所以 resume 不會再次呼叫已完成 stage 的 factory、Writer 或 Reviewer。任何 artifact、run identity、article identity、candidate mode、SHA 或 review 發現漂移時，流程停止且不會產生相容結果。
 
 `replay_campaign_editorial_workset_through_publisher` 分成兩階段：先在記憶體完整核對 new／rewrite 的 campaign work ID、run ID、article identity、candidate SHA、review SHA 與 rewrite brief，全部通過才批次映射為既有 queue/run contract，再實際呼叫 `collect_ready_runs` 與 `collect_ready_rewrite_runs`。任何漂移都在 queue 或 handoff 目錄寫入前 fail closed。此 dry-run seam 不呼叫 Publisher mutation、publication transaction、tag、push、scheduler 或外部發文，兩個 collector 都接受才回傳 `published: 0`。
+
+## APF-003 單一 locale 翻譯鏈
+
+`replay_campaign_editorial_workset_through_translation` 接受 APF-002 的完整雙 lane 結果，固定只處理一個受支援 locale。它先重用相同 campaign handoff preflight，再把 new candidate 與 rewrite candidate（搭配 rewrite brief 的 immutable metadata）正規化為 multilingual source snapshot。translation run ID 沿用既有 `translation_run_id(source_run_id, article_id, locale)`，因此 retry／resume 可重算且不會建立重複 run；譯文 identity 固定為 `<source_article_id>:<locale>`，不會與原文 publication identity 混淆。
+
+兩個 lane 都在暫存目錄走完既有 `run_writer_reviewer`、`validate_translation_brief`、`validate_translation_candidate`、`pipeline.validate_review` 與 deterministic findings。只有 new／rewrite 全部通過，才呼叫既有 `enqueue_article_translations` 寫入 queue，保存 candidate／review SHA 並把 state 標成 complete。已完成且 SHA／identity 一致的 run 直接重用；source SHA、translation SHA、locale、article identity 或 review identity 任一漂移，都在 queue／handoff 新增寫入前 fail closed。
+
+最後以同一份未發布 campaign source snapshot 呼叫未修改的 `collect_ready_translation_runs`。collector 仍執行完整 source-current、multilingual validation、Reviewer 與 deterministic acceptance，但不需把 APF candidate 寫進 production registry。此入口只回傳 `status: dry-run` 與 `published: 0`，不呼叫 publish、ledger transaction、tag、commit、push、deploy 或 production activation。

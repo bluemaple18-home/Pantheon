@@ -109,7 +109,8 @@ def _publisher_rewrite_brief(candidate: dict[str, object]) -> dict[str, object]:
             "immutable_fields": {
                 "id": identity["id"], "product": identity["product"], "slug": identity["slug"],
                 "serial": identity["serial"], "title": identity["title"], "description": "舊文描述",
-                "answer": "舊文回答", "faq": [], "tags": [], "published": "2026-07-23",
+                "answer": "舊文回答", "faq": [{"question": "要直接下結論嗎？", "answer": "不要，先核對實際情況。"}],
+                "tags": ["占星", "自我理解"], "published": "2026-07-23",
                 "updated": "2026-07-23", "urlSlug": identity["slug"], "primaryKeyword": identity["primaryKeyword"],
             },
             "current_body": current_body,
@@ -257,6 +258,267 @@ def test_campaign_editorial_publisher_replay_preflights_every_lane_before_writin
         )
     assert not (tmp_path / "queue").exists()
     assert all(not (Path(run["run_dir"]) / "publisher-dry-run").exists() for run in result["runs"])
+
+
+def _campaign_translation_fixture(
+    tmp_path: Path,
+) -> tuple[dict[str, object], dict[str, dict[str, object]], list[dict[str, object]]]:
+    workset = {
+        "schema_version": 1,
+        "campaign_version": "apf-003-v1",
+        "lanes": ["new", "rewrite"],
+        "items": [
+            _campaign_item("matrix", "NEW-001", "apf-003-v1"),
+            _campaign_item("legacy", "LEGACY-001", "apf-003-v1"),
+        ],
+        "summary": {},
+    }
+    result = coordinator.execute_campaign_editorial_workset(
+        workset,
+        tmp_path / "campaign-runs",
+        brief_factory=lambda item: _article_brief_v2(
+            f"{item['lane']}-run-003",
+            str(item["article_id"]),
+        ),
+        writer=_valid_campaign_candidate,
+        reviewer=_clean_review,
+    )
+    rewrite = next(run for run in result["runs"] if run["lane"] == "rewrite")
+    rewrite_briefs = {
+        str(rewrite["run_id"]): _publisher_rewrite_brief(rewrite["candidate"])
+    }
+    prepared, _by_lane = coordinator._preflight_campaign_editorial_handoffs(
+        result,
+        rewrite_briefs=rewrite_briefs,
+    )
+    briefs = [
+        coordinator._campaign_translation_brief(
+            item,
+            coordinator._campaign_translation_source(item),
+            "ja",
+        )
+        for item in prepared
+    ]
+    return result, rewrite_briefs, briefs
+
+
+class _CampaignTranslationClient:
+    writer_model = "writer-test"
+    reviewer_model = "reviewer-test"
+
+    def __init__(self, briefs: list[dict[str, object]]) -> None:
+        self.briefs = briefs
+        self.index = 0
+        self.calls: list[str] = []
+        self.outline: list[str] = []
+
+    def generate_json(
+        self,
+        role: str,
+        _prompt: str,
+        schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.calls.append(role)
+        brief = self.briefs[self.index]
+        if "native_search_intent" in json.dumps(schema):
+            target = coordinator.multilingual._source_fact_package(brief)["articles"][0]
+            self.outline = [
+                "判断の前に確認する情報",
+                "事実と推測を分ける方法",
+                "選択肢を比べる手順",
+                "結論を急がないための限界",
+            ]
+            return {
+                "articles": [{
+                    "slot": "article-01",
+                    "locale": "ja",
+                    "source_sha256": brief["articles"][0]["source_sha256"],
+                    "native_search_intent": "状況を整理して判断する方法と限界を知りたい",
+                    "native_query_phrasings": ["状況を整理する方法", "判断するときの注意点"],
+                    "article_angle": "事実を確認しながら選択肢を比較する順序と限界を説明する",
+                    "ordered_h2_outline": self.outline,
+                    "coverage_mapping": [
+                        {
+                            "source_fact_id": fact["fact_id"],
+                            "planned_h2_slot": f"h2-{index % 4 + 1}",
+                            "coverage_note": "この事実と制限を該当する節で説明する",
+                            "safety_boundary": fact["safety_boundary"],
+                        }
+                        for index, fact in enumerate(target["facts"])
+                    ],
+                    "source_structure_not_copied": [
+                        section["heading"]
+                        for section in brief["articles"][0]["source"]["bodySections"]
+                    ],
+                    "rebuild_outline": False,
+                }]
+            }
+        if role == "writer":
+            return {
+                "articles": [{
+                    "slot": "article-01",
+                    "title": "状況を整理して選択肢を比べるには？",
+                    "description": "確認できる事実と推測を分け、複数の選択肢を比較する手順を説明します。結果を保証したり、本人に代わって判断したりするものではありません。",
+                    "answer": "まず事実と制限を確認し、その後で実行できる選択肢を比べます。",
+                    "tags": ["状況整理", "選択肢", "自己理解"],
+                    "faq": [{
+                        "question": "すぐに一つの結論を選ぶべきですか？",
+                        "answer": "いいえ。確認できる情報と制限を整理してから比較します。",
+                    }],
+                    "bodySections": [
+                        {
+                            "heading": heading,
+                            "paragraphs": [
+                                paragraph,
+                                "この手順だけで結果を保証することはできず、実際の状況を確認する必要があります。",
+                            ] if index == 0 else [paragraph],
+                        }
+                        for index, (heading, paragraph) in enumerate(zip(
+                            self.outline,
+                            [
+                                "最初に確認できる情報、現在の制限、まだ不明な点を分けて書き出します。",
+                                "見聞きした事実と自分の推測を別々に記録し、混同しないようにします。",
+                                "実行できる選択肢を二つ以上並べ、それぞれの違いと次の一歩を確認します。",
+                                "一般的な整理方法は個別の判断を代行しないため、必要なら関係者や専門家に確認します。",
+                            ],
+                        ))
+                    ],
+                }]
+            }
+        self.index += 1
+        return {
+            "articles": [{
+                "slot": "article-01",
+                "verdict": "APPROVE",
+                "findings": [],
+            }]
+        }
+
+
+def _tree_bytes(root: Path) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain(
+    tmp_path: Path,
+) -> None:
+    result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+    client = _CampaignTranslationClient(briefs)
+    queue_root = tmp_path / "translation-queue"
+    state_root = tmp_path / "publisher-state"
+    original_loader = coordinator.multilingual.load_source_article
+
+    first = coordinator.replay_campaign_editorial_workset_through_translation(
+        Path(__file__).resolve().parents[1],
+        result,
+        queue_root,
+        state_root,
+        client,
+        rewrite_briefs=rewrite_briefs,
+        locale="ja",
+        max_repairs=0,
+    )
+    after_first = _tree_bytes(queue_root)
+    second = coordinator.replay_campaign_editorial_workset_through_translation(
+        Path(__file__).resolve().parents[1],
+        result,
+        queue_root,
+        state_root,
+        client,
+        rewrite_briefs=rewrite_briefs,
+        locale="ja",
+        max_repairs=0,
+    )
+
+    assert first == second
+    assert first["status"] == "dry-run"
+    assert first["published"] == 0
+    assert first["locale"] == "ja"
+    assert {item["lane"] for item in first["translation_runs"]} == {
+        "i18n-new",
+        "i18n-rewrite",
+    }
+    assert len({item["translation_run_id"] for item in first["translation_runs"]}) == 2
+    assert all(
+        item["translation_article_id"]
+        == f"{item['source_article_id']}:ja"
+        for item in first["translation_runs"]
+    )
+    assert len(client.calls) == 6
+    assert _tree_bytes(queue_root) == after_first
+    assert len(list((queue_root / "runs").glob("*.json"))) == 2
+    assert not (state_root / "ledger.json").exists()
+    assert coordinator.multilingual.load_source_article is original_loader
+
+
+@pytest.mark.parametrize(
+    "drift",
+    ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+)
+def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+    client = _CampaignTranslationClient(briefs)
+    queue_root = tmp_path / "translation-queue"
+    state_root = tmp_path / "publisher-state"
+    coordinator.replay_campaign_editorial_workset_through_translation(
+        Path(__file__).resolve().parents[1],
+        result,
+        queue_root,
+        state_root,
+        client,
+        rewrite_briefs=rewrite_briefs,
+        locale="ja",
+        max_repairs=0,
+    )
+    first_run = next(iter(sorted((queue_root / "translation-runs").iterdir())))
+    first_state = next(
+        path
+        for path in sorted((queue_root / "runs").glob("*.json"))
+        if json.loads(path.read_text())["run_id"] == first_run.name
+    )
+    if drift == "source_sha":
+        brief = json.loads((first_run / "brief.json").read_text())
+        brief["articles"][0]["source_sha256"] = "0" * 64
+        (first_run / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
+    elif drift == "translation_sha":
+        state = json.loads(first_state.read_text())
+        state["result"]["candidate_sha256"] = "0" * 64
+        first_state.write_text(json.dumps(state), encoding="utf-8")
+    elif drift == "locale":
+        brief = json.loads((first_run / "brief.json").read_text())
+        brief["articles"][0]["locale"] = "en"
+        (first_run / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
+    elif drift == "article_identity":
+        result["runs"][0]["article_identity"] = {"id": "IDENTITY-DRIFT"}
+    else:
+        review = json.loads((first_run / "review.json").read_text())
+        review["run_id"] = "review-identity-drift"
+        (first_run / "review.json").write_text(json.dumps(review), encoding="utf-8")
+    before = _tree_bytes(queue_root)
+
+    with pytest.raises(ValueError):
+        coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+    assert _tree_bytes(queue_root) == before
+    assert not (state_root / "ledger.json").exists()
 
 
 def test_campaign_editorial_work_item_validates_before_persisting_and_retries(tmp_path: Path) -> None:
