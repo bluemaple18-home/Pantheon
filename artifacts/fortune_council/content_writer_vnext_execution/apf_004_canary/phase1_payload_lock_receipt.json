@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "dispatch_key": "v1:e36d2c4bfb8b950a0531a30d41ed94644f2357f16416c25e2a84616c13f824f4",
+  "activation_token_seen": true,
+  "phase": "phase_1_exact_payload_lock",
+  "status": "BLOCKED",
+  "blocked_reason": "four_lane_exact_payload_not_unique",
+  "created_at": "2026-08-13T19:29:14+08:00",
+  "source_sha": "6cf5a79abbe105f09d544e377ce1d99d2c9d8754",
+  "formal_thread_id": "019ffad9-c48e-70e3-9497-8c055f23bffe",
+  "canonical_project_id": "local-0020d4379451d545eb08362962f1def0",
+  "readiness": {
+    "official_gate_command": "<repo-root>/.venv/bin/python <ai-core-root>/scripts/production_canary_readiness_gate.py --receipt artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/package/production-canary-capability-receipt.json",
+    "official_gate_status": "READY",
+    "official_gate_failures": [],
+    "committed_summary_status": "READY",
+    "canary_created": false,
+    "production_mutation": false
+  },
+  "capacity": {
+    "committed_capacity_status": "PASS",
+    "resource_gate_from_activation": "PASS / RUNTIME_WITHIN_BUDGET",
+    "host_available_bytes_from_activation": 35939315712,
+    "host_reserve_bytes_from_activation": 24510719591,
+    "current_df_available_bytes": 34538172416,
+    "runtime_root_bytes": 107118592,
+    "runtime_root_file_count": 4634,
+    "runtime_processes": "none matched active canary runtime process",
+    "swap_used": "20741.81M",
+    "swap_free": "762.19M"
+  },
+  "runtime": {
+    "actor_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "runtime_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "actor_head": "038cb1fd1cc29ffe234ac213222938b699ab4082",
+    "actor_clean": true,
+    "origin_main_sha": "038cb1fd1cc29ffe234ac213222938b699ab4082",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "manifest_digest": "2b367cb6e434e02e4c8f74c9c2b29ee9ac25064706d871bcf13f497ace36af70",
+    "runtime_identity_digest": "404973c1cc493ba96a90c38515f2b806f828015101c2d022548cb886fc0805c2",
+    "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+    "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+    "queue_file_count": 0,
+    "state_file_count": 0,
+    "push_mode": "push",
+    "deployment_preflight_status": "ready"
+  },
+  "credential_authority": {
+    "secrets_printed": false,
+    "credential_pool_file_sha256": "38bab3ebd0b4e19a47cbddb349b44d8c4e9cb9465a749a6304c57f343544b66a",
+    "credential_pool_state_file_sha256": "a0292aa3cd22f657b37fe419084d40f63c5806ae9df7c40553e2af63d78a8b4a",
+    "before_staged_after_rollback_hashes_match": true
+  },
+  "known_runtime_payload": {
+    "lane": "new",
+    "exact_run_id": "auto-new-v1-20260813-001-03",
+    "article_id": "V2-MBTI-PAIR-ESTP-ESTP-LONG-TERM",
+    "locale": "zh-TW",
+    "target": "create publication via scripts.agy_content_publisher",
+    "authority": "Pantheon-canary-runtime-v8/evidence/authority-lock.json and deployment-preflight.json"
+  },
+  "apf001_deterministic_frontier": {
+    "campaign_version": "apf-001-v1",
+    "workset_counts": {
+      "new": 1464,
+      "rewrite": 353,
+      "i18n-new": 4392,
+      "i18n-rewrite": 1059
+    },
+    "selected_work_items_if_checkpoint_a_selector_is_used": [
+      {
+        "lane": "new",
+        "article_id": "ASTRO-SCENARIO-BIG-THREE",
+        "locale": "zh-TW",
+        "work_id": "apf-work-b1666341df10a14c1a586141"
+      },
+      {
+        "lane": "i18n-new",
+        "article_id": "ASTRO-SCENARIO-BIG-THREE",
+        "locale": "ja",
+        "work_id": "apf-work-44bd155e28231d25d65f3394"
+      },
+      {
+        "lane": "rewrite",
+        "article_id": "ASC-AQUARIUS",
+        "locale": "zh-TW",
+        "work_id": "apf-work-0146edbbed78ec5debf138d4"
+      },
+      {
+        "lane": "i18n-rewrite",
+        "article_id": "ASC-AQUARIUS",
+        "locale": "ja",
+        "work_id": "apf-work-1eeac7f0a8fff378eb65c190"
+      }
+    ],
+    "why_not_locked": "These are work/article identities only. No production queue state, Writer/Reviewer candidate, publisher handoff, or exact publishable run IDs exist for all four lanes in the inspected runtime."
+  },
+  "final_payload_summary": {
+    "official_entrypoint": "python -m scripts.agy_content_publisher",
+    "publisher_command_status": "not_confirmable_for_four_lanes",
+    "repo_remote": "git@github.com:bluemaple18-home/Pantheon.git",
+    "current_version": "0.3.364",
+    "latest_existing_tag": "v0.3.364",
+    "expected_next_tag_if_mutation_were_confirmed": "v0.3.365 for the first release transaction, then subsequent patch bumps per transaction",
+    "external_model_boundary": "No external model call in Phase 1. Phase 2 would use configured Gemini writer/reviewer through existing runtime only after FINAL_PAYLOAD_CONFIRMED.",
+    "mutations_that_remain_forbidden": [
+      "create run",
+      "external model call",
+      "publish",
+      "transaction",
+      "tag",
+      "push",
+      "deploy",
+      "schedule",
+      "launchctl mutation",
+      "production activation"
+    ],
+    "stop_or_rollback_boundary": "Use existing runtime stop/rollback boundary only after mainline confirmation; do not delete queue, state, or evidence."
+  },
+  "unique_frontier": "Provide or generate, under explicit authorization, exact production queue/handoff identities for rewrite, i18n-new, and i18n-rewrite matching the same canary campaign. Current runtime authority only proves one exact new run."
+}
