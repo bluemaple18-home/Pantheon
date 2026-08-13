@@ -29,6 +29,14 @@
 
 入口在可丟棄的 staging 目錄依序執行 editorial、既有 Publisher dry-run collector 與既有 translation collector。只有四 lane 都成功才將私有 receipt 複製至呼叫端 root；翻譯失敗不會留下可被 Publisher 收集的半套結果。既有 receipt 會在 staging 與私有 root 間重綁路徑，因此 retry／resume 不重跑已完成 Writer／Reviewer／translation 工作，並回傳 contract-stable 的四 lane receipt。
 
+## APF-004 四 lane exact create-run adapter
+
+`create_campaign_run_adapter` 是 APF-004 的 bounded production create-run 入口。呼叫端必須提供已驗證 workset、exact 四 tuple、campaign version、workset SHA、confirmed payload digest、activation authorization digest、runtime identity digest、actor identity、correlation ID、run/queue/state roots 與 `max_runs=1`；caller 自填 `run_id`、`status`、`verdict` 或 `ready` 都會在任何寫入前拒絕。
+
+入口先在記憶體完整 preflight：剛好四 lane、lane 不重複、`work_id/article_id/locale/campaign_version` 可由既有 `_campaign_work_id` 重算、new↔i18n-new 與 rewrite↔i18n-rewrite source pairing 相符、roots 互不重疊、runtime/actor/correlation identity 不漂移、queue 既有 identity 無衝突。`plan_only=true` 全程零寫入，只回傳 deterministic exact IDs、dependency graph 與預期 write set。
+
+apply 階段分兩段：`new` 與 `rewrite` 只寫既有 Writer/Reviewer 可消化的 `brief.json`，再呼叫既有 `register_run`；`i18n-new` 與 `i18n-rewrite` 的 run ID 沿用既有 `translation_run_id(source_run_id, article_id, locale)`。source 尚未完成時，adapter 只保存自身擁有且可驗證的 pending dependency receipt，不建立 translation candidate、不呼叫 `enqueue_article_translations`、不偽造 Publisher ready state。重跑相同 payload 只重用既有 source run 與 pending receipt；缺段可 resume 補齊，不會產生第五個 run。
+
 ## APF-004 Existing Publisher Canary Readiness
 
 `build_apf_004_readiness_candidate` 只建立 synthetic readiness package，不建立 production canary。它重用既有 `coordinator_create_run_receipt_preflight` 產生 `create → run` receipt，再重用 `formal_capability_preflight` 覆蓋 `select → publish → transaction → tag → push`，全鏈固定 `exec-apf-004-readiness` 與 `corr-apf-004-readiness`。

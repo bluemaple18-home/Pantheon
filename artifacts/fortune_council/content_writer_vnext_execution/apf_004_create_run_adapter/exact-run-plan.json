@@ -1,0 +1,68 @@
+{
+  "campaign_version": "apf-001-v1",
+  "dependency_graph": {
+    "apf-create-run-new-7d0e46d9ec617526f77f8213": [],
+    "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8": [],
+    "auto-i18n-ja-8b6ea232885ab55ab92f": [
+      "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8"
+    ],
+    "auto-i18n-ja-fcbf5d1af50382a4d586": [
+      "apf-create-run-new-7d0e46d9ec617526f77f8213"
+    ]
+  },
+  "exact_run_ids": [
+    "apf-create-run-new-7d0e46d9ec617526f77f8213",
+    "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+    "auto-i18n-ja-fcbf5d1af50382a4d586",
+    "auto-i18n-ja-8b6ea232885ab55ab92f"
+  ],
+  "plan_digest": "8a49ea4b63e844e5ece40b328366aedfd829cb66ab7d6983f086f0d4278dc1ca",
+  "production_mutation": false,
+  "runs": [
+    {
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "depends_on": [],
+      "lane": "new",
+      "locale": "zh-TW",
+      "mode": "create",
+      "run_id": "apf-create-run-new-7d0e46d9ec617526f77f8213",
+      "stage": "source",
+      "work_id": "apf-work-b1666341df10a14c1a586141"
+    },
+    {
+      "article_id": "ASC-AQUARIUS",
+      "depends_on": [],
+      "lane": "rewrite",
+      "locale": "zh-TW",
+      "mode": "rewrite_existing_body",
+      "run_id": "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+      "stage": "source",
+      "work_id": "apf-work-0146edbbed78ec5debf138d4"
+    },
+    {
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "depends_on": [
+        "apf-create-run-new-7d0e46d9ec617526f77f8213"
+      ],
+      "lane": "i18n-new",
+      "locale": "ja",
+      "mode": "translate_existing",
+      "run_id": "auto-i18n-ja-fcbf5d1af50382a4d586",
+      "stage": "pending_dependency",
+      "work_id": "apf-work-44bd155e28231d25d65f3394"
+    },
+    {
+      "article_id": "ASC-AQUARIUS",
+      "depends_on": [
+        "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8"
+      ],
+      "lane": "i18n-rewrite",
+      "locale": "ja",
+      "mode": "translate_existing",
+      "run_id": "auto-i18n-ja-8b6ea232885ab55ab92f",
+      "stage": "pending_dependency",
+      "work_id": "apf-work-1eeac7f0a8fff378eb65c190"
+    }
+  ],
+  "workset_sha256": "63e09bc4910b8b630d55b077adc46a8fde8bc3a207b6cbde7e018f869daf9f1c"
+}

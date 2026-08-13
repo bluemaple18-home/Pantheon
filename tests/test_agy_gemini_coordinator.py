@@ -682,6 +682,237 @@ def test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_com
     assert len(run_ids) == len(set(run_ids)) == 4
 
 
+def _apf_004_item(
+    source_kind: str,
+    article_id: str,
+    locale: str,
+    lane: str,
+) -> dict[str, str]:
+    campaign_version = "apf-001-v1"
+    return {
+        "source_kind": source_kind,
+        "article_id": article_id,
+        "locale": locale,
+        "campaign_version": campaign_version,
+        "work_id": coordinator._campaign_work_id(
+            source_kind,
+            article_id,
+            locale,
+            campaign_version,
+        ),
+        "lane": lane,
+        "reason": "apf-004-confirmed-payload",
+    }
+
+
+def _apf_004_workset() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "campaign_version": "apf-001-v1",
+        "lanes": ["new", "rewrite", "i18n-new", "i18n-rewrite"],
+        "items": [
+            _apf_004_item("matrix", "ASTRO-SCENARIO-BIG-THREE", "zh-TW", "new"),
+            _apf_004_item("matrix", "ASTRO-SCENARIO-BIG-THREE", "ja", "i18n-new"),
+            _apf_004_item("legacy", "ASC-AQUARIUS", "zh-TW", "rewrite"),
+            _apf_004_item("legacy", "ASC-AQUARIUS", "ja", "i18n-rewrite"),
+        ],
+        "summary": {"fixture": "apf-004"},
+    }
+
+
+def _apf_004_exact_tuples(workset: dict[str, object] | None = None) -> list[dict[str, str]]:
+    source = workset or _apf_004_workset()
+    return [
+        {
+            "lane": str(item["lane"]),
+            "work_id": str(item["work_id"]),
+            "article_id": str(item["article_id"]),
+            "locale": str(item["locale"]),
+        }
+        for item in source["items"]
+    ]
+
+
+def _apf_004_digest(payload: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _apf_004_kwargs(tmp_path: Path, workset: dict[str, object] | None = None) -> dict[str, object]:
+    selected = workset or _apf_004_workset()
+    return {
+        "repo_root": Path(__file__).resolve().parents[1],
+        "workset": selected,
+        "exact_tuples": _apf_004_exact_tuples(selected),
+        "run_root": tmp_path / "runs",
+        "queue_root": tmp_path / "queue",
+        "state_root": tmp_path / "publisher-state",
+        "campaign_version": "apf-001-v1",
+        "workset_sha256": _apf_004_digest(selected),
+        "confirmed_payload_digest": "a" * 64,
+        "activation_authorization_digest": "b" * 64,
+        "runtime_identity_digest": "c" * 64,
+        "actor_identity": "apf-004-synthetic-actor",
+        "correlation_id": "apf-004-correlation-001",
+        "max_runs": 1,
+    }
+
+
+def test_apf_004_create_run_adapter_plan_only_is_deterministic_and_zero_write(
+    tmp_path: Path,
+) -> None:
+    kwargs = _apf_004_kwargs(tmp_path)
+    before = _tree_bytes(tmp_path)
+
+    first = coordinator.create_campaign_run_adapter(
+        **kwargs,
+        plan_only=True,
+    )
+    second = coordinator.create_campaign_run_adapter(
+        **kwargs,
+        plan_only=True,
+    )
+
+    assert first == second
+    assert first["status"] == "planned"
+    assert first["campaign_version"] == "apf-001-v1"
+    assert [item["lane"] for item in first["runs"]] == [
+        "new",
+        "rewrite",
+        "i18n-new",
+        "i18n-rewrite",
+    ]
+    assert len({item["run_id"] for item in first["runs"]}) == 4
+    assert first["runs"][2]["run_id"] == coordinator.multilingual.translation_run_id(
+        first["runs"][0]["run_id"],
+        "ASTRO-SCENARIO-BIG-THREE",
+        "ja",
+    )
+    assert first["runs"][3]["run_id"] == coordinator.multilingual.translation_run_id(
+        first["runs"][1]["run_id"],
+        "ASC-AQUARIUS",
+        "ja",
+    )
+    assert _tree_bytes(tmp_path) == before
+
+
+def test_apf_004_create_run_adapter_apply_is_idempotent_and_resume_safe(
+    tmp_path: Path,
+) -> None:
+    kwargs = _apf_004_kwargs(tmp_path)
+    first = coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+    pending_root = tmp_path / "queue" / "translation-pending-dependencies"
+    first_pending = sorted(pending_root.glob("*.json"))
+    first_states = sorted((tmp_path / "queue" / "runs").glob("*.json"))
+
+    second = coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+    first_pending[0].unlink()
+    resumed = coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+
+    assert first["exact_run_ids"] == second["exact_run_ids"] == resumed["exact_run_ids"]
+    assert first["created"] == {"registered": 2, "pending_dependencies": 2}
+    assert second["created"] == {"registered": 0, "pending_dependencies": 0}
+    assert resumed["created"] == {"registered": 0, "pending_dependencies": 1}
+    assert len(sorted((tmp_path / "queue" / "runs").glob("*.json"))) == 2
+    assert len(sorted(pending_root.glob("*.json"))) == 2
+    assert {json.loads(path.read_text())["run_id"] for path in first_states} == {
+        first["runs"][0]["run_id"],
+        first["runs"][1]["run_id"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("missing_lane", "exactly four lanes"),
+        ("duplicate_lane", "lane is duplicated"),
+        ("fifth_lane", "exactly four lanes"),
+        ("work_id", "work identity differs"),
+        ("campaign_version", "campaign version drift"),
+        ("source_pairing", "translation source pairing"),
+        ("caller_run_id", "caller-supplied run identity"),
+        ("runtime_digest", "runtime identity digest"),
+        ("max_runs", "max_runs=1"),
+    ],
+)
+def test_apf_004_create_run_adapter_negative_matrix_fails_before_write(
+    tmp_path: Path,
+    mutation: str,
+    expected: str,
+) -> None:
+    workset = _apf_004_workset()
+    exact_tuples = _apf_004_exact_tuples(workset)
+    kwargs = _apf_004_kwargs(tmp_path, workset)
+    if mutation == "missing_lane":
+        exact_tuples = exact_tuples[:3]
+    elif mutation == "duplicate_lane":
+        exact_tuples[1] = {**exact_tuples[1], "lane": "new"}
+    elif mutation == "fifth_lane":
+        exact_tuples.append(
+            {"lane": "extra", "work_id": "apf-work-extra", "article_id": "EXTRA", "locale": "ja"}
+        )
+    elif mutation == "work_id":
+        exact_tuples[0] = {**exact_tuples[0], "work_id": "apf-work-drift"}
+    elif mutation == "campaign_version":
+        kwargs["campaign_version"] = "apf-001-drift"
+    elif mutation == "source_pairing":
+        items = list(workset["items"])
+        drifted = dict(items[2])
+        drifted["article_id"] = "ASTRO-SCENARIO-BIG-THREE"
+        drifted["work_id"] = coordinator._campaign_work_id(
+            "legacy",
+            "ASTRO-SCENARIO-BIG-THREE",
+            "zh-TW",
+            "apf-001-v1",
+        )
+        items[2] = drifted
+        workset = {**workset, "items": items}
+        exact_tuples = _apf_004_exact_tuples(workset)
+        kwargs["workset"] = workset
+        kwargs["workset_sha256"] = _apf_004_digest(workset)
+    elif mutation == "caller_run_id":
+        exact_tuples[0] = {**exact_tuples[0], "run_id": "caller-run-id"}
+    elif mutation == "runtime_digest":
+        kwargs["runtime_identity_digest"] = "not-a-sha"
+    else:
+        kwargs["max_runs"] = 2
+    kwargs["exact_tuples"] = exact_tuples
+
+    with pytest.raises(ValueError, match=expected):
+        coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+
+    assert _tree_bytes(tmp_path) == {}
+
+
+def test_apf_004_create_run_adapter_rejects_root_overlap_and_state_collision(
+    tmp_path: Path,
+) -> None:
+    overlap = _apf_004_kwargs(tmp_path / "overlap")
+    overlap["state_root"] = overlap["queue_root"]
+    with pytest.raises(ValueError, match="roots must not overlap"):
+        coordinator.create_campaign_run_adapter(**overlap, plan_only=False)
+    assert _tree_bytes(tmp_path / "overlap") == {}
+
+    kwargs = _apf_004_kwargs(tmp_path / "collision")
+    plan = coordinator.create_campaign_run_adapter(**kwargs, plan_only=True)
+    first_run_id = plan["runs"][0]["run_id"]
+    run_dir = kwargs["run_root"] / first_run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps({"schema_version": 1, "run_id": first_run_id, "mode": "create", "articles": [{"article_id": "DRIFT"}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="run identity collision"):
+        coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+
+
 @pytest.mark.parametrize(
     "drift",
     ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],

@@ -1,0 +1,20 @@
+{
+  "blocked_before_write": [
+    "missing_lane",
+    "duplicate_lane",
+    "fifth_lane",
+    "work_id_drift",
+    "campaign_version_drift",
+    "translation_source_pairing_drift",
+    "caller_supplied_run_id_status_verdict_ready",
+    "queue_state_run_root_overlap",
+    "runtime_identity_digest_drift",
+    "max_runs_not_one",
+    "existing_source_run_identity_collision",
+    "pending_dependency_collision",
+    "damaged_transaction_receipt"
+  ],
+  "plan_only_zero_write": true,
+  "production_mutation": false,
+  "schema_version": 1
+}
