@@ -1,0 +1,17 @@
+{
+  "files": {
+    "capacity-exercise-output.json": "b5974f55bf92641f02cd64e4f0d0928d8d2daf5f4309fd3937f2d603954cfd9e",
+    "capacity-receipt-canonical.json": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "capacity-receipt-provenance.json": "d5df632f68d24674da46d2e550e12bddd1a5e3af2f265010430c78bfff327fae",
+    "exercise-post-snapshot.json": "3fe19d07be4430f8c76d99b3fa63f7fa43e5d9bb8bfce62f0b5c6042dd856d9e",
+    "exercise-pre-snapshot.json": "b81e2f67810aadb4fd36edf204b31310bbdc1ec04912b698a8a9778f8ec06176",
+    "plan-attempt-1.json": "41abb6a8b44654ff27cb43190296c8d143d8877b1116c444eaf311bb6c19cbe7",
+    "plan-attempt-2.json": "1de96a1357fe0e147611a9f34856a56587f08d3732cab031a472be8b9161ed11",
+    "post-snapshot.json": "53d46314b531b00aa792c67560a6f2689bf1bc815709d2e65ffa92a22ba1cfda",
+    "pre-snapshot.json": "6cbe68f126f812fce04e84e1815ca27bf4075cb7e4d6e17e8d9e0eee508ce567",
+    "receipt.json": "37ab90817ab99866d1d0db403f6d32af19465112ada3692f0e65684e819b93d6",
+    "verification.json": "9447c09c4118957aedd97d6f0b8b7a5a9f045ef0e0a2851aebb74acf24acf91d"
+  },
+  "sampled_at": "2026-08-14T18:31:10Z",
+  "schema_version": 1
+}

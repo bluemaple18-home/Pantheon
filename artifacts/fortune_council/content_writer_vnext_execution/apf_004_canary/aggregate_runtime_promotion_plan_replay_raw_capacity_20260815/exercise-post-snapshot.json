@@ -1,0 +1,24 @@
+{
+  "exercise_root": {
+    "bytes": 4096,
+    "exists": true,
+    "file_count": 1,
+    "path": "<exercise-root>",
+    "tree_digest": "2f70fc6e3134a74f31e6e96451414c32143648ef0354e3a3c7bca39770e8d747"
+  },
+  "host": {
+    "disk_free_bytes": 63922143232,
+    "disk_total_bytes": 245107195904,
+    "self_maxrss": 24281088,
+    "swapusage": "total = 17408.00M  used = 16430.62M  free = 977.38M  (encrypted)"
+  },
+  "raw_receipt": {
+    "bytes": 2105,
+    "exists": true,
+    "file_count": 1,
+    "path": "<raw-capacity-receipt>",
+    "sha256": "133ea3868aeb1f4efd45a553872c4bef0c6c3a1a97f7d48b2829aa2ccd99ba47"
+  },
+  "sampled_at": "2026-08-14T18:31:09Z",
+  "schema_version": 1
+}

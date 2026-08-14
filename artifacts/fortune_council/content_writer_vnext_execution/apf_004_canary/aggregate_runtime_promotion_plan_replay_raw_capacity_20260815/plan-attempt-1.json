@@ -1,0 +1,145 @@
+{
+  "argv": [
+    "<isolated-venv>/bin/python",
+    "-m",
+    "scripts.pantheon_content_runtime_promotion",
+    "plan",
+    "--source-repo",
+    "<source-worktree>",
+    "--source-sha",
+    "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+    "--expected-origin",
+    "git@github.com:bluemaple18-home/Pantheon.git",
+    "--actor-root",
+    "<runtime-root>/actor",
+    "--expected-current-actor-sha",
+    "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "--manifest-path",
+    "<runtime-root>/runtime-manifest.json",
+    "--expected-current-manifest-digest",
+    "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "--private-stage-root",
+    "<private-stage-root>",
+    "--expected-current-stage-digest",
+    "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78",
+    "--transaction-root",
+    "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity",
+    "--queue-root",
+    "<runtime-root>/queue",
+    "--publisher-state-root",
+    "<runtime-root>/state",
+    "--log-root",
+    "<runtime-root>/logs",
+    "--target-identity",
+    "gate2-actor:0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35:activation-only",
+    "--target-runtime-digest",
+    "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "--target-config-version",
+    "formal-runtime-v2-gate2",
+    "--target-generation",
+    "g2-0bf78f0b0c-20260814T183109Z",
+    "--target-python-executable",
+    "<runtime-python-executable>",
+    "--authorization-digest",
+    "cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb",
+    "--capacity-receipt",
+    "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+    "--capacity-receipt-digest",
+    "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "--correlation-id",
+    "apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z"
+  ],
+  "attempt": 1,
+  "parsed_stdout": {
+    "actor_root": "<runtime-root>/actor",
+    "authorization_digest": "cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb",
+    "backup_set": [
+      {
+        "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/actor.previous",
+        "source": "<runtime-root>/actor"
+      },
+      {
+        "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/runtime-manifest.previous.json",
+        "source": "<runtime-root>/runtime-manifest.json"
+      },
+      {
+        "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/private-stage.previous",
+        "source": "<private-stage-root>"
+      },
+      {
+        "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/activation-barrier.previous",
+        "source": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier"
+      }
+    ],
+    "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "capacity_receipt_path": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+    "correlation_id": "apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z",
+    "expected_current_actor_sha": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "expected_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "manifest_path": "<runtime-root>/runtime-manifest.json",
+    "ordered_states": [
+      "PREPARED",
+      "ACTOR_PROMOTED",
+      "MANIFEST_WRITTEN",
+      "STAGE_INSTALLED",
+      "POSTCHECK_PASSED",
+      "COMMITTED"
+    ],
+    "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+    "postchecks": [
+      "actor_clean_head_origin",
+      "manifest_digest_actor_head_generation",
+      "private_stage_readiness_and_barrier",
+      "queue_empty",
+      "capacity_receipt_payload_stop_loss_pass"
+    ],
+    "private_stage_root": "<private-stage-root>",
+    "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+    "rollback_order": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "schema_version": 1,
+    "source_repo": "<source-worktree>",
+    "status": "READY_TO_APPLY",
+    "target_actor_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+    "target_manifest_digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+    "write_set": [
+      {
+        "path": "<runtime-root>/actor",
+        "stage": "ACTOR_PROMOTED",
+        "type": "actor"
+      },
+      {
+        "digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+        "path": "<runtime-root>/runtime-manifest.json",
+        "stage": "MANIFEST_WRITTEN",
+        "type": "manifest"
+      },
+      {
+        "path": "<private-stage-root>/readiness/g2-0bf78f0b0c-20260814T183109Z",
+        "stage": "STAGE_INSTALLED",
+        "type": "readiness_acknowledgements"
+      },
+      {
+        "path": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier",
+        "stage": "STAGE_INSTALLED",
+        "type": "activation_barrier"
+      }
+    ]
+  },
+  "public_cli": "<isolated-venv>/bin/python -m scripts.pantheon_content_runtime_promotion plan",
+  "returncode": 0,
+  "runtime_python_executable_identity": {
+    "digest_input": "original absolute executable path string from production manifest at sampling time",
+    "original_value_sha256": "9e9c9b481ff1d803c9f37f0c7d9a00a1714b4b4d4468fcc90c1d77d245c45583",
+    "placeholder": "<runtime-python-executable>"
+  },
+  "sampled_at": "2026-08-14T18:31:09Z",
+  "schema_version": 1,
+  "stderr_sanitized": "",
+  "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sanitized": "{\"actor_root\": \"<runtime-root>/actor\", \"authorization_digest\": \"cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb\", \"backup_set\": [{\"path\": \"<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/actor.previous\", \"source\": \"<runtime-root>/actor\"}, {\"path\": \"<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/runtime-manifest.previous.json\", \"source\": \"<runtime-root>/runtime-manifest.json\"}, {\"path\": \"<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/private-stage.previous\", \"source\": \"<private-stage-root>\"}, {\"path\": \"<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/activation-barrier.previous\", \"source\": \"<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier\"}], \"capacity_receipt_digest\": \"7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34\", \"capacity_receipt_path\": \"<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json\", \"correlation_id\": \"apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z\", \"expected_current_actor_sha\": \"9d8573e9624d09748d029cab7d0209e1e14730c9\", \"expected_origin\": \"git@github.com:bluemaple18-home/Pantheon.git\", \"manifest_path\": \"<runtime-root>/runtime-manifest.json\", \"ordered_states\": [\"PREPARED\", \"ACTOR_PROMOTED\", \"MANIFEST_WRITTEN\", \"STAGE_INSTALLED\", \"POSTCHECK_PASSED\", \"COMMITTED\"], \"plan_digest\": \"55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6\", \"postchecks\": [\"actor_clean_head_origin\", \"manifest_digest_actor_head_generation\", \"private_stage_readiness_and_barrier\", \"queue_empty\", \"capacity_receipt_payload_stop_loss_pass\"], \"private_stage_root\": \"<private-stage-root>\", \"regression_id\": \"REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001\", \"rollback_order\": [\"STAGE_INSTALLED\", \"MANIFEST_WRITTEN\", \"ACTOR_PROMOTED\"], \"schema_version\": 1, \"source_repo\": \"<source-worktree>\", \"status\": \"READY_TO_APPLY\", \"target_actor_sha\": \"0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35\", \"target_manifest_digest\": \"5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8\", \"write_set\": [{\"path\": \"<runtime-root>/actor\", \"stage\": \"ACTOR_PROMOTED\", \"type\": \"actor\"}, {\"digest\": \"5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8\", \"path\": \"<runtime-root>/runtime-manifest.json\", \"stage\": \"MANIFEST_WRITTEN\", \"type\": \"manifest\"}, {\"path\": \"<private-stage-root>/readiness/g2-0bf78f0b0c-20260814T183109Z\", \"stage\": \"STAGE_INSTALLED\", \"type\": \"readiness_acknowledgements\"}, {\"path\": \"<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier\", \"stage\": \"STAGE_INSTALLED\", \"type\": \"activation_barrier\"}]}\n",
+  "stdout_sha256_raw": "2269431ff950293bcaef941aace64b5805e1737d651dc4c58a60c364cd6061d8"
+}

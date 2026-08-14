@@ -1,0 +1,210 @@
+{
+  "blocker": null,
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "evidence_files": [
+    "exercise-pre-snapshot.json",
+    "capacity-exercise-output.json",
+    "exercise-post-snapshot.json",
+    "capacity-receipt-canonical.json",
+    "capacity-receipt-provenance.json",
+    "pre-snapshot.json",
+    "plan-attempt-1.json",
+    "plan-attempt-2.json",
+    "post-snapshot.json",
+    "verification.json",
+    "receipt.json",
+    "artifact-digests.json"
+  ],
+  "plan_attempts": [
+    {
+      "attempt": 1,
+      "parsed_stdout": {
+        "actor_root": "<runtime-root>/actor",
+        "authorization_digest": "cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb",
+        "backup_set": [
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/actor.previous",
+            "source": "<runtime-root>/actor"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/runtime-manifest.previous.json",
+            "source": "<runtime-root>/runtime-manifest.json"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/private-stage.previous",
+            "source": "<private-stage-root>"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/activation-barrier.previous",
+            "source": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier"
+          }
+        ],
+        "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+        "capacity_receipt_path": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+        "correlation_id": "apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z",
+        "expected_current_actor_sha": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "expected_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+        "manifest_path": "<runtime-root>/runtime-manifest.json",
+        "ordered_states": [
+          "PREPARED",
+          "ACTOR_PROMOTED",
+          "MANIFEST_WRITTEN",
+          "STAGE_INSTALLED",
+          "POSTCHECK_PASSED",
+          "COMMITTED"
+        ],
+        "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+        "postchecks": [
+          "actor_clean_head_origin",
+          "manifest_digest_actor_head_generation",
+          "private_stage_readiness_and_barrier",
+          "queue_empty",
+          "capacity_receipt_payload_stop_loss_pass"
+        ],
+        "private_stage_root": "<private-stage-root>",
+        "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+        "rollback_order": [
+          "STAGE_INSTALLED",
+          "MANIFEST_WRITTEN",
+          "ACTOR_PROMOTED"
+        ],
+        "schema_version": 1,
+        "source_repo": "<source-worktree>",
+        "status": "READY_TO_APPLY",
+        "target_actor_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+        "target_manifest_digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+        "write_set": [
+          {
+            "path": "<runtime-root>/actor",
+            "stage": "ACTOR_PROMOTED",
+            "type": "actor"
+          },
+          {
+            "digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+            "path": "<runtime-root>/runtime-manifest.json",
+            "stage": "MANIFEST_WRITTEN",
+            "type": "manifest"
+          },
+          {
+            "path": "<private-stage-root>/readiness/g2-0bf78f0b0c-20260814T183109Z",
+            "stage": "STAGE_INSTALLED",
+            "type": "readiness_acknowledgements"
+          },
+          {
+            "path": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier",
+            "stage": "STAGE_INSTALLED",
+            "type": "activation_barrier"
+          }
+        ]
+      },
+      "returncode": 0,
+      "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256_raw": "2269431ff950293bcaef941aace64b5805e1737d651dc4c58a60c364cd6061d8"
+    },
+    {
+      "attempt": 2,
+      "parsed_stdout": {
+        "actor_root": "<runtime-root>/actor",
+        "authorization_digest": "cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb",
+        "backup_set": [
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/actor.previous",
+            "source": "<runtime-root>/actor"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/runtime-manifest.previous.json",
+            "source": "<runtime-root>/runtime-manifest.json"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/private-stage.previous",
+            "source": "<private-stage-root>"
+          },
+          {
+            "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity/rollback-bundle/activation-barrier.previous",
+            "source": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier"
+          }
+        ],
+        "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+        "capacity_receipt_path": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+        "correlation_id": "apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z",
+        "expected_current_actor_sha": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "expected_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+        "manifest_path": "<runtime-root>/runtime-manifest.json",
+        "ordered_states": [
+          "PREPARED",
+          "ACTOR_PROMOTED",
+          "MANIFEST_WRITTEN",
+          "STAGE_INSTALLED",
+          "POSTCHECK_PASSED",
+          "COMMITTED"
+        ],
+        "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+        "postchecks": [
+          "actor_clean_head_origin",
+          "manifest_digest_actor_head_generation",
+          "private_stage_readiness_and_barrier",
+          "queue_empty",
+          "capacity_receipt_payload_stop_loss_pass"
+        ],
+        "private_stage_root": "<private-stage-root>",
+        "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+        "rollback_order": [
+          "STAGE_INSTALLED",
+          "MANIFEST_WRITTEN",
+          "ACTOR_PROMOTED"
+        ],
+        "schema_version": 1,
+        "source_repo": "<source-worktree>",
+        "status": "READY_TO_APPLY",
+        "target_actor_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+        "target_manifest_digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+        "write_set": [
+          {
+            "path": "<runtime-root>/actor",
+            "stage": "ACTOR_PROMOTED",
+            "type": "actor"
+          },
+          {
+            "digest": "5f1bcd2aa3bc3b114e8dec5d2f7a0b1dd53b2d04d63629d2ac9aba4e581702c8",
+            "path": "<runtime-root>/runtime-manifest.json",
+            "stage": "MANIFEST_WRITTEN",
+            "type": "manifest"
+          },
+          {
+            "path": "<private-stage-root>/readiness/g2-0bf78f0b0c-20260814T183109Z",
+            "stage": "STAGE_INSTALLED",
+            "type": "readiness_acknowledgements"
+          },
+          {
+            "path": "<runtime-root>/state/four-lane-activation-g2-0bf78f0b0c-20260814T183109Z.barrier",
+            "stage": "STAGE_INSTALLED",
+            "type": "activation_barrier"
+          }
+        ]
+      },
+      "returncode": 0,
+      "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256_raw": "2269431ff950293bcaef941aace64b5805e1737d651dc4c58a60c364cd6061d8"
+    }
+  ],
+  "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+  "production_mutation_summary": {
+    "apply": 0,
+    "capacity_exercise_cycle_bytes": 4096,
+    "capacity_exercise_cycles": 2,
+    "capacity_exercise_root": "<exercise-root>",
+    "deploy_install_copy_write_launchctl_create_run_downstream": 0,
+    "finalize": 0,
+    "plan": 2,
+    "production_mutation": 0,
+    "rollback": 0
+  },
+  "public_capacity_cli": "<isolated-venv>/bin/python -m scripts.pantheon_content_capacity_guard exercise",
+  "public_plan_cli": "<isolated-venv>/bin/python -m scripts.pantheon_content_runtime_promotion plan",
+  "raw_capacity_receipt_digest": "133ea3868aeb1f4efd45a553872c4bef0c6c3a1a97f7d48b2829aa2ccd99ba47",
+  "sampled_at": "2026-08-14T18:31:10Z",
+  "schema_version": 1,
+  "source_worktree": "<source-worktree>",
+  "status": "PLAN_READY",
+  "task_card": "<repo-root>/.ai/codex_task_apf_004_raw_capacity_receipt_plan_replay_20260815.md"
+}

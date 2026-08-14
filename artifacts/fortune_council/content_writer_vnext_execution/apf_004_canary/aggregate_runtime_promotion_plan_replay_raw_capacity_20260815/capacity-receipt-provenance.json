@@ -1,0 +1,67 @@
+{
+  "canonical_receipt_sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "cycle_count": 2,
+  "normalization": {
+    "changed_fields": [
+      "exercise_root",
+      "reclamation.allowlist"
+    ],
+    "non_path_payload_unchanged": true
+  },
+  "raw_contract": {
+    "mode": "bounded-synthetic-dry-run",
+    "production_mutation": false,
+    "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+    "schema_version": 1,
+    "status": "PASS"
+  },
+  "raw_receipt_sha256": "133ea3868aeb1f4efd45a553872c4bef0c6c3a1a97f7d48b2829aa2ccd99ba47",
+  "sampled_at": "2026-08-14T18:31:09Z",
+  "schema_version": 1,
+  "stop_loss": {
+    "cross_project_deletions": [],
+    "outcomes": {
+      "com.pantheon.agy-content-publisher": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      }
+    },
+    "registered_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite"
+    ],
+    "remaining_loaded": [],
+    "status": "STOPPED",
+    "triggered": true
+  }
+}

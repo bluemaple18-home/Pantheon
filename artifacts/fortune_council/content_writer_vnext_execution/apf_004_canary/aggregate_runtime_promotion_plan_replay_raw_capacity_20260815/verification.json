@@ -1,0 +1,97 @@
+{
+  "apply_calls": 0,
+  "blocker": null,
+  "canonical_capacity_receipt_sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "deterministic_output": true,
+  "finalize_calls": 0,
+  "identity": {
+    "authorization_digest": "cdbc25281df48b7c057ca0eaac7afe27da51ed245b37d78545418d1ba51949fb",
+    "correlation_id": "apf004-aggregate-plan-raw-capacity-0bf78f0b0c-20260814T183109Z",
+    "current_actor_sha": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "source_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+    "target_generation": "g2-0bf78f0b0c-20260814T183109Z",
+    "target_identity": "gate2-actor:0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35:activation-only"
+  },
+  "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+  "plan_errors": [
+    null,
+    null
+  ],
+  "plan_invocations": 2,
+  "plan_statuses": [
+    "READY_TO_APPLY",
+    "READY_TO_APPLY"
+  ],
+  "production_mutation": 0,
+  "raw_capacity_receipt_sha256": "133ea3868aeb1f4efd45a553872c4bef0c6c3a1a97f7d48b2829aa2ccd99ba47",
+  "receipt_contract_pass": true,
+  "rollback_calls": 0,
+  "root_compare": {
+    "private_stage": {
+      "post_digest": "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78",
+      "post_exists": true,
+      "post_file_count": 7,
+      "pre_digest": "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78",
+      "pre_exists": true,
+      "pre_file_count": 7,
+      "unchanged": true
+    },
+    "queue": {
+      "post_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "post_exists": true,
+      "post_file_count": 0,
+      "pre_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pre_exists": true,
+      "pre_file_count": 0,
+      "unchanged": true
+    },
+    "queue_gsc_copy": {
+      "post_digest": null,
+      "post_exists": false,
+      "post_file_count": "missing",
+      "pre_digest": null,
+      "pre_exists": false,
+      "pre_file_count": "missing",
+      "unchanged": true
+    },
+    "queue_runs": {
+      "post_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "post_exists": true,
+      "post_file_count": 0,
+      "pre_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pre_exists": true,
+      "pre_file_count": 0,
+      "unchanged": true
+    },
+    "runtime_gsc_copy": {
+      "post_digest": null,
+      "post_exists": false,
+      "post_file_count": "missing",
+      "pre_digest": null,
+      "pre_exists": false,
+      "pre_file_count": "missing",
+      "unchanged": true
+    },
+    "state": {
+      "post_digest": "66fa825013cce104a8042b85f510aea24e01631123e1f7076da5deead5febe8b",
+      "post_exists": true,
+      "post_file_count": 1,
+      "pre_digest": "66fa825013cce104a8042b85f510aea24e01631123e1f7076da5deead5febe8b",
+      "pre_exists": true,
+      "pre_file_count": 1,
+      "unchanged": true
+    },
+    "transaction_root": {
+      "post_digest": null,
+      "post_exists": false,
+      "post_file_count": "missing",
+      "pre_digest": null,
+      "pre_exists": false,
+      "pre_file_count": "missing",
+      "unchanged": true
+    }
+  },
+  "sampled_at": "2026-08-14T18:31:10Z",
+  "schema_version": 1,
+  "verdict": "PLAN_READY"
+}

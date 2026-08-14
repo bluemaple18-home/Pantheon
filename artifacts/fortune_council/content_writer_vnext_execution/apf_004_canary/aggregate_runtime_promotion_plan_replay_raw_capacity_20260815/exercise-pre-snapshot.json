@@ -1,0 +1,22 @@
+{
+  "exercise_root": {
+    "bytes": "missing",
+    "exists": false,
+    "file_count": "missing",
+    "path": "<exercise-root>"
+  },
+  "host": {
+    "disk_free_bytes": 63922167808,
+    "disk_total_bytes": 245107195904,
+    "self_maxrss": 24248320,
+    "swapusage": "total = 17408.00M  used = 16430.62M  free = 977.38M  (encrypted)"
+  },
+  "raw_receipt": {
+    "bytes": "missing",
+    "exists": false,
+    "file_count": "missing",
+    "path": "<raw-capacity-receipt>"
+  },
+  "sampled_at": "2026-08-14T18:31:09Z",
+  "schema_version": 1
+}

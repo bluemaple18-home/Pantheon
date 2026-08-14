@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "<isolated-venv>/bin/python",
+    "-m",
+    "scripts.pantheon_content_capacity_guard",
+    "--exercise-root",
+    "<exercise-root>",
+    "--receipt",
+    "<raw-capacity-receipt>",
+    "--cycle-bytes",
+    "4096",
+    "exercise"
+  ],
+  "public_cli": "<isolated-venv>/bin/python -m scripts.pantheon_content_capacity_guard exercise",
+  "raw_receipt_sha256": "133ea3868aeb1f4efd45a553872c4bef0c6c3a1a97f7d48b2829aa2ccd99ba47",
+  "returncode": 0,
+  "sampled_at": "2026-08-14T18:31:09Z",
+  "schema_version": 1,
+  "stderr_sanitized": "",
+  "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sanitized": "{\"cycles\": [{\"after_bytes\": 4096, \"after_file_count\": 1, \"before_bytes\": 0, \"before_file_count\": 0, \"cycle\": 1, \"elapsed_seconds\": 0.0021712500602006912, \"growth_bytes\": 4096, \"host_free_after\": 63922155520, \"host_free_before\": 63922159616, \"rss_after\": 22822912, \"rss_available\": true, \"rss_before\": 22773760, \"swap_after\": 17228753797, \"swap_available\": true, \"swap_before\": 17228753797}, {\"after_bytes\": 8192, \"after_file_count\": 2, \"before_bytes\": 4096, \"before_file_count\": 1, \"cycle\": 2, \"elapsed_seconds\": 0.002361500053666532, \"growth_bytes\": 4096, \"host_free_after\": 63922151424, \"host_free_before\": 63922155520, \"rss_after\": 22839296, \"rss_available\": true, \"rss_before\": 22839296, \"swap_after\": 17228753797, \"swap_available\": true, \"swap_before\": 17228753797}], \"exercise_root\": \"<exercise-root>\", \"mode\": \"bounded-synthetic-dry-run\", \"production_mutation\": false, \"reclamation\": {\"allowlist\": [\"<exercise-root>/cycle-1.bin\"], \"bytes_after\": 4096, \"bytes_before\": 8192}, \"regression_id\": \"REG-PANTHEON-CAPACITY-WRITE-CYCLES-001\", \"schema_version\": 1, \"status\": \"PASS\", \"stop_loss\": {\"cross_project_deletions\": [], \"outcomes\": {\"com.pantheon.agy-content-publisher\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}, \"com.pantheon.agy-gemini-coordinator\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}, \"com.pantheon.agy-gemini-i18n-new\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}, \"com.pantheon.agy-gemini-i18n-rewrite\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}, \"com.pantheon.agy-gemini-new\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}, \"com.pantheon.agy-gemini-rewrite\": {\"absent_after\": true, \"controller\": \"bounded-synthetic\", \"loaded_before\": true}}, \"registered_labels\": [\"com.pantheon.agy-content-publisher\", \"com.pantheon.agy-gemini-coordinator\", \"com.pantheon.agy-gemini-new\", \"com.pantheon.agy-gemini-rewrite\", \"com.pantheon.agy-gemini-i18n-new\", \"com.pantheon.agy-gemini-i18n-rewrite\"], \"remaining_loaded\": [], \"status\": \"STOPPED\", \"triggered\": true}}\n",
+  "stdout_sha256_raw": "23ad6904bc1c3d630e14ebd4b2e363a6879383291e8f2dd1fd917495d685dc42"
+}
