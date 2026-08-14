@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-invocation-trace",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "verdict": "BLOCKED_RUNTIME_NOT_PROMOTED",
+  "entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+  "entrypoint_present_in_production_actor": false,
+  "plan_only_calls": 0,
+  "plan_only_false_calls": 0,
+  "adapter_invoked": false,
+  "guards": {
+    "atomic_write_json": 0,
+    "register_run": 0,
+    "apply_preflight": 0,
+    "runner": 0,
+    "external_model": 0,
+    "select": 0,
+    "publish": 0,
+    "publisher_transaction": 0,
+    "tag": 0,
+    "push": 0,
+    "deploy": 0,
+    "schedule": 0
+  },
+  "stop_rule": "production actor did not contain required public entrypoint; no plan replay was attempted"
+}

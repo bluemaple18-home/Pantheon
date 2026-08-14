@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-runtime-preflight",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "verdict": "BLOCKED_RUNTIME_NOT_PROMOTED",
+  "runtime": {
+    "root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "manifest": "<repo-parent>/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "manifest_file_sha256": "8e922ee86e8aa21e86ae5cf05bad84199062326e0141a0b3639ffb0053ffc159",
+    "manifest_digest_field": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+    "identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+    "generation": "g2-9d8573e962-20260814T104149Z"
+  },
+  "actor": {
+    "root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "required_promoted_candidate": "2ad9af5b44a0e5d91774cbaa7d3e2463996c8203",
+    "source_file": "<repo-parent>/Pantheon-canary-runtime-v8/actor/scripts/agy_gemini_coordinator.py",
+    "source_file_sha256": "45d2038b867d0c71e57a20137bd4ac4c2773ffba30b8216cac27826d1805cba8",
+    "create_single_source_run_adapter_present": false,
+    "status": "not_promoted"
+  },
+  "roots": {
+    "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+    "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+    "run_root": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy",
+    "run_root_exists": false
+  },
+  "blocking_reason": "production actor source lacks scripts.agy_gemini_coordinator:create_single_source_run_adapter"
+}

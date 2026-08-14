@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "artifact_type": "authority-bound-single-create-plan-input",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "source_thread_id": "019fff32-3756-7651-8d9a-08a9bdd2763f",
+  "authority": {
+    "authorized_request": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/create_run_only_20260814/authorized-request.json",
+    "activation_authorization_digest": "4a163453c1d7f3c8866479f484cbcff03bd18f9e2425fc9623e7d89158842d11",
+    "confirmed_payload": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/create_run_only_20260814/confirmed-single-payload.json",
+    "confirmed_payload_digest": "9a3694b46b12ccdfb5af9b74b94a798670a19d965e765cd7dad538c94189690b",
+    "item_count": 1
+  },
+  "intended_entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+  "plan_only": true,
+  "max_runs": 1,
+  "workset": {
+    "schema_version": 1,
+    "campaign_version": "apf-001-v1",
+    "lanes": [
+      "new"
+    ],
+    "items": [
+      {
+        "source_kind": "matrix",
+        "article_id": "ASTRO-SCENARIO-BIG-THREE",
+        "locale": "zh-TW",
+        "campaign_version": "apf-001-v1",
+        "work_id": "apf-work-b1666341df10a14c1a586141",
+        "lane": "new",
+        "reason": "apf-004-authority-bound-single-payload"
+      }
+    ],
+    "summary": {
+      "authority_bound": true,
+      "item_count": 1
+    }
+  },
+  "exact_tuples": [
+    {
+      "lane": "new",
+      "work_id": "apf-work-b1666341df10a14c1a586141",
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "locale": "zh-TW"
+    }
+  ]
+}

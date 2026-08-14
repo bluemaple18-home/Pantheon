@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-replay-receipt",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "task_id": "APF-004-SINGLE-CREATE-ONLY-PLAN-REPLAY",
+  "verdict": "BLOCKED_RUNTIME_NOT_PROMOTED",
+  "candidate_basis": {
+    "local_head": "905d9f681ef157f265ceddd60ad8ea266e966f4e",
+    "required_runtime_candidate": "2ad9af5b44a0e5d91774cbaa7d3e2463996c8203",
+    "origin_main_head": "905d9f681ef157f265ceddd60ad8ea266e966f4e"
+  },
+  "artifacts": {
+    "authority_input": "authority-input.json",
+    "runtime_preflight": "runtime-preflight.json",
+    "pre_snapshot": "pre-snapshot.json",
+    "post_snapshot": "post-snapshot.json",
+    "invocation_trace": "invocation-trace.json",
+    "replay_verification": "replay-verification.json"
+  },
+  "blocked_frontier": "Promote or rebuild the official local production runtime actor so it contains scripts.agy_gemini_coordinator:create_single_source_run_adapter at an accepted candidate SHA, then rerun this plan-only task once.",
+  "production_mutation_summary": {
+    "plan_only_calls": 0,
+    "plan_only_false_calls": 0,
+    "register_or_write": 0,
+    "runner": 0,
+    "external_model": 0,
+    "select": 0,
+    "publish": 0,
+    "publisher_transaction": 0,
+    "tag": 0,
+    "push": 0,
+    "deploy": 0,
+    "schedule": 0
+  }
+}

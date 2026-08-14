@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-runtime-tree-snapshot",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "phase": "pre",
+  "runtime_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+  "queue_state_run_tree": {
+    "file_count": 1,
+    "digest": "1270eb6c77b5d2733e91c1de857cb97bd39f95a80d64077c8b965c5a1f35c388",
+    "files": [
+      {
+        "path": "<repo-parent>/Pantheon-canary-runtime-v8/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier",
+        "role": "activation_barrier"
+      }
+    ]
+  },
+  "launchctl_matching_labels": {
+    "observable": true,
+    "count": 0,
+    "labels": []
+  },
+  "process_matching_status": {
+    "observable": false,
+    "status": "unavailable",
+    "reason": "process listing was not permitted in the current sandbox"
+  }
+}

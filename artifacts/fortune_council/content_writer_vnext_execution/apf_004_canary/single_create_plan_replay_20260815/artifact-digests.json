@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-artifact-digests",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "algorithm": "sha256",
+  "artifacts": {
+    "authority-input.json": "b3d1891152a0dab8aee6c2829fd49511d26ea12e2147c4fe47eb0b2b300032b9",
+    "invocation-trace.json": "a29140663589426f9853ae8811951a42f96089eeef84e6961f6f19c504aaa680",
+    "plan-replay-receipt.json": "e7fbc65e09cdc6eda982251d1f26e605c3a776efe77a8dc7c2cefb100523eb3d",
+    "post-snapshot.json": "aedf44d5ae834149402349b03697db0538cca405a1c36f0f5954b0c2c6d38ace",
+    "pre-snapshot.json": "9216e7e6c70c3b0d2b1e2f781c68db49fb45506c6ab64d19ca78df5cab541818",
+    "replay-verification.json": "bd84375c0f67e6923da71d58aceaabd18b5b617edcf49c751a71661382b2548f",
+    "runtime-preflight.json": "ec37c9e6a4ad2ef311a191d162c75f46a0c193a8b648eac68e449496235db284"
+  }
+}

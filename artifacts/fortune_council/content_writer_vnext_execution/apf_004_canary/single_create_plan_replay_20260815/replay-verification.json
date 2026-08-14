@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "artifact_type": "single-create-plan-replay-verification",
+  "sampled_at": "2026-08-14T17:12:00Z",
+  "verdict": "BLOCKED_RUNTIME_NOT_PROMOTED",
+  "checks": {
+    "worktree_head_expected": true,
+    "worktree_clean_at_start": true,
+    "origin_main_contains_required_candidate": true,
+    "authority_authorized_request_sha256_matches": true,
+    "authority_confirmed_payload_sha256_matches": true,
+    "input_item_count": 1,
+    "input_exact_tuple_count": 1,
+    "runtime_root_known": true,
+    "runtime_manifest_read": true,
+    "production_actor_entrypoint_present": false,
+    "adapter_plan_only_call_count": 0,
+    "production_mutation_guard_total": 0,
+    "pre_post_snapshot_unchanged": true
+  },
+  "not_executed": [
+    "create_single_source_run_adapter plan_only",
+    "plan_only_false",
+    "register_run",
+    "queue_write",
+    "state_write",
+    "runner",
+    "external_model",
+    "select",
+    "publish",
+    "publisher_transaction",
+    "tag",
+    "push",
+    "deploy",
+    "schedule"
+  ]
+}
