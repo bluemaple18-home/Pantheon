@@ -1,0 +1,19 @@
+{
+  "activation_result": "GATE2_ACTIVATION_ONLY_PASS",
+  "actor_origin_target": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+  "barrier_validate": "PASS",
+  "business_io": 0,
+  "canary_authorization_required": true,
+  "canary_created": false,
+  "card_id": "APF-004-GATE2-CANARY-READINESS-CHECKPOINT-001",
+  "card_source_commit": "16fe4b733f",
+  "external_model": false,
+  "launchagent_mutation": false,
+  "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+  "manifest_generation": "g2-9d8573e962-20260814T104149Z",
+  "production_mutation": false,
+  "schema_version": 1,
+  "seven_labels_loaded": true,
+  "source_evidence_sha256": "0c8c6fb37186b267a99b49a9babe13c9387a8aa336ada4dd6a729e747f51e692",
+  "target": "9d8573e9624d09748d029cab7d0209e1e14730c9"
+}

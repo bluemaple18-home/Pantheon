@@ -1,0 +1,248 @@
+{
+  "blocked_artifact_inventory": [
+    "blocked/01-create.json",
+    "blocked/02-run.json",
+    "blocked/03-select.json",
+    "blocked/04-publish.json",
+    "blocked/05-transaction.json",
+    "blocked/06-tag.json",
+    "blocked/07-push.json",
+    "blocked/71-probe-publisher-runtime-drift.json",
+    "blocked/72-probe-publisher-caller-verdict.json",
+    "blocked/73-probe-publisher-overlapping-roots.json",
+    "blocked/74-probe-publisher-real-tag-mode.json",
+    "blocked/75-probe-publisher-real-push-mode.json",
+    "blocked/76-probe-publisher-empty-run-selection.json"
+  ],
+  "canary_created": false,
+  "created_run_id": "ra-slice-002-synthetic-create-run",
+  "evidence_root": "<apf-004-readiness-root>/capacity-sandbox/cycle-2/evidence",
+  "mode": "synthetic-non-production",
+  "negative_matrix": [
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "identity-drift",
+      "code": "identity_mismatch",
+      "outcome": "BLOCKED",
+      "reason": "actor_identity drifted across receipt steps"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "digest-discontinuity",
+      "code": "digest_continuity",
+      "outcome": "BLOCKED",
+      "reason": "step input digest must match previous output"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "missing-step",
+      "code": "step_sequence",
+      "outcome": "BLOCKED",
+      "reason": "receipt must contain exactly seven steps"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "duplicate-step",
+      "code": "step_sequence",
+      "outcome": "BLOCKED",
+      "reason": "receipt steps must match the fixed sequence"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "caller-supplied-verdict",
+      "code": "caller_verdict",
+      "outcome": "BLOCKED",
+      "reason": "receipt contains caller-supplied verdict"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "production-mutation",
+      "code": "production_boundary",
+      "outcome": "BLOCKED",
+      "reason": "production_mutation must be false"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-runtime-drift",
+      "negative_evidence": "blocked/71-probe-publisher-runtime-drift.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt runtime identity drift"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-caller-verdict",
+      "negative_evidence": "blocked/72-probe-publisher-caller-verdict.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt context contains caller verdict"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-overlapping-roots",
+      "negative_evidence": "blocked/73-probe-publisher-overlapping-roots.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher queue and state roots must not overlap"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-real-tag-mode",
+      "negative_evidence": "blocked/74-probe-publisher-real-tag-mode.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt tag mode must be dry-run"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-real-push-mode",
+      "negative_evidence": "blocked/75-probe-publisher-real-push-mode.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt push mode must be dry-run"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-empty-run-selection",
+      "negative_evidence": "blocked/76-probe-publisher-empty-run-selection.json",
+      "outcome": "BLOCKED",
+      "reason": "exact run ids must not be empty"
+    },
+    {
+      "authority": "scripts.pantheon_writer_vnext_runtime_activation_e2e:run_runtime_activation_e2e",
+      "case": "untrusted-root",
+      "outcome": "BLOCKED",
+      "reason": "trusted sandbox root must be canonical absolute"
+    },
+    {
+      "authority": "scripts.pantheon_writer_vnext_runtime_activation_e2e:run_runtime_activation_e2e",
+      "case": "symlink-escape",
+      "outcome": "BLOCKED",
+      "reason": "symlink probe must be a strict sandbox descendant"
+    }
+  ],
+  "positive_artifact_inventory": [
+    "positive/01-create.json",
+    "positive/02-run.json",
+    "positive/03-select.json",
+    "positive/04-publish.json",
+    "positive/05-transaction.json",
+    "positive/06-tag.json",
+    "positive/07-push.json"
+  ],
+  "production_mutation": false,
+  "receipt": {
+    "actor_identity": "actor-apf-004-readiness",
+    "canary_created": false,
+    "correlation_id": "corr-ra-slice-005-cycle-2",
+    "execution_line_id": "exec-ra-slice-005-cycle-2",
+    "mode": "synthetic-non-production",
+    "production_mutation": false,
+    "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+    "schema_version": 1,
+    "steps": [
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "create",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "acef3666431d1f5851b946a4135ea0e45100f5971565885065848cec8d0d2bb0",
+        "negative_evidence": "blocked/01-create.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 1,
+        "output_digest": "d6611e0b7893f67af6a31807d50b4d1213e6c8afea6f0cb47b0fec3e5b1f0da9",
+        "positive_evidence": "positive/01-create.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "run",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "d6611e0b7893f67af6a31807d50b4d1213e6c8afea6f0cb47b0fec3e5b1f0da9",
+        "negative_evidence": "blocked/02-run.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 2,
+        "output_digest": "3ee49abe047415c4325886f66f68f642a66b04c5a511e6c517ee3da9537b126b",
+        "positive_evidence": "positive/02-run.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "select",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "3ee49abe047415c4325886f66f68f642a66b04c5a511e6c517ee3da9537b126b",
+        "negative_evidence": "blocked/03-select.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 3,
+        "output_digest": "8c2a04678b921d78b5efd78465917d65240ce02e30331ab5d47a87b60fda35c7",
+        "positive_evidence": "positive/03-select.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "publish",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "8c2a04678b921d78b5efd78465917d65240ce02e30331ab5d47a87b60fda35c7",
+        "negative_evidence": "blocked/04-publish.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 4,
+        "output_digest": "4f072157550c35e2161a15a44123c8d90338cca35c5edbffd0a28c6c872379d3",
+        "positive_evidence": "positive/04-publish.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "transaction",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "4f072157550c35e2161a15a44123c8d90338cca35c5edbffd0a28c6c872379d3",
+        "negative_evidence": "blocked/05-transaction.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 5,
+        "output_digest": "660be59231d636613e3572d3a2e960781abf5499095bd3b384f7526c4d78e6ff",
+        "positive_evidence": "positive/05-transaction.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "tag",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "660be59231d636613e3572d3a2e960781abf5499095bd3b384f7526c4d78e6ff",
+        "negative_evidence": "blocked/06-tag.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 6,
+        "output_digest": "f4cd86578f83600710f4d0489dd5e65e047e8beebecf46da95ef9caafccfb7ed",
+        "positive_evidence": "positive/06-tag.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      },
+      {
+        "actor_identity": "actor-apf-004-readiness",
+        "capability": "push",
+        "correlation_id": "corr-ra-slice-005-cycle-2",
+        "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+        "execution_line_id": "exec-ra-slice-005-cycle-2",
+        "input_digest": "f4cd86578f83600710f4d0489dd5e65e047e8beebecf46da95ef9caafccfb7ed",
+        "negative_evidence": "blocked/07-push.json",
+        "negative_outcome": "BLOCKED",
+        "ordinal": 7,
+        "output_digest": "34018bc189c9c7eddff262b7499732c3edab67e663b62b3332ad4da72f46a2a0",
+        "positive_evidence": "positive/07-push.json",
+        "positive_outcome": "PASS",
+        "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
+      }
+    ]
+  },
+  "schema_version": 1,
+  "status": "PASS"
+}

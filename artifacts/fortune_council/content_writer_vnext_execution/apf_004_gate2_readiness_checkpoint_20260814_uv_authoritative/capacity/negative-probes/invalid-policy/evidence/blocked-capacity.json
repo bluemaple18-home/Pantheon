@@ -1,0 +1,13 @@
+{
+  "canary_created": false,
+  "case": "invalid-policy",
+  "complete_pass_receipt_written": false,
+  "cycle": null,
+  "external_cleanup_performed": false,
+  "last_safe_sample": {},
+  "next_cycle_started": false,
+  "production_mutation": false,
+  "reason": "policy field is invalid: max_bytes",
+  "schema_version": 1,
+  "status": "BLOCKED"
+}
