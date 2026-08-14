@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -63,6 +63,7 @@ class PromotionRequest:
     target_generation: str
     target_python_executable: Path
     authorization_digest: str
+    capacity_receipt_path: Path
     capacity_receipt_digest: str
     correlation_id: str
 
@@ -75,6 +76,13 @@ def _json_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise PromotionError("capacity receipt is missing") from error
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -104,6 +112,18 @@ def _read_json(path: Path) -> dict[str, Any]:
         raise PromotionError("transaction receipt is unreadable") from error
     if not isinstance(payload, dict):
         raise PromotionError("transaction receipt must be an object")
+    return payload
+
+
+def _read_json_file(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise PromotionError(f"{label} is missing") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise PromotionError(f"{label} is invalid") from error
+    if not isinstance(payload, dict):
+        raise PromotionError(f"{label} must be an object")
     return payload
 
 
@@ -213,6 +233,59 @@ def _validate_request_shape(request: PromotionRequest) -> None:
         raise PromotionError("expected origin is required")
 
 
+def _validate_capacity_receipt(request: PromotionRequest) -> dict[str, Any]:
+    if not request.capacity_receipt_path.is_absolute():
+        raise PromotionError("capacity receipt path must be absolute")
+    try:
+        resolved = request.capacity_receipt_path.resolve(strict=True)
+    except OSError as error:
+        raise PromotionError("capacity receipt is missing") from error
+    if (
+        resolved != request.capacity_receipt_path
+        or request.capacity_receipt_path.is_symlink()
+        or not request.capacity_receipt_path.is_file()
+    ):
+        raise PromotionError("capacity receipt path must use canonical realpath")
+    if file_sha256(request.capacity_receipt_path) != request.capacity_receipt_digest:
+        raise PromotionError("capacity receipt digest mismatch")
+    receipt = _read_json_file(request.capacity_receipt_path, "capacity receipt")
+    if (
+        receipt.get("schema_version") != 1
+        or receipt.get("regression_id") != "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001"
+        or receipt.get("status") != "PASS"
+        or receipt.get("mode") != "bounded-synthetic-dry-run"
+    ):
+        raise PromotionError("capacity stop-loss is not PASS")
+    cycles = receipt.get("cycles")
+    if not isinstance(cycles, list) or len(cycles) < 2:
+        raise PromotionError("capacity stop-loss is not PASS")
+    if any(
+        not isinstance(cycle, dict)
+        or cycle.get("rss_available") is not True
+        or cycle.get("swap_available") is not True
+        for cycle in cycles
+    ):
+        raise PromotionError("capacity stop-loss is not PASS")
+    reclamation = receipt.get("reclamation")
+    if (
+        not isinstance(reclamation, dict)
+        or not isinstance(reclamation.get("bytes_before"), int)
+        or not isinstance(reclamation.get("bytes_after"), int)
+        or reclamation["bytes_after"] >= reclamation["bytes_before"]
+    ):
+        raise PromotionError("capacity stop-loss is not PASS")
+    stop_loss = receipt.get("stop_loss")
+    if (
+        not isinstance(stop_loss, dict)
+        or stop_loss.get("status") != "STOPPED"
+        or stop_loss.get("triggered") is not True
+        or stop_loss.get("remaining_loaded") != []
+        or stop_loss.get("cross_project_deletions") != []
+    ):
+        raise PromotionError("capacity stop-loss is not PASS")
+    return receipt
+
+
 def _validate_path_boundaries(request: PromotionRequest) -> None:
     roots = [
         _canonical_existing_dir(request.source_repo, "source_repo"),
@@ -267,6 +340,7 @@ def _target_manifest(request: PromotionRequest) -> dict[str, Any]:
 def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
     _validate_request_shape(request)
     _validate_path_boundaries(request)
+    _validate_capacity_receipt(request)
     _validate_git_identity(
         repo=request.source_repo,
         expected_sha=request.source_sha,
@@ -334,9 +408,10 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
             "manifest_digest_actor_head_generation",
             "private_stage_readiness_and_barrier",
             "queue_empty",
-            "capacity_receipt_digest_bound",
+            "capacity_receipt_payload_stop_loss_pass",
         ],
         "authorization_digest": request.authorization_digest,
+        "capacity_receipt_path": str(request.capacity_receipt_path),
         "capacity_receipt_digest": request.capacity_receipt_digest,
         "correlation_id": request.correlation_id,
     }
@@ -462,10 +537,13 @@ def _postcheck(request: PromotionRequest, manifest: dict[str, Any]) -> None:
         for label in runtime_manifest.SERVICE_LABELS
     ):
         raise PromotionError("private stage readiness postcheck failed")
-    if any((request.queue_root / relative).exists() for relative in ("runs", "gsc-copy")):
-        run_files = list((request.queue_root / "runs").glob("*.json"))
-        if run_files:
-            raise PromotionError("queue is not empty")
+    _validate_capacity_receipt(request)
+    for relative in ("runs", "gsc-copy"):
+        root = request.queue_root / relative
+        if not root.exists():
+            continue
+        if root.is_symlink() or not root.is_dir() or any(root.iterdir()):
+            raise PromotionError(f"queue residue present: {relative}")
 
 
 def _restore_manifest(request: PromotionRequest) -> None:
@@ -659,6 +737,7 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-generation", required=True)
     parser.add_argument("--target-python-executable", type=Path, required=True)
     parser.add_argument("--authorization-digest", required=True)
+    parser.add_argument("--capacity-receipt", type=Path, required=True)
     parser.add_argument("--capacity-receipt-digest", required=True)
     parser.add_argument("--correlation-id", required=True)
 
@@ -684,6 +763,7 @@ def _request_from_args(args: argparse.Namespace) -> PromotionRequest:
         target_generation=args.target_generation,
         target_python_executable=args.target_python_executable,
         authorization_digest=args.authorization_digest,
+        capacity_receipt_path=args.capacity_receipt,
         capacity_receipt_digest=args.capacity_receipt_digest,
         correlation_id=args.correlation_id,
     )

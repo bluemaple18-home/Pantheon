@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -12,7 +13,6 @@ from scripts import pantheon_content_runtime_promotion as promotion
 
 
 AUTHORIZATION_DIGEST = "a" * 64
-CAPACITY_DIGEST = "b" * 64
 REGRESSION_ID = "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001"
 
 
@@ -32,6 +32,76 @@ def _write_commit(repo: Path, name: str, body: str) -> str:
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", name)
     return _git(repo, "rev-parse", "HEAD")
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> str:
+    encoded = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
+    path.write_bytes(encoded)
+    return promotion.file_sha256(path)
+
+
+def _write_capacity_receipt(path: Path, *, status: str = "PASS") -> str:
+    payload = {
+        "schema_version": 1,
+        "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+        "status": status,
+        "mode": "bounded-synthetic-dry-run",
+        "cycles": [
+            {
+                "before_bytes": 0,
+                "after_bytes": 4096,
+                "before_file_count": 0,
+                "after_file_count": 1,
+                "host_free_before": 100000000000,
+                "host_free_after": 99999995904,
+                "rss_before": 1000,
+                "rss_after": 1000,
+                "swap_before": 0,
+                "swap_after": 0,
+                "elapsed_seconds": 0.1,
+                "growth_bytes": 4096,
+                "rss_available": True,
+                "swap_available": True,
+            },
+            {
+                "before_bytes": 4096,
+                "after_bytes": 8192,
+                "before_file_count": 1,
+                "after_file_count": 2,
+                "host_free_before": 99999995904,
+                "host_free_after": 99999991808,
+                "rss_before": 1000,
+                "rss_after": 1000,
+                "swap_before": 0,
+                "swap_after": 0,
+                "elapsed_seconds": 0.1,
+                "growth_bytes": 4096,
+                "rss_available": True,
+                "swap_available": True,
+            },
+        ],
+        "reclamation": {
+            "bytes_before": 8192,
+            "bytes_after": 4096,
+            "allowlist": ["<exercise-root>/cycle-1.bin"],
+        },
+        "stop_loss": {
+            "status": "STOPPED" if status == "PASS" else "STOP_FAILED",
+            "triggered": True,
+            "registered_labels": [
+                "com.pantheon.agy-content-publisher",
+                "com.pantheon.agy-gemini-coordinator",
+                "com.pantheon.agy-gemini-new",
+                "com.pantheon.agy-gemini-rewrite",
+                "com.pantheon.agy-gemini-i18n-new",
+                "com.pantheon.agy-gemini-i18n-rewrite",
+            ],
+            "outcomes": {},
+            "remaining_loaded": [],
+            "cross_project_deletions": [],
+        },
+    }
+    return _write_json(path, payload)
 
 
 def _runtime_fixture(tmp_path: Path) -> tuple[promotion.PromotionRequest, dict[str, str]]:
@@ -74,6 +144,8 @@ def _runtime_fixture(tmp_path: Path) -> tuple[promotion.PromotionRequest, dict[s
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime.write_manifest(manifest_path, current_manifest)
+    capacity_receipt_path = tmp_path / "capacity-receipt.json"
+    capacity_receipt_digest = _write_capacity_receipt(capacity_receipt_path)
 
     request = promotion.PromotionRequest(
         source_repo=source,
@@ -95,7 +167,8 @@ def _runtime_fixture(tmp_path: Path) -> tuple[promotion.PromotionRequest, dict[s
         target_generation=f"g2-{new_sha[:10]}",
         target_python_executable=Path(sys.executable).resolve(strict=True),
         authorization_digest=AUTHORIZATION_DIGEST,
-        capacity_receipt_digest=CAPACITY_DIGEST,
+        capacity_receipt_path=capacity_receipt_path,
+        capacity_receipt_digest=capacity_receipt_digest,
         correlation_id=f"apf004-runtime-promotion-{new_sha[:10]}",
     )
     return request, {"old_sha": old_sha, "new_sha": new_sha}
@@ -165,6 +238,57 @@ def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> N
     status = promotion.status_promotion(request)
     assert status["state"] == "COMMITTED"
     assert status["audit_receipt_exists"] is True
+
+
+def test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    gsc_copy = request.queue_root / "gsc-copy"
+    gsc_copy.mkdir()
+    (gsc_copy / "residue.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(promotion.PromotionError, match="queue residue"):
+        promotion.apply_promotion(request)
+
+    receipt = promotion.load_receipt(request)
+    assert receipt["state"] == "ROLLED_BACK"
+    assert _snapshot(request) == before
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing", "capacity receipt is missing"),
+        ("failed", "capacity stop-loss is not PASS"),
+        ("digest", "capacity receipt digest mismatch"),
+    ],
+)
+def test_capacity_receipt_contract_fails_closed_before_runtime_mutation(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    if mutation == "missing":
+        request.capacity_receipt_path.unlink()
+    elif mutation == "failed":
+        digest = _write_capacity_receipt(request.capacity_receipt_path, status="NO-GO")
+        request = promotion.PromotionRequest(
+            **{**request.__dict__, "capacity_receipt_digest": digest}
+        )
+    else:
+        request = promotion.PromotionRequest(
+            **{**request.__dict__, "capacity_receipt_digest": "f" * 64}
+        )
+
+    with pytest.raises(promotion.PromotionError, match=message):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
 
 
 @pytest.mark.parametrize(

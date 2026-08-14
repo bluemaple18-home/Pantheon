@@ -59,8 +59,49 @@
         "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest <publisher-and-coordinator-installer-selectors> -q",
         "result": "PASS",
         "summary": "28 passed"
+      },
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_actor_recovery.py tests/test_prepare_pantheon_canary_actor.py tests/test_pantheon_content_capacity_guard.py -q",
+        "result": "PASS",
+        "summary": "86 passed",
+        "repair": "P1 aggregate promotion repair"
+      },
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest <publisher-and-coordinator-installer-selectors> -q",
+        "result": "PASS",
+        "summary": "28 passed",
+        "repair": "P1 aggregate promotion repair"
       }
     ]
+  },
+  "repair_p1": {
+    "base_candidate": "49a1bcbb5c10586f392473df1b871e15f1b68096",
+    "red": {
+      "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py -q",
+      "result": "RED",
+      "summary": "12 failed, 1 passed",
+      "root_causes": [
+        "capacity receipt path/payload validator missing",
+        "gsc-copy-only residue was not rejected"
+      ]
+    },
+    "fixes": [
+      {
+        "finding": "queue residue",
+        "change": "postcheck now rejects any file/tree residue under queue runs or gsc-copy roots",
+        "regression": "test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back"
+      },
+      {
+        "finding": "capacity receipt authority",
+        "change": "promotion plan/postcheck now validates canonical capacity receipt path, file sha256 equality, bounded exercise payload status PASS, and explicit stop-loss STOPPED with no remaining loaded services or cross-project deletion",
+        "regression": "test_capacity_receipt_contract_fails_closed_before_runtime_mutation"
+      }
+    ],
+    "green": {
+      "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py -q",
+      "result": "PASS",
+      "summary": "13 passed"
+    }
   },
   "failure_matrix": [
     {
@@ -94,6 +135,29 @@
       "failure": "authorization drift",
       "finalize": "blocked",
       "rollback": "blocked"
+    },
+    {
+      "failure": "gsc-copy-only residue",
+      "state_before_rollback": "STAGE_INSTALLED",
+      "rollback_result": "ROLLBACK_COMPLETE"
+    },
+    {
+      "failure": "capacity receipt missing",
+      "phase": "plan",
+      "runtime_mutation": 0,
+      "result": "blocked"
+    },
+    {
+      "failure": "capacity receipt digest mismatch",
+      "phase": "plan",
+      "runtime_mutation": 0,
+      "result": "blocked"
+    },
+    {
+      "failure": "capacity stop-loss failed",
+      "phase": "plan",
+      "runtime_mutation": 0,
+      "result": "blocked"
     }
   ],
   "production_mutation": {
