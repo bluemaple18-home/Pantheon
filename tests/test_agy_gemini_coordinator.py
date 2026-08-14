@@ -5115,6 +5115,157 @@ def test_activation_only_adopts_legacy_capacity_with_complete_inert_plist_set(
     assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
 
 
+def test_activation_only_inert_six_runs_real_barrier_exec_readiness(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "apf-004-real-barrier-readiness"
+    manifest_path = Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"])
+    manifest = runtime_manifest.load_manifest(manifest_path)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    for label in runtime_manifest.SERVICE_LABELS:
+        _write_legacy_capacity_guard_plist(
+            launch_agents / f"{label}.plist",
+            label=label,
+        )
+    legacy_plist = launch_agents / "com.pantheon.content-capacity-guard.plist"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    (loaded / "com.pantheon.content-capacity-guard").touch()
+    child_io_marker = tmp_path / "child-io-marker"
+    pid_log = tmp_path / "barrier-exec-pids.log"
+    subprocess_log_dir = tmp_path / "barrier-exec-logs"
+    subprocess_log_dir.mkdir()
+    launchctl = tmp_path / "bin" / "launchctl"
+    launchctl.write_text(
+        f"#!{sys.executable}\n"
+        "import os, plistlib, subprocess, sys\n"
+        "from pathlib import Path\n"
+        f"mutation_log = Path({str(mutation_log)!r})\n"
+        f"loaded = Path({str(loaded)!r})\n"
+        f"pid_log = Path({str(pid_log)!r})\n"
+        f"legacy_plist = {str(legacy_plist)!r}\n"
+        f"log_dir = Path({str(subprocess_log_dir)!r})\n"
+        "args = sys.argv[1:]\n"
+        "if args[:1] == ['print']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    if label == 'com.pantheon.agy-gemini-runner':\n"
+        "        sys.exit(113)\n"
+        "    if not (loaded / label).exists():\n"
+        "        sys.exit(113)\n"
+        "    print('state = waiting')\n"
+        "    if label == 'com.pantheon.content-capacity-guard':\n"
+        "        print(f'    path = {legacy_plist}')\n"
+        "    sys.exit(0)\n"
+        "with mutation_log.open('a', encoding='utf-8') as stream:\n"
+        "    stream.write(' '.join(args) + '\\n')\n"
+        "if args[:1] == ['bootout']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    try:\n"
+        "        (loaded / label).unlink()\n"
+        "    except FileNotFoundError:\n"
+        "        pass\n"
+        "    sys.exit(0)\n"
+        "if args[:1] == ['bootstrap']:\n"
+        "    plist_path = Path(args[2])\n"
+        "    with plist_path.open('rb') as stream:\n"
+        "        payload = plistlib.load(stream)\n"
+        "    label = payload['Label']\n"
+        "    (loaded / label).touch()\n"
+        "    child_env = os.environ.copy()\n"
+        "    child_env.update(payload.get('EnvironmentVariables', {}))\n"
+        "    child_env['PANTHEON_FORMAL_RUNTIME'] = '1'\n"
+        "    child_env.pop('PANTHEON_RUNTIME_ACTIVATION_TOKEN', None)\n"
+        "    program_args = list(payload['ProgramArguments'])\n"
+        "    if '--manifest' in program_args:\n"
+        "        child_env['PANTHEON_RUNTIME_MANIFEST'] = program_args[program_args.index('--manifest') + 1]\n"
+        "    stdout = (log_dir / f'{label}.out').open('wb')\n"
+        "    stderr = (log_dir / f'{label}.err').open('wb')\n"
+        "    process = subprocess.Popen(\n"
+        "        program_args,\n"
+        "        cwd=payload.get('WorkingDirectory') or None,\n"
+        "        env=child_env,\n"
+        "        stdout=stdout,\n"
+        "        stderr=stderr,\n"
+        "        close_fds=True,\n"
+        "    )\n"
+        "    with pid_log.open('a', encoding='utf-8') as stream:\n"
+        "        stream.write(f'{label} {process.pid}\\n')\n"
+        "    sys.exit(0)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    runtime_manifest.write_manifest(stage_dir / "runtime-manifest.json", manifest)
+    for label in {
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    }:
+        _write_activation_stage_plist(
+            stage_dir / f"{label}.plist",
+            label=label,
+            manifest=manifest,
+        )
+    for staged_plist in stage_dir.glob("*.plist"):
+        with staged_plist.open("rb") as stream:
+            payload = plistlib.load(stream)
+        arguments = list(payload["ProgramArguments"])
+        separator = arguments.index("--")
+        payload["ProgramArguments"] = arguments[: separator + 1] + [
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(child_io_marker)!r}).write_text('bad')",
+        ]
+        with staged_plist.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        staged_plist.chmod(0o600)
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert not child_io_marker.exists()
+    assert pid_log.read_text(encoding="utf-8").count("\n") == len(
+        runtime_manifest.SERVICE_LABELS
+    )
+    barrier = (
+        Path(manifest["publisher_state_root"])
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+    assert not stage_dir.exists()
+
+
 @pytest.mark.parametrize(
     "variant",
     [
@@ -5376,6 +5527,129 @@ def test_activation_only_inert_six_adoption_rollback_receipts(
         "phase": "bootstrap_staged_services",
         "exit_code": 1,
     }
+
+
+@pytest.mark.parametrize(
+    ("rollback_bootstrap_fails", "expected_status"),
+    [(False, "ROLLBACK_COMPLETE"), (True, "ROLLBACK_FAILED")],
+)
+def test_activation_only_inert_six_barrier_timeout_rollback_receipts(
+    tmp_path: Path,
+    rollback_bootstrap_fails: bool,
+    expected_status: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = (
+        f"apf-004-barrier-timeout-{expected_status.lower()}"
+    )
+    env["PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS"] = "1"
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    legacy_payloads: dict[str, bytes] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        legacy_payloads[label] = _write_legacy_capacity_guard_plist(
+            launch_agents / f"{label}.plist",
+            label=label,
+        )
+    legacy_plist = launch_agents / "com.pantheon.content-capacity-guard.plist"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    (loaded / "com.pantheon.content-capacity-guard").touch()
+    bootstrap_count = tmp_path / "bootstrap-count"
+    rollback_fail_test = "1" if rollback_bootstrap_fails else "0"
+    launchctl = tmp_path / "bin" / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' 'state = waiting'\n"
+        f"  printf '%s\\n' '    path = {legacy_plist}'\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        f"  count=$(cat '{bootstrap_count}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{bootstrap_count}'\n"
+        f"  if [ '{rollback_fail_test}' = '1' ] && [ \"$count\" -eq 8 ]; then exit 1; fi\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        f"  touch '{loaded}/'$label\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    for label in {
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    }:
+        _write_activation_stage_plist(
+            stage_dir / f"{label}.plist",
+            label=label,
+            manifest=manifest,
+        )
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    for label, payload in legacy_payloads.items():
+        assert (launch_agents / f"{label}.plist").read_bytes() == payload
+    if expected_status == "ROLLBACK_COMPLETE":
+        assert sorted(path.name for path in loaded.iterdir()) == [
+            "com.pantheon.content-capacity-guard"
+        ]
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == expected_status
+    assert receipt["correlation_id"] == (
+        f"apf-004-barrier-timeout-{expected_status.lower()}"
+    )
+    assert receipt["exit_reason"] == {
+        "phase": "barrier_activation",
+        "exit_code": 1,
+    }
+    if expected_status == "ROLLBACK_COMPLETE":
+        assert receipt["rollback_check_ids"] == []
+    else:
+        assert "rollback.bootstrap" in receipt["rollback_check_ids"]
 
 
 @pytest.mark.parametrize(

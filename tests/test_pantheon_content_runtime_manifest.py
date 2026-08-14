@@ -6,6 +6,7 @@ import os
 import plistlib
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -933,6 +934,8 @@ def _formal_barrier_exec_environment(
     manifest: dict[str, object],
     label: str,
     barrier: Path,
+    *,
+    include_activation_token: bool = True,
 ) -> dict[str, str]:
     environment = os.environ.copy()
     environment.update(
@@ -954,14 +957,162 @@ def _formal_barrier_exec_environment(
                 manifest["publisher_state_root"]
             ),
             "PANTHEON_RUNTIME_LOG_ROOT": str(manifest["log_root"]),
-            "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(barrier),
         }
     )
+    if include_activation_token:
+        environment["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(barrier)
     if "python_executable" in manifest:
         environment["PANTHEON_RUNTIME_PYTHON_EXECUTABLE"] = str(
             manifest["python_executable"]
         )
     return environment
+
+
+def test_barrier_exec_activation_only_acknowledges_without_preexisting_token(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    ready = tmp_path / "activation-only-ready"
+    for path in (actor, queue, state, logs, ready):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="barrier-activation-only-no-pre-token",
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    barrier = tmp_path / "activation.barrier"
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "must-not-exec"
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(ready),
+            "--timeout",
+            "3",
+            "--activation-only",
+            "--",
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+        ],
+        env=_formal_barrier_exec_environment(
+            manifest_path,
+            manifest,
+            label,
+            barrier,
+            include_activation_token=False,
+        ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        ack = ready / f"{label}.json"
+        deadline = time.monotonic() + 2
+        while not ack.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert ack.exists()
+        for other_label in runtime.SERVICE_LABELS:
+            if other_label != label:
+                runtime.write_readiness_ack(ready, manifest, other_label)
+        runtime.activate_barrier(barrier, ready, manifest)
+        stdout, stderr = process.communicate(timeout=3)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+
+    assert process.returncode == 0, stderr
+    assert json.loads(stdout)["activation_only"] is True
+    assert not marker.exists()
+
+
+def test_barrier_exec_normal_propagates_activation_token_to_child(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="barrier-child-token-propagation",
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    ready, barrier = _write_formal_activation_barrier(tmp_path, manifest)
+    exec_ready = tmp_path / "exec-ready"
+    exec_ready.mkdir()
+    label = runtime.SERVICE_LABELS[1]
+    child_token = tmp_path / "child-token.txt"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(exec_ready),
+            "--timeout",
+            "1",
+            "--",
+            sys.executable,
+            "-c",
+            (
+                "import os; from pathlib import Path; "
+                f"Path({str(child_token)!r}).write_text("
+                "os.environ.get('PANTHEON_RUNTIME_ACTIVATION_TOKEN', ''), "
+                "encoding='utf-8')"
+            ),
+        ],
+        check=False,
+        env=_formal_barrier_exec_environment(
+            manifest_path,
+            manifest,
+            label,
+            barrier,
+            include_activation_token=False,
+        ),
+    )
+
+    assert completed.returncode == 0
+    assert (exec_ready / f"{label}.json").exists()
+    assert child_token.read_text(encoding="utf-8") == str(barrier)
 
 
 def test_barrier_exec_rejects_runtime_python_drift_before_ack_or_exec(
@@ -1214,6 +1365,6 @@ def test_early_service_acknowledges_but_cannot_run_before_barrier(
         env=environment,
     )
 
-    assert completed.returncode == 78
-    assert not (ready / f"{label}.json").exists()
+    assert completed.returncode == 75
+    assert (ready / f"{label}.json").exists()
     assert not marker.exists()

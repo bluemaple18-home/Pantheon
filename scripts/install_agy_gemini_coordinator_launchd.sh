@@ -144,8 +144,14 @@ add_hardened_runtime_identity() {
 ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
+BARRIER_TIMEOUT_SECONDS="${PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS:-90}"
 if [[ "${ACTOR_ROOT}" != "${REPO_ROOT}" ]]; then
   echo "runtime manifest actor root 與 coordinator installer 不一致。" >&2
+  exit 1
+fi
+if [[ ! "${BARRIER_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]{0,2}$ ]] \
+  || (( 10#${BARRIER_TIMEOUT_SECONDS} > 300 )); then
+  echo "Pantheon activation barrier timeout 必須介於 1 與 300。" >&2
   exit 1
 fi
 for LEGACY_QUEUE_ROOT in "${AGY_GEMINI_QUEUE_ROOT:-}" "${PANTHEON_GEMINI_QUEUE_ROOT:-}"; do
@@ -338,10 +344,12 @@ write_failure_receipt() {
   local STATUS="$1"
   local RETURN_CODE="$2"
   local EXIT_PHASE="$3"
+  local ROLLBACK_CHECK_IDS_JSON="${4:-[]}"
   local RECEIPT_TEMP="${STAGE_DIR}/failure-receipt.json.tmp.$$"
-  printf '{"schema_version":1,"status":"%s","failed":true,"correlation_id":"%s","stage_identity":{"manifest_digest":"%s","generation":"%s"},"exit_reason":{"phase":"%s","exit_code":%d}}\n' \
+  printf '{"schema_version":1,"status":"%s","failed":true,"correlation_id":"%s","stage_identity":{"manifest_digest":"%s","generation":"%s"},"exit_reason":{"phase":"%s","exit_code":%d},"rollback_check_ids":%s}\n' \
     "${STATUS}" "${ACTIVATION_CORRELATION_ID}" "${RUNTIME_MANIFEST_DIGEST}" \
-    "${RUNTIME_GENERATION}" "${EXIT_PHASE}" "${RETURN_CODE}" > "${RECEIPT_TEMP}"
+    "${RUNTIME_GENERATION}" "${EXIT_PHASE}" "${RETURN_CODE}" \
+    "${ROLLBACK_CHECK_IDS_JSON}" > "${RECEIPT_TEMP}"
   chmod 600 "${RECEIPT_TEMP}"
   mv "${RECEIPT_TEMP}" "${STAGE_DIR}/failure-receipt.json"
 }
@@ -383,65 +391,88 @@ rollback_activation() {
   local RETURN_CODE="$1"
   local EXIT_PHASE="$2"
   local ROLLBACK_FAILED=0
+  local ROLLBACK_CHECK_IDS=()
+  record_rollback_failure() {
+    ROLLBACK_FAILED=1
+    ROLLBACK_CHECK_IDS+=("$1")
+  }
+  rollback_check_ids_json() {
+    local ID
+    local SEPARATOR=""
+    if [[ "${#ROLLBACK_CHECK_IDS[@]}" == "0" ]]; then
+      printf '%s' '[]'
+      return 0
+    fi
+    printf '['
+    for ID in "${ROLLBACK_CHECK_IDS[@]}"; do
+      printf '%s"%s"' "${SEPARATOR}" "${ID}"
+      SEPARATOR=","
+    done
+    printf ']'
+  }
   trap - ERR
   set +e
-  rm -f "${ACTIVATION_BARRIER}" || ROLLBACK_FAILED=1
+  rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
   for LABEL in "${STARTED_LABELS[@]}"; do
     if ! launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
-      ROLLBACK_FAILED=1
+      record_rollback_failure "rollback.bootout"
     fi
     if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
-      ROLLBACK_FAILED=1
+      record_rollback_failure "rollback.bootout.loaded"
     fi
   done
   for INDEX in 0 1 2 3 4 5 6; do
     LABEL="${LABELS[${INDEX}]}"
     TARGET="${TARGET_PLISTS[${INDEX}]}"
     if [[ -f "${STAGE_DIR}/backups/${LABEL}.plist" ]]; then
-      install -m 600 "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" || ROLLBACK_FAILED=1
-      cmp -s "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" || ROLLBACK_FAILED=1
+      install -m 600 "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" \
+        || record_rollback_failure "rollback.restore"
+      cmp -s "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" \
+        || record_rollback_failure "rollback.restore.hash"
     else
-      rm -f "${TARGET}" || ROLLBACK_FAILED=1
-      [[ ! -e "${TARGET}" ]] || ROLLBACK_FAILED=1
+      rm -f "${TARGET}" || record_rollback_failure "rollback.restore.remove"
+      [[ ! -e "${TARGET}" ]] || record_rollback_failure "rollback.restore.remove"
     fi
     if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" \
       && -f "${TARGET}" ]]; then
       if ! launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
         || ! launchctl print "gui/${USER_ID}/${LABEL}" \
           > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
-        ROLLBACK_FAILED=1
+        record_rollback_failure "rollback.bootstrap"
       else
         normalize_control_identity "${STAGE_DIR}/${LABEL}.actual_identity" \
           > "${STAGE_DIR}/${LABEL}.actual_identity.stable"
         cmp -s "${STAGE_DIR}/${LABEL}.previous_identity.stable" \
-          "${STAGE_DIR}/${LABEL}.actual_identity.stable" || ROLLBACK_FAILED=1
+          "${STAGE_DIR}/${LABEL}.actual_identity.stable" \
+          || record_rollback_failure "rollback.identity"
       fi
     elif launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
-      ROLLBACK_FAILED=1
+      record_rollback_failure "rollback.identity.unloaded"
     fi
   done
   if [[ -f "${STAGE_DIR}/previous-barrier" ]]; then
     PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
     install -m 600 "${STAGE_DIR}/previous-barrier" "${PREVIOUS_BARRIER_PATH}" \
-      || ROLLBACK_FAILED=1
+      || record_rollback_failure "rollback.barrier.restore"
     if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
       scripts.pantheon_content_runtime_manifest barrier-validate \
       --barrier "${PREVIOUS_BARRIER_PATH}" \
       --manifest "${STAGE_DIR}/previous-runtime-manifest.json" \
       --expected-digest "$(cat "${STAGE_DIR}/previous-manifest-digest")") \
       >/dev/null; then
-      ROLLBACK_FAILED=1
+      record_rollback_failure "rollback.barrier.validate"
     fi
   elif grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded \
     && [[ ! -f "${STAGE_DIR}/legacy-capacity-adoption" ]]; then
-    ROLLBACK_FAILED=1
+    record_rollback_failure "rollback.barrier.missing"
   fi
   if [[ "${ROLLBACK_FAILED}" == "1" ]]; then
     ROLLBACK_STATUS="ROLLBACK_FAILED"
   else
     ROLLBACK_STATUS="ROLLBACK_COMPLETE"
   fi
-  write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
+  write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}" \
+    "$(rollback_check_ids_json)"
   exit "${RETURN_CODE}"
 }
 canonical_existing_path() {
@@ -680,7 +711,7 @@ ACTIVATION_PHASE="barrier_activation"
   --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
   --ready-root "${READY_ROOT}" \
   --barrier "${ACTIVATION_BARRIER}" \
-  --timeout 90) >/dev/null
+  --timeout "${BARRIER_TIMEOUT_SECONDS}") >/dev/null
 if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
   ACTIVATION_PHASE="activation_only_postcheck"
   for LABEL in "${LABELS[@]}"; do

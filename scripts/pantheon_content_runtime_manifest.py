@@ -413,6 +413,7 @@ def validate_runtime_tick(
     state_root: Path,
     actor_root: Path | None = None,
     log_root: Path | None = None,
+    require_activation_token: bool = True,
 ) -> dict[str, Any]:
     """正式服務每次 tick 在任何 queue/state I/O 前驗證 runtime identity。"""
     if os.environ.get("PANTHEON_FORMAL_RUNTIME") != "1":
@@ -480,6 +481,8 @@ def validate_runtime_tick(
             raise RuntimeManifestError(f"formal runtime {field} mismatch")
     activation_token = os.environ.get("PANTHEON_RUNTIME_ACTIVATION_TOKEN", "")
     if not activation_token:
+        if not require_activation_token:
+            return {"status": "PASS", **receipt_for_label(manifest, service_label)}
         raise RuntimeManifestError("formal runtime activation token is required")
     token_path = Path(activation_token)
     if not token_path.is_absolute():
@@ -785,6 +788,7 @@ def main() -> int:
                 state_root=Path(manifest["publisher_state_root"]),
                 actor_root=Path(manifest["actor_root"]),
                 log_root=Path(manifest["log_root"]),
+                require_activation_token=False,
             )
             validate_execution_python_identity(manifest, command)
             write_readiness_ack(args.ready_root, manifest, args.service_label)
@@ -800,6 +804,7 @@ def main() -> int:
             validate_execution_python_identity(manifest, command)
         except RuntimeManifestError:
             return 78
+        os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(args.barrier)
         if args.activation_only:
             print(
                 json.dumps(
