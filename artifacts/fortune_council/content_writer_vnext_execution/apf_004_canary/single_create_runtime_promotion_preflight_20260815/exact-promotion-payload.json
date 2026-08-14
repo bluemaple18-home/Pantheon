@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "execution_authorized": false,
+  "target_identity": {
+    "source_ref": "origin/main",
+    "source_sha": "fb4f9590f0140123fb5074426dfb93aa6aef2c04",
+    "actor_target": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "runtime_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "proposed_identity": "gate2-actor:fb4f9590f0140123fb5074426dfb93aa6aef2c04:activation-only",
+    "proposed_generation": "g2-fb4f9590f0-20260814T172306Z",
+    "proposed_correlation": "apf004-runtime-promotion-fb4f9590f0-20260814T172306Z",
+    "proposed_runtime_identity_digest": "d456ba8e8066886f9167b0060ea8f03c8db02d143be268f413fa1ab90de2ce80",
+    "proposed_manifest_digest": "afd4090a8484951b594fc44b78a22918a357469f1e0063ed009801616f005093"
+  },
+  "gate_a_promotion_only": {
+    "confirmation_required": true,
+    "current_state": "BLOCKED_BEFORE_CONFIRMATION",
+    "allowed_mutation_scope_if_repaired_and_confirmed": [
+      "replace the exact actor target with source SHA",
+      "atomically replace the production runtime manifest",
+      "write exactly seven private-stage plists and matching stage identity",
+      "run activation-only aggregate validation with zero business child I/O"
+    ],
+    "forbidden": [
+      "create-run plan or apply",
+      "business runner execution",
+      "external model call",
+      "select, publish, transaction, tag, push, deploy, or schedule"
+    ],
+    "pre_gates": [
+      "source and actor identity remain exact and clean",
+      "workers remain inert",
+      "queue remains empty and state remains barrier-only",
+      "host capacity remains inside the bounded budget",
+      "durable actor plus manifest plus stage rollback is available"
+    ],
+    "post_gates": [
+      "actor HEAD equals source SHA and is clean",
+      "manifest validates exact actor, identity, generation, and digests",
+      "stage contains exactly seven matching plists and identity receipts",
+      "activation-only acknowledgements are seven of seven",
+      "queue, state payloads, and run root remain unchanged",
+      "workers have zero business child I/O"
+    ],
+    "reentry": "fail closed unless all post-gates prove a single exact identity; never replay a partially successful mutation",
+    "stop_loss": "on the first failed or ambiguous mutation, stop before the next boundary and invoke only the verified aggregate rollback",
+    "rollback_required": "restore actor, production manifest, private stage, live plists, barrier, and prior inert service identities as one correlated operation",
+    "blocker": "the repository exposes separate actor, manifest, stage, and activation CLIs but no durable aggregate rollback after actor restore succeeds"
+  },
+  "gate_b_later_single_plan_only": {
+    "confirmation_required_after_gate_a": true,
+    "current_state": "NOT_AUTHORIZED_NOT_EXECUTED",
+    "entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+    "plan_only": true,
+    "max_runs": 1,
+    "expected_run_count": 1,
+    "expected_write_count": 3,
+    "actual_write_count": 0,
+    "apply_permitted": false,
+    "authority_binding": "the separately confirmed single synthetic payload and its two authority digests must be supplied unchanged",
+    "precondition": "Gate A must be confirmed, executed once, and independently accepted first"
+  }
+}

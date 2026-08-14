@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-08-14T17:23:06Z",
+  "completed_at": "2026-08-14T17:25:09Z",
+  "operation_level": "read_only",
+  "external_tool_gate": {
+    "tool_service": "local production runtime filesystem and launchctl read-only inspection",
+    "connection_status": "local",
+    "schema_checked": true,
+    "confirmation_required": false,
+    "execution_status": "read_only_complete"
+  },
+  "calls": {
+    "actor_restore": 0,
+    "manifest_create_or_write": 0,
+    "stage_install": 0,
+    "launchctl_mutation": 0,
+    "create_run_plan": 0,
+    "create_run_apply": 0,
+    "runner": 0,
+    "external_model": 0,
+    "select": 0,
+    "publish": 0,
+    "transaction": 0,
+    "tag": 0,
+    "push": 0,
+    "deploy": 0,
+    "schedule": 0
+  },
+  "queue_state_run_tree_before": "de112978b25517ecc925e0b76c58f257c1d2b77fcfbf41cdd59b476a20ce50f6",
+  "queue_state_run_tree_after": "de112978b25517ecc925e0b76c58f257c1d2b77fcfbf41cdd59b476a20ce50f6",
+  "private_stage_tree_before": "05d74b47e3897354354c5687335ea244b3644133e1db0b13f2e54d887d3b95f7",
+  "private_stage_tree_after": "05d74b47e3897354354c5687335ea244b3644133e1db0b13f2e54d887d3b95f7",
+  "production_mutation_count": 0
+}

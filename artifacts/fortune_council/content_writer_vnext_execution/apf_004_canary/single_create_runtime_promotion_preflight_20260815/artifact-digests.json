@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-14T17:25:09Z",
+  "algorithm": "sha256",
+  "artifacts": {
+    "capacity-snapshot.json": "4e6e1d2b986d301657ccb12e81e5a583be285e1f182bef32658046d9e0ca2e97",
+    "exact-promotion-payload.json": "f75d263953041f2eb4ed3702913a31e1b99eff17f2c06c0dc1a5deefa7a8fa98",
+    "mutation-trace.json": "696f87ed1c82289c8c9e3b143a8c8b1a2829cfcdff003f610de1b880476c3657",
+    "preflight-receipt.json": "cd740893196cd064e8d4653b03b8fbef2f33a78af7270c8d6006e1a383080aac",
+    "promotion-cli-contract.json": "06acf9128f90e3d0e0ba3a96d7cbaa2b7e0fe74b385ca4fc33bef9c41b0e4360",
+    "runtime-snapshot.json": "d67bd483c594728c01d82b59201ab0f73121f387beda175697a7a0499e0dc9f6",
+    "source-authority.json": "2e595db57758d8bc5eeb20022dc3e1fedff2df9f45aa27f9836e392141c056be"
+  }
+}

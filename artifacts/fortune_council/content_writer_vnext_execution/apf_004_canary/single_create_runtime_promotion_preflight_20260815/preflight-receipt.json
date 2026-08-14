@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-SINGLE-CREATE-RUNTIME-PROMOTION-PREFLIGHT",
+  "formal_thread_id": "019fff32-3756-7651-8d9a-08a9bdd2763f",
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "verdict": "BLOCKED",
+  "root_question": "Can origin/main be promoted to the production actor, manifest, and private stage through one exact public payload with verified rollback and zero downstream activity?",
+  "facts": [
+    "origin/main is exact, clean, contains the approved single-source adapter, and is a fast-forward descendant of the runtime actor",
+    "the runtime actor is clean and inert but lacks the single-source adapter",
+    "queue is empty, state contains only the current activation barrier, and no runtime process has a PID",
+    "host free space exceeds the required reserve and swap did not increase across the two samples",
+    "the actor recovery CLI has an internal failure rollback but deletes its actor backup after success",
+    "production manifest and private stage updates are separate public boundaries without aggregate post-success rollback"
+  ],
+  "acceptance_mapping": {
+    "unique_source_sha": "PASS",
+    "actor_manifest_stage_identity": "PASS_CURRENT_STATE_ONLY",
+    "capacity_stop_loss": "PASS_FOR_PAYLOAD_LOCK_ONLY",
+    "public_promotion_cli": "PARTIAL",
+    "backup_and_rollback": "FAIL",
+    "two_confirmation_gates": "PASS",
+    "production_mutation_zero": "PASS"
+  },
+  "blocker": "No public CLI atomically promotes actor, production manifest, and private stage while retaining a verified post-success rollback boundary.",
+  "frontier": "Add or formally approve one aggregate promotion entrypoint that keeps the prior actor and manifest until stage and activation-only postchecks pass, and restores all correlated state on any failure.",
+  "remaining_risk": [
+    "executing the existing actor restore first can leave the actor at the new SHA while the production manifest remains pinned to the old SHA",
+    "a later manifest or stage failure has no public path to restore the deleted actor backup under the origin/main-only authority rule",
+    "high absolute host swap remains an operational concern even though the sampled delta was negative and runtime RSS was zero"
+  ],
+  "next_confirmation": "none while BLOCKED",
+  "production_mutation_count": 0
+}

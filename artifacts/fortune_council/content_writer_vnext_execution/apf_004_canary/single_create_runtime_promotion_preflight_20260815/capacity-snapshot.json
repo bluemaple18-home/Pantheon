@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "host": {
+    "total_bytes": 245107195904,
+    "free_bytes": 67763871744,
+    "required_reserve_bytes": 24510719591,
+    "headroom_above_reserve_bytes": 43253152153,
+    "free_percent": 27.64,
+    "minimum_free_percent": 10,
+    "free_gate": "PASS"
+  },
+  "runtime_project": {
+    "bytes": 571150336,
+    "file_count": 5060,
+    "actor_bytes": 398831616,
+    "actor_file_count": 4749,
+    "dependency_bytes": 169721856,
+    "dependency_file_count": 1,
+    "private_stage_bytes": 28672,
+    "private_stage_file_count": 7
+  },
+  "process": {
+    "runtime_process_count": 0,
+    "runtime_rss_bytes": 0,
+    "basis": "no matching runtime process and all seven loaded labels have no PID"
+  },
+  "swap_samples": [
+    {
+      "sampled_at": "2026-08-14T17:23:06Z",
+      "total_bytes": 17179869184,
+      "used_bytes": 16438924411
+    },
+    {
+      "sampled_at": "2026-08-14T17:25:09Z",
+      "total_bytes": 17179869184,
+      "used_bytes": 16422147195
+    }
+  ],
+  "swap_delta_bytes": -16777216,
+  "bounded_promotion_budget": {
+    "max_transient_bytes": 2147483648,
+    "max_file_count_delta": 10000,
+    "peak_window_seconds": 900,
+    "stabilization_seconds": 300,
+    "retention_seconds": 0,
+    "normal_growth_bytes_per_hour_after_promotion": 0,
+    "sampling_interval_seconds": 60,
+    "max_rss_delta_bytes_per_sample": 536870912,
+    "max_swap_delta_bytes_per_sample": 268435456,
+    "cleanup_allowlist": [
+      "<repo-parent>/Pantheon-canary-runtime-v8/.actor.restore-*",
+      "<repo-parent>/Pantheon-canary-runtime-v8/.actor.preflight-*",
+      "<repo-parent>/Pantheon-canary-runtime-v8/.actor.rollback"
+    ],
+    "stop_loss": [
+      "free_bytes < required_reserve_bytes",
+      "transient bytes or file count exceeds budget",
+      "RSS or swap delta exceeds per-sample limit",
+      "any unlisted write path appears"
+    ]
+  },
+  "verdict": "PASS_FOR_PAYLOAD_LOCK_ONLY",
+  "not_an_activation_authorization": true
+}

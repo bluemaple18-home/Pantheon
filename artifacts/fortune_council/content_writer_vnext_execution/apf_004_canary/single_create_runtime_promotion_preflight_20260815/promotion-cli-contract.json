@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "public_cli_candidate": {
+    "entrypoint": "<repo-root>/.venv/bin/python -m scripts.pantheon_content_actor_recovery",
+    "source_path": "<repo-root>/scripts/pantheon_content_actor_recovery.py",
+    "source_sha256": "3748b9df273789121f0a19a8f8c25c9122e953e9961c2164e8de80b8b1c1c0e4",
+    "mode": "--restore",
+    "source_authority": "origin/main",
+    "required_source_sha": "fb4f9590f0140123fb5074426dfb93aa6aef2c04",
+    "target": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "allow_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "expected_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "expected_runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "expected_dependency_digest": "ce7efeaae6d86df3646c6f2405fef922473f0ae46090a9f8264553ae08c83529",
+    "python_dependency_root": "<isolated-venv>",
+    "expected_python_dependency_digest": "1d5d95a52ac247f0c85eaf51c1e1d871e4236c134eb69a477e93d72d34d78f5c",
+    "node_dependency_root": "<repo-parent>/Pantheon-canary-runtime-v8/dependencies/agy-1.1.3-root",
+    "expected_node_dependency_digest": "61d2b7996558afa5bd22019aa7ccb6049404c9191e6902510d0d0821938acf22"
+  },
+  "verified_behavior": {
+    "source_clean_head_origin_and_digests_checked": true,
+    "target_clean_origin_and_fast_forward_checked": true,
+    "isolated_clone_and_installer_preflights": true,
+    "atomic_actor_replace": true,
+    "transient_backup_path": "<repo-parent>/Pantheon-canary-runtime-v8/.actor.rollback",
+    "failure_during_actor_replace_restores_backup": true,
+    "backup_removed_after_success": true,
+    "production_manifest_updated": false,
+    "private_stage_updated": false,
+    "post_success_actor_rollback_available": false
+  },
+  "separate_public_boundaries": [
+    {
+      "entrypoint": "<repo-root>/.venv/bin/python -m scripts.pantheon_content_runtime_manifest create",
+      "source_sha256": "ad21d8939d6c3f2bae346b101b1fa33cb2f7bf6112b8dff5f8e43a06c8c68ae4",
+      "writes": "production runtime manifest",
+      "durable_backup_or_cross-step_rollback": false
+    },
+    {
+      "entrypoint": "<repo-root>/scripts/install_agy_content_publisher_launchd.sh --install",
+      "source_sha256": "816be3c6e99f20e5785be3721c02f7eb78f7dbe22b347287059660d600c43b72",
+      "writes": "publisher private stage plist",
+      "cross-step_actor_manifest_rollback": false
+    },
+    {
+      "entrypoint": "<repo-root>/scripts/install_pantheon_content_capacity_guard_launchd.sh --install",
+      "source_sha256": "964bad20672383980f6604de85940fb8f3dd5dceba8140e3f2a9d1af4e81baa5",
+      "writes": "capacity private stage plist",
+      "cross-step_actor_manifest_rollback": false
+    },
+    {
+      "entrypoint": "<repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --install",
+      "source_sha256": "97f121c70a81c22e67d7f6d1722a47c6d7f75e8be204f5d4e8ed216624f3f114",
+      "writes": "coordinator and four lane private stage plists plus stage identity",
+      "cross_step_actor_manifest_rollback": false
+    }
+  ],
+  "ineligible_cli": {
+    "entrypoint": "<repo-root>/.venv/bin/python -m scripts.prepare_pantheon_canary_actor prepare",
+    "source_sha256": "a9304ff7b5c97767c6a1dea40e5e48d1f70d4e53825fda4d994def0cf77e7011",
+    "reason": "existing actor must already match target SHA and production state/log roots must be empty"
+  },
+  "verdict": "NO_ATOMIC_PUBLIC_PROMOTION_ENTRYPOINT",
+  "blocker": "No public CLI atomically promotes actor, production manifest, and private stage while retaining a verified post-success rollback boundary."
+}

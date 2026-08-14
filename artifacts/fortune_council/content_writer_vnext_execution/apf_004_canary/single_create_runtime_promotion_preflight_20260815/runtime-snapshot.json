@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "runtime": {
+    "root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "actor_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_origin_main": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_clean": true,
+    "actor_origin_matches_source_origin": true,
+    "single_source_entrypoint_present": false,
+    "actor_source_sha256": "45d2038b867d0c71e57a20137bd4ac4c2773ffba30b8216cac27826d1805cba8"
+  },
+  "manifest": {
+    "path": "<repo-parent>/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "file_sha256": "8e922ee86e8aa21e86ae5cf05bad84199062326e0141a0b3639ffb0053ffc159",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "config_version": "formal-runtime-v2-gate2",
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "mode": "600"
+  },
+  "roots": {
+    "queue": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+      "file_count": 0
+    },
+    "state": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+      "file_count": 1,
+      "barrier_path": "<repo-parent>/Pantheon-canary-runtime-v8/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier",
+      "barrier_sha256": "67ff22728dedc3d9a202a323f9d9ec0512d59600851dc645041265aee44dd3ec"
+    },
+    "run": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy",
+      "file_count": 0
+    },
+    "combined_queue_state_run_tree_digest": "de112978b25517ecc925e0b76c58f257c1d2b77fcfbf41cdd59b476a20ce50f6"
+  },
+  "private_stage": {
+    "locator": "user LaunchAgents/.pantheon-four-lane-stage",
+    "file_count": 7,
+    "tree_digest": "05d74b47e3897354354c5687335ea244b3644133e1db0b13f2e54d887d3b95f7",
+    "readiness_generation": "g2-9d8573e962-20260814T104149Z",
+    "readiness_ack_count": 7,
+    "matching_manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "aggregate_stage_manifest_digest_receipt_present": false,
+    "aggregate_stage_generation_receipt_present": false,
+    "staged_plist_count": 0,
+    "failure_receipt_present": false
+  },
+  "workers": {
+    "labels_observed": 7,
+    "labels_with_pid": 0,
+    "matching_process_count": 0,
+    "state": "inert"
+  }
+}

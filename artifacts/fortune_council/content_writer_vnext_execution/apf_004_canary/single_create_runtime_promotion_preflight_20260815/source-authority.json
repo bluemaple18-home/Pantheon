@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-14T17:25:09Z",
+  "authority": {
+    "ref": "origin/main",
+    "sha": "fb4f9590f0140123fb5074426dfb93aa6aef2c04",
+    "worktree_head": "fb4f9590f0140123fb5074426dfb93aa6aef2c04",
+    "worktree_clean": true,
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "feature_commit": "2ad9af5b44a0e5d91774cbaa7d3e2463996c8203",
+    "feature_is_ancestor": true
+  },
+  "single_source_entrypoint": {
+    "identifier": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+    "present": true,
+    "source_path": "<repo-root>/scripts/agy_gemini_coordinator.py",
+    "source_sha256": "383c59dda780be11e13b73c272195883e202a02debbf117eba0e2ec47b301b3b"
+  },
+  "source_contract": {
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "dependency_digest": "ce7efeaae6d86df3646c6f2405fef922473f0ae46090a9f8264553ae08c83529",
+    "actor_to_source_ancestor": true,
+    "production_path_delta": [
+      {
+        "path": "scripts/agy_gemini_coordinator.py",
+        "status": "modified",
+        "added_lines": 272,
+        "deleted_lines": 0
+      }
+    ],
+    "production_path_delta_count": 1,
+    "production_path_list_digest": "f7af73e418c1bb39dbb36c0a60cd196268914c3ec5222be761f93eb1e9c22b34",
+    "production_patch_digest": "0be9617fe39cc756b41247ac855f18a32e181827ac4d8a6fcca4b62f84bb49df"
+  }
+}
