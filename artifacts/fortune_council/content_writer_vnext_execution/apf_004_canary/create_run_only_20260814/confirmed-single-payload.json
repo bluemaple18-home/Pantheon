@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_type": "confirmed-single-synthetic-payload",
+  "item_count": 1,
+  "items": [
+    {
+      "source_kind": "matrix",
+      "article_id": "ASTRO-SCENARIO-BIG-THREE",
+      "locale": "zh-TW",
+      "lane": "new",
+      "campaign_version": "apf-001-v1",
+      "work_id": "apf-work-b1666341df10a14c1a586141"
+    }
+  ]
+}

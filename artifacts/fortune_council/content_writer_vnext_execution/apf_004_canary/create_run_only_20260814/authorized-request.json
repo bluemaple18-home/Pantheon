@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_type": "authorized-create-run-only-request",
+  "source_thread_id": "019fff32-3756-7651-8d9a-08a9bdd2763f",
+  "scope": "create-run-only",
+  "max_payloads": 1,
+  "authorized_payload_kind": "一筆 synthetic production queue/state payload",
+  "approval": {
+    "status": "confirmed",
+    "marker": "繼續",
+    "obtained_in_current_authorization_round": true
+  },
+  "allowed": [
+    "single synthetic production queue/state create"
+  ],
+  "forbidden": [
+    "runner",
+    "select",
+    "publish",
+    "transaction",
+    "tag",
+    "push",
+    "external_model"
+  ]
+}

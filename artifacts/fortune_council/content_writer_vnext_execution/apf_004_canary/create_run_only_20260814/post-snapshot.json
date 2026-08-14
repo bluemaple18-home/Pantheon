@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "artifact_type": "production-runtime-post-plan-snapshot",
-  "sampled_at": "2026-08-14T15:25:14Z",
+  "sampled_at": "2026-08-14T15:38:13Z",
   "snapshot": {
     "queue": {
       "root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",

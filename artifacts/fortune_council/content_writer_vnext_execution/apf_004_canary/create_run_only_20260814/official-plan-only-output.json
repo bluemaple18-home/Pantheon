@@ -1,83 +1,25 @@
 {
-  "schema_version": 1,
-  "status": "planned",
-  "entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
-  "campaign_version": "apf-001-v1",
-  "plan_digest": "8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5",
-  "exact_run_ids": [
-    "apf-create-run-new-7d0e46d9ec617526f77f8213",
-    "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
-    "auto-i18n-ja-fcbf5d1af50382a4d586",
-    "auto-i18n-ja-8b6ea232885ab55ab92f"
-  ],
-  "runs": [
-    {
-      "lane": "new",
-      "run_id": "apf-create-run-new-7d0e46d9ec617526f77f8213",
-      "mode": "create",
-      "work_id": "apf-work-b1666341df10a14c1a586141",
-      "article_id": "ASTRO-SCENARIO-BIG-THREE",
-      "locale": "zh-TW",
-      "run_dir": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy/apf-create-run-new-7d0e46d9ec617526f77f8213",
-      "stage": "source",
-      "depends_on": []
-    },
-    {
-      "lane": "rewrite",
-      "run_id": "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
-      "mode": "rewrite_existing_body",
-      "work_id": "apf-work-0146edbbed78ec5debf138d4",
-      "article_id": "ASC-AQUARIUS",
-      "locale": "zh-TW",
-      "run_dir": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy/apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
-      "stage": "source",
-      "depends_on": []
-    },
-    {
-      "lane": "i18n-new",
-      "run_id": "auto-i18n-ja-fcbf5d1af50382a4d586",
-      "mode": "translate_existing",
-      "work_id": "apf-work-44bd155e28231d25d65f3394",
-      "article_id": "ASTRO-SCENARIO-BIG-THREE",
-      "locale": "ja",
-      "run_dir": "<repo-parent>/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-fcbf5d1af50382a4d586",
-      "stage": "pending_dependency",
-      "depends_on": [
-        "apf-create-run-new-7d0e46d9ec617526f77f8213"
-      ]
-    },
-    {
-      "lane": "i18n-rewrite",
-      "run_id": "auto-i18n-ja-8b6ea232885ab55ab92f",
-      "mode": "translate_existing",
-      "work_id": "apf-work-1eeac7f0a8fff378eb65c190",
-      "article_id": "ASC-AQUARIUS",
-      "locale": "ja",
-      "run_dir": "<repo-parent>/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-8b6ea232885ab55ab92f",
-      "stage": "pending_dependency",
-      "depends_on": [
-        "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8"
-      ]
-    }
-  ],
-  "dependency_graph": {
-    "apf-create-run-new-7d0e46d9ec617526f77f8213": [],
-    "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8": [],
-    "auto-i18n-ja-fcbf5d1af50382a4d586": [
-      "apf-create-run-new-7d0e46d9ec617526f77f8213"
-    ],
-    "auto-i18n-ja-8b6ea232885ab55ab92f": [
-      "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8"
-    ]
+  "authority_bound": true,
+  "counters": {
+    "apply_calls": 0,
+    "apply_preflight_calls": 0,
+    "external_model_calls": 0,
+    "plan_only_calls": 1,
+    "publish_calls": 0,
+    "push_calls": 0,
+    "queue_state_write_calls": 0,
+    "register_run_calls": 0,
+    "runner_calls": 0,
+    "select_calls": 0,
+    "tag_calls": 0,
+    "transaction_calls": 0
   },
-  "expected_write_set": [
-    "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy/apf-create-run-new-7d0e46d9ec617526f77f8213/brief.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/queue/runs/15bb57c88d6e9530168387c3.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy/apf-create-run-rewrite-1a192dbea1d6dda0289d19d8/brief.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/queue/runs/915834a4b1c6a5acc399f226.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/queue/translation-pending-dependencies/a4e5d2a3cc399d4cfa667338.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/queue/translation-pending-dependencies/a9ae98ae24f1db408401018d.json",
-    "<repo-parent>/Pantheon-canary-runtime-v8/queue/apf-create-run-transactions/8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5.json"
-  ],
-  "production_mutation": false
+  "entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
+  "error": "create-run adapter requires exactly four lanes",
+  "exception_type": "ValueError",
+  "input_sha256": "fede15ad3de8fdbab4d869b8604943a229ac7beb6a1faafc89dbfad3eb004a4f",
+  "plan_materialized": false,
+  "production_mutation": false,
+  "sampled_at": "2026-08-14T15:37:59Z",
+  "status": "BLOCKED"
 }
