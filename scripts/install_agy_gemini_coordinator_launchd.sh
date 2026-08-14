@@ -432,7 +432,8 @@ rollback_activation() {
       >/dev/null; then
       ROLLBACK_FAILED=1
     fi
-  elif grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded; then
+  elif grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded \
+    && [[ ! -f "${STAGE_DIR}/legacy-capacity-adoption" ]]; then
     ROLLBACK_FAILED=1
   fi
   if [[ "${ROLLBACK_FAILED}" == "1" ]]; then
@@ -442,6 +443,72 @@ rollback_activation() {
   fi
   write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
   exit "${RETURN_CODE}"
+}
+canonical_existing_path() {
+  local INPUT_PATH="$1"
+  local INPUT_DIR
+  local INPUT_BASE
+  local PHYSICAL_DIR
+  INPUT_DIR="$(dirname "${INPUT_PATH}")"
+  INPUT_BASE="$(basename "${INPUT_PATH}")"
+  PHYSICAL_DIR="$(cd "${INPUT_DIR}" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "${PHYSICAL_DIR}" "${INPUT_BASE}"
+}
+prepare_legacy_capacity_adoption() {
+  local CAPACITY_LABEL="com.pantheon.content-capacity-guard"
+  local CAPACITY_INDEX=6
+  local CAPACITY_TARGET="${TARGET_PLISTS[${CAPACITY_INDEX}]}"
+  local CAPACITY_BACKUP="${STAGE_DIR}/backups/${CAPACITY_LABEL}.plist"
+  local CAPACITY_IDENTITY="${STAGE_DIR}/${CAPACITY_LABEL}.previous_identity"
+  local CANONICAL_LOADED_PATH
+  local CANONICAL_TARGET_PATH
+  local INDEX
+  local LABEL
+  local LOADED_PATH
+  local PATH_FIELD_COUNT
+  local STRICT_PATH_FIELD_COUNT
+
+  [[ "${ACTIVATION_ONLY}" == "1" ]] || return 1
+  [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] || return 1
+  [[ "$(cat "${STAGE_DIR}/${CAPACITY_LABEL}.previous_loaded")" == "1" ]] \
+    || return 1
+  for INDEX in 0 1 2 3 4 5; do
+    LABEL="${LABELS[${INDEX}]}"
+    [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "0" ]] || return 1
+    [[ ! -f "${STAGE_DIR}/backups/${LABEL}.plist" ]] || return 1
+  done
+  [[ -f "${CAPACITY_BACKUP}" && -f "${CAPACITY_TARGET}" ]] || return 1
+  [[ ! -L "${CAPACITY_TARGET}" && ! -L "${CAPACITY_BACKUP}" ]] || return 1
+  [[ "$(stat -f '%u' "${CAPACITY_TARGET}")" == "${USER_ID}" ]] || return 1
+  [[ "$(stat -f '%u' "${CAPACITY_BACKUP}")" == "${USER_ID}" ]] || return 1
+  [[ "$(stat -f '%Lp' "${CAPACITY_TARGET}")" == "600" ]] || return 1
+  cmp -s "${CAPACITY_BACKUP}" "${CAPACITY_TARGET}" || return 1
+  PATH_FIELD_COUNT="$(grep -Ec '^[[:space:]]*path[[:space:]]*=' \
+    "${CAPACITY_IDENTITY}" || true)"
+  [[ "${PATH_FIELD_COUNT}" == "1" ]] || return 1
+  STRICT_PATH_FIELD_COUNT="$(grep -Ec '^path = /[^[:space:]]+$' \
+    "${CAPACITY_IDENTITY}" || true)"
+  [[ "${STRICT_PATH_FIELD_COUNT}" == "1" ]] || return 1
+  LOADED_PATH="$(sed -n 's/^path = \(\/[^[:space:]]*\)$/\1/p' \
+    "${CAPACITY_IDENTITY}")"
+  [[ "${LOADED_PATH}" == /* && -e "${LOADED_PATH}" && ! -L "${LOADED_PATH}" ]] \
+    || return 1
+  CANONICAL_LOADED_PATH="$(canonical_existing_path "${LOADED_PATH}")" || return 1
+  CANONICAL_TARGET_PATH="$(canonical_existing_path "${CAPACITY_TARGET}")" || return 1
+  [[ "${LOADED_PATH}" == "${CANONICAL_LOADED_PATH}" ]] || return 1
+  [[ "${CAPACITY_TARGET}" == "${CANONICAL_TARGET_PATH}" ]] || return 1
+  [[ "${CANONICAL_LOADED_PATH}" == "${CANONICAL_TARGET_PATH}" ]] || return 1
+  [[ "${LOADED_PATH}" == "${CAPACITY_TARGET}" ]] || return 1
+  if grep -Eq '^[[:space:]]*state = running$' \
+    "${CAPACITY_IDENTITY}"; then
+    return 1
+  fi
+  shasum -a 256 "${CAPACITY_TARGET}" \
+    > "${STAGE_DIR}/legacy-capacity-plist.sha256" || return 1
+  cp "${CAPACITY_IDENTITY}" "${STAGE_DIR}/legacy-capacity-loaded-identity"
+  printf '%s\n' "${CAPACITY_TARGET}" > "${STAGE_DIR}/legacy-capacity-target-path"
+  : > "${STAGE_DIR}/legacy-capacity-adoption"
+  return 0
 }
 
 # aggregate activation 前才 snapshot live config/state；stage 不碰 live target 或 barrier。
@@ -495,8 +562,10 @@ fi
 ACTIVATION_PHASE="previous_barrier_validation"
 if [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] \
   && grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded; then
-  echo "legacy prior-loaded service 缺少 valid activation barrier，拒絕 activation。" >&2
-  false
+  if ! prepare_legacy_capacity_adoption; then
+    echo "legacy prior-loaded service 缺少 valid activation barrier，拒絕 activation。" >&2
+    false
+  fi
 fi
 
 ACTIVATION_PHASE="replace_live_plists"
