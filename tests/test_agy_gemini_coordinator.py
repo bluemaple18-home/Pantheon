@@ -764,6 +764,137 @@ def _apf_004_kwargs(tmp_path: Path, workset: dict[str, object] | None = None) ->
     }
 
 
+def _apf_004_single_workset(lane: str = "new") -> dict[str, object]:
+    if lane == "new":
+        item = _apf_004_item("matrix", "ASTRO-SCENARIO-BIG-THREE", "zh-TW", "new")
+    elif lane == "rewrite":
+        item = _apf_004_item("legacy", "ASC-AQUARIUS", "zh-TW", "rewrite")
+    else:
+        item = _apf_004_item("matrix", "ASTRO-SCENARIO-BIG-THREE", "ja", lane)
+    return {
+        "schema_version": 1,
+        "campaign_version": "apf-001-v1",
+        "lanes": [lane],
+        "items": [item],
+        "summary": {"fixture": "apf-004-single"},
+    }
+
+
+def _apf_004_single_kwargs(tmp_path: Path, lane: str = "new") -> dict[str, object]:
+    workset = _apf_004_single_workset(lane)
+    return _apf_004_kwargs(tmp_path, workset)
+
+
+def test_apf_004_single_create_only_adapter_plan_only_is_deterministic_and_zero_write(
+    tmp_path: Path,
+) -> None:
+    kwargs = _apf_004_single_kwargs(tmp_path)
+    before = _tree_bytes(tmp_path)
+
+    first = coordinator.create_single_source_run_adapter(**kwargs, plan_only=True)
+    second = coordinator.create_single_source_run_adapter(**kwargs, plan_only=True)
+
+    assert first == second
+    assert first["status"] == "planned"
+    assert first["entrypoint"] == "scripts.agy_gemini_coordinator:create_single_source_run_adapter"
+    assert first["campaign_version"] == "apf-001-v1"
+    assert first["production_mutation"] is False
+    assert [item["lane"] for item in first["runs"]] == ["new"]
+    assert len(first["exact_run_ids"]) == 1
+    assert list(first["dependency_graph"].values()) == [[]]
+    assert len(first["expected_write_set"]) == 3
+    assert _tree_bytes(tmp_path) == before
+
+
+def test_apf_004_single_create_only_adapter_apply_is_idempotent_and_resume_safe(
+    tmp_path: Path,
+) -> None:
+    kwargs = _apf_004_single_kwargs(tmp_path, "rewrite")
+
+    first = coordinator.create_single_source_run_adapter(**kwargs, plan_only=False)
+    second = coordinator.create_single_source_run_adapter(**kwargs, plan_only=False)
+    Path(str(first["transaction_receipt"])).unlink()
+    resumed = coordinator.create_single_source_run_adapter(**kwargs, plan_only=False)
+
+    assert first["exact_run_ids"] == second["exact_run_ids"] == resumed["exact_run_ids"]
+    assert first["created"] == {"registered": 1, "pending_dependencies": 0}
+    assert second["created"] == {"registered": 0, "pending_dependencies": 0}
+    assert resumed["created"] == {"registered": 0, "pending_dependencies": 0}
+    assert Path(str(resumed["transaction_receipt"])).is_file()
+    assert len(sorted((tmp_path / "queue" / "runs").glob("*.json"))) == 1
+    assert not (tmp_path / "queue" / "translation-pending-dependencies").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("i18n_lane", "single-source create-only adapter requires a source lane"),
+        ("multi_item", "single-source create-only adapter requires exactly one item"),
+        ("multi_exact", "single-source create-only adapter requires exactly one exact tuple"),
+        ("work_id", "exact work identity differs"),
+        ("caller_run_id", "caller-supplied run identity"),
+        ("max_runs", "max_runs=1"),
+    ],
+)
+def test_apf_004_single_create_only_adapter_negative_fails_before_write(
+    tmp_path: Path,
+    mutation: str,
+    expected: str,
+) -> None:
+    kwargs = _apf_004_single_kwargs(tmp_path)
+    if mutation == "i18n_lane":
+        kwargs = _apf_004_single_kwargs(tmp_path, "i18n-new")
+    elif mutation == "multi_item":
+        workset = _apf_004_workset()
+        kwargs = _apf_004_kwargs(tmp_path, workset)
+    elif mutation == "multi_exact":
+        kwargs["exact_tuples"] = [
+            *list(kwargs["exact_tuples"]),
+            _apf_004_exact_tuples(_apf_004_single_workset("rewrite"))[0],
+        ]
+    elif mutation == "work_id":
+        exact_tuples = list(kwargs["exact_tuples"])
+        exact_tuples[0] = {**exact_tuples[0], "work_id": "apf-work-drift"}
+        kwargs["exact_tuples"] = exact_tuples
+    elif mutation == "caller_run_id":
+        workset = _apf_004_single_workset()
+        items = list(workset["items"])
+        items[0] = {**dict(items[0]), "run_id": "caller-run-id"}
+        workset = {**workset, "items": items}
+        kwargs = _apf_004_kwargs(tmp_path, workset)
+        kwargs["workset_sha256"] = _apf_004_digest(workset)
+    else:
+        kwargs["max_runs"] = 2
+
+    with pytest.raises(ValueError, match=expected):
+        coordinator.create_single_source_run_adapter(**kwargs, plan_only=False)
+
+    assert _tree_bytes(tmp_path) == {}
+
+
+def test_apf_004_single_create_only_adapter_rejects_root_overlap_and_state_collision(
+    tmp_path: Path,
+) -> None:
+    overlap = _apf_004_single_kwargs(tmp_path / "overlap")
+    overlap["state_root"] = overlap["queue_root"]
+    with pytest.raises(ValueError, match="roots must not overlap"):
+        coordinator.create_single_source_run_adapter(**overlap, plan_only=False)
+    assert _tree_bytes(tmp_path / "overlap") == {}
+
+    kwargs = _apf_004_single_kwargs(tmp_path / "collision")
+    plan = coordinator.create_single_source_run_adapter(**kwargs, plan_only=True)
+    first_run_id = plan["runs"][0]["run_id"]
+    run_dir = kwargs["run_root"] / first_run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps({"schema_version": 1, "run_id": first_run_id, "mode": "create", "articles": [{"article_id": "DRIFT"}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="run identity collision"):
+        coordinator.create_single_source_run_adapter(**kwargs, plan_only=False)
+
+
 def test_apf_004_create_run_adapter_plan_only_is_deterministic_and_zero_write(
     tmp_path: Path,
 ) -> None:

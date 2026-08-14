@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "task_id": "APF-004-SINGLE-CREATE-ONLY-ENTRYPOINT",
+  "status": "IMPLEMENTED",
+  "sampled_at": "2026-08-14T16:02:24Z",
+  "source_head": "90cb71f31513c252581434bc5d0489d2b2ffb9c5",
+  "changed_allowlist": [
+    "scripts/agy_gemini_coordinator.py",
+    "tests/test_agy_gemini_coordinator.py",
+    ".work/APF-004-SINGLE-CREATE-ONLY-ENTRYPOINT/implementation-receipt.json"
+  ],
+  "codegraph": {
+    "query": "create_campaign_run_adapter",
+    "result": "NO_RESULTS",
+    "fallback": "limited source/test search"
+  },
+  "implementation": {
+    "new_public_entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+    "existing_four_lane_entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
+    "four_lane_contract_changed": false,
+    "supported_single_lanes": [
+      "new",
+      "rewrite"
+    ],
+    "unsupported_single_lanes": [
+      "i18n-new",
+      "i18n-rewrite"
+    ],
+    "plan_only_expected_runs": 1,
+    "plan_only_expected_writes": 3,
+    "apply_expected_registered_runs": 1,
+    "apply_expected_pending_dependencies": 0
+  },
+  "red_green": {
+    "red": {
+      "command": "uv run --frozen pytest -q tests/test_agy_gemini_coordinator.py -k 'single_create_only'",
+      "result": "9 failed, 175 deselected",
+      "reason": "public function create_single_source_run_adapter did not exist"
+    },
+    "green_single": {
+      "command": "uv run --frozen pytest -q tests/test_agy_gemini_coordinator.py -k 'single_create_only'",
+      "result": "9 passed, 175 deselected"
+    },
+    "regression_four_lane": {
+      "command": "uv run --frozen pytest -q tests/test_agy_gemini_coordinator.py -k 'create_run_adapter'",
+      "result": "16 passed, 168 deselected"
+    },
+    "full_affected": {
+      "command": "uv run --frozen pytest -q tests/test_agy_gemini_coordinator.py",
+      "result": "184 passed"
+    }
+  },
+  "production_mutation_summary": {
+    "production_apply": 0,
+    "runner": 0,
+    "external_model": 0,
+    "select": 0,
+    "publish": 0,
+    "transaction": 0,
+    "tag": 0,
+    "push": 0,
+    "deploy": 0,
+    "schedule": 0
+  },
+  "remaining_risk": [
+    "production create-run execution remains blocked until reviewer accepts this candidate and mainline provides explicit run confirmation"
+  ]
+}

@@ -2854,6 +2854,33 @@ def _create_run_adapter_exact_tuples(
     return by_lane
 
 
+def _create_run_adapter_single_exact_tuple(
+    exact_tuples: Iterable[Mapping[str, str]],
+) -> dict[str, str]:
+    if isinstance(exact_tuples, (str, bytes)):
+        raise ValueError("create-run adapter exact tuples must be a collection")
+    parsed: list[dict[str, str]] = []
+    for raw_tuple in exact_tuples:
+        if not isinstance(raw_tuple, Mapping):
+            raise ValueError("create-run adapter exact tuple is invalid")
+        if APF_CREATE_RUN_ADAPTER_FORBIDDEN_CALLER_KEYS.intersection(raw_tuple):
+            raise ValueError("caller-supplied run identity or status is not accepted")
+        if set(raw_tuple) != APF_CREATE_RUN_ADAPTER_TUPLE_KEYS:
+            raise ValueError("create-run adapter exact tuple fields are strict")
+        parsed.append(
+            {
+                key: _create_run_adapter_required_string(raw_tuple.get(key), key)
+                for key in APF_CREATE_RUN_ADAPTER_TUPLE_KEYS
+            }
+        )
+    if len(parsed) != 1:
+        raise ValueError("single-source create-only adapter requires exactly one exact tuple")
+    exact = parsed[0]
+    if exact["lane"] not in APF_CREATE_RUN_ADAPTER_SOURCE_LANES:
+        raise ValueError("single-source create-only adapter requires a source lane")
+    return exact
+
+
 def _create_run_adapter_source_run_id(item: Mapping[str, str]) -> str:
     canonical = {
         "article_id": item["article_id"],
@@ -3054,6 +3081,127 @@ def _create_run_adapter_plan(
     return plan
 
 
+def _create_single_source_run_adapter_plan(
+    *,
+    repo_root: Path,
+    workset: Mapping[str, Any],
+    exact_tuples: Iterable[Mapping[str, str]],
+    run_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    campaign_version: str,
+    workset_sha256: str,
+    confirmed_payload_digest: str,
+    activation_authorization_digest: str,
+    runtime_identity_digest: str,
+    actor_identity: str,
+    correlation_id: str,
+    max_runs: int,
+) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
+    campaign_version = _create_run_adapter_required_string(
+        campaign_version,
+        "campaign_version",
+    )
+    _create_run_adapter_sha(workset_sha256, "workset_sha256")
+    confirmed_payload_digest = _create_run_adapter_sha(
+        confirmed_payload_digest,
+        "confirmed_payload_digest",
+    )
+    activation_authorization_digest = _create_run_adapter_sha(
+        activation_authorization_digest,
+        "activation_authorization_digest",
+    )
+    runtime_identity_digest = _create_run_adapter_sha(
+        runtime_identity_digest,
+        "runtime_identity_digest",
+    )
+    actor_identity = _create_run_adapter_required_string(
+        actor_identity,
+        "actor_identity",
+    )
+    correlation_id = _create_run_adapter_required_string(
+        correlation_id,
+        "correlation_id",
+    )
+    if max_runs != 1:
+        raise ValueError("create-run adapter requires max_runs=1 downstream contract")
+    resolved_repo = repo_root.resolve(strict=True)
+    resolved_run_root, resolved_queue_root, resolved_state_root = (
+        _create_run_adapter_roots(
+            run_root=run_root,
+            queue_root=queue_root,
+            state_root=state_root,
+        )
+    )
+    _validate_formal_runtime(resolved_queue_root, resolved_repo)
+    if (
+        not isinstance(workset, Mapping)
+        or set(workset)
+        != {"schema_version", "campaign_version", "lanes", "items", "summary"}
+        or workset.get("schema_version") != 1
+        or not isinstance(workset.get("lanes"), list)
+        or not isinstance(workset.get("items"), list)
+    ):
+        raise ValueError("single-source create-only adapter workset is invalid")
+    if workset.get("campaign_version") != campaign_version:
+        raise ValueError("create-run adapter campaign version drift")
+    items = workset["items"]
+    if len(items) != 1:
+        raise ValueError("single-source create-only adapter requires exactly one item")
+    exact = _create_run_adapter_single_exact_tuple(exact_tuples)
+    if workset.get("lanes") != [exact["lane"]]:
+        raise ValueError("single-source create-only adapter workset lane drift")
+    if _create_run_adapter_digest(workset) != workset_sha256:
+        raise ValueError("create-run adapter workset SHA drift")
+    item = _create_run_adapter_work_item(
+        items[0],
+        campaign_version=campaign_version,
+    )
+    if item["lane"] not in APF_CREATE_RUN_ADAPTER_SOURCE_LANES:
+        raise ValueError("single-source create-only adapter requires a source lane")
+    if any(
+        exact[key] != item[key]
+        for key in ("lane", "work_id", "article_id", "locale")
+    ):
+        raise ValueError("create-run adapter exact work identity differs")
+
+    run_id = _create_run_adapter_source_run_id(item)
+    mode = "create" if item["lane"] == "new" else "rewrite_existing_body"
+    run_record = {
+        "lane": item["lane"],
+        "run_id": run_id,
+        "mode": mode,
+        "work_id": item["work_id"],
+        "article_id": item["article_id"],
+        "locale": item["locale"],
+        "run_dir": str((resolved_run_root / run_id).resolve()),
+        "stage": "source",
+        "depends_on": [],
+    }
+    plan = {
+        "schema_version": 1,
+        "entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+        "campaign_version": campaign_version,
+        "workset_sha256": workset_sha256,
+        "confirmed_payload_digest": confirmed_payload_digest,
+        "activation_authorization_digest": activation_authorization_digest,
+        "runtime_identity_digest": runtime_identity_digest,
+        "actor_identity": actor_identity,
+        "correlation_id": correlation_id,
+        "downstream_contract": {"max_runs": max_runs},
+        "roots": {
+            "repo_root": str(resolved_repo),
+            "run_root": str(resolved_run_root),
+            "queue_root": str(resolved_queue_root),
+            "state_root": str(resolved_state_root),
+        },
+        "runs": [run_record],
+    }
+    plan["plan_digest"] = _create_run_adapter_digest(plan)
+    plan["expected_write_set"] = _create_run_adapter_write_set(plan)
+    return plan, {item["lane"]: item}
+
+
 def _create_run_adapter_new_brief(
     repo_root: Path,
     item: Mapping[str, str],
@@ -3141,6 +3289,32 @@ def _create_run_adapter_source_briefs(
             str(run_by_lane["rewrite"]["run_id"]),
         ),
     }
+
+
+def _create_run_adapter_single_source_brief(
+    plan: Mapping[str, Any],
+    by_lane: Mapping[str, Mapping[str, str]],
+) -> dict[str, dict[str, Any]]:
+    repo_root = Path(str(plan["roots"]["repo_root"]))
+    record = plan["runs"][0]
+    lane = str(record["lane"])
+    if lane == "new":
+        return {
+            lane: _create_run_adapter_new_brief(
+                repo_root,
+                by_lane[lane],
+                str(record["run_id"]),
+            )
+        }
+    if lane == "rewrite":
+        return {
+            lane: _create_run_adapter_rewrite_brief(
+                repo_root,
+                by_lane[lane],
+                str(record["run_id"]),
+            )
+        }
+    raise ValueError("single-source create-only adapter requires a source lane")
 
 
 def _create_run_adapter_write_set(plan: Mapping[str, Any]) -> list[str]:
@@ -3360,6 +3534,104 @@ def create_campaign_run_adapter(
         "created": {
             "registered": created_registered,
             "pending_dependencies": created_pending,
+        },
+        "transaction_receipt": str(transaction_path.resolve()),
+    }
+
+
+def create_single_source_run_adapter(
+    *,
+    repo_root: Path,
+    workset: Mapping[str, Any],
+    exact_tuples: Iterable[Mapping[str, str]],
+    run_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    campaign_version: str,
+    workset_sha256: str,
+    confirmed_payload_digest: str,
+    activation_authorization_digest: str,
+    runtime_identity_digest: str,
+    actor_identity: str,
+    correlation_id: str,
+    plan_only: bool,
+    max_runs: int = 1,
+) -> dict[str, Any]:
+    """將一筆已授權 source APF tuple 轉為 create-only run identity。"""
+    plan, by_lane = _create_single_source_run_adapter_plan(
+        repo_root=repo_root,
+        workset=workset,
+        exact_tuples=exact_tuples,
+        run_root=run_root,
+        queue_root=queue_root,
+        state_root=state_root,
+        campaign_version=campaign_version,
+        workset_sha256=workset_sha256,
+        confirmed_payload_digest=confirmed_payload_digest,
+        activation_authorization_digest=activation_authorization_digest,
+        runtime_identity_digest=runtime_identity_digest,
+        actor_identity=actor_identity,
+        correlation_id=correlation_id,
+        max_runs=max_runs,
+    )
+    source_briefs = _create_run_adapter_single_source_brief(plan, by_lane)
+    result = {
+        "schema_version": 1,
+        "status": "planned" if plan_only else "applied",
+        "entrypoint": plan["entrypoint"],
+        "campaign_version": plan["campaign_version"],
+        "plan_digest": plan["plan_digest"],
+        "exact_run_ids": [record["run_id"] for record in plan["runs"]],
+        "runs": plan["runs"],
+        "dependency_graph": {
+            record["run_id"]: record["depends_on"]
+            for record in plan["runs"]
+        },
+        "expected_write_set": plan["expected_write_set"],
+        "production_mutation": False,
+    }
+    if plan_only:
+        return result
+    queue_root_resolved = Path(str(plan["roots"]["queue_root"]))
+    _create_run_adapter_preflight_apply(plan, source_briefs)
+    created_registered = 0
+    for record in plan["runs"]:
+        lane = str(record["lane"])
+        run_dir = Path(str(record["run_dir"]))
+        state_path = _state_path(str(record["run_id"]), queue_root_resolved)
+        state_existed = state_path.exists()
+        brief_path = run_dir / "brief.json"
+        if not brief_path.exists():
+            atomic_write_json(brief_path, source_briefs[lane])
+        register_run(
+            run_dir,
+            queue_root_resolved,
+            correlation_id=str(plan["correlation_id"]),
+        )
+        if not state_existed:
+            created_registered += 1
+    transaction = {
+        "schema_version": 1,
+        "status": "applied",
+        "plan_digest": plan["plan_digest"],
+        "exact_run_ids": [record["run_id"] for record in plan["runs"]],
+        "created": {
+            "registered": created_registered,
+            "pending_dependencies": 0,
+        },
+        "updated_at": _now(),
+    }
+    transaction_path = _create_run_adapter_transaction_path(
+        queue_root_resolved,
+        str(plan["plan_digest"]),
+    )
+    if not transaction_path.exists():
+        atomic_write_json(transaction_path, transaction)
+    return {
+        **result,
+        "created": {
+            "registered": created_registered,
+            "pending_dependencies": 0,
         },
         "transaction_receipt": str(transaction_path.resolve()),
     }
