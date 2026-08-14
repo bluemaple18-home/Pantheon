@@ -1,0 +1,12 @@
+{
+  "files": {
+    "plan-attempt-1.json": "812aab99fc7f1a09b63316cc03e14ecec991fef62c8c909a4e6260d54647fb19",
+    "plan-attempt-2.json": "f550f851bbd0030fc349b30c0b8d92477ad2085c0240eade7d113b97134439fd",
+    "post-snapshot.json": "f4871d9c4319f1a7c060fcb30c755f89ec51d65025dbc10dc6d45a4e17b27783",
+    "pre-snapshot.json": "0f8b363f5fd84c005cf95d59138962439497de16ff7ca09bc09f4f3bf711bc99",
+    "receipt.json": "f66e518e1ecd69078557f10fdec782dad517a1e34c19d3ab656157d492b74707",
+    "verification.json": "e9b1675f3b280b8277ee23c112312b03541a3815c1166b101efc773b6a7b4881"
+  },
+  "sampled_at": "2026-08-14T18:17:59Z",
+  "schema_version": 1
+}

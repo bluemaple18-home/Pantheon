@@ -1,0 +1,49 @@
+{
+  "blocker": "public CLI plan returned NO-GO; capacity receipt does not satisfy aggregate promotion raw receipt contract",
+  "evidence_files": [
+    "pre-snapshot.json",
+    "plan-attempt-1.json",
+    "plan-attempt-2.json",
+    "post-snapshot.json",
+    "verification.json",
+    "receipt.json",
+    "artifact-digests.json"
+  ],
+  "plan_attempts": [
+    {
+      "attempt": 1,
+      "parsed_stdout": {
+        "error": "capacity stop-loss is not PASS",
+        "status": "NO-GO"
+      },
+      "returncode": 1,
+      "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256_raw": "30f4f242f1c1764b5ecaf41f840a9a8dc3d06b3df3426b2019012adf344646ca"
+    },
+    {
+      "attempt": 2,
+      "parsed_stdout": {
+        "error": "capacity stop-loss is not PASS",
+        "status": "NO-GO"
+      },
+      "returncode": 1,
+      "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256_raw": "30f4f242f1c1764b5ecaf41f840a9a8dc3d06b3df3426b2019012adf344646ca"
+    }
+  ],
+  "plan_digest": null,
+  "production_mutation_summary": {
+    "apply": 0,
+    "deploy_install_copy_write_launchctl_create_run_downstream": 0,
+    "finalize": 0,
+    "plan": 2,
+    "production_mutation": 0,
+    "rollback": 0
+  },
+  "public_cli": "<isolated-venv>/bin/python -m scripts.pantheon_content_runtime_promotion plan",
+  "sampled_at": "2026-08-14T18:17:59Z",
+  "schema_version": 1,
+  "source_worktree": "<source-worktree>",
+  "status": "BLOCKED",
+  "task_card": "<repo-root>/.ai/codex_task_apf_004_aggregate_runtime_promotion_plan_preflight_20260815.md"
+}
