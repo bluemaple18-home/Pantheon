@@ -486,10 +486,10 @@ prepare_legacy_capacity_adoption() {
   PATH_FIELD_COUNT="$(grep -Ec '^[[:space:]]*path[[:space:]]*=' \
     "${CAPACITY_IDENTITY}" || true)"
   [[ "${PATH_FIELD_COUNT}" == "1" ]] || return 1
-  STRICT_PATH_FIELD_COUNT="$(grep -Ec '^path = /[^[:space:]]+$' \
+  STRICT_PATH_FIELD_COUNT="$(grep -Ec '^[[:space:]]*path = /[^[:space:]]+$' \
     "${CAPACITY_IDENTITY}" || true)"
   [[ "${STRICT_PATH_FIELD_COUNT}" == "1" ]] || return 1
-  LOADED_PATH="$(sed -n 's/^path = \(\/[^[:space:]]*\)$/\1/p' \
+  LOADED_PATH="$(sed -n 's/^[[:space:]]*path = \(\/[^[:space:]]*\)$/\1/p' \
     "${CAPACITY_IDENTITY}")"
   [[ "${LOADED_PATH}" == /* && -e "${LOADED_PATH}" && ! -L "${LOADED_PATH}" ]] \
     || return 1

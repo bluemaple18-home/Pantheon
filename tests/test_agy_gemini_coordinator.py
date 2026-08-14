@@ -4933,7 +4933,7 @@ def test_activation_only_adopts_exact_legacy_capacity_guard(
         "  label=${2##*/}\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
         "  printf '%s\\n' 'state = waiting'\n"
-        f"  printf '%s\\n' 'path = {legacy_plist}'\n"
+        f"  printf '%s\\n' '    path = {legacy_plist}'\n"
         "  exit 0\n"
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
