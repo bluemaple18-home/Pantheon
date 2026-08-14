@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "artifact_type": "official-adapter-plan-only-replay-input",
+  "sampled_at": "2026-08-14T15:19:20Z",
+  "replay": {
+    "entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
+    "toolchain": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen python",
+    "placeholder_resolution": {
+      "<repo-root>": "current evidence worktree root",
+      "<repo-parent>": "parent containing Pantheon-canary-runtime-v8",
+      "<isolated-venv>": "caller-owned temporary uv environment"
+    },
+    "runtime_environment": {
+      "PANTHEON_FORMAL_RUNTIME": "1",
+      "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.agy-gemini-coordinator",
+      "PANTHEON_RUNTIME_MANIFEST": "<repo-parent>/Pantheon-canary-runtime-v8/runtime-manifest.json",
+      "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+      "PANTHEON_RUNTIME_IDENTITY": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+      "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+      "PANTHEON_RUNTIME_CODE_DIGEST": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+      "PANTHEON_RUNTIME_CONFIG_VERSION": "formal-runtime-v2-gate2",
+      "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+      "PANTHEON_RUNTIME_ACTOR_ROOT": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+      "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+      "PANTHEON_RUNTIME_QUEUE_ROOT": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+      "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+      "PANTHEON_RUNTIME_LOG_ROOT": "<repo-parent>/Pantheon-canary-runtime-v8/logs",
+      "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "<runtime-python>",
+      "PANTHEON_RUNTIME_ACTIVATION_TOKEN": "<repo-parent>/Pantheon-canary-runtime-v8/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier"
+    },
+    "actor_identity": {
+      "head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+      "origin_main": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+      "clean": true
+    },
+    "adapter_input": {
+      "repo_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+      "run_root": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy",
+      "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+      "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+      "campaign_version": "apf-001-v1",
+      "workset_sha256": "63e09bc4910b8b630d55b077adc46a8fde8bc3a207b6cbde7e018f869daf9f1c",
+      "confirmed_payload_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "activation_authorization_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+      "actor_identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+      "correlation_id": "apf-004-create-run-only-plan",
+      "plan_only": true,
+      "max_runs": 1,
+      "workset": {
+        "schema_version": 1,
+        "campaign_version": "apf-001-v1",
+        "lanes": [
+          "new",
+          "rewrite",
+          "i18n-new",
+          "i18n-rewrite"
+        ],
+        "items": [
+          {
+            "source_kind": "matrix",
+            "article_id": "ASTRO-SCENARIO-BIG-THREE",
+            "locale": "zh-TW",
+            "campaign_version": "apf-001-v1",
+            "work_id": "apf-work-b1666341df10a14c1a586141",
+            "lane": "new",
+            "reason": "apf-004-confirmed-payload"
+          },
+          {
+            "source_kind": "matrix",
+            "article_id": "ASTRO-SCENARIO-BIG-THREE",
+            "locale": "ja",
+            "campaign_version": "apf-001-v1",
+            "work_id": "apf-work-44bd155e28231d25d65f3394",
+            "lane": "i18n-new",
+            "reason": "apf-004-confirmed-payload"
+          },
+          {
+            "source_kind": "legacy",
+            "article_id": "ASC-AQUARIUS",
+            "locale": "zh-TW",
+            "campaign_version": "apf-001-v1",
+            "work_id": "apf-work-0146edbbed78ec5debf138d4",
+            "lane": "rewrite",
+            "reason": "apf-004-confirmed-payload"
+          },
+          {
+            "source_kind": "legacy",
+            "article_id": "ASC-AQUARIUS",
+            "locale": "ja",
+            "campaign_version": "apf-001-v1",
+            "work_id": "apf-work-1eeac7f0a8fff378eb65c190",
+            "lane": "i18n-rewrite",
+            "reason": "apf-004-confirmed-payload"
+          }
+        ],
+        "summary": {
+          "fixture": "apf-004"
+        }
+      },
+      "exact_tuples": [
+        {
+          "lane": "new",
+          "work_id": "apf-work-b1666341df10a14c1a586141",
+          "article_id": "ASTRO-SCENARIO-BIG-THREE",
+          "locale": "zh-TW"
+        },
+        {
+          "lane": "i18n-new",
+          "work_id": "apf-work-44bd155e28231d25d65f3394",
+          "article_id": "ASTRO-SCENARIO-BIG-THREE",
+          "locale": "ja"
+        },
+        {
+          "lane": "rewrite",
+          "work_id": "apf-work-0146edbbed78ec5debf138d4",
+          "article_id": "ASC-AQUARIUS",
+          "locale": "zh-TW"
+        },
+        {
+          "lane": "i18n-rewrite",
+          "work_id": "apf-work-1eeac7f0a8fff378eb65c190",
+          "article_id": "ASC-AQUARIUS",
+          "locale": "ja"
+        }
+      ]
+    },
+    "expected_replay_assertions": {
+      "plan_digest": "8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5",
+      "exact_run_ids": [
+        "apf-create-run-new-7d0e46d9ec617526f77f8213",
+        "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+        "auto-i18n-ja-fcbf5d1af50382a4d586",
+        "auto-i18n-ja-8b6ea232885ab55ab92f"
+      ],
+      "run_count": 4,
+      "expected_write_count": 7,
+      "production_mutation": false
+    }
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "UTF-8 JSON, sorted keys, compact separators over .replay",
+    "replay_input_sha256": "9dda8e184eb897bf47d75dd50a5bafde2a68666df71464aea224e8d69542225a"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_type": "independent-minimal-replay-verification",
+  "sampled_at": "2026-08-14T15:27:48Z",
+  "verification": {
+    "status": "PASS",
+    "adapter_invoked": false,
+    "recomputed_plan_digest": "8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5",
+    "plan_digest_matches": true,
+    "recomputed_exact_run_ids": [
+      "apf-create-run-new-7d0e46d9ec617526f77f8213",
+      "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+      "auto-i18n-ja-fcbf5d1af50382a4d586",
+      "auto-i18n-ja-8b6ea232885ab55ab92f"
+    ],
+    "exact_run_ids_match": true,
+    "run_count": 4,
+    "expected_write_count": 7,
+    "input_sha256": "9dda8e184eb897bf47d75dd50a5bafde2a68666df71464aea224e8d69542225a",
+    "output_sha256": "a5d0e9a45999b72b1074cebbdffac2e6c51245240e0b6b73f51bcc3b6b059ed3"
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "UTF-8 JSON, sorted keys, compact separators over .verification",
+    "verification_sha256": "00220f7ad7cfe23db77b4e902f698a996a2bb34df8bf59cb3977fecb8a83730a"
+  }
+}

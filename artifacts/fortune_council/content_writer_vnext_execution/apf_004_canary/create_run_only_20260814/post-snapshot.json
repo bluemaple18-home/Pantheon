@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_type": "production-runtime-post-plan-snapshot",
+  "sampled_at": "2026-08-14T15:25:14Z",
+  "snapshot": {
+    "queue": {
+      "root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+      "tree": [],
+      "file_count": 0,
+      "file_digests": {}
+    },
+    "state": {
+      "root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+      "tree": [
+        "four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier"
+      ],
+      "file_count": 1,
+      "file_digests": {
+        "four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier": "67ff22728dedc3d9a202a323f9d9ec0512d59600851dc645041265aee44dd3ec"
+      },
+      "barrier_digest": "67ff22728dedc3d9a202a323f9d9ec0512d59600851dc645041265aee44dd3ec"
+    },
+    "run_root": {
+      "path": "<repo-parent>/Pantheon-canary-runtime-v8/gsc-copy",
+      "present": false
+    },
+    "workers": {
+      "launchctl_observable": true,
+      "matching_loaded_labels": [],
+      "matching_loaded_label_count": 0,
+      "process_observable": false,
+      "matching_processes": "unavailable",
+      "status": "no matching loaded launch labels; process status unavailable"
+    }
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "UTF-8 JSON, sorted keys, compact separators over .snapshot",
+    "snapshot_sha256": "034825f7376474a1c67a6e624b3718237d95133a0b6374e7f1cb49317f8e3094"
+  }
+}

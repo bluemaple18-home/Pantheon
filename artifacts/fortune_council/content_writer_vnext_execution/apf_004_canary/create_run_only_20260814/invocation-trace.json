@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "artifact_type": "official-adapter-plan-only-invocation-trace",
+  "sampled_at": "2026-08-14T15:25:14Z",
+  "trace": {
+    "scope": "this evidence-provenance repair replay, including the one corrected retry authorized by supervisor",
+    "entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
+    "requested_mode": "plan_only",
+    "plan_only_attempt_count": 2,
+    "successful_plan_capture_count": 1,
+    "attempts": [
+      {
+        "attempt": 1,
+        "plan_only_calls": 1,
+        "status": "input_validation_failed",
+        "plan_materialized": false,
+        "failure": {
+          "type": "ValueError",
+          "message": "create-run adapter workset SHA drift",
+          "submitted_workset_sha256": "0dcabbe8693112f97d3fc2c1ae36504652ae9ec2d15382f0b28622f28732a3e3",
+          "corrected_workset_sha256": "63e09bc4910b8b630d55b077adc46a8fde8bc3a207b6cbde7e018f869daf9f1c"
+        },
+        "production_mutation": false
+      },
+      {
+        "attempt": 2,
+        "sampled_at": "2026-08-14T15:24:57Z",
+        "plan_only_calls": 1,
+        "status": "planned",
+        "plan_materialized": true,
+        "input_sha256": "9dda8e184eb897bf47d75dd50a5bafde2a68666df71464aea224e8d69542225a",
+        "output_sha256": "a5d0e9a45999b72b1074cebbdffac2e6c51245240e0b6b73f51bcc3b6b059ed3",
+        "assertions": {
+          "plan_digest": "8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5",
+          "exact_run_ids": [
+            "apf-create-run-new-7d0e46d9ec617526f77f8213",
+            "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+            "auto-i18n-ja-fcbf5d1af50382a4d586",
+            "auto-i18n-ja-8b6ea232885ab55ab92f"
+          ],
+          "run_count": 4,
+          "expected_write_count": 7,
+          "production_mutation": false
+        }
+      }
+    ],
+    "corrected_replay_input_sha256": "9dda8e184eb897bf47d75dd50a5bafde2a68666df71464aea224e8d69542225a",
+    "successful_output": "official-plan-only-output.json",
+    "aggregate_counters": {
+      "apply_calls": 0,
+      "register_run_calls": 0,
+      "queue_state_write_calls": 0,
+      "apply_preflight_calls": 0,
+      "runner_calls": 0,
+      "select_calls": 0,
+      "publish_calls": 0,
+      "transaction_calls": 0,
+      "tag_calls": 0,
+      "push_calls": 0,
+      "external_model_calls": 0
+    },
+    "counter_evidence": {
+      "apply": "both adapter attempts supplied plan_only=true",
+      "queue_state_write": "register_run, atomic_write_json, and apply preflight were fail-fast instrumented and were not reached",
+      "runner": "run_pipeline_tick was fail-fast instrumented and was not reached",
+      "external_model": "process_once was fail-fast instrumented and was not reached",
+      "downstream": "attempt 1 rejected the workset digest before plan construction; attempt 2 returned at the plan_only boundary; pre/post runtime snapshots are identical"
+    },
+    "production_mutation": false
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "UTF-8 JSON, sorted keys, compact separators over .trace",
+    "trace_sha256": "1c037a2f17a1050b5739d928daa7465e57fb36eed3f194925b25de470dfc087e"
+  }
+}
