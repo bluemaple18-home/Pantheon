@@ -295,7 +295,13 @@ def validate_receipts(
     return {"status": "PASS", "manifest_digest": manifest["manifest_digest"]}
 
 
-def plist_receipt(path: Path) -> dict[str, Any]:
+def plist_receipt(
+    path: Path,
+    *,
+    expected_activation_mode: str = "normal",
+) -> dict[str, Any]:
+    if expected_activation_mode not in {"normal", "activation-only"}:
+        raise RuntimeManifestError("unsupported activation mode")
     if not path.is_absolute() or not path.is_file() or path.is_symlink():
         raise RuntimeManifestError("plist must be an absolute regular file")
     canonical = path.resolve(strict=True)
@@ -335,22 +341,39 @@ def plist_receipt(path: Path) -> dict[str, Any]:
     for field, environment_name in optional_environment_fields.items():
         if environment_name in environment:
             receipt[field] = environment[environment_name]
+    arguments = payload.get("ProgramArguments")
+    activation_only_argument = False
+    if isinstance(arguments, list):
+        try:
+            child_separator_index = arguments.index("--")
+        except ValueError:
+            child_separator_index = len(arguments)
+        activation_only_argument = "--activation-only" in arguments[:child_separator_index]
+    if expected_activation_mode == "normal" and activation_only_argument:
+        raise RuntimeManifestError("plist activation mode mismatch")
+    if expected_activation_mode == "activation-only" and not activation_only_argument:
+        raise RuntimeManifestError("plist activation mode mismatch")
+    receipt["activation_mode"] = (
+        "activation-only" if activation_only_argument else "normal"
+    )
     if "python_executable" in receipt:
-        arguments = payload.get("ProgramArguments")
         if not isinstance(arguments, list) or len(arguments) <= 17:
             raise RuntimeManifestError("plist python_executable arguments are incomplete")
+        separator_index = 16
+        if len(arguments) > 17 and arguments[16] == "--activation-only":
+            separator_index = 17
         if arguments[1:4] != [
             "-m",
             "scripts.pantheon_content_runtime_manifest",
             "barrier-exec",
-        ] or arguments[16] != "--":
+        ] or len(arguments) <= separator_index + 1 or arguments[separator_index] != "--":
             raise RuntimeManifestError("plist barrier-exec arguments are invalid")
         outer_python = _resolve_executable_reference(
             arguments[0],
             "plist python_executable",
         )
         child_python = _resolve_executable_reference(
-            arguments[17],
+            arguments[separator_index + 1],
             "plist python_executable",
         )
         expected_python = _resolve_executable_reference(
@@ -367,9 +390,15 @@ def plist_receipt(path: Path) -> dict[str, Any]:
 
 
 def aggregate_plist_preflight(
-    manifest: dict[str, Any], plist_paths: list[Path]
+    manifest: dict[str, Any],
+    plist_paths: list[Path],
+    *,
+    expected_activation_mode: str = "normal",
 ) -> dict[str, Any]:
-    receipts = [plist_receipt(path) for path in plist_paths]
+    receipts = [
+        plist_receipt(path, expected_activation_mode=expected_activation_mode)
+        for path in plist_paths
+    ]
     result = validate_receipts(
         manifest,
         [{key: value for key, value in receipt.items() if key != "plist_realpath"} for receipt in receipts],
@@ -665,6 +694,11 @@ def parse_args() -> argparse.Namespace:
     aggregate = subparsers.add_parser("aggregate")
     aggregate.add_argument("--manifest", type=Path, required=True)
     aggregate.add_argument("--expected-digest", required=True)
+    aggregate.add_argument(
+        "--activation-mode",
+        choices=["normal", "activation-only"],
+        default="normal",
+    )
     aggregate.add_argument("--plist", type=Path, action="append", required=True)
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
@@ -673,6 +707,7 @@ def parse_args() -> argparse.Namespace:
     barrier.add_argument("--service-label", choices=SERVICE_LABELS)
     barrier.add_argument("--ready-root", type=Path)
     barrier.add_argument("--timeout", type=int, default=90)
+    barrier.add_argument("--activation-only", action="store_true")
     barrier.add_argument("remainder", nargs=argparse.REMAINDER)
     barrier_validate = subparsers.add_parser("barrier-validate")
     barrier_validate.add_argument("--barrier", type=Path, required=True)
@@ -765,6 +800,20 @@ def main() -> int:
             validate_execution_python_identity(manifest, command)
         except RuntimeManifestError:
             return 78
+        if args.activation_only:
+            print(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "activation_only": True,
+                        "service_label": args.service_label,
+                        "manifest_digest": manifest["manifest_digest"],
+                        "generation": manifest["generation"],
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
         os.execv(command[0], command)
         return 70
     try:
@@ -803,7 +852,16 @@ def main() -> int:
                     raise RuntimeManifestError(f"{args.name} is missing")
                 print(manifest[args.name])
             elif args.command == "aggregate":
-                print(json.dumps(aggregate_plist_preflight(manifest, args.plist), sort_keys=True))
+                print(
+                    json.dumps(
+                        aggregate_plist_preflight(
+                            manifest,
+                            args.plist,
+                            expected_activation_mode=args.activation_mode,
+                        ),
+                        sort_keys=True,
+                    )
+                )
             else:
                 print(json.dumps({"status": "PASS", **manifest}, sort_keys=True))
     except RuntimeManifestError as error:

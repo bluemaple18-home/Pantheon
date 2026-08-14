@@ -580,6 +580,51 @@ def test_hardened_aggregate_reads_actor_and_python_identity_from_all_plists(
     )
 
 
+def test_hardened_aggregate_rejects_activation_only_token_in_normal_mode(
+    tmp_path: Path,
+) -> None:
+    manifest, plists = _write_hardened_aggregate_fixture(tmp_path)
+    target = plists[-1]
+    with target.open("rb") as stream:
+        payload = plistlib.load(stream)
+    payload["ProgramArguments"].insert(
+        payload["ProgramArguments"].index("--"),
+        "--activation-only",
+    )
+    with target.open("wb") as stream:
+        plistlib.dump(payload, stream)
+
+    with pytest.raises(runtime.RuntimeManifestError, match="activation mode"):
+        runtime.aggregate_plist_preflight(manifest, plists)
+
+
+def test_hardened_aggregate_accepts_activation_only_token_only_when_expected(
+    tmp_path: Path,
+) -> None:
+    manifest, plists = _write_hardened_aggregate_fixture(tmp_path)
+    for path in plists:
+        with path.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["ProgramArguments"].insert(
+            payload["ProgramArguments"].index("--"),
+            "--activation-only",
+        )
+        with path.open("wb") as stream:
+            plistlib.dump(payload, stream)
+
+    result = runtime.aggregate_plist_preflight(
+        manifest,
+        plists,
+        expected_activation_mode="activation-only",
+    )
+
+    assert result["status"] == "PASS"
+    assert all(
+        receipt["activation_mode"] == "activation-only"
+        for receipt in result["receipts"]
+    )
+
+
 @pytest.mark.parametrize(
     ("argument_index", "failure_kind"),
     [
@@ -1036,6 +1081,67 @@ def test_barrier_exec_rejects_child_python_drift_before_ack_or_exec(
 
     assert completed.returncode == 78
     assert not (ready / f"{label}.json").exists()
+    assert not marker.exists()
+
+
+def test_barrier_exec_activation_only_acknowledges_without_child_exec(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="barrier-activation-only",
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    _token_ready, barrier = _write_formal_activation_barrier(tmp_path, manifest)
+    ready = tmp_path / "activation-only-ready"
+    ready.mkdir()
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "must-not-exec"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--expected-digest",
+            manifest["manifest_digest"],
+            "--manifest",
+            str(manifest_path),
+            "--service-label",
+            label,
+            "--ready-root",
+            str(ready),
+            "--timeout",
+            "1",
+            "--activation-only",
+            "--",
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_formal_barrier_exec_environment(manifest_path, manifest, label, barrier),
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["activation_only"] is True
+    assert (ready / f"{label}.json").exists()
     assert not marker.exists()
 
 

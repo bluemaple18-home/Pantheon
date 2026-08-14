@@ -50,8 +50,8 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
-  && "${ACTION}" != "--activate" ]]; then
-  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate]" >&2
+  && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" ]]; then
+  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -322,6 +322,10 @@ if [[ "${ACTION}" == "--install" ]]; then
   exit 0
 fi
 
+ACTIVATION_ONLY=0
+if [[ "${ACTION}" == "--activate-only" ]]; then
+  ACTIVATION_ONLY=1
+fi
 if [[ ! -d "${STAGE_DIR}" \
   || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
   || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" ]]; then
@@ -367,6 +371,7 @@ done
   "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+    --activation-mode normal \
     "${AGGREGATE_ARGS[@]}"
 )
 
@@ -487,6 +492,12 @@ if [[ "${PREVIOUS_BARRIER_PATH}" == /* && -f "${PREVIOUS_BARRIER_PATH}" \
 else
   : > "${STAGE_DIR}/previous-barrier-missing"
 fi
+ACTIVATION_PHASE="previous_barrier_validation"
+if [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] \
+  && grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded; then
+  echo "legacy prior-loaded service 缺少 valid activation barrier，拒絕 activation。" >&2
+  false
+fi
 
 ACTIVATION_PHASE="replace_live_plists"
 trap 'rollback_activation $? "${ACTIVATION_PHASE}"' ERR
@@ -495,6 +506,10 @@ rm -rf "${READY_ROOT}"
 mkdir -p "${READY_ROOT}"
 for INDEX in 0 1 2 3 4 5 6; do
   install -m 600 "${STAGED_PLISTS[${INDEX}]}" "${TARGET_PLISTS[${INDEX}]}"
+  if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:16 string --activation-only" \
+      "${TARGET_PLISTS[${INDEX}]}"
+  fi
 done
 ACTIVATION_PHASE="bootout_previous_services"
 for INDEX in 0 1 2 3 4 5 6; do
@@ -520,11 +535,16 @@ LIVE_AGGREGATE_ARGS=()
 for TARGET_PLIST_PATH in "${TARGET_PLISTS[@]}"; do
   LIVE_AGGREGATE_ARGS+=(--plist "${TARGET_PLIST_PATH}")
 done
+LIVE_ACTIVATION_MODE="normal"
+if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+  LIVE_ACTIVATION_MODE="activation-only"
+fi
 (
   cd "${REPO_ROOT}"
   "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
     --manifest "${RUNTIME_MANIFEST_FILE}" \
     --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+    --activation-mode "${LIVE_ACTIVATION_MODE}" \
     "${LIVE_AGGREGATE_ARGS[@]}"
 ) >/dev/null
 ACTIVATION_PHASE="barrier_activation"
@@ -535,10 +555,20 @@ ACTIVATION_PHASE="barrier_activation"
   --ready-root "${READY_ROOT}" \
   --barrier "${ACTIVATION_BARRIER}" \
   --timeout 90) >/dev/null
+if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+  ACTIVATION_PHASE="activation_only_postcheck"
+  for LABEL in "${LABELS[@]}"; do
+    launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
+  done
+fi
 trap - ERR
 rm -rf "${STAGE_DIR}"
 
-echo "Pantheon 七服務 aggregate activation 已完成。"
+if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+  echo "Pantheon 七服務 activation-only 已完成。"
+else
+  echo "Pantheon 七服務 aggregate activation 已完成。"
+fi
 echo "Queue root：${QUEUE_ROOT}"
 echo "狀態：launchctl print gui/${USER_ID}/com.pantheon.agy-gemini-coordinator"
 echo "停止：launchctl bootout gui/${USER_ID} ${TARGET_PLIST}"
