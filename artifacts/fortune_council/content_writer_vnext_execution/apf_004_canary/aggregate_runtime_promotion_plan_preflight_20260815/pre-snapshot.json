@@ -30,7 +30,7 @@
       "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
       "owner_uid": 501,
       "publisher_state_root": "<runtime-root>/state",
-      "python_executable": "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "python_executable": "<runtime-python-executable>",
       "queue_root": "<runtime-root>/queue",
       "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
       "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
@@ -45,6 +45,11 @@
         "com.pantheon.agy-gemini-i18n-rewrite",
         "com.pantheon.content-capacity-guard"
       ]
+    },
+    "python_executable_identity": {
+      "digest_input": "original absolute executable path string from production manifest at sampling time",
+      "original_value_sha256": "9e9c9b481ff1d803c9f37f0c7d9a00a1714b4b4d4468fcc90c1d77d245c45583",
+      "placeholder": "<runtime-python-executable>"
     }
   },
   "roots": {

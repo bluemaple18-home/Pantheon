@@ -39,7 +39,7 @@
     "--target-generation",
     "g2-0bf78f0b0c-20260814T181758Z",
     "--target-python-executable",
-    "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "<runtime-python-executable>",
     "--authorization-digest",
     "c63de09ebf5c748b8f546534a108528c00ca0210d3f4316bccf247cd99412ecd",
     "--capacity-receipt",
@@ -56,6 +56,11 @@
   },
   "public_cli": "<repo-root>/<isolated-venv>/bin/python -m scripts.pantheon_content_runtime_promotion plan",
   "returncode": 1,
+  "runtime_python_executable_identity": {
+    "digest_input": "original absolute executable path string from production manifest at sampling time",
+    "original_value_sha256": "9e9c9b481ff1d803c9f37f0c7d9a00a1714b4b4d4468fcc90c1d77d245c45583",
+    "placeholder": "<runtime-python-executable>"
+  },
   "sampled_at": "2026-08-14T18:17:59Z",
   "schema_version": 1,
   "stderr_sanitized": "",
