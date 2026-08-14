@@ -1,0 +1,245 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+from scripts import pantheon_content_runtime_manifest as runtime
+from scripts import pantheon_content_runtime_promotion as promotion
+
+
+AUTHORIZATION_DIGEST = "a" * 64
+CAPACITY_DIGEST = "b" * 64
+REGRESSION_ID = "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001"
+
+
+def _git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _write_commit(repo: Path, name: str, body: str) -> str:
+    (repo / "runtime.txt").write_text(body, encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", name)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _runtime_fixture(tmp_path: Path) -> tuple[promotion.PromotionRequest, dict[str, str]]:
+    remote = tmp_path / "origin.git"
+    source = tmp_path / "source"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(source)], check=True)
+    _git(source, "config", "user.email", "promotion@example.invalid")
+    _git(source, "config", "user.name", "Pantheon Promotion")
+    old_sha = _write_commit(source, "old", "old\n")
+    _write_commit(source, "new", "new\n")
+    _git(source, "remote", "add", "origin", str(remote))
+    _git(source, "push", "-qu", "origin", "main")
+    new_sha = _git(source, "rev-parse", "HEAD")
+
+    actor = tmp_path / "actor"
+    subprocess.run(["git", "clone", "-q", str(remote), str(actor)], check=True)
+    _git(actor, "checkout", "-q", "--detach", old_sha)
+    _git(actor, "remote", "set-url", "origin", str(remote))
+
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    stage = tmp_path / "private-stage"
+    for path in (queue / "runs", state, logs, stage):
+        path.mkdir(parents=True)
+    (stage / "previous.txt").write_text("previous-stage\n", encoding="utf-8")
+
+    current_manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity=f"gate2-actor:{old_sha}:activation-only",
+        runtime_digest="1" * 64,
+        config_version="formal-runtime-v2-gate2",
+        generation=f"g2-{old_sha[:10]}",
+        actor_head=old_sha,
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime.write_manifest(manifest_path, current_manifest)
+
+    request = promotion.PromotionRequest(
+        source_repo=source,
+        source_sha=new_sha,
+        expected_origin=str(remote),
+        actor_root=actor,
+        expected_current_actor_sha=old_sha,
+        manifest_path=manifest_path,
+        expected_current_manifest_digest=current_manifest["manifest_digest"],
+        private_stage_root=stage,
+        expected_current_stage_digest=promotion.tree_digest(stage),
+        transaction_root=tmp_path / "promotion-tx",
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        target_identity=f"gate2-actor:{new_sha}:activation-only",
+        target_runtime_digest="2" * 64,
+        target_config_version="formal-runtime-v2-gate2",
+        target_generation=f"g2-{new_sha[:10]}",
+        target_python_executable=Path(sys.executable).resolve(strict=True),
+        authorization_digest=AUTHORIZATION_DIGEST,
+        capacity_receipt_digest=CAPACITY_DIGEST,
+        correlation_id=f"apf004-runtime-promotion-{new_sha[:10]}",
+    )
+    return request, {"old_sha": old_sha, "new_sha": new_sha}
+
+
+def _snapshot(request: promotion.PromotionRequest) -> dict[str, object]:
+    return {
+        "actor_head": _git(request.actor_root, "rev-parse", "HEAD"),
+        "manifest": json.loads(request.manifest_path.read_text(encoding="utf-8")),
+        "stage_digest": promotion.tree_digest(request.private_stage_root),
+        "barrier_exists": promotion.barrier_path(request).exists(),
+    }
+
+
+def test_plan_is_deterministic_and_zero_write(tmp_path: Path) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+
+    first = promotion.plan_promotion(request)
+    second = promotion.plan_promotion(request)
+
+    assert first == second
+    assert first["status"] == "READY_TO_APPLY"
+    assert first["regression_id"] == REGRESSION_ID
+    assert first["plan_digest"] == second["plan_digest"]
+    assert first["ordered_states"] == [
+        "PREPARED",
+        "ACTOR_PROMOTED",
+        "MANIFEST_WRITTEN",
+        "STAGE_INSTALLED",
+        "POSTCHECK_PASSED",
+        "COMMITTED",
+    ]
+    assert first["target_actor_sha"] == identities["new_sha"]
+    assert [item["stage"] for item in first["write_set"]] == [
+        "ACTOR_PROMOTED",
+        "MANIFEST_WRITTEN",
+        "STAGE_INSTALLED",
+        "STAGE_INSTALLED",
+    ]
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+
+    applied = promotion.apply_promotion(request)
+
+    assert applied["status"] == "POSTCHECK_PASSED"
+    assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
+    assert runtime.load_manifest(
+        request.manifest_path,
+        applied["target_manifest_digest"],
+        expected_python_executable=request.target_python_executable,
+    )["actor_head"] == identities["new_sha"]
+    assert promotion.barrier_path(request).exists()
+    assert promotion.rollback_bundle_path(request).exists()
+
+    finalized = promotion.finalize_promotion(
+        request,
+        expected_plan_digest=applied["plan_digest"],
+    )
+
+    assert finalized["status"] == "COMMITTED"
+    assert not promotion.rollback_bundle_path(request).exists()
+    status = promotion.status_promotion(request)
+    assert status["state"] == "COMMITTED"
+    assert status["audit_receipt_exists"] is True
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_state"),
+    [
+        ("actor", "PREPARED"),
+        ("manifest", "ACTOR_PROMOTED"),
+        ("stage", "MANIFEST_WRITTEN"),
+        ("postcheck", "STAGE_INSTALLED"),
+    ],
+)
+def test_apply_failure_matrix_rolls_back_actor_manifest_and_stage(
+    tmp_path: Path,
+    failure: str,
+    expected_state: str,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="ROLLBACK_COMPLETE"):
+        promotion.apply_promotion(request, failure_injection=failure)
+
+    receipt = promotion.load_receipt(request)
+    assert receipt["state_before_rollback"] == expected_state
+    assert receipt["state"] == "ROLLED_BACK"
+    assert _snapshot(request) == before
+
+
+def test_crash_recovery_status_and_explicit_rollback(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionCrashStop):
+        promotion.apply_promotion(request, stop_after_state="ACTOR_PROMOTED")
+
+    status = promotion.status_promotion(request)
+    assert status["state"] == "ACTOR_PROMOTED"
+    assert status["rollback_required"] is True
+    with pytest.raises(promotion.PromotionError, match="existing transaction"):
+        promotion.apply_promotion(request)
+
+    rolled_back = promotion.rollback_promotion(
+        request,
+        expected_plan_digest=status["plan_digest"],
+    )
+
+    assert rolled_back["status"] == "ROLLED_BACK"
+    assert _snapshot(request) == before
+
+
+def test_authorization_drift_fails_finalize_and_rollback_closed(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    applied = promotion.apply_promotion(request)
+    drifted = promotion.PromotionRequest(
+        **{**request.__dict__, "authorization_digest": "c" * 64}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="authorization"):
+        promotion.finalize_promotion(drifted, expected_plan_digest=applied["plan_digest"])
+    with pytest.raises(promotion.PromotionError, match="authorization"):
+        promotion.rollback_promotion(drifted, expected_plan_digest=applied["plan_digest"])
+
+
+def test_cli_help_exposes_public_transaction_commands() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "scripts.pantheon_content_runtime_promotion", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    for command in ("plan", "apply", "rollback", "finalize", "status"):
+        assert command in completed.stdout

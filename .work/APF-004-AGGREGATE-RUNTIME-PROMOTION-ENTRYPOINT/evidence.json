@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "task_id": "APF-004-AGGREGATE-RUNTIME-PROMOTION-ENTRYPOINT",
+  "status": "GREEN",
+  "source_thread_id": "019fff32-3756-7651-8d9a-08a9bdd2763f",
+  "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+  "changed_files": [
+    "scripts/pantheon_content_runtime_promotion.py",
+    "tests/test_pantheon_content_runtime_promotion.py",
+    "tests/test_pantheon_content_actor_recovery.py",
+    ".work/APF-004-AGGREGATE-RUNTIME-PROMOTION-ENTRYPOINT/evidence.json"
+  ],
+  "public_cli": {
+    "module": "scripts.pantheon_content_runtime_promotion",
+    "commands": ["plan", "apply", "rollback", "finalize", "status"],
+    "help_result": "PASS"
+  },
+  "state_machine": {
+    "ordered_states": [
+      "PREPARED",
+      "ACTOR_PROMOTED",
+      "MANIFEST_WRITTEN",
+      "STAGE_INSTALLED",
+      "POSTCHECK_PASSED",
+      "COMMITTED"
+    ],
+    "rollback_order": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "persistent_receipt": "promotion-receipt.json",
+    "persistent_rollback_bundle": "rollback-bundle",
+    "finalize_required_to_delete_backup": true
+  },
+  "red_green": {
+    "red": {
+      "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py -q",
+      "result": "RED",
+      "reason": "ImportError: scripts.pantheon_content_runtime_promotion missing"
+    },
+    "green": [
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py -q",
+        "result": "PASS",
+        "summary": "9 passed"
+      },
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_runtime_promotion.py tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_actor_recovery.py tests/test_prepare_pantheon_canary_actor.py -q",
+        "result": "PASS",
+        "summary": "66 passed"
+      },
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest tests/test_pantheon_content_capacity_guard.py -q",
+        "result": "PASS",
+        "summary": "16 passed"
+      },
+      {
+        "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen pytest <publisher-and-coordinator-installer-selectors> -q",
+        "result": "PASS",
+        "summary": "28 passed"
+      }
+    ]
+  },
+  "failure_matrix": [
+    {
+      "failure": "actor promotion failure",
+      "state_before_rollback": "PREPARED",
+      "rollback_result": "ROLLBACK_COMPLETE"
+    },
+    {
+      "failure": "manifest write failure",
+      "state_before_rollback": "ACTOR_PROMOTED",
+      "rollback_result": "ROLLBACK_COMPLETE"
+    },
+    {
+      "failure": "private stage install failure",
+      "state_before_rollback": "MANIFEST_WRITTEN",
+      "rollback_result": "ROLLBACK_COMPLETE"
+    },
+    {
+      "failure": "postcheck failure",
+      "state_before_rollback": "STAGE_INSTALLED",
+      "rollback_result": "ROLLBACK_COMPLETE"
+    },
+    {
+      "failure": "crash after actor promoted",
+      "state": "ACTOR_PROMOTED",
+      "status_result": "rollback_required",
+      "duplicate_apply": "blocked",
+      "explicit_rollback": "ROLLED_BACK"
+    },
+    {
+      "failure": "authorization drift",
+      "finalize": "blocked",
+      "rollback": "blocked"
+    }
+  ],
+  "production_mutation": {
+    "live_deploy": 0,
+    "live_install": 0,
+    "live_copy": 0,
+    "live_manifest_write": 0,
+    "live_plist_write": 0,
+    "launchctl_mutation": 0,
+    "create_run": 0,
+    "runner": 0,
+    "external_model": 0,
+    "publish": 0,
+    "tag": 0,
+    "push": 0,
+    "schedule": 0
+  },
+  "sanitizer": {
+    "scope": "local absolute paths, local username, file URI",
+    "result": "PASS"
+  },
+  "diff_check": "PASS",
+  "push": "not_authorized_not_executed"
+}

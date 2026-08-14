@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import shutil
 from pathlib import Path
@@ -17,6 +18,15 @@ def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
     ).stdout.strip()
+
+
+def _fake_absent_launchctl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text("#!/bin/sh\nexit 113\n", encoding="utf-8")
+    launchctl.chmod(0o700)
+    monkeypatch.setenv("PATH", f"{fake_bin}:{os.environ.get('PATH', '')}")
 
 
 def _source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
@@ -72,7 +82,7 @@ def _repair_source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo / relative, destination)
     _git(source, "add", *repair_paths)
-    _git(source, "commit", "-qm", "repair-2 fixture")
+    _git(source, "commit", "--allow-empty", "-qm", "repair-2 fixture")
     _git(source, "push", "-q", "origin", "main")
     with (source / ".git/info/exclude").open("a", encoding="utf-8") as stream:
         stream.write("\n.venv\nnode_modules\n")
@@ -87,8 +97,10 @@ def _repair_source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
 
 
 def test_same_recovery_entrypoint_preflights_and_restores_exact_actor(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    _fake_absent_launchctl(tmp_path, monkeypatch)
     source, remote, source_sha = _repair_source_repo(tmp_path)
     allow_root = tmp_path / "actors"
     allow_root.mkdir()
@@ -180,9 +192,11 @@ def test_recovery_fails_closed_outside_allowlist_and_on_dirty_source(
 
 
 def test_empty_target_restore_provisions_runtime_before_formal_preflights(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """REG-PANTHEON-ACTOR-RECOVERY-ENTRYPOINT-001 Repair-2。"""
+    _fake_absent_launchctl(tmp_path, monkeypatch)
     source, remote, source_sha = _repair_source_repo(tmp_path)
     allow_root = tmp_path / "actors"
     allow_root.mkdir()
