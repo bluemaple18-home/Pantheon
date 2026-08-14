@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "operation": "create-run-only",
+  "status": "BLOCKED",
+  "sampled_at": "2026-08-14T15:04:38Z",
+  "authorization": {
+    "allowed": [
+      "official adapter plan-only",
+      "create exactly one synthetic production queue/state payload"
+    ],
+    "forbidden": [
+      "runner",
+      "select",
+      "publish",
+      "transaction",
+      "tag",
+      "push",
+      "external model",
+      "deploy",
+      "schedule",
+      "LaunchAgent mutation",
+      "manual queue/state construction",
+      "readiness sandbox copy"
+    ],
+    "max_payloads": 1,
+    "production_apply_calls": 0
+  },
+  "toolchain": {
+    "command_prefix": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen python",
+    "worktree_venv_used": false,
+    "worktree_venv_present": false
+  },
+  "source_identity": {
+    "repo_root": "<repo-root>",
+    "head": "d698d99429fef1bf5a7c30bc344daa2650f5404e",
+    "origin_main": "d698d99429fef1bf5a7c30bc344daa2650f5404e",
+    "clean_before": true,
+    "detached": true,
+    "codegraph": {
+      "status": "READY",
+      "files_indexed": 565,
+      "nodes": 6008,
+      "edges": 12657
+    }
+  },
+  "official_readiness": {
+    "receipt": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/package/production-canary-capability-receipt.json",
+    "gate_status": "READY",
+    "execution_line_id": "exec-apf-004-readiness",
+    "canary_created": false,
+    "production_mutation": false
+  },
+  "capacity": {
+    "receipt": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/capacity/capacity-receipt.json",
+    "status": "PASS",
+    "host_total_bytes": 245107195904,
+    "host_free_bytes": 69317562368,
+    "host_reserve_bytes": 24510719590,
+    "host_free_above_reserve": true,
+    "swap_total_mib": 14336.0,
+    "swap_used_mib": 13196.38,
+    "swap_free_mib": 1139.62,
+    "stop_loss_negative_result": "BLOCKED"
+  },
+  "runtime_identity": {
+    "runtime_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "actor_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_origin_main": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_clean": true,
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+    "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+    "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+    "workers_before": "inert",
+    "workers_after": "inert",
+    "launchctl_matching_loaded_services": 0,
+    "matching_runtime_processes": 0
+  },
+  "pre_mutation_snapshot": {
+    "queue_file_count": 0,
+    "queue_kib": 0,
+    "run_root_present": false,
+    "state_files": [
+      "<repo-parent>/Pantheon-canary-runtime-v8/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier"
+    ],
+    "state_barrier_sha256": "67ff22728dedc3d9a202a323f9d9ec0512d59600851dc645041265aee44dd3ec"
+  },
+  "official_adapter_plan": {
+    "entrypoint": "scripts.agy_gemini_coordinator:create_campaign_run_adapter",
+    "mode": "plan_only",
+    "status": "planned",
+    "production_mutation": false,
+    "max_runs": 1,
+    "plan_digest": "8cf76f25d5653ed382b47b7287033a01ae458dc5aadf779947559cbbf6a97dc5",
+    "run_count": 4,
+    "expected_write_count": 7,
+    "lanes": [
+      "new",
+      "rewrite",
+      "i18n-new",
+      "i18n-rewrite"
+    ],
+    "exact_run_ids": [
+      "apf-create-run-new-7d0e46d9ec617526f77f8213",
+      "apf-create-run-rewrite-1a192dbea1d6dda0289d19d8",
+      "auto-i18n-ja-fcbf5d1af50382a4d586",
+      "auto-i18n-ja-8b6ea232885ab55ab92f"
+    ],
+    "contract_mismatch": "The official adapter is a fixed four-lane adapter and cannot create exactly one synthetic payload."
+  },
+  "equivalent_entrypoint_assessment": {
+    "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight": "ineligible: restricted to a trusted readiness sandbox and proceeds into run capability",
+    "scripts.agy_gemini_coordinator:register_run": "ineligible: requires a pre-existing brief, which would require forbidden manual or copied queue input",
+    "verified_single_synthetic_create_only_entrypoint": false
+  },
+  "post_plan_snapshot": {
+    "queue_file_count": 0,
+    "state_files_unchanged": true,
+    "state_barrier_sha256": "67ff22728dedc3d9a202a323f9d9ec0512d59600851dc645041265aee44dd3ec",
+    "workers": "inert",
+    "production_apply_calls": 0,
+    "create": "not_executed",
+    "runner": "not_executed",
+    "select": "not_executed",
+    "publish": "not_executed",
+    "transaction": "not_executed",
+    "tag": "not_executed",
+    "push": "not_executed",
+    "external_model": "not_executed"
+  },
+  "verification": {
+    "affected_test": {
+      "selector": "tests/test_agy_gemini_coordinator.py -k apf_004_create_run_adapter",
+      "status": "PASS",
+      "production_queue_state_writes": 0
+    }
+  },
+  "external_tool_gate": {
+    "tool_service": "local production runtime adapter",
+    "operation_level": "write_action",
+    "connection_status": "local runtime identity validated",
+    "schema_checked": true,
+    "confirmation_required": true,
+    "confirmation_received": "create exactly one synthetic payload only",
+    "execution_status": "blocked before mutation because planned cardinality exceeded authorization",
+    "remaining_risk": "No verified official entrypoint currently maps one synthetic work item to exactly one production queue/state payload without downstream execution."
+  },
+  "blocker": {
+    "status": "BLOCKED",
+    "unique_frontier": "Provide or integrate a reviewed official create-run-only entrypoint whose plan resolves one synthetic input to exactly one production queue/state payload and no downstream action; then obtain confirmation for that exact plan.",
+    "fail_closed_reason": "plan-only returned run_count=4 and expected_write_count=7 instead of exactly 1"
+  }
+}
