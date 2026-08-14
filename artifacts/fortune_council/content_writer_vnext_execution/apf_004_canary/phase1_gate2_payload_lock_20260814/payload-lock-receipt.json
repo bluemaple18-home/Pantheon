@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "status": "BLOCKED",
+  "phase": "Phase 1 Gate 2 synthetic payload lock",
+  "created_at": "2026-08-14T11:25:06Z",
+  "formal_thread_id": "019ffad9-c48e-70e3-9497-8c055f23bffe",
+  "source_thread_id": "019fff32-3756-7651-8d9a-08a9bdd2763f",
+  "dispatch_key": "v1:e36d2c4bfb8b950a0531a30d41ed94644f2357f16416c25e2a84616c13f824f4",
+  "same_canary_identity": true,
+  "authorization_scope": {
+    "user_reauthorized": "Phase 1 payload lock only",
+    "phase_b_authorized": false,
+    "external_write_authorized": false,
+    "production_mutation_authorized": false
+  },
+  "toolchain": {
+    "required_mode": "uv isolated environment",
+    "command": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen python <ai-core-root>/scripts/production_canary_readiness_gate.py --receipt <repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/package/production-canary-capability-receipt.json",
+    "worktree_venv_used": false,
+    "worktree_venv_present_after_correction": false
+  },
+  "source_identity": {
+    "cwd": "<repo-root>",
+    "head": "c37d311774554ee7663a5735e7da64d843146331",
+    "origin_main": "c37d311774554ee7663a5735e7da64d843146331",
+    "clean": true,
+    "detached": true,
+    "codegraph_status": "READY"
+  },
+  "official_readiness": {
+    "status": "READY",
+    "execution_line_id": "exec-apf-004-readiness",
+    "correlation_id": "corr-apf-004-readiness",
+    "receipt": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/package/production-canary-capability-receipt.json",
+    "canary_created": false,
+    "production_mutation": false,
+    "capabilities": [
+      "create",
+      "run",
+      "select",
+      "publish",
+      "transaction",
+      "tag",
+      "push"
+    ],
+    "positive_evidence_count": 7,
+    "negative_evidence_count": 7,
+    "missing_push_fixture": "BLOCKED"
+  },
+  "capacity": {
+    "status": "PASS",
+    "receipt": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/capacity/capacity-receipt.json",
+    "host_total_bytes_sampled": 245107195904,
+    "host_free_bytes_sampled": 71617130496,
+    "host_free_percent_sampled": 29.22,
+    "host_reserve_bytes": 24510719591,
+    "swap_sample": "total=11264.00MiB used=9596.00MiB free=1668.00MiB encrypted",
+    "current_runtime_queue_kib": 0,
+    "current_runtime_state_kib": 4,
+    "current_runtime_log_kib": 60,
+    "synthetic_cycles": [
+      {
+        "cycle": 1,
+        "peak_transaction_temp_bytes": 33354,
+        "growth_bytes_per_hour": 10782662,
+        "rss_before_bytes": 52592640,
+        "rss_peak_bytes": 52592640,
+        "swap_peak_bytes": 0,
+        "cleanup_reclaimed_bytes": 33354,
+        "cleanup_root_exists_after_cleanup": false
+      },
+      {
+        "cycle": 2,
+        "peak_transaction_temp_bytes": 33354,
+        "growth_bytes_per_hour": 10876139,
+        "rss_before_bytes": 52592640,
+        "rss_peak_bytes": 52592640,
+        "swap_peak_bytes": 0,
+        "cleanup_reclaimed_bytes": 33354,
+        "cleanup_root_exists_after_cleanup": false
+      }
+    ]
+  },
+  "runtime_identity": {
+    "runtime_root": "<repo-parent>/Pantheon-canary-runtime-v8",
+    "actor_root": "<repo-parent>/Pantheon-canary-runtime-v8/actor",
+    "queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+    "state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+    "log_root": "<repo-parent>/Pantheon-canary-runtime-v8/logs",
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_origin_main": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "actor_clean": true,
+    "manifest_generation": "g2-9d8573e962-20260814T104149Z",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+    "identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+    "live_pantheon_process_rss": "no Gate 2 runtime worker PID listed",
+    "launchctl_labels_present": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ]
+  },
+  "credential_and_push_mode": {
+    "credential_material_recorded": false,
+    "external_model_required_for_locked_synthetic_payload": false,
+    "external_model_executed": false,
+    "launchd_credential_pool_configured": false,
+    "launchd_activation_token_configured": false,
+    "credential_boundary_status": "not_required_for_phase1_synthetic_payload_lock",
+    "publisher_push_mode": "push",
+    "publisher_launchd_max_runs": 3,
+    "locked_payload_override_required_for_future_mutation": {
+      "max_runs": 1,
+      "exact_selector_required": true,
+      "phase_b_confirmation_required": true
+    }
+  },
+  "locked_payload": {
+    "type": "Gate 2 synthetic readiness payload",
+    "status": "blocked",
+    "exact_run_id": "ra-slice-002-synthetic-create-run",
+    "mode": "create",
+    "article_id": "APF-004-READINESS-SYNTHETIC",
+    "title": "APF-004 synthetic readiness receipt",
+    "source": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/capability/sandbox/runs/ra-slice-002-synthetic-create-run/brief.json",
+    "queue_state": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/capability/sandbox/queue/runs/85f3df3ca8bfda43e1734ca1.json",
+    "production_runtime_queue_root": "<repo-parent>/Pantheon-canary-runtime-v8/queue",
+    "production_runtime_state_root": "<repo-parent>/Pantheon-canary-runtime-v8/state",
+    "production_runtime_queue_state_resolution": "absent",
+    "run_status": "complete",
+    "correlation_id": "corr-apf-004-readiness",
+    "idempotency": {
+      "existing_state_only": false,
+      "create_run_not_executed": true,
+      "manual_queue_files_created": false,
+      "duplicate_suppression": [
+        "exact selector must be non-empty",
+        "same run id appears across seven positive capability receipts",
+        "negative empty-selector fixture is BLOCKED",
+        "production runtime queue/state does not contain the exact run id"
+      ]
+    }
+  },
+  "blocker": {
+    "status": "BLOCKED",
+    "unique_frontier": "The exact synthetic run is present only in the committed readiness sandbox evidence and is not resolvable from the future production runtime queue/state roots. The Phase 1 contract forbids create-run, queue copy, and manual queue construction, so no executable canary payload can be locked.",
+    "production_runtime_queue_state_files_sampled": [
+      "<repo-parent>/Pantheon-canary-runtime-v8/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier"
+    ],
+    "not_found_exact_run_id": "ra-slice-002-synthetic-create-run"
+  },
+  "official_entrypoint_lock": {
+    "publisher_entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+    "coordinator_entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+    "future_command_shape": "UV_PROJECT_ENVIRONMENT=<isolated-venv> uv run --frozen python -m scripts.agy_content_publisher --repo-root <repo-parent>/Pantheon-canary-runtime-v8/actor --queue-root <repo-parent>/Pantheon-canary-runtime-v8/queue --state-root <repo-parent>/Pantheon-canary-runtime-v8/state --max-runs 1 --exact-run-id ra-slice-002-synthetic-create-run --push --deployment-preflight --expected-runtime-sha 9d8573e9624d09748d029cab7d0209e1e14730c9 --expected-runtime-digest 4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb --expected-push-mode push",
+    "max_runs": 1,
+    "exact_selector": "ra-slice-002-synthetic-create-run",
+    "write_allowlist": [
+      "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/phase1_gate2_payload_lock_20260814/**"
+    ],
+    "stop_condition": "Any missing/ambiguous exact selector, runtime identity drift, capacity NO-GO, readiness BLOCKED, duplicate publication, or absent final payload confirmation stops before mutation.",
+    "rollback": "No rollback required in Phase 1; all create/run/select/publish/transaction/tag/push remain not_executed."
+  },
+  "mutation_summary": {
+    "create": "not_executed",
+    "run": "not_executed",
+    "select": "not_executed",
+    "publish": "not_executed",
+    "transaction": "not_executed",
+    "tag": "not_executed",
+    "push": "not_executed",
+    "deploy": "not_executed",
+    "schedule": "not_executed",
+    "launchctl_mutation": "not_executed",
+    "external_model": "not_executed",
+    "production_activation": "not_executed"
+  },
+  "external_tool_gate": {
+    "tool_service": "Local Existing Publisher / Gemini runtime boundary",
+    "operation_level": "read_only",
+    "connection_status": "local runtime and launch labels inspected",
+    "schema_checked": true,
+    "confirmation_required": "required before any Phase B mutation",
+    "execution_status": "read-only payload lock blocked before mutation",
+    "evidence": "official readiness READY, but the synthetic exact run is not present in production runtime queue/state",
+    "remaining_risk": "Future mutation must receive final payload confirmation and must provide max-runs=1 exact selector against an existing production runtime queue/state run; launchd default publisher max-runs is not the locked payload command."
+  },
+  "remaining_risk": [
+    "Phase 1 did not execute production publisher, tag, push, deploy, or external model calls.",
+    "No executable exact canary payload was locked because the selected synthetic run exists only in readiness sandbox evidence, not in production runtime queue/state.",
+    "Launchd publisher plist default max-runs is 3; future canary mutation must use the locked max-runs=1 exact-selector command, not the default scheduled command.",
+    "Launchd plists are activation-only/inert for this lock and do not persist activation token or credential pool configuration.",
+    "Final payload confirmation is still required before any Phase B production mutation."
+  ]
+}
