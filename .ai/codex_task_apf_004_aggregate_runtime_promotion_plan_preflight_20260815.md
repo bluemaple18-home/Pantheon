@@ -29,7 +29,7 @@ traces_to:
 
 ## 固定 authority
 
-1. source authority 固定為本卡 parent `0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35`；先核對 `origin/main` 完全相等且包含 aggregate CLI。
+1. runtime source authority 固定為本卡 parent `0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35`；`origin/main` 必須是其 clean descendant，且兩者 net diff 只能包含本張 `.ai/` 任務卡，不得有任何 runtime/code/config/test 差異。actor target 仍鎖 `0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35`。
 2. 只使用 `python -m scripts.pantheon_content_runtime_promotion plan`；不得用 internal function、ad-hoc `cp`、手改 JSON 或自造 receipt 代替 public CLI。
 3. capacity receipt 必須來自既有 `pantheon_content_capacity_guard` raw receipt contract，驗實際 artifact SHA-256、`status=PASS` 與 stop-loss closed；不得只傳 digest-shaped sentinel。
 4. current actor SHA、manifest digest、stage digest、target runtime digest、authorization digest、generation、identity、Python executable 與 correlation 都必須由實際 artifacts 重算；禁止沿用舊 snapshot 的值。
