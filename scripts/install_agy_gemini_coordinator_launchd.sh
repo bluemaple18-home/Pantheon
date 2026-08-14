@@ -460,6 +460,8 @@ prepare_legacy_capacity_adoption() {
   local CAPACITY_TARGET="${TARGET_PLISTS[${CAPACITY_INDEX}]}"
   local CAPACITY_BACKUP="${STAGE_DIR}/backups/${CAPACITY_LABEL}.plist"
   local CAPACITY_IDENTITY="${STAGE_DIR}/${CAPACITY_LABEL}.previous_identity"
+  local ADOPTION_MODE="capacity-only"
+  local BUSINESS_BACKUP_COUNT=0
   local CANONICAL_LOADED_PATH
   local CANONICAL_TARGET_PATH
   local INDEX
@@ -467,6 +469,8 @@ prepare_legacy_capacity_adoption() {
   local LOADED_PATH
   local PATH_FIELD_COUNT
   local STRICT_PATH_FIELD_COUNT
+  local TARGET
+  local TARGET_CANONICAL
 
   [[ "${ACTIVATION_ONLY}" == "1" ]] || return 1
   [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] || return 1
@@ -475,8 +479,34 @@ prepare_legacy_capacity_adoption() {
   for INDEX in 0 1 2 3 4 5; do
     LABEL="${LABELS[${INDEX}]}"
     [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "0" ]] || return 1
-    [[ ! -f "${STAGE_DIR}/backups/${LABEL}.plist" ]] || return 1
+    if [[ -f "${STAGE_DIR}/backups/${LABEL}.plist" ]]; then
+      BUSINESS_BACKUP_COUNT=$((BUSINESS_BACKUP_COUNT + 1))
+    fi
   done
+  if [[ "${BUSINESS_BACKUP_COUNT}" == "0" ]]; then
+    ADOPTION_MODE="capacity-only"
+  elif [[ "${BUSINESS_BACKUP_COUNT}" == "6" ]]; then
+    ADOPTION_MODE="inert-six"
+  else
+    return 1
+  fi
+  if [[ "${ADOPTION_MODE}" == "inert-six" ]]; then
+    for INDEX in 0 1 2 3 4 5; do
+      LABEL="${LABELS[${INDEX}]}"
+      TARGET="${TARGET_PLISTS[${INDEX}]}"
+      [[ -f "${STAGE_DIR}/backups/${LABEL}.plist" && -f "${TARGET}" ]] \
+        || return 1
+      [[ ! -L "${STAGE_DIR}/backups/${LABEL}.plist" && ! -L "${TARGET}" ]] \
+        || return 1
+      [[ "$(stat -f '%u' "${TARGET}")" == "${USER_ID}" ]] || return 1
+      [[ "$(stat -f '%Lp' "${TARGET}")" == "600" ]] || return 1
+      TARGET_CANONICAL="$(canonical_existing_path "${TARGET}")" || return 1
+      [[ "${TARGET}" == "${TARGET_CANONICAL}" ]] || return 1
+      cmp -s "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" || return 1
+      shasum -a 256 "${TARGET}" \
+        > "${STAGE_DIR}/${LABEL}.inert-plist.sha256" || return 1
+    done
+  fi
   [[ -f "${CAPACITY_BACKUP}" && -f "${CAPACITY_TARGET}" ]] || return 1
   [[ ! -L "${CAPACITY_TARGET}" && ! -L "${CAPACITY_BACKUP}" ]] || return 1
   [[ "$(stat -f '%u' "${CAPACITY_TARGET}")" == "${USER_ID}" ]] || return 1
@@ -507,7 +537,29 @@ prepare_legacy_capacity_adoption() {
     > "${STAGE_DIR}/legacy-capacity-plist.sha256" || return 1
   cp "${CAPACITY_IDENTITY}" "${STAGE_DIR}/legacy-capacity-loaded-identity"
   printf '%s\n' "${CAPACITY_TARGET}" > "${STAGE_DIR}/legacy-capacity-target-path"
+  printf '%s\n' "${ADOPTION_MODE}" > "${STAGE_DIR}/legacy-capacity-adoption-mode"
+  if [[ "${ADOPTION_MODE}" == "inert-six" ]]; then
+    : > "${STAGE_DIR}/legacy-capacity-inert-six-adoption"
+  fi
   : > "${STAGE_DIR}/legacy-capacity-adoption"
+  return 0
+}
+verify_legacy_capacity_adoption_pre_replace() {
+  local INDEX
+  local LABEL
+  local TARGET
+  [[ -f "${STAGE_DIR}/legacy-capacity-inert-six-adoption" ]] || return 0
+  for INDEX in 0 1 2 3 4 5; do
+    LABEL="${LABELS[${INDEX}]}"
+    TARGET="${TARGET_PLISTS[${INDEX}]}"
+    if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+      return 1
+    fi
+    [[ -f "${TARGET}" && ! -L "${TARGET}" ]] || return 1
+    cmp -s "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" || return 1
+    shasum -a 256 "${TARGET}" \
+      | cmp -s "${STAGE_DIR}/${LABEL}.inert-plist.sha256" - || return 1
+  done
   return 0
 }
 
@@ -566,6 +618,11 @@ if [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] \
     echo "legacy prior-loaded service 缺少 valid activation barrier，拒絕 activation。" >&2
     false
   fi
+fi
+ACTIVATION_PHASE="legacy_capacity_adoption_pre_replace"
+if ! verify_legacy_capacity_adoption_pre_replace; then
+  echo "legacy inert plist set 在 replace 前 drift，拒絕 activation。" >&2
+  false
 fi
 
 ACTIVATION_PHASE="replace_live_plists"
