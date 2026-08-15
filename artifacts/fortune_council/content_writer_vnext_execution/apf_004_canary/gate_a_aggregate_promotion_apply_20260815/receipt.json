@@ -1,0 +1,26 @@
+{
+  "after_snapshot": "after-snapshot.json",
+  "apply_calls": 0,
+  "before_snapshot": "before-snapshot.json",
+  "blocker": {
+    "code": "PUBLIC_APPLY_EXPECTED_PLAN_DIGEST_UNSUPPORTED",
+    "fail_closed_at": "public CLI argv schema precheck",
+    "mutation_started": false,
+    "required_repair": "Add and independently review expected-plan-digest binding for apply before a new apply authorization.",
+    "summary": "The authority-bound exact apply payload requires --expected-plan-digest, but the public apply subparser does not accept that argument."
+  },
+  "card_id": "APF-004-GATE-A-AGGREGATE-PROMOTION-APPLY",
+  "exact_argv_artifact": "exact-payload.json",
+  "expected_plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+  "finalize_calls": 0,
+  "mutation_matrix": "production-mutation-matrix.json",
+  "next_gate": "Repair and review public apply plan-digest binding; do not reuse this authorization for a changed CLI.",
+  "plan_calls": 0,
+  "production_mutation": 0,
+  "rollback_bundle_inventory": "rollback-bundle-inventory.json",
+  "rollback_calls": 0,
+  "sampled_at": "2026-08-15T01:04:08Z",
+  "schema_version": 1,
+  "transaction_state": "NOT_STARTED",
+  "verdict": "BLOCKED_BEFORE_MUTATION"
+}

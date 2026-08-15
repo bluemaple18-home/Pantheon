@@ -1,0 +1,10 @@
+{
+  "inventory": [],
+  "promotion_receipt_exists": false,
+  "rollback_bundle_exists": false,
+  "sampled_at": "2026-08-15T01:04:08Z",
+  "schema_version": 1,
+  "status": "NOT_CREATED_BLOCKED_BEFORE_MUTATION",
+  "transaction_root": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity",
+  "transaction_root_exists": false
+}

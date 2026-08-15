@@ -1,0 +1,21 @@
+{
+  "apply_accepts_expected_plan_digest": false,
+  "blocker_code": "PUBLIC_APPLY_EXPECTED_PLAN_DIGEST_UNSUPPORTED",
+  "current_module_sha256": "b6795e02749a771a4d46fa95a293fa4b2464d6c8f4c1762215fd689eb39af5d8",
+  "exact_authorized_argv_parseable": false,
+  "expected_plan_digest_argument_line_numbers": [
+    779
+  ],
+  "expected_plan_digest_guarded_subcommands": [
+    "finalize",
+    "rollback"
+  ],
+  "module_content_equal": true,
+  "public_cli_invoked": false,
+  "public_cli_module": "scripts/pantheon_content_runtime_promotion.py",
+  "sampled_at": "2026-08-15T01:04:07Z",
+  "schema_version": 1,
+  "source_inspection_only": true,
+  "source_module_sha256": "b6795e02749a771a4d46fa95a293fa4b2464d6c8f4c1762215fd689eb39af5d8",
+  "source_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35"
+}

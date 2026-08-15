@@ -1,0 +1,51 @@
+{
+  "all_non_schema_preconditions_pass": true,
+  "blocker": {
+    "code": "PUBLIC_APPLY_EXPECTED_PLAN_DIGEST_UNSUPPORTED",
+    "fail_closed_at": "public CLI argv schema precheck",
+    "mutation_started": false,
+    "required_repair": "Add and independently review expected-plan-digest binding for apply before a new apply authorization.",
+    "summary": "The authority-bound exact apply payload requires --expected-plan-digest, but the public apply subparser does not accept that argument."
+  },
+  "cli_schema_check_pass": false,
+  "preconditions": {
+    "actor_clean": true,
+    "actor_head_exact": true,
+    "actor_origin_exact": true,
+    "capacity_contract_pass": true,
+    "capacity_digest_exact": true,
+    "head_exact": true,
+    "host_capacity_pass": true,
+    "manifest_digest_exact": true,
+    "origin_main_exact": true,
+    "plan_evidence_pass": true,
+    "queue_empty": true,
+    "queue_gsc_copy_absent": true,
+    "runs_empty": true,
+    "runtime_gsc_copy_absent": true,
+    "runtime_python_executable": true,
+    "runtime_python_identity_exact": true,
+    "scripts_tests_unchanged_from_source": true,
+    "source_clean": true,
+    "source_head_exact": true,
+    "source_origin_exact": true,
+    "stage_digest_exact": true,
+    "transaction_root_absent": true,
+    "worktree_clean_excluding_evidence_root": true
+  },
+  "production_mutation": 0,
+  "production_snapshot_unchanged": {
+    "actor": true,
+    "manifest": true,
+    "private_stage": true,
+    "queue": true,
+    "queue_gsc_copy": true,
+    "queue_runs": true,
+    "runtime_gsc_copy": true,
+    "state": true,
+    "transaction_root": true
+  },
+  "sampled_at": "2026-08-15T01:04:08Z",
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_MUTATION"
+}

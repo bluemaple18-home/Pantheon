@@ -1,0 +1,16 @@
+{
+  "files": {
+    "after-snapshot.json": "78bef32245e628d8619ff9fb57396c44118f5741d669e55df49cfc4249015a02",
+    "before-snapshot.json": "eff00462e095bd9329988d0313975d5ef1876fd4d895896e84b8f6bdff8d3f4f",
+    "cli-schema-check.json": "bce7e2fb04a3c6b7754e5a4b2c035d1f67f6dacc0f93620959d461c431335124",
+    "exact-payload.json": "54f5e760b69db3f687ca6acf7962ef18b4fb1f161e82ae75956df63fd75ab087",
+    "invocation-trace.json": "28716a468f8567eecb03575230fd1869511498ffd7f1874d9b76d378acc3351d",
+    "plan-evidence-validation.json": "349e638819faef9d743d38004672e59772e0cee0fcfeff13df500790097ec549",
+    "production-mutation-matrix.json": "e4905453963c81c4dea41bf9b8d45dd658e4aaf310eaa4d46670c2786339c9d8",
+    "receipt.json": "b1ea3cd1aba637b9cb323f2039a248cef81c459fb00cc9ba3ba26ef5c9c60719",
+    "rollback-bundle-inventory.json": "4a0d859f25201de614f8263724a0a5eb91e0c9749be4f3746393ab6bbb15e1da",
+    "verification.json": "46556d124e15be2007af92c16da2902205802f85138d481f425dceac852c3ee9"
+  },
+  "sampled_at": "2026-08-15T01:05:31Z",
+  "schema_version": 1
+}

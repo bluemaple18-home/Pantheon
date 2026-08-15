@@ -1,0 +1,32 @@
+{
+  "apply_was_not_invoked": true,
+  "authority": "APF-004 Gate A user-authorized apply task",
+  "automatic_rollback_was_not_triggered": true,
+  "counter_scope": "this task invocation trace",
+  "counters": {
+    "apply": 0,
+    "create_run": 0,
+    "deploy": 0,
+    "external_model": 0,
+    "finalize": 0,
+    "plan": 0,
+    "publication_transaction": 0,
+    "publish": 0,
+    "push": 0,
+    "rollback": 0,
+    "runner": 0,
+    "schedule": 0,
+    "select": 0,
+    "status": 0,
+    "tag": 0
+  },
+  "decision_sequence": [
+    "plan evidence validation",
+    "live read-only prechecks",
+    "public CLI source schema inspection",
+    "fail-closed blocker",
+    "live read-only unchanged snapshot"
+  ],
+  "sampled_at": "2026-08-15T01:04:08Z",
+  "schema_version": 1
+}

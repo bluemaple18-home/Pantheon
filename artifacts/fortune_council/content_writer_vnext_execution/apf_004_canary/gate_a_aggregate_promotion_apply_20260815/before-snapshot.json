@@ -1,0 +1,172 @@
+{
+  "actor": {
+    "head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "path": "<runtime-root>/actor",
+    "status_short": ""
+  },
+  "current_repo": {
+    "head": "4787f67f6c8e9e9c89cdb677c2583128de6485fe",
+    "non_evidence_status_short": "",
+    "origin_main": "4787f67f6c8e9e9c89cdb677c2583128de6485fe",
+    "scripts_tests_delta_from_source": "",
+    "status_scope": "includes current evidence root",
+    "status_short": "?? artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_aggregate_promotion_apply_20260815/"
+  },
+  "host": {
+    "capacity_gate": "PASS",
+    "disk_free_bytes": 59806871552,
+    "disk_total_bytes": 245107195904,
+    "required_reserve_bytes": 24510719590,
+    "self_maxrss": 24477696,
+    "swap_observable": "available",
+    "swapusage": "vm.swapusage: total = 20480.00M  used = 19223.25M  free = 1256.75M  (encrypted)"
+  },
+  "label": "before-blocker-decision",
+  "manifest": {
+    "file_sha256": "8e922ee86e8aa21e86ae5cf05bad84199062326e0141a0b3639ffb0053ffc159",
+    "path": "<runtime-root>/runtime-manifest.json",
+    "payload": {
+      "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+      "actor_root": "<runtime-root>/actor",
+      "config_version": "formal-runtime-v2-gate2",
+      "generation": "g2-9d8573e962-20260814T104149Z",
+      "identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+      "log_root": "<runtime-root>/logs",
+      "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+      "owner_uid": 501,
+      "publisher_state_root": "<runtime-root>/state",
+      "python_executable": "<runtime-python-executable>",
+      "queue_root": "<runtime-root>/queue",
+      "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+      "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+      "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+      "schema_version": 2,
+      "service_labels": [
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite",
+        "com.pantheon.content-capacity-guard"
+      ]
+    },
+    "python_executable_identity": {
+      "executable": true,
+      "exists": true,
+      "file_sha256": "2477b47fa3ae65b9574eb18a15edb364e96948eaa1875ad3f1c80d780efc9c12",
+      "original_value_sha256": "9e9c9b481ff1d803c9f37f0c7d9a00a1714b4b4d4468fcc90c1d77d245c45583",
+      "placeholder": "<runtime-python-executable>"
+    }
+  },
+  "roots": {
+    "private_stage": {
+      "bytes": 2953,
+      "exists": true,
+      "file_count": 7,
+      "path": "<private-stage-root>",
+      "tree_digest": "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78"
+    },
+    "queue": {
+      "bytes": 0,
+      "exists": true,
+      "file_count": 0,
+      "path": "<runtime-root>/queue",
+      "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "queue_gsc_copy": {
+      "bytes": "missing",
+      "exists": false,
+      "file_count": "missing",
+      "path": "<runtime-root>/queue/gsc-copy",
+      "tree_digest": null
+    },
+    "queue_runs": {
+      "bytes": 0,
+      "exists": true,
+      "file_count": 0,
+      "path": "<runtime-root>/queue/runs",
+      "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime_gsc_copy": {
+      "bytes": "missing",
+      "exists": false,
+      "file_count": "missing",
+      "path": "<runtime-root>/gsc-copy",
+      "tree_digest": null
+    },
+    "state": {
+      "bytes": 1121,
+      "exists": true,
+      "file_count": 1,
+      "path": "<runtime-root>/state",
+      "tree_digest": "66fa825013cce104a8042b85f510aea24e01631123e1f7076da5deead5febe8b"
+    },
+    "transaction_root": {
+      "bytes": "missing",
+      "exists": false,
+      "file_count": "missing",
+      "path": "<runtime-root>/backups/apf004-aggregate-promotion-transaction-0bf78f0b0c-20260815-raw-capacity",
+      "tree_digest": null
+    }
+  },
+  "sampled_at": "2026-08-15T01:04:07Z",
+  "schema_version": 1,
+  "source_repo": {
+    "head": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "path": "<source-worktree>",
+    "status_short": ""
+  },
+  "workers": {
+    "labels": [
+      {
+        "label": "com.pantheon.agy-content-publisher",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.agy-gemini-coordinator",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.agy-gemini-new",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.agy-gemini-rewrite",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.agy-gemini-i18n-new",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.agy-gemini-i18n-rewrite",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      },
+      {
+        "label": "com.pantheon.content-capacity-guard",
+        "last_exit": "0",
+        "loaded": true,
+        "pid": "-"
+      }
+    ],
+    "launchctl_returncode": 0,
+    "matching_process_count": 0,
+    "matching_process_pids": [],
+    "process_observable": "available"
+  }
+}

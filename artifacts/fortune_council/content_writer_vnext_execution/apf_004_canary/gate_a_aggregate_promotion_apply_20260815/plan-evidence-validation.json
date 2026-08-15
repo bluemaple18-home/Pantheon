@@ -1,0 +1,15 @@
+{
+  "digest_errors": [],
+  "digest_manifest_pass": true,
+  "expected_json_count": 12,
+  "json_count": 12,
+  "json_parse_pass": true,
+  "origin_main_content_match": true,
+  "origin_main_mismatches": [],
+  "origin_main_tracked_json_count": 12,
+  "plan_digest": "55771aa1d934d01e65233cc85889b4edc8834d6f3fd9593e0bbcc40a50e25aa6",
+  "plan_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815",
+  "plan_status": "READY_TO_APPLY",
+  "sampled_at": "2026-08-15T01:04:07Z",
+  "schema_version": 1
+}

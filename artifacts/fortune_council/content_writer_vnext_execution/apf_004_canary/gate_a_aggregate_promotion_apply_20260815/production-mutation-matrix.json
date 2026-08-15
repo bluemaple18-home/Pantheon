@@ -1,0 +1,44 @@
+{
+  "downstream_calls": {
+    "create_run": 0,
+    "deploy": 0,
+    "external_model": 0,
+    "publication_transaction": 0,
+    "publish": 0,
+    "push": 0,
+    "runner": 0,
+    "schedule": 0,
+    "select": 0,
+    "tag": 0
+  },
+  "production_mutation": 0,
+  "production_snapshot_unchanged": {
+    "actor": true,
+    "manifest": true,
+    "private_stage": true,
+    "queue": true,
+    "queue_gsc_copy": true,
+    "queue_runs": true,
+    "runtime_gsc_copy": true,
+    "state": true,
+    "transaction_root": true
+  },
+  "production_writes": {
+    "activation_barrier": 0,
+    "actor": 0,
+    "manifest": 0,
+    "private_stage": 0,
+    "publisher_state_business": 0,
+    "queue": 0,
+    "transaction_root": 0
+  },
+  "public_cli_calls": {
+    "apply": 0,
+    "finalize": 0,
+    "plan": 0,
+    "rollback": 0,
+    "status": 0
+  },
+  "sampled_at": "2026-08-15T01:04:08Z",
+  "schema_version": 1
+}
