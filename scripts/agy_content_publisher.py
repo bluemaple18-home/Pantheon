@@ -1680,6 +1680,8 @@ def deployment_preflight(
     expected_push_mode: str,
     max_runs: int | None = None,
     expected_exact_run_ids: Iterable[str] | None = None,
+    manifest_authority: dict[str, Any] | None = None,
+    expected_manifest_digest: str | None = None,
     git: GitRunner = run_git,
 ) -> dict[str, Any]:
     """唯讀核對 publisher actor 與部署契約，不建立或搬動任何狀態。"""
@@ -1720,34 +1722,54 @@ def deployment_preflight(
         raise PublishBlocked(
             "publisher runtime digest differs from deployment contract"
         )
-    origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
-    if local_sha != origin_main_sha:
-        merge_base = git(
-            repo_root,
-            ["merge-base", local_sha, origin_main_sha],
-            None,
-        )
-        if merge_base != local_sha:
+    if (manifest_authority is None) != (expected_manifest_digest is None):
+        raise PublishBlocked("publisher manifest authority contract is incomplete")
+    origin_main_sha: str | None = None
+    if manifest_authority is not None and expected_manifest_digest is not None:
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_manifest_digest):
+            raise PublishBlocked("publisher expected manifest digest is invalid")
+        authority_contract = {
+            "actor_root": str(repo_root.resolve()),
+            "actor_head": expected_runtime_sha,
+            "runtime_digest": expected_runtime_digest,
+            "manifest_digest": expected_manifest_digest,
+        }
+        if any(
+            manifest_authority.get(field) != value
+            for field, value in authority_contract.items()
+        ):
             raise PublishBlocked(
-                "origin/main is not a descendant of publisher runtime SHA"
+                "publisher manifest authority differs from deployment contract"
             )
-        runtime_drift = git(
-            repo_root,
-            [
-                "diff",
-                "--name-only",
-                local_sha,
-                origin_main_sha,
-                "--",
-                *TRANSACTION_RUNTIME_PATHS,
-            ],
-            None,
-        ).splitlines()
-        if runtime_drift:
-            raise PublishBlocked(
-                "publisher runtime differs from origin/main: "
-                + ", ".join(runtime_drift)
+    else:
+        origin_main_sha = git(repo_root, ["rev-parse", "origin/main"], None)
+        if local_sha != origin_main_sha:
+            merge_base = git(
+                repo_root,
+                ["merge-base", local_sha, origin_main_sha],
+                None,
             )
+            if merge_base != local_sha:
+                raise PublishBlocked(
+                    "origin/main is not a descendant of publisher runtime SHA"
+                )
+            runtime_drift = git(
+                repo_root,
+                [
+                    "diff",
+                    "--name-only",
+                    local_sha,
+                    origin_main_sha,
+                    "--",
+                    *TRANSACTION_RUNTIME_PATHS,
+                ],
+                None,
+            ).splitlines()
+            if runtime_drift:
+                raise PublishBlocked(
+                    "publisher runtime differs from origin/main: "
+                    + ", ".join(runtime_drift)
+                )
     result = {
         "schema_version": SCHEMA_VERSION,
         "status": "ready",
@@ -1761,9 +1783,13 @@ def deployment_preflight(
         "runtime_sha": local_sha,
         "runtime_manifest_schema_version": RUNTIME_MANIFEST_SCHEMA_VERSION,
         "runtime_digest": actual_runtime_digest,
-        "origin_main_sha": origin_main_sha,
         "push_mode": actual_push_mode,
     }
+    if manifest_authority is not None:
+        result["authority_mode"] = "manifest"
+        result["manifest_digest"] = expected_manifest_digest
+    else:
+        result["origin_main_sha"] = origin_main_sha
     if selected_run_ids is not None:
         result["exact_run_ids"] = sorted(selected_run_ids)
         result["max_runs"] = max_runs
@@ -4186,6 +4212,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--deployment-preflight", action="store_true")
     parser.add_argument(
+        "--manifest-authorized-deployment-preflight",
+        action="store_true",
+    )
+    parser.add_argument("--runtime-manifest-authority", type=Path)
+    parser.add_argument("--expected-manifest-digest")
+    parser.add_argument(
         "--recover-exhausted-create-run",
         action="append",
         default=[],
@@ -4286,6 +4318,34 @@ def main() -> int:
         value is not None for value in contract_values
     ):
         raise SystemExit("--deployment-preflight requires a complete deployment contract")
+    manifest_authority_values = (
+        getattr(args, "manifest_authorized_deployment_preflight", False),
+        getattr(args, "runtime_manifest_authority", None),
+        getattr(args, "expected_manifest_digest", None),
+    )
+    if any(bool(value) for value in manifest_authority_values) and not all(
+        bool(value) for value in manifest_authority_values
+    ):
+        raise SystemExit("manifest-authorized preflight requires flag, path, and digest")
+    if manifest_authority_values[0] and not getattr(args, "deployment_preflight", False):
+        raise SystemExit("manifest authority is only valid for deployment preflight")
+    manifest_authority = None
+    if manifest_authority_values[0]:
+        authority_path = manifest_authority_values[1]
+        if (
+            not authority_path.is_absolute()
+            or authority_path.is_symlink()
+            or not authority_path.is_file()
+            or authority_path.resolve(strict=True) != authority_path
+        ):
+            raise SystemExit("runtime manifest authority path must be a canonical file")
+        try:
+            manifest_authority = formal_runtime.load_manifest(
+                authority_path,
+                str(manifest_authority_values[2]),
+            )
+        except formal_runtime.RuntimeManifestError as error:
+            raise SystemExit(str(error)) from error
     if all(value is not None for value in contract_values):
         preflight = deployment_preflight(
             repo_root,
@@ -4300,6 +4360,12 @@ def main() -> int:
             expected_push_mode=contract_values[5],
             max_runs=args.max_runs,
             expected_exact_run_ids=exact_run_ids,
+            manifest_authority=manifest_authority,
+            expected_manifest_digest=(
+                str(manifest_authority_values[2])
+                if manifest_authority is not None
+                else None
+            ),
         )
         if getattr(args, "deployment_preflight", False):
             print(json.dumps(preflight, ensure_ascii=False))

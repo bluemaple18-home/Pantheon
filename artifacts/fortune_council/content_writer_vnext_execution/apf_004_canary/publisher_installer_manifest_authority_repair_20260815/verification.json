@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "target_red_observed": true,
+    "target_green": true,
+    "negative_matrix_green": true,
+    "affected_tests_green": true,
+    "full_publisher_regression_green": true,
+    "runtime_manifest_regression_green": true,
+    "bash_syntax": true,
+    "debug_markers_absent": true,
+    "diff_check": true,
+    "production_mutation_zero": true
+  },
+  "changed_files": [
+    "scripts/agy_content_publisher.py",
+    "scripts/install_agy_content_publisher_launchd.sh",
+    "tests/test_agy_content_publisher.py",
+    "tests/test_pantheon_content_runtime_manifest.py",
+    "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/publisher_installer_manifest_authority_repair_20260815/"
+  ]
+}

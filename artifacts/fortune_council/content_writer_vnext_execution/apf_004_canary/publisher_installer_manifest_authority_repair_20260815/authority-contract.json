@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "authority": {
+    "actor_root": "exact runtime manifest actor_root",
+    "actor_head": "required exact 40-character lowercase git SHA from runtime manifest",
+    "runtime_digest": "calculated publisher runtime digest must equal runtime manifest runtime_digest",
+    "manifest_digest": "public manifest validator must accept the expected immutable digest",
+    "worktree": "actor must be clean"
+  },
+  "bounded_mode": {
+    "caller": "publisher installer after formal manifest validation",
+    "entrypoint": "scripts.agy_content_publisher --deployment-preflight --manifest-authorized-deployment-preflight",
+    "required_inputs": [
+      "canonical runtime manifest file",
+      "exact expected manifest digest",
+      "exact actor_root",
+      "exact actor_head",
+      "exact runtime_digest"
+    ]
+  },
+  "normal_mode": "retains the existing origin/main ancestry and runtime drift guards",
+  "remote_tracking_ref_mutation_required": false,
+  "fail_closed": [
+    "dirty actor",
+    "HEAD differs from manifest actor_head",
+    "missing actor_head",
+    "empty actor_head",
+    "invalid actor_head",
+    "runtime digest mismatch",
+    "manifest digest validation failure",
+    "incomplete manifest authority",
+    "manifest actor_root mismatch",
+    "manifest actor_head mismatch",
+    "manifest runtime_digest mismatch",
+    "manifest_digest mismatch"
+  ]
+}

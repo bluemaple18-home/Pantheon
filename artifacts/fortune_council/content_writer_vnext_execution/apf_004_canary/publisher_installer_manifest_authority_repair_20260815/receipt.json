@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-PUBLISHER-INSTALLER-MANIFEST-AUTHORITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "REPAIR_PASS",
+  "root_cause": "the installer outer checks used manifest authority, but its formal publisher deployment-preflight still applied mutable origin/main ancestry and runtime drift guards; the prior positive test bypassed that seam with a fake READY response",
+  "fix": "add an explicit bounded manifest-authorized deployment-preflight mode, load and validate the canonical manifest in the public CLI, bind actor_root, actor_head, runtime_digest, and manifest_digest exactly, and keep normal callers on the existing origin/main guards",
+  "tests": {
+    "target_and_negative_matrix": "9 passed",
+    "affected_deployment_and_installer_set": "32 passed, 96 deselected",
+    "full_publisher_regression": "128 passed",
+    "runtime_manifest_regression": "44 passed",
+    "bash_syntax": "PASS",
+    "diff_check": "PASS"
+  },
+  "production_mutation": 0
+}

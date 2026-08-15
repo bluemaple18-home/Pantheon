@@ -2676,6 +2676,199 @@ def test_deployment_preflight_allows_descendant_content_only_origin_advance(
     assert plan["origin_main_sha"] == origin_main_sha
 
 
+def test_deployment_preflight_manifest_authority_accepts_promoted_production_tuple(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    runtime_sha = "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1"
+    origin_main_sha = "79bdc809b0b7e17005c5420236dfb71e2bf794c2"
+    runtime_digest = publisher.runtime_manifest_digest(actor)
+    manifest_authority = {
+        "actor_root": str(actor.resolve()),
+        "actor_head": runtime_sha,
+        "runtime_digest": runtime_digest,
+        "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    }
+
+    def manifest_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        raise AssertionError(f"manifest authority must not query remote refs: {args}")
+
+    plan = publisher.deployment_preflight(
+        actor,
+        queue_root,
+        state_root,
+        expected_repo_root=actor,
+        expected_queue_root=queue_root,
+        expected_state_root=state_root,
+        expected_runtime_sha=runtime_sha,
+        expected_runtime_digest=runtime_digest,
+        push=True,
+        expected_push_mode="push",
+        manifest_authority=manifest_authority,
+        expected_manifest_digest=manifest_authority["manifest_digest"],
+        git=manifest_git,
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["authority_mode"] == "manifest"
+    assert plan["manifest_digest"] == manifest_authority["manifest_digest"]
+    assert "origin_main_sha" not in plan
+
+    def normal_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        if args == ["rev-parse", "origin/main"]:
+            return origin_main_sha
+        if args == ["merge-base", runtime_sha, origin_main_sha]:
+            return "0" * 40
+        raise AssertionError(f"unexpected git command: {args}")
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="origin/main is not a descendant",
+    ):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            git=normal_git,
+        )
+
+
+@pytest.mark.parametrize(
+    "drift",
+    ["actor-root", "actor-head", "runtime-digest", "manifest-digest"],
+)
+def test_deployment_preflight_manifest_authority_fails_closed_on_tuple_drift(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
+    manifest_digest = "b" * 64
+    manifest_authority = {
+        "actor_root": str(actor.resolve()),
+        "actor_head": runtime_sha,
+        "runtime_digest": runtime_digest,
+        "manifest_digest": manifest_digest,
+    }
+    field = drift.replace("-", "_")
+    manifest_authority[field] = (
+        str(tmp_path.resolve())
+        if drift == "actor-root"
+        else "c" * (40 if drift == "actor-head" else 64)
+    )
+
+    def fake_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        raise AssertionError(f"manifest authority must not query remote refs: {args}")
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="manifest authority differs from deployment contract",
+    ):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            manifest_authority=manifest_authority,
+            expected_manifest_digest=manifest_digest,
+            git=fake_git,
+        )
+
+
+def test_deployment_preflight_rejects_incomplete_manifest_authority(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    (queue_root / "runs").mkdir(parents=True)
+    state_root.mkdir()
+    _write_runtime_manifest_fixture(actor)
+    runtime_sha = "a" * 40
+    runtime_digest = publisher.runtime_manifest_digest(actor)
+
+    def fake_git(
+        _repo_root: Path,
+        args: list[str],
+        _input_text: str | None = None,
+    ) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return runtime_sha
+        raise AssertionError(f"incomplete authority must not query remote refs: {args}")
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="manifest authority contract is incomplete",
+    ):
+        publisher.deployment_preflight(
+            actor,
+            queue_root,
+            state_root,
+            expected_repo_root=actor,
+            expected_queue_root=queue_root,
+            expected_state_root=state_root,
+            expected_runtime_sha=runtime_sha,
+            expected_runtime_digest=runtime_digest,
+            push=True,
+            expected_push_mode="push",
+            manifest_authority={"actor_root": str(actor.resolve())},
+            git=fake_git,
+        )
+
+
 def test_deployment_preflight_canary_requires_exact_single_run(
     tmp_path: Path,
 ) -> None:
@@ -3003,6 +3196,9 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert 'if [[ "${ACTION}" == "--preflight" ]]' in installer
     assert "--deployment-preflight" in installer
+    assert "--manifest-authorized-deployment-preflight" in installer
+    assert "--runtime-manifest-authority" in installer
+    assert "--expected-manifest-digest" in installer
     assert "--exact-run-id" in installer
     assert "runtime_manifest_digest" in installer
     assert "--expected-runtime-digest" in installer
@@ -3024,8 +3220,9 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     )
     assert "PANTHEON_PUBLISHER_STDOUT_LOG" in installer
     assert "PANTHEON_PUBLISHER_STDERR_LOG" in installer
-    assert "optional_manifest_field actor_head" in installer
+    assert "manifest_field actor_head" in installer
     assert "optional_manifest_field python_executable" in installer
+    assert 'ORIGIN_MAIN_SHA=' not in installer
     assert "PANTHEON_RUNTIME_ACTOR_HEAD" in installer
     assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in installer
     assert plist["StartInterval"] == 60
@@ -3069,6 +3266,215 @@ def test_content_publisher_installer_rejects_python_symlink_to_non_executable(
     assert not (tmp_path / "home").exists()
 
 
+def _run_content_publisher_installer_authority_case(
+    tmp_path: Path,
+    *,
+    actor_head: str | None,
+    local_head: str,
+    origin_main: str,
+    manifest_runtime_digest: str,
+    actual_runtime_digest: str,
+    dirty: bool = False,
+    manifest_valid: bool = True,
+    formal_preflight: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    repo_root = Path(__file__).resolve().parents[1]
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    fake_bin = tmp_path / "bin"
+    for path in (queue / "runs", state, logs, fake_bin):
+        path.mkdir(parents=True)
+    python_target = tmp_path / "python-target"
+    manifest = tmp_path / "runtime-manifest.json"
+    fields = {
+        "actor_root": str(repo_root),
+        "queue_root": str(queue),
+        "publisher_state_root": str(state),
+        "log_root": str(logs),
+        "manifest_digest": "a" * 64,
+        "identity": "gate2-authority-test",
+        "runtime_identity_digest": "b" * 64,
+        "runtime_digest": manifest_runtime_digest,
+        "config_version": "formal-runtime-v2-gate2",
+        "generation": "g2-authority-test",
+        "python_executable": str(python_target),
+    }
+    if actor_head is not None:
+        fields["actor_head"] = actor_head
+    if formal_preflight:
+        python_target.write_text(
+            f"#!/bin/sh\nexec {json.dumps(sys.executable)} \"$@\"\n",
+            encoding="utf-8",
+        )
+    else:
+        python_target.write_text(
+            "\n".join(
+                [
+                    "#!/bin/sh",
+                    "if [ \"$1\" = \"-m\" ] && [ \"$2\" = \"scripts.pantheon_content_runtime_manifest\" ]; then",
+                    "  if [ \"$3\" = \"validate\" ]; then",
+                    f"    {'exit 0' if manifest_valid else 'echo runtime manifest expected digest mismatch >&2; exit 9'}",
+                    "  fi",
+                    "  if [ \"$3\" = \"field\" ]; then",
+                    "    name=\"\"",
+                    "    while [ \"$#\" -gt 0 ]; do",
+                    "      if [ \"$1\" = \"--name\" ]; then name=\"$2\"; fi",
+                    "      shift",
+                    "    done",
+                    "    case \"$name\" in",
+                    *[
+                        f"      {name}) echo \"{value}\" ;;"
+                        for name, value in fields.items()
+                    ],
+                    "      *) echo runtime manifest field missing >&2; exit 8 ;;",
+                    "    esac",
+                    "    exit 0",
+                    "  fi",
+                    "fi",
+                    "if [ \"$1\" = \"-c\" ]; then",
+                    f"  echo \"{actual_runtime_digest}\"",
+                    "  exit 0",
+                    "fi",
+                    "if [ \"$1\" = \"-m\" ] && [ \"$2\" = \"scripts.agy_content_publisher\" ]; then",
+                    "  echo '{\"schema_version\":1,\"status\":\"ready\"}'",
+                    "  exit 0",
+                    "fi",
+                    "exit 7",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    python_target.chmod(0o755)
+    if formal_preflight:
+        formal_manifest = runtime_manifest.build_manifest(
+            actor_root=repo_root,
+            queue_root=queue,
+            publisher_state_root=state,
+            log_root=logs,
+            identity="gate2-authority-test",
+            runtime_digest=manifest_runtime_digest,
+            config_version="formal-runtime-v2-gate2",
+            generation="g2-authority-test",
+            actor_head=local_head,
+            python_executable=python_target,
+        )
+        runtime_manifest.write_manifest(manifest, formal_manifest)
+        fields = {name: str(value) for name, value in formal_manifest.items()}
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "if [ \"$1\" = \"-C\" ]; then shift 2; fi",
+                "if [ \"$1\" = \"status\" ] && [ \"$2\" = \"--porcelain\" ]; then",
+                f"  {'echo dirty' if dirty else 'exit 0'}",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"rev-parse\" ] && [ \"$2\" = \"--show-toplevel\" ]; then",
+                f"  echo \"{repo_root}\"",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"rev-parse\" ] && [ \"$2\" = \"HEAD\" ]; then",
+                f"  echo \"{local_head}\"",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"rev-parse\" ] && [ \"$2\" = \"origin/main\" ]; then",
+                f"  echo \"{origin_main}\"",
+                "  exit 0",
+                "fi",
+                "exit 6",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_USER_HOME_DIR": str(tmp_path / "home"),
+        "PANTHEON_PYTHON_PATH": str(python_target),
+        "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest),
+        "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": fields["manifest_digest"],
+        "TMPDIR": str(tmp_path),
+    }
+    return subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_content_publisher_launchd.sh"),
+            "--preflight",
+        ],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+@pytest.mark.skipif(
+    not Path("/usr/libexec/PlistBuddy").exists(),
+    reason="content publisher installer preflight is macOS launchd specific",
+)
+def test_content_publisher_installer_accepts_manifest_authorized_detached_actor(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    local_head = "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1"
+    runtime_digest = publisher.runtime_manifest_digest(repo_root)
+    completed = _run_content_publisher_installer_authority_case(
+        tmp_path,
+        actor_head=local_head,
+        local_head=local_head,
+        origin_main="79bdc809b0b7e17005c5420236dfb71e2bf794c2",
+        manifest_runtime_digest=runtime_digest,
+        actual_runtime_digest=runtime_digest,
+        formal_preflight=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.skipif(
+    not Path("/usr/libexec/PlistBuddy").exists(),
+    reason="content publisher installer preflight is macOS launchd specific",
+)
+@pytest.mark.parametrize(
+    ("overrides", "expected_error"),
+    [
+        ({"dirty": True}, "publisher actor worktree 不乾淨"),
+        ({"local_head": "f" * 40}, "runtime manifest actor_head 不一致"),
+        ({"actor_head": None}, "runtime manifest field missing"),
+        ({"actor_head": ""}, "runtime manifest actor_head 無效"),
+        ({"actor_head": "not-a-sha"}, "runtime manifest actor_head 無效"),
+        ({"actual_runtime_digest": "f" * 64}, "publisher runtime digest 與 runtime manifest 不一致"),
+        ({"manifest_valid": False}, "runtime manifest expected digest mismatch"),
+    ],
+)
+def test_content_publisher_installer_manifest_authority_fails_closed(
+    tmp_path: Path,
+    overrides: dict[str, object],
+    expected_error: str,
+) -> None:
+    values: dict[str, object] = {
+        "actor_head": "c" * 40,
+        "local_head": "c" * 40,
+        "origin_main": "d" * 40,
+        "manifest_runtime_digest": "e" * 64,
+        "actual_runtime_digest": "e" * 64,
+    }
+    values.update(overrides)
+
+    completed = _run_content_publisher_installer_authority_case(
+        tmp_path,
+        **values,
+    )
+
+    assert completed.returncode != 0
+    assert expected_error in completed.stderr
+
+
 @pytest.mark.skipif(
     not Path("/usr/libexec/PlistBuddy").exists(),
     reason="content publisher installer preflight is macOS launchd specific",
@@ -3100,6 +3506,7 @@ def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
         "runtime_digest": runtime_digest,
         "config_version": "formal-runtime-v2-canary",
         "generation": "canary-symlink-positive",
+        "actor_head": runtime_sha,
     }
     python_target.write_text(
         "\n".join(
@@ -3252,6 +3659,7 @@ def test_content_publisher_installer_omits_unset_exact_run_args_under_bash32_set
         "runtime_digest": runtime_digest,
         "config_version": "formal-runtime-v2-canary",
         "generation": "canary-exact-unset",
+        "actor_head": runtime_sha,
     }
     python_target.write_text(
         "\n".join(

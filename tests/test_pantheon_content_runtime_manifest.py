@@ -380,7 +380,10 @@ def test_all_formal_installers_and_plists_consume_shared_manifest_identity() -> 
         assert "PANTHEON_RUNTIME_MANIFEST_DIGEST" in body
         assert "PANTHEON_RUNTIME_IDENTITY" in body
         assert "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST" in body
-        assert "optional_manifest_field actor_head" in body
+        if installer.name == "install_agy_content_publisher_launchd.sh":
+            assert "manifest_field actor_head" in body
+        else:
+            assert "optional_manifest_field actor_head" in body
         assert "optional_manifest_field python_executable" in body
         assert "PANTHEON_RUNTIME_ACTOR_HEAD" in body
         assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in body

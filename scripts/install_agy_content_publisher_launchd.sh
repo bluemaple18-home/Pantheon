@@ -109,7 +109,7 @@ RUNTIME_IDENTITY_DIGEST="$(manifest_field runtime_identity_digest)"
 RUNTIME_CODE_DIGEST="$(manifest_field runtime_digest)"
 RUNTIME_CONFIG_VERSION="$(manifest_field config_version)"
 RUNTIME_GENERATION="$(manifest_field generation)"
-RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
+RUNTIME_ACTOR_HEAD="$(manifest_field actor_head)"
 RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
 ACTIVATION_BARRIER="${STATE_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
@@ -119,6 +119,10 @@ if [[ ! -d "${QUEUE_ROOT}/runs" ]]; then
 fi
 if [[ "${ACTOR_ROOT}" != "${REPO_ROOT}" ]]; then
   echo "runtime manifest actor root 與 installer actor 不一致。" >&2
+  exit 1
+fi
+if ! [[ "${RUNTIME_ACTOR_HEAD}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "runtime manifest actor_head 無效。" >&2
   exit 1
 fi
 for LEGACY_QUEUE_ROOT in "${PANTHEON_GEMINI_QUEUE_ROOT:-}" "${AGY_GEMINI_QUEUE_ROOT:-}"; do
@@ -141,9 +145,8 @@ if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain)" ]]; then
   exit 1
 fi
 RUNTIME_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-ORIGIN_MAIN_SHA="$(git -C "${REPO_ROOT}" rev-parse origin/main)"
-if [[ "${RUNTIME_SHA}" != "${ORIGIN_MAIN_SHA}" ]]; then
-  echo "publisher actor HEAD 與 origin/main 不一致，拒絕部署" >&2
+if [[ "${RUNTIME_SHA}" != "${RUNTIME_ACTOR_HEAD}" ]]; then
+  echo "publisher actor HEAD 與 runtime manifest actor_head 不一致，拒絕部署" >&2
   exit 1
 fi
 RUNTIME_DIGEST="$(
@@ -151,6 +154,10 @@ RUNTIME_DIGEST="$(
   "${PYTHON_BIN}" -c \
     'from pathlib import Path; from scripts.agy_content_publisher import runtime_manifest_digest; print(runtime_manifest_digest(Path.cwd()))'
 )"
+if [[ "${RUNTIME_DIGEST}" != "${RUNTIME_CODE_DIGEST}" ]]; then
+  echo "publisher runtime digest 與 runtime manifest 不一致，拒絕部署" >&2
+  exit 1
+fi
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"
@@ -213,6 +220,9 @@ run_preflight() {
       "${PUBLISH_MODE}" \
       --push \
       --deployment-preflight \
+      --manifest-authorized-deployment-preflight \
+      --runtime-manifest-authority "${RUNTIME_MANIFEST_FILE}" \
+      --expected-manifest-digest "${RUNTIME_MANIFEST_DIGEST}" \
       --expected-repo-root "${REPO_ROOT}" \
       --expected-queue-root "${QUEUE_ROOT}" \
       --expected-state-root "${STATE_ROOT}" \

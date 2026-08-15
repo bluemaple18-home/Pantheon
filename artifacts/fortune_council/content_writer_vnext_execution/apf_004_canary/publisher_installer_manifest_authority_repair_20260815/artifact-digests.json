@@ -1,0 +1,12 @@
+{
+  "algorithm": "sha256",
+  "artifacts": {
+    "authority-contract.json": "7620181c1e3148cc34d460b210a70d2a91e92940986efedac2be1c3ec4374e6e",
+    "negative-matrix.json": "f1f95b632026760e08fcb762a93677f93e409cd3b2a334ab0475b883584dd46e",
+    "production-mutation-summary.json": "001f8b2d1d9db9cee781f2e088aa71ea088fd41e7a25c31e98d9cd6941ed8f47",
+    "receipt.json": "52608edac7d4199a0413f1ac717eeb926802bc7c961f55d98a3069b0cbf35fe9",
+    "red-green.json": "2c6ebe03a22de6bfb45e529047ebc5e3592bdc5edca2cb55daa06ef6949a05af",
+    "verification.json": "c63eea84b78ba13d5db376ed88d8a23504ca2d5e349dfd653792f57938465539"
+  },
+  "schema_version": 1
+}

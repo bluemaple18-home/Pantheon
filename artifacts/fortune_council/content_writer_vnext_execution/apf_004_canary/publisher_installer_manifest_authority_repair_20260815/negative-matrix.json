@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "cases": [
+    {"case": "dirty_actor", "expected": "reject", "observed": "reject"},
+    {"case": "head_manifest_actor_head_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "missing_actor_head", "expected": "reject", "observed": "reject"},
+    {"case": "empty_actor_head", "expected": "reject", "observed": "reject"},
+    {"case": "invalid_actor_head", "expected": "reject", "observed": "reject"},
+    {"case": "runtime_digest_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "manifest_digest_validation_failure", "expected": "reject", "observed": "reject"},
+    {"case": "incomplete_manifest_authority", "expected": "reject", "observed": "reject"},
+    {"case": "manifest_actor_root_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "manifest_actor_head_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "manifest_runtime_digest_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "manifest_digest_mismatch", "expected": "reject", "observed": "reject"},
+    {"case": "normal_mode_promoted_tuple_origin_drift", "expected": "reject", "observed": "reject"}
+  ]
+}
