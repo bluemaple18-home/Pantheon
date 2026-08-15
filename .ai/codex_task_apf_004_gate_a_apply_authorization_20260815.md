@@ -24,6 +24,12 @@
 
 `artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/deterministic_plan_reproduction_after_digest_repair_20260815/exact-apply-argv.json`
 
+唯一 Gate A evidence root：
+
+`artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_deterministic_plan_apply_20260815/`
+
+此目錄必須在 apply 前不存在；本次只可在此建立 apply stdout／stderr、pre／post snapshots、receipt、postchecks、mutation summary、verification 與 artifact digests。不得覆寫既有 Gate A evidence root。
+
 ## 執行前 fail-closed gates
 
 1. `origin/main` 必須包含本機整合 commit，且 target source `28b8b84...` 可讀、clean、origin 正確。
