@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "path_placeholders": ["<repo-root>", "<runtime-root>", "<source-worktree>", "<private-stage-root>", "<runtime-python-executable>"],
+  "absolute_user_paths_emitted": false,
+  "secret_values_emitted": false,
+  "raw_stdout_saved_as_digest_and_structured_payload": true,
+  "raw_stderr_saved_as_digest_and_structured_payload": true,
+  "absolute_path_scan": "PASS",
+  "secret_pattern_scan": "PASS"
+}

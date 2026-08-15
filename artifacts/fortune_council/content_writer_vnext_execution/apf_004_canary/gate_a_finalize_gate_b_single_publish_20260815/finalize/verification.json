@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "verdict": "FINALIZE_PASS",
+  "baseline": {
+    "repository_head": "99351d6dccae096e87d98f644779dff4d167eeb8",
+    "origin_main": "99351d6dccae096e87d98f644779dff4d167eeb8",
+    "detached": true
+  },
+  "prechecks": {
+    "artifact_digests": "PASS",
+    "apply_calls": 1,
+    "transaction_state": "POSTCHECK_PASSED",
+    "actor_manifest_stage_identity": "PASS",
+    "queue_empty": true,
+    "capacity": "PASS"
+  },
+  "execution": {
+    "canonical_finalize_argv_sha256": "eb8dc2c84017e94e197123652288c7c52a62200c7c4369713596fdfc2b23921c",
+    "finalize_calls": 1,
+    "exit_code": 0,
+    "retry_executed": false,
+    "stdout_status": "COMMITTED",
+    "stderr_empty": true
+  },
+  "postchecks": {
+    "transaction_state": "COMMITTED",
+    "rollback_bundle_finalized": true,
+    "actor_unchanged": true,
+    "manifest_unchanged": true,
+    "private_stage_unchanged": true,
+    "queue_business_writes": 0,
+    "state_business_writes": 0,
+    "capacity_receipt_unchanged_pass": true
+  },
+  "production_mutation": {
+    "count": 1,
+    "components": ["promotion_transaction_receipt", "rollback_bundle_finalization"]
+  },
+  "scope": {
+    "slice_a_only": true,
+    "slice_b_executed": false,
+    "push_executed": false,
+    "prohibited_operations_executed": []
+  },
+  "sanitizer": "PASS"
+}

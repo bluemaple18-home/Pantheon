@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "artifact_digest_sets": "PASS",
+  "canonical_apply_argv_sha256": "7eda8a88c32aff500b926f40f8151ae8a7153a2bfc37d13661a483acbb37136c",
+  "canonical_finalize_argv_sha256": "eb8dc2c84017e94e197123652288c7c52a62200c7c4369713596fdfc2b23921c",
+  "apply_calls": 1,
+  "apply_retries": 0,
+  "transaction_state": "POSTCHECK_PASSED",
+  "plan_digest_exact": true,
+  "actor_exact": true,
+  "manifest_exact": true,
+  "stage_exact": true,
+  "queue_empty": true,
+  "state_snapshot_locked": true,
+  "capacity_status": "PASS",
+  "capacity_stop_loss_status": "STOPPED",
+  "host_above_ten_percent_floor": true,
+  "finalize_evidence_root_absent_before_execution": true,
+  "prohibited_operations_executed": []
+}

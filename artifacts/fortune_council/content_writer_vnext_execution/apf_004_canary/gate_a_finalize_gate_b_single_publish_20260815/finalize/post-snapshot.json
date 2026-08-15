@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T09:40:40.527421+00:00",
+  "repository": {
+    "head": "99351d6dccae096e87d98f644779dff4d167eeb8",
+    "origin_main": "99351d6dccae096e87d98f644779dff4d167eeb8",
+    "clean_before_evidence_commit": false
+  },
+  "source_repo": {
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "clean": true
+  },
+  "actor": {
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "clean": true
+  },
+  "manifest": {
+    "file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "identity": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "config_version": "formal-runtime-v2-gate2",
+    "python_executable_sha256": "2477b47fa3ae65b9574eb18a15edb364e96948eaa1875ad3f1c80d780efc9c12"
+  },
+  "private_stage": {
+    "file_count": 7,
+    "tree_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+  },
+  "queue": {
+    "file_count": 0,
+    "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "state": {
+    "file_count": 2,
+    "tree_digest": "cca8eacf87cc01afa7adb37e77fc284f6e8429d10d1001fc4c8a9357a6e7a2ce"
+  },
+  "transaction": {
+    "receipt_sha256": "e5c9bba22b83a596ca3f88fa5938913551a206124fd9bf3656ae04323227f1da",
+    "state": "COMMITTED",
+    "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+    "correlation_id": "apf004-deterministic-plan-reproduction-28b8b84b6d-20260815T024433Z",
+    "target_actor_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "target_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "history_states": ["PREPARED", "ACTOR_PROMOTED", "MANIFEST_WRITTEN", "STAGE_INSTALLED", "POSTCHECK_PASSED", "COMMITTED"],
+    "rollback_bundle_exists": false,
+    "rollback_bundle_file_count": 0,
+    "rollback_bundle_finalized": true
+  },
+  "capacity_receipt": {
+    "sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "status": "PASS",
+    "stop_loss_status": "STOPPED"
+  },
+  "host": {
+    "available_bytes": 52014309376,
+    "total_bytes": 245107195904
+  }
+}

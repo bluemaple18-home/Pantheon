@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "apply_calls": 0,
+  "apply_retries": 0,
+  "finalize_calls": 1,
+  "manual_rollback": 0,
+  "automatic_rollback": 0,
+  "gate_b_calls": 0,
+  "create_calls": 0,
+  "run_calls": 0,
+  "select_calls": 0,
+  "publish_calls": 0,
+  "transaction_publish_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_calls": 0,
+  "queue_write_calls": 0,
+  "state_business_write_calls": 0,
+  "production_mutation_count": 1,
+  "mutated_components": ["promotion_transaction_receipt", "rollback_bundle_finalization"],
+  "queue_unchanged_empty": true,
+  "state_unchanged": true
+}

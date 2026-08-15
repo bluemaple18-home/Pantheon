@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "operation": "Gate A deterministic runtime promotion finalize",
+  "public_entrypoint": "<runtime-python-executable> -m scripts.pantheon_content_runtime_promotion finalize",
+  "canonical_argv_artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_finalize_gate_b_single_publish_20260815/finalize/exact-finalize-argv.json",
+  "canonical_argv_sha256": "eb8dc2c84017e94e197123652288c7c52a62200c7c4369713596fdfc2b23921c",
+  "finalize_calls": 1,
+  "retry_allowed": false,
+  "controlled_placeholder_resolution": {
+    "<runtime-python-executable>": "live manifest-declared executable with sha256 2477b47fa3ae65b9574eb18a15edb364e96948eaa1875ad3f1c80d780efc9c12",
+    "<source-worktree>": "clean exact source worktree at 28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "<runtime-root>": "Pantheon-canary-runtime-v8",
+    "<private-stage-root>": "user LaunchAgents activation-only private stage",
+    "<repo-root>": "clean detached exact origin/main before evidence creation"
+  },
+  "prohibited_calls": {
+    "retry": 0,
+    "manual_rollback": 0,
+    "gate_b": 0,
+    "create": 0,
+    "run": 0,
+    "select": 0,
+    "publish": 0,
+    "tag": 0,
+    "push": 0,
+    "schedule": 0
+  }
+}

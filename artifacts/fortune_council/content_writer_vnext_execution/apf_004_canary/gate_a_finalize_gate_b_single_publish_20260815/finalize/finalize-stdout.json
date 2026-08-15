@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "stdout": {
+    "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+    "status": "COMMITTED"
+  },
+  "raw_stdout_sha256": "98237a6bfd48364e7ebbb0ff40fb5c01d0085b586ff84c11ad63b26fbff07c1a"
+}

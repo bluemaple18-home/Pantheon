@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "finalize_exit_code": 0,
+  "finalize_calls": 1,
+  "retry_executed": false,
+  "transaction_before_after": ["POSTCHECK_PASSED", "COMMITTED"],
+  "rollback_bundle_before_after": [true, false],
+  "rollback_bundle_finalized": true,
+  "plan_digest_exact": true,
+  "actor_unchanged": true,
+  "manifest_unchanged": true,
+  "private_stage_unchanged": true,
+  "queue_business_writes": 0,
+  "state_business_writes": 0,
+  "queue_tree_digest_unchanged": true,
+  "state_tree_digest_unchanged": true,
+  "capacity_receipt_unchanged_pass": true,
+  "slice_b_executed": false
+}
