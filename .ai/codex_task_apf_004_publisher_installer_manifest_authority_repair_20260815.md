@@ -32,6 +32,7 @@ parent_candidate: 30a3335b73
 ## 可改檔案
 
 - `scripts/install_agy_content_publisher_launchd.sh`
+- `scripts/agy_content_publisher.py`
 - 直接相關的 `tests/test_agy_content_publisher.py`
 - 如契約測試確有必要：`tests/test_pantheon_content_runtime_manifest.py`
 - 本卡指定 evidence：`artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/publisher_installer_manifest_authority_repair_20260815/`
@@ -46,6 +47,8 @@ parent_candidate: 30a3335b73
 
 1. 先建立 RED：乾淨 detached actor 的 `HEAD == manifest.actor_head`，但 `origin/main != HEAD`；舊 installer 必須失敗。
 2. 最小修正後該案例 PASS，且不需要改寫或 fetch remote-tracking ref。
+   - Installer 呼叫的正式 `--deployment-preflight` 必須實際進入 manifest-authorized bounded mode；測試不得以 fake Python 直接回 READY 繞過正式 seam。
+   - 只有 installer 已驗證 exact manifest digest、actor root、actor head 與 runtime digest 時可使用該 bounded mode；一般 caller 保留既有 `origin/main` guard。
 3. 負向矩陣至少包含：dirty actor、HEAD != manifest actor_head、缺失／無效 actor_head、runtime digest mismatch；全部 fail closed。
 4. installer 仍只 stage private plist，不自行 bootstrap。
 5. 執行受影響測試、`bash -n scripts/install_agy_content_publisher_launchd.sh`、`git diff --check`。
