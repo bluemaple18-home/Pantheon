@@ -221,6 +221,29 @@ def test_apply_calls_greater_than_zero_consumes_authority(tmp_path: Path) -> Non
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
     assert receipt["authorization_state"] == "CONSUMED"
     assert "authorization_consumed" in receipt["errors"]
+    assert "authorization_state_outcome_counter_inconsistent" in receipt["errors"]
+
+
+def test_terminal_outcome_with_zero_calls_stays_consumed_and_blocks(tmp_path: Path) -> None:
+    for last_outcome in ("APPLIED", "ROLLED_BACK"):
+        authorization = _authorization(
+            tmp_path,
+            evidence_root=f"evidence/gate-a-{last_outcome.lower()}",
+        )
+        receipt = governance.validate_authorization(
+            authorization,
+            tmp_path,
+            authorization_state=_authorization_state(
+                authorization,
+                apply_calls=0,
+                last_outcome=last_outcome,
+            ),
+        )
+
+        assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
+        assert receipt["authorization_state"] == "CONSUMED"
+        assert "authorization_consumed" in receipt["errors"]
+        assert "authorization_state_outcome_counter_inconsistent" in receipt["errors"]
 
 
 def test_expired_or_revoked_authority_blocks(tmp_path: Path) -> None:

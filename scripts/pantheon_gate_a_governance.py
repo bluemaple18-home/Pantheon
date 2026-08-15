@@ -209,7 +209,8 @@ def validate_authorization(
     ):
         errors.append("authorization_state_schema_invalid")
     state_calls = authorization_state.get("apply_calls")
-    if type(state_calls) is not int or state_calls < 0:
+    calls_are_valid = type(state_calls) is int and state_calls >= 0
+    if not calls_are_valid:
         errors.append("authorization_state_apply_calls_invalid")
     else:
         apply_calls = state_calls
@@ -225,14 +226,22 @@ def validate_authorization(
     if state_tuple_digest != tuple_digest:
         authority_status = "REAUTHORIZATION_REQUIRED"
         errors.append("immutable_tuple_drift")
-    if authorization_state.get("last_outcome") not in {
+    last_outcome = authorization_state.get("last_outcome")
+    if last_outcome not in {
         "AUTHORIZED",
         "BLOCKED_BEFORE_MUTATION",
         "APPLIED",
         "ROLLED_BACK",
     }:
         errors.append("authorization_state_last_outcome_invalid")
-    elif apply_calls == 0 and authorization_state.get("last_outcome") == "BLOCKED_BEFORE_MUTATION":
+    elif last_outcome in {"APPLIED", "ROLLED_BACK"}:
+        authority_status = "CONSUMED"
+        errors.append("authorization_consumed")
+        if calls_are_valid and apply_calls != 1:
+            errors.append("authorization_state_outcome_counter_inconsistent")
+    elif calls_are_valid and apply_calls != 0:
+        errors.append("authorization_state_outcome_counter_inconsistent")
+    elif last_outcome == "BLOCKED_BEFORE_MUTATION":
         authority_status = "UNCONSUMED_RETRY"
 
     errors = list(dict.fromkeys(errors))
