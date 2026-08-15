@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T01:33:55Z",
+  "task": "APF-004-APPLY-PLAN-DIGEST-BINDING-REPAIR",
+  "red": {
+    "command": "uv run --python .venv/bin/python pytest -q tests/test_pantheon_content_runtime_promotion.py",
+    "exit_code": 1,
+    "summary": "11 failed, 5 passed",
+    "root_failures": [
+      "apply_promotion rejected expected_plan_digest keyword",
+      "direct apply without expected_plan_digest did not fail closed",
+      "public apply help did not expose --expected-plan-digest"
+    ]
+  },
+  "green": {
+    "command": "uv run --python .venv/bin/python pytest -q tests/test_pantheon_content_runtime_promotion.py",
+    "exit_code": 0,
+    "summary": "16 passed in 5.37s"
+  }
+}

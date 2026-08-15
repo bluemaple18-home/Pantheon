@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T01:33:55Z",
+  "production_mutation": 0,
+  "production_paths_read": 0,
+  "production_paths_written": 0,
+  "gate_a_retry": 0,
+  "gate_b": 0,
+  "downstream": {
+    "create_run": 0,
+    "runner": 0,
+    "model": 0,
+    "publish": 0,
+    "transaction": 0,
+    "tag": 0,
+    "push": 0,
+    "deploy": 0,
+    "schedule": 0
+  },
+  "test_scope": "tmp_path and fake git/runtime fixtures only"
+}

@@ -183,6 +183,10 @@ def _snapshot(request: promotion.PromotionRequest) -> dict[str, object]:
     }
 
 
+def _planned_digest(request: promotion.PromotionRequest) -> str:
+    return str(promotion.plan_promotion(request)["plan_digest"])
+
+
 def test_plan_is_deterministic_and_zero_write(tmp_path: Path) -> None:
     request, identities = _runtime_fixture(tmp_path)
     before = _snapshot(request)
@@ -216,7 +220,10 @@ def test_plan_is_deterministic_and_zero_write(tmp_path: Path) -> None:
 def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> None:
     request, identities = _runtime_fixture(tmp_path)
 
-    applied = promotion.apply_promotion(request)
+    applied = promotion.apply_promotion(
+        request,
+        expected_plan_digest=_planned_digest(request),
+    )
 
     assert applied["status"] == "POSTCHECK_PASSED"
     assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
@@ -250,7 +257,10 @@ def test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back(
     (gsc_copy / "residue.json").write_text("{}", encoding="utf-8")
 
     with pytest.raises(promotion.PromotionError, match="queue residue"):
-        promotion.apply_promotion(request)
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=_planned_digest(request),
+        )
 
     receipt = promotion.load_receipt(request)
     assert receipt["state"] == "ROLLED_BACK"
@@ -309,7 +319,11 @@ def test_apply_failure_matrix_rolls_back_actor_manifest_and_stage(
     before = _snapshot(request)
 
     with pytest.raises(promotion.PromotionError, match="ROLLBACK_COMPLETE"):
-        promotion.apply_promotion(request, failure_injection=failure)
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=_planned_digest(request),
+            failure_injection=failure,
+        )
 
     receipt = promotion.load_receipt(request)
     assert receipt["state_before_rollback"] == expected_state
@@ -324,13 +338,20 @@ def test_crash_recovery_status_and_explicit_rollback(
     before = _snapshot(request)
 
     with pytest.raises(promotion.PromotionCrashStop):
-        promotion.apply_promotion(request, stop_after_state="ACTOR_PROMOTED")
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=_planned_digest(request),
+            stop_after_state="ACTOR_PROMOTED",
+        )
 
     status = promotion.status_promotion(request)
     assert status["state"] == "ACTOR_PROMOTED"
     assert status["rollback_required"] is True
     with pytest.raises(promotion.PromotionError, match="existing transaction"):
-        promotion.apply_promotion(request)
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=status["plan_digest"],
+        )
 
     rolled_back = promotion.rollback_promotion(
         request,
@@ -345,7 +366,10 @@ def test_authorization_drift_fails_finalize_and_rollback_closed(
     tmp_path: Path,
 ) -> None:
     request, _identities = _runtime_fixture(tmp_path)
-    applied = promotion.apply_promotion(request)
+    applied = promotion.apply_promotion(
+        request,
+        expected_plan_digest=_planned_digest(request),
+    )
     drifted = promotion.PromotionRequest(
         **{**request.__dict__, "authorization_digest": "c" * 64}
     )
@@ -354,6 +378,53 @@ def test_authorization_drift_fails_finalize_and_rollback_closed(
         promotion.finalize_promotion(drifted, expected_plan_digest=applied["plan_digest"])
     with pytest.raises(promotion.PromotionError, match="authorization"):
         promotion.rollback_promotion(drifted, expected_plan_digest=applied["plan_digest"])
+
+
+def test_apply_requires_expected_plan_digest_before_transaction(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+
+    with pytest.raises(TypeError, match="expected_plan_digest"):
+        promotion.apply_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_apply_rejects_plan_digest_mismatch_before_transaction(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="plan digest mismatch"):
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest="0" * 64,
+        )
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_cli_apply_help_requires_expected_plan_digest() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_promotion",
+            "apply",
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "--expected-plan-digest" in completed.stdout
 
 
 def test_cli_help_exposes_public_transaction_commands() -> None:

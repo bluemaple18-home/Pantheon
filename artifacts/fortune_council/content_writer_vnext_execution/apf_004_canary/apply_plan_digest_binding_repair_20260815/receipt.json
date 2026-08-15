@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T01:33:55Z",
+  "status": "READY_FOR_REVIEW",
+  "task": "APF-004-APPLY-PLAN-DIGEST-BINDING-REPAIR",
+  "base_head": "240413eedcc945f1cc023c269322d1cdc537bac3",
+  "implementation": {
+    "summary": "public apply now requires expected plan digest and apply_promotion checks current plan digest before creating transaction root or writing receipts",
+    "source_files": [
+      "scripts/pantheon_content_runtime_promotion.py",
+      "tests/test_pantheon_content_runtime_promotion.py"
+    ]
+  },
+  "evidence": {
+    "red_green": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/red-green.json",
+    "verification": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/verification.json",
+    "production_mutation_summary": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/production-mutation-summary.json",
+    "artifact_digests": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/artifact-digests.json"
+  },
+  "production_mutation": 0,
+  "push": 0
+}

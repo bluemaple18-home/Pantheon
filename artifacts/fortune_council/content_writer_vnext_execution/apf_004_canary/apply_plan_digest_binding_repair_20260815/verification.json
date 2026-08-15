@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T01:33:55Z",
+  "base_head": "240413eedcc945f1cc023c269322d1cdc537bac3",
+  "origin_main": "240413eedcc945f1cc023c269322d1cdc537bac3",
+  "codegraph": {
+    "status": "READY",
+    "files_indexed": 567,
+    "nodes": 6164,
+    "edges": 12517
+  },
+  "changed_files": [
+    "scripts/pantheon_content_runtime_promotion.py",
+    "tests/test_pantheon_content_runtime_promotion.py"
+  ],
+  "acceptance_mapping": {
+    "public_apply_requires_expected_plan_digest": "PASS",
+    "apply_promotion_requires_expected_digest": "PASS",
+    "plan_digest_mismatch_before_transaction_root": "PASS",
+    "correct_digest_success_path_green": "PASS",
+    "rollback_crash_finalize_regression_green": "PASS"
+  },
+  "sanitizer": {
+    "status": "PASS",
+    "forbidden_local_path_classes": [
+      "local_home",
+      "local_tmp",
+      "local_brew_prefix",
+      "username",
+      "file_uri"
+    ]
+  },
+  "diff_check": "PASS",
+  "json_parse": "PASS"
+}

@@ -597,11 +597,14 @@ def _assert_receipt_matches(
 def apply_promotion(
     request: PromotionRequest,
     *,
+    expected_plan_digest: str,
     failure_injection: str | None = None,
     stop_after_state: str | None = None,
 ) -> dict[str, Any]:
     _ensure_no_existing_transaction(request)
     plan = _plan_payload(request)
+    if plan["plan_digest"] != expected_plan_digest:
+        raise PromotionError("plan digest mismatch")
     request.transaction_root.mkdir(parents=True)
     receipt = _new_receipt(request, plan, "PREPARED")
     _write_json(receipt_path(request), receipt)
@@ -777,6 +780,8 @@ def parse_args() -> argparse.Namespace:
         _add_common_arguments(command)
         if name in {"rollback", "finalize"}:
             command.add_argument("--expected-plan-digest", required=True)
+        if name == "apply":
+            command.add_argument("--expected-plan-digest", required=True)
     return parser.parse_args()
 
 
@@ -787,7 +792,10 @@ def main() -> int:
         if args.command == "plan":
             result = plan_promotion(request)
         elif args.command == "apply":
-            result = apply_promotion(request)
+            result = apply_promotion(
+                request,
+                expected_plan_digest=args.expected_plan_digest,
+            )
         elif args.command == "rollback":
             result = rollback_promotion(
                 request,

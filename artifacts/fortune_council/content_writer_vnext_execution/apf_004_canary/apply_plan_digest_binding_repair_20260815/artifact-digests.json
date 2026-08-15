@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T01:33:55Z",
+  "algorithm": "sha256",
+  "artifacts": [
+    {
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/red-green.json",
+      "sha256": "83e93604a4119fc5dfc7e0f9e9504530b3d003b2d4b40570937bd635f8602fdf"
+    },
+    {
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/production-mutation-summary.json",
+      "sha256": "3cf1838e08126163aeaae65a273e20dc226759ad6e08243b4df880f84300340d"
+    },
+    {
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/verification.json",
+      "sha256": "dd4c6ca665337761919b8b5b3ec5af33033bdaf7cd912de4673afc94901979b8"
+    },
+    {
+      "path": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/apply_plan_digest_binding_repair_20260815/receipt.json",
+      "sha256": "7786e21e231bcd72991e36e24d2da7aeacae7e884f19b50ecb09f28579e95654"
+    }
+  ],
+  "self_excluded": true
+}
