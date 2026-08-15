@@ -36,6 +36,10 @@ SERVICE_LABELS = (
     "com.pantheon.agy-gemini-i18n-new",
     "com.pantheon.agy-gemini-i18n-rewrite",
 )
+ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
+    r"gate2-actor:[0-9a-f]{40}:activation-only"
+)
+INERT_LAUNCHCTL_STATE_PATTERN = re.compile(r"^\s*state = not running\s*$", re.MULTILINE)
 LOG_NAMES = tuple(
     f"{stem}.{stream}.log"
     for stem in (
@@ -120,9 +124,26 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=False, capture_output=True, text=True)
 
 
-def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
+def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozenset[str]:
+    if (
+        runtime_receipt.get("status") == "PASS"
+        and runtime_receipt.get("config_version") == "formal-runtime-v2-gate2"
+        and ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
+            str(runtime_receipt.get("identity", ""))
+        )
+    ):
+        return frozenset(SERVICE_LABELS)
+    return frozenset()
+
+
+def _service_rss_bytes(
+    runner: Runner = _run,
+    *,
+    expected_inert_labels: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
     pids: list[str] = []
     loaded: list[dict[str, Any]] = []
+    inert: list[dict[str, Any]] = []
     absent: list[dict[str, Any]] = []
     domain = f"gui/{os.getuid()}"
     for label in SERVICE_LABELS:
@@ -139,11 +160,21 @@ def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
             }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
         if not match:
+            if (
+                label in expected_inert_labels
+                and INERT_LAUNCHCTL_STATE_PATTERN.search(result.stdout) is not None
+            ):
+                inert.append({"label": label, "topology": "loaded-but-inert"})
+                continue
             return {
                 "value": None,
                 "available": False,
                 "error": f"loaded_service_pid_missing:{label}",
-                "identity": {"loaded_labels": loaded, "absent_labels": absent},
+                "identity": {
+                    "loaded_labels": loaded,
+                    "inert_labels": inert,
+                    "absent_labels": absent,
+                },
             }
         pid = match.group(1)
         pids.append(pid)
@@ -153,7 +184,11 @@ def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
             "value": 0,
             "available": True,
             "error": None,
-            "identity": {"loaded_labels": [], "absent_labels": absent},
+            "identity": {
+                "loaded_labels": [],
+                "inert_labels": inert,
+                "absent_labels": absent,
+            },
         }
     result = runner(["ps", "-o", "rss=", "-p", ",".join(pids)])
     if result.returncode != 0:
@@ -161,7 +196,11 @@ def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
             "value": None,
             "available": False,
             "error": f"ps_failed:{result.returncode}",
-            "identity": {"loaded_labels": loaded, "absent_labels": absent},
+            "identity": {
+                "loaded_labels": loaded,
+                "inert_labels": inert,
+                "absent_labels": absent,
+            },
         }
     values = [int(value) for value in result.stdout.split() if value.isdigit()]
     if len(values) != len(pids):
@@ -169,13 +208,21 @@ def _service_rss_bytes(runner: Runner = _run) -> dict[str, Any]:
             "value": None,
             "available": False,
             "error": "ps_parse_failed",
-            "identity": {"loaded_labels": loaded, "absent_labels": absent},
+            "identity": {
+                "loaded_labels": loaded,
+                "inert_labels": inert,
+                "absent_labels": absent,
+            },
         }
     return {
         "value": sum(values) * 1024,
         "available": True,
         "error": None,
-        "identity": {"loaded_labels": loaded, "absent_labels": absent},
+        "identity": {
+            "loaded_labels": loaded,
+            "inert_labels": inert,
+            "absent_labels": absent,
+        },
     }
 
 
@@ -264,15 +311,24 @@ def _snapshot(
     log_root: Path,
     *,
     runner: Runner = _run,
+    expected_inert_labels: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
     total_disk, free_disk = _disk_sample(queue_root)
     if runner is _run:
-        rss = _service_rss_bytes()
+        rss = (
+            _service_rss_bytes(expected_inert_labels=expected_inert_labels)
+            if expected_inert_labels
+            else _service_rss_bytes()
+        )
         swap = _swap_used_bytes()
     else:
-        rss = _service_rss_bytes(runner)
+        rss = (
+            _service_rss_bytes(runner, expected_inert_labels=expected_inert_labels)
+            if expected_inert_labels
+            else _service_rss_bytes(runner)
+        )
         swap = _swap_used_bytes(runner)
     return {
         "bytes": sum(item[0] for item in measured),
@@ -296,7 +352,7 @@ def preflight(
     *,
     runner: Runner = _run,
 ) -> dict[str, Any]:
-    formal_runtime.validate_runtime_tick(
+    runtime_receipt = formal_runtime.validate_runtime_tick(
         "com.pantheon.content-capacity-guard",
         queue_root=queue_root.resolve(),
         state_root=publisher_root.resolve(),
@@ -305,11 +361,30 @@ def preflight(
         ),
         log_root=log_root.resolve(),
     )
-    sample = (
-        _snapshot(queue_root, publisher_root, log_root)
-        if runner is _run
-        else _snapshot(queue_root, publisher_root, log_root, runner=runner)
-    )
+    expected_inert_labels = _activation_only_service_labels(runtime_receipt)
+    if runner is _run:
+        sample = (
+            _snapshot(
+                queue_root,
+                publisher_root,
+                log_root,
+                expected_inert_labels=expected_inert_labels,
+            )
+            if expected_inert_labels
+            else _snapshot(queue_root, publisher_root, log_root)
+        )
+    else:
+        sample = (
+            _snapshot(
+                queue_root,
+                publisher_root,
+                log_root,
+                runner=runner,
+                expected_inert_labels=expected_inert_labels,
+            )
+            if expected_inert_labels
+            else _snapshot(queue_root, publisher_root, log_root, runner=runner)
+        )
     reasons: list[str] = []
     if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
         reasons.append("disk_free_below_start_floor")
@@ -333,7 +408,7 @@ def check_once(
     now: float | None = None,
     stop_runner: Runner = _run,
 ) -> dict[str, Any]:
-    formal_runtime.validate_runtime_tick(
+    runtime_receipt = formal_runtime.validate_runtime_tick(
         "com.pantheon.content-capacity-guard",
         queue_root=queue_root.resolve(),
         state_root=publisher_root.resolve(),
@@ -343,7 +418,17 @@ def check_once(
         log_root=log_root.resolve(),
     )
     reclaimed = sum(_trim_log(log_root / name) for name in LOG_NAMES)
-    current = _snapshot(queue_root, publisher_root, log_root)
+    expected_inert_labels = _activation_only_service_labels(runtime_receipt)
+    current = (
+        _snapshot(
+            queue_root,
+            publisher_root,
+            log_root,
+            expected_inert_labels=expected_inert_labels,
+        )
+        if expected_inert_labels
+        else _snapshot(queue_root, publisher_root, log_root)
+    )
     timestamp = time.time() if now is None else now
     previous = _read_state(state_file)
     stop_floor = max(20 * GIB, current["disk_total_bytes"] // 10)

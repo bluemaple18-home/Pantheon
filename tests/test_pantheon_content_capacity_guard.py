@@ -541,6 +541,83 @@ def test_unknown_rss_or_swap_telemetry_is_no_go(tmp_path: Path, monkeypatch) -> 
     assert "rss_telemetry_unknown" in result["reasons"]
 
 
+def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects_normal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """REG-PANTHEON-CAPACITY-LOADED-INERT-NO-PID-001。"""
+    identity = {"value": f"gate2-actor:{'a' * 40}:activation-only"}
+    launch_state = {"value": "not running"}
+    monkeypatch.setattr(
+        guard.formal_runtime,
+        "validate_runtime_tick",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "identity": identity["value"],
+            "config_version": "formal-runtime-v2-gate2",
+        },
+    )
+    monkeypatch.setattr(
+        guard,
+        "_disk_sample",
+        lambda _path: (200 * guard.GIB, 100 * guard.GIB),
+    )
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[:2] == ["launchctl", "print"]:
+            label = command[-1].rsplit("/", 1)[-1]
+            if label == "com.pantheon.agy-content-publisher":
+                return _completed(0, f"state = {launch_state['value']}\n")
+            return _completed(113)
+        if command == ["sysctl", "-n", "vm.swapusage"]:
+            return _completed(0, "total = 0.00M  used = 0.00M  free = 0.00M\n")
+        raise AssertionError(f"unexpected command: {command}")
+
+    inert = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+        runner=runner,
+    )
+
+    assert inert["status"] == "PASS"
+    assert inert["rss_available"] is True
+    assert inert["rss_identity"]["inert_labels"] == [
+        {
+            "label": "com.pantheon.agy-content-publisher",
+            "topology": "loaded-but-inert",
+        }
+    ]
+
+    launch_state["value"] = "running"
+    inconsistent = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+        runner=runner,
+    )
+
+    assert inconsistent["status"] == "NO-GO"
+    assert inconsistent["rss_error"] == (
+        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+    )
+
+    identity["value"] = f"gate2-actor:{'a' * 40}:normal"
+    launch_state["value"] = "not running"
+    normal = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+        runner=runner,
+    )
+
+    assert normal["status"] == "NO-GO"
+    assert normal["rss_error"] == (
+        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+    )
+    assert "rss_telemetry_unknown" in normal["reasons"]
+
+
 def test_stop_loss_is_stopped_only_after_every_registered_identity_is_absent(
     tmp_path: Path,
     monkeypatch,
