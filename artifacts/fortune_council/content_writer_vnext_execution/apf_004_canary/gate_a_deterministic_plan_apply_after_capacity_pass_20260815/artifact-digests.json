@@ -1,0 +1,21 @@
+{
+  "algorithm": "sha256",
+  "artifacts": {
+    "apply-exit.json": "180c2e17cde729c90413d333fdd79a309ffffe11461ed80d680a65b8776805b0",
+    "apply-stderr.json": "abe6f2dba6e92f934e5320eb70ceefa1abf91fdfb3e24594289bd05f8ff0f2ad",
+    "apply-stdout.json": "b656c0687899e15bd1006c94f536b04a6175c53290378aa5df3ed0dcc017298f",
+    "authorization-state.json": "15e4f3ed12d295f9f56880bd765f1ba962f3495a629fba9c74b8bca12fbb3944",
+    "authorization.json": "07b02bb16385b3678db6e7174c10c3f4868334e09282a531f839f41bba7dd278",
+    "governance-validator-receipt.json": "219cfd3d0c4817c287ae3d512c1fcaad5993bc3568a9f3de9bab4663b8a1fa27",
+    "invocation.json": "d0cc83da135cffffa185734aefa8eca187c455e59e10528a512ade50ee551e64",
+    "post-snapshot.json": "ec6c72dab2d918bb02b5eb8f87e05b0050a6a9e48f608aa8bc791a361809e63b",
+    "postchecks.json": "a9813671b32a7b0c15817029d121123f492987889551520a0fbc7a56aebae5db",
+    "pre-snapshot.json": "ba6a11358be283360a7ed23dc9447bd0e56c508604ebd159aea16c32199d2ecc",
+    "production-mutation-summary.json": "71fdaf1ad24115532509fef4609f1900457260a6ad3d1ed5897c03eabe4b62a0",
+    "receipt.json": "b6e101abb2c483357fac7599725172b61bc580862ebf2b45798490a51595aedf",
+    "rollback-bundle-inventory.json": "56c30a5d334b0ea76a6ddb9ac0a0f1a6325bf83c53529ac328e68b7266bf5d6d",
+    "transaction-receipt.json": "3d94d9564189ed1c7a90bfe2343145c50537d39bbc9cefdb724fbecbcb96f941",
+    "verification.json": "cf58128408c788f50e13a9e303a4c7a14d630585eee961dfc03b1a4b3c724441"
+  },
+  "schema_version": 1
+}

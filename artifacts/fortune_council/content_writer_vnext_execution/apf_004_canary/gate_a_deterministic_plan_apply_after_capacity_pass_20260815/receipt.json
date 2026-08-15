@@ -1,0 +1,16 @@
+{
+  "apply_calls": 1,
+  "apply_exit_code": 0,
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "card_id": "APF-004-GATE-A-APPLY-AUTHORIZATION",
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "production_mutation_count": 1,
+  "prohibited_operations_executed": [],
+  "rollback_bundle_retained": true,
+  "schema_version": 1,
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "target_actor_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "target_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "transaction_state": "POSTCHECK_PASSED",
+  "verdict": "APPLIED_ONCE"
+}

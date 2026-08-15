@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "operation": "Gate A deterministic runtime promotion apply",
+  "execution_budget": {
+    "apply_calls": 1,
+    "retry_allowed": false
+  },
+  "public_entrypoint": "<runtime-python-executable> -m scripts.pantheon_content_runtime_promotion apply",
+  "canonical_argv_artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/deterministic_plan_reproduction_after_digest_repair_20260815/exact-apply-argv.json",
+  "canonical_argv_sha256": "7eda8a88c32aff500b926f40f8151ae8a7153a2bfc37d13661a483acbb37136c",
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "source_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "controlled_placeholder_resolution": {
+    "<runtime-python-executable>": "live manifest-declared executable with sha256 2477b47fa3ae65b9574eb18a15edb364e96948eaa1875ad3f1c80d780efc9c12",
+    "<source-worktree>": "clean exact source worktree at 28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "<runtime-root>": "Pantheon-canary-runtime-v8",
+    "<private-stage-root>": "activation-only private stage",
+    "<repo-root>": "current exact repository checkout"
+  },
+  "prohibited_calls": {
+    "retry": 0,
+    "manual_rollback": 0,
+    "finalize": 0,
+    "gate_b": 0,
+    "publish": 0,
+    "deploy": 0,
+    "queue_write": 0,
+    "tag": 0,
+    "push": 0
+  }
+}

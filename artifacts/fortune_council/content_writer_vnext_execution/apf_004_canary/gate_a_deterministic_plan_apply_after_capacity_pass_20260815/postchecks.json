@@ -1,0 +1,28 @@
+{
+  "actor_before_after": [
+    "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1"
+  ],
+  "apply_exit_code": 0,
+  "finalize_executed": false,
+  "generation_before_after": [
+    "g2-9d8573e962-20260814T104149Z",
+    "g2-28b8b84b6d-20260815T024433Z"
+  ],
+  "manifest_before_after": [
+    "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2"
+  ],
+  "plan_digest_exact": true,
+  "private_stage_before_after": [
+    "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78",
+    "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+  ],
+  "queue_unchanged_empty": true,
+  "rollback_bundle_retained": true,
+  "schema_version": 1,
+  "status": "PASS",
+  "target_manifest_digest_exact": true,
+  "transaction_state": "POSTCHECK_PASSED",
+  "workers_inert_after": true
+}

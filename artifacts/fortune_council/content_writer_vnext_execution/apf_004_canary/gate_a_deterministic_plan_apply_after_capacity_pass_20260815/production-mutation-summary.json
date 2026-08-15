@@ -1,0 +1,24 @@
+{
+  "apply_calls": 1,
+  "apply_retries": 0,
+  "automatic_rollback": 0,
+  "deploy_calls": 0,
+  "finalize_calls": 0,
+  "gate_b_calls": 0,
+  "manual_rollback": 0,
+  "mutated_components": [
+    "actor",
+    "runtime_manifest",
+    "private_stage",
+    "activation_barrier",
+    "transaction_receipt",
+    "rollback_bundle"
+  ],
+  "production_mutation_count": 1,
+  "publish_calls": 0,
+  "push_calls": 0,
+  "queue_unchanged_empty": true,
+  "queue_write_calls": 0,
+  "schema_version": 1,
+  "tag_calls": 0
+}

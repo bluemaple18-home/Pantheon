@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "stdout": {
+    "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+    "rollback_bundle": "<runtime-root>/backups/apf004-deterministic-plan-reproduction-28b8b84b6d-20260815T024433Z/rollback-bundle",
+    "status": "POSTCHECK_PASSED",
+    "target_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2"
+  }
+}

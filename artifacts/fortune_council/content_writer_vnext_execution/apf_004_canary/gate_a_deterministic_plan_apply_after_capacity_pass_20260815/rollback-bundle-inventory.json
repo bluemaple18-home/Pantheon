@@ -1,0 +1,27 @@
+{
+  "actor_previous": {
+    "clean": true,
+    "exists": true,
+    "file_count": 4750,
+    "head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "tree_digest": "8649a87a981e8fb387e548733e240db3aa5bcc93e34d89e9f5fa88c4599dc5b1"
+  },
+  "manifest_previous": {
+    "exists": true,
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "sha256": "8e922ee86e8aa21e86ae5cf05bad84199062326e0141a0b3639ffb0053ffc159"
+  },
+  "private_stage_previous": {
+    "exists": true,
+    "file_count": 7,
+    "tree_digest": "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78"
+  },
+  "retained": true,
+  "root": "<transaction-root>/rollback-bundle",
+  "schema_version": 1,
+  "target_generation_barrier_previous": {
+    "exists": false,
+    "note": "target generation barrier did not exist before apply"
+  }
+}

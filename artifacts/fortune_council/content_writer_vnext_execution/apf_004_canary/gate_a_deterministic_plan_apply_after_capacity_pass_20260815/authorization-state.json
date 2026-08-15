@@ -1,0 +1,12 @@
+{
+  "apply_calls": 1,
+  "attempt_completed_at": "2026-08-15T08:22:16.892352Z",
+  "attempt_started_at": "2026-08-15T08:19:44Z",
+  "attempt_state": "COMPLETED",
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "immutable_tuple_digest": "2855b50ff262def6c000980a3eb5a6815c72296e9ccb1af2d219d2fbff45e883",
+  "last_outcome": "APPLIED",
+  "retry_allowed": false,
+  "retry_executed": false,
+  "schema_version": 1
+}

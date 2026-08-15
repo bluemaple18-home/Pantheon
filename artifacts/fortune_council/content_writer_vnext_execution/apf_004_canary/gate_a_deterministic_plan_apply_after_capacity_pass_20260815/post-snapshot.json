@@ -1,0 +1,144 @@
+{
+  "actor": {
+    "clean": true,
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git"
+  },
+  "capacity_receipt": {
+    "production_mutation": false,
+    "sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "status": "PASS",
+    "stop_loss_status": "STOPPED"
+  },
+  "host": {
+    "available_bytes": 50389532672,
+    "total_bytes": 245107195904
+  },
+  "manifest": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "config_version": "formal-runtime-v2-gate2",
+    "file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "identity": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "python_executable_sha256": "2477b47fa3ae65b9574eb18a15edb364e96948eaa1875ad3f1c80d780efc9c12",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7"
+  },
+  "production_mutation": 1,
+  "repository": {
+    "clean": false,
+    "head": "7e3704b241e45ed4483d2edddb4fa9937945e57e",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "origin_main": "7e3704b241e45ed4483d2edddb4fa9937945e57e"
+  },
+  "roots": {
+    "evidence": {
+      "exists": true
+    },
+    "logs": {
+      "exists": true,
+      "file_count": 14,
+      "tree_digest": "94a01967d1c53df175880d387f6bd8fb68eafd72af64d1739a053a67a8ce39ac"
+    },
+    "private_stage": {
+      "exists": true,
+      "file_count": 7,
+      "tree_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+    },
+    "queue": {
+      "exists": true,
+      "file_count": 0,
+      "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "state": {
+      "exists": true,
+      "file_count": 2,
+      "tree_digest": "cca8eacf87cc01afa7adb37e77fc284f6e8429d10d1001fc4c8a9357a6e7a2ce"
+    },
+    "transaction": {
+      "exists": true,
+      "file_count": 4759,
+      "tree_digest": "98353e1da8b5bfba56ef369ab675e286f60311476bb0034b1b8c6aaf8fa8c113"
+    }
+  },
+  "sampled_at": "2026-08-15T08:20:48.391386Z",
+  "schema_version": 1,
+  "services": [
+    {
+      "label": "com.pantheon.agy-content-publisher",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-coordinator",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-new",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-rewrite",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-i18n-new",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-i18n-rewrite",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.content-capacity-guard",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    }
+  ],
+  "source_repo": {
+    "clean": true,
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git"
+  }
+}

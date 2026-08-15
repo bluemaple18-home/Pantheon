@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "authorization_status": "AUTHORIZED",
+  "authorization_expires_at": "2026-08-15T09:16:52Z",
+  "authorization_revoked": false,
+  "production_target": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+  "source_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "exact_apply_argv_artifact": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/deterministic_plan_reproduction_after_digest_repair_20260815/exact-apply-argv.json",
+  "exact_apply_argv_digest": "7eda8a88c32aff500b926f40f8151ae8a7153a2bfc37d13661a483acbb37136c",
+  "mutation_scope": "runtime-promotion-apply-once",
+  "rollback_contract": "rollback-bundle-retained-until-explicit-finalize",
+  "evidence_root": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_deterministic_plan_apply_after_capacity_pass_20260815"
+}

@@ -1,0 +1,35 @@
+{
+  "authorization_digest": "55beb47396421428e35748d36646bfe74679a7521874380c1d15fe009d0bf7a3",
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "correlation_id": "apf004-deterministic-plan-reproduction-28b8b84b6d-20260815T024433Z",
+  "created_at": "2026-08-15T08:20:30+00:00",
+  "history": [
+    {
+      "sampled_at": "2026-08-15T08:20:30+00:00",
+      "state": "PREPARED"
+    },
+    {
+      "sampled_at": "2026-08-15T08:20:32+00:00",
+      "state": "ACTOR_PROMOTED"
+    },
+    {
+      "sampled_at": "2026-08-15T08:20:32+00:00",
+      "state": "MANIFEST_WRITTEN"
+    },
+    {
+      "sampled_at": "2026-08-15T08:20:32+00:00",
+      "state": "STAGE_INSTALLED"
+    },
+    {
+      "sampled_at": "2026-08-15T08:20:32+00:00",
+      "state": "POSTCHECK_PASSED"
+    }
+  ],
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+  "schema_version": 1,
+  "state": "POSTCHECK_PASSED",
+  "target_actor_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "target_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "updated_at": "2026-08-15T08:20:32+00:00"
+}
