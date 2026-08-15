@@ -13,6 +13,27 @@ from scripts import pantheon_content_capacity_guard as guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
 
+ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """gui/501/com.pantheon.example = {
+\tactive count = 0
+\tstate = not running
+
+\tresource coalition = {
+\t\tID = 100
+\t\ttype = resource
+\t\tstate = active
+\t\tactive count = 1
+\t}
+
+\tjetsam coalition = {
+\t\tID = 101
+\t\ttype = jetsam
+\t\tstate = active
+\t\tactive count = 1
+\t}
+}
+"""
+
+
 def _completed(returncode: int = 0, stdout: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess([], returncode, stdout, "")
 
@@ -547,7 +568,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
 ) -> None:
     """REG-PANTHEON-CAPACITY-LOADED-INERT-NO-PID-001。"""
     identity = {"value": f"gate2-actor:{'a' * 40}:activation-only"}
-    launch_state = {"value": "not running"}
+    launch_output = {"value": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE}
     monkeypatch.setattr(
         guard.formal_runtime,
         "validate_runtime_tick",
@@ -567,7 +588,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         if command[:2] == ["launchctl", "print"]:
             label = command[-1].rsplit("/", 1)[-1]
             if label == "com.pantheon.agy-content-publisher":
-                return _completed(0, f"state = {launch_state['value']}\n")
+                return _completed(0, launch_output["value"])
             return _completed(113)
         if command == ["sysctl", "-n", "vm.swapusage"]:
             return _completed(0, "total = 0.00M  used = 0.00M  free = 0.00M\n")
@@ -589,34 +610,39 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         }
     ]
 
-    launch_state["value"] = "running\nstate = not running"
-    ambiguous = guard.preflight(
-        tmp_path,
-        tmp_path / "publisher",
-        tmp_path / "logs",
-        runner=runner,
-    )
+    invalid_outputs = {
+        "duplicate_top_level": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+            "\tstate = not running\n",
+            "\tstate = running\n\tstate = not running\n",
+            1,
+        ),
+        "running": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+            "\tstate = not running\n", "\tstate = running\n", 1
+        ),
+        "waiting": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+            "\tstate = not running\n", "\tstate = waiting\n", 1
+        ),
+        "missing": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+            "\tstate = not running\n", "", 1
+        ),
+        "unbalanced": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.rsplit("}", 1)[0],
+    }
+    for case, invalid_output in invalid_outputs.items():
+        launch_output["value"] = invalid_output
+        invalid = guard.preflight(
+            tmp_path,
+            tmp_path / "publisher",
+            tmp_path / "logs",
+            runner=runner,
+        )
 
-    assert ambiguous["status"] == "NO-GO"
-    assert ambiguous["rss_error"] == (
-        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
-    )
-
-    launch_state["value"] = "running"
-    inconsistent = guard.preflight(
-        tmp_path,
-        tmp_path / "publisher",
-        tmp_path / "logs",
-        runner=runner,
-    )
-
-    assert inconsistent["status"] == "NO-GO"
-    assert inconsistent["rss_error"] == (
-        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
-    )
+        assert invalid["status"] == "NO-GO", case
+        assert invalid["rss_error"] == (
+            "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+        )
 
     identity["value"] = f"gate2-actor:{'a' * 40}:normal"
-    launch_state["value"] = "not running"
+    launch_output["value"] = ANONYMIZED_INERT_LAUNCHCTL_FIXTURE
     normal = guard.preflight(
         tmp_path,
         tmp_path / "publisher",

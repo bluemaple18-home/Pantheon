@@ -52,6 +52,9 @@
 - `2026-08-15T07:39:45Z`：Reviewer P1 指出 state parser 使用單次 `search`，輸出若同時含 `state = running` 與 `state = not running` 仍會命中 inert exemption，形成 ambiguous-state fail-open；本 follow-up 不改 identity／config／manifest 邊界。
 - `2026-08-15T07:41:00Z`：在既有 public `preflight` regression 加入雙 state 輸出；RED 為目標 assertion `PASS != NO-GO`，證實 ambiguous-state fail-open，非 import／fixture failure。
 - `2026-08-15T07:41:05Z`：改為抽取全部 launchctl state；只有 list 恰為 `['not running']` 才豁免，零個、多個、running、waiting 或 mixed state 全部 fail closed。目標 `1 passed`、capacity `17 passed`、runtime manifest／promotion `60 passed`。
+- `2026-08-15T07:54:26Z`：read-only production preflight evidence `521b90051ab4cca01b1616e020d2b45ec4eb9895` 證實 launchctl root service state 為 `not running`，但 nested resource／jetsam coalition 各有 `active`；舊 parser 未辨識 brace depth，形成第二次 fail-closed blocker。加入匿名化實機結構 fixture，並鎖定 duplicate top-level、running、waiting、missing、unbalanced 全部拒絕。
+- `2026-08-15T07:56:00Z`：匿名化 live fixture 的 public `preflight` regression 得到目標 RED：預期 `PASS`、實際 `NO-GO`；失敗在 status assertion，非 import／fixture failure。
+- `2026-08-15T07:56:21Z`：最小 parser 以 launchctl brace nesting 追蹤 root depth，只收 root service object 的 state；唯一 `not running` 通過，duplicate／running／waiting／missing／unbalanced 全部拒絕。目標 `1 passed`、capacity `17 passed`、runtime manifest／promotion `60 passed`。
 
 ## Receipt
 
@@ -65,3 +68,7 @@
 - P1 RED：目標 regression `1 failed`；ambiguous `state = running`＋`state = not running` 被錯誤判為 `PASS`。
 - P1 fix：抽取所有 state 欄位並要求 cardinality `1`、exact value `not running`；identity／config／manifest authority 不變。
 - P1 GREEN：目標 `1 passed`；完整 capacity `17 passed`；runtime manifest／promotion `60 passed`。
+- top-level parser follow-up：`READY_FOR_FOLLOW_UP_CANDIDATE_COMMIT`；production mutation `0`。
+- top-level parser RED：目標 regression `1 failed`；nested coalition states 被錯算成 root service states。
+- top-level parser fix：以 balanced brace depth 辨識唯一 root object，nested coalition state 不計入 service state；identity／config／manifest boundary 未變。
+- top-level parser GREEN：目標 `1 passed`；完整 capacity `17 passed`；runtime manifest／promotion `60 passed`。

@@ -39,9 +39,8 @@ SERVICE_LABELS = (
 ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
     r"gate2-actor:[0-9a-f]{40}:activation-only"
 )
-LAUNCHCTL_STATE_PATTERN = re.compile(
-    r"^[ \t]*state = ([^\r\n]+?)[ \t]*$", re.MULTILINE
-)
+LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ = \{$")
+LAUNCHCTL_STATE_FIELD_PATTERN = re.compile(r"^state = ([^\r\n]+)$")
 LOG_NAMES = tuple(
     f"{stem}.{stream}.log"
     for stem in (
@@ -138,6 +137,45 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
     return frozenset()
 
 
+def _launchctl_top_level_states(output: str) -> list[str] | None:
+    """只解析 root service object 的 state；結構不完整時回傳 None。"""
+    depth = 0
+    root_started = False
+    root_closed = False
+    states: list[str] = []
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not root_started:
+            if LAUNCHCTL_OBJECT_START_PATTERN.fullmatch(line) is None:
+                return None
+            root_started = True
+            depth = 1
+            continue
+        if root_closed:
+            return None
+        if line == "}":
+            depth -= 1
+            if depth < 0:
+                return None
+            if depth == 0:
+                root_closed = True
+            continue
+        if LAUNCHCTL_OBJECT_START_PATTERN.fullmatch(line) is not None:
+            depth += 1
+            continue
+        if "{" in line or "}" in line:
+            return None
+        if depth == 1:
+            match = LAUNCHCTL_STATE_FIELD_PATTERN.fullmatch(line)
+            if match is not None:
+                states.append(match.group(1))
+    if not root_started or not root_closed or depth != 0:
+        return None
+    return states
+
+
 def _service_rss_bytes(
     runner: Runner = _run,
     *,
@@ -162,7 +200,7 @@ def _service_rss_bytes(
             }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
         if not match:
-            states = LAUNCHCTL_STATE_PATTERN.findall(result.stdout)
+            states = _launchctl_top_level_states(result.stdout)
             if (
                 label in expected_inert_labels
                 and states == ["not running"]
