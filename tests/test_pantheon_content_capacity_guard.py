@@ -562,6 +562,125 @@ def test_unknown_rss_or_swap_telemetry_is_no_go(tmp_path: Path, monkeypatch) -> 
     assert "rss_telemetry_unknown" in result["reasons"]
 
 
+def test_swap_telemetry_uses_primary_source_without_fallback() -> None:
+    fallback_calls = 0
+
+    def fallback() -> tuple[int | None, str | None]:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return 17, None
+
+    result = guard._swap_used_bytes(
+        lambda _command: _completed(
+            0,
+            "total = 1024.00M  used = 12.50M  free = 1011.50M\n",
+        ),
+        fallback=fallback,
+    )
+
+    assert result == {
+        "value": int(12.5 * guard.MIB),
+        "available": True,
+        "error": None,
+    }
+    assert fallback_calls == 0
+
+
+def test_swap_telemetry_uses_native_fallback_after_primary_command_failure() -> None:
+    result = guard._swap_used_bytes(
+        lambda _command: _completed(1),
+        fallback=lambda: (23 * guard.MIB, None),
+    )
+
+    assert result == {
+        "value": 23 * guard.MIB,
+        "available": True,
+        "error": None,
+    }
+
+
+def test_swap_telemetry_is_no_go_when_primary_and_fallback_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    swap = guard._swap_used_bytes(
+        lambda _command: _completed(1),
+        fallback=lambda: (None, "sysctlbyname_failed:1"),
+    )
+    sample = _available_snapshot()
+    sample.update(
+        {
+            "swap_used_bytes": swap["value"],
+            "swap_available": swap["available"],
+            "swap_error": swap["error"],
+        }
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_roots: sample)
+
+    result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
+
+    assert swap == {
+        "value": None,
+        "available": False,
+        "error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+    }
+    assert result["status"] == "NO-GO"
+    assert result["reasons"] == ["swap_telemetry_unknown"]
+
+
+def test_swap_telemetry_parse_error_fails_closed_without_fallback() -> None:
+    fallback_calls = 0
+
+    def fallback() -> tuple[int | None, str | None]:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return 0, None
+
+    result = guard._swap_used_bytes(
+        lambda _command: _completed(0, "used = not-a-number\n"),
+        fallback=fallback,
+    )
+
+    assert result == {
+        "value": None,
+        "available": False,
+        "error": "swap_parse_failed",
+    }
+    assert fallback_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("total", "used", "expected"),
+    [
+        (64 * guard.MIB, 8 * guard.MIB, (8 * guard.MIB, None)),
+        (8 * guard.MIB, 64 * guard.MIB, (None, "sysctlbyname_invalid_usage")),
+    ],
+)
+def test_darwin_native_swap_fallback_validates_usage_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+    total: int,
+    used: int,
+    expected: tuple[int | None, str | None],
+) -> None:
+    class FakeSysctlByName:
+        argtypes = None
+        restype = None
+
+        def __call__(self, _name, output, _size, _new, _new_size) -> int:
+            output._obj.total = total
+            output._obj.available = total - min(total, used)
+            output._obj.used = used
+            return 0
+
+    class FakeLibc:
+        sysctlbyname = FakeSysctlByName()
+
+    monkeypatch.setattr(guard.sys, "platform", "darwin")
+    monkeypatch.setattr(guard.ctypes, "CDLL", lambda *_args, **_kwargs: FakeLibc())
+
+    assert guard._local_swap_used_bytes() == expected
+
+
 def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects_normal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

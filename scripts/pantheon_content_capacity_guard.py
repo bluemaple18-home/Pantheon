@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 from datetime import datetime
 import json
 import os
@@ -55,6 +56,7 @@ LOG_NAMES = tuple(
     for stream in ("stdout", "stderr")
 )
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
+SwapFallback = Callable[[], tuple[int | None, str | None]]
 
 
 def _measure_tree(root: Path) -> tuple[int, int]:
@@ -275,7 +277,69 @@ def _service_rss_bytes(
     }
 
 
-def _swap_used_bytes(runner: Runner = _run) -> dict[str, Any]:
+class _DarwinSwapUsage(ctypes.Structure):
+    _fields_ = (
+        ("total", ctypes.c_uint64),
+        ("available", ctypes.c_uint64),
+        ("used", ctypes.c_uint64),
+        ("page_size", ctypes.c_uint32),
+        ("encrypted", ctypes.c_int),
+    )
+
+
+def _local_swap_used_bytes() -> tuple[int | None, str | None]:
+    if sys.platform == "darwin":
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            sysctlbyname = libc.sysctlbyname
+            sysctlbyname.argtypes = (
+                ctypes.c_char_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.c_void_p,
+                ctypes.c_size_t,
+            )
+            sysctlbyname.restype = ctypes.c_int
+            usage = _DarwinSwapUsage()
+            expected_size = ctypes.sizeof(usage)
+            actual_size = ctypes.c_size_t(expected_size)
+            returncode = sysctlbyname(
+                b"vm.swapusage",
+                ctypes.byref(usage),
+                ctypes.byref(actual_size),
+                None,
+                0,
+            )
+        except (AttributeError, OSError) as error:
+            return None, f"sysctlbyname_unavailable:{type(error).__name__}"
+        if returncode != 0:
+            return None, f"sysctlbyname_failed:{ctypes.get_errno() or returncode}"
+        if actual_size.value != expected_size:
+            return None, "sysctlbyname_size_mismatch"
+        if usage.used > usage.total:
+            return None, "sysctlbyname_invalid_usage"
+        return int(usage.used), None
+
+    try:
+        values = {
+            line.split(":", 1)[0]: int(line.split()[1]) * 1024
+            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()
+            if line.startswith(("SwapTotal:", "SwapFree:"))
+        }
+    except (FileNotFoundError, OSError, ValueError, IndexError):
+        values = {}
+    if set(values) == {"SwapTotal", "SwapFree"}:
+        used = values["SwapTotal"] - values["SwapFree"]
+        if used >= 0:
+            return used, None
+    return None, "local_swap_telemetry_unavailable"
+
+
+def _swap_used_bytes(
+    runner: Runner = _run,
+    *,
+    fallback: SwapFallback = _local_swap_used_bytes,
+) -> dict[str, Any]:
     result = runner(["sysctl", "-n", "vm.swapusage"])
     if result.returncode == 0:
         match = re.search(r"used = ([0-9.]+)([MG])", result.stdout)
@@ -287,24 +351,20 @@ def _swap_used_bytes(runner: Runner = _run) -> dict[str, Any]:
                 "error": None,
             }
         return {"value": None, "available": False, "error": "swap_parse_failed"}
-    try:
-        values = {
-            line.split(":", 1)[0]: int(line.split()[1]) * 1024
-            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()
-            if line.startswith(("SwapTotal:", "SwapFree:"))
-        }
-    except (FileNotFoundError, OSError, ValueError, IndexError):
-        values = {}
-    if set(values) == {"SwapTotal", "SwapFree"}:
+    value, fallback_error = fallback()
+    if value is not None and fallback_error is None:
         return {
-            "value": values["SwapTotal"] - values["SwapFree"],
+            "value": value,
             "available": True,
             "error": None,
         }
     return {
         "value": None,
         "available": False,
-        "error": f"swap_command_failed:{result.returncode}",
+        "error": (
+            f"swap_sources_failed:command:{result.returncode};"
+            f"fallback:{fallback_error or 'invalid_result'}"
+        ),
     }
 
 
