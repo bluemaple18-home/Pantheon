@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "authority.json": "d704a0340a4272739fa95821cc77432f4880af6467d1fe98cbe3d25e12aaf386",
+    "canonical-plan-only-payload.json": "d4bbb16a215b16fd13582b1667f7b2ef91c3e301b3f9b4a7569531e900174095",
+    "derived-digests.json": "c3583270f1dac3351feea755134aa47aca2424649eee20d0fe7682e2dd824ada",
+    "invocation-state.json": "8edc7c6768a118910e843a433aa402b3c3097eff005fa8d00f41a442f69ed298",
+    "production-mutation-summary.json": "12aaa293fa377c3bd0268da2d49064e1b1fdbb5b7e3a0430262053fc05c04fed",
+    "receipt.json": "fb487f404c87ab60ba042afd5d27747f0b27f38da9c34df480112d12aab7f2d3",
+    "sanitizer.json": "8286e156485e23f27fbdc93d8b602fe711e04b4da47a4a9441b78f41febb940b",
+    "verification.json": "31aa94611c4ed15b7ab3abdc2de9938a69531ba5971f69d401f6bf23be35d9e4",
+    "workset-binding.json": "c0b65a3cb451d686e11880bdfb6132d6e737a0f03fd37d416a96f37169d1df1a"
+  }
+}

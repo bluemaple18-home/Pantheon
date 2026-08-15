@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "operation": "gate-b-single-new-canonical-digest-repair-plan",
+  "verdict": "READY_FOR_NEW_ONE_SHOT_PLAN_REVIEW",
+  "baseline_sha": "3e17c695262fb9d9289aeb7a243644571a72bba2",
+  "reviewer_verdict": "APPROVED_BLOCKER_EVIDENCE",
+  "correlation_id": "apf004-gate-b-single-new-digest-repair-a6c4b798a6-20260815T183843Z",
+  "authority_artifact_sha256": "d704a0340a4272739fa95821cc77432f4880af6467d1fe98cbe3d25e12aaf386",
+  "workset_canonical_sha256": "588d471f89a0d37c4df42b08fcb8e2b2df8789673d15beb853a6642a3beea51c",
+  "legacy_newline_sha256": "5efd51a14079652f64270ad30164d44dcc162629d021817389636632690dbb16",
+  "canonical_plan_payload_sha256": "529e0b78b974cfef22ffa9ae47e92d2b8e5b9848a0f0f6cefbfcfa45a3e37d3b",
+  "adapter_plan_only_calls": 0,
+  "production_mutation": 0,
+  "execution_status": "not_executed"
+}

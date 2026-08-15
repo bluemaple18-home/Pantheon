@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "digests": {
+    "source_authority_input_raw": "b3d1891152a0dab8aee6c2829fd49511d26ea12e2147c4fe47eb0b2b300032b9",
+    "workset_canonical_compact_utf8": "588d471f89a0d37c4df42b08fcb8e2b2df8789673d15beb853a6642a3beea51c",
+    "workset_legacy_compact_utf8_plus_lf": "5efd51a14079652f64270ad30164d44dcc162629d021817389636632690dbb16",
+    "authority_artifact_raw": "d704a0340a4272739fa95821cc77432f4880af6467d1fe98cbe3d25e12aaf386",
+    "canonical_plan_payload_semantic": "529e0b78b974cfef22ffa9ae47e92d2b8e5b9848a0f0f6cefbfcfa45a3e37d3b",
+    "canonical_plan_payload_raw": "d4bbb16a215b16fd13582b1667f7b2ef91c3e301b3f9b4a7569531e900174095"
+  }
+}

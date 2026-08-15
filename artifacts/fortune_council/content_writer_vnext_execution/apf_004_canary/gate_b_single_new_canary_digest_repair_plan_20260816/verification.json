@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "baseline_exact": true,
+    "blocker_evidence_approved": true,
+    "source_workset_artifact_unchanged": true,
+    "single_item_exact": true,
+    "single_lane_new_exact": true,
+    "max_runs_one": true,
+    "canonicalization_matches_adapter_contract": true,
+    "canonical_workset_digest_exact": true,
+    "legacy_newline_digest_distinguished": true,
+    "new_correlation": true,
+    "new_authority": true,
+    "attempt_is_not_retry": true,
+    "adapter_plan_only_not_called": true,
+    "production_mutation_zero": true
+  },
+  "next_gate": "Reviewer approval before one new plan-only call"
+}

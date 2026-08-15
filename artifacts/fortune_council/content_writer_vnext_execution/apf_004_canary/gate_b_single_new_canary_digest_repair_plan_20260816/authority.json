@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "authority_id": "APF-004-GATE-B-SINGLE-NEW-DIGEST-REPAIR-PLAN-20260816-001",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "authorization_status": "PLAN_PREPARATION_AUTHORIZED",
+  "authorization_basis": "user explicitly authorized a new authority plan after approved blocker evidence",
+  "attempt_classification": "new_attempt_not_retry",
+  "prior_correlation_reused": false,
+  "prior_correlation": "apf004-gate-b-single-new-a6c4b798a6-20260815T181211Z",
+  "new_correlation": "apf004-gate-b-single-new-digest-repair-a6c4b798a6-20260815T183843Z",
+  "scope": {
+    "entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+    "lane": "new",
+    "max_runs": 1,
+    "plan_only": true,
+    "future_plan_only_call_budget": 1,
+    "retry_allowed": false
+  },
+  "workset_authority": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/single_create_plan_replay_20260815/authority-input.json",
+  "workset_item_count": 1,
+  "workset_digest": "588d471f89a0d37c4df42b08fcb8e2b2df8789673d15beb853a6642a3beea51c",
+  "current_round_execution": {
+    "adapter_plan_only_calls": 0,
+    "adapter_apply_calls": 0,
+    "production_mutation": 0
+  },
+  "future_gate": "Reviewer approval required before the single plan-only call"
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "correlation_id": "apf004-gate-b-single-new-digest-repair-a6c4b798a6-20260815T183843Z",
+  "attempt_classification": "new_attempt_not_retry",
+  "adapter_plan_only_calls": 0,
+  "adapter_apply_calls": 0,
+  "retry_calls": 0,
+  "status": "PLAN_PREPARED_NOT_EXECUTED"
+}

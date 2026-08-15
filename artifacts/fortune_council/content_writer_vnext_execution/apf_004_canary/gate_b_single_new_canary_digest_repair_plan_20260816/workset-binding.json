@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "source_artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/single_create_plan_replay_20260815/authority-input.json",
+  "source_artifact_sha256": "b3d1891152a0dab8aee6c2829fd49511d26ea12e2147c4fe47eb0b2b300032b9",
+  "json_pointer": "$.workset",
+  "source_content_modified": false,
+  "canonicalization": {
+    "expression": "json.dumps(payload, sort_keys=True, separators=(\",\", \":\"), ensure_ascii=False).encode(\"utf-8\")",
+    "encoding": "UTF-8",
+    "sort_keys": true,
+    "separators": [",", ":"],
+    "ensure_ascii": false,
+    "trailing_newline": false,
+    "canonical_byte_count": 351,
+    "canonical_sha256": "588d471f89a0d37c4df42b08fcb8e2b2df8789673d15beb853a6642a3beea51c"
+  },
+  "legacy_newline_variant": {
+    "classification": "canonical_bytes_plus_single_LF",
+    "byte_count": 352,
+    "sha256": "5efd51a14079652f64270ad30164d44dcc162629d021817389636632690dbb16",
+    "accepted_for_future_plan": false
+  },
+  "difference": {
+    "byte_delta": 1,
+    "only_difference": "trailing LF",
+    "digests_equal": false
+  },
+  "workset": {
+    "campaign_version": "apf-001-v1",
+    "lane": "new",
+    "item_count": 1,
+    "article_id": "ASTRO-SCENARIO-BIG-THREE",
+    "locale": "zh-TW",
+    "work_id": "apf-work-b1666341df10a14c1a586141"
+  }
+}
