@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "clean_exact_source_checkout": true,
+    "canonical_payload_digest_exact": true,
+    "working_directory_exact": true,
+    "interpreter_digest_exact": true,
+    "python_ignore_environment_flag_exact": true,
+    "reviewed_module_digest_exact": true,
+    "formal_runtime_tuple_exact": true,
+    "new_correlation_exact": true,
+    "prior_authority_not_reused": true,
+    "execution_evidence_root_absent_before_call": true,
+    "capacity_preflight_called_exactly_once": true,
+    "retry_zero": true,
+    "process_exit_zero": true,
+    "capacity_status_pass": true,
+    "swap_telemetry_available": true,
+    "actor_manifest_queue_state_unchanged": true,
+    "production_mutation_zero": true
+  }
+}

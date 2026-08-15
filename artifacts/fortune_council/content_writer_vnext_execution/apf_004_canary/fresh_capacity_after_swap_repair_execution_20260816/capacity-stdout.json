@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "raw_sha256": "8496ea300d12ec4bdb7bedbb20789cc3119f5235a173d32bf23defef9bbbb35e",
+  "payload": {
+    "bytes": 1950825,
+    "disk_free_bytes": 44770291712,
+    "disk_total_bytes": 245107195904,
+    "file_count": 17,
+    "reasons": [],
+    "rss_available": true,
+    "rss_bytes": 0,
+    "rss_error": null,
+    "rss_identity": {
+      "absent_labels": [],
+      "loaded_labels": [],
+      "inert_labels": [
+        {"label": "com.pantheon.agy-content-publisher", "topology": "loaded-but-inert"},
+        {"label": "com.pantheon.agy-gemini-coordinator", "topology": "loaded-but-inert"},
+        {"label": "com.pantheon.agy-gemini-new", "topology": "loaded-but-inert"},
+        {"label": "com.pantheon.agy-gemini-rewrite", "topology": "loaded-but-inert"},
+        {"label": "com.pantheon.agy-gemini-i18n-new", "topology": "loaded-but-inert"},
+        {"label": "com.pantheon.agy-gemini-i18n-rewrite", "topology": "loaded-but-inert"}
+      ]
+    },
+    "status": "PASS",
+    "swap_available": true,
+    "swap_error": null,
+    "swap_used_bytes": 28112584704
+  },
+  "swap_source_observable": "not_exposed_by_public_result"
+}

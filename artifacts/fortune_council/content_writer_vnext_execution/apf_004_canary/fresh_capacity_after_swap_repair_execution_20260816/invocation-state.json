@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "correlation_id": "apf004-fresh-capacity-after-swap-repair-a6b2334a2b-20260815T160546Z",
+  "capacity_preflight_calls": 1,
+  "state": "completed",
+  "exit_code": 0,
+  "capacity_status": "PASS",
+  "outcome": "PASS_ONCE_NO_RETRY"
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T18:00:03.655421Z",
+  "actor": {
+    "head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "clean": true
+  },
+  "manifest": {
+    "digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+    "generation": "g2-a6c4b798a6-20260815T113802Z"
+  },
+  "queue": {
+    "bytes": 0,
+    "file_count": 0,
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "state": {
+    "bytes": 3363,
+    "file_count": 3,
+    "digest": "f295c34d2d6c14ac467d6aec02ee96c069fc26ad900750f5ddd8e756377579a0"
+  },
+  "logs": {
+    "bytes": 1947462,
+    "file_count": 14,
+    "classification": "volatile_observable",
+    "observed_delta_bytes": 844
+  },
+  "unchanged": {
+    "actor": true,
+    "manifest": true,
+    "queue": true,
+    "state": true
+  }
+}

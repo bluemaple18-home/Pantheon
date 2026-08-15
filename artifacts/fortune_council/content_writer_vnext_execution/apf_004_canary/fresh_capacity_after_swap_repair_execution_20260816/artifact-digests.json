@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "capacity-stderr.json": "71349d557c8603f71e8675caf13f9b01ef0db08815d65ebc684efbec7a8ce6ec",
+    "capacity-stdout.json": "4fa290686171ebbd843174cb1cb3d0a516c297ebb188f2eb4b64f789f0936397",
+    "external-tool-gate.json": "1a05d29cde0bc0dce87bf4989b653c7440beb38aebe7c90130f45d4f3a4414d1",
+    "invocation-state.json": "dd384c332946a32752006223bd0c94711b4ee089f4041e7b4b62dbfc7a843de8",
+    "invocation-trace.json": "475455b3f7d66bbbcf989875dace71b259b1775e0d1fd767853b83a1f341baa1",
+    "post-snapshot.json": "a96b2593d29f229168158ba87feba8be92d863d4c8314581e68fba8c255d9367",
+    "pre-snapshot.json": "65318a9dfeed8e4f6ac00256cf92b5fa0aebd6df8882cf1bb4638492e7f63ea6",
+    "production-mutation-summary.json": "869a8dd8d3ecf010a8adc662d656a8ef65fd8d4adebf72304b32fb0c5e501925",
+    "receipt.json": "d3b9451d4c00fbc9a7bd19dff36afb88f499a4864498888109ce4f315a8afdfb",
+    "sanitizer.json": "e908f813281e93c68ef19700f14b3873696e7d87ae2f80ea847a545b93ad6a29",
+    "verification.json": "50ed635dd3c82e0b38929630845fc1ebcc71d85a376c470365090d50345a5f71"
+  }
+}

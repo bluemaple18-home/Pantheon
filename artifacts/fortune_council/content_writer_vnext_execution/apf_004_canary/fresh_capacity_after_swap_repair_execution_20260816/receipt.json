@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-FRESH-CAPACITY-AFTER-SWAP-REPAIR-EXECUTION-20260816",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "PASS_ONCE_NO_RETRY",
+  "source_head": "6af24a684d0ceb13901b77073869d764b54f34b0",
+  "canonical_payload_digest": "541219e58770eae9d03f24efd7a5caffd8b8ec1f2977b9481a14ae30d8071a52",
+  "correlation_id": "apf004-fresh-capacity-after-swap-repair-a6b2334a2b-20260815T160546Z",
+  "capacity_status": "PASS",
+  "capacity_preflight_calls": 1,
+  "exit_code": 0,
+  "reasons": [],
+  "swap_available": true,
+  "swap_used_bytes": 28112584704,
+  "production_mutation": 0,
+  "execution_status": "executed_once"
+}

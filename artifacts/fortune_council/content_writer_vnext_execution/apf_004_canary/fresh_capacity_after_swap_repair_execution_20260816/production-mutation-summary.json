@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "capacity_preflight_calls": 1,
+  "capacity_retries": 0,
+  "production_writes": 0,
+  "publisher_reload_calls": 0,
+  "launchctl_mutations": 0,
+  "gate_b_calls": 0,
+  "publication_calls": 0,
+  "create_calls": 0,
+  "select_calls": 0,
+  "business_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0,
+  "queue_unchanged": true,
+  "state_unchanged": true,
+  "actor_unchanged": true,
+  "manifest_unchanged": true,
+  "logs_observed_delta_bytes": 844,
+  "logs_delta_attribution": "unattributed volatile observable"
+}

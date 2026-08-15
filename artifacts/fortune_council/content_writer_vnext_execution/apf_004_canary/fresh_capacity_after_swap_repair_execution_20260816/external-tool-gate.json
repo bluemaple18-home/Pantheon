@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "tool_service": "local formal capacity guard",
+  "operation_level": "read_only",
+  "schema_checked": true,
+  "user_confirmation": "explicit one-shot authorization",
+  "execution_status": "PASS_ONCE_NO_RETRY",
+  "evidence": "capacity-stdout.json",
+  "remaining_risk": "public result does not expose whether primary or fallback supplied swap telemetry"
+}
