@@ -8,9 +8,10 @@
 
 - 只改：
   - `scripts/pantheon_gate_a_governance.py`
+  - `scripts/pantheon_content_runtime_promotion.py`（只允許 parser 接受顯式 argv，CLI 行為不變）
   - `tests/test_pantheon_gate_a_governance.py`
   - 本卡
-- 不改 runtime promotion、Publisher、queue、scheduler、LaunchAgent、文章或 SEO 內容。
+- 不改 runtime promotion mutation 行為、Publisher、queue、scheduler、LaunchAgent、文章或 SEO 內容。
 - 不執行 Gate A apply、finalize、Gate B、publish、tag、push 或其他 production mutation。
 
 ## Slice 與追溯

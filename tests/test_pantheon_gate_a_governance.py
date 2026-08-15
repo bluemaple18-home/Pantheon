@@ -25,8 +25,50 @@ def _authorization(repo_root: Path, *, evidence_root: str = "evidence/gate-a") -
         "-m",
         "scripts.pantheon_content_runtime_promotion",
         "apply",
+        "--source-repo",
+        "<source-worktree>",
         "--source-sha",
         SOURCE_SHA,
+        "--expected-origin",
+        "git@example.invalid:pantheon.git",
+        "--actor-root",
+        "<runtime-root>/actor",
+        "--expected-current-actor-sha",
+        "c" * 40,
+        "--manifest-path",
+        "<runtime-root>/runtime-manifest.json",
+        "--expected-current-manifest-digest",
+        "d" * 64,
+        "--private-stage-root",
+        "<private-stage-root>",
+        "--expected-current-stage-digest",
+        "e" * 64,
+        "--transaction-root",
+        "<runtime-root>/backups/gate-a",
+        "--queue-root",
+        "<runtime-root>/queue",
+        "--publisher-state-root",
+        "<runtime-root>/state",
+        "--log-root",
+        "<runtime-root>/logs",
+        "--target-identity",
+        f"gate2-actor:{SOURCE_SHA}:activation-only",
+        "--target-runtime-digest",
+        "f" * 64,
+        "--target-config-version",
+        "formal-runtime-v2-gate2",
+        "--target-generation",
+        "g2-test",
+        "--target-python-executable",
+        "<runtime-python-executable>",
+        "--authorization-digest",
+        "1" * 64,
+        "--capacity-receipt",
+        "<repo-root>/capacity.json",
+        "--capacity-receipt-digest",
+        "2" * 64,
+        "--correlation-id",
+        "gate-a-test",
         "--expected-plan-digest",
         PLAN_DIGEST,
     ]
@@ -60,8 +102,28 @@ def _authorization(repo_root: Path, *, evidence_root: str = "evidence/gate-a") -
     }
 
 
+def _authorization_state(
+    authorization: dict[str, object],
+    *,
+    apply_calls: int = 0,
+    last_outcome: str = "AUTHORIZED",
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "authorization_id": authorization["authorization_id"],
+        "immutable_tuple_digest": governance.immutable_tuple_digest(authorization),
+        "apply_calls": apply_calls,
+        "last_outcome": last_outcome,
+    }
+
+
 def test_valid_authorization_is_ready_before_mutation(tmp_path: Path) -> None:
-    receipt = governance.validate_authorization(_authorization(tmp_path), tmp_path)
+    authorization = _authorization(tmp_path)
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
 
     assert receipt["status"] == "READY"
     assert receipt["authorization_state"] == "UNCONSUMED"
@@ -75,7 +137,11 @@ def test_missing_evidence_root_blocks_before_mutation(tmp_path: Path) -> None:
     authorization = _authorization(tmp_path)
     del authorization["evidence_root"]
 
-    receipt = governance.validate_authorization(authorization, tmp_path)
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
     assert "missing_field:evidence_root" in receipt["errors"]
@@ -83,9 +149,11 @@ def test_missing_evidence_root_blocks_before_mutation(tmp_path: Path) -> None:
 
 
 def test_evidence_root_path_traversal_blocks(tmp_path: Path) -> None:
+    authorization = _authorization(tmp_path, evidence_root="../outside")
     receipt = governance.validate_authorization(
-        _authorization(tmp_path, evidence_root="../outside"),
+        authorization,
         tmp_path,
+        authorization_state=_authorization_state(authorization),
     )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
@@ -96,38 +164,45 @@ def test_existing_evidence_root_blocks_duplicate_write(tmp_path: Path) -> None:
     authorization = _authorization(tmp_path)
     (tmp_path / "evidence/gate-a").mkdir(parents=True)
 
-    receipt = governance.validate_authorization(authorization, tmp_path)
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
     assert "evidence_root_already_exists" in receipt["errors"]
 
 
 def test_unchanged_tuple_and_zero_apply_calls_keeps_authority(tmp_path: Path) -> None:
-    first = governance.validate_authorization(_authorization(tmp_path), tmp_path)
-    first["status"] = "BLOCKED_BEFORE_MUTATION"
+    authorization = _authorization(tmp_path)
+    state = _authorization_state(
+        authorization,
+        last_outcome="BLOCKED_BEFORE_MUTATION",
+    )
     retry = _authorization(tmp_path, evidence_root="evidence/gate-a-retry")
 
     receipt = governance.validate_authorization(
         retry,
         tmp_path,
-        previous_receipt=first,
+        authorization_state=state,
     )
 
     assert receipt["status"] == "READY"
     assert receipt["authorization_state"] == "UNCONSUMED_RETRY"
-    assert receipt["immutable_tuple_digest"] == first["immutable_tuple_digest"]
+    assert receipt["immutable_tuple_digest"] == state["immutable_tuple_digest"]
 
 
 def test_tuple_drift_requires_new_authorization(tmp_path: Path) -> None:
     authorization = _authorization(tmp_path)
-    previous = governance.validate_authorization(authorization, tmp_path)
+    state = _authorization_state(authorization)
     drifted = deepcopy(authorization)
     drifted["mutation_scope"] = "different-production-write"
 
     receipt = governance.validate_authorization(
         drifted,
         tmp_path,
-        previous_receipt=previous,
+        authorization_state=state,
     )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
@@ -137,13 +212,10 @@ def test_tuple_drift_requires_new_authorization(tmp_path: Path) -> None:
 
 def test_apply_calls_greater_than_zero_consumes_authority(tmp_path: Path) -> None:
     authorization = _authorization(tmp_path)
-    previous = governance.validate_authorization(authorization, tmp_path)
-    previous["apply_calls"] = 1
-
     receipt = governance.validate_authorization(
         authorization,
         tmp_path,
-        previous_receipt=previous,
+        authorization_state=_authorization_state(authorization, apply_calls=1),
     )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
@@ -157,8 +229,16 @@ def test_expired_or_revoked_authority_blocks(tmp_path: Path) -> None:
     revoked = _authorization(tmp_path, evidence_root="evidence/revoked")
     revoked["authorization_revoked"] = True
 
-    expired_receipt = governance.validate_authorization(expired, tmp_path)
-    revoked_receipt = governance.validate_authorization(revoked, tmp_path)
+    expired_receipt = governance.validate_authorization(
+        expired,
+        tmp_path,
+        authorization_state=_authorization_state(expired),
+    )
+    revoked_receipt = governance.validate_authorization(
+        revoked,
+        tmp_path,
+        authorization_state=_authorization_state(revoked),
+    )
 
     assert "authorization_expired" in expired_receipt["errors"]
     assert "authorization_revoked" in revoked_receipt["errors"]
@@ -168,13 +248,45 @@ def test_exact_argv_digest_drift_blocks(tmp_path: Path) -> None:
     authorization = _authorization(tmp_path)
     authorization["exact_apply_argv_digest"] = "0" * 64
 
-    receipt = governance.validate_authorization(authorization, tmp_path)
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
 
     assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
     assert "exact_apply_argv_digest_mismatch" in receipt["errors"]
 
 
 def test_public_cli_emits_machine_readable_receipt(tmp_path: Path) -> None:
+    authorization_path = tmp_path / "authorization.json"
+    state_path = tmp_path / "authorization-state.json"
+    authorization = _authorization(tmp_path)
+    _write_json(authorization_path, authorization)
+    _write_json(state_path, _authorization_state(authorization))
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_gate_a_governance",
+            "--repo-root",
+            str(tmp_path),
+            "--authorization",
+            str(authorization_path),
+            "--authorization-state",
+            str(state_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert json.loads(completed.stdout)["status"] == "READY"
+
+
+def test_public_cli_requires_durable_authorization_state(tmp_path: Path) -> None:
     authorization_path = tmp_path / "authorization.json"
     _write_json(authorization_path, _authorization(tmp_path))
 
@@ -193,5 +305,42 @@ def test_public_cli_emits_machine_readable_receipt(tmp_path: Path) -> None:
         text=True,
     )
 
-    assert completed.returncode == 0
-    assert json.loads(completed.stdout)["status"] == "READY"
+    assert completed.returncode == 2
+    assert "--authorization-state" in completed.stderr
+
+
+def test_duplicate_sensitive_flag_blocks_runtime_parser_override(tmp_path: Path) -> None:
+    authorization = _authorization(tmp_path)
+    artifact_path = tmp_path / str(authorization["exact_apply_argv_artifact"])
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    artifact["argv"].extend(["--source-sha", "f" * 40])
+    artifact["canonical_argv_sha256"] = governance.canonical_argv_digest(artifact["argv"])
+    authorization["exact_apply_argv_digest"] = artifact["canonical_argv_sha256"]
+    _write_json(artifact_path, artifact)
+
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
+
+    assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
+    assert "duplicate_sensitive_flag:--source-sha" in receipt["errors"]
+
+
+def test_invalid_immutable_field_types_block(tmp_path: Path) -> None:
+    authorization = _authorization(tmp_path)
+    authorization["production_target"] = 123
+    authorization["mutation_scope"] = []
+    authorization["rollback_contract"] = {}
+
+    receipt = governance.validate_authorization(
+        authorization,
+        tmp_path,
+        authorization_state=_authorization_state(authorization),
+    )
+
+    assert receipt["status"] == "BLOCKED_BEFORE_MUTATION"
+    assert "production_target_invalid" in receipt["errors"]
+    assert "mutation_scope_invalid" in receipt["errors"]
+    assert "rollback_contract_invalid" in receipt["errors"]

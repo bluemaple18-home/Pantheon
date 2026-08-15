@@ -4,12 +4,16 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stderr
 from datetime import datetime, timezone
 from hashlib import sha256
+import io
 import json
 from pathlib import Path
 import re
 from typing import Any
+
+from scripts import pantheon_content_runtime_promotion as promotion
 
 
 SCHEMA_VERSION = 1
@@ -40,6 +44,15 @@ IMMUTABLE_FIELDS = (
 )
 SHA40 = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+STRING_FIELDS = (
+    "authorization_id",
+    "production_target",
+    "exact_apply_argv_artifact",
+    "mutation_scope",
+    "rollback_contract",
+    "evidence_root",
+)
+SENSITIVE_FLAGS = ("--source-sha", "--expected-plan-digest")
 
 
 def _json_digest(payload: object) -> str:
@@ -52,6 +65,10 @@ def _json_digest(payload: object) -> str:
     return sha256(encoded).hexdigest()
 
 
+def canonical_argv_digest(argv: list[object]) -> str:
+    return _json_digest(argv)
+
+
 def _repo_path(repo_root: Path, value: object, field: str) -> tuple[Path | None, str | None]:
     if not isinstance(value, str) or not value or Path(value).is_absolute():
         return None, f"{field}_outside_repo"
@@ -60,14 +77,6 @@ def _repo_path(repo_root: Path, value: object, field: str) -> tuple[Path | None,
     if not candidate.is_relative_to(root):
         return None, f"{field}_outside_repo"
     return candidate, None
-
-
-def _argument(argv: list[object], flag: str) -> object | None:
-    try:
-        index = argv.index(flag)
-    except ValueError:
-        return None
-    return argv[index + 1] if index + 1 < len(argv) else None
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -85,20 +94,27 @@ def validate_authorization(
     authorization: dict[str, object],
     repo_root: Path,
     *,
-    previous_receipt: dict[str, object] | None = None,
+    authorization_state: dict[str, object],
     now: datetime | None = None,
 ) -> dict[str, object]:
     errors = [f"missing_field:{field}" for field in REQUIRED_FIELDS if field not in authorization]
     tuple_digest = immutable_tuple_digest(authorization)
-    authorization_state = "UNCONSUMED"
+    authority_status = "UNCONSUMED"
     apply_calls = 0
 
-    if authorization.get("schema_version") != SCHEMA_VERSION:
+    if type(authorization.get("schema_version")) is not int or authorization.get("schema_version") != SCHEMA_VERSION:
         errors.append("schema_version_unsupported")
     if authorization.get("authorization_status") != "AUTHORIZED":
         errors.append("authorization_status_not_authorized")
-    if authorization.get("authorization_revoked") is not False:
+    if type(authorization.get("authorization_revoked")) is not bool or authorization.get("authorization_revoked") is not False:
         errors.append("authorization_revoked")
+    for field in STRING_FIELDS:
+        if not isinstance(authorization.get(field), str) or not authorization.get(field):
+            errors.append(f"{field}_invalid")
+    if authorization.get("mutation_scope") != "runtime-promotion-apply-once":
+        errors.append("mutation_scope_invalid")
+    if authorization.get("rollback_contract") != "rollback-bundle-retained-until-explicit-finalize":
+        errors.append("rollback_contract_invalid")
     if not SHA40.fullmatch(str(authorization.get("source_sha", ""))):
         errors.append("source_sha_invalid")
     for field in ("plan_digest", "exact_apply_argv_digest"):
@@ -144,17 +160,33 @@ def validate_authorization(
             if not isinstance(argv, list) or not all(isinstance(item, str) for item in argv):
                 errors.append("exact_apply_argv_invalid")
             else:
-                actual_digest = _json_digest(argv)
+                actual_digest = canonical_argv_digest(argv)
                 if actual_digest != authorization.get("exact_apply_argv_digest"):
                     errors.append("exact_apply_argv_digest_mismatch")
                 if artifact.get("canonical_argv_sha256") != actual_digest:
                     errors.append("exact_apply_argv_artifact_digest_mismatch")
-                if len(argv) < 4 or argv[3] != "apply":
+                if len(argv) < 4 or argv[1:4] != [
+                    "-m",
+                    "scripts.pantheon_content_runtime_promotion",
+                    "apply",
+                ]:
                     errors.append("exact_apply_argv_not_apply")
-                if _argument(argv, "--source-sha") != authorization.get("source_sha"):
-                    errors.append("source_sha_binding_mismatch")
-                if _argument(argv, "--expected-plan-digest") != authorization.get("plan_digest"):
-                    errors.append("plan_digest_binding_mismatch")
+                for flag in SENSITIVE_FLAGS:
+                    if argv.count(flag) != 1:
+                        errors.append(f"duplicate_sensitive_flag:{flag}")
+                try:
+                    with redirect_stderr(io.StringIO()):
+                        parsed = promotion.parse_args(argv[3:])
+                    if parsed.command != "apply":
+                        errors.append("exact_apply_argv_not_apply")
+                    if parsed.source_sha != authorization.get("source_sha"):
+                        errors.append("source_sha_binding_mismatch")
+                    if parsed.expected_plan_digest != authorization.get("plan_digest"):
+                        errors.append("plan_digest_binding_mismatch")
+                    if parsed.target_identity != authorization.get("production_target"):
+                        errors.append("production_target_binding_mismatch")
+                except SystemExit:
+                    errors.append("exact_apply_argv_parse_failed")
                 if artifact.get("expected_plan_digest") != authorization.get("plan_digest"):
                     errors.append("plan_artifact_digest_mismatch")
                 if artifact.get("execution_status") != "not_executed":
@@ -162,23 +194,46 @@ def validate_authorization(
         except (OSError, ValueError, json.JSONDecodeError):
             errors.append("exact_apply_argv_artifact_invalid")
 
-    if previous_receipt is not None:
-        previous_calls = previous_receipt.get("apply_calls")
-        if type(previous_calls) is not int or previous_calls < 0:
-            errors.append("previous_apply_calls_invalid")
-        else:
-            apply_calls = previous_calls
-            if apply_calls > 0:
-                authorization_state = "CONSUMED"
-                errors.append("authorization_consumed")
-        if previous_receipt.get("authorization_id") != authorization.get("authorization_id"):
-            authorization_state = "REAUTHORIZATION_REQUIRED"
-            errors.append("authorization_id_drift")
-        if previous_receipt.get("immutable_tuple_digest") != tuple_digest:
-            authorization_state = "REAUTHORIZATION_REQUIRED"
-            errors.append("immutable_tuple_drift")
-        elif apply_calls == 0 and authorization_state == "UNCONSUMED":
-            authorization_state = "UNCONSUMED_RETRY"
+    for field in (
+        "schema_version",
+        "authorization_id",
+        "immutable_tuple_digest",
+        "apply_calls",
+        "last_outcome",
+    ):
+        if field not in authorization_state:
+            errors.append(f"authorization_state_missing_field:{field}")
+    if (
+        type(authorization_state.get("schema_version")) is not int
+        or authorization_state.get("schema_version") != SCHEMA_VERSION
+    ):
+        errors.append("authorization_state_schema_invalid")
+    state_calls = authorization_state.get("apply_calls")
+    if type(state_calls) is not int or state_calls < 0:
+        errors.append("authorization_state_apply_calls_invalid")
+    else:
+        apply_calls = state_calls
+        if apply_calls > 0:
+            authority_status = "CONSUMED"
+            errors.append("authorization_consumed")
+    if authorization_state.get("authorization_id") != authorization.get("authorization_id"):
+        authority_status = "REAUTHORIZATION_REQUIRED"
+        errors.append("authorization_id_drift")
+    state_tuple_digest = authorization_state.get("immutable_tuple_digest")
+    if not isinstance(state_tuple_digest, str) or not SHA256.fullmatch(state_tuple_digest):
+        errors.append("authorization_state_tuple_digest_invalid")
+    if state_tuple_digest != tuple_digest:
+        authority_status = "REAUTHORIZATION_REQUIRED"
+        errors.append("immutable_tuple_drift")
+    if authorization_state.get("last_outcome") not in {
+        "AUTHORIZED",
+        "BLOCKED_BEFORE_MUTATION",
+        "APPLIED",
+        "ROLLED_BACK",
+    }:
+        errors.append("authorization_state_last_outcome_invalid")
+    elif apply_calls == 0 and authorization_state.get("last_outcome") == "BLOCKED_BEFORE_MUTATION":
+        authority_status = "UNCONSUMED_RETRY"
 
     errors = list(dict.fromkeys(errors))
     status = "READY" if not errors else "BLOCKED_BEFORE_MUTATION"
@@ -186,7 +241,7 @@ def validate_authorization(
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "authorization_id": authorization.get("authorization_id"),
-        "authorization_state": authorization_state,
+        "authorization_state": authority_status,
         "immutable_tuple_digest": tuple_digest,
         "evidence_root": authorization.get("evidence_root"),
         "apply_calls": apply_calls,
@@ -200,7 +255,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--authorization", type=Path, required=True)
-    parser.add_argument("--previous-receipt", type=Path)
+    parser.add_argument("--authorization-state", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -208,11 +263,11 @@ def main() -> int:
     args = parse_args()
     try:
         authorization = _load_json(args.authorization)
-        previous = _load_json(args.previous_receipt) if args.previous_receipt else None
+        authorization_state = _load_json(args.authorization_state)
         receipt = validate_authorization(
             authorization,
             args.repo_root,
-            previous_receipt=previous,
+            authorization_state=authorization_state,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         receipt = {
