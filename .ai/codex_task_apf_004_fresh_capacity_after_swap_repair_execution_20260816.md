@@ -50,4 +50,3 @@ parent_candidate: a6b2334a2bff1a55c5201e26a4867c692ec45db8
 - `READY_FOR_NEW_FRESH_CAPACITY_REVIEW`
 - execution status：`not_executed`
 - production mutation：0
-
