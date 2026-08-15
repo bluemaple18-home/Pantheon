@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "delivery-validation.json": "885b2a71fe22f49e69a236e884bed6d5b44c0e27e8b70dbf40ee11ba73e5f931",
+    "exact-next-command.json": "9a21b9dde48197797cfd6bf04a3f6b0820d3edb2537f537f70bbde0825422dbd",
+    "production-mutation-summary.json": "9917cbd6b65b48fcf1e4918647847a9d5561f621b9e0568fee16c896e513dba4",
+    "receipt.json": "78dee92d32f5a1aa459d26985f02787da03809aca288fcbe687df0ddcc1110c4",
+    "root-cause.json": "2361500f9859c365e4d8ae92ebc47a7548b6c315793238b68b619640e44c24b9",
+    "sanitizer.json": "1182d2764a005a77615a652d6c0bc5f6e9bb3990de101c6c23d87be890eb2638",
+    "verification.json": "297419d5b4230ef270298b518e35f40e03906195b016f4d6bc39c2448d1fe984"
+  }
+}

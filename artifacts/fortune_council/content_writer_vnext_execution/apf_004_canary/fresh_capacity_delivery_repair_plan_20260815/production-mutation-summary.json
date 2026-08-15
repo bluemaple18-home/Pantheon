@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "production_mutation": 0,
+  "capacity_preflight_calls": 0,
+  "capacity_check_calls": 0,
+  "capacity_exercise_calls": 0,
+  "uv_runtime_calls": 0,
+  "publisher_reload_calls": 0,
+  "launchctl_mutations": 0,
+  "queue_writes": 0,
+  "state_writes": 0,
+  "publication_calls": 0,
+  "downstream_calls": 0,
+  "push_calls": 0
+}

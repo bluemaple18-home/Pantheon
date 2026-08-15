@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "classification": "DELIVERY_RUNTIME_FAILURE_BEFORE_MODULE_START",
+  "uv_version": "0.9.25",
+  "uv_executable_sha256": "8ca599bb63fb3f468eb04ee9f91bda946a886848ef1f36acb7aaf4f71af4117d",
+  "failure_component": "macOS system-configuration dynamic store initialization",
+  "attempts": 2,
+  "python_started": false,
+  "capacity_module_started": false,
+  "capacity_preflight_calls": 0,
+  "production_mutation": 0,
+  "repair_frontier": "bypass uv runtime startup and use the existing repository venv interpreter directly"
+}

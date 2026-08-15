@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:31:53Z",
+  "interpreter": {
+    "path": "<repo-root>/.venv/bin/python",
+    "version": "3.12.12",
+    "executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+    "startup": "PASS"
+  },
+  "module": {
+    "name": "scripts.pantheon_content_capacity_guard",
+    "source_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1",
+    "runtime_manifest_validator_sha256": "ad21d8939d6c3f2bae346b101b1fa33cb2f7bf6112b8dff5f8e43a06c8c68ae4",
+    "import": "PASS",
+    "public_help": "PASS",
+    "help_output_sha256": "aac4a76adfbbcd89bf7af6b9b7d56540a565bb66dcfbd84caa884d0c802054bb",
+    "capacity_guard_changed_since_formal_actor": false
+  },
+  "formal_environment": {
+    "manifest_load": "PASS",
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2"
+  },
+  "capacity_preflight_calls": 0,
+  "capacity_state_file_created": false,
+  "production_mutation": 0,
+  "verdict": "DIRECT_VENV_DELIVERY_PASS"
+}

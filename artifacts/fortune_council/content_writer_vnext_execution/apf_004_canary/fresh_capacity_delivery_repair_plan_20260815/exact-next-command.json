@@ -1,0 +1,41 @@
+{
+  "argv": ["<repo-root>/.venv/bin/python","-m","scripts.pantheon_content_capacity_guard","--queue-root","<runtime-root>/queue","--publisher-root","<runtime-root>/state","--log-root","<runtime-root>/logs","--state-file","<runtime-root>/state/content-capacity-guard-state.json","preflight"],
+  "contract": {
+    "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/publisher_fresh_capacity_direct_venv_20260815",
+    "expected_status": "PASS",
+    "invocation_count": 1,
+    "launchctl_mutations": 0,
+    "publisher_reload_calls": 0,
+    "retry_allowed": false,
+    "stop_on_nonzero_or_ambiguous": true,
+    "uv_invocations": 0
+  },
+  "correlation_id": "apf004-fresh-capacity-direct-venv-a6c4b798a6-20260815T153153Z",
+  "environment": {
+    "APF004_CAPACITY_CORRELATION_ID": "apf004-fresh-capacity-direct-venv-a6c4b798a6-20260815T153153Z",
+    "PANTHEON_FORMAL_RUNTIME": "1",
+    "PANTHEON_RUNTIME_ACTIVATION_TOKEN": "<runtime-root>/state/four-lane-activation-g2-a6c4b798a6-20260815T113802Z.barrier",
+    "PANTHEON_RUNTIME_ACTOR_HEAD": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "PANTHEON_RUNTIME_ACTOR_ROOT": "<runtime-root>/actor",
+    "PANTHEON_RUNTIME_CODE_DIGEST": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "PANTHEON_RUNTIME_CONFIG_VERSION": "formal-runtime-v2-gate2",
+    "PANTHEON_RUNTIME_GENERATION": "g2-a6c4b798a6-20260815T113802Z",
+    "PANTHEON_RUNTIME_IDENTITY": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+    "PANTHEON_RUNTIME_IDENTITY_DIGEST": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9",
+    "PANTHEON_RUNTIME_LOG_ROOT": "<runtime-root>/logs",
+    "PANTHEON_RUNTIME_MANIFEST": "<runtime-root>/runtime-manifest.json",
+    "PANTHEON_RUNTIME_MANIFEST_DIGEST": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "<runtime-root>/state",
+    "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "<runtime-python-executable>",
+    "PANTHEON_RUNTIME_QUEUE_ROOT": "<runtime-root>/queue",
+    "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.content-capacity-guard"
+  },
+  "execution_status": "not_executed",
+  "interpreter": {
+    "executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+    "path": "<repo-root>/.venv/bin/python",
+    "version": "3.12.12"
+  },
+  "schema_version": 1,
+  "canonical_payload_sha256": "0c9ef41831eea98fccd7570534fe9bdaa0ad0ebe6847276cb7a03c2c9bb3957e"
+}

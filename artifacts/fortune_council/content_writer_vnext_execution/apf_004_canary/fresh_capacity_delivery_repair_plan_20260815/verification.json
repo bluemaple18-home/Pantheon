@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "blocker_evidence_integrated": true,
+    "uv_root_cause_bound": true,
+    "existing_venv_interpreter_executable": true,
+    "direct_interpreter_startup_pass": true,
+    "capacity_module_import_pass": true,
+    "public_help_pass": true,
+    "formal_manifest_read_validation_pass": true,
+    "capacity_source_matches_formal_actor": true,
+    "capacity_preflight_not_called": true,
+    "production_state_unchanged": true,
+    "exact_next_payload_digest_locked": true,
+    "future_evidence_root_absent": true,
+    "publisher_reload_zero": true,
+    "launchctl_mutation_zero": true,
+    "publication_zero": true
+  },
+  "next_gate": "Reviewer approval for exactly one fresh capacity direct-venv call"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-FRESH-CAPACITY-DIRECT-VENV-EXECUTION-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "READY_FOR_ONE_FRESH_CAPACITY_REVIEW",
+  "candidate_base": "e07b06465909bac587ac2d26de29895d1eacf59d",
+  "root_cause": "uv 0.9.25 macOS dynamic-store panic before Python/module startup",
+  "dry_validation": "DIRECT_VENV_DELIVERY_PASS",
+  "exact_next_payload_digest": "0c9ef41831eea98fccd7570534fe9bdaa0ad0ebe6847276cb7a03c2c9bb3957e",
+  "capacity_preflight_calls": 0,
+  "production_mutation": 0,
+  "execution_status": "not_executed"
+}
