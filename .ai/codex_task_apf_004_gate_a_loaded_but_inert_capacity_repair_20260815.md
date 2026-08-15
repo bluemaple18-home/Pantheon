@@ -49,13 +49,19 @@
 - `2026-08-15T07:33:00Z`：新增 public `preflight` 雙向 regression；RED 為目標 assertion `NO-GO != PASS`，非 import／fixture failure。一般 `:normal` identity 的 loaded/no-PID 負向 assertion 同測試鎖定。
 - `2026-08-15T07:33:02Z`：最小修復將已驗證的 `formal-runtime-v2-gate2`／`gate2-actor:<sha>:activation-only` receipt 轉為既有 service allowlist 的 expected-inert topology；僅該 authority 且 launchctl 明示 `state = not running` 時將 loaded/no-PID 記為 inert，一般或不一致 topology 維持 `loaded_service_pid_missing`。
 - `2026-08-15T07:33:02Z`：目標 regression `1 passed`；完整 capacity guard `17 passed`；runtime manifest／promotion `60 passed`；`[DBG-` 掃描零命中；`git diff --check` PASS。未存取或修改 production runtime。
+- `2026-08-15T07:39:45Z`：Reviewer P1 指出 state parser 使用單次 `search`，輸出若同時含 `state = running` 與 `state = not running` 仍會命中 inert exemption，形成 ambiguous-state fail-open；本 follow-up 不改 identity／config／manifest 邊界。
+- `2026-08-15T07:41:00Z`：在既有 public `preflight` regression 加入雙 state 輸出；RED 為目標 assertion `PASS != NO-GO`，證實 ambiguous-state fail-open，非 import／fixture failure。
+- `2026-08-15T07:41:05Z`：改為抽取全部 launchctl state；只有 list 恰為 `['not running']` 才豁免，零個、多個、running、waiting 或 mixed state 全部 fail closed。目標 `1 passed`、capacity `17 passed`、runtime manifest／promotion `60 passed`。
 
 ## Receipt
 
-- 狀態：`READY_FOR_CANDIDATE_COMMIT`
+- 狀態：`READY_FOR_FOLLOW_UP_CANDIDATE_COMMIT`
 - RED：`uv run --python .venv/bin/python pytest -q tests/test_pantheon_content_capacity_guard.py::test_preflight_allows_formal_activation_only_service_without_pid_but_rejects_normal`，`1 failed`；目標 assertion failure。
 - root cause：capacity preflight 已驗證正式 runtime receipt，但 RSS collector 未接收 activation-only topology，導致預期 inert 的 loaded service 被當成異常 missing PID。
 - fix：僅接受正式 Gate 2 config、exact activation-only identity pattern 與 launchctl `not running` 觀測，將固定 manifest service allowlist 傳入 RSS collector；其他 receipt、normal identity、running state、未驗證 runtime 都不豁免 PID/RSS。
 - GREEN：目標 `1 passed`；`tests/test_pantheon_content_capacity_guard.py` 為 `17 passed`；`tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_runtime_promotion.py` 為 `60 passed`。
 - changed files：本卡、`scripts/pantheon_content_capacity_guard.py`、`tests/test_pantheon_content_capacity_guard.py`。
 - production mutation：`0`
+- P1 RED：目標 regression `1 failed`；ambiguous `state = running`＋`state = not running` 被錯誤判為 `PASS`。
+- P1 fix：抽取所有 state 欄位並要求 cardinality `1`、exact value `not running`；identity／config／manifest authority 不變。
+- P1 GREEN：目標 `1 passed`；完整 capacity `17 passed`；runtime manifest／promotion `60 passed`。

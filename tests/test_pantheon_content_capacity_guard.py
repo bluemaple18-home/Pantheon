@@ -589,6 +589,19 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         }
     ]
 
+    launch_state["value"] = "running\nstate = not running"
+    ambiguous = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+        runner=runner,
+    )
+
+    assert ambiguous["status"] == "NO-GO"
+    assert ambiguous["rss_error"] == (
+        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+    )
+
     launch_state["value"] = "running"
     inconsistent = guard.preflight(
         tmp_path,

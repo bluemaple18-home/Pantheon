@@ -39,7 +39,9 @@ SERVICE_LABELS = (
 ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
     r"gate2-actor:[0-9a-f]{40}:activation-only"
 )
-INERT_LAUNCHCTL_STATE_PATTERN = re.compile(r"^\s*state = not running\s*$", re.MULTILINE)
+LAUNCHCTL_STATE_PATTERN = re.compile(
+    r"^[ \t]*state = ([^\r\n]+?)[ \t]*$", re.MULTILINE
+)
 LOG_NAMES = tuple(
     f"{stem}.{stream}.log"
     for stem in (
@@ -160,9 +162,10 @@ def _service_rss_bytes(
             }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
         if not match:
+            states = LAUNCHCTL_STATE_PATTERN.findall(result.stdout)
             if (
                 label in expected_inert_labels
-                and INERT_LAUNCHCTL_STATE_PATTERN.search(result.stdout) is not None
+                and states == ["not running"]
             ):
                 inert.append({"label": label, "topology": "loaded-but-inert"})
                 continue
