@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "source_sha_exact": true,
+    "worktree_clean_before_evidence": true,
+    "reviewed_module_digest_exact": true,
+    "interpreter_digest_exact": true,
+    "working_directory_locked": true,
+    "python_ignore_environment_flag_locked": true,
+    "import_pass": true,
+    "public_help_pass": true,
+    "formal_manifest_read_pass": true,
+    "darwin_fallback_mocked_tests_pass": true,
+    "capacity_preflight_not_called": true,
+    "new_correlation": true,
+    "prior_authority_not_reused": true,
+    "plan_evidence_root_new": true,
+    "execution_evidence_root_absent": true,
+    "production_mutation_zero": true
+  },
+  "next_gate": "Reviewer approval for the new one-shot fresh capacity payload"
+}
+

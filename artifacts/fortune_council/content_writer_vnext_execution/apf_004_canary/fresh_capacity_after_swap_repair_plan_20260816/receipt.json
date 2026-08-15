@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-FRESH-CAPACITY-AFTER-SWAP-REPAIR-EXECUTION-20260816",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "READY_FOR_NEW_FRESH_CAPACITY_REVIEW",
+  "source_sha": "a6b2334a2bff1a55c5201e26a4867c692ec45db8",
+  "correlation_id": "apf004-fresh-capacity-after-swap-repair-a6b2334a2b-20260815T160546Z",
+  "canonical_payload_digest": "541219e58770eae9d03f24efd7a5caffd8b8ec1f2977b9481a14ae30d8071a52",
+  "capacity_preflight_calls": 0,
+  "production_mutation": 0,
+  "execution_status": "not_executed"
+}

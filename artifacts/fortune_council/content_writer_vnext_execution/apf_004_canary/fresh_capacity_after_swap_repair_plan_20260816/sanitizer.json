@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "patterns": ["local-home-path","private-temp-path","package-manager-path","file-uri","user-identifier"],
+  "matches": 0,
+  "status": "PASS"
+}

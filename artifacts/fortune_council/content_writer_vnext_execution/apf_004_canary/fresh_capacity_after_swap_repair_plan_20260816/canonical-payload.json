@@ -1,0 +1,60 @@
+{
+  "argv": ["<repo-root>/.venv/bin/python","-E","-m","scripts.pantheon_content_capacity_guard","--queue-root","<runtime-root>/queue","--publisher-root","<runtime-root>/state","--log-root","<runtime-root>/logs","--state-file","<runtime-root>/state/content-capacity-guard-state.json","preflight"],
+  "authority": {
+    "authorization_status": "REVIEW_REQUIRED",
+    "prior_authority_reused": false,
+    "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3"
+  },
+  "contract": {
+    "downstream_calls": 0,
+    "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/fresh_capacity_after_swap_repair_execution_20260816",
+    "expected_status": "PASS",
+    "gate_b_calls": 0,
+    "invocation_count": 1,
+    "launchctl_mutations": 0,
+    "production_mutations": 0,
+    "publication_calls": 0,
+    "publisher_reload_calls": 0,
+    "retry_allowed": false,
+    "stop_on_nonzero_ambiguous_or_non_pass": true,
+    "uv_invocations": 0
+  },
+  "correlation_id": "apf004-fresh-capacity-after-swap-repair-a6b2334a2b-20260815T160546Z",
+  "environment": {
+    "APF004_CAPACITY_CORRELATION_ID": "apf004-fresh-capacity-after-swap-repair-a6b2334a2b-20260815T160546Z",
+    "PANTHEON_FORMAL_RUNTIME": "1",
+    "PANTHEON_RUNTIME_ACTIVATION_TOKEN": "<runtime-root>/state/four-lane-activation-g2-a6c4b798a6-20260815T113802Z.barrier",
+    "PANTHEON_RUNTIME_ACTOR_HEAD": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "PANTHEON_RUNTIME_ACTOR_ROOT": "<runtime-root>/actor",
+    "PANTHEON_RUNTIME_CODE_DIGEST": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "PANTHEON_RUNTIME_CONFIG_VERSION": "formal-runtime-v2-gate2",
+    "PANTHEON_RUNTIME_GENERATION": "g2-a6c4b798a6-20260815T113802Z",
+    "PANTHEON_RUNTIME_IDENTITY": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+    "PANTHEON_RUNTIME_IDENTITY_DIGEST": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9",
+    "PANTHEON_RUNTIME_LOG_ROOT": "<runtime-root>/logs",
+    "PANTHEON_RUNTIME_MANIFEST": "<runtime-root>/runtime-manifest.json",
+    "PANTHEON_RUNTIME_MANIFEST_DIGEST": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "<runtime-root>/state",
+    "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "<runtime-python-executable>",
+    "PANTHEON_RUNTIME_QUEUE_ROOT": "<runtime-root>/queue",
+    "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.content-capacity-guard"
+  },
+  "execution_status": "not_executed",
+  "executor_contract": {
+    "fail_closed_before_preflight": true,
+    "locked_working_directory": "<repo-root>",
+    "pre_execution_order": ["resolve reviewed repo root","chdir to reviewed repo root","verify cwd realpath","verify interpreter digest","verify reviewed module path and digest","verify formal manifest and activation token","invoke public module once"],
+    "require_python_ignore_environment": true,
+    "reviewed_module_path": "<repo-root>/scripts/pantheon_content_capacity_guard.py",
+    "reviewed_module_sha256": "8dc8b4a00c70a0a6e18ca3255be433c8751abb128856ae509560e692f0f17916"
+  },
+  "interpreter": {
+    "executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+    "path": "<repo-root>/.venv/bin/python",
+    "version": "3.12.12"
+  },
+  "schema_version": 1,
+  "source_sha": "a6b2334a2bff1a55c5201e26a4867c692ec45db8",
+  "working_directory": "<repo-root>",
+  "canonical_payload_sha256": "541219e58770eae9d03f24efd7a5caffd8b8ec1f2977b9481a14ae30d8071a52"
+}

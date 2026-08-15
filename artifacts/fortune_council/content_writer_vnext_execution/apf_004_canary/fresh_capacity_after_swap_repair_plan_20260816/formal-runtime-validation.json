@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T16:05:46Z",
+  "validator": "scripts.pantheon_content_runtime_manifest.validate_runtime_tick",
+  "require_activation_token": false,
+  "status": "PASS",
+  "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "identity": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+  "generation": "g2-a6c4b798a6-20260815T113802Z",
+  "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "manifest_file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+  "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+  "runtime_identity_digest": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9",
+  "roots": {
+    "actor": "<runtime-root>/actor",
+    "queue": "<runtime-root>/queue",
+    "state": "<runtime-root>/state",
+    "logs": "<runtime-root>/logs",
+    "manifest": "<runtime-root>/runtime-manifest.json",
+    "activation_token": "<runtime-root>/state/four-lane-activation-g2-a6c4b798a6-20260815T113802Z.barrier"
+  },
+  "roots_present": true,
+  "capacity_preflight_calls": 0
+}
+

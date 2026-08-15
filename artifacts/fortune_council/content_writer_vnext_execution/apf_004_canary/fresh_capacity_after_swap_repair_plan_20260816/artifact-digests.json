@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "canonical-payload.json": "742daa24477b79d99c80bdc495a01d1b03f5cf543786f7b3d1e0a8089a17c57b",
+    "delivery-validation.json": "7e79587a41b87d06bc37021819c020dfe465bf4d86fea327b7ebb3e8614e988c",
+    "fallback-validation.json": "7eb7ed6751badc46e02d0b2b6c2fc251cab3bebbf17434cf45d7763831913931",
+    "formal-runtime-validation.json": "cbb6902075d775e05c161d89327880098c9f6e502c37df72141c5ec93dcf709f",
+    "production-mutation-summary.json": "169829b14f34668408bc8b3ff492bdefd12baf02af180849db519c56b4764452",
+    "receipt.json": "583154d14f13190b2d9bc541f1ace4bcb6bd126fbcde47a19fe2adf5285bf01a",
+    "sanitizer.json": "e908f813281e93c68ef19700f14b3873696e7d87ae2f80ea847a545b93ad6a29",
+    "verification.json": "0cf69b0c1382e18e57bb7b4bbc5a60dc5849440c488008dd8b5f9dc5eb002ba3"
+  }
+}

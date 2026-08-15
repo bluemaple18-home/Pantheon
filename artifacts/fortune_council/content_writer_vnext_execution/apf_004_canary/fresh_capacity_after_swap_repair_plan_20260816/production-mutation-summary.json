@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "capacity_preflight_calls": 0,
+  "uv_invocations": 0,
+  "publisher_reload_calls": 0,
+  "launchctl_mutations": 0,
+  "gate_b_calls": 0,
+  "publication_calls": 0,
+  "downstream_calls": 0,
+  "production_mutations": 0
+}
+

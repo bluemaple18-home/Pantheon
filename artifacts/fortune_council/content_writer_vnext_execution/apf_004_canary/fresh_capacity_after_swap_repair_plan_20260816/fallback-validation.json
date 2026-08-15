@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T16:05:46Z",
+  "mode": "mocked_local_isolated",
+  "command": "<repo-root>/.venv/bin/python -E -m pytest -q tests/test_pantheon_content_capacity_guard.py -k <swap-fallback-focused-selector>",
+  "status": "PASS",
+  "passed": 5,
+  "deselected": 18,
+  "covered": ["primary success without fallback","primary command failure with fallback success","primary parse failure remains fail-closed","Darwin native fallback valid usage","Darwin native fallback invalid usage"],
+  "preflight_subcommand_present": false,
+  "capacity_preflight_calls": 0,
+  "live_telemetry_calls": 0,
+  "production_mutation": 0
+}
+
