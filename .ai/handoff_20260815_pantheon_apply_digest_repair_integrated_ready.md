@@ -1,4 +1,4 @@
-# Pantheon：apply plan-digest repair 複審中
+# Pantheon：apply plan-digest repair 已整合，等待新 context
 
 ## Root question
 
@@ -6,25 +6,26 @@
 
 ## Current state
 
-- `origin/main`：`240413eedcc945f1cc023c269322d1cdc537bac3`
+- `origin/main`：`157296ef05b5c1198dbd077bcb822f4c0628fdaf`
 - Gate A 首次核准執行：`BLOCKED_BEFORE_MUTATION`
 - 阻斷證據已整合：`79ae1c33d8991ce1c51405572289003710bdf81b`
 - 修復卡已整合：`.ai/codex_task_apf_004_apply_plan_digest_binding_repair_20260815.md`
 - Implementation candidate：`a1ef82c1ea44a8907dfcd1786119a5d08aba7422`
-- Candidate 驗證：RED `11 failed, 5 passed`；GREEN `16 passed`；production mutation=0。
-- 原 Reviewer thread 正在唯讀複審 candidate。
+- Reviewer：`APPROVED`；P0/P1 findings=0。
+- 整合 commit：`157296ef05b5c1198dbd077bcb822f4c0628fdaf`
+- 主線重驗：`16 passed`；JSON／artifact digests／sanitizer／`git diff --check` PASS；production mutation=0。
 
 ## Blocker
 
-等待 Reviewer 對 `a1ef82c1ea44a8907dfcd1786119a5d08aba7422` 回 `APPROVED` 或 `CHANGES_REQUESTED`。
+無 code blocker。下一個 production frontier 尚未授權。
 
 ## Next step
 
-1. Reviewer `APPROVED`：主線重驗、cherry-pick、push main。
-2. 重新產 deterministic production plan／exact argv 證據。
+1. 新 context 先讀本交接與 `origin/main=157296ef05...`。
+2. 開卡重產修復後 deterministic production plan／exact argv 證據。
 3. 另卡取得全新 Gate A apply 授權；不得沿用舊授權。
 4. Gate A 成功後仍停在 `POSTCHECK_PASSED`；禁止自行 finalize、Gate B或發文。
-5. 持續自動開卡、派工、監工；只有需要使用者授權的 production mutation／scope 變更才停下詢問，不等待使用者重複說「繼續」。
+5. 新 context 持續自動開卡、派工、監工；只有需要使用者授權的 production mutation／scope 變更才停下詢問，不等待使用者重複說「繼續」。
 
 ## Limits
 
