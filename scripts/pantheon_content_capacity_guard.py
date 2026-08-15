@@ -137,22 +137,26 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
     return frozenset()
 
 
-def _launchctl_top_level_states(output: str) -> list[str] | None:
+def _launchctl_top_level_states(
+    output: str,
+    *,
+    expected_target: str,
+) -> list[str] | None:
     """只解析 root service object 的 state；結構不完整時回傳 None。"""
     depth = 0
     root_started = False
     root_closed = False
     states: list[str] = []
     for raw_line in output.splitlines():
-        line = raw_line.strip()
-        if not line:
+        if not raw_line.strip():
             continue
         if not root_started:
-            if LAUNCHCTL_OBJECT_START_PATTERN.fullmatch(line) is None:
+            if raw_line != f"{expected_target} = {{":
                 return None
             root_started = True
             depth = 1
             continue
+        line = raw_line.strip()
         if root_closed:
             return None
         if line == "}":
@@ -187,7 +191,8 @@ def _service_rss_bytes(
     absent: list[dict[str, Any]] = []
     domain = f"gui/{os.getuid()}"
     for label in SERVICE_LABELS:
-        result = runner(["launchctl", "print", f"{domain}/{label}"])
+        target = f"{domain}/{label}"
+        result = runner(["launchctl", "print", target])
         if result.returncode in {3, 113}:
             absent.append({"label": label, "returncode": result.returncode})
             continue
@@ -200,7 +205,10 @@ def _service_rss_bytes(
             }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
         if not match:
-            states = _launchctl_top_level_states(result.stdout)
+            states = _launchctl_top_level_states(
+                result.stdout,
+                expected_target=target,
+            )
             if (
                 label in expected_inert_labels
                 and states == ["not running"]

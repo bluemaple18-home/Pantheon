@@ -13,7 +13,7 @@ from scripts import pantheon_content_capacity_guard as guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
 
-ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """gui/501/com.pantheon.example = {
+ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """<target> = {
 \tactive count = 0
 \tstate = not running
 
@@ -568,7 +568,11 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
 ) -> None:
     """REG-PANTHEON-CAPACITY-LOADED-INERT-NO-PID-001。"""
     identity = {"value": f"gate2-actor:{'a' * 40}:activation-only"}
-    launch_output = {"value": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE}
+
+    def exact_fixture(target: str) -> str:
+        return ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace("<target>", target, 1)
+
+    launch_output = {"build": exact_fixture}
     monkeypatch.setattr(
         guard.formal_runtime,
         "validate_runtime_tick",
@@ -588,7 +592,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         if command[:2] == ["launchctl", "print"]:
             label = command[-1].rsplit("/", 1)[-1]
             if label == "com.pantheon.agy-content-publisher":
-                return _completed(0, launch_output["value"])
+                return _completed(0, launch_output["build"](command[-1]))
             return _completed(113)
         if command == ["sysctl", "-n", "vm.swapusage"]:
             return _completed(0, "total = 0.00M  used = 0.00M  free = 0.00M\n")
@@ -611,24 +615,35 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     ]
 
     invalid_outputs = {
-        "duplicate_top_level": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
-            "\tstate = not running\n",
-            "\tstate = running\n\tstate = not running\n",
-            1,
+        "duplicate_top_level": lambda target: exact_fixture(target).replace(
+            "\tstate = not running\n", "\tstate = running\n\tstate = not running\n", 1
         ),
-        "running": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+        "running": lambda target: exact_fixture(target).replace(
             "\tstate = not running\n", "\tstate = running\n", 1
         ),
-        "waiting": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+        "waiting": lambda target: exact_fixture(target).replace(
             "\tstate = not running\n", "\tstate = waiting\n", 1
         ),
-        "missing": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+        "missing": lambda target: exact_fixture(target).replace(
             "\tstate = not running\n", "", 1
         ),
-        "unbalanced": ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.rsplit("}", 1)[0],
+        "unbalanced": lambda target: exact_fixture(target).rsplit("}", 1)[0],
+        "wrong_root": lambda _target: exact_fixture("garbage-root"),
+        "prefix_spoof": lambda target: exact_fixture(f"spoof-{target}"),
+        "suffix_spoof": lambda target: exact_fixture(f"{target}-spoof"),
+        "leading_whitespace_root": lambda target: " " + exact_fixture(target),
+        "trailing_whitespace_root": lambda target: exact_fixture(target).replace(
+            f"{target} = {{\n", f"{target} = {{ \n", 1
+        ),
+        "other_label": lambda target: exact_fixture(
+            f"{target.rsplit('/', 1)[0]}/com.pantheon.other"
+        ),
+        "multiple_roots": lambda target: exact_fixture(target) + exact_fixture(target),
+        "garbage_prefix": lambda target: "garbage\n" + exact_fixture(target),
+        "garbage_suffix": lambda target: exact_fixture(target) + "garbage\n",
     }
     for case, invalid_output in invalid_outputs.items():
-        launch_output["value"] = invalid_output
+        launch_output["build"] = invalid_output
         invalid = guard.preflight(
             tmp_path,
             tmp_path / "publisher",
@@ -642,7 +657,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         )
 
     identity["value"] = f"gate2-actor:{'a' * 40}:normal"
-    launch_output["value"] = ANONYMIZED_INERT_LAUNCHCTL_FIXTURE
+    launch_output["build"] = exact_fixture
     normal = guard.preflight(
         tmp_path,
         tmp_path / "publisher",

@@ -55,6 +55,10 @@
 - `2026-08-15T07:54:26Z`：read-only production preflight evidence `521b90051ab4cca01b1616e020d2b45ec4eb9895` 證實 launchctl root service state 為 `not running`，但 nested resource／jetsam coalition 各有 `active`；舊 parser 未辨識 brace depth，形成第二次 fail-closed blocker。加入匿名化實機結構 fixture，並鎖定 duplicate top-level、running、waiting、missing、unbalanced 全部拒絕。
 - `2026-08-15T07:56:00Z`：匿名化 live fixture 的 public `preflight` regression 得到目標 RED：預期 `PASS`、實際 `NO-GO`；失敗在 status assertion，非 import／fixture failure。
 - `2026-08-15T07:56:21Z`：最小 parser 以 launchctl brace nesting 追蹤 root depth，只收 root service object 的 state；唯一 `not running` 通過，duplicate／running／waiting／missing／unbalanced 全部拒絕。目標 `1 passed`、capacity `17 passed`、runtime manifest／promotion `60 passed`。
+- `2026-08-15T08:01:24Z`：Reviewer P1 指出 root object header 未綁定當次 requested `gui/<uid>/<label>` target，wrong root、prefix／suffix spoof 或 other label 可能被誤歸屬；新增 exact root 正向與 wrong／prefix／suffix／other label／multiple root／前後 garbage 負向矩陣。
+- `2026-08-15T08:03:00Z`：root identity regression 得到目標 RED；`wrong_root` case 預期 `NO-GO`、實際 `PASS`，失敗在 observable status assertion，非 import／fixture failure。
+- `2026-08-15T08:03:00Z`：最小修復將 `_service_rss_bytes` 當次組成的 exact launchctl target 傳入 parser，root header 必須完整等於 `<target> = {`；目標 `1 passed`、capacity `17 passed`、runtime manifest／promotion `60 passed`。
+- `2026-08-15T08:04:00Z`：補鎖 root header 前後 whitespace 亦不得正規化成通過；最終 regression 數維持 capacity `17 passed`、runtime manifest／promotion `60 passed`，diff-check、debug/path sanitizer PASS。
 
 ## Receipt
 
@@ -72,3 +76,8 @@
 - top-level parser RED：目標 regression `1 failed`；nested coalition states 被錯算成 root service states。
 - top-level parser fix：以 balanced brace depth 辨識唯一 root object，nested coalition state 不計入 service state；identity／config／manifest boundary 未變。
 - top-level parser GREEN：目標 `1 passed`；完整 capacity `17 passed`；runtime manifest／promotion `60 passed`。
+- root identity binding follow-up：`READY_FOR_FOLLOW_UP_CANDIDATE_COMMIT`；production mutation `0`。
+- root identity binding RED：目標 regression `1 failed`；wrong root 被錯誤接受。
+- root identity binding fix：exact target 由 `gui/<current uid>/<current label>` command target 傳入，未 hardcode uid／label；prefix／suffix／other label／multiple root／garbage 全部拒絕。
+- root identity binding GREEN：目標 `1 passed`；完整 capacity `17 passed`；runtime manifest／promotion `60 passed`。
+- root identity binding verification：raw root header exact match；leading／trailing whitespace、prefix／suffix、other label、multiple root、前後 garbage 全部 fail closed。
