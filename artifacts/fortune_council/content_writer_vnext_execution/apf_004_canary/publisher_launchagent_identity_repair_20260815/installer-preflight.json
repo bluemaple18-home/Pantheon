@@ -1,0 +1,10 @@
+{
+  "command": "<runtime-root>/actor/scripts/install_agy_content_publisher_launchd.sh --preflight",
+  "exit_code": 1,
+  "invocation_count": 1,
+  "operation": "official publisher installer --preflight",
+  "production_mutation": 0,
+  "schema_version": 1,
+  "stderr": "publisher actor HEAD 與 origin/main 不一致，拒絕部署\n",
+  "stdout": ""
+}

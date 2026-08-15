@@ -1,0 +1,247 @@
+{
+  "actor": {
+    "clean": true,
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "origin_main": "79bdc809b0b7e17005c5420236dfb71e2bf794c2"
+  },
+  "formal_manifest": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "actor_root": "<runtime-root>/actor",
+    "config_version": "formal-runtime-v2-gate2",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "identity": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+    "log_root": "<runtime-root>/logs",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "owner_uid": 501,
+    "publisher_state_root": "<runtime-root>/state",
+    "python_executable": "<runtime-python-executable>",
+    "queue_root": "<runtime-root>/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+    "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ]
+  },
+  "host": {
+    "available_bytes": 51811770368,
+    "total_bytes": 245107195904
+  },
+  "private_staged_plist": {
+    "exists": false,
+    "sha256": null
+  },
+  "production_publication_mutation": 0,
+  "repository": {
+    "clean": true,
+    "head": "f0e1e9b47eb9aa8c2825fc3ffaa9392753d2df82",
+    "origin_main": "f0e1e9b47eb9aa8c2825fc3ffaa9392753d2df82"
+  },
+  "roots": {
+    "evidence_exists": false,
+    "private_stage": {
+      "exists": true,
+      "file_count": 7,
+      "tree_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+    },
+    "queue": {
+      "exists": true,
+      "file_count": 0,
+      "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "state": {
+      "exists": true,
+      "file_count": 2,
+      "tree_digest": "cca8eacf87cc01afa7adb37e77fc284f6e8429d10d1001fc4c8a9357a6e7a2ce"
+    }
+  },
+  "sampled_at": "2026-08-15T10:19:39.784898Z",
+  "schema_version": 1,
+  "services": [
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-content-publisher",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "484fea46ec1fa83277d6ef3c7d945cbdf919f0ecabfea37442e013b583edd994",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-gemini-coordinator",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "2dcaf09663a638dadb133171b0f1b06660fd5770cc423370ae8b45005dfa3bb1",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-gemini-new",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "a8a8a9cce41e3dd1d5b1d0e0a0fac3096b208e479399e4cd9504b2175263ff30",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-gemini-rewrite",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "5a4699d6ce1e9a11ff7a64081863d4a98cf3a156597ab08af5752e058f0a1b58",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-gemini-i18n-new",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "69cb4dcbe950fc26ebe51d53db2c1a38099623889a40dc320ddc67e4abba43ea",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.agy-gemini-i18n-rewrite",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "f997e416878247f7d502d5e9ddd36f087a6bbe7aea9d36d2160e4dd23aa4784a",
+      "returncode": 0,
+      "top_level_state": "not running"
+    },
+    {
+      "identity": {
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+      },
+      "label": "com.pantheon.content-capacity-guard",
+      "last_exit_code": "78: EX_CONFIG",
+      "pids": [],
+      "raw_sha256": "70b669e2689299275f17f1dfc4e732ea067e1b0ab2c3f3e7908ccc25e21f3e06",
+      "returncode": 0,
+      "top_level_state": "not running"
+    }
+  ],
+  "target_plist": {
+    "exists": true,
+    "payload": {
+      "EnvironmentVariables": {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_PUBLISHER_STDERR_LOG": "<runtime-root>/logs/agy-content-publisher.stderr.log",
+        "PANTHEON_PUBLISHER_STDOUT_LOG": "<runtime-root>/logs/agy-content-publisher.stdout.log",
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "PANTHEON_RUNTIME_ACTOR_ROOT": "<runtime-root>/actor",
+        "PANTHEON_RUNTIME_CODE_DIGEST": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+        "PANTHEON_RUNTIME_CONFIG_VERSION": "formal-runtime-v2-gate2",
+        "PANTHEON_RUNTIME_GENERATION": "g2-9d8573e962-20260814T104149Z",
+        "PANTHEON_RUNTIME_IDENTITY": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a",
+        "PANTHEON_RUNTIME_LOG_ROOT": "<runtime-root>/logs",
+        "PANTHEON_RUNTIME_MANIFEST": "<runtime-root>/runtime-manifest.json",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "<runtime-root>/state",
+        "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "<runtime-python-executable>",
+        "PANTHEON_RUNTIME_QUEUE_ROOT": "<runtime-root>/queue",
+        "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.agy-content-publisher",
+        "PATH": "<homebrew-bin>:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      },
+      "Label": "com.pantheon.agy-content-publisher",
+      "ProcessType": "Background",
+      "ProgramArguments": [
+        "<runtime-python-executable>",
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "barrier-exec",
+        "--barrier",
+        "<runtime-root>/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier",
+        "--expected-digest",
+        "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+        "--manifest",
+        "<runtime-root>/runtime-manifest.json",
+        "--service-label",
+        "com.pantheon.agy-content-publisher",
+        "--ready-root",
+        "<private-stage-root>/readiness/g2-9d8573e962-20260814T104149Z",
+        "--timeout",
+        "90",
+        "--activation-only",
+        "--",
+        "<runtime-python-executable>",
+        "-m",
+        "scripts.agy_content_publisher",
+        "--repo-root",
+        "<runtime-root>/actor",
+        "--queue-root",
+        "<runtime-root>/queue",
+        "--state-root",
+        "<runtime-root>/state",
+        "--max-runs",
+        "3",
+        "--include-rewrites",
+        "--push",
+        "--expected-repo-root",
+        "<runtime-root>/actor",
+        "--expected-queue-root",
+        "<runtime-root>/queue",
+        "--expected-state-root",
+        "<runtime-root>/state",
+        "--expected-runtime-sha",
+        "9d8573e9624d09748d029cab7d0209e1e14730c9",
+        "--expected-runtime-digest",
+        "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+        "--expected-push-mode",
+        "push"
+      ],
+      "RunAtLoad": true,
+      "StandardErrorPath": "<runtime-root>/logs/agy-content-publisher.stderr.log",
+      "StandardOutPath": "<runtime-root>/logs/agy-content-publisher.stdout.log",
+      "StartInterval": 60,
+      "ThrottleInterval": 60,
+      "WorkingDirectory": "<runtime-root>/actor"
+    },
+    "sha256": "bd13228bfeab4f6398e12afbb525a566b35b7c4965397832d8ecd28146da5c1d"
+  }
+}

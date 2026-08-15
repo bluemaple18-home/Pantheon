@@ -1,0 +1,21 @@
+{
+  "blocker": "FORMAL_STAGED_PLIST_UNAVAILABLE",
+  "blocker_frontier": "official publisher installer must support the promoted detached actor authority contract without mutating actor refs or hand-authoring plist",
+  "capacity_verdict": "NOT_EXECUTED_PREREQUISITE_BLOCKED",
+  "card_id": "APF-004-PUBLISHER-LAUNCHAGENT-IDENTITY-REPAIR-20260815",
+  "formal_identity": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2"
+  },
+  "loaded_identity_before": {
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+  },
+  "production_mutation_count": 0,
+  "rollback_count": 0,
+  "schema_version": 1,
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "BLOCKED_BEFORE_MUTATION"
+}

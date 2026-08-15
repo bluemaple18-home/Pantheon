@@ -1,0 +1,18 @@
+{
+  "algorithm": "sha256",
+  "artifacts": {
+    "formal-runtime-manifest.json": "70c2a0e2b95d5666c1d89f9561c3332a82802b6313e9ffe1d04ed83c2be43958",
+    "installer-preflight.json": "692ec396b6bb4521c716ecefc3a52b40f2817a7a8a298b40bae97cf9cc09ab2f",
+    "launchctl-publisher-before.json": "2d22eea3a30842e630302dbad67653bc3b9ca8f4b2fc8c1d3699ad7d19b146e9",
+    "post-snapshot.json": "878ac1f209ab027a06bb18d90b8788597bdfe92e1b35ce4d4d93c9bedbae7e62",
+    "pre-snapshot.json": "b5cfc4bdbe94b1057561f571f9320fbffee30002e501384f5f400ed0678f8e03",
+    "private-stage-validation.json": "2a0ceea927509b35f9505ba8df33c85baaa10b1665453339e5169e8f2ce4fd3a",
+    "production-mutation-summary.json": "1093f907d081efd6705e33c70bab7b3020f2817a549b16d86e16681090225c7e",
+    "receipt.json": "7fbcb6b9c54b21d85949fb8544fc8780294ecd9550f13cec5cc75992742cd32a",
+    "red-assertion.json": "8c6c89e0d3df3b7dcb34f78f92a2e15e944a4ef1b73fbdc2cd2d5e5375936812",
+    "root-cause-hypotheses.json": "d31101b70f51cc2b54df1292b72bbf1fffca8881b5faeb0f834183628a1f04eb",
+    "target-plist-before.json": "a62333182953616da4eef8a683d89430463e6da2a10434db9af767b3a4181bda",
+    "verification.json": "a1062dfaf428bcabdbd9651e21a379e03c510d7fa9e46f11b4c99ef30ac753bd"
+  },
+  "schema_version": 1
+}

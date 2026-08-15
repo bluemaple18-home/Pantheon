@@ -1,0 +1,18 @@
+{
+  "hypotheses": [
+    {
+      "claim": "a formal staged publisher plist already exists and only the live target was missed",
+      "falsifier": "private staged publisher plist is absent",
+      "id": "H1",
+      "result": "FALSIFIED"
+    },
+    {
+      "claim": "the official installer cannot safely stage because promoted actor HEAD and its origin/main authority ref differ",
+      "falsifier": "official installer --preflight succeeds from the formal actor",
+      "id": "H2",
+      "result": "SUPPORTED"
+    }
+  ],
+  "root_cause": "aggregate promotion installed an exact detached actor whose retained origin/main ref is older; the official publisher installer requires actor HEAD == actor origin/main, so no formal staged plist can be produced within this card's boundaries",
+  "schema_version": 1
+}

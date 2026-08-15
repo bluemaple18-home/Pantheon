@@ -1,0 +1,26 @@
+{
+  "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "actor_root": "<runtime-root>/actor",
+  "config_version": "formal-runtime-v2-gate2",
+  "generation": "g2-28b8b84b6d-20260815T024433Z",
+  "identity": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+  "log_root": "<runtime-root>/logs",
+  "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "owner_uid": 501,
+  "publisher_state_root": "<runtime-root>/state",
+  "python_executable": "<runtime-python-executable>",
+  "queue_root": "<runtime-root>/queue",
+  "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+  "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb",
+  "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7",
+  "schema_version": 2,
+  "service_labels": [
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.agy-gemini-coordinator",
+    "com.pantheon.agy-gemini-new",
+    "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new",
+    "com.pantheon.agy-gemini-i18n-rewrite",
+    "com.pantheon.content-capacity-guard"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "assertions": {
+    "loaded_actor_differs_from_formal": true,
+    "loaded_generation_differs_from_formal": true,
+    "loaded_manifest_digest_differs_from_formal": true,
+    "official_installer_preflight_passed": false,
+    "private_staged_publisher_plist_exists": false,
+    "publisher_last_exit_is_ex_config": true,
+    "target_plist_differs_from_formal": true
+  },
+  "expected_green": "loaded and target publisher identities equal formal manifest; no EX_CONFIG; staged plist validated",
+  "observed_blocker": "formal staged publisher plist is absent and official installer rejects actor HEAD/origin-main drift before staging",
+  "schema_version": 1,
+  "status": "RED"
+}

@@ -1,0 +1,26 @@
+{
+  "before_after_unchanged": {
+    "actor": true,
+    "formal_manifest": true,
+    "private_staged_plist": true,
+    "roots": true,
+    "services": true,
+    "target_plist": true
+  },
+  "bootout_calls": 0,
+  "bootstrap_calls": 0,
+  "capacity_verification_calls": 0,
+  "create_run_calls": 0,
+  "kickstart_calls": 0,
+  "other_launchagent_mutations": 0,
+  "production_mutation_count": 0,
+  "publication_mutation_count": 0,
+  "publish_calls": 0,
+  "push_calls": 0,
+  "rollback_calls": 0,
+  "schema_version": 1,
+  "select_calls": 0,
+  "tag_calls": 0,
+  "target_plist_install_calls": 0,
+  "transaction_calls": 0
+}

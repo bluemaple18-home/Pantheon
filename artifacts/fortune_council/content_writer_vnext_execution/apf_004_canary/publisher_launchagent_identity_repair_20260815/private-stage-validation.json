@@ -1,0 +1,11 @@
+{
+  "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "actor_origin_main": "79bdc809b0b7e17005c5420236dfb71e2bf794c2",
+  "exists": false,
+  "expected_plist": "<private-stage-root>/com.pantheon.agy-content-publisher.plist",
+  "formal_readiness_ack_exists": true,
+  "manual_plist_generation_allowed": false,
+  "official_preflight_exit_code": 1,
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

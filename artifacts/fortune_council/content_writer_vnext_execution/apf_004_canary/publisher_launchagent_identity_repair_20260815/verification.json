@@ -1,0 +1,40 @@
+{
+  "before_after_unchanged": {
+    "actor": true,
+    "formal_manifest": true,
+    "private_staged_plist": true,
+    "roots": true,
+    "services": true,
+    "target_plist": true
+  },
+  "official_installer_preflight": {
+    "command": "<runtime-root>/actor/scripts/install_agy_content_publisher_launchd.sh --preflight",
+    "exit_code": 1,
+    "invocation_count": 1,
+    "operation": "official publisher installer --preflight",
+    "production_mutation": 0,
+    "schema_version": 1,
+    "stderr": "publisher actor HEAD 與 origin/main 不一致，拒絕部署\n",
+    "stdout": ""
+  },
+  "private_stage_validation": "BLOCKED",
+  "production_mutation_count": 0,
+  "red_assertion": {
+    "assertions": {
+      "loaded_actor_differs_from_formal": true,
+      "loaded_generation_differs_from_formal": true,
+      "loaded_manifest_digest_differs_from_formal": true,
+      "official_installer_preflight_passed": false,
+      "private_staged_publisher_plist_exists": false,
+      "publisher_last_exit_is_ex_config": true,
+      "target_plist_differs_from_formal": true
+    },
+    "expected_green": "loaded and target publisher identities equal formal manifest; no EX_CONFIG; staged plist validated",
+    "observed_blocker": "formal staged publisher plist is absent and official installer rejects actor HEAD/origin-main drift before staging",
+    "schema_version": 1,
+    "status": "RED"
+  },
+  "remaining_risk": "publisher remains loaded with the prior identity and EX_CONFIG until a reviewed official staging path is available",
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_MUTATION"
+}
