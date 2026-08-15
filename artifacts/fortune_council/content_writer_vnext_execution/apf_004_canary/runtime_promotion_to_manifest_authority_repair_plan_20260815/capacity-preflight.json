@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T11:38:44Z",
+  "entrypoint": "uv run --python <repo-root>/.venv/bin/python --frozen python -m scripts.pantheon_content_capacity_guard preflight",
+  "invocation_count": 1,
+  "exit_code": 0,
+  "result": {
+    "status": "PASS",
+    "reasons": [],
+    "bytes": 1820572,
+    "file_count": 16,
+    "disk_free_bytes": 52109996032,
+    "disk_total_bytes": 245107195904,
+    "rss_available": true,
+    "rss_bytes": 0,
+    "rss_error": null,
+    "inert_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite"
+    ],
+    "loaded_labels": [],
+    "absent_labels": [],
+    "swap_available": true,
+    "swap_error": null,
+    "swap_used_bytes": 22761313402
+  },
+  "production_mutation": 0
+}

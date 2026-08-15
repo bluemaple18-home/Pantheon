@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "production_mutation": 0,
+  "capacity_preflight_calls": 1,
+  "promotion_plan_calls": 1,
+  "promotion_apply_calls": 0,
+  "promotion_rollback_calls": 0,
+  "promotion_finalize_calls": 0,
+  "manual_copy_calls": 0,
+  "launchctl_mutations": 0,
+  "publisher_reload_calls": 0,
+  "create_run_calls": 0,
+  "select_calls": 0,
+  "publication_calls": 0,
+  "business_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "tool_service": "local production runtime filesystem and public promotion CLI",
+  "operation_level": "read_only_plan",
+  "connection_status": "local host available",
+  "schema_checked": true,
+  "confirmation_required": false,
+  "execution_status": "plan completed without production mutation",
+  "plan_calls": 1,
+  "apply_calls": 0,
+  "remaining_risk": "apply would replace actor, manifest, private stage, and activation barrier; it remains gated by independent plan review"
+}

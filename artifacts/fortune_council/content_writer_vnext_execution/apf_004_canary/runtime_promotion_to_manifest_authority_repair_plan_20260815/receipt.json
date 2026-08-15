@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-RUNTIME-PROMOTION-TO-MANIFEST-AUTHORITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "PLAN_READY",
+  "repository_head": "f337fcccf4d86e8a6e14cb1534a2df6c1b7787ca",
+  "current_actor_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "current_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "target_source_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "target_runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+  "target_manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "target_generation": "g2-a6c4b798a6-20260815T113802Z",
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "authorization_digest": "034ffcce8a6f02943a780d1ddeb55e7af08d486dc5c9ed547df29295c9e38e8f",
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "exact_apply_argv_digest": "30f07fc390c3b7110ccdee0698737f410a9ea5f70e68c79f0482bda49d2f4de5",
+  "capacity_verdict": "PASS",
+  "transaction_root_present": false,
+  "production_mutation": 0,
+  "next_gate": "independent review of this immutable plan before Phase 2 apply"
+}

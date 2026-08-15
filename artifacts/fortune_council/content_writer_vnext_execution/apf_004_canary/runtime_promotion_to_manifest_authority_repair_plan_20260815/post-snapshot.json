@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T11:40:12Z",
+  "source_repo": {
+    "head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "clean": true
+  },
+  "current_runtime": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "actor_clean": true,
+    "manifest_file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "private_stage_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "queue_runs_present": true,
+    "queue_gsc_copy_present": false,
+    "runtime_gsc_copy_present": false,
+    "state_file_count": 2,
+    "state_tree_digest": "cca8eacf87cc01afa7adb37e77fc284f6e8429d10d1001fc4c8a9357a6e7a2ce",
+    "transaction_root_present": false
+  },
+  "host": {
+    "available_kib": 51456176,
+    "total_kib": 239362496,
+    "swap_total_mib": 22528.00,
+    "swap_used_mib": 21594.88,
+    "swap_free_mib": 933.12,
+    "capacity_threshold_pass": true
+  },
+  "plan_calls": 1,
+  "production_mutation": 0
+}

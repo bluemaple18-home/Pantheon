@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "authorization_status": "AUTHORIZED_PLAN_ONLY",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "scope": "deterministic-runtime-promotion-plan",
+  "target_source_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "expected_current_actor_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "expected_current_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "plan_calls": 1,
+  "allowed_repository_write": "Phase 1 evidence root only",
+  "prohibited": [
+    "apply",
+    "rollback",
+    "finalize",
+    "manual runtime copy",
+    "runtime mutation",
+    "launchctl mutation",
+    "publish",
+    "create run",
+    "select",
+    "business transaction",
+    "tag",
+    "push",
+    "schedule mutation"
+  ]
+}

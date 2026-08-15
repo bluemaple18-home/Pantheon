@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "transaction_root": "<runtime-root>/backups/apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "transaction_root_present_after_plan": false,
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "generation": "g2-a6c4b798a6-20260815T113802Z",
+  "ordered_states": [
+    "PREPARED",
+    "ACTOR_PROMOTED",
+    "MANIFEST_WRITTEN",
+    "STAGE_INSTALLED",
+    "POSTCHECK_PASSED",
+    "COMMITTED"
+  ],
+  "rollback_bundle": "<transaction-root>/rollback-bundle",
+  "rollback_order": [
+    "STAGE_INSTALLED",
+    "MANIFEST_WRITTEN",
+    "ACTOR_PROMOTED"
+  ],
+  "apply_contract": "one public apply call with exact expected plan digest; nonzero or ambiguous result is not retried",
+  "rollback_contract": "only the public apply state machine may perform its atomic rollback",
+  "finalize_contract": "independent review is required before one public finalize call",
+  "phase_1_execution": {
+    "apply": 0,
+    "rollback": 0,
+    "finalize": 0
+  }
+}

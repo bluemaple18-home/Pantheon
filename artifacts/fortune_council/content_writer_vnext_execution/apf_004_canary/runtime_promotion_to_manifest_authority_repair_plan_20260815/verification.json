@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "repository_exact_origin_main": true,
+    "source_exact_clean_origin": true,
+    "current_actor_exact_clean_origin": true,
+    "current_manifest_exact": true,
+    "private_stage_digest_exact": true,
+    "capacity_receipt_digest_exact": true,
+    "capacity_preflight_pass": true,
+    "queue_empty_after_plan": true,
+    "gsc_copy_absent_after_plan": true,
+    "transaction_root_absent_before_and_after_plan": true,
+    "plan_ready_to_apply": true,
+    "target_manifest_digest_locked": true,
+    "exact_apply_argv_digest_locked": true,
+    "apply_not_executed": true,
+    "finalize_not_executed": true,
+    "production_mutation_zero": true
+  },
+  "observation_limits": {
+    "fresh_pre_plan_queue_tree_digest": "unavailable; queue emptiness was freshly verified after the read-only plan and no before/after digest equality is claimed",
+    "plan_determinism_replay": "not executed because the card forbids a second plan on the same root"
+  }
+}
