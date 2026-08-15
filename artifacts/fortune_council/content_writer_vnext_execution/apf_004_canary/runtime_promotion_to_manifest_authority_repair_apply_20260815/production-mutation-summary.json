@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "production_mutation": 1,
+  "mutation_type": "single governed runtime promotion transaction",
+  "apply_calls": 1,
+  "apply_retries": 0,
+  "write_set": {
+    "actor_promoted": 1,
+    "manifest_written": 1,
+    "private_stage_installed": 1,
+    "activation_barrier_written": 1
+  },
+  "rollback_calls": 0,
+  "finalize_calls": 0,
+  "manual_copy_calls": 0,
+  "launchctl_mutations": 0,
+  "publisher_reload_calls": 0,
+  "queue_business_writes": 0,
+  "publisher_state_business_writes": 0,
+  "create_run_calls": 0,
+  "select_calls": 0,
+  "publication_calls": 0,
+  "business_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0
+}

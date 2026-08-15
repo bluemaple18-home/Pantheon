@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:02:30Z",
+  "entrypoint": "<runtime-python-executable> -m scripts.pantheon_content_runtime_promotion apply",
+  "invocation_count": 1,
+  "exit_code": 0,
+  "stdout_sha256_raw": "bdcbb0db4a432fba5d261653792110a93e9a687b3b939d4aff341009d3ff180c",
+  "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "result": {
+    "status": "POSTCHECK_PASSED",
+    "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+    "target_manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "rollback_bundle": "<transaction-root>/rollback-bundle"
+  },
+  "retry_executed": false,
+  "finalize_executed": false
+}

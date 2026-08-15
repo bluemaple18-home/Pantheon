@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:02:30Z",
+  "normalization": "rollback_bundle path replaced with <transaction-root>",
+  "raw_sha256": "bdcbb0db4a432fba5d261653792110a93e9a687b3b939d4aff341009d3ff180c",
+  "payload": {
+    "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+    "rollback_bundle": "<transaction-root>/rollback-bundle",
+    "status": "POSTCHECK_PASSED",
+    "target_manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54"
+  }
+}

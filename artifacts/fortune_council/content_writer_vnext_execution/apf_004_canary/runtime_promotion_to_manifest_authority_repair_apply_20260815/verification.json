@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "fresh_capacity_preflight_pass": true,
+    "durable_attempt_consumed_before_call": true,
+    "exact_apply_argv_digest_verified": true,
+    "apply_called_once": true,
+    "apply_retry_zero": true,
+    "apply_exit_zero": true,
+    "transaction_state_postcheck_passed": true,
+    "plan_digest_exact": true,
+    "target_actor_exact_clean_origin": true,
+    "target_manifest_digest_exact": true,
+    "target_generation_exact": true,
+    "private_stage_installed": true,
+    "queue_remains_empty": true,
+    "gsc_copy_absent": true,
+    "rollback_bundle_retained": true,
+    "repair2_entrypoint_present_in_promoted_actor": true,
+    "finalize_not_executed": true,
+    "launchctl_not_mutated": true,
+    "downstream_zero": true
+  },
+  "next_gate": "independent review before one public finalize call"
+}

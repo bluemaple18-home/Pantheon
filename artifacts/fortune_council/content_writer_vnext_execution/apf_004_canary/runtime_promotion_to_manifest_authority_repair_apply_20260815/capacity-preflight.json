@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:01:09Z",
+  "invocation_count": 1,
+  "exit_code": 0,
+  "status": "PASS",
+  "reasons": [],
+  "bytes": 1820572,
+  "file_count": 16,
+  "disk_free_bytes": 52423999488,
+  "disk_total_bytes": 245107195904,
+  "rss_available": true,
+  "rss_bytes": 0,
+  "rss_error": null,
+  "inert_label_count": 6,
+  "loaded_label_count": 0,
+  "absent_label_count": 0,
+  "swap_available": true,
+  "swap_used_bytes": 22527407554,
+  "production_mutation": 0
+}

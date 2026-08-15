@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+  "created_at": "2026-08-15T12:02:28+00:00",
+  "updated_at": "2026-08-15T12:02:30+00:00",
+  "state": "POSTCHECK_PASSED",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "authorization_digest": "034ffcce8a6f02943a780d1ddeb55e7af08d486dc5c9ed547df29295c9e38e8f",
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "target_actor_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "target_manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "history": [
+    {"state": "PREPARED", "sampled_at": "2026-08-15T12:02:28+00:00"},
+    {"state": "ACTOR_PROMOTED", "sampled_at": "2026-08-15T12:02:30+00:00"},
+    {"state": "MANIFEST_WRITTEN", "sampled_at": "2026-08-15T12:02:30+00:00"},
+    {"state": "STAGE_INSTALLED", "sampled_at": "2026-08-15T12:02:30+00:00"},
+    {"state": "POSTCHECK_PASSED", "sampled_at": "2026-08-15T12:02:30+00:00"}
+  ],
+  "raw_receipt_sha256": "c536c06a03c8d652a98e79e9e3009a7395102f4c3d56366d153d41d4e11c0c18"
+}

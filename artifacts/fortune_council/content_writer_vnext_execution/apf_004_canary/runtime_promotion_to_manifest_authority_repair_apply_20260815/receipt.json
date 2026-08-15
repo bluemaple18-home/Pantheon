@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-RUNTIME-PROMOTION-TO-MANIFEST-AUTHORITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "APPLIED_ONCE_POSTCHECK_PASSED",
+  "candidate_base": "a88fb332d567e601bbc3ae68c3bb9a710e513a32",
+  "apply_calls": 1,
+  "apply_exit_code": 0,
+  "transaction_state": "POSTCHECK_PASSED",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "exact_apply_argv_digest": "30f07fc390c3b7110ccdee0698737f410a9ea5f70e68c79f0482bda49d2f4de5",
+  "actor_before": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "actor_after": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "manifest_before": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "manifest_after": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "generation_after": "g2-a6c4b798a6-20260815T113802Z",
+  "capacity_preflight": "PASS",
+  "rollback_bundle": "RETAINED",
+  "finalize_calls": 0,
+  "production_mutation": 1,
+  "next_gate": "independent review; do not finalize or reload publisher yet"
+}

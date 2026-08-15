@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:01:16Z",
+  "state": "POSTCHECK_PASSED",
+  "attempt_started_at": "2026-08-15T12:01:16Z",
+  "completed_at": "2026-08-15T12:02:30Z",
+  "apply_calls": 1,
+  "retry_allowed": false,
+  "target_source_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "exact_apply_argv_digest": "30f07fc390c3b7110ccdee0698737f410a9ea5f70e68c79f0482bda49d2f4de5",
+  "authorization_digest": "034ffcce8a6f02943a780d1ddeb55e7af08d486dc5c9ed547df29295c9e38e8f",
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "transaction_root": "<runtime-root>/backups/apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/runtime_promotion_to_manifest_authority_repair_apply_20260815",
+  "last_outcome": "APPLIED_ONCE_POSTCHECK_PASSED",
+  "apply_exit_code": 0
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:00:51Z",
+  "repository_head": "a88fb332d567e601bbc3ae68c3bb9a710e513a32",
+  "source": {
+    "head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "clean": true,
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2"
+  },
+  "current_runtime": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "actor_clean": true,
+    "actor_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "manifest_file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "private_stage_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 2,
+    "state_tree_digest": "cca8eacf87cc01afa7adb37e77fc284f6e8429d10d1001fc4c8a9357a6e7a2ce",
+    "queue_gsc_copy_present": false,
+    "runtime_gsc_copy_present": false,
+    "transaction_root_present": false
+  },
+  "host": {
+    "available_kib": 51195464,
+    "total_kib": 239362496,
+    "swap_used_mib": 21483.81,
+    "capacity_threshold_pass": true
+  },
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "production_mutation": 0
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "root": "<transaction-root>/rollback-bundle",
+  "status": "RETAINED_FOR_INDEPENDENT_REVIEW",
+  "entries": [
+    {
+      "name": "actor.previous",
+      "type": "tree",
+      "file_count": 6341,
+      "bytes": 608669696,
+      "tree_digest": "b72c8c4ddb9f5a2c89fcc866e6f40889189640e26ceadcf1a4bc992f3c5cd26a"
+    },
+    {
+      "name": "runtime-manifest.previous.json",
+      "type": "file",
+      "sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9"
+    },
+    {
+      "name": "private-stage.previous",
+      "type": "tree",
+      "file_count": 7,
+      "bytes": 28672,
+      "tree_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+    }
+  ],
+  "target_activation_barrier_previous": "not_present_before_apply",
+  "finalize_executed": false
+}

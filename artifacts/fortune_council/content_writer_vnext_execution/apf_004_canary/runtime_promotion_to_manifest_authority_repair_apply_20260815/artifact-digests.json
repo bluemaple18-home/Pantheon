@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "apply-result.json": "50298de7dc24dfc7ec7fbe0b4a9ae9508cfbb3977565378b23fbd752736977e4",
+    "apply-state.json": "284abc3176c6b3287e9c594c0f8fb8254b8254c4d4e77fe74b693bfef9abbd7b",
+    "apply-stderr.json": "64b28ff60efa694339a498db418e5e961490fc93cc113a2c4d0b966257320100",
+    "apply-stdout.json": "44b4da9e7fe188a401ee6f5b4ac62c525ab5d44895d8db2d3bd5989cf16462dd",
+    "capacity-preflight.json": "e4b4d40443678addc14f3c43588ba1e883450d9c571e3d91af9bd20f89048c10",
+    "post-snapshot.json": "dfdc773383da16084252aa82fd93da8acb14c077941178106c14c57c95858258",
+    "pre-snapshot.json": "dfc3e135545dbd5fd48cc82f4465c8500683c787b5e9cec230e16dbd7072a8ab",
+    "production-mutation-summary.json": "68a2bf1fc22c57297616489e14c06d2f774df1d49702ad9843675079b3669504",
+    "receipt.json": "5c3ec5cf2f4ca978a1a2a90f78f077ac800d758f9773c3eb52555874cdc8a2e7",
+    "rollback-bundle-inventory.json": "123d1c350395d2c8831271c225fd624d9243a638f268a9d86548a7e2d18697d4",
+    "transaction-receipt.json": "102c2432c223cfe68da4c475ba3a3f455f3e1a2749f17269e1f0892859f86630",
+    "verification.json": "e02ac3d74deab922d7e0f04a2425283c03e235e63466be921dfadcd4d4af7224"
+  }
+}

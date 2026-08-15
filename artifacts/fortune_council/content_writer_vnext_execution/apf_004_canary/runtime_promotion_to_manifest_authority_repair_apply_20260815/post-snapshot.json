@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T12:02:56Z",
+  "runtime": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "actor_clean": true,
+    "actor_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "repair2_flag_matches": 6,
+    "manifest_actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "manifest_file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+    "identity": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "private_stage_digest": "a4ea84451b5e897ea4be5a5c82aa7a0dc05947b90a988579b996d26cca1222f4"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 3,
+    "state_tree_digest": "b5955204a29d37be7ac5387fac86b50db45e7688fb76e88a273e3a422bcd0bfb",
+    "queue_gsc_copy_present": false,
+    "runtime_gsc_copy_present": false,
+    "transaction_root_present": true,
+    "rollback_bundle_present": true
+  },
+  "host": {
+    "available_kib": 51079056,
+    "total_kib": 239362496,
+    "swap_used_mib": 21483.81,
+    "capacity_threshold_pass": true
+  },
+  "transaction_state": "POSTCHECK_PASSED"
+}
