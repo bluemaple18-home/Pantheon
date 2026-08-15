@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-DETERMINISTIC-PLAN-SOURCE-SHA-REPAIR",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "base_candidate_sha": "e8308faaeadc4033ac8247fa262e00918f46c69a",
+  "repair_card_sha": "4a1cccc9e90a7444f33c28b7d94b16649475788b",
+  "authoritative_target_source_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "prior_stale_target_source_sha": "0bf78f0b0cac6743fef4dae4aa76e21ebbaffe35",
+  "activation_token_digest": "55beb47396421428e35748d36646bfe74679a7521874380c1d15fe009d0bf7a3",
+  "verdict": "PLAN_READY",
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "target_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "exact_apply_argv_digest": "7eda8a88c32aff500b926f40f8151ae8a7153a2bfc37d13661a483acbb37136c",
+  "production_mutation": 0,
+  "context_status": "CODEGRAPH_READY",
+  "candidate_sha": "self_commit_reported_out_of_band",
+  "next_required_authority": "Existing Reviewer thread must independently review the fixed candidate SHA; a fresh Gate A apply authorization is required after integration.",
+  "limits": [
+    "apply not executed",
+    "rollback not executed",
+    "finalize not executed",
+    "Gate B not executed",
+    "no publish/deploy/queue-write/transaction-write/tag/push"
+  ]
+}

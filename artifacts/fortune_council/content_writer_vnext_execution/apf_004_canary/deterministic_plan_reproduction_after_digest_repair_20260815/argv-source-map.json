@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "authority": "plan-attempt-1.json",
+  "mapping": {
+    "executable": "live runtime manifest python_executable; path sanitized, executable identity retained",
+    "source_repo": "existing clean source worktree at the authoritative target SHA",
+    "source_sha": "authoritative target source HEAD",
+    "expected_origin": "live source and actor origin",
+    "actor_root": "live runtime manifest actor_root",
+    "expected_current_actor_sha": "live actor HEAD and manifest actor_head",
+    "manifest_path": "live runtime manifest path",
+    "expected_current_manifest_digest": "validated live manifest manifest_digest",
+    "private_stage_root": "live four-lane private stage root",
+    "expected_current_stage_digest": "byte-sensitive live private-stage tree digest",
+    "transaction_root": "new absent planned target under runtime backups",
+    "queue_root": "live runtime manifest queue_root",
+    "publisher_state_root": "live runtime manifest publisher_state_root",
+    "log_root": "live runtime manifest log_root",
+    "target_identity": "authoritative target source SHA under activation-only identity topology",
+    "target_runtime_digest": "unchanged closed runtime path set; only promotion control/evidence paths changed since prior source",
+    "target_config_version": "live manifest config_version",
+    "target_generation": "fixed target-bound generation for both attempts",
+    "target_python_executable": "live runtime manifest python_executable; path sanitized",
+    "authorization_digest": "existing plan-only authorization digest; secret not persisted",
+    "capacity_receipt": "existing raw-contract canonical receipt",
+    "capacity_receipt_digest": "live artifact SHA-256",
+    "correlation_id": "fixed target-bound reproduction correlation",
+    "expected_plan_digest": "parsed equal plan digest from both deterministic attempts"
+  },
+  "apply_derivation_allowed_changes": [
+    "argv[3]: plan -> apply",
+    "append --expected-plan-digest and plan digest"
+  ],
+  "other_argument_changes": []
+}
