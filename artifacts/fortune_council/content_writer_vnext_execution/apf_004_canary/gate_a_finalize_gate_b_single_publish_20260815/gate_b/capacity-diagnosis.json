@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "diagnostic_calls": 1,
+  "publisher_launchctl": {
+    "active_count": 0,
+    "top_level_state": "not running",
+    "pid_present": false,
+    "last_exit_code": "78: EX_CONFIG",
+    "configured_actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "configured_generation": "g2-9d8573e962-20260814T104149Z",
+    "configured_manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+  },
+  "formal_runtime_manifest": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2"
+  },
+  "identity_drift_observed": true,
+  "safe_alternate_formal_capacity_entrypoint_available": false,
+  "production_code_or_config_repair_executed": false,
+  "decision": "BLOCKED_BEFORE_PUBLISH"
+}

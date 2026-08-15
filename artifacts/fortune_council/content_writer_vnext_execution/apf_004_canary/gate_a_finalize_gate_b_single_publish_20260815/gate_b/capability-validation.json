@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "project_receipt": {
+    "artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/capability/positive-receipt.json",
+    "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50",
+    "validator_status": "PASS",
+    "validator_output_sha256": "330c1cbedb70ef98fde48a39e5622474f5590a968a9a3b87471f93a70af6903c"
+  },
+  "official_receipt": {
+    "artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/package/production-canary-capability-receipt.json",
+    "sha256": "d63aac2ad3361cc6a84eb8f2bd763dc1b52ed1fb8c9ef49ce38dbde130786b67",
+    "execution_line_id": "exec-apf-004-readiness",
+    "correlation_id": "corr-apf-004-readiness",
+    "canary_created": false,
+    "production_mutation": false
+  },
+  "capabilities": ["create", "run", "select", "publish", "transaction", "tag", "push"],
+  "positive_and_fail_closed_negative_evidence": "PASS",
+  "digest_continuity": "PASS",
+  "production_entrypoints": {
+    "create_run": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+    "select_publish_transaction_tag_push": "scripts.agy_content_publisher:formal_capability_preflight"
+  }
+}

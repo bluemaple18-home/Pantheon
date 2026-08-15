@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "repository": {
+    "head": "559916249e7e25c493e689fb2aeb36de5749e9fd",
+    "origin_main": "559916249e7e25c493e689fb2aeb36de5749e9fd",
+    "detached": true,
+    "clean": true
+  },
+  "runtime": {
+    "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "generation": "g2-28b8b84b6d-20260815T024433Z",
+    "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7",
+    "runtime_digest": "4b5b4f0c818f80dd3fcdd8a02d11060e3f7d2a22fc43e532f246fd9b87461efb"
+  },
+  "queue_file_count": 0,
+  "publisher_state_business_file_count": 0,
+  "publication_counts": {
+    "new": 0,
+    "rewrite": 0,
+    "i18n-new": 0,
+    "i18n-rewrite": 0
+  }
+}

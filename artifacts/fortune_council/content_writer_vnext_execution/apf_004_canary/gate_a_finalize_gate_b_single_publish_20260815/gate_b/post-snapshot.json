@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "decision": "BLOCKED_BEFORE_PUBLISH",
+  "publication_counts": {
+    "new": 0,
+    "rewrite": 0,
+    "i18n-new": 0,
+    "i18n-rewrite": 0
+  },
+  "publication_url": null,
+  "publication_id": null,
+  "publisher_exit_code": null,
+  "transaction_count": 0,
+  "tag_count": 0,
+  "push_count": 0,
+  "schedule_count": 0,
+  "batch_count": 0,
+  "queue_business_writes": 0,
+  "state_business_writes": 0
+}

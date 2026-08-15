@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "create_calls": 0,
+  "run_calls": 0,
+  "select_calls": 0,
+  "publish_calls": 0,
+  "publish_retries": 0,
+  "transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_calls": 0,
+  "batch_calls": 0,
+  "manual_rollback": 0,
+  "production_mutation_count": 0,
+  "external_mutation_count": 0
+}

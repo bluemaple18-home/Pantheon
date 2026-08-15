@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "absolute_user_paths_emitted": false,
+  "secret_values_emitted": false,
+  "credential_material_emitted": false,
+  "path_placeholders": ["<repo-root>"],
+  "absolute_path_scan": "PASS",
+  "secret_pattern_scan": "PASS"
+}

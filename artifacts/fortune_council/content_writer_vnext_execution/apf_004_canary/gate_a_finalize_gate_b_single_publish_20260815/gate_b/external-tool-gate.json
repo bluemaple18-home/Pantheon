@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "tool_service": "Existing Publisher plus git origin",
+  "operation_level": "write_action",
+  "authorization_status": "AUTHORIZED",
+  "schema_checked": true,
+  "final_payload_reached": false,
+  "connection_check_reached": false,
+  "execution_status": "BLOCKED_BEFORE_EXTERNAL_WRITE",
+  "blocking_gate": "fresh capacity preflight NO-GO",
+  "external_mutation": false
+}

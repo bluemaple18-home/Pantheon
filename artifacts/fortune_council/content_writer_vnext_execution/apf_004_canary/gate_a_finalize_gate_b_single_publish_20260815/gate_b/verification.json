@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_PUBLISH",
+  "baseline_exact": true,
+  "capability_project_validator": "PASS",
+  "official_gate_by_lane": {
+    "new": "READY",
+    "rewrite": "READY",
+    "i18n-new": "READY",
+    "i18n-rewrite": "READY"
+  },
+  "lane_readiness_identity": "PASS",
+  "fresh_capacity_preflight": "NO-GO",
+  "capacity_preflight_calls": 2,
+  "third_capacity_preflight_executed": false,
+  "publisher_execution_reached": false,
+  "production_mutation": 0,
+  "prohibited_operations_executed": []
+}

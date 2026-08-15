@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "lane": "i18n-new",
+  "status": "PASS",
+  "service_label": "com.pantheon.agy-gemini-i18n-new",
+  "ack_digest": "8c24961e039146f295c44a57ab69e19cd9833eed6befc02864332474435894ac",
+  "generation": "g2-28b8b84b6d-20260815T024433Z",
+  "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7",
+  "capability_chain": ["create", "run", "select", "publish", "transaction", "tag", "push"],
+  "official_gate_status": "READY",
+  "official_gate_output_sha256": "7abf924dfaf10584448f21ba7a52e0bcce5d755f05a8c184ac96482d362428b4",
+  "publication_mutation": 0
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-FINALIZE-GATE-B-SINGLE-PUBLISH",
+  "slice": "B",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "BLOCKED_BEFORE_PUBLISH",
+  "repository_baseline": "559916249e7e25c493e689fb2aeb36de5749e9fd",
+  "capability_status": "PASS",
+  "lane_readiness_status": "PASS",
+  "capacity_status": "NO-GO",
+  "blocking_reason": "fresh capacity preflight could not establish publisher RSS identity; live LaunchAgent identity is stale relative to the formal runtime manifest",
+  "publication_counts": {
+    "new": 0,
+    "rewrite": 0,
+    "i18n-new": 0,
+    "i18n-rewrite": 0
+  },
+  "publication_url": null,
+  "publication_id": null,
+  "production_mutation_count": 0,
+  "third_capacity_preflight_executed": false,
+  "publish_executed": false,
+  "push_executed": false,
+  "prohibited_operations_executed": []
+}
