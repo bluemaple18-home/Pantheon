@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "production_mutation": 0,
+  "installer_preflight_calls": 1,
+  "capacity_preflight_calls": 0,
+  "install_calls": 0,
+  "bootout_calls": 0,
+  "bootstrap_calls": 0,
+  "kickstart_calls": 0,
+  "rollback_calls": 0,
+  "create_run_calls": 0,
+  "select_calls": 0,
+  "publication_calls": 0,
+  "transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0
+}

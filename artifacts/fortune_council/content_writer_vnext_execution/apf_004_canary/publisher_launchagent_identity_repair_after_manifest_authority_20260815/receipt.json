@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-PUBLISHER-LAUNCHAGENT-IDENTITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "STOPPED_NO_RETRY",
+  "blocker": "FORMAL_RUNTIME_NOT_PROMOTED_WITH_MANIFEST_AUTHORITY_REPAIR",
+  "blocker_frontier": "promote the reviewed manifest-authorized publisher installer and public deployment-preflight to the formal actor through the governed runtime promotion path",
+  "repository_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "formal_actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "formal_manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+  "formal_generation": "g2-28b8b84b6d-20260815T024433Z",
+  "installer_preflight_calls": 1,
+  "reload_count": 0,
+  "rollback_count": 0,
+  "capacity_preflight_calls": 0,
+  "production_mutation": 0,
+  "reason": "the formal actor source lacks all three manifest-authorized CLI flags, so its official installer still applies the superseded origin/main gate and cannot produce an authority-bound staged plist"
+}

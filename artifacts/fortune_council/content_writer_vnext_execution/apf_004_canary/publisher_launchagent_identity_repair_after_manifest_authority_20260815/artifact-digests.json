@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "artifacts": {
+    "external-tool-gate.json": "509d743b6152d9e27836dc4ab97957cd6c4a32b0098bfa007abb2aa6f792de98",
+    "installer-preflight.json": "bd46fe3d65e06ae48b2b991784a4c9e7cee7d60931914ae61064ba05f647dc98",
+    "mutation-plan.json": "959503f518cc684296dc572671dbb9fb675df79261156f5cbb2a05077739ed58",
+    "post-snapshot.json": "a9385302a34db598f0c85acfd6353e49b93a5d74b291b35a7237b647dc51a0f3",
+    "pre-snapshot.json": "321534d1ab69f43fad1218ebad7e0ecfa7089a3238a14b4f20c064b2b8ee26fd",
+    "production-mutation-summary.json": "c9246a50a41700d95324a9d8f1e44aa42a9e7bf6481ae48b8e53d13bdcfb7359",
+    "receipt.json": "d90e6f9ad83d1547ea315101241d631b2abf7f455353202a15158d00988acbef",
+    "runtime-source-binding.json": "b6b4299fb42a94eecdbbed90d7e359d84a0c473f666a3a7db34a83e58edeb58c",
+    "verification.json": "fc7b91cd221e3a15def1b28f29c989605da1d5257eff60ce959fab3b2c634a33"
+  }
+}

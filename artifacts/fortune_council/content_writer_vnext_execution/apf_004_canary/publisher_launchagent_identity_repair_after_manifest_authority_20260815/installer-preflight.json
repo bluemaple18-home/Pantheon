@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T11:03:16Z",
+  "operation": "official formal actor publisher installer preflight",
+  "entrypoint": "<runtime-root>/actor/scripts/install_agy_content_publisher_launchd.sh --preflight",
+  "invocation_count": 1,
+  "exit_code": 1,
+  "stdout": "",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr": "publisher actor HEAD 與 origin/main 不一致，拒絕部署\n",
+  "stderr_sha256": "a8168e4ba7067a40912cfc92dcb0cc378aadb6cb971825316be54bde8baa1506",
+  "private_staged_plist_created": false,
+  "production_mutation": 0
+}

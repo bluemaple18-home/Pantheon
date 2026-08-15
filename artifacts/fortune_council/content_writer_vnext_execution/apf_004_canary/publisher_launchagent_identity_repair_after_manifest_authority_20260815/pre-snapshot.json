@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "sample_order": 1,
+  "sampled_at": "unavailable",
+  "repository": {
+    "head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "origin_main_equal": true,
+    "clean": true
+  },
+  "formal_actor": {
+    "root": "<runtime-root>/actor",
+    "head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+    "origin_main": "79bdc809b0b7e17005c5420236dfb71e2bf794c2",
+    "clean": true,
+    "manifest_authorized_installer_flags_present": false,
+    "manifest_authorized_publisher_flags_present": false
+  },
+  "formal_manifest": {
+    "path": "<runtime-root>/runtime-manifest.json",
+    "file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+    "generation": "g2-28b8b84b6d-20260815T024433Z"
+  },
+  "publisher": {
+    "target_plist_sha256": "bd13228bfeab4f6398e12afbb525a566b35b7c4965397832d8ecd28146da5c1d",
+    "private_staged_plist_present": false,
+    "loaded_actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "loaded_generation": "g2-9d8573e962-20260814T104149Z",
+    "loaded_manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "state": "not running",
+    "last_exit": "78: EX_CONFIG"
+  },
+  "host": {
+    "available_kib": 51305548,
+    "total_kib": 239362496,
+    "capacity_threshold_pass": true
+  },
+  "production_mutation": 0
+}

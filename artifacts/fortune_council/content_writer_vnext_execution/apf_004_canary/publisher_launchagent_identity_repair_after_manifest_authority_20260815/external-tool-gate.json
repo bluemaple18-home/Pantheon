@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tool_service": "local production runtime filesystem and launchctl",
+  "operation_level": "write_action_authorized_but_not_reached",
+  "connection_status": "local host available",
+  "schema_checked": true,
+  "confirmation_required": true,
+  "confirmation_status": "existing explicit publisher-only reload authorization",
+  "final_payload_status": "not locked because official installer preflight failed",
+  "execution_status": "stopped before mutation",
+  "write_calls": 0,
+  "remaining_risk": "publisher remains loaded with stale identity and EX_CONFIG until formal runtime promotion includes the reviewed Repair-2 entrypoint"
+}

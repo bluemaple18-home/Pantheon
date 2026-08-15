@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "verdict": "STOPPED_NO_RETRY",
+  "checks": {
+    "repository_clean_exact_origin_main": true,
+    "repair2_reviewed_evidence_present": true,
+    "successor_evidence_root_absent_before_sampling": true,
+    "fresh_red_reproduced": true,
+    "formal_actor_contains_manifest_authorized_entrypoint": false,
+    "official_installer_preflight_passed": false,
+    "private_staged_publisher_plist_verified": false,
+    "mutation_plan_locked": false,
+    "publisher_target_plist_unchanged": true,
+    "publisher_loaded_identity_unchanged": true,
+    "capacity_preflight_executed": false,
+    "production_mutation_zero": true
+  },
+  "observation_limits": {
+    "queue_state_fresh_before_digest": "unavailable; no unchanged claim is made from the post-only digest",
+    "other_service_fresh_before_raw_digest": "unavailable; no byte-for-byte unchanged claim is made",
+    "reason": "execution stopped at installer preflight before any authorized mutation"
+  }
+}

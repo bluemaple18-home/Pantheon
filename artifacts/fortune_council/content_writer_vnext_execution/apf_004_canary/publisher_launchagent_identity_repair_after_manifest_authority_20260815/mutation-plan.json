@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "NOT_CREATED_PREREQUISITE_BLOCKED",
+  "target_label": "com.pantheon.agy-content-publisher",
+  "plan_digest": null,
+  "reason": "official installer preflight failed and no verified staged publisher plist exists",
+  "bootout_calls": 0,
+  "install_calls": 0,
+  "bootstrap_calls": 0,
+  "kickstart_calls": 0,
+  "rollback_calls": 0
+}

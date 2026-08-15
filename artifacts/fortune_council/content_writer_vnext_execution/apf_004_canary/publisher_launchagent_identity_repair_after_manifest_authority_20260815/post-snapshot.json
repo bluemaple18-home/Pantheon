@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "sample_order": 2,
+  "sampled_at": "2026-08-15T11:03:53Z",
+  "formal_manifest_file_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+  "publisher": {
+    "target_plist_sha256": "bd13228bfeab4f6398e12afbb525a566b35b7c4965397832d8ecd28146da5c1d",
+    "private_staged_plist_present": false,
+    "loaded_actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "loaded_generation": "g2-9d8573e962-20260814T104149Z",
+    "loaded_manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "state": "not running",
+    "last_exit": "78: EX_CONFIG"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 2,
+    "state_tree_digest": "9b3e6b97007a737e438c8ea80f7b8b127a07c278b5e433b55e750bc59ba47b75"
+  },
+  "host": {
+    "available_kib": 51291092,
+    "total_kib": 239362496,
+    "capacity_threshold_pass": true
+  },
+  "other_services_observed_identity": {
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "labels_observed": 6
+  },
+  "production_mutation": 0
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "formal_actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "integrated_repository_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "changed_runtime_files": [
+    "scripts/agy_content_publisher.py",
+    "scripts/install_agy_content_publisher_launchd.sh"
+  ],
+  "formal_actor_file_digests": {
+    "scripts/agy_content_publisher.py": "68e65eaee383f441b06ece41849125b2a2da3369f98ef8f880d8d5ef68c7a302",
+    "scripts/install_agy_content_publisher_launchd.sh": "816be3c6e99f20e5785be3721c02f7eb78f7dbe22b347287059660d600c43b72"
+  },
+  "integrated_file_digests": {
+    "scripts/agy_content_publisher.py": "90160a1aa24d6802478428797147998379130e37341477361241f919152f3b1b",
+    "scripts/install_agy_content_publisher_launchd.sh": "54eddf985d42eba4d58adb7c53c255e858bada5a3a4cb0f95a4db59f0057a279"
+  },
+  "required_flags": [
+    "--manifest-authorized-deployment-preflight",
+    "--runtime-manifest-authority",
+    "--expected-manifest-digest"
+  ],
+  "formal_actor_required_flags_present": false,
+  "integrated_repository_required_flags_present": true,
+  "unsafe_workaround_rejected": "running the integrated installer from a different checkout would violate exact manifest actor_root authority"
+}
