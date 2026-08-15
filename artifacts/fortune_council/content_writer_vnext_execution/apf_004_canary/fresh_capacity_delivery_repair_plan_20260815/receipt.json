@@ -5,8 +5,8 @@
   "verdict": "READY_FOR_ONE_FRESH_CAPACITY_REVIEW",
   "candidate_base": "e07b06465909bac587ac2d26de29895d1eacf59d",
   "root_cause": "uv 0.9.25 macOS dynamic-store panic before Python/module startup",
-  "dry_validation": "DIRECT_VENV_DELIVERY_PASS",
-  "exact_next_payload_digest": "0c9ef41831eea98fccd7570534fe9bdaa0ad0ebe6847276cb7a03c2c9bb3957e",
+  "dry_validation": "DIRECT_VENV_LOCKED_CWD_IGNORE_ENV_PASS",
+  "exact_next_payload_digest": "605400fbb270e9333fd9a595ee878116f54165a9b2d60dbdcb198694417cc717",
   "capacity_preflight_calls": 0,
   "production_mutation": 0,
   "execution_status": "not_executed"

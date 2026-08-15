@@ -3,5 +3,5 @@
   "status": "PASS",
   "pattern_classes": ["homebrew_absolute_root", "private_temp_absolute_root", "user_home_absolute_root", "local_username", "file_uri"],
   "match_count": 0,
-  "path_placeholders": ["<repo-root>", "<runtime-root>", "<runtime-python-executable>"]
+  "path_placeholders": ["<repo-root>", "<runtime-root>", "<runtime-python-executable>", "<tmp-root>"]
 }

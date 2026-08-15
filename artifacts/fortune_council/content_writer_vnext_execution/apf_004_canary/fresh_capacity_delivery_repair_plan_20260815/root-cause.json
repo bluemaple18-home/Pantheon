@@ -9,5 +9,5 @@
   "capacity_module_started": false,
   "capacity_preflight_calls": 0,
   "production_mutation": 0,
-  "repair_frontier": "bypass uv runtime startup and use the existing repository venv interpreter directly"
+  "repair_frontier": "bypass uv runtime startup; lock exact repository cwd, Python -E isolation, existing venv interpreter, and reviewed module digest"
 }

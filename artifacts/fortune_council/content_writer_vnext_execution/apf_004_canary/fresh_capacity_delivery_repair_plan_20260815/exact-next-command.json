@@ -1,5 +1,5 @@
 {
-  "argv": ["<repo-root>/.venv/bin/python","-m","scripts.pantheon_content_capacity_guard","--queue-root","<runtime-root>/queue","--publisher-root","<runtime-root>/state","--log-root","<runtime-root>/logs","--state-file","<runtime-root>/state/content-capacity-guard-state.json","preflight"],
+  "argv": ["<repo-root>/.venv/bin/python","-E","-m","scripts.pantheon_content_capacity_guard","--queue-root","<runtime-root>/queue","--publisher-root","<runtime-root>/state","--log-root","<runtime-root>/logs","--state-file","<runtime-root>/state/content-capacity-guard-state.json","preflight"],
   "contract": {
     "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/publisher_fresh_capacity_direct_venv_20260815",
     "expected_status": "PASS",
@@ -31,11 +31,29 @@
     "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.content-capacity-guard"
   },
   "execution_status": "not_executed",
+  "executor_contract": {
+    "fail_closed_before_preflight": true,
+    "initial_working_directory": "arbitrary",
+    "locked_working_directory": "<repo-root>",
+    "pre_execution_order": [
+      "resolve exact reviewed repo root",
+      "chdir to exact repo root",
+      "verify cwd realpath exact",
+      "verify interpreter digest exact",
+      "verify reviewed module path and digest exact",
+      "invoke public module once"
+    ],
+    "require_cwd_realpath_exact": true,
+    "require_python_ignore_environment": true,
+    "reviewed_module_path": "<repo-root>/scripts/pantheon_content_capacity_guard.py",
+    "reviewed_module_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1"
+  },
   "interpreter": {
     "executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
     "path": "<repo-root>/.venv/bin/python",
     "version": "3.12.12"
   },
   "schema_version": 1,
-  "canonical_payload_sha256": "0c9ef41831eea98fccd7570534fe9bdaa0ad0ebe6847276cb7a03c2c9bb3957e"
+  "working_directory": "<repo-root>",
+  "canonical_payload_sha256": "605400fbb270e9333fd9a595ee878116f54165a9b2d60dbdcb198694417cc717"
 }

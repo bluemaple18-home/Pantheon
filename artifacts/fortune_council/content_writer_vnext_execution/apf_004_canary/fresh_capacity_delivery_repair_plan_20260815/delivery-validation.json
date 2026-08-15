@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sampled_at": "2026-08-15T15:31:53Z",
+  "sampled_at": "2026-08-15T15:38:00Z",
   "interpreter": {
     "path": "<repo-root>/.venv/bin/python",
     "version": "3.12.12",
@@ -21,6 +21,21 @@
     "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
     "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
     "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2"
+  },
+  "arbitrary_cwd_harness": {
+    "initial_working_directory": "<tmp-root>/apf004-direct-venv-harness-start",
+    "locked_working_directory": "<repo-root>",
+    "malicious_pythonpath": "<tmp-root>/apf004-direct-venv-malicious",
+    "invalid_pythonhome": "<tmp-root>/apf004-direct-venv-wrong-home",
+    "python_flag": "-E",
+    "ignore_environment": true,
+    "reviewed_module_path": "<repo-root>/scripts/pantheon_content_capacity_guard.py",
+    "reviewed_module_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1",
+    "import": "PASS",
+    "public_help": "PASS",
+    "exit_code": 0,
+    "stdout_sha256_raw": "19c5ebefc3b69e5a945c90289910eaf80063f49e3f274f416811b27402c382cd",
+    "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "capacity_preflight_calls": 0,
   "capacity_state_file_created": false,
