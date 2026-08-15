@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:19:35Z",
+  "entrypoint": "<runtime-root>/actor/scripts/install_agy_content_publisher_launchd.sh --preflight",
+  "invocation_count": 1,
+  "exit_code": 0,
+  "stdout_sha256_raw": "e674ecde530e88004afe9b331e0c30dc44385fc03a858c1ecbfe911958e22cd7",
+  "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "result": {
+    "status": "ready",
+    "operation": "deployment-preflight",
+    "mode": "read-only",
+    "dry_run": true,
+    "mutation_permitted": false,
+    "authority_mode": "manifest",
+    "runtime_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "actor": "matched",
+    "queue": "matched",
+    "state": "matched",
+    "push_mode": "push"
+  }
+}

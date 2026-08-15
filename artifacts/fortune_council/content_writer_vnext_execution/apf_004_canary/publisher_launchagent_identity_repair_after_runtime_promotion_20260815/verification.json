@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status": "STOPPED_NO_RETRY",
+  "checks": {
+    "promotion_finalize_evidence_integrated": true,
+    "formal_actor_manifest_exact": true,
+    "fresh_red_confirmed": true,
+    "official_installer_preflight_ready": true,
+    "official_installer_stage_exact": true,
+    "mutation_plan_digest_verified": true,
+    "publisher_reload_called_once": true,
+    "reload_retry_zero": true,
+    "rollback_zero": true,
+    "publisher_identity_exact": true,
+    "publisher_not_ex_config": true,
+    "other_services_unchanged": true,
+    "queue_unchanged_empty": true,
+    "state_unchanged": true,
+    "fresh_capacity_preflight_pass": false,
+    "capacity_module_started": false,
+    "capacity_third_delivery_attempt_zero": true,
+    "publication_zero": true,
+    "downstream_zero": true
+  },
+  "blocker": "UV_DELIVERY_FAILED_BEFORE_CAPACITY_MODULE_START",
+  "next_gate": "mainline decision; do not publish"
+}

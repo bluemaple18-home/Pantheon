@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "correlation_id": "apf004-publisher-repair-a6c4b798a6-20260815T152300Z",
+  "status": "NOT_EXECUTED_UV_DELIVERY_FAILURE",
+  "capacity_preflight_calls": 0,
+  "delivery_attempts": [
+    {
+      "attempt": 1,
+      "exit_code": 2,
+      "module_started": false,
+      "error": "uv cache access denied before Python startup",
+      "raw_output_retained": false,
+      "reason": "successor delivery reused the private capture path"
+    },
+    {
+      "attempt": 2,
+      "exit_code": 101,
+      "module_started": false,
+      "isolated_cache": "<tmp-root>/apf004-publisher-repair-uv-cache",
+      "stdout_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256_raw": "1a5700bb32e1984b286874448f86dcad78c6f3046c83f073f3fdae12569b5d09",
+      "error": "uv system-configuration panic before Python startup"
+    }
+  ],
+  "third_delivery_attempt": false,
+  "capacity_state_file_created": false,
+  "production_mutation": 0,
+  "stop_loss": "STOPPED_NO_RETRY"
+}

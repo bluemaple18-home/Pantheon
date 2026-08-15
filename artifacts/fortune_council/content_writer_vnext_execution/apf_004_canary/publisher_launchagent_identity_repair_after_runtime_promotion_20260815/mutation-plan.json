@@ -1,0 +1,28 @@
+{
+  "domain_target": "gui/<uid>/com.pantheon.agy-content-publisher",
+  "expected_identity": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2"
+  },
+  "label": "com.pantheon.agy-content-publisher",
+  "loaded_before": true,
+  "operations": [
+    "launchctl bootout exact publisher domain target",
+    "install verified staged plist mode 600 to exact publisher target",
+    "launchctl bootstrap exact publisher target plist"
+  ],
+  "retry_allowed": false,
+  "rollback": {
+    "max_calls": 1,
+    "restore_loaded_state": true,
+    "restore_target_sha256": "bd13228bfeab4f6398e12afbb525a566b35b7c4965397832d8ecd28146da5c1d"
+  },
+  "schema_version": 1,
+  "staged_plist": "<private-stage-root>/com.pantheon.agy-content-publisher.plist",
+  "staged_sha256": "c02b223767aa46aa045a16d14a9adefeae16822708713c181bda7ac753b708e6",
+  "target_before_sha256": "bd13228bfeab4f6398e12afbb525a566b35b7c4965397832d8ecd28146da5c1d",
+  "target_plist": "<launch-agents-root>/com.pantheon.agy-content-publisher.plist",
+  "canonical_sha256": "42b91a8fac94495fc3586629dd762cec9ad222a5c6c353af1d091cde3dffb3c2"
+}

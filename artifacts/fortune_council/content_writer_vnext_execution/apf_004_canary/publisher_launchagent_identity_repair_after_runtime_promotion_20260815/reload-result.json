@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:23:00Z",
+  "status": "RELOAD_PASS",
+  "mutation_plan_digest": "42b91a8fac94495fc3586629dd762cec9ad222a5c6c353af1d091cde3dffb3c2",
+  "bootout": {"calls": 1, "exit_code": 0, "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  "target_install": {"calls": 1, "exit_code": 0, "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  "bootstrap": {"calls": 1, "exit_code": 0, "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  "kickstart_calls": 0,
+  "rollback_calls": 0,
+  "trace_sha256_raw": "17cca8fa5b65c1f20691c50c34c9d608c99a986e5f377180bfe7d09bc45f4061",
+  "target_after_sha256": "c02b223767aa46aa045a16d14a9adefeae16822708713c181bda7ac753b708e6"
+}

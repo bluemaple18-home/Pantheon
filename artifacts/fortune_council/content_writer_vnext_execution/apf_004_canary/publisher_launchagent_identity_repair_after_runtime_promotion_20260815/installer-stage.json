@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "entrypoint": "<runtime-root>/actor/scripts/install_agy_content_publisher_launchd.sh --install",
+  "invocation_count": 1,
+  "exit_code": 0,
+  "stdout_sha256_raw": "8abc23a16131ecf41a9ea335bc905c3506b6b0ca0bb4fff00f18efbc8bb2a455",
+  "stderr_sha256_raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "staged_plist": "<private-stage-root>/com.pantheon.agy-content-publisher.plist",
+  "staged_plist_sha256": "c02b223767aa46aa045a16d14a9adefeae16822708713c181bda7ac753b708e6",
+  "staged_mode": "0600",
+  "formal_manifest_authority_exact": true,
+  "max_runs": 3,
+  "exact_run_id": null,
+  "activation_only": true
+}

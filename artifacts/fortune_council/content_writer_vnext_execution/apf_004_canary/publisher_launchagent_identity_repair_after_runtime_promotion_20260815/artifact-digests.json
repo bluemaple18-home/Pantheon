@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "capacity-preflight.json": "bb2f390b69f046262754873bc797f2df2ee06de0cad292de7565a0d1983dd23a",
+    "external-tool-gate.json": "1ec42ef4345eecb41a737e4dc052e16038b4f580bb0f3a3f58185b68af28e713",
+    "installer-preflight.json": "832b501c9a8ddb52e3c8fa42247077006d8632c8331d9c66585e5fc7cebd4fbf",
+    "installer-stage.json": "75986b8dd70ae8329cdf6a477ffef47d43b3931fa2f5c50464ca894401a33e6a",
+    "mutation-plan.json": "437f8fa77963254777428e483142639c708b746fa9760aa059c7003182baba5a",
+    "post-snapshot.json": "dfb2ab35b7675e47e7ac76354ad2fcd6dc529715391dc738f2e258505065b18a",
+    "pre-snapshot.json": "421593116be0c06674a2e341333d98290ac9be6f228d7f034c4fd5a7c8447ede",
+    "production-mutation-summary.json": "7b359fc66e2461fbaa30f046da470f80d9c09f630b16d1d34ed745ad2d28a622",
+    "receipt.json": "9a1a50d809786d1dfc7937314ece8612d1d261fccdcc9703985016baf340086e",
+    "reload-result.json": "5a7b60f69465a11ba7c0035ca4721df2d700b9fc5a1887307336d2e9a4c6021b",
+    "reload-state.json": "b0bcce28314f684d0e155e68b9082759c6fbf46af9d3168506d3bb395ec799bb",
+    "sanitizer.json": "432a15763e7859bc4f4d451ce5298bd7e90baa9cc585b0e9f2c61f476a56a202",
+    "verification.json": "c19f8f26c1e1ac8b426b800c58b0e2342771c4947b5427f9e705b9b842f85a03"
+  }
+}

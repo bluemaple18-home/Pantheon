@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-PUBLISHER-LAUNCHAGENT-IDENTITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "STOPPED_NO_RETRY",
+  "candidate_base": "09da0e409572aac7d6894f8a07c6b9403e267738",
+  "reload_result": "PASS",
+  "identity_before": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+  "identity_after": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+  "capacity_result": "NOT_EXECUTED_UV_DELIVERY_FAILURE",
+  "capacity_preflight_calls": 0,
+  "reload_count": 1,
+  "rollback_count": 0,
+  "production_mutation": 1,
+  "publication": 0,
+  "blocker": "uv failed twice before starting the capacity module; no third delivery attempt permitted"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tool_service": "official publisher installer and macOS launchctl",
+  "operation_level": "write_action",
+  "schema_checked": true,
+  "connection_status": "local production runtime accessible",
+  "confirmation_required": true,
+  "confirmation_status": "authorized by durable same-thread delegation",
+  "execution_status": "publisher reload executed once; capacity delivery stopped",
+  "target": "com.pantheon.agy-content-publisher only",
+  "result": "STOPPED_NO_RETRY",
+  "remaining_risk": "fresh capacity preflight has not executed"
+}

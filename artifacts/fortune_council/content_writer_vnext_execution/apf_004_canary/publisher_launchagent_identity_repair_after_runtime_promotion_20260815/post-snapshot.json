@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:24:46Z",
+  "formal_runtime": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "manifest_file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+    "generation": "g2-a6c4b798a6-20260815T113802Z"
+  },
+  "publisher_after": {
+    "loaded": true,
+    "top_level_state": "running",
+    "last_exit": "1",
+    "is_ex_config": false,
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "target_plist_sha256": "c02b223767aa46aa045a16d14a9adefeae16822708713c181bda7ac753b708e6",
+    "launchctl_raw_sha256": "7ecabc8317d45e1a9d22f8b646b4564e2a63906797ba8b7db375d947136d2d79"
+  },
+  "other_services": {
+    "count": 6,
+    "identity_unchanged_after_reload": true,
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 3,
+    "state_tree_digest": "b5955204a29d37be7ac5387fac86b50db45e7688fb76e88a273e3a422bcd0bfb"
+  },
+  "capacity": "NOT_EXECUTED_UV_DELIVERY_FAILURE",
+  "publication": 0
+}
