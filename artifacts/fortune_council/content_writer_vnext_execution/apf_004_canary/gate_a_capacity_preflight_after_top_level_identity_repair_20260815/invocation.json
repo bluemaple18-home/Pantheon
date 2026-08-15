@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "operation": "third and final Gate A capacity read-only production preflight",
+  "sample_window": {
+    "pre_snapshot": "2026-08-15T08:09:31.198410Z",
+    "post_snapshot": "2026-08-15T08:10:23.997629Z"
+  },
+  "source_checkout": "840d6b9297c86e01d8ea5960d7a914370aa069c0",
+  "entrypoint": "uv run --python <repo-root>/.venv/bin/python python -m scripts.pantheon_content_capacity_guard preflight",
+  "runtime_environment": {
+    "actor_root": "<runtime-root>/actor",
+    "manifest": "<runtime-root>/runtime-manifest.json",
+    "queue_root": "<runtime-root>/queue",
+    "publisher_state_root": "<runtime-root>/state",
+    "log_root": "<runtime-root>/logs",
+    "activation_token": "<runtime-root>/state/four-lane-activation-g2-9d8573e962-20260814T104149Z.barrier",
+    "service_label": "com.pantheon.content-capacity-guard"
+  },
+  "preflight_calls": 1,
+  "preflight_exit_code": 0,
+  "apply_calls": 0,
+  "production_mutation": 0
+}

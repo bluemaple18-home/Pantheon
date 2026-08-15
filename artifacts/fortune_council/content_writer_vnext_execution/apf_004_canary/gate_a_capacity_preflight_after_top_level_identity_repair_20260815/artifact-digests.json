@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "artifacts": {
+    "authorization-state.json": "9930c7821b62a720da243f52ba069ec0ad8819ebf4ead6a2f49725223b9f6109",
+    "authorization.json": "66286d2ebc347135332d9cdc11ed52e769ed31fad4d77ec5051742dfe5c52986",
+    "capacity-preflight.json": "36681706705f51e32e8d5073bdbba488af7386d9e03e37592509be2a203917c2",
+    "governance-validator-receipt.json": "afc19bac8cc6d5814733cbe0c163656b77129442dbe1216bff171a275f3c3692",
+    "invocation.json": "2be0ac11ddce09cbf9eb7c04920277584e4e7ac9b7cd7d42429c30b0802402ca",
+    "post-snapshot.json": "ef95646b784fd9a3d96c724380b04c5d6a32006019feb891c17ca1474a7bb8f8",
+    "pre-snapshot.json": "9817c121f6d089652c23ecef0e56bf0531df31f15f9b40333d7666fd2e636684",
+    "production-mutation-summary.json": "aff6e8582d84b66eb3345082b98deb08befcf02991a551804fa5394375594307",
+    "receipt.json": "6c93c6d4ae1437532266e59f00f2281462e44cab064b716ee14a946b4a0aa37c",
+    "verification.json": "c0399f045081d87728d1e1eee2443721c7a8abc640e7389ef8e0a89416cb6241"
+  }
+}
