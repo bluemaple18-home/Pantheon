@@ -1,0 +1,30 @@
+{
+  "schema_version": "ai_core.visible_thread_resource_runtime.v1",
+  "sampled_at": "2026-08-15T07:20:59Z",
+  "status": "PASS",
+  "reason_code": "RUNTIME_WITHIN_BUDGET",
+  "thresholds": {
+    "runtime_host_reserve_bytes": 24510719591,
+    "max_worktree_bytes": 8589934592,
+    "max_worktree_count": 20,
+    "max_concurrent_active_threads": 4,
+    "sampling_interval_seconds": 300,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456
+  },
+  "actual": {
+    "sample_count": 1,
+    "sample_digests": ["1826803df77e30f046b66f0e12a326f9c0c1b314250f84d286952b02eea6675c"],
+    "interval_seconds": [],
+    "rss_delta_bytes": [],
+    "swap_delta_bytes": [],
+    "host_available_bytes": 52525187072,
+    "worktree_bytes": 3923193856,
+    "worktree_count": 20,
+    "active_thread_count": 1,
+    "snapshot_complete": true
+  },
+  "operator_action": "ALLOW_NEW_DISPATCH_AND_ACTIVATION",
+  "side_effects": "none",
+  "receipt_digest": "cee817c61d05e5daa225ce784df2525c7356df05d86568934b8595580fcb68de"
+}

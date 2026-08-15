@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_MUTATION",
+  "production_mutation": 0,
+  "apply_calls": 0,
+  "transaction_write_calls": 0,
+  "rollback_calls": 0,
+  "finalize_calls": 0,
+  "gate_b_calls": 0,
+  "publish_calls": 0,
+  "deploy_calls": 0,
+  "queue_write_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "automatic_retry": false,
+  "authorization_consumed": false
+}

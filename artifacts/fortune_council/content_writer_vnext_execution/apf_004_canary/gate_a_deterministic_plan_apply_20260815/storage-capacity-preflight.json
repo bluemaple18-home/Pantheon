@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO",
+  "reasons": ["rss_telemetry_unknown"],
+  "bytes": 1735956,
+  "file_count": 15,
+  "disk_total_bytes": 245107195904,
+  "disk_free_bytes": 52480335872,
+  "rss_bytes": null,
+  "rss_available": false,
+  "rss_error": "loaded_service_pid_missing:com.pantheon.agy-content-publisher",
+  "rss_identity": {"loaded_labels": [], "absent_labels": []},
+  "swap_used_bytes": 23749323653,
+  "swap_available": true,
+  "swap_error": null,
+  "operation": "public production capacity guard preflight",
+  "production_mutation": 0
+}

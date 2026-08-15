@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_MUTATION",
+  "checks": {
+    "worktree_clean_at_start": "PASS",
+    "head_equals_origin_main": "PASS",
+    "authorization_validator": "READY",
+    "authorization_unconsumed": true,
+    "evidence_root_absent_before_preflight": true,
+    "resource_runtime_gate": "PASS",
+    "storage_capacity_preflight": "NO-GO",
+    "source_identity": "PASS",
+    "actor_identity": "PASS",
+    "manifest_identity": "PASS",
+    "private_stage_digest": "PASS",
+    "capacity_receipt_digest": "PASS",
+    "queue_empty": true,
+    "transaction_root_absent": true,
+    "exact_apply_argv_digest": "PASS",
+    "apply_not_executed": true,
+    "production_mutation_zero": true,
+    "json_parse": "PASS",
+    "artifact_digests": "PASS",
+    "sanitizer": "PASS",
+    "allowlist": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "blocker": "public storage capacity preflight returned NO-GO: rss_telemetry_unknown / loaded_service_pid_missing:com.pantheon.agy-content-publisher",
+  "remaining_frontier": "Repair or clarify the formal capacity guard treatment of loaded-but-inert services; before apply, rerun the public validator and require an unconsumed READY receipt within the authorization expiry."
+}

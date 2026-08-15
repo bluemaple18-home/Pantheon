@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "READY",
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "authorization_state": "UNCONSUMED",
+  "immutable_tuple_digest": "2855b50ff262def6c000980a3eb5a6815c72296e9ccb1af2d219d2fbff45e883",
+  "authorization_input_sha256": "f161eef23990cfaea6a0463b9b0f632ff925450169265a99b21c43234c4f6eae",
+  "authorization_state_input_sha256": "1466430d64814430fc6a758dd6e1305eb8aaa76dfd97952daa0b80bd10818609",
+  "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_deterministic_plan_apply_20260815",
+  "apply_calls": 0,
+  "apply_call_budget": 1,
+  "production_mutation": 0,
+  "errors": []
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "canonicalization": "raw file bytes",
+  "self_excluded": true,
+  "artifacts": {
+    "apply-receipt.json": "bd89418ee92774d316f7b3bcc59865e79d65bf62b0306db6891fcb5c37a85e4c",
+    "apply-stderr.json": "1f94e136d679b924a8ecab45a286dd765ad08b717249d7285d493702921e18d4",
+    "apply-stdout.json": "c3e1f4653e24930b30eba24749a6459a191b0c2f64440becdf7f3e0f03df7c48",
+    "governance-validator-receipt.json": "2efa99ee7cf26a1f37d762eec4a3ceca025e83b73438cfd2e316fd26e68b9105",
+    "post-snapshot.json": "dba929946c08a7467d037e1aa08f328b3f2d7d391814423461e09f33e2563f6f",
+    "postchecks.json": "bb20986e8030e738c56b31fa558b875234ed63d6be973734a815082b04478262",
+    "pre-snapshot.json": "ca8bfa37a64835afd5580fbde3f1b30ebc4266b08b82888d11b5b0aae139f8e0",
+    "production-mutation-summary.json": "14ac81d137827cfe944e23ebc939413f45eb71ab253814629f9aaaeff60ea00b",
+    "receipt.json": "80009ec1524be448bc234009599bfd85395c36063cb9dd9965bfff0e54db0543",
+    "resource-runtime-receipt.json": "c3f454065d3058680e5cb11c64a301331a4ac28972c4d9e64b2831deda398a20",
+    "storage-capacity-preflight.json": "b83a392f783eacee286a90860690127fc491e6814edfd8ad3ba6e067065f8271",
+    "verification.json": "660cb5036161ecbfc8f44a3f038a8d17545e08cd4e2381473a813b163fcb18a8"
+  }
+}

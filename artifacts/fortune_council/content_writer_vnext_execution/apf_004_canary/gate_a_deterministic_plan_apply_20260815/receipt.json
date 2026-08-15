@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-GATE-A-APPLY-AUTHORIZATION",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "verdict": "BLOCKED_BEFORE_MUTATION",
+  "blocker_gate": "storage_capacity_preflight",
+  "blocker_reason": "rss_telemetry_unknown",
+  "blocker_detail": "loaded_service_pid_missing:com.pantheon.agy-content-publisher",
+  "plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "exact_apply_argv_digest": "7eda8a88c32aff500b926f40f8151ae8a7153a2bfc37d13661a483acbb37136c",
+  "target_source_sha": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+  "apply_calls": 0,
+  "transaction_state": "NOT_CREATED",
+  "production_mutation": 0,
+  "candidate_sha": "self_commit_reported_out_of_band",
+  "limits": ["no apply", "no retry", "no rollback", "no finalize", "no Gate B", "no publish/deploy/queue-write/tag/push"]
+}

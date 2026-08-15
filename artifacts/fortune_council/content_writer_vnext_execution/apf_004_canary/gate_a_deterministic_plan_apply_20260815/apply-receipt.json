@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "execution_status": "not_executed",
+  "apply_calls": 0,
+  "apply_call_budget": 1,
+  "transaction_state": "NOT_CREATED",
+  "transaction_root_exists": false,
+  "expected_plan_digest": "46e720652f39441413afc9dac6805465227800cfcf2240e612f76088167e8b8b",
+  "production_mutation": 0,
+  "automatic_retry": false,
+  "automatic_rollback": false,
+  "manual_rollback": false
+}
