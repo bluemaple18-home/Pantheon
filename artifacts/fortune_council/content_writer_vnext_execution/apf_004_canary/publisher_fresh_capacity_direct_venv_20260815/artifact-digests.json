@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "authority.json": "0cdadab1d5ac178afc0d329971816ec4b0ebda385e3cf66d2cce563c0aae3150",
+    "capacity-stderr.json": "7c0db4ad25e2743c8a0acfd5aa5023a602ff91e14e53e4e2fc174886c384f605",
+    "capacity-stdout.json": "18c570dc8c1b03e08a82cd38e08a432120277a907684259233e1d18c8f57cf86",
+    "external-tool-gate.json": "56caf9f24ba9089769b677cb01f2767194c81f412fe61138edab28285efcf156",
+    "invocation-state.json": "239a5e57250a35608e67fa0980c47146a0bacfac686c1a6af11ab81e02e15408",
+    "invocation-trace.json": "dc49f29db822d391340d950632392eb1bd8f7469b46ddad482696130d1d36a40",
+    "post-snapshot.json": "50c499d88c53046005595aef39af559857019612d69ccbbf7be2cf3e6ff93ff5",
+    "pre-snapshot.json": "ef85f4515896d22edf5909aace7209637fde780d300909b72e232cac5d36760d",
+    "production-mutation-summary.json": "8548f8389549b61dbe510477205444b5865b3e6454e8bdc48ae37759345c4292",
+    "receipt.json": "6dffc172104831b7533a1492547492f2c26741885926344efb18e90054eff574",
+    "sanitizer.json": "7eb75a2b2f2633b314849f4747d3542f9eec2e737dd1e08839d348737913669a",
+    "verification.json": "45831824e4c28225caa8f0b43cc34a778e9b4ce4c6935bb8fc276a469181ef10"
+  }
+}

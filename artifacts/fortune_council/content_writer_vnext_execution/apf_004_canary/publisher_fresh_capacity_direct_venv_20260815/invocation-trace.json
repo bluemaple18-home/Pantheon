@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "entrypoint": "<repo-root>/.venv/bin/python -E -m scripts.pantheon_content_capacity_guard preflight",
+  "working_directory": "<repo-root>",
+  "exact_payload_digest": "605400fbb270e9333fd9a595ee878116f54165a9b2d60dbdcb198694417cc717",
+  "reviewed_module_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1",
+  "correlation_id": "apf004-fresh-capacity-direct-venv-a6c4b798a6-20260815T153153Z",
+  "capacity_preflight_calls": 1,
+  "capacity_retry_calls": 0,
+  "uv_calls": 0,
+  "exit_code": 1,
+  "status": "NO-GO",
+  "stop_loss": "STOPPED_NO_RETRY"
+}

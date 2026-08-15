@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-FRESH-CAPACITY-DIRECT-VENV-EXECUTION-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "STOPPED_NO_RETRY",
+  "candidate_base": "d710ceef5dda3e732682780873f362ae36d59b15",
+  "capacity_status": "NO-GO",
+  "capacity_reasons": ["swap_telemetry_unknown"],
+  "capacity_preflight_calls": 1,
+  "capacity_retry_calls": 0,
+  "exit_code": 1,
+  "production_mutation": 0,
+  "publisher_reload_calls": 0,
+  "launchctl_mutations": 0,
+  "publication_calls": 0
+}

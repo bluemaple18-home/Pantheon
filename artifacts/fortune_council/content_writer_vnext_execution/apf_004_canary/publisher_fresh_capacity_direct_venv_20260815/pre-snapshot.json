@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:46:05Z",
+  "repository": {
+    "head": "d710ceef5dda3e732682780873f362ae36d59b15",
+    "origin_main_equal": true,
+    "clean_before_evidence": true,
+    "working_directory_exact": true
+  },
+  "delivery": {
+    "interpreter_version": "3.12.12",
+    "interpreter_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+    "python_flag": "-E",
+    "reviewed_module_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1",
+    "formal_runtime_validation": "PASS"
+  },
+  "runtime": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "actor_clean": true,
+    "actor_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "manifest_file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "activation_barrier_sha256": "2dc19b31399cdd3870c74bb4ae291decffced0a792b386e00fd5d92122aad5e5"
+  },
+  "publisher": {
+    "loaded": true,
+    "top_level_state": "not running",
+    "last_exit": "1",
+    "identity_exact": true,
+    "launchctl_raw_sha256": "932e0056a4560011ee675066483bda6261794105bb7b4ad8a077fde869f68104"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 3,
+    "state_tree_digest": "b5955204a29d37be7ac5387fac86b50db45e7688fb76e88a273e3a422bcd0bfb",
+    "capacity_state_file_present": false
+  },
+  "production_mutation": 0
+}

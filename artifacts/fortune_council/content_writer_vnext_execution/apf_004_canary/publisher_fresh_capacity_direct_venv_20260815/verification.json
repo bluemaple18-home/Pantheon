@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status": "STOPPED_NO_RETRY",
+  "checks": {
+    "reviewer_execution_authority_exact": true,
+    "canonical_payload_digest_exact": true,
+    "working_directory_exact": true,
+    "interpreter_digest_exact": true,
+    "python_ignore_environment_enabled": true,
+    "reviewed_module_path_digest_exact": true,
+    "formal_runtime_validation_pass": true,
+    "capacity_preflight_called_once": true,
+    "capacity_retry_zero": true,
+    "uv_zero": true,
+    "capacity_status_pass": false,
+    "stop_loss_applied": true,
+    "runtime_identity_unchanged": true,
+    "queue_state_unchanged": true,
+    "publisher_reload_zero": true,
+    "launchctl_mutation_zero": true,
+    "production_mutation_zero": true,
+    "publication_zero": true,
+    "downstream_zero": true
+  },
+  "blocker": "swap_telemetry_unknown",
+  "next_gate": "mainline review; do not retry or publish"
+}

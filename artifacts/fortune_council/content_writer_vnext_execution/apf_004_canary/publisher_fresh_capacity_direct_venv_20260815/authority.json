@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "reviewer_verdict": "APPROVED_READY_FOR_ONE_FRESH_CAPACITY_EXECUTION",
+  "authority_commit": "d710ceef5dda3e732682780873f362ae36d59b15",
+  "task_card": "<repo-root>/.ai/codex_task_apf_004_fresh_capacity_direct_venv_execution_20260815.md",
+  "canonical_payload": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/fresh_capacity_delivery_repair_plan_20260815/exact-next-command.json",
+  "canonical_payload_digest": "605400fbb270e9333fd9a595ee878116f54165a9b2d60dbdcb198694417cc717",
+  "authorized_call_count": 1,
+  "authorized_operation": "read-only fresh capacity preflight",
+  "publisher_reload_authorized": false,
+  "publication_authorized": false
+}

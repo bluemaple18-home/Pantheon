@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "production_mutation": 0,
+  "capacity_preflight_calls": 1,
+  "capacity_retry_calls": 0,
+  "capacity_check_calls": 0,
+  "capacity_exercise_calls": 0,
+  "uv_calls": 0,
+  "publisher_reload_calls": 0,
+  "launchctl_mutations": 0,
+  "other_service_mutations": 0,
+  "queue_writes": 0,
+  "state_writes": 0,
+  "create_run_calls": 0,
+  "select_calls": 0,
+  "publication_calls": 0,
+  "business_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0
+}

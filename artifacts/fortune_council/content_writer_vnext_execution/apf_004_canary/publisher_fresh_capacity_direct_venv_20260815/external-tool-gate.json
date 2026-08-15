@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "tool_service": "public local capacity guard CLI",
+  "operation_level": "read_only",
+  "schema_checked": true,
+  "confirmation_status": "Reviewer approved exact single execution",
+  "execution_status": "executed_once",
+  "result": "NO-GO",
+  "remaining_risk": "swap telemetry unavailable; no retry authorized"
+}

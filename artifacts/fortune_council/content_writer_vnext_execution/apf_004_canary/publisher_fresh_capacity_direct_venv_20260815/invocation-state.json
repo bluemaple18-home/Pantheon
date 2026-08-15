@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T15:46:05Z",
+  "attempt_started_at": "2026-08-15T15:46:05Z",
+  "completed_at": "2026-08-15T15:47:20Z",
+  "state": "STOPPED_NO_RETRY",
+  "capacity_preflight_calls": 1,
+  "retry_allowed": false,
+  "exact_payload_digest": "605400fbb270e9333fd9a595ee878116f54165a9b2d60dbdcb198694417cc717",
+  "working_directory": "<repo-root>",
+  "interpreter": "<repo-root>/.venv/bin/python",
+  "python_ignore_environment": true,
+  "reviewed_module_sha256": "5709e0eaf8e8372307b60d9382083b1c9ebfe3d6640b737d0d2891a95c6c73c1",
+  "correlation_id": "apf004-fresh-capacity-direct-venv-a6c4b798a6-20260815T153153Z",
+  "exit_code": 1,
+  "capacity_status": "NO-GO",
+  "last_outcome": "STOPPED_NO_RETRY",
+  "production_mutation": 0
+}
