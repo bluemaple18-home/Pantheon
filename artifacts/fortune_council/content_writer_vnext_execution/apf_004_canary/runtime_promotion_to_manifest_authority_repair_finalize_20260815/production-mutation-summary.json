@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "production_mutation": 1,
+  "mutation_type": "single governed runtime promotion finalize",
+  "finalize_calls": 1,
+  "finalize_retries": 0,
+  "write_set": {
+    "transaction_receipt_committed": 1,
+    "rollback_bundle_removed_by_public_cli": 1
+  },
+  "apply_calls": 0,
+  "rollback_calls": 0,
+  "manual_delete_calls": 0,
+  "launchctl_mutations": 0,
+  "publisher_reload_calls": 0,
+  "capacity_after_finalize_calls": 0,
+  "queue_business_writes": 0,
+  "publisher_state_business_writes": 0,
+  "create_run_calls": 0,
+  "select_calls": 0,
+  "publication_calls": 0,
+  "business_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_mutations": 0
+}

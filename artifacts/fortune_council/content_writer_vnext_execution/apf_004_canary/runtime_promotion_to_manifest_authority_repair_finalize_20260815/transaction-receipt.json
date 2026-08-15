@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T13:27:03Z",
+  "raw_receipt_sha256": "ba0c6ff57e95f22ac442ed039b712b5c8b8c73d725b6ac9f2e5163f51f0c2105",
+  "state": "COMMITTED",
+  "rollback_bundle_finalized": true,
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "authorization_digest": "034ffcce8a6f02943a780d1ddeb55e7af08d486dc5c9ed547df29295c9e38e8f",
+  "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "target_actor_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "target_manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "history_terminal_transition": {
+    "from": "POSTCHECK_PASSED",
+    "to": "COMMITTED",
+    "sampled_at": "2026-08-15T13:26:50Z"
+  }
+}

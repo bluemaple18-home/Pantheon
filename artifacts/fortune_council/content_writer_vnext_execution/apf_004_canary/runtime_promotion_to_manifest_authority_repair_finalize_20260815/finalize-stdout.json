@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T13:26:50Z",
+  "raw_sha256": "08ac98b7939a89b7d0ca627294eeb56b4b72766fefa52d97cfbe936622aeebb3",
+  "payload": {
+    "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+    "status": "COMMITTED"
+  }
+}

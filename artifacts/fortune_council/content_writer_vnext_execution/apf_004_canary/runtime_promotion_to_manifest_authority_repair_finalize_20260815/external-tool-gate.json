@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tool_service": "public local runtime promotion CLI",
+  "operation_level": "write_action",
+  "schema_checked": true,
+  "connection_status": "local production runtime accessible",
+  "confirmation_required": true,
+  "confirmation_status": "authorized by durable same-thread Phase 3 delegation",
+  "execution_status": "executed_once",
+  "target": "<transaction-root>",
+  "result": "COMMITTED",
+  "remaining_risk": "Publisher reload and capacity-after-finalize remain separate unauthorized gates"
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "checks": {
+    "integrated_apply_evidence_verified": true,
+    "reviewer_ready_for_finalize": true,
+    "durable_finalize_attempt_consumed_before_call": true,
+    "exact_finalize_argv_digest_verified": true,
+    "finalize_called_once": true,
+    "finalize_retry_zero": true,
+    "finalize_exit_zero": true,
+    "transaction_state_committed": true,
+    "plan_digest_exact": true,
+    "rollback_bundle_removed_by_public_cli": true,
+    "transaction_receipt_retained": true,
+    "target_actor_exact_clean_origin": true,
+    "target_manifest_exact": true,
+    "private_stage_unchanged": true,
+    "queue_unchanged_empty": true,
+    "state_unchanged": true,
+    "gsc_copy_absent": true,
+    "apply_not_executed": true,
+    "manual_rollback_not_executed": true,
+    "launchctl_not_mutated": true,
+    "publisher_reload_not_executed": true,
+    "capacity_after_finalize_not_executed": true,
+    "downstream_zero": true
+  },
+  "next_gate": "independent review; Publisher reload remains prohibited"
+}

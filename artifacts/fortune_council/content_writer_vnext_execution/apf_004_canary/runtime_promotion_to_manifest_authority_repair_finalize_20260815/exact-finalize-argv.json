@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "execution_status": "executed_once",
+  "authority_apply_artifact": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/runtime_promotion_to_manifest_authority_repair_plan_20260815/exact-apply-argv.json",
+  "argv": ["<runtime-python-executable>","-m","scripts.pantheon_content_runtime_promotion","finalize","--source-repo","<source-worktree>","--source-sha","a6c4b798a6aeab61fc3e977d326731c1aec9a181","--expected-origin","git@github.com:bluemaple18-home/Pantheon.git","--actor-root","<runtime-root>/actor","--expected-current-actor-sha","28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1","--manifest-path","<runtime-root>/runtime-manifest.json","--expected-current-manifest-digest","c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2","--private-stage-root","<private-stage-root>","--expected-current-stage-digest","2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a","--transaction-root","<runtime-root>/backups/apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z","--queue-root","<runtime-root>/queue","--publisher-state-root","<runtime-root>/state","--log-root","<runtime-root>/logs","--target-identity","gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only","--target-runtime-digest","84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2","--target-config-version","formal-runtime-v2-gate2","--target-generation","g2-a6c4b798a6-20260815T113802Z","--target-python-executable","<runtime-python-executable>","--authorization-digest","034ffcce8a6f02943a780d1ddeb55e7af08d486dc5c9ed547df29295c9e38e8f","--capacity-receipt","<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json","--capacity-receipt-digest","7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34","--correlation-id","apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z","--expected-plan-digest","61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750"],
+  "canonicalization": "UTF-8 compact JSON array with no trailing newline",
+  "canonical_argv_sha256": "4dfa495df7336f58d37b7bc3a2c3e6240d2e311ae44953a4dcfbf68f07f76e08",
+  "derivation": {
+    "subcommand_change": "apply -> finalize",
+    "all_other_values_unchanged": true
+  }
+}

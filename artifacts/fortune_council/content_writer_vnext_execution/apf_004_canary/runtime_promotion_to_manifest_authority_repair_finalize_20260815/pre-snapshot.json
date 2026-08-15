@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T13:25:29Z",
+  "repository": {
+    "head": "2df0bcaec48a6f9ce2a1600b20dbf2f00bf14f56",
+    "origin_main_equal": true,
+    "clean_before_evidence": true
+  },
+  "apply_authority": {
+    "integrated": true,
+    "verdict": "APPLIED_ONCE_POSTCHECK_PASSED",
+    "apply_calls": 1,
+    "transaction_state": "POSTCHECK_PASSED",
+    "reviewer_verdict": "READY_FOR_FINALIZE"
+  },
+  "runtime": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "actor_clean": true,
+    "actor_origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "manifest_file_sha256": "cd9a39f17382ad404d9470109f6390d8dcbcfbb69f7c1b2b06c523093437f973",
+    "identity": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "private_stage_file_count": 7,
+    "private_stage_digest": "a4ea84451b5e897ea4be5a5c82aa7a0dc05947b90a988579b996d26cca1222f4"
+  },
+  "roots": {
+    "queue_file_count": 0,
+    "queue_tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state_file_count": 3,
+    "state_tree_digest": "b5955204a29d37be7ac5387fac86b50db45e7688fb76e88a273e3a422bcd0bfb",
+    "gsc_copy_present": false,
+    "transaction_root_present": true,
+    "rollback_bundle_present": true
+  },
+  "rollback_bundle": {
+    "actor_previous_file_count": 6341,
+    "actor_previous_digest": "b72c8c4ddb9f5a2c89fcc866e6f40889189640e26ceadcf1a4bc992f3c5cd26a",
+    "manifest_previous_sha256": "94a10d376a9c2d72b70053946075d2751a592337fb9c153d6a56b8dabe95f8c9",
+    "private_stage_previous_file_count": 7,
+    "private_stage_previous_digest": "2d773818048c1f788844ece153f2a870ca4d918bdf273d06dd193f64731e894a"
+  },
+  "transaction": {
+    "state": "POSTCHECK_PASSED",
+    "receipt_sha256": "c536c06a03c8d652a98e79e9e3009a7395102f4c3d56366d153d41d4e11c0c18",
+    "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750"
+  },
+  "production_mutation_this_phase": 0
+}

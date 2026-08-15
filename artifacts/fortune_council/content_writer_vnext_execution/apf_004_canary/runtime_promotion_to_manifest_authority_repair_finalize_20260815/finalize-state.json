@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T13:25:29Z",
+  "attempt_started_at": "2026-08-15T13:25:29Z",
+  "completed_at": "2026-08-15T13:26:50Z",
+  "state": "COMMITTED",
+  "finalize_calls": 1,
+  "retry_allowed": false,
+  "target_source_sha": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "exact_finalize_argv_digest": "4dfa495df7336f58d37b7bc3a2c3e6240d2e311ae44953a4dcfbf68f07f76e08",
+  "correlation_id": "apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "transaction_root": "<runtime-root>/backups/apf004-publisher-authority-promotion-a6c4b798a6-20260815T113802Z",
+  "evidence_root": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/runtime_promotion_to_manifest_authority_repair_finalize_20260815",
+  "last_outcome": "FINALIZED_ONCE",
+  "finalize_exit_code": 0
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-RUNTIME-PROMOTION-TO-MANIFEST-AUTHORITY-REPAIR-20260815",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "verdict": "FINALIZED_ONCE",
+  "candidate_base": "2df0bcaec48a6f9ce2a1600b20dbf2f00bf14f56",
+  "finalize_calls": 1,
+  "finalize_exit_code": 0,
+  "transaction_state": "COMMITTED",
+  "plan_digest": "61e10858b1b6b0f53bfa59d20289d8da80996b80dbd6a6d8266cf1ebfdc90750",
+  "exact_finalize_argv_digest": "4dfa495df7336f58d37b7bc3a2c3e6240d2e311ae44953a4dcfbf68f07f76e08",
+  "actor_after": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "manifest_after": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "generation_after": "g2-a6c4b798a6-20260815T113802Z",
+  "rollback_bundle": "FINALIZED_BY_PUBLIC_CLI",
+  "production_mutation": 1,
+  "next_gate": "independent review before Publisher-only reload"
+}
