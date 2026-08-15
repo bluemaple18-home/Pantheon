@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "source_thread_id": "01a00319-ed67-79d3-b8b2-d0c00a7316a3",
+  "operation": "Gate A capacity read-only preflight after inert repair",
+  "verdict": "BLOCKED_BEFORE_MUTATION",
+  "blocker_gate": "storage_capacity_preflight",
+  "blocker_reason": "rss_telemetry_unknown",
+  "blocker_detail": "live launchctl output exposes three state fields for the publisher; the repaired exact-one-state contract correctly fails closed",
+  "repository_head": "7c5ebd81e35b3215eb2c290b556431f377384040",
+  "authority_status": "READY",
+  "authorization_state": "UNCONSUMED_RETRY",
+  "apply_calls": 0,
+  "transaction_state": "NOT_CREATED",
+  "production_mutation": 0,
+  "remaining_frontier": "define a formally scoped parser for the top-level launchd service state without accepting nested coalition states, then re-review before another read-only preflight",
+  "prohibited_operations_executed": []
+}

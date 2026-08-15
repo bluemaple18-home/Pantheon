@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "artifacts": {
+    "authorization-state.json": "9930c7821b62a720da243f52ba069ec0ad8819ebf4ead6a2f49725223b9f6109",
+    "authorization.json": "d579405ead8675bb08904f771cb61e73d74e3b85140c14c73b856711504df9f7",
+    "capacity-preflight.json": "c8c79b593aa41d8a6cdcf3c4c4c4f02e480ebd6e2617372f7123829b0b7f7c64",
+    "governance-validator-receipt.json": "9fcb1fc41c003f789c504447394d1f6189b8793300e3704e7a958b1c1e670d91",
+    "invocation.json": "5d05ca5358b39e35ff4509980a57b16f8737a5a3b7031037f78d9c69af6198a2",
+    "post-snapshot.json": "a3ff1bdd3801635a16c87725937c8f9be4ff6bdbf7ec289b40734f7c36fe82b5",
+    "pre-snapshot.json": "446ca9b136779993f8adb88129785cc56319a915ef4f908e4aa2105ce93c701a",
+    "production-mutation-summary.json": "aff6e8582d84b66eb3345082b98deb08befcf02991a551804fa5394375594307",
+    "receipt.json": "fa53c9d8973574eb42ee7db14cae9fde68ff7af2d1fadb0aded85f8cd2b42d69",
+    "verification.json": "714bce3717ecce47737918f3334ef38692d1242574b9131a0de398035d83693e"
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "actor": {
+    "clean": true,
+    "head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "path": "<runtime-root>/actor"
+  },
+  "capacity_receipt": {
+    "path": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+    "production_mutation": false,
+    "sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "status": "PASS",
+    "stop_loss_status": "STOPPED"
+  },
+  "host": {
+    "available_bytes": 52242755584,
+    "filesystem_device": "/dev/disk3s5",
+    "runtime_root_device": 16777229,
+    "total_bytes": 245107195904
+  },
+  "manifest": {
+    "actor_head": "9d8573e9624d09748d029cab7d0209e1e14730c9",
+    "file_sha256": "8e922ee86e8aa21e86ae5cf05bad84199062326e0141a0b3639ffb0053ffc159",
+    "generation": "g2-9d8573e962-20260814T104149Z",
+    "identity": "gate2-actor:9d8573e9624d09748d029cab7d0209e1e14730c9:activation-only",
+    "manifest_digest": "effd15bd06b242201d5e297016e58ba5f96b6d82f866a9ee03584cb3b0f2abfc",
+    "path": "<runtime-root>/runtime-manifest.json",
+    "runtime_identity_digest": "22e88edd3ab49c5bcbc0dbfb548087093b2aa4a7ee764e117f00fb8203db7c0a"
+  },
+  "production_mutation": 0,
+  "repository": {
+    "clean": true,
+    "head": "7c5ebd81e35b3215eb2c290b556431f377384040",
+    "origin_main": "7c5ebd81e35b3215eb2c290b556431f377384040"
+  },
+  "roots": {
+    "evidence": {
+      "exists": false,
+      "path": "<repo-root>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/gate_a_capacity_preflight_after_inert_repair_20260815"
+    },
+    "logs": {
+      "exists": true,
+      "file_count": 14,
+      "path": "<runtime-root>/logs",
+      "tree_digest": "1222037670515afdf027f2454b3db6c7bfc629b2fad1548a10728701767af1e7"
+    },
+    "private_stage": {
+      "exists": true,
+      "file_count": 7,
+      "path": "<private-stage-root>",
+      "tree_digest": "3a856a54d8bb5f8c3d2554ce09f68820f9e2e28e1515c4f312bb5d5b16c21c78"
+    },
+    "queue": {
+      "exists": true,
+      "file_count": 0,
+      "path": "<runtime-root>/queue",
+      "tree_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "state": {
+      "exists": true,
+      "file_count": 1,
+      "path": "<runtime-root>/state",
+      "tree_digest": "66fa825013cce104a8042b85f510aea24e01631123e1f7076da5deead5febe8b"
+    },
+    "transaction": {
+      "exists": false,
+      "path": "<runtime-root>/backups/apf004-deterministic-plan-reproduction-28b8b84b6d-20260815T024433Z"
+    }
+  },
+  "sampled_at": "2026-08-15T07:48:53.708302Z",
+  "schema_version": 1,
+  "services": [
+    {
+      "label": "com.pantheon.agy-content-publisher",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-coordinator",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-new",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-rewrite",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-i18n-new",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.agy-gemini-i18n-rewrite",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    },
+    {
+      "label": "com.pantheon.content-capacity-guard",
+      "pids": [],
+      "returncode": 0,
+      "states": [
+        "not running",
+        "active",
+        "active"
+      ]
+    }
+  ]
+}

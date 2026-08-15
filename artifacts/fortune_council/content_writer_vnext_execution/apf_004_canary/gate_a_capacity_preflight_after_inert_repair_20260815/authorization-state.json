@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "authorization_id": "APF-004-GATE-A-APPLY-20260815-USER-REAUTH-001",
+  "immutable_tuple_digest": "2855b50ff262def6c000980a3eb5a6815c72296e9ccb1af2d219d2fbff45e883",
+  "apply_calls": 0,
+  "last_outcome": "BLOCKED_BEFORE_MUTATION"
+}

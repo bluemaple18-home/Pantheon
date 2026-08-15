@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED_BEFORE_MUTATION",
+  "governance": {
+    "status": "READY",
+    "authorization_state": "UNCONSUMED_RETRY",
+    "immutable_tuple_digest": "2855b50ff262def6c000980a3eb5a6815c72296e9ccb1af2d219d2fbff45e883",
+    "apply_calls": 0,
+    "errors": []
+  },
+  "capacity_preflight": {
+    "status": "NO-GO",
+    "reasons": [
+      "rss_telemetry_unknown"
+    ],
+    "rss_error": "loaded_service_pid_missing:com.pantheon.agy-content-publisher",
+    "publisher_observed_states": [
+      "not running",
+      "active",
+      "active"
+    ],
+    "publisher_pid_count": 0,
+    "inert_exemption_applied": false,
+    "inert_exemption_reason": "launchctl state cardinality is 3; the repaired contract requires exactly one state equal to not running",
+    "running_service_rss": "not_applicable_no_service_pid_observed"
+  },
+  "storage": {
+    "headroom_status": "PASS",
+    "disk_total_bytes": 245107195904,
+    "disk_free_bytes": 52240371712,
+    "ten_percent_floor_bytes": 24510719590,
+    "capacity_receipt_status": "PASS",
+    "stop_loss_status": "STOPPED",
+    "capacity_receipt_sha256": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34"
+  },
+  "unchanged": {
+    "actor": true,
+    "manifest": true,
+    "private_stage": true,
+    "queue": true,
+    "state": true,
+    "transaction_root": true,
+    "service_topology": true
+  },
+  "logs_note": "log digest changed during the sample window under the already-loaded activation-only LaunchAgents; logs are outside the required unchanged set and no control-plane action was executed",
+  "production_mutation": 0
+}
