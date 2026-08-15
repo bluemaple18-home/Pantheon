@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "source_head": "b985e8aa64d8be1019e11d90d5c3f408937fd6a3",
+  "runtime_actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+  "runtime_generation": "g2-a6c4b798a6-20260815T113802Z",
+  "queue_business_file_count": 0,
+  "state_business_file_count": 0,
+  "state_barrier_file_count": 3,
+  "created_run_count": 0,
+  "publication_count": 0,
+  "production_mutation": false
+}

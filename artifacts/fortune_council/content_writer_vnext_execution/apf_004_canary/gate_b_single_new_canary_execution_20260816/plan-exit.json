@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "call_index": 1,
+  "exit_code": 1,
+  "stdout_bytes": 0,
+  "status": "FAIL_CLOSED",
+  "retry_count": 0
+}

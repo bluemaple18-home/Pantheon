@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "receipt": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_gate2_readiness_checkpoint_20260814_uv_authoritative/package/production-canary-capability-receipt.json",
+  "official_gate": {
+    "execution_line_id": "exec-apf-004-readiness",
+    "failures": [],
+    "status": "READY"
+  },
+  "capabilities": [
+    "create",
+    "run",
+    "select",
+    "publish",
+    "transaction",
+    "tag",
+    "push"
+  ],
+  "positive_and_fail_closed_negative_evidence": "PASS",
+  "lane_readiness": {
+    "new": "PASS",
+    "rewrite": "PASS",
+    "i18n-new": "PASS",
+    "i18n-rewrite": "PASS"
+  },
+  "stage_ack_count": 7,
+  "generation": "g2-a6c4b798a6-20260815T113802Z",
+  "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+  "runtime_identity_digest": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9"
+}

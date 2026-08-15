@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "create_plan_only_calls": 1,
+  "create_apply_calls": 0,
+  "coordinator_run_calls": 0,
+  "external_model_calls": 0,
+  "select_calls": 0,
+  "publication_counts": {
+    "new": 0,
+    "rewrite": 0,
+    "i18n-new": 0,
+    "i18n-rewrite": 0
+  },
+  "transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "schedule_calls": 0,
+  "capacity_preflight_calls_this_task": 0,
+  "production_mutation": false
+}

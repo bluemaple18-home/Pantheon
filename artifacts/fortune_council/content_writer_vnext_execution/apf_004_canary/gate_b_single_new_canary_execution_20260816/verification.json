@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED_BEFORE_PUBLISH",
+  "checks": {
+    "exact_baseline": "PASS",
+    "fresh_capacity_authority": "PASS",
+    "capacity_calls_one_retry_zero": "PASS",
+    "four_lane_capability_readiness": "PASS",
+    "live_actor_entrypoint_present": "PASS",
+    "coordinator_publisher_runner_drift": "NONE",
+    "canonical_plan_only": "FAIL_CLOSED",
+    "second_plan_only": "NOT_RUN",
+    "create_apply": "NOT_RUN",
+    "publisher": "NOT_RUN",
+    "production_mutation_zero": "PASS",
+    "json_parse": "PASS",
+    "sanitizer": "PASS",
+    "git_diff_check": "PASS"
+  }
+}

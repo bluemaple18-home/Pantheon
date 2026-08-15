@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "artifacts": [
+    {"path": "canonical-plan-invocation.json", "sha256": "27ee83ae720912674a51615ed027c20d265af854d4b7b182c7675004c2144bf0"},
+    {"path": "capability-validation.json", "sha256": "8d9a6be577a5a001f8fd3257e3598d0c2a6f1a1a8148ed1d268c8d2994f1a16d"},
+    {"path": "capacity-validation.json", "sha256": "e9839937802c1e83ad71cc4cbc520b5d1744cd01af712457f0feb5b570c3a03e"},
+    {"path": "invocation-digest.json", "sha256": "77fd5c992e3dd91b00518318623132d03215fdad53d520be09e3f9bd717d8a9b"},
+    {"path": "plan-exit.json", "sha256": "66b4043006272d0430d2ebb0286e4e0202d3cc7fabc1365a212e56d94ec4816d"},
+    {"path": "plan-stderr.json", "sha256": "9b66c637444db264142b87bd35b26c9618178b7186d2c222f4446f082cb49096"},
+    {"path": "post-snapshot.json", "sha256": "b768c4957745a0593d154356231cad57dd45a8a1319e3c7238c99e5e65c104f6"},
+    {"path": "pre-snapshot.json", "sha256": "4934b539397e8c9d061040d891c583c7a191ee218a31d11a709c3d8f4c231e8c"},
+    {"path": "production-mutation-summary.json", "sha256": "c36673743ea264274273023b91ee702a51862b6bec6583d81d9a65048106aabf"},
+    {"path": "receipt.json", "sha256": "21782cbc6014e02d498378fc2e51d64cc2fa839a661fcb4df6898cf5d2cdb90f"},
+    {"path": "root-cause.json", "sha256": "2d1f865657232d1a847b5eb49800d33c45c691bd14aeb62b40fc3c0243512cc4"},
+    {"path": "sanitizer.json", "sha256": "73b4b83ba56ea278080bbc7d4c621565568f0ffa8e20783c8275b298ffc235cb"},
+    {"path": "verification.json", "sha256": "cdb6135762ef52bbd35c4b6f345dd42fa8bdf75c32cc01657872aad04df28ee9"}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "classification": "AUTHORITY_DIGEST_MISMATCH",
+  "observed": "live actor 含 create_single_source_run_adapter，且 coordinator/publisher/runner 從 actor SHA 到 baseline 無檔案漂移；正式 plan-only 仍因 workset SHA drift 拒絕",
+  "decision": "BLOCKED_BEFORE_PUBLISH",
+  "reason": "依使用者指定 B 路徑，canonical replay exit=1 後不得 retry 或修正 command",
+  "repair_attempted": false,
+  "production_mutation": false
+}

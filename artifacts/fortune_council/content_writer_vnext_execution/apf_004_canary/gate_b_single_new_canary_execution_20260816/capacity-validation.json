@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authority": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/fresh_capacity_after_swap_repair_execution_20260816/",
+  "artifact_digests": "PASS",
+  "capacity_preflight_calls": 1,
+  "capacity_retries": 0,
+  "status": "PASS",
+  "swap_available": true,
+  "production_mutation": false,
+  "capacity_preflight_rerun_in_this_task": false
+}

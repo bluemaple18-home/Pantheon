@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "canonicalization": "UTF-8 JSON、sorted keys、compact separators",
+  "artifact": "canonical-plan-invocation.json",
+  "canonical_digest": "e6f5dc1a0a41ffd54e79e9f498cf961d3c98b9fcb68766141a9641a951b4b4fe"
+}

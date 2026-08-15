@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "sampled_at": "2026-08-15T18:12:11Z",
+  "source": {
+    "head": "b985e8aa64d8be1019e11d90d5c3f408937fd6a3",
+    "origin_main": "b985e8aa64d8be1019e11d90d5c3f408937fd6a3",
+    "detached": true,
+    "clean": true
+  },
+  "runtime": {
+    "actor_head": "a6c4b798a6aeab61fc3e977d326731c1aec9a181",
+    "actor_clean": true,
+    "generation": "g2-a6c4b798a6-20260815T113802Z",
+    "manifest_digest": "92b66b1a15aa1a2c71b1bafa3fba3f8308b433ae37eca1137076eb2a31908f54",
+    "runtime_digest": "84fbe8b84a2f19e89f4adcf11426075e63c77512fed99b27e88b0032130c90b2",
+    "runtime_identity_digest": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9",
+    "queue_business_file_count": 0,
+    "state_business_file_count": 0,
+    "state_barrier_file_count": 3
+  }
+}

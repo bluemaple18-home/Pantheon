@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "card_id": "APF-004-CANARY",
+  "operation": "gate-b-single-new-production-canary",
+  "status": "BLOCKED_BEFORE_PUBLISH",
+  "sampled_at": "2026-08-15T18:12:11Z",
+  "baseline_sha": "b985e8aa64d8be1019e11d90d5c3f408937fd6a3",
+  "correlation_id": "apf004-gate-b-single-new-a6c4b798a6-20260815T181211Z",
+  "capacity_authority": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/fresh_capacity_after_swap_repair_execution_20260816/",
+  "capacity_status": "PASS",
+  "capability_status": "READY",
+  "blocking_boundary": "create_single_source_run_adapter plan_only",
+  "blocking_reason": "authority-bound workset SHA 與正式 adapter 的 canonical digest 不一致，入口以 create-run adapter workset SHA drift fail closed",
+  "stop_rule": "canonical replay exit=1；不做第二次 plan_only、不修 command、不 apply、不 run、不 publish",
+  "production_mutation": false
+}

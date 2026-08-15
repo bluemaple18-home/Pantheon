@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "exception_type": "ValueError",
+  "error": "create-run adapter workset SHA drift",
+  "failing_entrypoint": "scripts.agy_gemini_coordinator:_create_single_source_run_adapter_plan",
+  "production_paths_redacted": true
+}

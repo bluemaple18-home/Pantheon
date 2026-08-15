@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "call_index": 1,
+  "entrypoint": "scripts.agy_gemini_coordinator:create_single_source_run_adapter",
+  "actor_root": "<runtime-root>/actor",
+  "run_root": "<runtime-root>/gsc-copy",
+  "queue_root": "<runtime-root>/queue",
+  "state_root": "<runtime-root>/state",
+  "campaign_version": "apf-001-v1",
+  "workset_authority": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/single_create_plan_replay_20260815/authority-input.json",
+  "supplied_workset_sha256": "5efd51a14079652f64270ad30164d44dcc162629d021817389636632690dbb16",
+  "confirmed_payload_digest": "9a3694b46b12ccdfb5af9b74b94a798670a19d965e765cd7dad538c94189690b",
+  "activation_authorization_digest": "4a163453c1d7f3c8866479f484cbcff03bd18f9e2425fc9623e7d89158842d11",
+  "runtime_identity_digest": "aa4b5ae01f94796d591708eb6886a496f65a7440a5dee1c8e7b23cba557e1fd9",
+  "actor_identity": "gate2-actor:a6c4b798a6aeab61fc3e977d326731c1aec9a181:activation-only",
+  "correlation_id": "apf004-gate-b-single-new-a6c4b798a6-20260815T181211Z",
+  "plan_only": true,
+  "max_runs": 1
+}
