@@ -9,6 +9,8 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import plistlib
+import pwd
 import re
 import resource
 import subprocess
@@ -42,6 +44,7 @@ ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
 )
 LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ = \{$")
 LAUNCHCTL_STATE_FIELD_PATTERN = re.compile(r"^state = ([^\r\n]+)$")
+LAUNCHCTL_PATH_FIELD_PATTERN = re.compile(r"^path = ([^\r\n]+)$")
 LOG_NAMES = tuple(
     f"{stem}.{stream}.log"
     for stem in (
@@ -139,16 +142,66 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
     return frozenset()
 
 
-def _launchctl_top_level_states(
+def _normal_scheduled_service_labels(
+    runtime_receipt: dict[str, Any],
+) -> frozenset[str]:
+    """只信任 manifest-bound、owner/mode 正確的正式 interval job。"""
+    if (
+        runtime_receipt.get("status") != "PASS"
+        or runtime_receipt.get("config_version") != "formal-runtime-v2-gate2"
+        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
+            str(runtime_receipt.get("identity", ""))
+        )
+    ):
+        return frozenset()
+    try:
+        manifest = formal_runtime.load_manifest(
+            Path(os.environ["PANTHEON_RUNTIME_MANIFEST"]),
+            os.environ["PANTHEON_RUNTIME_MANIFEST_DIGEST"],
+        )
+        home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+        plist_paths = [
+            home / "Library" / "LaunchAgents" / f"{label}.plist"
+            for label in formal_runtime.SERVICE_LABELS
+        ]
+        formal_runtime.aggregate_plist_preflight(
+            manifest,
+            plist_paths,
+            expected_activation_mode="normal",
+        )
+        for label, path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+            with path.open("rb") as stream:
+                payload = plistlib.load(stream)
+            interval = payload.get("StartInterval")
+            if (
+                payload.get("Label") != label
+                or payload.get("RunAtLoad") is not True
+                or type(interval) is not int
+                or interval <= 0
+                or "KeepAlive" in payload
+            ):
+                return frozenset()
+    except (
+        KeyError,
+        OSError,
+        plistlib.InvalidFileException,
+        formal_runtime.RuntimeManifestError,
+    ):
+        return frozenset()
+    return frozenset(SERVICE_LABELS)
+
+
+def _launchctl_top_level_identity(
     output: str,
     *,
     expected_target: str,
-) -> list[str] | None:
-    """只解析 root service object 的 state；結構不完整時回傳 None。"""
+) -> dict[str, list[str]] | None:
+    """只解析 root service object 的 state/path；結構不完整時回傳 None。"""
     depth = 0
     root_started = False
     root_closed = False
     states: list[str] = []
+    paths: list[str] = []
     for raw_line in output.splitlines():
         if not raw_line.strip():
             continue
@@ -177,19 +230,24 @@ def _launchctl_top_level_states(
             match = LAUNCHCTL_STATE_FIELD_PATTERN.fullmatch(line)
             if match is not None:
                 states.append(match.group(1))
+            match = LAUNCHCTL_PATH_FIELD_PATTERN.fullmatch(line)
+            if match is not None:
+                paths.append(match.group(1))
     if not root_started or not root_closed or depth != 0:
         return None
-    return states
+    return {"states": states, "paths": paths}
 
 
 def _service_rss_bytes(
     runner: Runner = _run,
     *,
     expected_inert_labels: frozenset[str] = frozenset(),
+    expected_idle_labels: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     pids: list[str] = []
     loaded: list[dict[str, Any]] = []
     inert: list[dict[str, Any]] = []
+    idle: list[dict[str, Any]] = []
     absent: list[dict[str, Any]] = []
     domain = f"gui/{os.getuid()}"
     for label in SERVICE_LABELS:
@@ -207,15 +265,28 @@ def _service_rss_bytes(
             }
         match = re.search(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
         if not match:
-            states = _launchctl_top_level_states(
+            identity = _launchctl_top_level_identity(
                 result.stdout,
                 expected_target=target,
             )
             if (
                 label in expected_inert_labels
-                and states == ["not running"]
+                and identity is not None
+                and identity["states"] == ["not running"]
             ):
                 inert.append({"label": label, "topology": "loaded-but-inert"})
+                continue
+            expected_plist = str(
+                Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+                / "Library"
+                / "LaunchAgents"
+                / f"{label}.plist"
+            )
+            if label in expected_idle_labels and identity == {
+                "states": ["not running"],
+                "paths": [expected_plist],
+            }:
+                idle.append({"label": label, "topology": "loaded-but-idle"})
                 continue
             return {
                 "value": None,
@@ -224,6 +295,7 @@ def _service_rss_bytes(
                 "identity": {
                     "loaded_labels": loaded,
                     "inert_labels": inert,
+                    "idle_labels": idle,
                     "absent_labels": absent,
                 },
             }
@@ -238,6 +310,7 @@ def _service_rss_bytes(
             "identity": {
                 "loaded_labels": [],
                 "inert_labels": inert,
+                "idle_labels": idle,
                 "absent_labels": absent,
             },
         }
@@ -250,6 +323,7 @@ def _service_rss_bytes(
             "identity": {
                 "loaded_labels": loaded,
                 "inert_labels": inert,
+                "idle_labels": idle,
                 "absent_labels": absent,
             },
         }
@@ -262,6 +336,7 @@ def _service_rss_bytes(
             "identity": {
                 "loaded_labels": loaded,
                 "inert_labels": inert,
+                "idle_labels": idle,
                 "absent_labels": absent,
             },
         }
@@ -272,6 +347,7 @@ def _service_rss_bytes(
         "identity": {
             "loaded_labels": loaded,
             "inert_labels": inert,
+            "idle_labels": idle,
             "absent_labels": absent,
         },
     }
@@ -421,23 +497,29 @@ def _snapshot(
     *,
     runner: Runner = _run,
     expected_inert_labels: frozenset[str] = frozenset(),
+    expected_idle_labels: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
     total_disk, free_disk = _disk_sample(queue_root)
     if runner is _run:
-        rss = (
-            _service_rss_bytes(expected_inert_labels=expected_inert_labels)
-            if expected_inert_labels
-            else _service_rss_bytes()
-        )
+        if expected_inert_labels or expected_idle_labels:
+            rss = _service_rss_bytes(
+                expected_inert_labels=expected_inert_labels,
+                expected_idle_labels=expected_idle_labels,
+            )
+        else:
+            rss = _service_rss_bytes()
         swap = _swap_used_bytes()
     else:
-        rss = (
-            _service_rss_bytes(runner, expected_inert_labels=expected_inert_labels)
-            if expected_inert_labels
-            else _service_rss_bytes(runner)
-        )
+        if expected_inert_labels or expected_idle_labels:
+            rss = _service_rss_bytes(
+                runner,
+                expected_inert_labels=expected_inert_labels,
+                expected_idle_labels=expected_idle_labels,
+            )
+        else:
+            rss = _service_rss_bytes(runner)
         swap = _swap_used_bytes(runner)
     return {
         "bytes": sum(item[0] for item in measured),
@@ -472,29 +554,15 @@ def preflight(
         require_activation_token=False,
     )
     expected_inert_labels = _activation_only_service_labels(runtime_receipt)
-    if runner is _run:
-        sample = (
-            _snapshot(
-                queue_root,
-                publisher_root,
-                log_root,
-                expected_inert_labels=expected_inert_labels,
-            )
-            if expected_inert_labels
-            else _snapshot(queue_root, publisher_root, log_root)
-        )
-    else:
-        sample = (
-            _snapshot(
-                queue_root,
-                publisher_root,
-                log_root,
-                runner=runner,
-                expected_inert_labels=expected_inert_labels,
-            )
-            if expected_inert_labels
-            else _snapshot(queue_root, publisher_root, log_root, runner=runner)
-        )
+    expected_idle_labels = _normal_scheduled_service_labels(runtime_receipt)
+    snapshot_options: dict[str, Any] = {}
+    if runner is not _run:
+        snapshot_options["runner"] = runner
+    if expected_inert_labels:
+        snapshot_options["expected_inert_labels"] = expected_inert_labels
+    if expected_idle_labels:
+        snapshot_options["expected_idle_labels"] = expected_idle_labels
+    sample = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
     reasons: list[str] = []
     if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
         reasons.append("disk_free_below_start_floor")
@@ -529,16 +597,13 @@ def check_once(
     )
     reclaimed = sum(_trim_log(log_root / name) for name in LOG_NAMES)
     expected_inert_labels = _activation_only_service_labels(runtime_receipt)
-    current = (
-        _snapshot(
-            queue_root,
-            publisher_root,
-            log_root,
-            expected_inert_labels=expected_inert_labels,
-        )
-        if expected_inert_labels
-        else _snapshot(queue_root, publisher_root, log_root)
-    )
+    expected_idle_labels = _normal_scheduled_service_labels(runtime_receipt)
+    snapshot_options: dict[str, Any] = {}
+    if expected_inert_labels:
+        snapshot_options["expected_inert_labels"] = expected_inert_labels
+    if expected_idle_labels:
+        snapshot_options["expected_idle_labels"] = expected_idle_labels
+    current = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
     timestamp = time.time() if now is None else now
     previous = _read_state(state_file)
     stop_floor = max(20 * GIB, current["disk_total_bytes"] // 10)

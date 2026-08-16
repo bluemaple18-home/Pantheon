@@ -4,8 +4,10 @@ import json
 import os
 import plistlib
 from pathlib import Path
+import pwd
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -334,6 +336,7 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
         config_version="formal-runtime-v2-gate2",
         generation="g2-capacity-preflight",
         python_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path(sys.executable).resolve(strict=True),
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -438,6 +441,7 @@ def test_hardened_capacity_installer_uses_canonical_python_in_staged_plist(
         log_root=log_root,
         identity="synthetic-capacity:python",
         python_executable=python_target,
+        uv_executable=python_target,
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -801,6 +805,132 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
     )
     assert "rss_telemetry_unknown" in normal["reasons"]
+
+    monkeypatch.setattr(
+        guard,
+        "_normal_scheduled_service_labels",
+        lambda _receipt: frozenset(guard.SERVICE_LABELS),
+    )
+    live_plist = (
+        Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+        / "Library"
+        / "LaunchAgents"
+        / "com.pantheon.agy-content-publisher.plist"
+    )
+    launch_output["build"] = lambda target: exact_fixture(target).replace(
+        "\tstate = not running\n",
+        f"\tpath = {live_plist}\n\tstate = not running\n",
+        1,
+    )
+    scheduled_idle = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+        runner=runner,
+    )
+
+    assert scheduled_idle["status"] == "PASS"
+    assert scheduled_idle["rss_available"] is True
+    assert scheduled_idle["rss_identity"]["idle_labels"] == [
+        {
+            "label": "com.pantheon.agy-content-publisher",
+            "topology": "loaded-but-idle",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("RunAtLoad", False),
+        ("StartInterval", 0),
+        ("StartInterval", True),
+        ("KeepAlive", False),
+    ],
+)
+def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    home = tmp_path / "home"
+    launch_agents = home / "Library" / "LaunchAgents"
+    for path in (actor, queue, state, logs, launch_agents):
+        path.mkdir(parents=True)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity=f"gate2-actor:{'a' * 40}:normal",
+        runtime_digest="b" * 64,
+        config_version="formal-runtime-v2-gate2",
+        generation="g2-scheduled-idle-test",
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    payloads: dict[str, dict[str, object]] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        receipt = runtime_manifest.receipt_for_label(manifest, label)
+        payload: dict[str, object] = {
+            "Label": label,
+            "ProgramArguments": [],
+            "WorkingDirectory": receipt["actor_root"],
+            "RunAtLoad": True,
+            "StartInterval": 60,
+            "EnvironmentVariables": {
+                "PANTHEON_RUNTIME_SERVICE_LABEL": receipt["service_label"],
+                "PANTHEON_RUNTIME_IDENTITY": receipt["identity"],
+                "PANTHEON_RUNTIME_MANIFEST_DIGEST": receipt["manifest_digest"],
+                "PANTHEON_RUNTIME_IDENTITY_DIGEST": receipt[
+                    "runtime_identity_digest"
+                ],
+                "PANTHEON_RUNTIME_CODE_DIGEST": receipt["runtime_digest"],
+                "PANTHEON_RUNTIME_CONFIG_VERSION": receipt["config_version"],
+                "PANTHEON_RUNTIME_GENERATION": receipt["generation"],
+                "PANTHEON_RUNTIME_ACTOR_ROOT": receipt["actor_root"],
+                "PANTHEON_RUNTIME_QUEUE_ROOT": receipt["queue_root"],
+                "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": receipt[
+                    "publisher_state_root"
+                ],
+                "PANTHEON_RUNTIME_LOG_ROOT": receipt["log_root"],
+            },
+        }
+        payloads[label] = payload
+        path = launch_agents / f"{label}.plist"
+        path.write_bytes(plistlib.dumps(payload))
+        path.chmod(0o600)
+    monkeypatch.setenv("PANTHEON_RUNTIME_MANIFEST", str(manifest_path))
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST", manifest["manifest_digest"]
+    )
+    monkeypatch.setattr(
+        guard.pwd,
+        "getpwuid",
+        lambda _uid: SimpleNamespace(pw_dir=str(home)),
+    )
+    runtime_receipt = {
+        "status": "PASS",
+        "config_version": "formal-runtime-v2-gate2",
+        "identity": manifest["identity"],
+    }
+
+    assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset(
+        guard.SERVICE_LABELS
+    )
+
+    target_label = guard.SERVICE_LABELS[0]
+    payloads[target_label][field] = value
+    target = launch_agents / f"{target_label}.plist"
+    target.write_bytes(plistlib.dumps(payloads[target_label]))
+    target.chmod(0o600)
+
+    assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset()
 
 
 def test_stop_loss_is_stopped_only_after_every_registered_identity_is_absent(
