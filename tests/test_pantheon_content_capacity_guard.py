@@ -317,12 +317,23 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
     queue_root.mkdir()
     publisher_root.mkdir()
     log_root.mkdir()
+    actor_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     manifest = runtime_manifest.build_manifest(
         actor_root=repo,
         queue_root=queue_root,
         publisher_state_root=publisher_root,
         log_root=log_root,
-        identity="synthetic-capacity:501",
+        identity=f"gate2-actor:{actor_head}:activation-only",
+        runtime_digest="b" * 64,
+        config_version="formal-runtime-v2-gate2",
+        generation="g2-capacity-preflight",
+        python_executable=Path(sys.executable).resolve(strict=True),
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -335,7 +346,8 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
     launchctl = fake_bin / "launchctl"
     launchctl.write_text(
         "#!/bin/sh\n"
-        "if [ \"$1\" = \"print\" ]; then exit 113; fi\n"
+        "if [ \"$1\" = \"print\" ]; then "
+        "printf '%s = {\\n\\tstate = not running\\n}\\n' \"$2\"; exit 0; fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
         "exit 0\n",
         encoding="utf-8",
@@ -377,7 +389,7 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
         text=True,
     )
 
-    assert completed.returncode == 0, completed.stderr
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
     assert '"status": "PASS"' in completed.stdout
     assert list(publisher_root.iterdir()) == []
     assert list(log_root.iterdir()) == []

@@ -469,6 +469,7 @@ def preflight(
             os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
         ),
         log_root=log_root.resolve(),
+        require_activation_token=False,
     )
     expected_inert_labels = _activation_only_service_labels(runtime_receipt)
     if runner is _run:
