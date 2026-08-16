@@ -277,6 +277,38 @@ def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
     assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
 
 
+def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "completed-reviewer-run"
+    _write_json(
+        request.queue_root / "runs" / "completed.json",
+        {"schema_version": 1, "run_id": run_id, "status": "complete"},
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+
+    plan = promotion.plan_promotion(request)
+
+    assert plan["status"] == "READY_TO_APPLY"
+    assert plan["preserved_run_ids"] == [run_id]
+
+
+def test_preserved_run_contract_rejects_failed_run(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "failed-reviewer-run"
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {"schema_version": 1, "run_id": run_id, "status": "failed"},
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="not promotable"):
+        promotion.plan_promotion(request)
+
+
 def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     _write_json(

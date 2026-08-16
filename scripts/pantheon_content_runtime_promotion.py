@@ -260,9 +260,9 @@ def _validate_preserved_runs(request: PromotionRequest) -> None:
         if (
             type(run_id) is not str
             or SAFE_ID_PATTERN.fullmatch(run_id) is None
-            or state.get("status") != "active"
+            or state.get("status") not in {"active", "complete"}
         ):
-            raise PromotionError("preserved run state is not active")
+            raise PromotionError("preserved run state is not promotable")
         if run_id in observed:
             raise PromotionError("preserved run registry contains duplicate identity")
         observed.add(run_id)
