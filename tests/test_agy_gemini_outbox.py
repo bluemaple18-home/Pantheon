@@ -4012,6 +4012,7 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
             "SCHEMA_INVALID_PAYLOAD",
         ),
         ("GeminiApiFailure", "API_HTTP_ERROR", None, "PROVIDER_UNAVAILABLE"),
+        ("GeminiApiFailure", "API_RATE_LIMITED", None, "QUOTA"),
     ],
 )
 def test_transport_failure_retry_allowlist_preserves_logical_request_identity(
@@ -4065,7 +4066,7 @@ def test_transport_failure_retry_allowlist_preserves_logical_request_identity(
     ("error_type", "error_code", "expected_category"),
     [
         ("GeminiApiFailure", "API_AUTH", "AUTH"),
-        ("GeminiApiFailure", "API_RATE_LIMITED", "QUOTA"),
+        ("GeminiApiFailure", "API_QUOTA", "QUOTA"),
         ("GeminiApiFailure", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
         ("GeminiCliFailure", "CLI_NOT_FOUND", "CLI_UNAVAILABLE"),
     ],

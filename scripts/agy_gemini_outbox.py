@@ -662,7 +662,8 @@ class OutboxGeminiClient:
                 return consume_external_response(request_root, request)
             except ExternalJobFailed as failed:
                 if (
-                    failed.failure_category
+                    failed.error_code != "API_RATE_LIMITED"
+                    and failed.failure_category
                     not in RETRYABLE_EXTERNAL_FAILURE_CATEGORIES
                     or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES
                 ):
