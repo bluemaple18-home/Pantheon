@@ -486,8 +486,14 @@ def test_all_formal_installers_and_plists_consume_shared_manifest_identity() -> 
         else:
             assert "optional_manifest_field actor_head" in body
         assert "optional_manifest_field python_executable" in body
+        assert "manifest_field uv_executable" in body
         assert "PANTHEON_RUNTIME_ACTOR_HEAD" in body
         assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in body
+        assert "PANTHEON_RUNTIME_UV_EXECUTABLE" in body
+    capacity_installer = installers[2].read_text(encoding="utf-8")
+    assert capacity_installer.count(
+        'PANTHEON_RUNTIME_UV_EXECUTABLE="${RUNTIME_UV_EXECUTABLE}"'
+    ) == 1
     coordinator = installers[1].read_text(encoding="utf-8")
     assert coordinator.count('add_hardened_runtime_identity "${TEMP_PLIST}"') == 1
     assert coordinator.count('add_hardened_runtime_identity "${LANE_TEMP_PLIST}"') == 1

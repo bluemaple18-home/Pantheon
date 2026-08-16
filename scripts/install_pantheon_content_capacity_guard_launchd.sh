@@ -127,6 +127,7 @@ fi
     PANTHEON_RUNTIME_SERVICE_LABEL="com.pantheon.content-capacity-guard" \
     PANTHEON_RUNTIME_ACTOR_HEAD="${RUNTIME_ACTOR_HEAD}" \
     PANTHEON_RUNTIME_PYTHON_EXECUTABLE="${RUNTIME_PYTHON_EXECUTABLE}" \
+    PANTHEON_RUNTIME_UV_EXECUTABLE="${RUNTIME_UV_EXECUTABLE}" \
     "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
     --queue-root "${QUEUE_ROOT}" \
     --publisher-root "${PUBLISHER_ROOT}" \
