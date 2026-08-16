@@ -1,4 +1,4 @@
-import { buildArticleContent } from "./article-meta.js?v=agy-auto-new-v1-20260806-113-01";
+import { buildArticleContent } from "./article-meta.js?v=agy-apf-create-run-new-7d0e46d9ec617526f77f8213";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
