@@ -66,6 +66,7 @@ class PromotionRequest:
     capacity_receipt_path: Path
     capacity_receipt_digest: str
     correlation_id: str
+    preserved_run_ids: tuple[str, ...] = ()
 
 
 def _utc_now() -> str:
@@ -231,6 +232,53 @@ def _validate_request_shape(request: PromotionRequest) -> None:
             raise PromotionError(f"{field} is invalid")
     if not request.expected_origin:
         raise PromotionError("expected origin is required")
+    if (
+        tuple(sorted(set(request.preserved_run_ids))) != request.preserved_run_ids
+        or any(SAFE_ID_PATTERN.fullmatch(run_id) is None for run_id in request.preserved_run_ids)
+    ):
+        raise PromotionError("preserved run ids are invalid")
+
+
+def _validate_preserved_runs(request: PromotionRequest) -> None:
+    runs_root = request.queue_root / "runs"
+    if not request.preserved_run_ids:
+        for relative in ("runs", "gsc-copy"):
+            root = request.queue_root / relative
+            if root.exists() and (
+                root.is_symlink() or not root.is_dir() or any(root.iterdir())
+            ):
+                raise PromotionError(f"queue residue present: {relative}")
+        return
+    if runs_root.is_symlink() or not runs_root.is_dir():
+        raise PromotionError("preserved run registry is invalid")
+    observed: set[str] = set()
+    for path in runs_root.iterdir():
+        if path.is_symlink() or not path.is_file() or path.suffix != ".json":
+            raise PromotionError("preserved run registry contains unexpected residue")
+        state = _read_json_file(path, "preserved run state")
+        run_id = state.get("run_id")
+        if (
+            type(run_id) is not str
+            or SAFE_ID_PATTERN.fullmatch(run_id) is None
+            or state.get("status") != "active"
+        ):
+            raise PromotionError("preserved run state is not active")
+        if run_id in observed:
+            raise PromotionError("preserved run registry contains duplicate identity")
+        observed.add(run_id)
+    if observed != set(request.preserved_run_ids):
+        raise PromotionError("preserved run identity mismatch")
+    legacy_root = request.queue_root / "gsc-copy"
+    if legacy_root.exists() and (
+        legacy_root.is_symlink() or not legacy_root.is_dir() or any(legacy_root.iterdir())
+    ):
+        raise PromotionError("queue residue present: gsc-copy")
+
+
+def _queue_snapshot_digest(queue_root: Path) -> str:
+    if any(path.is_symlink() for path in queue_root.rglob("*")):
+        raise PromotionError("queue snapshot contains symlink")
+    return tree_digest(queue_root)
 
 
 def _validate_capacity_receipt(request: PromotionRequest) -> dict[str, Any]:
@@ -341,6 +389,8 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
     _validate_request_shape(request)
     _validate_path_boundaries(request)
     _validate_capacity_receipt(request)
+    if request.preserved_run_ids:
+        _validate_preserved_runs(request)
     _validate_git_identity(
         repo=request.source_repo,
         expected_sha=request.source_sha,
@@ -407,13 +457,15 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
             "actor_clean_head_origin",
             "manifest_digest_actor_head_generation",
             "private_stage_readiness_and_barrier",
-            "queue_empty",
+            "queue_preserved" if request.preserved_run_ids else "queue_empty",
             "capacity_receipt_payload_stop_loss_pass",
         ],
         "authorization_digest": request.authorization_digest,
         "capacity_receipt_path": str(request.capacity_receipt_path),
         "capacity_receipt_digest": request.capacity_receipt_digest,
         "correlation_id": request.correlation_id,
+        "preserved_run_ids": list(request.preserved_run_ids),
+        "queue_snapshot_digest": _queue_snapshot_digest(request.queue_root),
     }
     plan["plan_digest"] = _json_digest(plan)
     return plan
@@ -513,7 +565,11 @@ def _install_private_stage(request: PromotionRequest, manifest: dict[str, Any]) 
     runtime_manifest.activate_barrier(barrier_path(request), ready_root, manifest)
 
 
-def _postcheck(request: PromotionRequest, manifest: dict[str, Any]) -> None:
+def _postcheck(
+    request: PromotionRequest,
+    manifest: dict[str, Any],
+    plan: dict[str, Any],
+) -> None:
     _validate_git_identity(
         repo=request.actor_root,
         expected_sha=request.source_sha,
@@ -538,12 +594,9 @@ def _postcheck(request: PromotionRequest, manifest: dict[str, Any]) -> None:
     ):
         raise PromotionError("private stage readiness postcheck failed")
     _validate_capacity_receipt(request)
-    for relative in ("runs", "gsc-copy"):
-        root = request.queue_root / relative
-        if not root.exists():
-            continue
-        if root.is_symlink() or not root.is_dir() or any(root.iterdir()):
-            raise PromotionError(f"queue residue present: {relative}")
+    _validate_preserved_runs(request)
+    if _queue_snapshot_digest(request.queue_root) != plan["queue_snapshot_digest"]:
+        raise PromotionError("queue changed during promotion")
 
 
 def _restore_manifest(request: PromotionRequest) -> None:
@@ -634,7 +687,7 @@ def apply_promotion(
             raise PromotionCrashStop("stopped after STAGE_INSTALLED")
         if failure_injection == "postcheck":
             raise PromotionError("injected postcheck failure")
-        _postcheck(request, manifest)
+        _postcheck(request, manifest, plan)
         _record_state(
             request,
             receipt,
@@ -743,6 +796,7 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--capacity-receipt", type=Path, required=True)
     parser.add_argument("--capacity-receipt-digest", required=True)
     parser.add_argument("--correlation-id", required=True)
+    parser.add_argument("--preserve-run-id", action="append", default=[])
 
 
 def _request_from_args(args: argparse.Namespace) -> PromotionRequest:
@@ -769,6 +823,7 @@ def _request_from_args(args: argparse.Namespace) -> PromotionRequest:
         capacity_receipt_path=args.capacity_receipt,
         capacity_receipt_digest=args.capacity_receipt_digest,
         correlation_id=args.correlation_id,
+        preserved_run_ids=tuple(args.preserve_run_id),
     )
 
 

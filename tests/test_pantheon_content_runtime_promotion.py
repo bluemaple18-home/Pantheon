@@ -247,6 +247,76 @@ def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> N
     assert status["audit_receipt_exists"] is True
 
 
+def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+    run_id = "apf-create-run-new-preserved"
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {"schema_version": 1, "run_id": run_id, "status": "active"},
+    )
+    (request.queue_root / "outbox").mkdir()
+    _write_json(
+        request.queue_root / "outbox" / "retry.json",
+        {"schema_version": 1, "job_id": "fresh-retry-job"},
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+
+    plan = promotion.plan_promotion(request)
+    applied = promotion.apply_promotion(
+        request,
+        expected_plan_digest=plan["plan_digest"],
+    )
+
+    assert applied["status"] == "POSTCHECK_PASSED"
+    assert plan["preserved_run_ids"] == [run_id]
+    assert plan["postchecks"][3] == "queue_preserved"
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
+
+
+def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {"schema_version": 1, "run_id": "unexpected-run", "status": "active"},
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": ("expected-run",)}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="identity mismatch"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+
+
+def test_preserved_run_contract_rejects_duplicate_identity(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "preserved-run"
+    for name in ("one.json", "two.json"):
+        _write_json(
+            request.queue_root / "runs" / name,
+            {"schema_version": 1, "run_id": run_id, "status": "active"},
+        )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="duplicate identity"):
+        promotion.plan_promotion(request)
+
+
+def test_queue_snapshot_rejects_nested_symlink(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    (request.queue_root / "linked-state").symlink_to(request.publisher_state_root)
+
+    with pytest.raises(promotion.PromotionError, match="queue snapshot contains symlink"):
+        promotion.plan_promotion(request)
+
+
 def test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back(
     tmp_path: Path,
 ) -> None:
