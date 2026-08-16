@@ -170,6 +170,7 @@ def _runtime_fixture(tmp_path: Path) -> tuple[promotion.PromotionRequest, dict[s
         capacity_receipt_path=capacity_receipt_path,
         capacity_receipt_digest=capacity_receipt_digest,
         correlation_id=f"apf004-runtime-promotion-{new_sha[:10]}",
+        target_uv_executable=Path(sys.executable).resolve(strict=True),
     )
     return request, {"old_sha": old_sha, "new_sha": new_sha}
 
