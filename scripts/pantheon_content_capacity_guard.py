@@ -640,14 +640,16 @@ def check_once(
 
     current_rss = current.get("rss_bytes")
     current_swap = current.get("swap_used_bytes")
+    previous_rss = previous.get("rss_bytes")
+    previous_swap = previous.get("swap_used_bytes")
     rss_growth = (
-        int(current_rss) - int(previous.get("rss_bytes", current_rss))
-        if current_rss is not None
+        int(current_rss) - int(previous_rss)
+        if current_rss is not None and previous_rss is not None
         else 0
     )
     swap_growth = (
-        int(current_swap) - int(previous.get("swap_used_bytes", current_swap))
-        if current_swap is not None
+        int(current_swap) - int(previous_swap)
+        if current_swap is not None and previous_swap is not None
         else 0
     )
     memory_risk = rss_growth > MEMORY_STEP_BYTES and swap_growth > MEMORY_STEP_BYTES

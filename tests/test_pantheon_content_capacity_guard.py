@@ -244,6 +244,45 @@ def test_check_within_budget_records_pass_without_bootout(tmp_path: Path, monkey
     assert result["growth_bytes_per_hour"] == 0
 
 
+def test_check_uses_current_memory_as_baseline_after_unknown_previous_sample(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "STOPPED",
+                "sampled_epoch": 900,
+                "bytes": 100 * guard.MIB,
+                "rss_bytes": None,
+                "swap_used_bytes": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_roots: _available_snapshot())
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("recovered telemetry baseline must not stop services")
+
+    result = guard.check_once(
+        *roots,
+        state,
+        now=1000,
+        stop_runner=forbidden,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["memory_streak"] == 0
+    assert result["rss_bytes"] == 0
+    assert result["swap_used_bytes"] == 0
+
+
 def test_two_high_growth_cycles_trigger_bounded_stop_loss(
     tmp_path: Path,
     monkeypatch,
