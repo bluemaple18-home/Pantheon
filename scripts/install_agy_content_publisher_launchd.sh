@@ -111,6 +111,7 @@ RUNTIME_CONFIG_VERSION="$(manifest_field config_version)"
 RUNTIME_GENERATION="$(manifest_field generation)"
 RUNTIME_ACTOR_HEAD="$(manifest_field actor_head)"
 RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
+RUNTIME_UV_EXECUTABLE="$(manifest_field uv_executable)"
 ACTIVATION_BARRIER="${STATE_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 if [[ ! -d "${QUEUE_ROOT}/runs" ]]; then
@@ -195,6 +196,9 @@ if [[ -n "${RUNTIME_ACTOR_HEAD}" ]]; then
 fi
 if [[ -n "${RUNTIME_PYTHON_EXECUTABLE}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_PYTHON_EXECUTABLE string ${RUNTIME_PYTHON_EXECUTABLE}" "${TEMP_PLIST}"
+fi
+if [[ -n "${RUNTIME_UV_EXECUTABLE}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_UV_EXECUTABLE string ${RUNTIME_UV_EXECUTABLE}" "${TEMP_PLIST}"
 fi
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${STDOUT_LOG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${STDERR_LOG}" "${TEMP_PLIST}"

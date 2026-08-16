@@ -67,6 +67,7 @@ class PromotionRequest:
     capacity_receipt_digest: str
     correlation_id: str
     preserved_run_ids: tuple[str, ...] = ()
+    target_uv_executable: Path | None = None
 
 
 def _utc_now() -> str:
@@ -371,6 +372,8 @@ def _validate_git_identity(
 
 
 def _target_manifest(request: PromotionRequest) -> dict[str, Any]:
+    if request.target_uv_executable is None:
+        raise PromotionError("target uv executable is required")
     return runtime_manifest.build_manifest(
         actor_root=request.actor_root,
         queue_root=request.queue_root,
@@ -382,6 +385,7 @@ def _target_manifest(request: PromotionRequest) -> dict[str, Any]:
         generation=request.target_generation,
         actor_head=request.source_sha,
         python_executable=request.target_python_executable,
+        uv_executable=request.target_uv_executable,
     )
 
 
@@ -580,6 +584,7 @@ def _postcheck(
         request.manifest_path,
         manifest["manifest_digest"],
         expected_python_executable=request.target_python_executable,
+        expected_uv_executable=request.target_uv_executable,
     )
     if (
         loaded.get("actor_head") != request.source_sha
@@ -792,6 +797,7 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-config-version", required=True)
     parser.add_argument("--target-generation", required=True)
     parser.add_argument("--target-python-executable", type=Path, required=True)
+    parser.add_argument("--target-uv-executable", type=Path, required=True)
     parser.add_argument("--authorization-digest", required=True)
     parser.add_argument("--capacity-receipt", type=Path, required=True)
     parser.add_argument("--capacity-receipt-digest", required=True)
@@ -824,6 +830,7 @@ def _request_from_args(args: argparse.Namespace) -> PromotionRequest:
         capacity_receipt_digest=args.capacity_receipt_digest,
         correlation_id=args.correlation_id,
         preserved_run_ids=tuple(args.preserve_run_id),
+        target_uv_executable=args.target_uv_executable,
     )
 
 

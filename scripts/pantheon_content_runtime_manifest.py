@@ -127,7 +127,7 @@ def _runtime_identity_digest(payload: dict[str, Any]) -> str:
         "generation": payload["generation"],
         **{field: payload[field] for field in PATH_FIELDS},
     }
-    for field in ("actor_head", "python_executable"):
+    for field in ("actor_head", "python_executable", "uv_executable"):
         if field in payload:
             identity[field] = payload[field]
     return _manifest_digest(identity)
@@ -145,6 +145,7 @@ def build_manifest(
     generation: str = "legacy-generation",
     actor_head: str | None = None,
     python_executable: Path | None = None,
+    uv_executable: Path | None = None,
 ) -> dict[str, Any]:
     if not identity or identity.strip() != identity:
         raise RuntimeManifestError("identity is required")
@@ -182,6 +183,11 @@ def build_manifest(
             python_executable,
             "python_executable",
         )
+    if uv_executable is not None:
+        payload["uv_executable"] = _canonical_executable(
+            uv_executable,
+            "uv_executable",
+        )
     payload["runtime_identity_digest"] = _runtime_identity_digest(payload)
     payload["manifest_digest"] = _manifest_digest(payload)
     return payload
@@ -210,6 +216,7 @@ def load_manifest(
     expected_digest: str | None = None,
     *,
     expected_python_executable: Path | None = None,
+    expected_uv_executable: Path | None = None,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -251,6 +258,19 @@ def load_manifest(
         )
         if payload["python_executable"] != expected_python:
             raise RuntimeManifestError("runtime python executable drift")
+    if "uv_executable" in payload:
+        if _canonical_executable(
+            Path(str(payload["uv_executable"])),
+            "uv_executable",
+        ) != payload["uv_executable"]:
+            raise RuntimeManifestError("runtime uv executable mismatch")
+    if expected_uv_executable is not None and "uv_executable" in payload:
+        expected_uv = _canonical_executable(
+            expected_uv_executable,
+            "expected_uv_executable",
+        )
+        if payload["uv_executable"] != expected_uv:
+            raise RuntimeManifestError("runtime uv executable drift")
     identity_digest = str(payload.get("runtime_identity_digest", ""))
     if identity_digest != _runtime_identity_digest(payload):
         raise RuntimeManifestError("runtime identity digest mismatch")
@@ -271,7 +291,7 @@ def receipt_for_label(manifest: dict[str, Any], label: str) -> dict[str, Any]:
         "generation": manifest["generation"],
         **{field: manifest[field] for field in PATH_FIELDS},
     }
-    for field in ("actor_head", "python_executable"):
+    for field in ("actor_head", "python_executable", "uv_executable"):
         if field in manifest:
             receipt[field] = manifest[field]
     return receipt
@@ -337,6 +357,7 @@ def plist_receipt(
     optional_environment_fields = {
         "actor_head": "PANTHEON_RUNTIME_ACTOR_HEAD",
         "python_executable": "PANTHEON_RUNTIME_PYTHON_EXECUTABLE",
+        "uv_executable": "PANTHEON_RUNTIME_UV_EXECUTABLE",
     }
     for field, environment_name in optional_environment_fields.items():
         if environment_name in environment:
@@ -450,9 +471,17 @@ def validate_runtime_tick(
     for field, environment_name in (
         ("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD"),
         ("python_executable", "PANTHEON_RUNTIME_PYTHON_EXECUTABLE"),
+        ("uv_executable", "PANTHEON_RUNTIME_UV_EXECUTABLE"),
     ):
         if field in manifest:
             expected_environment[environment_name] = manifest[field]
+        elif environment_name in os.environ:
+            raise RuntimeManifestError("formal runtime hardened environment mismatch")
+    if (
+        service_label == "com.pantheon.agy-content-publisher"
+        and "uv_executable" not in manifest
+    ):
+        raise RuntimeManifestError("formal publisher uv_executable is required")
     if any(os.environ.get(key) != value for key, value in expected_environment.items()):
         raise RuntimeManifestError("formal runtime generation or identity mismatch")
     if service_label not in SERVICE_LABELS:
@@ -670,6 +699,7 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--generation", required=True)
     create.add_argument("--actor-head", required=True)
     create.add_argument("--python-executable", type=Path, required=True)
+    create.add_argument("--uv-executable", type=Path)
     create.add_argument("--output", type=Path, required=True)
     field = subparsers.add_parser("field")
     field.add_argument("--manifest", type=Path, required=True)
@@ -686,6 +716,7 @@ def parse_args() -> argparse.Namespace:
             "generation",
             "actor_head",
             "python_executable",
+            "uv_executable",
         ),
         required=True,
     )
@@ -694,6 +725,7 @@ def parse_args() -> argparse.Namespace:
     validate.add_argument("--manifest", type=Path, required=True)
     validate.add_argument("--expected-digest", required=True)
     validate.add_argument("--expected-python-executable", type=Path)
+    validate.add_argument("--expected-uv-executable", type=Path)
     aggregate = subparsers.add_parser("aggregate")
     aggregate.add_argument("--manifest", type=Path, required=True)
     aggregate.add_argument("--expected-digest", required=True)
@@ -834,6 +866,7 @@ def main() -> int:
                 generation=args.generation,
                 actor_head=args.actor_head,
                 python_executable=args.python_executable,
+                uv_executable=args.uv_executable,
             )
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))
@@ -843,6 +876,11 @@ def main() -> int:
                 args.expected_digest,
                 expected_python_executable=(
                     args.expected_python_executable
+                    if args.command == "validate"
+                    else None
+                ),
+                expected_uv_executable=(
+                    args.expected_uv_executable
                     if args.command == "validate"
                     else None
                 ),

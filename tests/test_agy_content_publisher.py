@@ -3261,9 +3261,11 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
     assert "PANTHEON_PUBLISHER_STDERR_LOG" in installer
     assert "manifest_field actor_head" in installer
     assert "optional_manifest_field python_executable" in installer
+    assert "manifest_field uv_executable" in installer
     assert 'ORIGIN_MAIN_SHA=' not in installer
     assert "PANTHEON_RUNTIME_ACTOR_HEAD" in installer
     assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" in installer
+    assert "PANTHEON_RUNTIME_UV_EXECUTABLE" in installer
     assert plist["StartInterval"] == 60
     completed = subprocess.run(
         ["bash", "-n", "scripts/install_agy_content_publisher_launchd.sh"],
@@ -3273,6 +3275,98 @@ def test_launchd_template_runs_content_publisher_and_installer_is_valid_shell() 
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_project_python_command_uses_manifest_bound_uv_with_restricted_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    uv_target = tmp_path / "uv"
+    uv_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    uv_target.chmod(0o755)
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="publisher-uv-bound",
+        uv_executable=uv_target,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    formal_environment = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+        "PANTHEON_RUNTIME_SERVICE_LABEL": "com.pantheon.agy-content-publisher",
+        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
+        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": manifest["uv_executable"],
+    }
+    for key, value in formal_environment.items():
+        monkeypatch.setenv(key, str(value))
+    assert runtime_manifest.validate_runtime_tick(
+        "com.pantheon.agy-content-publisher",
+        queue_root=queue,
+        state_root=state,
+        actor_root=actor,
+        log_root=logs,
+        require_activation_token=False,
+    )["status"] == "PASS"
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": str(uv_target),
+    }
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import subprocess; from scripts import agy_content_publisher as p; "
+            "subprocess.run(p.PROJECT_PYTHON_COMMAND + ['--version'], check=True)",
+        ],
+        cwd=repo_root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_project_python_command_fails_closed_without_uv_on_restricted_path() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import subprocess; from scripts import agy_content_publisher as p; "
+            "subprocess.run(p.PROJECT_PYTHON_COMMAND + ['--version'], check=True)",
+        ],
+        cwd=repo_root,
+        env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "No such file or directory" in completed.stderr
 
 
 def test_content_publisher_installer_rejects_python_symlink_to_non_executable(
@@ -3325,6 +3419,7 @@ def _run_content_publisher_installer_authority_case(
     for path in (queue / "runs", state, logs, fake_bin):
         path.mkdir(parents=True)
     python_target = tmp_path / "python-target"
+    uv_target = tmp_path / "uv-target"
     manifest = tmp_path / "runtime-manifest.json"
     fields = {
         "actor_root": str(repo_root),
@@ -3338,6 +3433,7 @@ def _run_content_publisher_installer_authority_case(
         "config_version": "formal-runtime-v2-gate2",
         "generation": "g2-authority-test",
         "python_executable": str(python_target),
+        "uv_executable": str(uv_target),
     }
     if actor_head is not None:
         fields["actor_head"] = actor_head
@@ -3386,6 +3482,8 @@ def _run_content_publisher_installer_authority_case(
             encoding="utf-8",
         )
     python_target.chmod(0o755)
+    uv_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    uv_target.chmod(0o755)
     if formal_preflight:
         formal_manifest = runtime_manifest.build_manifest(
             actor_root=repo_root,
@@ -3398,6 +3496,7 @@ def _run_content_publisher_installer_authority_case(
             generation="g2-authority-test",
             actor_head=local_head,
             python_executable=python_target,
+            uv_executable=uv_target,
         )
         runtime_manifest.write_manifest(manifest, formal_manifest)
         fields = {name: str(value) for name, value in formal_manifest.items()}
@@ -3546,6 +3645,7 @@ def test_content_publisher_installer_accepts_python_symlink_and_uses_realpath(
         "config_version": "formal-runtime-v2-canary",
         "generation": "canary-symlink-positive",
         "actor_head": runtime_sha,
+        "uv_executable": str(python_target),
     }
     python_target.write_text(
         "\n".join(
@@ -3699,6 +3799,7 @@ def test_content_publisher_installer_omits_unset_exact_run_args_under_bash32_set
         "config_version": "formal-runtime-v2-canary",
         "generation": "canary-exact-unset",
         "actor_head": runtime_sha,
+        "uv_executable": str(python_target),
     }
     python_target.write_text(
         "\n".join(
@@ -3932,9 +4033,9 @@ def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pyte
     )
 
     assert checked == [
-        [publisher.sys.executable, "scripts/verify_host_canonical.py"],
+        [*publisher.PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"],
         [
-            publisher.sys.executable,
+            *publisher.PROJECT_PYTHON_COMMAND,
             "scripts/check_release_record.py",
             "--base-ref",
             "origin/main",
@@ -3966,7 +4067,7 @@ def test_push_checks_live_canonical_host_before_git_mutation(monkeypatch: pytest
 
     assert events[0] == (
         "check",
-        [publisher.sys.executable, "scripts/verify_host_canonical.py"],
+        [*publisher.PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"],
     )
     assert events[1][0] == "git"
 

@@ -22,8 +22,8 @@ ownership: Publisher transaction runtime identity boundary
 - 使用者已授權唯一 run `apf-create-run-new-7d0e46d9ec617526f77f8213` 執行 transaction、commit、tag、push；不得處理其他 run。
 - 失敗發生於 mutation 前：`formal runtime actor_root mismatch`；尚未寫文章、commit、tag、push。
 - 呼叫鏈：`main` → `_isolated_transaction_worktree` → decorated `publish_ready_runs` → `_validate_formal_runtime(transaction_root, ...)`。
-- 可改：`scripts/agy_content_publisher.py`、`scripts/pantheon_content_runtime_promotion.py`、直接相關測試、本卡。
-- 不改：manifest schema、queue schema、文章內容、Reviewer 結果、其他 run、容量政策。
+- 可改：Publisher、runtime manifest/promotion、三個 launchd installer、直接相關測試、本卡。
+- 不改：queue schema、文章內容、Reviewer 結果、其他 run、容量政策。
 - transaction root 必須是 state root 下 `transaction-*/repo` 的 canonical directory，且其 runtime bytes 必須與正式 actor 相同。
 
 ## 實作與驗證
@@ -34,6 +34,8 @@ ownership: Publisher transaction runtime identity boundary
 4. 跑 targeted test、受影響 Publisher suite、`git diff --check`。
 5. Reviewer 通過後 commit、push、整合、正式 runtime promotion，再重新執行容量閘與唯一 run publish。
 6. Promotion 只可保留明列 identity 的 `active` 或 `complete` run；`failed` 與額外 run 仍 fail-closed。
+7. Prerender、feed、canonical、release-record 與 pytest 子程序統一使用 `uv run --frozen python`，不得依賴無專案套件的 system Python。
+8. `uv` 必須以 manifest 綁定的 canonical absolute executable 注入所有 launchd identities；正式 Publisher 不得依賴 PATH 查找。
 
 ## 回退
 
@@ -47,3 +49,6 @@ ownership: Publisher transaction runtime identity boundary
 - 獨立 Reviewer：APPROVED；先前 forged bounded transaction P1 已修正並 re-review 通過。
 - Promotion plan 實測發現 `complete` run 被舊 active-only 契約拒絕；納入同卡修正並重新驗證。
 - Promotion 增量 re-review：APPROVED。
+- 正式 transaction 實測在 prerender 因 system Python 缺 `fastapi` 失敗並完整 recovery；納入 uv execution 修正。
+- uv absolute identity、presence/absence/value drift 與 restricted-PATH 正／負驗證：PASS；受影響套件 `201 passed`。
+- uv authority 獨立 Reviewer re-review：APPROVED。

@@ -17,7 +17,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from typing import Any, Callable
 
@@ -52,8 +51,14 @@ _TRANSACTION_RUNTIME_AUTHORITY: ContextVar[tuple[Path, Path] | None] = ContextVa
     "publisher_transaction_runtime_authority",
     default=None,
 )
+PROJECT_PYTHON_COMMAND = [
+    os.environ.get("PANTHEON_RUNTIME_UV_EXECUTABLE", "uv"),
+    "run",
+    "--frozen",
+    "python",
+]
 TEST_COMMAND = [
-    sys.executable,
+    *PROJECT_PYTHON_COMMAND,
     "-m",
     "pytest",
     "tests/test_web.py",
@@ -63,7 +68,7 @@ TEST_COMMAND = [
     "-q",
 ]
 PREFLIGHT_TEST_COMMAND = [
-    sys.executable,
+    *PROJECT_PYTHON_COMMAND,
     "-m",
     "pytest",
     "tests/test_web.py::test_cloudflare_pages_wildcard_rewrite_uses_prerendered_product_hubs",
@@ -3361,7 +3366,7 @@ def _run_prerender(
     *,
     required_article_modes: dict[str, str] | None = None,
 ) -> None:
-    command = [sys.executable, "scripts/prerender_article_shells.py"]
+    command = [*PROJECT_PYTHON_COMMAND, "scripts/prerender_article_shells.py"]
     for article_id, mode in sorted((required_article_modes or {}).items()):
         command.extend(["--required-article-mode", f"{article_id}={mode}"])
     with tempfile.TemporaryDirectory(prefix="agy-prerender-policy-") as temp_dir:
@@ -3386,7 +3391,7 @@ def _run_prerender(
 
 
 def _run_feed(repo_root: Path) -> None:
-    _run_checked(repo_root, [sys.executable, "scripts/generate_feed.py"])
+    _run_checked(repo_root, [*PROJECT_PYTHON_COMMAND, "scripts/generate_feed.py"])
 
 
 def _run_checked(repo_root: Path, args: list[str]) -> None:
@@ -3417,7 +3422,7 @@ def _stage_commit_tag_push(
     release_plan = release_git_plan(version)
     run_checked = checked_runner or _run_checked
     if push:
-        run_checked(repo_root, [sys.executable, "scripts/verify_host_canonical.py"])
+        run_checked(repo_root, [*PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"])
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
         git(repo_root, ["add", *extra_add_paths], None)
@@ -3425,7 +3430,16 @@ def _stage_commit_tag_push(
     git(repo_root, release_plan["tag"], None)
     commit_sha = git(repo_root, ["rev-parse", "HEAD"], None)
     if release_gate:
-        run_checked(repo_root, [sys.executable, "scripts/check_release_record.py", "--base-ref", "origin/main", "--require-head-tag"])
+        run_checked(
+            repo_root,
+            [
+                *PROJECT_PYTHON_COMMAND,
+                "scripts/check_release_record.py",
+                "--base-ref",
+                "origin/main",
+                "--require-head-tag",
+            ],
+        )
     if push:
         try:
             git(repo_root, release_plan["push"], None)

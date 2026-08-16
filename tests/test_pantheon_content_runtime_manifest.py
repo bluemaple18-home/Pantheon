@@ -185,6 +185,107 @@ def test_manifest_python_expected_executable_must_match_exact_realpath(
         )
 
 
+def test_manifest_uv_expected_executable_must_match_exact_realpath(
+    tmp_path: Path,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    expected_uv = tmp_path / "uv-expected"
+    drift_uv = tmp_path / "uv-drift"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    for executable in (expected_uv, drift_uv):
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="canary-uv:expected",
+        uv_executable=expected_uv,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+
+    assert runtime.load_manifest(
+        manifest_path,
+        manifest["manifest_digest"],
+        expected_uv_executable=expected_uv,
+    )["uv_executable"] == str(expected_uv)
+    with pytest.raises(runtime.RuntimeManifestError, match="uv executable drift"):
+        runtime.load_manifest(
+            manifest_path,
+            manifest["manifest_digest"],
+            expected_uv_executable=drift_uv,
+        )
+
+
+@pytest.mark.parametrize("case", ["missing", "extra", "mismatch"])
+def test_formal_runtime_uv_presence_and_value_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    uv = tmp_path / "uv"
+    drift_uv = tmp_path / "uv-drift"
+    for path in (actor, queue, state, logs):
+        path.mkdir()
+    for executable in (uv, drift_uv):
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+    label = (
+        "com.pantheon.agy-gemini-coordinator"
+        if case == "extra"
+        else "com.pantheon.agy-content-publisher"
+    )
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity=f"uv-{case}",
+        uv_executable=uv if case == "mismatch" else None,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    environment = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+        "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
+        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+    }
+    if case != "missing":
+        environment["PANTHEON_RUNTIME_UV_EXECUTABLE"] = str(drift_uv)
+    for key, value in environment.items():
+        monkeypatch.setenv(key, str(value))
+
+    with pytest.raises(runtime.RuntimeManifestError, match="uv|hardened|identity"):
+        runtime.validate_runtime_tick(
+            label,
+            queue_root=queue,
+            state_root=state,
+            actor_root=actor,
+            log_root=logs,
+            require_activation_token=False,
+        )
+
+
 def test_manifest_create_cli_requires_and_validates_hardened_identity(
     tmp_path: Path,
 ) -> None:
@@ -877,6 +978,7 @@ def test_each_service_identity_mismatch_fails_before_first_io(
         runtime_digest="d" * 64,
         config_version="runtime-v2",
         generation="generation-matrix",
+        uv_executable=Path(sys.executable).resolve(strict=True),
     )
     manifest_path = tmp_path / "manifest.json"
     runtime.write_manifest(manifest_path, manifest)
@@ -894,6 +996,7 @@ def test_each_service_identity_mismatch_fails_before_first_io(
         "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
         "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": manifest["uv_executable"],
     }
     for key, value in environment.items():
         monkeypatch.setenv(key, value)
