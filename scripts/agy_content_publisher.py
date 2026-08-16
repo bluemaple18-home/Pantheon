@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
@@ -46,6 +47,10 @@ TRANSACTION_RUNTIME_PATHS = (
     "scripts/prerender_article_shells.py",
     "pnpm-lock.yaml",
     "uv.lock",
+)
+_TRANSACTION_RUNTIME_AUTHORITY: ContextVar[tuple[Path, Path] | None] = ContextVar(
+    "publisher_transaction_runtime_authority",
+    default=None,
 )
 TEST_COMMAND = [
     sys.executable,
@@ -855,11 +860,19 @@ def _validate_formal_runtime(
     queue_root: Path,
     state_root: Path,
 ) -> dict[str, Any]:
+    actor_root = repo_root.resolve()
+    transaction_authority = _TRANSACTION_RUNTIME_AUTHORITY.get()
+    if (
+        transaction_authority is not None
+        and actor_root == transaction_authority[1]
+    ):
+        _assert_transaction_runtime_matches(*transaction_authority)
+        actor_root = transaction_authority[0]
     return formal_runtime.validate_runtime_tick(
         "com.pantheon.agy-content-publisher",
         queue_root=queue_root.resolve(),
         state_root=state_root.resolve(),
-        actor_root=repo_root.resolve(),
+        actor_root=actor_root,
         log_root=Path(os.environ.get("PANTHEON_RUNTIME_LOG_ROOT", Path.cwd())),
     )
 
@@ -2077,7 +2090,13 @@ def _isolated_transaction_worktree(
                         dependency,
                         target_is_directory=dependency.is_dir(),
                     )
-            yield transaction_root
+            authority_token = _TRANSACTION_RUNTIME_AUTHORITY.set(
+                (repo_root.resolve(strict=True), transaction_root.resolve(strict=True))
+            )
+            try:
+                yield transaction_root
+            finally:
+                _TRANSACTION_RUNTIME_AUTHORITY.reset(authority_token)
         finally:
             if added:
                 try:

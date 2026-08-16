@@ -89,6 +89,45 @@ def test_formal_publisher_rejects_manifest_drift_before_state_lock(
     assert not (state / "publisher.lock").exists()
 
 
+def test_formal_publisher_rejects_forged_bounded_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    transaction = state / "transaction-test" / "repo"
+    for path in (actor, queue, transaction):
+        path.mkdir(parents=True)
+    _write_runtime_manifest_fixture(actor)
+    _write_runtime_manifest_fixture(transaction)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_ACTOR_ROOT", str(actor))
+    def fake_validate_runtime_tick(
+        _label: str,
+        *,
+        actor_root: Path,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        if actor_root != actor:
+            raise runtime_manifest.RuntimeManifestError(
+                "formal runtime actor_root mismatch"
+            )
+        return {"status": "valid"}
+
+    monkeypatch.setattr(
+        publisher.formal_runtime,
+        "validate_runtime_tick",
+        fake_validate_runtime_tick,
+    )
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="actor_root mismatch",
+    ):
+        publisher._validate_formal_runtime(transaction, queue, state)
+
+
 def _long(text: str) -> str:
     value = text
     while len(value) < 96:
@@ -4774,7 +4813,10 @@ def test_run_release_tests_skips_full_gate_when_preflight_fails(
     assert calls == [publisher.PREFLIGHT_TEST_COMMAND]
 
 
-def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Path) -> None:
+def test_isolated_transaction_never_mutates_actor_concurrent_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     remote = tmp_path / "remote.git"
     seed = tmp_path / "seed"
     actor = tmp_path / "actor"
@@ -4800,6 +4842,22 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
     actor_venv_python.write_text("#!/bin/sh\n", encoding="utf-8")
     (actor / "node_modules").mkdir()
     actor_target = actor / "app/web/owned.txt"
+    observed_runtime_roots: list[Path] = []
+
+    def fake_validate_runtime_tick(
+        _label: str,
+        *,
+        actor_root: Path,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        observed_runtime_roots.append(actor_root)
+        return {"status": "valid"}
+
+    monkeypatch.setattr(
+        publisher.formal_runtime,
+        "validate_runtime_tick",
+        fake_validate_runtime_tick,
+    )
     orphan_parent = state_root / "transaction-orphan"
     orphan_root = orphan_parent / "repo"
     subprocess.run(
@@ -4821,6 +4879,8 @@ def test_isolated_transaction_never_mutates_actor_concurrent_bytes(tmp_path: Pat
         assert (transaction_root / ".venv").resolve() == (actor / ".venv").resolve()
         assert (transaction_root / "node_modules").is_dir()
         assert publisher._repo_clean(transaction_root)
+        publisher._validate_formal_runtime(transaction_root, tmp_path / "queue", state_root)
+        assert observed_runtime_roots == [actor]
         actor_target.write_bytes(b"concurrent-user\n")
         (transaction_root / "app/web/owned.txt").write_bytes(b"publisher\n")
 
