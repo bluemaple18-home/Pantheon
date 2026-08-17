@@ -28,6 +28,8 @@ MAX_BYTES = 4 * GIB
 MAX_FILE_COUNT = 120_000
 NORMAL_GROWTH_BYTES_PER_HOUR = 256 * MIB
 RECOVERY_WINDOW_SECONDS = 3600
+SERVICE_TRANSITION_RECHECKS = 20
+SERVICE_TRANSITION_RECHECK_SECONDS = 0.25
 LOG_MAX_BYTES = 32 * MIB
 LOG_RETAIN_BYTES = 4 * MIB
 MEMORY_STEP_BYTES = 128 * MIB
@@ -45,6 +47,7 @@ ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
 LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ = \{$")
 LAUNCHCTL_STATE_FIELD_PATTERN = re.compile(r"^state = ([^\r\n]+)$")
 LAUNCHCTL_PATH_FIELD_PATTERN = re.compile(r"^path = ([^\r\n]+)$")
+LAUNCHCTL_LAST_EXIT_CODE_FIELD_PATTERN = re.compile(r"^last exit code = (-?[0-9]+)$")
 LOG_NAMES = tuple(
     f"{stem}.{stream}.log"
     for stem in (
@@ -196,12 +199,13 @@ def _launchctl_top_level_identity(
     *,
     expected_target: str,
 ) -> dict[str, list[str]] | None:
-    """只解析 root service object 的 state/path；結構不完整時回傳 None。"""
+    """只解析 root service object 的 state/path/exit；結構不完整時回傳 None。"""
     depth = 0
     root_started = False
     root_closed = False
     states: list[str] = []
     paths: list[str] = []
+    last_exit_codes: list[int] = []
     for raw_line in output.splitlines():
         if not raw_line.strip():
             continue
@@ -233,9 +237,16 @@ def _launchctl_top_level_identity(
             match = LAUNCHCTL_PATH_FIELD_PATTERN.fullmatch(line)
             if match is not None:
                 paths.append(match.group(1))
+            match = LAUNCHCTL_LAST_EXIT_CODE_FIELD_PATTERN.fullmatch(line)
+            if match is not None:
+                last_exit_codes.append(int(match.group(1)))
     if not root_started or not root_closed or depth != 0:
         return None
-    return {"states": states, "paths": paths}
+    return {
+        "states": states,
+        "paths": paths,
+        "last_exit_codes": last_exit_codes,
+    }
 
 
 def _service_rss_bytes(
@@ -282,38 +293,51 @@ def _service_rss_bytes(
                 / "LaunchAgents"
                 / f"{label}.plist"
             )
-            if label in expected_idle_labels and identity == {
-                "states": ["not running"],
-                "paths": [expected_plist],
-            }:
+            if (
+                label in expected_idle_labels
+                and identity is not None
+                and identity["states"] == ["not running"]
+                and identity["paths"] == [expected_plist]
+                and identity["last_exit_codes"] in ([], [0])
+            ):
                 idle.append({"label": label, "topology": "loaded-but-idle"})
                 continue
             if (
                 label in expected_idle_labels
                 and identity is not None
+                and identity["states"] == ["running"]
                 and identity["paths"] == [expected_plist]
+                and identity["last_exit_codes"] in ([], [0])
             ):
-                time.sleep(0.1)
-                retry = runner(["launchctl", "print", target])
-                if retry.returncode == 0:
+                for _attempt in range(SERVICE_TRANSITION_RECHECKS):
+                    time.sleep(SERVICE_TRANSITION_RECHECK_SECONDS)
+                    retry = runner(["launchctl", "print", target])
+                    if retry.returncode != 0:
+                        break
+                    retry_identity = _launchctl_top_level_identity(
+                        retry.stdout,
+                        expected_target=target,
+                    )
+                    if (
+                        retry_identity is None
+                        or retry_identity["paths"] != [expected_plist]
+                        or retry_identity["last_exit_codes"] not in ([], [0])
+                    ):
+                        break
                     match = re.search(
                         r"^\s*pid = ([1-9][0-9]*)\s*$",
                         retry.stdout,
                         re.MULTILINE,
                     )
-                    if not match:
-                        retry_identity = _launchctl_top_level_identity(
-                            retry.stdout,
-                            expected_target=target,
-                        )
-                        if retry_identity == {
-                            "states": ["not running"],
-                            "paths": [expected_plist],
-                        }:
-                            idle.append(
-                                {"label": label, "topology": "loaded-but-idle"}
-                            )
-                            continue
+                    if match:
+                        break
+                    if retry_identity["states"] == ["not running"]:
+                        idle.append({"label": label, "topology": "loaded-but-idle"})
+                        break
+                    if retry_identity["states"] != ["running"]:
+                        break
+                if idle and idle[-1]["label"] == label:
+                    continue
             if match:
                 pid = match.group(1)
                 pids.append(pid)

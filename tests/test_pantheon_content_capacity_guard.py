@@ -891,12 +891,16 @@ def test_normal_scheduled_service_rechecks_transient_running_without_pid(
     )
     calls = 0
 
-    def identity(state: str) -> str:
+    def identity(state: str, *, last_exit_code: int = 0) -> str:
         return ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
             "<target>", target, 1
         ).replace(
             "\tstate = not running\n",
-            f"\tpath = {live_plist}\n\tstate = {state}\n",
+            (
+                f"\tpath = {live_plist}\n"
+                f"\tstate = {state}\n"
+                f"\tlast exit code = {last_exit_code}\n"
+            ),
             1,
         )
 
@@ -904,7 +908,7 @@ def test_normal_scheduled_service_rechecks_transient_running_without_pid(
         nonlocal calls
         if command == ["launchctl", "print", target]:
             calls += 1
-            return _completed(0, identity("running" if calls == 1 else "not running"))
+            return _completed(0, identity("running" if calls < 4 else "not running"))
         if command[:2] == ["launchctl", "print"]:
             return _completed(113)
         raise AssertionError(f"unexpected command: {command}")
@@ -920,7 +924,53 @@ def test_normal_scheduled_service_rechecks_transient_running_without_pid(
     assert result["identity"]["idle_labels"] == [
         {"label": label, "topology": "loaded-but-idle"}
     ]
-    assert calls == 2
+    assert calls == 4
+
+
+@pytest.mark.parametrize("last_exit_code", [0, 78])
+def test_normal_scheduled_service_persistent_pid_gap_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    last_exit_code: int,
+) -> None:
+    label = "com.pantheon.agy-gemini-new"
+    target = f"gui/{os.getuid()}/{label}"
+    live_plist = (
+        Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+        / "Library"
+        / "LaunchAgents"
+        / f"{label}.plist"
+    )
+    output = ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+        "<target>", target, 1
+    ).replace(
+        "\tstate = not running\n",
+        (
+            f"\tpath = {live_plist}\n"
+            "\tstate = running\n"
+            f"\tlast exit code = {last_exit_code}\n"
+        ),
+        1,
+    )
+    calls = 0
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        if command == ["launchctl", "print", target]:
+            calls += 1
+            return _completed(0, output)
+        if command[:2] == ["launchctl", "print"]:
+            return _completed(113)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(guard.time, "sleep", lambda _seconds: None)
+    result = guard._service_rss_bytes(
+        runner,
+        expected_idle_labels=frozenset({label}),
+    )
+
+    assert result["available"] is False
+    assert result["error"] == f"loaded_service_pid_missing:{label}"
+    assert calls == (1 if last_exit_code else guard.SERVICE_TRANSITION_RECHECKS + 1)
 
 
 @pytest.mark.parametrize(
