@@ -8,8 +8,8 @@ export const BAND_RUNE_SURFACE_CONFIG = {
   fixedToBandUv: true,
   independentMotion: false,
   emissive: false,
-  cellCount: 24,
-  minimumGlyphClusters: 20,
+  cellCount: 30,
+  minimumGlyphClusters: 26,
   idleMarkOpacity: 0.58,
   hoveredMarkOpacity: 0.72,
   selectedMarkOpacity: 0.84,
@@ -36,28 +36,28 @@ export const SURFACE_ENERGY_CONFIG: Record<
   SurfaceEnergyConfig
 > = {
   constellation: {
-    cycleSeconds: 18,
+    cycleSeconds: 20,
     pulseCount: 2,
     intensity: 0.36,
     direction: 1,
     rhythmWarp: 0.16,
   },
   tarot: {
-    cycleSeconds: 13,
+    cycleSeconds: 15,
     pulseCount: 1,
     intensity: 0.46,
     direction: -1,
     rhythmWarp: 0.3,
   },
   mbti: {
-    cycleSeconds: 16,
+    cycleSeconds: 12,
     pulseCount: 2,
     intensity: 0.34,
     direction: 1,
     rhythmWarp: 0.08,
   },
   "human-design": {
-    cycleSeconds: 12,
+    cycleSeconds: 10,
     pulseCount: 1,
     intensity: 0.32,
     direction: -1,

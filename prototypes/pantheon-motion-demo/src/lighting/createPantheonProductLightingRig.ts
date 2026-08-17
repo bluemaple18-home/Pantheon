@@ -41,7 +41,7 @@ export type PantheonProductLightingRig = {
   group: THREE.Group;
   keyLight: THREE.RectAreaLight;
   rimLight: THREE.RectAreaLight;
-  topAccentLight: THREE.SpotLight;
+  topAccentLight: THREE.RectAreaLight;
   fillLight: THREE.RectAreaLight;
   ambientLight: THREE.AmbientLight;
   hemisphereLight: THREE.HemisphereLight;
@@ -109,7 +109,7 @@ export function createPantheonProductLightingRig(
     ? {
         key: 7,
         rim: 1.9,
-        top: 3.5,
+        top: 0.95,
         fill: 1.4,
         ambient: 0.14,
         hemisphere: 0.35,
@@ -117,7 +117,7 @@ export function createPantheonProductLightingRig(
     : {
         key: 8,
         rim: 2.2,
-        top: 4,
+        top: 1.1,
         fill: 1.6,
         ambient: 0.12,
         hemisphere: 0.32,
@@ -131,11 +131,6 @@ export function createPantheonProductLightingRig(
   targets.name = "PantheonProductLightingTargets";
   group.add(targets);
 
-  const topTarget = new THREE.Object3D();
-  topTarget.name = "PantheonTopAccentTarget";
-  topTarget.position.set(0, 0.15, 0);
-  targets.add(topTarget);
-
   const keyLight = new THREE.RectAreaLight("#fff0d8", 0, 3.2, 2.4);
   keyLight.name = "PantheonKeyLight";
   keyLight.position.set(-2.8, 3.4, 3.8);
@@ -148,17 +143,10 @@ export function createPantheonProductLightingRig(
   rimLight.lookAt(0, 0, 0);
   group.add(rimLight);
 
-  const topAccentLight = new THREE.SpotLight(
-    "#fff7e8",
-    0,
-    0,
-    THREE.MathUtils.degToRad(24),
-    0.55,
-    1.5,
-  );
+  const topAccentLight = new THREE.RectAreaLight("#fff7e8", 0, 3.6, 3.6);
   topAccentLight.name = "PantheonTopAccentLight";
   topAccentLight.position.set(0.8, 4.2, 1.5);
-  topAccentLight.target = topTarget;
+  topAccentLight.lookAt(0, 0.15, 0);
   group.add(topAccentLight);
 
   const fillLight = new THREE.RectAreaLight("#dce7ff", 0, 2.5, 2.5);
@@ -184,7 +172,7 @@ export function createPantheonProductLightingRig(
   const keyHelper = new RectAreaLightHelper(keyLight);
   const rimHelper = new RectAreaLightHelper(rimLight);
   const fillHelper = new RectAreaLightHelper(fillLight);
-  const topHelper = new THREE.SpotLightHelper(topAccentLight);
+  const topHelper = new RectAreaLightHelper(topAccentLight);
   helpers.add(keyHelper, rimHelper, fillHelper, topHelper);
   group.add(helpers);
 
@@ -224,7 +212,6 @@ export function createPantheonProductLightingRig(
     options.onExposureChange?.(settings.exposure);
 
     helpers.visible = settings.debug;
-    topHelper.update();
   };
 
   const setSettings = (patch: Partial<ProductLightingSettings>) => {

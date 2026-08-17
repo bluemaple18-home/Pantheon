@@ -79,18 +79,25 @@ class ProductLightingAcceptance(unittest.TestCase):
         for value in (
             "key: 8",
             "rim: 2.2",
-            "top: 4",
+            "top: 1.1",
             "fill: 1.6",
             "ambient: 0.12",
             "hemisphere: 0.32",
             "key: 7",
             "rim: 1.9",
-            "top: 3.5",
+            "top: 0.95",
             "fill: 1.4",
             "ambient: 0.14",
             "hemisphere: 0.35",
         ):
             self.assertIn(value, LIGHTING_SOURCE)
+
+    def test_top_accent_is_a_wide_soft_area_light(self):
+        self.assertIn(
+            'new THREE.RectAreaLight("#fff7e8", 0, 3.6, 3.6)',
+            LIGHTING_SOURCE,
+        )
+        self.assertNotIn("new THREE.SpotLight(", LIGHTING_SOURCE)
 
     def test_runtime_initial_values_are_asserted(self):
         self.assertIn(

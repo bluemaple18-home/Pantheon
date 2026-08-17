@@ -906,7 +906,7 @@ float bandThemeGlyph(vec2 point, float variant, float style) {
 float bandMarks(vec2 uv, float style) {
   float u = fract(uv.x);
   float lane = uv.y - 0.5;
-  float cellCount = 24.0;
+  float cellCount = 30.0;
   float shiftedU = fract(u + style * 0.009);
   float cellIndex = floor(shiftedU * cellCount);
   float localU = fract(shiftedU * cellCount) - 0.5;
@@ -952,20 +952,20 @@ float bandFlowMask(float u, float flow) {
   return 1.0 - smoothstep(0.035, 0.14, distanceToPulse);
 }
 float bandSymbolChaseMask(float u, float flow, float direction) {
-  float cellCount = 24.0;
+  float cellCount = 30.0;
   float symbolCenter =
     (floor(fract(u) * cellCount) + 0.5) / cellCount;
   float signedDistance = fract(
     (symbolCenter - flow) * direction + 0.5
   ) - 0.5;
   float fadeIn = 1.0 - smoothstep(
-    0.012,
-    0.075,
+    0.006,
+    0.028,
     signedDistance
   );
   float fadeOut = 1.0 - smoothstep(
-    0.025,
-    0.19,
+    0.012,
+    0.055,
     -signedDistance
   );
   return fadeIn * fadeOut;
@@ -1012,7 +1012,7 @@ roughnessFactor = clamp(
   roughnessFactor +
     pantheonMark * uMarkRoughnessDelta * (0.65 + uMarkDepth) +
     pantheonReliefEdge * 0.018 -
-    pantheonLitMark * uFlowIntensity * 3.2 -
+    pantheonLitMark * uFlowIntensity * 0.12 -
     pantheonMark * pantheonHoverSweep * uHoverSweepIntensity * 3.4,
   0.12,
   1.0
@@ -1109,14 +1109,14 @@ diffuseColor.rgb = mix(
   pantheonReliefTopMix
 );
 float pantheonMovingLightWeight = clamp(
-  pantheonLitMark * uFlowIntensity * 2.8,
+  pantheonLitMark * uFlowIntensity * 2.15,
   0.0,
-  0.82
+  0.68
 );
 vec3 pantheonMovingLightColor = mix(
   pantheonBandMetalColor,
   uMarkColor,
-  0.16
+  0.82
 );
 diffuseColor.rgb = mix(
   diffuseColor.rgb,
@@ -1192,15 +1192,20 @@ float pantheonSurfaceLightMask =
     pantheonEnergy * uFlowIntensity +
     pantheonHoverSweep * uHoverSweepIntensity
   );
-vec3 pantheonSurfaceLightColor = mix(
+float pantheonMetalPulse = smoothstep(
+  0.02,
+  0.15,
+  pantheonSurfaceLightMask
+);
+vec3 pantheonMetalFlowColor = mix(
   diffuseColor.rgb,
   uMarkColor,
-  0.68
+  0.72
 );
-reflectedLight.directDiffuse +=
-  pantheonSurfaceLightColor * pantheonSurfaceLightMask * 0.46;
+reflectedLight.directSpecular +=
+  pantheonMetalFlowColor * pantheonMetalPulse * 0.82;
 reflectedLight.indirectSpecular +=
-  pantheonSurfaceLightColor * pantheonSurfaceLightMask * 0.54;
+  pantheonMetalFlowColor * pantheonMetalPulse * 1.48;
 vec3 pantheonPhysicalSpecular =
   reflectedLight.directSpecular + reflectedLight.indirectSpecular;
 float pantheonWrappedDistance = abs(
@@ -2138,7 +2143,7 @@ export function createPantheonMaterialPrototype(
             energyStateWeight *
             (mobileQualityPreview ? 0.82 : 1) *
             debug.flowIntensity *
-            0.4;
+            1.05;
       binding.ribbonUniforms.energyPulseCount.value =
         reducedMotionPreview || paused ? 0 : energy.pulseCount;
       binding.ribbonUniforms.energyDirection.value = energy.direction;

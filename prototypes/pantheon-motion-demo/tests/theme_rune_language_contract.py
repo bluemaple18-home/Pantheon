@@ -10,6 +10,12 @@ MATERIAL_SOURCE = (
 EFFECTS_SOURCE = (
     ROOT / "src/data/pantheon-effects-config.ts"
 ).read_text(encoding="utf-8")
+STUDIO_SOURCE = (
+    ROOT / "src/studio/PantheonStarOrbitStudio.jsx"
+).read_text(encoding="utf-8")
+MOTION_SOURCE = (
+    ROOT / "src/motion/pantheonBandMotion.ts"
+).read_text(encoding="utf-8")
 GEOMETRY_LOCK = (
     ROOT / "geometry/pantheon-orbits-v1.1.json"
 ).read_text(encoding="utf-8")
@@ -52,9 +58,9 @@ class ThemeRuneLanguageContract(unittest.TestCase):
         )
         self.assertIn("roughnessTopDelta: -0.018", EFFECTS_SOURCE)
         self.assertIn("metalnessDelta: 0", EFFECTS_SOURCE)
-        self.assertIn("cellCount: 24", EFFECTS_SOURCE)
-        self.assertIn("minimumGlyphClusters: 20", EFFECTS_SOURCE)
-        self.assertEqual(MATERIAL_SOURCE.count("float cellCount = 24.0;"), 2)
+        self.assertIn("cellCount: 30", EFFECTS_SOURCE)
+        self.assertIn("minimumGlyphClusters: 26", EFFECTS_SOURCE)
+        self.assertEqual(MATERIAL_SOURCE.count("float cellCount = 30.0;"), 2)
         self.assertNotIn(
             "float pantheonEngravingTint",
             MATERIAL_SOURCE,
@@ -84,6 +90,51 @@ class ThemeRuneLanguageContract(unittest.TestCase):
         )
         self.assertIn(
             "marksRemainFixedWhileLightMoves: true",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn("debug.flowIntensity *\n            1.05", MATERIAL_SOURCE)
+        self.assertIn(
+            "float fadeIn = 1.0 - smoothstep(\n    0.006,\n    0.028,",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn(
+            "float fadeOut = 1.0 - smoothstep(\n    0.012,\n    0.055,",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn(
+            "vec3 pantheonMetalFlowColor = mix(",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn(
+            "reflectedLight.directSpecular +=",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn(
+            "pantheonMetalFlowColor * pantheonMetalPulse * 0.82",
+            MATERIAL_SOURCE,
+        )
+        self.assertIn(
+            "pantheonMetalFlowColor * pantheonMetalPulse * 1.48",
+            MATERIAL_SOURCE,
+        )
+
+    def test_bands_self_rotate_while_the_system_revolves_around_core(self):
+        self.assertIn("PANTHEON_BAND_MOTION_LOOP_SECONDS = 60", MOTION_SOURCE)
+        self.assertIn("resolvePantheonSystemMotion", STUDIO_SOURCE)
+        self.assertIn("resolvePantheonBandSelfRotation", STUDIO_SOURCE)
+        self.assertIn("orbitNodes.ribbonMeshes.get(theme.orbitId)", STUDIO_SOURCE)
+        self.assertIn(".multiply(bandSpinQuaternion)", STUDIO_SOURCE)
+
+    def test_rune_energy_cycles_close_on_the_sixty_second_loop(self):
+        for cycle_seconds in (10, 12, 15, 20):
+            self.assertEqual(60 % cycle_seconds, 0)
+            self.assertIn(f"cycleSeconds: {cycle_seconds}", EFFECTS_SOURCE)
+        self.assertIn(
+            "reflectedLight.indirectSpecular +=",
+            MATERIAL_SOURCE,
+        )
+        self.assertNotIn(
+            "reflectedLight.directDiffuse +=\n  pantheonSurfaceLightColor",
             MATERIAL_SOURCE,
         )
         self.assertIsNone(

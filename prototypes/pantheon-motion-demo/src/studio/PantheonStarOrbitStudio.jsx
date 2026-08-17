@@ -27,6 +27,10 @@ import {
 import { configurePantheonSelfCoreEffect } from "../effects/configurePantheonSelfCoreEffect.ts";
 import { configurePantheonCoreRuneRelationship } from "../effects/configurePantheonCoreRuneRelationship.ts";
 import {
+  resolvePantheonBandSelfRotation,
+  resolvePantheonSystemMotion,
+} from "../motion/pantheonBandMotion.ts";
+import {
   DEFAULT_SELF_CORE_ARTIFACT_CANDIDATE,
   PANTHEON_SELF_CORE_ARTIFACT_PRESETS,
 } from "../data/pantheon-self-core-artifact.ts";
@@ -786,6 +790,24 @@ export default function PantheonStarOrbitStudio() {
       geometryVersion,
     });
     const runtime = getPantheonStarOrbitRuntime(orbits);
+    const orbitNodes = runtime.getThemeNodes();
+    const bandMotionNodes = Object.fromEntries(
+      PANTHEON_THEME_CONFIGS.map((theme) => [
+        theme.orbitId,
+        [
+          orbitNodes.meshes.get(theme.orbitId),
+          orbitNodes.ribbonMeshes.get(theme.orbitId),
+          orbitNodes.hitAreaMeshes.get(theme.orbitId),
+        ]
+          .filter(Boolean)
+          .map((mesh) => ({
+            mesh,
+            baseQuaternion: mesh.quaternion.clone(),
+          })),
+      ]),
+    );
+    const bandSpinAxis = new THREE.Vector3(0, 0, 1);
+    const bandSpinQuaternion = new THREE.Quaternion();
     const setCoreArtifactRadius = (radiusScale) => {
       const coreNode = runtime.getThemeNodes().core;
       coreNode.scale.setScalar(radiusScale);
@@ -937,6 +959,7 @@ export default function PantheonStarOrbitStudio() {
     let animationFrame = 0;
     let frameCount = 0;
     let orbitMotionPaused = freezeOrbitOnLoad;
+    let orbitMotionElapsed = 0;
     const render = (frameAt = performance.now()) => {
       const delta = Math.min(
         Math.max(0, frameAt - previousFrameAt) / 1000,
@@ -954,8 +977,24 @@ export default function PantheonStarOrbitStudio() {
         !orbitMotionPaused &&
         !frameSnapshot.paused
       ) {
-        orbits.rotation.y += delta * ((Math.PI * 2) / 60);
-        orbits.rotation.z = Math.sin(elapsed * 0.08) * 0.006;
+        orbitMotionElapsed += delta;
+        const systemMotion = resolvePantheonSystemMotion(orbitMotionElapsed);
+        orbits.rotation.y = systemMotion.revolutionY;
+        orbits.rotation.z = systemMotion.swayZ;
+        PANTHEON_THEME_CONFIGS.forEach((theme) => {
+          const angle = resolvePantheonBandSelfRotation(
+            theme.orbitId,
+            orbitMotionElapsed,
+          );
+          bandSpinQuaternion.setFromAxisAngle(bandSpinAxis, angle);
+          bandMotionNodes[theme.orbitId].forEach(
+            ({ mesh, baseQuaternion }) => {
+              mesh.quaternion
+                .copy(baseQuaternion)
+                .multiply(bandSpinQuaternion);
+            },
+          );
+        });
       }
       controls.update();
       coreRelationship.update(
