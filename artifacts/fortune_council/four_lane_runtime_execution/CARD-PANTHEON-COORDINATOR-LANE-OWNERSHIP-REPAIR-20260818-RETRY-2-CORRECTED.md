@@ -1,5 +1,5 @@
 ---
-id: CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2
+id: CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2-CORRECTED
 status: ready
 type: implementation
 chain_id: PANTHEON-COORDINATOR-PUBLISHER-RECOVERY-20260818
@@ -13,11 +13,11 @@ model_reason: 兩次 create 均未形成正式 task/worktree；RCA 與核心 sta
 owner: visible-thread-implementation
 ownership: Coordinator lane-routing state contract only
 mainline_acceptor: current-main-thread
-supersedes: CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-1
-evidence_path: .work/CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2/
+supersedes: CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2
+evidence_path: .work/CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2-CORRECTED/
 ---
 
-# Coordinator lane ownership contract repair — Retry 2
+# Coordinator lane ownership contract repair — Retry 2 corrected
 
 ## 工作名稱 → 正在做什麼 → 現在狀態
 
@@ -27,6 +27,7 @@ Coordinator lane ownership repair → 固化 lane/mode routing authority，避�
 
 - 原卡 create 只形成內部 Guardian rollout，沒有正式 task、client thread、Pantheon worktree 或 code 變更。
 - `RETRY-1` create 立即回傳平台錯誤；事後核對沒有正式 thread、client ID、Pantheon worktree 或 code 變更。
+- `RETRY-2` 在 create request 形成前因 task intro 超過 50 字由本地 gate 終止；沒有呼叫平台、thread 或 worktree。本卡只修正派工 identity 與摘要長度，不增加平台重試次數。
 - 使用者持續要求「繼續」，授權本次最後一個 `RETRY-2`。
 - repo／chain／role／cycle、模型、風險與修復範圍全部不變。
 - 建立前將 `RETRY-1` 標記 `SUPERSEDED`；不得再 activation 或重送舊卡。
@@ -45,7 +46,7 @@ Coordinator lane ownership repair → 固化 lane/mode routing authority，避�
 
 - `scripts/agy_gemini_coordinator.py`
 - `tests/test_agy_gemini_coordinator.py`
-- `.work/CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2/`
+- `.work/CARD-PANTHEON-COORDINATOR-LANE-OWNERSHIP-REPAIR-20260818-RETRY-2-CORRECTED/`
 
 其他檔案一律唯讀。不得修改 Publisher、SEO pipeline、prerender、capacity guard、runtime、launchd、queue data、transaction 或文章生成物。
 
