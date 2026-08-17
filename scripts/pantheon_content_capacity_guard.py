@@ -151,7 +151,6 @@ def _normal_scheduled_service_labels(
     """只信任 manifest-bound、owner/mode 正確的正式 interval job。"""
     if (
         runtime_receipt.get("status") != "PASS"
-        or runtime_receipt.get("config_version") != "formal-runtime-v2-gate2"
         or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
             str(runtime_receipt.get("identity", ""))
         )
@@ -162,6 +161,8 @@ def _normal_scheduled_service_labels(
             Path(os.environ["PANTHEON_RUNTIME_MANIFEST"]),
             os.environ["PANTHEON_RUNTIME_MANIFEST_DIGEST"],
         )
+        if runtime_receipt.get("config_version") != manifest["config_version"]:
+            return frozenset()
         home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
         plist_paths = [
             home / "Library" / "LaunchAgents" / f"{label}.plist"

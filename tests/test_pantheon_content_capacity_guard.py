@@ -1008,7 +1008,7 @@ def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists
         log_root=logs,
         identity=f"gate2-actor:{'a' * 40}:normal",
         runtime_digest="b" * 64,
-        config_version="formal-runtime-v2-gate2",
+        config_version="formal-runtime-v3-model-route-v1",
         generation="g2-scheduled-idle-test",
     )
     manifest_path = tmp_path / "runtime-manifest.json"
@@ -1055,13 +1055,17 @@ def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists
     )
     runtime_receipt = {
         "status": "PASS",
-        "config_version": "formal-runtime-v2-gate2",
+        "config_version": "formal-runtime-v3-model-route-v1",
         "identity": manifest["identity"],
     }
 
     assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset(
         guard.SERVICE_LABELS
     )
+
+    runtime_receipt["config_version"] = "unexpected-runtime"
+    assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset()
+    runtime_receipt["config_version"] = manifest["config_version"]
 
     target_label = guard.SERVICE_LABELS[0]
     payloads[target_label][field] = value
