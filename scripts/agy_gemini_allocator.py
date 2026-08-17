@@ -12,8 +12,10 @@ import tempfile
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Iterator
+from zoneinfo import ZoneInfo
 
 
 MAX_ALLOCATOR_STATE_BYTES = 4 * 1024
@@ -22,8 +24,10 @@ MAX_TIMESTAMP_MILLISECONDS = (1 << 63) - 1
 MAX_RATE_LIMIT_COOLDOWN_SECONDS = 60 * 60
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+SAFE_MODEL_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 RATE_LIMIT_REASON = "API_RATE_LIMITED"
+QUOTA_REASON = "API_QUOTA"
 
 
 @dataclass(frozen=True)
@@ -49,10 +53,35 @@ class _Cooldown:
 
 
 @dataclass(frozen=True)
+class _QuotaBlock:
+    slot_id: str
+    model: str
+    blocked_started_ms: int
+    blocked_until_ms: int
+
+    def state_payload(self) -> dict[str, object]:
+        return {
+            "slot_id": self.slot_id,
+            "model": self.model,
+            "blocked_started_ms": self.blocked_started_ms,
+            "blocked_until_ms": self.blocked_until_ms,
+            "reason": QUOTA_REASON,
+        }
+
+    def receipt_payload(self) -> dict[str, object]:
+        return {
+            "slot_id": self.slot_id,
+            "model": self.model,
+            "blocked_started_ms": self.blocked_started_ms,
+            "blocked_until_ms": self.blocked_until_ms,
+        }
+
+@dataclass(frozen=True)
 class _AllocatorState:
     last_ordinal: int
     last_slot_id: str | None
     cooldowns: tuple[_Cooldown, ...]
+    quota_blocks: tuple[_QuotaBlock, ...]
     state_identity: tuple[int, int] | None
     expected_lock_identity: tuple[int, int] | None
 
@@ -273,7 +302,7 @@ def _read_state(
     try:
         path.lstat()
     except FileNotFoundError:
-        return _AllocatorState(0, None, (), None, None)
+        return _AllocatorState(0, None, (), (), None, None)
     except OSError as error:
         raise ValueError("production allocator state file is unavailable") from error
     descriptor = _open_private_state(path)
@@ -313,6 +342,9 @@ def _read_state(
     elif schema_version == 2:
         if set(payload) != common_keys | {"cooldowns", "last_slot_id"}:
             raise ValueError("production allocator state schema is invalid")
+    elif schema_version == 3:
+        if set(payload) != common_keys | {"cooldowns", "last_slot_id", "quota_blocks"}:
+            raise ValueError("production allocator state schema is invalid")
     else:
         raise ValueError("production allocator state schema is invalid")
     last_ordinal = payload.get("last_ordinal")
@@ -338,7 +370,7 @@ def _read_state(
         raise ValueError("production allocator state manifest mismatch")
     last_slot_id = PRODUCTION_SLOT_IDS[(last_ordinal - 1) % len(PRODUCTION_SLOT_IDS)]
     cooldowns: tuple[_Cooldown, ...] = ()
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         if (
             type(payload.get("last_slot_id")) is not str
             or payload["last_slot_id"] not in PRODUCTION_SLOT_IDS
@@ -376,10 +408,52 @@ def _read_state(
         cooldowns = tuple(
             sorted(parsed, key=lambda item: PRODUCTION_SLOT_IDS.index(item.slot_id))
         )
+    quota_blocks: tuple[_QuotaBlock, ...] = ()
+    if schema_version == 3:
+        raw_blocks = payload.get("quota_blocks")
+        if not isinstance(raw_blocks, list) or len(raw_blocks) > 24:
+            raise ValueError("production allocator state schema is invalid")
+        parsed_blocks: list[_QuotaBlock] = []
+        seen_blocks: set[tuple[str, str]] = set()
+        for item in raw_blocks:
+            if not isinstance(item, dict) or set(item) != {
+                "blocked_started_ms",
+                "blocked_until_ms",
+                "model",
+                "reason",
+                "slot_id",
+            }:
+                raise ValueError("production allocator state schema is invalid")
+            slot_id = item.get("slot_id")
+            model = item.get("model")
+            started_ms = item.get("blocked_started_ms")
+            until_ms = item.get("blocked_until_ms")
+            identity = (str(slot_id), str(model))
+            if (
+                type(slot_id) is not str
+                or slot_id not in PRODUCTION_SLOT_IDS
+                or type(model) is not str
+                or SAFE_MODEL_ID.fullmatch(model) is None
+                or identity in seen_blocks
+                or type(started_ms) is not int
+                or type(until_ms) is not int
+                or not 0 <= started_ms < until_ms <= MAX_TIMESTAMP_MILLISECONDS
+                or item.get("reason") != QUOTA_REASON
+            ):
+                raise ValueError("production allocator state schema is invalid")
+            parsed_blocks.append(_QuotaBlock(slot_id, model, started_ms, until_ms))
+            seen_blocks.add(identity)
+        quota_blocks = tuple(
+            sorted(
+                parsed_blocks,
+                key=lambda item: (item.model, PRODUCTION_SLOT_IDS.index(item.slot_id)),
+            )
+        )
     return _AllocatorState(
         last_ordinal,
         last_slot_id,
         cooldowns,
+        quota_blocks,
         (current.st_dev, current.st_ino),
         (lock_device, lock_inode),
     )
@@ -401,18 +475,20 @@ def _commit_state(
     ordinal: int,
     last_slot_id: str,
     cooldowns: tuple[_Cooldown, ...],
+    quota_blocks: tuple[_QuotaBlock, ...],
     previous_identity: tuple[int, int] | None,
     lock_identity: tuple[int, int],
 ) -> None:
     encoded = (
         json.dumps(
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "pool_id": pool_id,
                 "manifest_sha256": manifest_sha256,
                 "last_ordinal": ordinal,
                 "last_slot_id": last_slot_id,
                 "cooldowns": [cooldown.state_payload() for cooldown in cooldowns],
+                "quota_blocks": [block.state_payload() for block in quota_blocks],
                 "lock_device": lock_identity[0],
                 "lock_inode": lock_identity[1],
             },
@@ -423,6 +499,8 @@ def _commit_state(
         ).encode("utf-8")
         + b"\n"
     )
+    if len(encoded) > MAX_ALLOCATOR_STATE_BYTES:
+        raise ValueError("production allocator state exceeds closed size")
     try:
         parent = path.parent
         parent_stat = parent.stat()
@@ -516,6 +594,9 @@ class ProductionSlotAdmission:
     now_ms: int
     slot_id: str | None
     cooldowns: tuple[_Cooldown, ...]
+    quota_blocks: tuple[_QuotaBlock, ...]
+    model: str | None
+    denial_reason: str | None
     state: _AllocatorState
     directory_descriptor: int
     lock_path: Path
@@ -531,6 +612,16 @@ class ProductionSlotAdmission:
     def receipt(self) -> dict[str, object]:
         if self.allowed:
             return {"slot_id": str(self.slot_id)}
+        if self.denial_reason == QUOTA_REASON:
+            return {
+                "reason": QUOTA_REASON,
+                "model": self.model,
+                "quota_blocks": [
+                    block.receipt_payload()
+                    for block in self.quota_blocks
+                    if block.model == self.model
+                ],
+            }
         return {
             "reason": RATE_LIMIT_REASON,
             "cooldowns": [
@@ -554,6 +645,7 @@ class ProductionSlotAdmission:
             ordinal=ordinal,
             last_slot_id=selected_slot,
             cooldowns=self.cooldowns,
+            quota_blocks=self.quota_blocks,
             previous_identity=self.state.state_identity,
             lock_identity=self.lock_identity,
         )
@@ -605,6 +697,7 @@ class ProductionSlotAdmission:
             ordinal=self.state.last_ordinal,
             last_slot_id=self.state.last_slot_id,
             cooldowns=updated,
+            quota_blocks=self.quota_blocks,
             previous_identity=self.state.state_identity,
             lock_identity=self.lock_identity,
         )
@@ -622,6 +715,49 @@ class ProductionSlotAdmission:
         receipt["reason"] = RATE_LIMIT_REASON
         return receipt
 
+    def record_quota_exhausted(self, slot_id: str, model: str) -> dict[str, object]:
+        if slot_id not in PRODUCTION_SLOT_IDS:
+            raise ValueError("production quota slot is invalid")
+        if SAFE_MODEL_ID.fullmatch(model) is None:
+            raise ValueError("production quota model is invalid")
+        if self.committed:
+            raise ValueError("production provider admission is already committed")
+        if self.state.last_ordinal < 1 or self.state.last_slot_id is None:
+            raise ValueError("production quota block requires a committed attempt")
+        reset_at = (
+            datetime.fromtimestamp(self.now_ms / 1000, ZoneInfo("America/Los_Angeles"))
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        blocked_until_ms = int(reset_at.timestamp() * 1000)
+        block = _QuotaBlock(slot_id, model, self.now_ms, blocked_until_ms)
+        retained = tuple(
+            item
+            for item in self.quota_blocks
+            if (item.slot_id, item.model) != (slot_id, model)
+        )
+        updated = tuple(
+            sorted(
+                (*retained, block),
+                key=lambda item: (item.model, PRODUCTION_SLOT_IDS.index(item.slot_id)),
+            )
+        )
+        _commit_state(
+            self.state_path,
+            pool_id=self.pool_id,
+            manifest_sha256=self.manifest_sha256,
+            ordinal=self.state.last_ordinal,
+            last_slot_id=self.state.last_slot_id,
+            cooldowns=self.cooldowns,
+            quota_blocks=updated,
+            previous_identity=self.state.state_identity,
+            lock_identity=self.lock_identity,
+        )
+        self.committed = True
+        receipt = block.receipt_payload()
+        receipt["reason"] = QUOTA_REASON
+        return receipt
+
 
 @contextmanager
 def production_slot_admission(
@@ -629,11 +765,14 @@ def production_slot_admission(
     *,
     pool_id: str,
     manifest_sha256: str,
+    model: str | None = None,
     clock: Callable[[], float] | None = None,
 ) -> Iterator[ProductionSlotAdmission]:
     """鎖住 durable state，先判 eligibility，再由 caller 決定是否 commit ordinal。"""
     if not state_path.is_absolute():
         raise ValueError("production allocator state path must be absolute")
+    if model is not None and SAFE_MODEL_ID.fullmatch(model) is None:
+        raise ValueError("production allocator model is invalid")
     now_ms = _clock_milliseconds(clock)
     lock_path = state_path.with_name(f"{state_path.name}.lock")
     directory_descriptor = _open_allocator_directory(state_path.parent)
@@ -668,6 +807,16 @@ def production_slot_admission(
                 if cooldown.cooldown_until_ms > now_ms
             )
             cooling_slots = {cooldown.slot_id for cooldown in active_cooldowns}
+            active_quota_blocks = tuple(
+                block
+                for block in state.quota_blocks
+                if block.blocked_until_ms > now_ms
+            )
+            quota_slots = {
+                block.slot_id
+                for block in active_quota_blocks
+                if model is not None and block.model == model
+            }
             start = (
                 0
                 if state.last_slot_id is None
@@ -679,7 +828,7 @@ def production_slot_admission(
                     PRODUCTION_SLOT_IDS[(start + offset) % len(PRODUCTION_SLOT_IDS)]
                     for offset in range(len(PRODUCTION_SLOT_IDS))
                     if PRODUCTION_SLOT_IDS[(start + offset) % len(PRODUCTION_SLOT_IDS)]
-                    not in cooling_slots
+                    not in cooling_slots | quota_slots
                 ),
                 None,
             )
@@ -690,6 +839,15 @@ def production_slot_admission(
                 now_ms=now_ms,
                 slot_id=selected_slot,
                 cooldowns=active_cooldowns,
+                quota_blocks=active_quota_blocks,
+                model=model,
+                denial_reason=(
+                    QUOTA_REASON
+                    if model is not None
+                    and quota_slots == set(PRODUCTION_SLOT_IDS)
+                    and not cooling_slots
+                    else RATE_LIMIT_REASON
+                ),
                 state=state,
                 directory_descriptor=directory_descriptor,
                 lock_path=lock_path,
@@ -745,6 +903,26 @@ def record_production_rate_limit(
         clock=clock,
     ) as admission:
         return admission.record_rate_limit(slot_id, cooldown_seconds)
+
+
+def record_production_quota_exhausted(
+    state_path: Path,
+    *,
+    pool_id: str,
+    manifest_sha256: str,
+    slot_id: str,
+    model: str,
+    clock: Callable[[], float] | None = None,
+) -> dict[str, object]:
+    """將單一 model／slot 阻擋到下一個 Pacific midnight。"""
+    with production_slot_admission(
+        state_path,
+        pool_id=pool_id,
+        manifest_sha256=manifest_sha256,
+        model=model,
+        clock=clock,
+    ) as admission:
+        return admission.record_quota_exhausted(slot_id, model)
 
 
 def validate_production_allocator_installation(

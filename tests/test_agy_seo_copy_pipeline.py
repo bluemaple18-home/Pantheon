@@ -920,7 +920,7 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
         assert "--continue" not in args
         assert "--conversation" not in args
     assert calls[0]["args"][2] == "Gemini 3.5 Flash (Low)"
-    assert calls[1]["args"][2] == "Gemini 3.1 Pro (Low)"
+    assert calls[1]["args"][2] == "Gemini 3.1 Flash-Lite (Low)"
 
 
 def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1005,6 +1005,104 @@ def test_production_http_failure_exposes_only_sanitized_status_diagnostic(
     assert raised.value.http_status == http_status
     assert raised.value.http_status_class == expected_status_class
     assert private_body.decode() not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected_code"),
+    [
+        ("RATE_LIMIT_EXCEEDED", "API_RATE_LIMITED"),
+        ("QUOTA_EXCEEDED", "API_QUOTA"),
+        ("UNRECOGNIZED_REASON", "API_RATE_LIMITED"),
+    ],
+)
+def test_production_429_uses_only_closed_error_info_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+    expected_code: str,
+) -> None:
+    private_marker = "private-quota-detail-must-not-persist"
+    body = json.dumps(
+        {
+            "error": {
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": reason,
+                        "metadata": {"private": private_marker},
+                    }
+                ]
+            }
+        }
+    ).encode()
+
+    def fail_provider(provider_request: object, **_kwargs: object) -> object:
+        raise pipeline.urllib.error.HTTPError(
+            getattr(provider_request, "full_url", "https://example.invalid"),
+            429,
+            "private-provider-detail",
+            {},
+            io.BytesIO(body),
+        )
+
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", fail_provider)
+    client = GeminiClient(api_key="redacted")
+
+    with pytest.raises(pipeline.GeminiApiFailure) as raised:
+        client._single_request_http_transport("gemini-test", {"safe": True})
+
+    assert raised.value.error_code == expected_code
+    assert raised.value.http_status == 429
+    assert private_marker not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("quota_id", "expected_code"),
+    [
+        (
+            "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            "API_QUOTA",
+        ),
+        (
+            "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+            "API_RATE_LIMITED",
+        ),
+    ],
+)
+def test_production_429_classifies_real_generate_content_quota_failure(
+    quota_id: str,
+    expected_code: str,
+) -> None:
+    body = json.dumps(
+        {
+            "error": {
+                "code": 429,
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                        "violations": [
+                            {
+                                "quotaMetric": "private-metric-must-not-persist",
+                                "quotaId": quota_id,
+                                "quotaDimensions": {
+                                    "model": "private-model-detail"
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    ).encode()
+    error = pipeline.urllib.error.HTTPError(
+        "https://example.invalid",
+        429,
+        "private-provider-detail",
+        {},
+        io.BytesIO(body),
+    )
+
+    assert pipeline._gemini_error_code_for_http_error(error) == expected_code
 
 
 @pytest.mark.parametrize(
@@ -4338,6 +4436,36 @@ def test_runtime_retry_preserves_failed_operation_receipt(tmp_path: Path) -> Non
     assert receipt.read_bytes() == original
     retry = json.loads((tmp_path / "writer-operation-runtime-retry-01.json").read_text(encoding="utf-8"))
     assert retry["status"] == "success"
+
+
+def test_operation_receipt_records_selected_fallback_model(tmp_path: Path) -> None:
+    class RoutedClient:
+        writer_model = pipeline.DEFAULT_WRITER_MODEL
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            return {"value": "ok"}
+
+        def active_model(self, role: str) -> str:
+            assert role == "writer"
+            return pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+
+    receipt_path = tmp_path / "writer-operation.json"
+
+    pipeline._generate_with_receipt(
+        RoutedClient(),
+        "writer",
+        "public prompt",
+        {"type": "object"},
+        receipt_path,
+    )
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["model"] == pipeline.DEFAULT_WRITER_FALLBACK_MODEL
 
 
 def test_operation_receipt_persists_closed_cli_code_without_exception_text(

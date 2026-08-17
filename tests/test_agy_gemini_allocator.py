@@ -54,10 +54,11 @@ def test_allocator_skips_cooling_slot_and_rejoins_after_expiry(tmp_path: Path) -
     assert _allocate(state, 1_061.0) == (4, "account-1")
 
     payload = json.loads(state.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["last_ordinal"] == 4
     assert payload["last_slot_id"] == "account-1"
     assert payload["cooldowns"] == []
+    assert payload["quota_blocks"] == []
 
 
 def test_all_slots_cooling_denies_without_ordinal_or_state_write(tmp_path: Path) -> None:
@@ -97,3 +98,36 @@ def test_all_slots_cooling_denies_without_ordinal_or_state_write(tmp_path: Path)
             ],
         }
     assert state.read_bytes() == before
+
+
+def test_allocator_quota_block_is_per_model(tmp_path: Path) -> None:
+    state = tmp_path / "allocator-state.json"
+    now = 1_786_910_400.0
+
+    assert _allocate(state, now) == (1, "account-1")
+    receipt = allocator.record_production_quota_exhausted(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+        slot_id="account-1",
+        model="gemini-3.5-flash",
+        clock=lambda: now,
+    )
+
+    assert receipt["reason"] == "API_QUOTA"
+    with allocator.production_slot_admission(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+        model="gemini-3.5-flash",
+        clock=lambda: now + 1,
+    ) as admission:
+        assert admission.slot_id == "account-2"
+    with allocator.production_slot_admission(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+        model="gemini-3.5-flash-lite",
+        clock=lambda: now + 1,
+    ) as admission:
+        assert admission.slot_id == "account-2"

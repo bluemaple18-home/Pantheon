@@ -27,7 +27,9 @@ SCHEMA_VERSION = 1
 MAX_RUN_ARTICLES = 5
 MAX_ARTICLE_BRIEF_BYTES = 8192
 DEFAULT_WRITER_MODEL = "gemini-3.5-flash"
-DEFAULT_REVIEWER_MODEL = "gemini-3.1-pro-preview"
+DEFAULT_REVIEWER_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_WRITER_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_REVIEWER_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 MAX_WRITER_SCHEMA_REPAIRS = 2
 NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
     "本文只提供通用理解，不能替個人下結論。",
@@ -37,7 +39,8 @@ NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
 )
 ANTIGRAVITY_MODEL_LABELS = {
     DEFAULT_WRITER_MODEL: "Gemini 3.5 Flash (Low)",
-    DEFAULT_REVIEWER_MODEL: "Gemini 3.1 Pro (Low)",
+    DEFAULT_REVIEWER_MODEL: "Gemini 3.1 Flash-Lite (Low)",
+    DEFAULT_WRITER_FALLBACK_MODEL: "Gemini 3.5 Flash-Lite (Low)",
 }
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
@@ -2230,6 +2233,46 @@ def _gemini_error_code_for_http_status(http_status: object) -> str:
     return "API_HTTP_ERROR"
 
 
+def _gemini_error_code_for_http_error(error: urllib.error.HTTPError) -> str:
+    """只從 429 的封閉 ErrorInfo／QuotaFailure 判定每日配額。"""
+    default = _gemini_error_code_for_http_status(error.code)
+    if error.code != 429:
+        return default
+    try:
+        encoded = error.read(16 * 1024 + 1)
+        if len(encoded) > 16 * 1024:
+            return default
+        payload = json.loads(encoded.decode("utf-8"))
+        details = payload.get("error", {}).get("details", [])
+    except (AttributeError, TypeError, UnicodeError, ValueError):
+        return default
+    if not isinstance(details, list):
+        return default
+    reasons = {
+        detail.get("reason")
+        for detail in details
+        if isinstance(detail, dict)
+        and detail.get("@type") == "type.googleapis.com/google.rpc.ErrorInfo"
+        and type(detail.get("reason")) is str
+    }
+    if reasons == {"QUOTA_EXCEEDED"}:
+        return "API_QUOTA"
+    quota_ids = {
+        violation.get("quotaId")
+        for detail in details
+        if isinstance(detail, dict)
+        and detail.get("@type") == "type.googleapis.com/google.rpc.QuotaFailure"
+        and isinstance(detail.get("violations"), list)
+        for violation in detail["violations"]
+        if isinstance(violation, dict)
+        and type(violation.get("quotaId")) is str
+        and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", violation["quotaId"])
+    }
+    if any("PerDay" in quota_id for quota_id in quota_ids):
+        return "API_QUOTA"
+    return default
+
+
 def closed_gemini_http_diagnostic(
     error_code: object,
     http_status: object,
@@ -2241,7 +2284,10 @@ def closed_gemini_http_diagnostic(
         or not 100 <= http_status <= 599
         or type(http_status_class) is not str
         or http_status_class != f"{http_status // 100}xx"
-        or error_code != _gemini_error_code_for_http_status(http_status)
+        or (
+            error_code != _gemini_error_code_for_http_status(http_status)
+            and not (http_status == 429 and error_code == "API_QUOTA")
+        )
     ):
         return None
     return {
@@ -2459,7 +2505,7 @@ class GeminiClient:
             ) as response:
                 encoded = response.read()
         except urllib.error.HTTPError as error:
-            code = _gemini_error_code_for_http_status(error.code)
+            code = _gemini_error_code_for_http_error(error)
             raise GeminiApiFailure(code, http_status=error.code) from None
         except urllib.error.URLError as error:
             code = "API_TIMEOUT" if isinstance(error.reason, TimeoutError) else "API_TRANSPORT_ERROR"
@@ -3730,7 +3776,7 @@ def _repair_reviewer_prompt(
 ) -> str:
     contracts = style_contracts or REWRITE_REPAIR_STYLE_CONTRACTS
     return "\n".join([
-        "你是新的獨立 Gemini Pro Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
+        "你是新的獨立 Gemini Reviewer，必須同時比較全部五篇；slot 必須逐字複製。",
         "本卡只審 Repair 1：確認跨篇完整句、共用 H2、長片段、段落開頭與抽象句型／論證結構不再相似。",
         f"同時確認 {publication_presentation_instruction('rewrite_existing_body')}、前 80 字、專屬場景、具體動詞、反例與安全限制沒有回歸。",
         "semantic_verdict 只表示語意結論；semantic_findings 與 objective_observations 必須分開。"
@@ -3819,6 +3865,11 @@ def _generate_with_receipt(
         receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         write_json(receipt_path, receipt)
         raise
+    active_model = getattr(client, "active_model", None)
+    if callable(active_model):
+        selected_model = active_model(role)
+        if type(selected_model) is str and selected_model:
+            receipt["model"] = selected_model
     receipt["status"] = "success"
     receipt["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     write_json(receipt_path, receipt)
@@ -3837,7 +3888,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
             raise RuntimeError("rewrite_existing_body requires fresh headless CLI processes")
         if isinstance(client, GeminiClient) and client.reviewer_model != DEFAULT_REVIEWER_MODEL:
-            raise RuntimeError("rewrite_existing_body reviewer must use Gemini 3.1 Pro Low")
+            raise RuntimeError("rewrite_existing_body reviewer must use the configured independent reviewer model")
     candidate: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
     completed_attempts = 0
@@ -5257,7 +5308,7 @@ def run_rewrite_repair_closure(
         if getattr(client.transport, "__name__", "") != "_cli_transport":
             raise RuntimeError("rewrite closure requires a fresh sandboxed headless reviewer process")
         if client.reviewer_model != DEFAULT_REVIEWER_MODEL:
-            raise RuntimeError("rewrite closure reviewer must use Gemini 3.1 Pro Low")
+            raise RuntimeError("rewrite closure reviewer must use the configured independent reviewer model")
     before_articles = json.loads(json.dumps(candidate["articles"], ensure_ascii=False))
     by_id = {str(article["article_id"]): article for article in candidate["articles"]}
     changed_locations: list[dict[str, Any]] = []
@@ -5360,7 +5411,7 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
         if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
             raise RuntimeError("rewrite_existing_body requires a fresh headless reviewer process")
         if isinstance(client, GeminiClient) and client.reviewer_model != DEFAULT_REVIEWER_MODEL:
-            raise RuntimeError("rewrite_existing_body reviewer must use Gemini 3.1 Pro Low")
+            raise RuntimeError("rewrite_existing_body reviewer must use the configured independent reviewer model")
         expected = brief["articles"]
         if [article["article_id"] for article in candidate["articles"]] != [item["article_id"] for item in expected]:
             raise CandidateValidationError("existing rewrite candidate set or order differs from brief")

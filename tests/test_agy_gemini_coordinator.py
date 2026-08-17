@@ -3900,8 +3900,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
-    assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-}"' in installer
-    assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"' in installer
+    assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-gemini-3.5-flash}"' in installer
+    assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-gemini-3.1-flash-lite}"' in installer
     assert 'NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"' in installer
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert (
@@ -3995,6 +3995,8 @@ def test_installer_rejects_relative_production_pool_before_install_side_effects(
     )
     launchctl.chmod(0o700)
     env = os.environ.copy()
+    env.pop("AGY_WRITER_MODEL", None)
+    env.pop("AGY_REVIEWER_MODEL", None)
     env.update(
         {
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": pool_file.name,
@@ -4138,6 +4140,7 @@ def _write_installer_runtime_manifest(
         log_root=log_root,
         identity="synthetic-installer:501",
         python_executable=python_executable,
+        uv_executable=Path("/usr/bin/true"),
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -4194,6 +4197,8 @@ def _installer_test_env(
     )
     manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
+    env.pop("AGY_WRITER_MODEL", None)
+    env.pop("AGY_REVIEWER_MODEL", None)
     env.update(
         {
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool),
@@ -6383,6 +6388,8 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     )
     manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
+    env.pop("AGY_WRITER_MODEL", None)
+    env.pop("AGY_REVIEWER_MODEL", None)
     env.update(
         {
             "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
@@ -6411,6 +6418,11 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         text=True,
     )
 
+    if model_overrides:
+        assert completed.returncode != 0
+        assert "model route 不符合鎖定契約" in completed.stderr
+        assert not fake_home.exists()
+        return
     assert completed.returncode == 0, completed.stderr
     coordinator_plist = plistlib.loads(
         (
@@ -6436,12 +6448,8 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         key: coordinator_variables[key]
         for key in shared_contract
     } == shared_contract
-    if model_overrides:
-        assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-explicit-writer"
-        assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-explicit-reviewer"
-    else:
-        assert "AGY_WRITER_MODEL" not in coordinator_variables
-        assert "AGY_REVIEWER_MODEL" not in coordinator_variables
+    assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-3.5-flash"
+    assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-3.1-flash-lite"
     for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
         installed = plistlib.loads(
             (

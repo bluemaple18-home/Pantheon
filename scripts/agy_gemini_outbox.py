@@ -15,6 +15,7 @@ from typing import Any
 
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
+from scripts.agy_gemini_allocator import PRODUCTION_SLOT_IDS
 
 
 SCHEMA_VERSION = 1
@@ -137,6 +138,7 @@ class ExternalJobFailed(RuntimeError):
         http_status_class: str | None = None,
         request_sha256: str | None = None,
         transport_attempt: int = 0,
+        credential_slot_id: str | None = None,
     ) -> None:
         self.job_id = job_id
         self.error_type = (
@@ -177,6 +179,11 @@ class ExternalJobFailed(RuntimeError):
             and type(transport_attempt) is not bool
             and 0 <= transport_attempt <= OUTBOX_MAX_TRANSPORT_RETRIES
             else 1
+        )
+        self.credential_slot_id = (
+            credential_slot_id
+            if credential_slot_id in PRODUCTION_SLOT_IDS
+            else None
         )
         super().__init__(f"external job failed: {job_id} ({self.error_type})")
 
@@ -573,6 +580,11 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
             ),
             request_sha256=str(request["request_sha256"]),
             transport_attempt=request.get("transport_attempt", 0),
+            credential_slot_id=(
+                failure.get("credential_pool", {}).get("slot_id")
+                if isinstance(failure.get("credential_pool"), dict)
+                else None
+            ),
         )
     response_path = queue_root / "inbox" / f"{job_id}.json"
     if not response_path.exists():
@@ -627,48 +639,108 @@ class OutboxGeminiClient:
         self.namespace = namespace
         self.writer_model = writer_model
         self.reviewer_model = reviewer_model
+        if writer_model == reviewer_model:
+            raise ValueError("writer and reviewer models must be distinct")
+        self._active_models = {
+            "writer": writer_model,
+            "reviewer": reviewer_model,
+        }
         self.transport = self._outbox_transport
 
     def _outbox_transport(self) -> None:
         raise RuntimeError("outbox transport is represented by generate_json")
 
+    def active_model(self, role: str) -> str:
+        if role not in self._active_models:
+            raise ValueError("role must be writer or reviewer")
+        return self._active_models[role]
+
     def generate_json(self, role: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
-        model = self.writer_model if role == "writer" else self.reviewer_model
-        for retry_index in range(OUTBOX_MAX_TRANSPORT_RETRIES + 1):
-            expected = build_external_request(
-                namespace=self.namespace,
-                role=role,
-                model=model,
-                prompt=prompt,
-                response_schema=schema,
-                transport_attempt=retry_index,
-            )
-            request_root = self.queue_root
-            if (
-                self.legacy_queue_root is not None
-                and _request_is_known(self.legacy_queue_root, str(expected["job_id"]))
-            ):
-                request_root = self.legacy_queue_root
-            request = create_external_request(
-                request_root,
-                namespace=self.namespace,
-                role=role,
-                model=model,
-                prompt=prompt,
-                response_schema=schema,
-                transport_attempt=retry_index,
-            )
-            try:
-                return consume_external_response(request_root, request)
-            except ExternalJobFailed as failed:
+        if role not in {"writer", "reviewer"}:
+            raise ValueError("role must be writer or reviewer")
+        primary = self.writer_model if role == "writer" else self.reviewer_model
+        fallback = (
+            pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+            if role == "writer"
+            else pipeline.DEFAULT_REVIEWER_FALLBACK_MODEL
+        )
+        other_role = "reviewer" if role == "writer" else "writer"
+        candidates = tuple(
+            model
+            for model in dict.fromkeys((primary, fallback))
+            if model != self._active_models[other_role]
+        )
+        last_failure: ExternalJobFailed | None = None
+        for model_index, model in enumerate(candidates):
+            quota_slots: set[str] = set()
+            for retry_index in range(OUTBOX_MAX_TRANSPORT_RETRIES + 1):
+                expected = build_external_request(
+                    namespace=self.namespace,
+                    role=role,
+                    model=model,
+                    prompt=prompt,
+                    response_schema=schema,
+                    transport_attempt=retry_index,
+                )
+                request_root = self.queue_root
                 if (
-                    failed.error_code != "API_RATE_LIMITED"
-                    and failed.failure_category
-                    not in RETRYABLE_EXTERNAL_FAILURE_CATEGORIES
-                    or retry_index >= OUTBOX_MAX_TRANSPORT_RETRIES
+                    self.legacy_queue_root is not None
+                    and _request_is_known(self.legacy_queue_root, str(expected["job_id"]))
                 ):
+                    request_root = self.legacy_queue_root
+                request = create_external_request(
+                    request_root,
+                    namespace=self.namespace,
+                    role=role,
+                    model=model,
+                    prompt=prompt,
+                    response_schema=schema,
+                    transport_attempt=retry_index,
+                )
+                try:
+                    result = consume_external_response(request_root, request)
+                except ExternalJobFailed as failed:
+                    last_failure = failed
+                    if (
+                        failed.error_code == "API_QUOTA"
+                        and failed.credential_slot_id is not None
+                    ):
+                        quota_slots.add(failed.credential_slot_id)
+                    retryable = (
+                        failed.error_code in {"API_RATE_LIMITED", "API_QUOTA"}
+                        or failed.failure_category in RETRYABLE_EXTERNAL_FAILURE_CATEGORIES
+                    )
+                    if not retryable:
+                        raise
+                    if retry_index < OUTBOX_MAX_TRANSPORT_RETRIES:
+                        continue
+                    if (
+                        failed.error_code == "API_QUOTA"
+                        and quota_slots == set(PRODUCTION_SLOT_IDS)
+                        and model_index + 1 < len(candidates)
+                    ):
+                        break
                     raise
-        raise RuntimeError("unreachable external transport retry state")
+                self._active_models[role] = model
+                if model != primary:
+                    atomic_write_json(
+                        self.queue_root
+                        / "model-routing"
+                        / f"{self.namespace}-{role}.json",
+                        {
+                            "schema_version": 1,
+                            "namespace": self.namespace,
+                            "role": role,
+                            "primary_model": primary,
+                            "selected_model": model,
+                            "reason": "API_QUOTA",
+                            "exhausted_slot_ids": list(PRODUCTION_SLOT_IDS),
+                        },
+                    )
+                return result
+        if last_failure is not None:
+            raise last_failure
+        raise RuntimeError("no distinct writer/reviewer model route is available")
 
 
 def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:

@@ -64,6 +64,7 @@ def _failure_receipt(
     *,
     error_type: object,
     error_code: object = None,
+    credential_slot_id: str | None = None,
 ) -> dict[str, object]:
     receipt: dict[str, object] = {
         "schema_version": 1,
@@ -74,6 +75,12 @@ def _failure_receipt(
     }
     if error_code is not None:
         receipt["error_code"] = error_code
+    if credential_slot_id is not None:
+        receipt["credential_pool"] = {
+            "pool_id": "pantheon-production-v1",
+            "slot_id": credential_slot_id,
+            "manifest_sha256": "a" * 64,
+        }
     return receipt
 
 
@@ -858,9 +865,50 @@ def test_production_pool_state_fails_closed_before_credential_or_provider(
     assert credential_read is False
     assert provider_called is False
     assert (queue_root / "outbox" / f"{request['job_id']}.json").exists()
-    assert not (queue_root / "processing").exists()
+    assert not list((queue_root / "processing").glob("*.json"))
     assert not (queue_root / "archive").exists()
     assert not (queue_root / "failed").exists()
+
+
+def test_production_malformed_request_terminalizes_without_credential_or_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    state = tmp_path / "round-robin-state.json"
+    queue_root = tmp_path / "queue"
+    malformed = queue_root / "outbox" / f"{'b' * 40}.json"
+    malformed.parent.mkdir(parents=True)
+    malformed.write_text("{not-json}\n", encoding="utf-8")
+    credential_reads = 0
+    provider_calls = 0
+
+    def reject_credential(_descriptor: int) -> str:
+        nonlocal credential_reads
+        credential_reads += 1
+        raise AssertionError("credential must not be read")
+
+    def reject_provider(*_args: object, **_kwargs: object) -> object:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("provider must not be called")
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(runner, "_read_production_api_key", reject_credential)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", reject_provider)
+
+    result = process_once(queue_root)
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "JSONDecodeError"
+    assert credential_reads == 0
+    assert provider_calls == 0
+    assert not state.exists()
+    assert not malformed.exists()
+    assert (queue_root / "archive" / malformed.name).exists()
+    assert (queue_root / "failed" / malformed.name).exists()
 
 
 def test_production_pool_rejects_relative_state_before_credential_open(
@@ -1443,6 +1491,112 @@ def test_all_slots_cooling_denies_two_lanes_before_claim_or_provider(
         assert not (lane_root / "inbox").exists()
         assert not (lane_root / "failed").exists()
         assert not (lane_root / "production-attempts").exists()
+
+
+def test_all_slots_quota_blocked_preserves_primary_and_allows_fallback_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    state = tmp_path / "round-robin-state.json"
+    primary = pipeline.DEFAULT_WRITER_MODEL
+    fallback = pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+    quota_body = json.dumps(
+        {
+            "error": {
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                        "violations": [
+                            {
+                                "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    ).encode()
+
+    def quota_provider(provider_request: object, **_kwargs: object) -> object:
+        raise pipeline.urllib.error.HTTPError(
+            getattr(provider_request, "full_url", "https://example.invalid"),
+            429,
+            "private-provider-detail",
+            {},
+            io.BytesIO(quota_body),
+        )
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", quota_provider)
+
+    results = []
+    for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
+        create_external_request(
+            queue_root,
+            namespace="quota-model-routing",
+            role="writer",
+            model=primary,
+            prompt="公開 prompt",
+            response_schema=SCHEMA,
+            transport_attempt=attempt,
+        )
+        results.append(process_once(queue_root, clock=lambda: 1_786_910_400.0))
+
+    assert [result["error_code"] for result in results] == ["API_QUOTA"] * 3
+    assert [result["credential_pool"]["slot_id"] for result in results] == list(
+        allocator.PRODUCTION_SLOT_IDS
+    )
+    blocked = create_external_request(
+        queue_root,
+        namespace="quota-primary-blocked",
+        role="writer",
+        model=primary,
+        prompt="公開 primary blocked",
+        response_schema=SCHEMA,
+    )
+    blocked_result = process_once(queue_root, clock=lambda: 1_786_910_401.0)
+    assert blocked_result["status"] == "quota_blocked"
+    assert blocked_result["admission"]["reason"] == "API_QUOTA"
+    assert (queue_root / "outbox" / f"{blocked['job_id']}.json").exists()
+    assert not list((queue_root / "processing").glob("*.json"))
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {"candidates": [{"content": {"parts": [{"text": "{\"ok\":true}"}]}}]}
+            ).encode()
+
+    monkeypatch.setattr(
+        pipeline,
+        "_single_request_urlopen",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+    (queue_root / "outbox" / f"{blocked['job_id']}.json").unlink()
+    fallback_request = create_external_request(
+        queue_root,
+        namespace="quota-fallback-allowed",
+        role="writer",
+        model=fallback,
+        prompt="公開 fallback allowed",
+        response_schema=SCHEMA,
+    )
+    fallback_result = process_once(queue_root, clock=lambda: 1_786_910_401.0)
+
+    assert fallback_result["status"] == "processed"
+    response = json.loads(
+        (queue_root / "inbox" / f"{fallback_request['job_id']}.json").read_text()
+    )
+    assert response["model"] == fallback
 
 
 def test_cooling_admission_64_process_competition_has_zero_side_effects(
@@ -4066,7 +4220,6 @@ def test_transport_failure_retry_allowlist_preserves_logical_request_identity(
     ("error_type", "error_code", "expected_category"),
     [
         ("GeminiApiFailure", "API_AUTH", "AUTH"),
-        ("GeminiApiFailure", "API_QUOTA", "QUOTA"),
         ("GeminiApiFailure", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
         ("GeminiCliFailure", "CLI_NOT_FOUND", "CLI_UNAVAILABLE"),
     ],
@@ -4112,6 +4265,154 @@ def test_transport_failure_terminal_categories_do_not_enqueue_retry(
     assert not list((tmp_path / "completed").glob("*.json"))
     classified = outbox.classify_external_failure(receipt)
     assert classified == expected_category
+
+
+def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
+    tmp_path: Path,
+) -> None:
+    namespace = "quota-aware-routing"
+    prompt = "公開 quota-aware routing"
+    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
+        request = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="writer",
+            model=pipeline.DEFAULT_WRITER_MODEL,
+            prompt=prompt,
+            response_schema=SCHEMA,
+            transport_attempt=attempt,
+        )
+        outbox.atomic_write_json(
+            tmp_path / "failed" / f"{request['job_id']}.json",
+            _failure_receipt(
+                request,
+                error_type="GeminiApiFailure",
+                error_code="API_QUOTA",
+                credential_slot_id=slot_id,
+            ),
+        )
+    fallback = outbox.create_external_request(
+        tmp_path,
+        namespace=namespace,
+        role="writer",
+        model=pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        prompt=prompt,
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{fallback['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": fallback["job_id"],
+            "request_sha256": fallback["request_sha256"],
+            "model": fallback["model"],
+            "completed_at": "2026-08-17T12:00:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+
+    assert client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
+    assert client._active_models == {
+        "writer": pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        "reviewer": pipeline.DEFAULT_REVIEWER_MODEL,
+    }
+    routing = json.loads(
+        (
+            tmp_path
+            / "model-routing"
+            / f"{namespace}-writer.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert routing == {
+        "schema_version": 1,
+        "namespace": namespace,
+        "role": "writer",
+        "primary_model": pipeline.DEFAULT_WRITER_MODEL,
+        "selected_model": pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        "reason": "API_QUOTA",
+        "exhausted_slot_ids": list(allocator.PRODUCTION_SLOT_IDS),
+    }
+
+
+@pytest.mark.parametrize("error_code", ["API_RATE_LIMITED", "API_HTTP_ERROR"])
+def test_transient_exhaustion_does_not_downgrade_model(
+    tmp_path: Path,
+    error_code: str,
+) -> None:
+    namespace = "rate-limit-no-downgrade"
+    prompt = "公開 transient rate limit"
+    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    last_request: dict[str, object] | None = None
+    for attempt in range(3):
+        request = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="writer",
+            model=pipeline.DEFAULT_WRITER_MODEL,
+            prompt=prompt,
+            response_schema=SCHEMA,
+            transport_attempt=attempt,
+        )
+        last_request = request
+        outbox.atomic_write_json(
+            tmp_path / "failed" / f"{request['job_id']}.json",
+            _failure_receipt(
+                request,
+                error_type="GeminiApiFailure",
+                error_code=error_code,
+            ),
+        )
+
+    with pytest.raises(ExternalJobFailed) as raised:
+        client.generate_json("writer", prompt, SCHEMA)
+
+    assert last_request is not None
+    assert raised.value.job_id == last_request["job_id"]
+    assert not (tmp_path / "model-routing").exists()
+    assert all(
+        json.loads(path.read_text())["model"] == pipeline.DEFAULT_WRITER_MODEL
+        for path in (tmp_path / "outbox").glob("*.json")
+    )
+
+
+def test_reviewer_fails_closed_when_only_fallback_matches_active_writer(
+    tmp_path: Path,
+) -> None:
+    namespace = "independent-reviewer-route"
+    prompt = "公開 independent reviewer route"
+    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    client._active_models["writer"] = pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+    last_request: dict[str, object] | None = None
+    for attempt in range(3):
+        request = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="reviewer",
+            model=pipeline.DEFAULT_REVIEWER_MODEL,
+            prompt=prompt,
+            response_schema=SCHEMA,
+            transport_attempt=attempt,
+        )
+        last_request = request
+        outbox.atomic_write_json(
+            tmp_path / "failed" / f"{request['job_id']}.json",
+            _failure_receipt(
+                request,
+                error_type="GeminiApiFailure",
+                error_code="API_QUOTA",
+            ),
+        )
+
+    with pytest.raises(ExternalJobFailed) as raised:
+        client.generate_json("reviewer", prompt, SCHEMA)
+
+    assert last_request is not None
+    assert raised.value.job_id == last_request["job_id"]
+    assert all(
+        json.loads(path.read_text())["model"] == pipeline.DEFAULT_REVIEWER_MODEL
+        for path in (tmp_path / "outbox").glob("*.json")
+    )
 
 
 def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Path) -> None:

@@ -28,10 +28,12 @@ from scripts.agy_gemini_outbox import (
 from scripts.agy_gemini_allocator import (
     MAX_RATE_LIMIT_COOLDOWN_SECONDS,
     ProductionSlotAdmission,
+    QUOTA_REASON,
     RATE_LIMIT_REASON,
     allocate_production_slot,
     production_slot_admission,
     record_production_rate_limit,
+    record_production_quota_exhausted,
     validate_production_allocator_installation,
 )
 from scripts.agy_seo_copy_pipeline import (
@@ -551,6 +553,53 @@ def _claim_next(
             continue
         return target
     return None
+
+
+def _peek_next_model(
+    queue_root: Path,
+    exact_run_ids: Iterable[str] | None = None,
+) -> str | None:
+    """不 claim 工作，只讀取與 `_claim_next` 相同優先序的下一個 model。"""
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    exact_namespaces = (
+        frozenset(
+            hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+            for run_id in selected_run_ids
+        )
+        if selected_run_ids is not None
+        else None
+    )
+    _requeue_stale_processing(queue_root, exact_namespaces)
+    outbox = queue_root / "outbox"
+    sources = list(outbox.glob("*.json")) if outbox.exists() else []
+    candidates: list[tuple[int, str, str]] = []
+    for source in sources:
+        try:
+            request = json.loads(source.read_text(encoding="utf-8"))
+            validate_external_request(request)
+        except (OSError, json.JSONDecodeError, ValueError):
+            if exact_namespaces is None:
+                candidates.append((2, source.name, ""))
+            continue
+        if exact_namespaces is not None and str(request["namespace"]) not in exact_namespaces:
+            continue
+        candidates.append(
+            (0 if request["role"] == "reviewer" else 1, source.name, str(request["model"]))
+        )
+    return min(candidates)[2] if candidates else None
+
+
+def _restore_unattempted_claim(queue_root: Path, processing_path: Path) -> None:
+    """Admission 拒絕時原子放回尚未建立 production attempt 的工作。"""
+    target = queue_root / "outbox" / processing_path.name
+    if target.exists() or not processing_path.exists():
+        raise ValueError("unattempted production claim cannot be restored")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(processing_path, target)
+    try:
+        processing_path.parent.rmdir()
+    except OSError:
+        pass
 
 
 def _production_attempt_marker(queue_root: Path, job_id: str) -> Path:
@@ -1108,15 +1157,32 @@ def process_once(
                 Path(pool_file)
             )
             cooldown_seconds = _production_cooldown_seconds()
+            selected_model = _peek_next_model(queue_root, selected_run_ids)
+            if selected_model is None:
+                return {"status": "idle"}
+            if selected_model == "":
+                processing_path = _claim_next(queue_root, selected_run_ids)
+                if processing_path is None:
+                    return {"status": "idle"}
+                job_id = processing_path.stem
+                archive_path = queue_root / "archive" / f"{job_id}.json"
+                request = json.loads(processing_path.read_text(encoding="utf-8"))
+                validate_external_request(request)
+                raise ValueError("production request selection remained invalid")
             with production_slot_admission(
                 production_state_path,
                 pool_id=str(pool_payload["pool_id"]),
                 manifest_sha256=production_manifest_sha256,
+                model=selected_model,
                 clock=clock_function,
             ) as admission:
                 if not admission.allowed:
                     return {
-                        "status": "cooldown",
+                        "status": (
+                            "quota_blocked"
+                            if admission.receipt.get("reason") == QUOTA_REASON
+                            else "cooldown"
+                        ),
                         "admission": admission.receipt,
                     }
                 processing_path = _claim_next(queue_root, selected_run_ids)
@@ -1128,6 +1194,10 @@ def process_once(
                 validate_external_request(request)
                 if request["job_id"] != job_id:
                     raise ValueError("request job id differs from queue filename")
+                if request["model"] != selected_model:
+                    _restore_unattempted_claim(queue_root, processing_path)
+                    processing_path = None
+                    return {"status": "selection_changed"}
                 production_attempt_evidence = _begin_production_attempt(
                     queue_root,
                     request,
@@ -1280,6 +1350,7 @@ def process_once(
         if processing_path is None:
             return {"status": "failed", "error_type": type(error).__name__}
         cooldown_receipt: dict[str, object] | None = None
+        quota_receipt: dict[str, object] | None = None
         error_code = _closed_error_code(error)
         http_diagnostic = closed_gemini_http_diagnostic(
             error_code,
@@ -1304,6 +1375,24 @@ def process_once(
                 )
             except (OSError, ValueError):
                 cooldown_receipt = None
+        if (
+            error_code == QUOTA_REASON
+            and credential_pool is not None
+            and production_state_path is not None
+            and production_manifest_sha256 is not None
+            and type(request.get("model")) is str
+        ):
+            try:
+                quota_receipt = record_production_quota_exhausted(
+                    production_state_path,
+                    pool_id=credential_pool["pool_id"],
+                    manifest_sha256=production_manifest_sha256,
+                    slot_id=credential_pool["slot_id"],
+                    model=str(request["model"]),
+                    clock=clock_function,
+                )
+            except (OSError, ValueError):
+                quota_receipt = None
         failed_record: dict[str, object] = {
             "schema_version": SCHEMA_VERSION,
             "job_id": job_id,
@@ -1349,6 +1438,8 @@ def process_once(
             result["credential_pool"] = credential_pool
         if cooldown_receipt is not None:
             result["cooldown"] = cooldown_receipt
+        if quota_receipt is not None:
+            result["quota_block"] = quota_receipt
         return result
     finally:
         _close_production_attempt(production_attempt_evidence)
