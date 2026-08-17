@@ -4313,6 +4313,60 @@ def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch:
     assert len(ids) == len(backlog)
 
 
+def test_registry_inventory_uses_bounded_process_without_pipes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 4321
+
+        def __init__(self, command: list[str], **kwargs: object) -> None:
+            observed["command"] = command
+            observed.update(kwargs)
+            kwargs["stdout"].write('[{"id":"ARTICLE-1"}]')  # type: ignore[union-attr]
+
+        def wait(self, timeout: float | None = None) -> int:
+            observed["timeout"] = timeout
+            return 0
+
+    monkeypatch.setattr(pipeline.subprocess, "Popen", FakeProcess)
+
+    assert pipeline._registry_inventory(tmp_path) == [{"id": "ARTICLE-1"}]
+    assert observed["timeout"] == pipeline.REGISTRY_NODE_TIMEOUT_SECONDS == 300
+    assert observed["start_new_session"] is True
+    assert observed["stdout"] is not pipeline.subprocess.PIPE
+    assert observed["stderr"] is not pipeline.subprocess.PIPE
+
+
+def test_registry_node_timeout_kills_process_group(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    killed: list[tuple[int, int]] = []
+
+    class FakeProcess:
+        pid = 4321
+
+        def __init__(self, _command: list[str], **_kwargs: object) -> None:
+            self.wait_count = 0
+
+        def wait(self, timeout: float | None = None) -> int:
+            self.wait_count += 1
+            if self.wait_count == 1:
+                raise subprocess.TimeoutExpired("node", timeout)
+            return -9
+
+    monkeypatch.setattr(pipeline.subprocess, "Popen", FakeProcess)
+    monkeypatch.setattr(pipeline.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        pipeline._run_registry_node_script(tmp_path, "console.log('never')")
+
+    assert killed == [(4321, pipeline.signal.SIGKILL)]
+
+
 def test_matrix_prepare_allocates_final_unique_identity_before_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     integrated_inventory = pipeline._registry_inventory(repo_root)

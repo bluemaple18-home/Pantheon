@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import shlex
 import shutil
 import subprocess
@@ -27,6 +28,7 @@ from scripts.update_articles_hub_dates import articles_hub_updated_date, render_
 SCHEMA_VERSION = 1
 MAX_RUN_ARTICLES = 5
 MAX_ARTICLE_BRIEF_BYTES = 8192
+REGISTRY_NODE_TIMEOUT_SECONDS = 300
 MODEL_ROUTE_CONFIG_PATH = (
     Path(__file__).resolve().parents[1] / "config" / "agy_gemini_model_routes.v1.json"
 )
@@ -1817,6 +1819,39 @@ def _structured_matrix_rows(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+def _run_registry_node_script(repo_root: Path, script: str) -> subprocess.CompletedProcess[str]:
+    command = ["node", "--input-type=module", "-e", script]
+    # 不用 PIPE：Node 的後代程序若繼承 stdout/stderr，communicate() 會在 Node
+    # 已退出後仍等不到 EOF。暫存檔讓等待只綁定直接子程序。
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_handle, tempfile.TemporaryFile(
+        mode="w+", encoding="utf-8"
+    ) as stderr_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=repo_root,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            return_code = process.wait(timeout=REGISTRY_NODE_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as error:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            raise subprocess.TimeoutExpired(command, REGISTRY_NODE_TIMEOUT_SECONDS) from error
+        stdout_handle.seek(0)
+        stderr_handle.seek(0)
+        stdout = stdout_handle.read()
+        stderr = stderr_handle.read()
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, command, output=stdout, stderr=stderr)
+    return subprocess.CompletedProcess(command, return_code, stdout, stderr)
+
+
 def _registry_inventory(repo_root: Path) -> list[dict[str, Any]]:
     script = """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
@@ -1826,7 +1861,7 @@ console.log(JSON.stringify(listArticleRecords().map((article) => ({
   path: getArticlePath(article), slug: article.slug,
 }))));
 """
-    result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=repo_root, check=True, capture_output=True, text=True)
+    result = _run_registry_node_script(repo_root, script)
     return list(json.loads(result.stdout))
 
 
@@ -1850,13 +1885,7 @@ console.log(JSON.stringify(listArticleRecords().map((article) => {
   };
 })));
 """
-    result = subprocess.run(
-        ["node", "--input-type=module", "-e", script],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_registry_node_script(repo_root, script)
     payload = json.loads(result.stdout)
     if not isinstance(payload, list):
         raise CandidateValidationError("publication reference corpus must be a list")
@@ -2082,13 +2111,7 @@ console.log(JSON.stringify(listArticleRecords().map((record) => {
     published: content.published, updated: content.updated };
 })));
 """
-    result = subprocess.run(
-        ["node", "--input-type=module", "-e", script],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_registry_node_script(repo_root, script)
     return {str(item["id"]): item for item in json.loads(result.stdout)}
 
 
