@@ -878,7 +878,9 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     ]
 
 
-@pytest.mark.parametrize("transition_state", ["running", "waiting"])
+@pytest.mark.parametrize(
+    "transition_state", ["running", "waiting", "spawn scheduled"]
+)
 def test_normal_scheduled_service_rechecks_transient_state_without_pid(
     monkeypatch: pytest.MonkeyPatch,
     transition_state: str,

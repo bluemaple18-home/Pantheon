@@ -306,7 +306,11 @@ def _service_rss_bytes(
             if (
                 label in expected_idle_labels
                 and identity is not None
-                and identity["states"] in (["running"], ["waiting"])
+                and identity["states"] in (
+                    ["running"],
+                    ["waiting"],
+                    ["spawn scheduled"],
+                )
                 and identity["paths"] == [expected_plist]
                 and identity["last_exit_codes"] in ([], [0])
             ):
@@ -335,7 +339,11 @@ def _service_rss_bytes(
                     if retry_identity["states"] == ["not running"]:
                         idle.append({"label": label, "topology": "loaded-but-idle"})
                         break
-                    if retry_identity["states"] not in (["running"], ["waiting"]):
+                    if retry_identity["states"] not in (
+                        ["running"],
+                        ["waiting"],
+                        ["spawn scheduled"],
+                    ):
                         break
                 if idle and idle[-1]["label"] == label:
                     continue
