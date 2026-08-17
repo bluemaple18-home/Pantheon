@@ -295,18 +295,59 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     assert plan["preserved_run_ids"] == [run_id]
 
 
-def test_preserved_run_contract_rejects_failed_run(tmp_path: Path) -> None:
-    request, _identities = _runtime_fixture(tmp_path)
+def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> None:
+    request, identities = _runtime_fixture(tmp_path)
     run_id = "failed-reviewer-run"
     _write_json(
         request.queue_root / "runs" / "failed.json",
         {"schema_version": 1, "run_id": run_id, "status": "failed"},
     )
+    gsc_copy_run = request.queue_root / "gsc-copy" / run_id
+    gsc_copy_run.mkdir(parents=True)
+    _write_json(
+        gsc_copy_run / "candidate.json",
+        {"schema_version": 1, "run_id": run_id, "status": "needs-review"},
+    )
+    (gsc_copy_run / "review.md").write_text("review stays private\n", encoding="utf-8")
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
     )
+    before_queue = promotion.tree_digest(request.queue_root)
 
-    with pytest.raises(promotion.PromotionError, match="not promotable"):
+    first = promotion.plan_promotion(request)
+    second = promotion.plan_promotion(request)
+    applied = promotion.apply_promotion(
+        request,
+        expected_plan_digest=first["plan_digest"],
+    )
+
+    assert first == second
+    assert first["status"] == "READY_TO_APPLY"
+    assert first["preserved_run_ids"] == [run_id]
+    assert first["queue_identity_snapshot"]["preserved_runs"] == [
+        {"path": "failed.json", "run_id": run_id, "status": "failed"}
+    ]
+    assert {
+        entry["path"]
+        for entry in first["queue_identity_snapshot"]["gsc_copy"]
+        if entry["type"] == "file"
+    } == {f"{run_id}/candidate.json", f"{run_id}/review.md"}
+    assert applied["status"] == "POSTCHECK_PASSED"
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
+
+
+def test_preserved_failed_run_requires_identity_snapshot(tmp_path: Path) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {"schema_version": 1, "status": "failed"},
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": ("failed-reviewer-run",)}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="not preservable"):
         promotion.plan_promotion(request)
 
 
@@ -350,7 +391,7 @@ def test_queue_snapshot_rejects_nested_symlink(tmp_path: Path) -> None:
         promotion.plan_promotion(request)
 
 
-def test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back(
+def test_plan_rejects_gsc_copy_only_residue_before_runtime_mutation(
     tmp_path: Path,
 ) -> None:
     request, _identities = _runtime_fixture(tmp_path)
@@ -360,13 +401,83 @@ def test_postcheck_rejects_gsc_copy_only_residue_and_rolls_back(
     (gsc_copy / "residue.json").write_text("{}", encoding="utf-8")
 
     with pytest.raises(promotion.PromotionError, match="queue residue"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_gsc_copy_invalid_json_fails_closed_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    run_id = "failed-reviewer-run"
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {"schema_version": 1, "run_id": run_id, "status": "failed"},
+    )
+    gsc_copy_run = request.queue_root / "gsc-copy" / run_id
+    gsc_copy_run.mkdir(parents=True)
+    (gsc_copy_run / "candidate.json").write_text("{invalid", encoding="utf-8")
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="gsc-copy JSON is invalid"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_gsc_copy_plan_apply_drift_rolls_back_without_rewriting_existing_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    run_id = "failed-reviewer-run"
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {"schema_version": 1, "run_id": run_id, "status": "failed"},
+    )
+    gsc_copy_run = request.queue_root / "gsc-copy" / run_id
+    gsc_copy_run.mkdir(parents=True)
+    _write_json(
+        gsc_copy_run / "candidate.json",
+        {"schema_version": 1, "run_id": run_id, "status": "needs-review"},
+    )
+    original_candidate = (gsc_copy_run / "candidate.json").read_bytes()
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    plan = promotion.plan_promotion(request)
+    real_install_private_stage = promotion._install_private_stage
+
+    def drift_gsc_copy(
+        promoted_request: promotion.PromotionRequest,
+        manifest: dict[str, Any],
+    ) -> None:
+        real_install_private_stage(promoted_request, manifest)
+        _write_json(
+            gsc_copy_run / "drift.json",
+            {"schema_version": 1, "run_id": run_id, "status": "unexpected-drift"},
+        )
+
+    monkeypatch.setattr(promotion, "_install_private_stage", drift_gsc_copy)
+
+    with pytest.raises(promotion.PromotionError, match="ROLLBACK_COMPLETE"):
         promotion.apply_promotion(
             request,
-            expected_plan_digest=_planned_digest(request),
+            expected_plan_digest=plan["plan_digest"],
         )
 
     receipt = promotion.load_receipt(request)
     assert receipt["state"] == "ROLLED_BACK"
+    assert receipt["state_before_rollback"] == "STAGE_INSTALLED"
+    assert (gsc_copy_run / "candidate.json").read_bytes() == original_candidate
+    assert (gsc_copy_run / "drift.json").is_file()
     assert _snapshot(request) == before
 
 

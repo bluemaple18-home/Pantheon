@@ -32,6 +32,7 @@ ORDERED_STATES = [
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+PRESERVABLE_RUN_STATUSES = {"active", "complete", "failed"}
 
 
 class PromotionError(RuntimeError):
@@ -240,7 +241,35 @@ def _validate_request_shape(request: PromotionRequest) -> None:
         raise PromotionError("preserved run ids are invalid")
 
 
-def _validate_preserved_runs(request: PromotionRequest) -> None:
+def _gsc_copy_identity_snapshot(queue_root: Path) -> list[dict[str, Any]]:
+    root = queue_root / "gsc-copy"
+    if not root.exists():
+        return []
+    if root.is_symlink() or not root.is_dir():
+        raise PromotionError("gsc-copy snapshot is invalid")
+    snapshot: list[dict[str, Any]] = []
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            raise PromotionError("gsc-copy snapshot contains symlink")
+        if path.is_dir():
+            snapshot.append({"path": relative, "type": "dir"})
+            continue
+        if not path.is_file():
+            raise PromotionError("gsc-copy snapshot contains unexpected residue")
+        if path.suffix == ".json":
+            _read_json_file(path, "gsc-copy JSON")
+        snapshot.append(
+            {
+                "path": relative,
+                "type": "file",
+                "digest": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+    return snapshot
+
+
+def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
     runs_root = request.queue_root / "runs"
     if not request.preserved_run_ids:
         for relative in ("runs", "gsc-copy"):
@@ -249,31 +278,42 @@ def _validate_preserved_runs(request: PromotionRequest) -> None:
                 root.is_symlink() or not root.is_dir() or any(root.iterdir())
             ):
                 raise PromotionError(f"queue residue present: {relative}")
-        return
+        return {"preserved_runs": [], "gsc_copy": []}
     if runs_root.is_symlink() or not runs_root.is_dir():
         raise PromotionError("preserved run registry is invalid")
     observed: set[str] = set()
+    preserved_runs: list[dict[str, str]] = []
     for path in runs_root.iterdir():
         if path.is_symlink() or not path.is_file() or path.suffix != ".json":
             raise PromotionError("preserved run registry contains unexpected residue")
         state = _read_json_file(path, "preserved run state")
         run_id = state.get("run_id")
+        status = state.get("status")
         if (
             type(run_id) is not str
             or SAFE_ID_PATTERN.fullmatch(run_id) is None
-            or state.get("status") not in {"active", "complete"}
+            or status not in PRESERVABLE_RUN_STATUSES
         ):
-            raise PromotionError("preserved run state is not promotable")
+            raise PromotionError("preserved run state is not preservable")
         if run_id in observed:
             raise PromotionError("preserved run registry contains duplicate identity")
         observed.add(run_id)
+        preserved_runs.append(
+            {"path": path.name, "run_id": run_id, "status": str(status)}
+        )
     if observed != set(request.preserved_run_ids):
         raise PromotionError("preserved run identity mismatch")
-    legacy_root = request.queue_root / "gsc-copy"
-    if legacy_root.exists() and (
-        legacy_root.is_symlink() or not legacy_root.is_dir() or any(legacy_root.iterdir())
-    ):
-        raise PromotionError("queue residue present: gsc-copy")
+    return {
+        "preserved_runs": sorted(
+            preserved_runs,
+            key=lambda entry: (entry["run_id"], entry["path"]),
+        ),
+        "gsc_copy": _gsc_copy_identity_snapshot(request.queue_root),
+    }
+
+
+def _validate_preserved_runs(request: PromotionRequest) -> None:
+    _queue_identity_snapshot(request)
 
 
 def _queue_snapshot_digest(queue_root: Path) -> str:
@@ -393,8 +433,7 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
     _validate_request_shape(request)
     _validate_path_boundaries(request)
     _validate_capacity_receipt(request)
-    if request.preserved_run_ids:
-        _validate_preserved_runs(request)
+    queue_identity_snapshot = _queue_identity_snapshot(request)
     _validate_git_identity(
         repo=request.source_repo,
         expected_sha=request.source_sha,
@@ -469,6 +508,7 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
         "capacity_receipt_digest": request.capacity_receipt_digest,
         "correlation_id": request.correlation_id,
         "preserved_run_ids": list(request.preserved_run_ids),
+        "queue_identity_snapshot": queue_identity_snapshot,
         "queue_snapshot_digest": _queue_snapshot_digest(request.queue_root),
     }
     plan["plan_digest"] = _json_digest(plan)
@@ -599,7 +639,8 @@ def _postcheck(
     ):
         raise PromotionError("private stage readiness postcheck failed")
     _validate_capacity_receipt(request)
-    _validate_preserved_runs(request)
+    if _queue_identity_snapshot(request) != plan["queue_identity_snapshot"]:
+        raise PromotionError("queue identity changed during promotion")
     if _queue_snapshot_digest(request.queue_root) != plan["queue_snapshot_digest"]:
         raise PromotionError("queue changed during promotion")
 
