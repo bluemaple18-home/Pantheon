@@ -878,6 +878,51 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     ]
 
 
+def test_normal_scheduled_service_rechecks_transient_running_without_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = "com.pantheon.agy-gemini-new"
+    target = f"gui/{os.getuid()}/{label}"
+    live_plist = (
+        Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+        / "Library"
+        / "LaunchAgents"
+        / f"{label}.plist"
+    )
+    calls = 0
+
+    def identity(state: str) -> str:
+        return ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace(
+            "<target>", target, 1
+        ).replace(
+            "\tstate = not running\n",
+            f"\tpath = {live_plist}\n\tstate = {state}\n",
+            1,
+        )
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        if command == ["launchctl", "print", target]:
+            calls += 1
+            return _completed(0, identity("running" if calls == 1 else "not running"))
+        if command[:2] == ["launchctl", "print"]:
+            return _completed(113)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(guard.time, "sleep", lambda _seconds: None)
+    result = guard._service_rss_bytes(
+        runner,
+        expected_idle_labels=frozenset({label}),
+    )
+
+    assert result["available"] is True
+    assert result["error"] is None
+    assert result["identity"]["idle_labels"] == [
+        {"label": label, "topology": "loaded-but-idle"}
+    ]
+    assert calls == 2
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

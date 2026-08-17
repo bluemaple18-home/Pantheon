@@ -288,6 +288,37 @@ def _service_rss_bytes(
             }:
                 idle.append({"label": label, "topology": "loaded-but-idle"})
                 continue
+            if (
+                label in expected_idle_labels
+                and identity is not None
+                and identity["paths"] == [expected_plist]
+            ):
+                time.sleep(0.1)
+                retry = runner(["launchctl", "print", target])
+                if retry.returncode == 0:
+                    match = re.search(
+                        r"^\s*pid = ([1-9][0-9]*)\s*$",
+                        retry.stdout,
+                        re.MULTILINE,
+                    )
+                    if not match:
+                        retry_identity = _launchctl_top_level_identity(
+                            retry.stdout,
+                            expected_target=target,
+                        )
+                        if retry_identity == {
+                            "states": ["not running"],
+                            "paths": [expected_plist],
+                        }:
+                            idle.append(
+                                {"label": label, "topology": "loaded-but-idle"}
+                            )
+                            continue
+            if match:
+                pid = match.group(1)
+                pids.append(pid)
+                loaded.append({"label": label, "pid": int(pid)})
+                continue
             return {
                 "value": None,
                 "available": False,
