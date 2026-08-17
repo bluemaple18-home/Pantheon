@@ -2234,7 +2234,7 @@ def _gemini_error_code_for_http_status(http_status: object) -> str:
 
 
 def _gemini_error_code_for_http_error(error: urllib.error.HTTPError) -> str:
-    """只從 429 的封閉 ErrorInfo／QuotaFailure 判定每日配額。"""
+    """只從 429 的封閉 QuotaFailure quotaId 判定每日配額。"""
     default = _gemini_error_code_for_http_status(error.code)
     if error.code != 429:
         return default
@@ -2248,15 +2248,6 @@ def _gemini_error_code_for_http_error(error: urllib.error.HTTPError) -> str:
         return default
     if not isinstance(details, list):
         return default
-    reasons = {
-        detail.get("reason")
-        for detail in details
-        if isinstance(detail, dict)
-        and detail.get("@type") == "type.googleapis.com/google.rpc.ErrorInfo"
-        and type(detail.get("reason")) is str
-    }
-    if reasons == {"QUOTA_EXCEEDED"}:
-        return "API_QUOTA"
     quota_ids = {
         violation.get("quotaId")
         for detail in details

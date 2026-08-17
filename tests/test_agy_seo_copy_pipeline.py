@@ -1011,11 +1011,11 @@ def test_production_http_failure_exposes_only_sanitized_status_diagnostic(
     ("reason", "expected_code"),
     [
         ("RATE_LIMIT_EXCEEDED", "API_RATE_LIMITED"),
-        ("QUOTA_EXCEEDED", "API_QUOTA"),
+        ("QUOTA_EXCEEDED", "API_RATE_LIMITED"),
         ("UNRECOGNIZED_REASON", "API_RATE_LIMITED"),
     ],
 )
-def test_production_429_uses_only_closed_error_info_reason(
+def test_production_429_does_not_infer_daily_quota_from_error_info_reason(
     monkeypatch: pytest.MonkeyPatch,
     reason: str,
     expected_code: str,
@@ -1078,6 +1078,10 @@ def test_production_429_classifies_real_generate_content_quota_failure(
                 "code": 429,
                 "status": "RESOURCE_EXHAUSTED",
                 "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": "QUOTA_EXCEEDED",
+                    },
                     {
                         "@type": "type.googleapis.com/google.rpc.QuotaFailure",
                         "violations": [
