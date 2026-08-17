@@ -6,7 +6,7 @@ import {
   listArticleRecords,
   listArticleSectionRecords,
   listTagManagementRecords,
-} from "./article-registry.js?v=agy-apf-create-run-new-7d0e46d9ec617526f77f8213";
+} from "./article-registry.js?v=agy-auto-new-v1-20260817-064-01";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
