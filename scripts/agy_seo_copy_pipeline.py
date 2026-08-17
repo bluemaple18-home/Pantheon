@@ -51,7 +51,11 @@ def load_model_route_config(path: Path) -> ModelRouteConfig:
     if not isinstance(payload, dict) or set(payload) != {"schema_version", "routes"}:
         raise ValueError("model route config fields are invalid")
     raw_routes = payload.get("routes")
-    if payload.get("schema_version") != MODEL_ROUTE_SCHEMA_VERSION or not isinstance(raw_routes, dict):
+    if (
+        type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != MODEL_ROUTE_SCHEMA_VERSION
+        or not isinstance(raw_routes, dict)
+    ):
         raise ValueError("model route config schema is invalid")
     if set(raw_routes) != {"writer", "reviewer"}:
         raise ValueError("model route roles are invalid")

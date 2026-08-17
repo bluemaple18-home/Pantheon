@@ -126,10 +126,22 @@ RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
 RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
 RUNTIME_UV_EXECUTABLE="$(manifest_field uv_executable)"
 MODEL_ROUTE_CONFIG_PATH="${REPO_ROOT}/config/agy_gemini_model_routes.v1.json"
-read -r MODEL_ROUTE_CONFIG_DIGEST WRITER_MODEL REVIEWER_MODEL < <(
-  cd "${REPO_ROOT}"
-  "${PYTHON_BIN}" -c 'from pathlib import Path; from scripts.agy_seo_copy_pipeline import load_model_route_config; route = load_model_route_config(Path("config/agy_gemini_model_routes.v1.json")); print(route.digest, route.routes["writer"][0], route.routes["reviewer"][0])'
-)
+route_identity() {
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -c 'import sys; from pathlib import Path; from scripts.agy_seo_copy_pipeline import load_model_route_config; route = load_model_route_config(Path(sys.argv[1])); print("\t".join((route.digest, route.routes["writer"][0], route.routes["reviewer"][0], str(route.path))))' "$1"
+  )
+}
+if ! MODEL_ROUTE_IDENTITY="$(route_identity "${MODEL_ROUTE_CONFIG_PATH}" 2>/dev/null)"; then
+  echo "model route source identity 無效。" >&2
+  exit 1
+fi
+IFS=$'\t' read -r MODEL_ROUTE_CONFIG_DIGEST WRITER_MODEL REVIEWER_MODEL MODEL_ROUTE_CANONICAL_PATH <<< "${MODEL_ROUTE_IDENTITY}"
+if [[ "${MODEL_ROUTE_CANONICAL_PATH}" != "${MODEL_ROUTE_CONFIG_PATH}" ]]; then
+  echo "model route source identity 無效。" >&2
+  exit 1
+fi
+STAGED_MODEL_ROUTE_CONFIG="${STAGE_DIR}/model-route-config-${MODEL_ROUTE_CONFIG_DIGEST}.json"
 if [[ ( -n "${REQUESTED_WRITER_MODEL}" && "${REQUESTED_WRITER_MODEL}" != "${WRITER_MODEL}" ) \
   || ( -n "${REQUESTED_REVIEWER_MODEL}" && "${REQUESTED_REVIEWER_MODEL}" != "${REVIEWER_MODEL}" ) ]]; then
   echo "正式 Writer／Reviewer model route 不符合鎖定契約。" >&2
@@ -242,7 +254,7 @@ fi
 add_hardened_runtime_identity "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string ${REVIEWER_MODEL}" "${TEMP_PLIST}"
-/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${MODEL_ROUTE_CONFIG_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${STAGED_MODEL_ROUTE_CONFIG}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST string ${MODEL_ROUTE_CONFIG_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-coordinator.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-coordinator.stderr.log" "${TEMP_PLIST}"
@@ -288,7 +300,7 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   add_hardened_runtime_identity "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string ${REVIEWER_MODEL}" "${LANE_TEMP_PLIST}"
-  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${MODEL_ROUTE_CONFIG_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${STAGED_MODEL_ROUTE_CONFIG}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST string ${MODEL_ROUTE_CONFIG_DIGEST}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
@@ -327,11 +339,14 @@ done
 if [[ "${ACTION}" == "--install" ]]; then
   mkdir -p "${STAGE_DIR}"
   rm -f "${STAGE_DIR}/failure-receipt.json"
+  install -m 600 "${MODEL_ROUTE_CONFIG_PATH}" "${STAGED_MODEL_ROUTE_CONFIG}"
   for INDEX in 0 1 2 3 4; do
     install -m 600 "${TEMP_PLISTS[${INDEX}]}" "${STAGED_PLISTS[${INDEX}]}"
   done
   printf '%s\n' "${RUNTIME_MANIFEST_DIGEST}" > "${STAGE_DIR}/manifest-digest"
   printf '%s\n' "${RUNTIME_GENERATION}" > "${STAGE_DIR}/generation"
+  printf '%s\n' "${MODEL_ROUTE_CONFIG_DIGEST}" > "${STAGE_DIR}/model-route-digest"
+  printf '%s\n' "${STAGED_MODEL_ROUTE_CONFIG}" > "${STAGE_DIR}/model-route-path"
   echo "Pantheon Gemini coordinator 與四條 lane plist 已寫入 private stage；尚未 activation。"
   exit 0
 fi
@@ -340,12 +355,31 @@ ACTIVATION_ONLY=0
 if [[ "${ACTION}" == "--activate-only" ]]; then
   ACTIVATION_ONLY=1
 fi
+if ! STAGED_MODEL_ROUTE_IDENTITY="$(route_identity "${STAGED_MODEL_ROUTE_CONFIG}" 2>/dev/null)"; then
+  echo "model route stage identity 無效，拒絕 activation。" >&2
+  exit 1
+fi
+IFS=$'\t' read -r STAGED_MODEL_ROUTE_DIGEST _STAGED_WRITER_MODEL _STAGED_REVIEWER_MODEL STAGED_MODEL_ROUTE_CANONICAL_PATH <<< "${STAGED_MODEL_ROUTE_IDENTITY}"
+if [[ "$(cat "${STAGE_DIR}/model-route-digest" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
+  || "$(cat "${STAGE_DIR}/model-route-path" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
+  || "${STAGED_MODEL_ROUTE_DIGEST}" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
+  || "${STAGED_MODEL_ROUTE_CANONICAL_PATH}" != "${STAGED_MODEL_ROUTE_CONFIG}" ]]; then
+  echo "model route stage identity 無效，拒絕 activation。" >&2
+  exit 1
+fi
 if [[ ! -d "${STAGE_DIR}" \
   || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
   || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" ]]; then
   echo "找不到 matching aggregate stage receipt，拒絕 activation。" >&2
   exit 1
 fi
+for STAGED_GEMINI_PLIST in "${STAGED_PLISTS[@]:0:5}"; do
+  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
+    || "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" ]]; then
+    echo "model route stage identity 無效，拒絕 activation。" >&2
+    exit 1
+  fi
+done
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
 ACTIVATION_PHASE="correlation_validation"
 write_failure_receipt() {

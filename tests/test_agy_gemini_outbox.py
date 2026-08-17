@@ -4419,6 +4419,176 @@ def test_route_returns_to_role_primary_on_next_admission(
     assert client.active_model("writer") == pipeline.DEFAULT_WRITER_MODEL
 
 
+def test_same_day_route_state_skips_blocked_primary_across_operations_and_restart(
+    tmp_path: Path,
+) -> None:
+    clock_value = 1_786_910_400.0
+    namespace = "durable-same-day-route"
+    writer_route = pipeline.MODEL_ROUTE_CONFIG.routes["writer"]
+    first_prompt = "公開 first operation"
+    client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        clock=lambda: clock_value,
+    )
+    for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
+        request = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="writer",
+            model=writer_route[0],
+            prompt=first_prompt,
+            response_schema=SCHEMA,
+            transport_attempt=attempt,
+        )
+        outbox.atomic_write_json(
+            tmp_path / "failed" / f"{request['job_id']}.json",
+            _failure_receipt(
+                request,
+                error_type="GeminiApiFailure",
+                error_code="API_QUOTA",
+                credential_slot_id=slot_id,
+            ),
+        )
+    first_fallback = outbox.create_external_request(
+        tmp_path,
+        namespace=namespace,
+        role="writer",
+        model=writer_route[1],
+        prompt=first_prompt,
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{first_fallback['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": first_fallback["job_id"],
+            "request_sha256": first_fallback["request_sha256"],
+            "model": first_fallback["model"],
+            "completed_at": "2026-08-17T12:00:00-07:00",
+            "result": {"ok": True},
+        },
+    )
+    assert client.generate_json("writer", first_prompt, SCHEMA) == {"ok": True}
+
+    for active_client, prompt in (
+        (client, "公開 second operation"),
+        (
+            outbox.OutboxGeminiClient(
+                tmp_path,
+                namespace=namespace,
+                clock=lambda: clock_value + 60,
+            ),
+            "公開 restarted operation",
+        ),
+    ):
+        fallback = outbox.create_external_request(
+            tmp_path,
+            namespace=namespace,
+            role="writer",
+            model=writer_route[1],
+            prompt=prompt,
+            response_schema=SCHEMA,
+        )
+        outbox.atomic_write_json(
+            tmp_path / "inbox" / f"{fallback['job_id']}.json",
+            {
+                "schema_version": 1,
+                "job_id": fallback["job_id"],
+                "request_sha256": fallback["request_sha256"],
+                "model": fallback["model"],
+                "completed_at": "2026-08-17T12:01:00-07:00",
+                "result": {"ok": True},
+            },
+        )
+        assert active_client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
+        primary_request = outbox.build_external_request(
+            namespace=namespace,
+            role="writer",
+            model=writer_route[0],
+            prompt=prompt,
+            response_schema=SCHEMA,
+        )
+        assert not (
+            tmp_path / "outbox" / f"{primary_request['job_id']}.json"
+        ).exists()
+
+    reset_client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        clock=lambda: clock_value + 86_400,
+    )
+    reset_prompt = "公開 daily reset operation"
+    primary = outbox.create_external_request(
+        tmp_path,
+        namespace=namespace,
+        role="writer",
+        model=writer_route[0],
+        prompt=reset_prompt,
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{primary['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": primary["job_id"],
+            "request_sha256": primary["request_sha256"],
+            "model": primary["model"],
+            "completed_at": "2026-08-18T12:00:00-07:00",
+            "result": {"ok": True},
+        },
+    )
+    assert reset_client.generate_json("writer", reset_prompt, SCHEMA) == {"ok": True}
+    assert reset_client.active_model("writer") == writer_route[0]
+
+
+def test_all_models_quota_blocked_fails_closed_before_new_request(
+    tmp_path: Path,
+) -> None:
+    namespace = "all-routes-blocked"
+    prompt = "公開 exhaust all routes"
+    client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        clock=lambda: 1_786_910_400.0,
+    )
+    for model in pipeline.MODEL_ROUTE_CONFIG.routes["writer"]:
+        for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
+            request = outbox.create_external_request(
+                tmp_path,
+                namespace=namespace,
+                role="writer",
+                model=model,
+                prompt=prompt,
+                response_schema=SCHEMA,
+                transport_attempt=attempt,
+            )
+            outbox.atomic_write_json(
+                tmp_path / "failed" / f"{request['job_id']}.json",
+                _failure_receipt(
+                    request,
+                    error_type="GeminiApiFailure",
+                    error_code="API_QUOTA",
+                    credential_slot_id=slot_id,
+                ),
+            )
+    with pytest.raises(ExternalJobFailed):
+        client.generate_json("writer", prompt, SCHEMA)
+
+    next_prompt = "公開 blocked before enqueue"
+    restarted = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        clock=lambda: 1_786_910_460.0,
+    )
+    with pytest.raises(RuntimeError, match="all writer model routes are quota blocked"):
+        restarted.generate_json("writer", next_prompt, SCHEMA)
+    assert not any(
+        json.loads(path.read_text(encoding="utf-8"))["prompt"] == next_prompt
+        for path in (tmp_path / "outbox").glob("*.json")
+    )
+
+
 @pytest.mark.parametrize("error_code", ["API_RATE_LIMITED", "API_HTTP_ERROR"])
 def test_transient_exhaustion_does_not_downgrade_model(
     tmp_path: Path,

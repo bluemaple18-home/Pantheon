@@ -6452,7 +6452,9 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     assert coordinator_variables["AGY_WRITER_MODEL"] == pipeline.DEFAULT_WRITER_MODEL
     assert coordinator_variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
     assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
-        pipeline.MODEL_ROUTE_CONFIG_PATH
+        fake_home
+        / "Library/LaunchAgents/.pantheon-four-lane-stage"
+        / f"model-route-config-{pipeline.MODEL_ROUTE_CONFIG_DIGEST}.json"
     )
     assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
         pipeline.MODEL_ROUTE_CONFIG_DIGEST
@@ -6475,7 +6477,9 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         assert variables["AGY_WRITER_MODEL"] == pipeline.DEFAULT_WRITER_MODEL
         assert variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
         assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
-            pipeline.MODEL_ROUTE_CONFIG_PATH
+            fake_home
+            / "Library/LaunchAgents/.pantheon-four-lane-stage"
+            / f"model-route-config-{pipeline.MODEL_ROUTE_CONFIG_DIGEST}.json"
         )
         assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
             pipeline.MODEL_ROUTE_CONFIG_DIGEST
@@ -6514,6 +6518,68 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
 
     assert summary["runner"] == {"status": "idle"}
     assert observed == [(queue_root.resolve(), shared_contract)]
+
+
+@pytest.mark.parametrize("drift", ["bytes", "deleted", "symlink"])
+def test_installer_rejects_staged_model_route_drift_before_live_mutation(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    installed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert installed.returncode == 0, installed.stderr
+    stage = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    staged_config = Path(
+        (stage / "model-route-path").read_text(encoding="utf-8").strip()
+    )
+    assert staged_config.name == (
+        f"model-route-config-{pipeline.MODEL_ROUTE_CONFIG_DIGEST}.json"
+    )
+    assert staged_config.read_bytes() == pipeline.MODEL_ROUTE_CONFIG_PATH.read_bytes()
+    assert (stage / "model-route-digest").read_text(encoding="utf-8").strip() == (
+        pipeline.MODEL_ROUTE_CONFIG_DIGEST
+    )
+    if drift == "bytes":
+        staged_config.write_text("{}\n", encoding="utf-8")
+    elif drift == "deleted":
+        staged_config.unlink()
+    else:
+        staged_config.unlink()
+        staged_config.symlink_to(pipeline.MODEL_ROUTE_CONFIG_PATH)
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    assert "model route stage identity" in activated.stderr
+    assert not mutation_log.exists()
 
 
 def test_hardened_installer_uses_canonical_python_for_coordinator_and_lanes(

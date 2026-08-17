@@ -153,6 +153,11 @@ def test_formal_model_route_environment_requires_path_and_digest(
 @pytest.mark.parametrize(
     "payload",
     [
+        {"schema_version": True, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": False, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": 1.0, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": "1", "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": None, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
         {"schema_version": 2, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
         {"schema_version": 1, "routes": {"writer": ["../unsafe"], "reviewer": ["gemini-b"]}},
         {"schema_version": 1, "routes": {"writer": ["gemini-a", "gemini-a"], "reviewer": ["gemini-b"]}},

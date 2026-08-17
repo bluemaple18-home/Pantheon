@@ -9,9 +9,11 @@ import json
 import os
 import re
 import tempfile
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
@@ -21,6 +23,8 @@ from scripts.agy_gemini_allocator import PRODUCTION_SLOT_IDS
 SCHEMA_VERSION = 1
 OUTBOX_MAX_REPAIRS = 2
 OUTBOX_MAX_TRANSPORT_RETRIES = 2
+MODEL_ROUTE_STATE_SCHEMA_VERSION = 1
+MAX_MODEL_ROUTE_STATE_BYTES = 8192
 CLOSED_EXTERNAL_ERROR_CODES = pipeline.CLOSED_GEMINI_ERROR_CODES
 INVALID_FAILURE_RECEIPT = "InvalidFailureReceipt"
 EXTERNAL_FAILURE_CATEGORIES = pipeline.CLOSED_GEMINI_FAILURE_CATEGORIES
@@ -630,6 +634,7 @@ class OutboxGeminiClient:
         writer_model: str | None = None,
         reviewer_model: str | None = None,
         route_config: pipeline.ModelRouteConfig | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         config = route_config or pipeline.MODEL_ROUTE_CONFIG
         self.queue_root = queue_root
@@ -639,6 +644,7 @@ class OutboxGeminiClient:
         self.reviewer_model = reviewer_model or config.routes["reviewer"][0]
         self.route_config_path = config.path
         self.route_config_digest = config.digest
+        self.clock = clock or time.time
         self._model_routes = {
             "writer": config.routes["writer"] if writer_model is None else (writer_model,),
             "reviewer": config.routes["reviewer"] if reviewer_model is None else (reviewer_model,),
@@ -650,6 +656,88 @@ class OutboxGeminiClient:
             "reviewer": self.reviewer_model,
         }
         self.transport = self._outbox_transport
+
+    def _quota_state_path(self, role: str) -> Path:
+        return self.queue_root / "model-routing" / f"{role}-quota-blocks.json"
+
+    def _now_milliseconds(self) -> int:
+        value = self.clock()
+        if type(value) not in {int, float} or not 0 <= value <= (1 << 53):
+            raise ValueError("model route clock is invalid")
+        return int(value * 1000)
+
+    def _blocked_models(self, role: str) -> set[str]:
+        path = self._quota_state_path(role)
+        try:
+            if path.stat().st_size > MAX_MODEL_ROUTE_STATE_BYTES:
+                raise ValueError("model route quota state exceeds closed size")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return set()
+        except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as error:
+            raise ValueError("model route quota state is invalid") from error
+        if not isinstance(payload, dict) or set(payload) != {
+            "schema_version",
+            "model_route_config_digest",
+            "role",
+            "blocks",
+        }:
+            raise ValueError("model route quota state fields are invalid")
+        blocks = payload.get("blocks")
+        if (
+            type(payload.get("schema_version")) is not int
+            or payload["schema_version"] != MODEL_ROUTE_STATE_SCHEMA_VERSION
+            or payload.get("model_route_config_digest") != self.route_config_digest
+            or payload.get("role") != role
+            or not isinstance(blocks, list)
+            or len(blocks) > len(self._model_routes[role])
+        ):
+            raise ValueError("model route quota state identity is invalid")
+        now_ms = self._now_milliseconds()
+        active: set[str] = set()
+        seen: set[str] = set()
+        for block in blocks:
+            if not isinstance(block, dict) or set(block) != {"model", "blocked_until_ms"}:
+                raise ValueError("model route quota block is invalid")
+            model = block.get("model")
+            blocked_until_ms = block.get("blocked_until_ms")
+            if (
+                type(model) is not str
+                or model not in self._model_routes[role]
+                or model in seen
+                or type(blocked_until_ms) is not int
+                or blocked_until_ms <= 0
+            ):
+                raise ValueError("model route quota block is invalid")
+            seen.add(model)
+            if blocked_until_ms > now_ms:
+                active.add(model)
+        return active
+
+    def _record_quota_block(self, role: str, model: str) -> None:
+        blocked = self._blocked_models(role)
+        blocked.add(model)
+        now = datetime.fromtimestamp(
+            self._now_milliseconds() / 1000,
+            ZoneInfo("America/Los_Angeles"),
+        )
+        reset_at = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        atomic_write_json(
+            self._quota_state_path(role),
+            {
+                "schema_version": MODEL_ROUTE_STATE_SCHEMA_VERSION,
+                "model_route_config_digest": self.route_config_digest,
+                "role": role,
+                "blocks": [
+                    {
+                        "model": candidate,
+                        "blocked_until_ms": int(reset_at.timestamp() * 1000),
+                    }
+                    for candidate in self._model_routes[role]
+                    if candidate in blocked
+                ],
+            },
+        )
 
     def _outbox_transport(self) -> None:
         raise RuntimeError("outbox transport is represented by generate_json")
@@ -664,11 +752,14 @@ class OutboxGeminiClient:
             raise ValueError("role must be writer or reviewer")
         primary = self._model_routes[role][0]
         other_role = "reviewer" if role == "writer" else "writer"
+        blocked_models = self._blocked_models(role)
         candidates = tuple(
             model
             for model in self._model_routes[role]
-            if model != self._active_models[other_role]
+            if model not in blocked_models and model != self._active_models[other_role]
         )
+        if not candidates and blocked_models == set(self._model_routes[role]):
+            raise RuntimeError(f"all {role} model routes are quota blocked")
         last_failure: ExternalJobFailed | None = None
         for model_index, model in enumerate(candidates):
             quota_slots: set[str] = set()
@@ -716,9 +807,10 @@ class OutboxGeminiClient:
                     if (
                         failed.error_code == "API_QUOTA"
                         and quota_slots == set(PRODUCTION_SLOT_IDS)
-                        and model_index + 1 < len(candidates)
                     ):
-                        break
+                        self._record_quota_block(role, model)
+                        if model_index + 1 < len(candidates):
+                            break
                     raise
                 self._active_models[role] = model
                 if model != primary:
