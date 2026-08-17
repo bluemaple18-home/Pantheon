@@ -3,7 +3,7 @@ id: CARD-PANTHEON-GEMINI-QUOTA-ROUTING-PUSH-INTEGRATION-20260817
 status: ready
 chain_id: PANTHEON-GEMINI-QUOTA-ROUTING-20260817
 role: implementation
-cycle: push-integration-001
+cycle: 1
 thickness: strict
 risk: high
 model: gpt-5.5
