@@ -317,9 +317,29 @@ def _validate_preserved_runs(request: PromotionRequest) -> None:
 
 
 def _queue_snapshot_digest(queue_root: Path) -> str:
-    if any(path.is_symlink() for path in queue_root.rglob("*")):
-        raise PromotionError("queue snapshot contains symlink")
-    return tree_digest(queue_root)
+    if not queue_root.exists():
+        return _json_digest({"root": "missing", "entries": []})
+    if not queue_root.is_dir() or queue_root.is_symlink():
+        raise PromotionError("queue snapshot root must be a directory")
+    entries: list[dict[str, Any]] = [{"path": ".", "type": "dir"}]
+    for path in sorted(
+        queue_root.rglob("*"),
+        key=lambda item: item.relative_to(queue_root).as_posix(),
+    ):
+        relative = path.relative_to(queue_root).as_posix()
+        if path.is_symlink():
+            raise PromotionError("queue snapshot contains symlink")
+        if path.is_dir():
+            entries.append({"path": relative, "type": "dir"})
+            continue
+        if not path.is_file():
+            raise PromotionError("queue snapshot contains unexpected residue")
+        try:
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError as error:
+            raise PromotionError("queue snapshot changed during read") from error
+        entries.append({"path": relative, "type": "file", "digest": digest})
+    return _json_digest({"root": "dir", "entries": entries})
 
 
 def _validate_capacity_receipt(request: PromotionRequest) -> dict[str, Any]:

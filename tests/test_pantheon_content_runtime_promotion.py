@@ -481,6 +481,72 @@ def test_gsc_copy_plan_apply_drift_rolls_back_without_rewriting_existing_bytes(
     assert _snapshot(request) == before
 
 
+def test_queue_empty_directory_drift_rolls_back_without_rewriting_existing_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    anchor = request.queue_root / "anchor.txt"
+    anchor.write_text("existing queue bytes\n", encoding="utf-8")
+    original_anchor = anchor.read_bytes()
+    plan = promotion.plan_promotion(request)
+    real_install_private_stage = promotion._install_private_stage
+
+    def drift_empty_queue_directory(
+        promoted_request: promotion.PromotionRequest,
+        manifest: dict[str, Any],
+    ) -> None:
+        real_install_private_stage(promoted_request, manifest)
+        (promoted_request.queue_root / "outbox" / "empty-drift").mkdir(parents=True)
+
+    monkeypatch.setattr(promotion, "_install_private_stage", drift_empty_queue_directory)
+
+    with pytest.raises(promotion.PromotionError, match="ROLLBACK_COMPLETE"):
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=plan["plan_digest"],
+        )
+
+    receipt = promotion.load_receipt(request)
+    assert receipt["state"] == "ROLLED_BACK"
+    assert receipt["state_before_rollback"] == "STAGE_INSTALLED"
+    assert anchor.read_bytes() == original_anchor
+    assert (request.queue_root / "outbox" / "empty-drift").is_dir()
+    assert _snapshot(request) == before
+
+
+def test_gsc_copy_root_existence_drift_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    plan = promotion.plan_promotion(request)
+    real_install_private_stage = promotion._install_private_stage
+
+    def drift_empty_gsc_copy_root(
+        promoted_request: promotion.PromotionRequest,
+        manifest: dict[str, Any],
+    ) -> None:
+        real_install_private_stage(promoted_request, manifest)
+        (promoted_request.queue_root / "gsc-copy").mkdir()
+
+    monkeypatch.setattr(promotion, "_install_private_stage", drift_empty_gsc_copy_root)
+
+    with pytest.raises(promotion.PromotionError, match="ROLLBACK_COMPLETE"):
+        promotion.apply_promotion(
+            request,
+            expected_plan_digest=plan["plan_digest"],
+        )
+
+    receipt = promotion.load_receipt(request)
+    assert receipt["state"] == "ROLLED_BACK"
+    assert receipt["state_before_rollback"] == "STAGE_INSTALLED"
+    assert (request.queue_root / "gsc-copy").is_dir()
+    assert _snapshot(request) == before
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
