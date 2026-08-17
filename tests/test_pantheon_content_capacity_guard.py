@@ -878,8 +878,10 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     ]
 
 
-def test_normal_scheduled_service_rechecks_transient_running_without_pid(
+@pytest.mark.parametrize("transition_state", ["running", "waiting"])
+def test_normal_scheduled_service_rechecks_transient_state_without_pid(
     monkeypatch: pytest.MonkeyPatch,
+    transition_state: str,
 ) -> None:
     label = "com.pantheon.agy-gemini-new"
     target = f"gui/{os.getuid()}/{label}"
@@ -908,7 +910,10 @@ def test_normal_scheduled_service_rechecks_transient_running_without_pid(
         nonlocal calls
         if command == ["launchctl", "print", target]:
             calls += 1
-            return _completed(0, identity("running" if calls < 4 else "not running"))
+            return _completed(
+                0,
+                identity(transition_state if calls < 4 else "not running"),
+            )
         if command[:2] == ["launchctl", "print"]:
             return _completed(113)
         raise AssertionError(f"unexpected command: {command}")
