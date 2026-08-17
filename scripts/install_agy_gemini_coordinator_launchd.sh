@@ -34,6 +34,7 @@ LANE_TEMP_PLISTS=()
 LANE_TARGET_PLISTS=()
 ACTIVATION_BARRIER=""
 STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
+MODEL_ROUTE_STORE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-model-routes"
 
 cleanup() {
   local RETURN_CODE="$?"
@@ -141,7 +142,7 @@ if [[ "${MODEL_ROUTE_CANONICAL_PATH}" != "${MODEL_ROUTE_CONFIG_PATH}" ]]; then
   echo "model route source identity 無效。" >&2
   exit 1
 fi
-STAGED_MODEL_ROUTE_CONFIG="${STAGE_DIR}/model-route-config-${MODEL_ROUTE_CONFIG_DIGEST}.json"
+STAGED_MODEL_ROUTE_CONFIG="${MODEL_ROUTE_STORE_DIR}/model-route-config-${MODEL_ROUTE_CONFIG_DIGEST}.json"
 if [[ ( -n "${REQUESTED_WRITER_MODEL}" && "${REQUESTED_WRITER_MODEL}" != "${WRITER_MODEL}" ) \
   || ( -n "${REQUESTED_REVIEWER_MODEL}" && "${REQUESTED_REVIEWER_MODEL}" != "${REVIEWER_MODEL}" ) ]]; then
   echo "正式 Writer／Reviewer model route 不符合鎖定契約。" >&2
@@ -338,6 +339,8 @@ done
 
 if [[ "${ACTION}" == "--install" ]]; then
   mkdir -p "${STAGE_DIR}"
+  mkdir -p "${MODEL_ROUTE_STORE_DIR}"
+  chmod 700 "${MODEL_ROUTE_STORE_DIR}"
   rm -f "${STAGE_DIR}/failure-receipt.json"
   install -m 600 "${MODEL_ROUTE_CONFIG_PATH}" "${STAGED_MODEL_ROUTE_CONFIG}"
   for INDEX in 0 1 2 3 4; do

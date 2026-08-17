@@ -17,7 +17,7 @@ review_verdict: FINAL_REVIEW_NO_GO
 - Schema version：`1`，且 JSON `true`／`false`、浮點數、字串與 `null` 均 fail closed。
 - Canonical SHA-256：`781f243c541e4829ba1e5beebc41fec78bac196d258340faf4aae384dd5d9463`
 - 同日 quota state 以 config digest、role、exact model 與 Pacific 次日零時為 identity；process restart 後仍跳過已全 slot quota-block 的 model，daily reset 才回首順位。
-- Installer 以 digest-addressed staged config 保存 bytes、canonical path 與 digest；activate-only 在任何 live mutation 前驗證 staged config、receipt 與五份 Gemini plist identity。
+- Installer 以不隨 stage cleanup 刪除的 private digest-addressed config store 保存 bytes、canonical path 與 digest；activate-only 在任何 live mutation 前驗證 config、stage receipt 與五份 Gemini plist identity。
 
 ## RED
 
@@ -42,6 +42,15 @@ review_verdict: FINAL_REVIEW_NO_GO
 
 既有 stage 未保存 model route config bytes／digest-addressed identity，bytes change、delete、symlink drift 均未在 activation 前被擋下。
 
+第一次 fixed candidate `28e83d94f5f6320f02c3c1eaf039c3f09a7a9fbf` re-review 另發現：live plist 指向 `.pantheon-four-lane-stage` 內的 config，但成功 activation 結尾刪除該 stage。追加 RED：
+
+```text
+.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'installer_injects_one_shared_allocator'
+1 failed, 1 passed, 185 deselected
+```
+
+失敗斷言證明 live consumer config 的 parent 仍是會被 cleanup 的 stage；修復後改指向 private `.pantheon-model-routes` digest-addressed store。
+
 ## GREEN
 
 ```text
@@ -59,6 +68,25 @@ review_verdict: FINAL_REVIEW_NO_GO
 
 .venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'installer'
 26 passed, 161 deselected in 34.73s
+
+bash -n scripts/install_agy_gemini_coordinator_launchd.sh
+PASS
+
+.venv/bin/python -m py_compile scripts/agy_gemini_allocator.py scripts/agy_gemini_outbox.py scripts/agy_seo_copy_pipeline.py
+PASS
+
+git diff --check
+PASS
+```
+
+Follow-up 修復後重跑：
+
+```text
+.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'staged_model_route_drift or installer_injects_one_shared_allocator'
+5 passed, 182 deselected in 11.32s
+
+.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'installer'
+26 passed, 161 deselected in 33.42s
 
 bash -n scripts/install_agy_gemini_coordinator_launchd.sh
 PASS

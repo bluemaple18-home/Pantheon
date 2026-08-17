@@ -6453,11 +6453,14 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     assert coordinator_variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
     assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
         fake_home
-        / "Library/LaunchAgents/.pantheon-four-lane-stage"
+        / "Library/LaunchAgents/.pantheon-model-routes"
         / f"model-route-config-{pipeline.MODEL_ROUTE_CONFIG_DIGEST}.json"
     )
     assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
         pipeline.MODEL_ROUTE_CONFIG_DIGEST
+    )
+    assert Path(coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"]).parent != (
+        fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
     )
     for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
         installed = plistlib.loads(
@@ -6478,7 +6481,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         assert variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
         assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
             fake_home
-            / "Library/LaunchAgents/.pantheon-four-lane-stage"
+            / "Library/LaunchAgents/.pantheon-model-routes"
             / f"model-route-config-{pipeline.MODEL_ROUTE_CONFIG_DIGEST}.json"
         )
         assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
