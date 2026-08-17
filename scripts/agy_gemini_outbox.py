@@ -618,10 +618,6 @@ def _request_is_known(queue_root: Path, job_id: str) -> bool:
     )
 
 
-def _model_from_environment(name: str, default: str) -> str:
-    return os.environ.get(name, "").strip() or default
-
-
 class OutboxGeminiClient:
     """只寫 sanitized request；不持有憑證，也不直接呼叫外部服務。"""
 
@@ -631,19 +627,27 @@ class OutboxGeminiClient:
         *,
         legacy_queue_root: Path | None = None,
         namespace: str,
-        writer_model: str = pipeline.DEFAULT_WRITER_MODEL,
-        reviewer_model: str = pipeline.DEFAULT_REVIEWER_MODEL,
+        writer_model: str | None = None,
+        reviewer_model: str | None = None,
+        route_config: pipeline.ModelRouteConfig | None = None,
     ) -> None:
+        config = route_config or pipeline.MODEL_ROUTE_CONFIG
         self.queue_root = queue_root
         self.legacy_queue_root = legacy_queue_root
         self.namespace = namespace
-        self.writer_model = writer_model
-        self.reviewer_model = reviewer_model
-        if writer_model == reviewer_model:
+        self.writer_model = writer_model or config.routes["writer"][0]
+        self.reviewer_model = reviewer_model or config.routes["reviewer"][0]
+        self.route_config_path = config.path
+        self.route_config_digest = config.digest
+        self._model_routes = {
+            "writer": config.routes["writer"] if writer_model is None else (writer_model,),
+            "reviewer": config.routes["reviewer"] if reviewer_model is None else (reviewer_model,),
+        }
+        if self.writer_model == self.reviewer_model:
             raise ValueError("writer and reviewer models must be distinct")
         self._active_models = {
-            "writer": writer_model,
-            "reviewer": reviewer_model,
+            "writer": self.writer_model,
+            "reviewer": self.reviewer_model,
         }
         self.transport = self._outbox_transport
 
@@ -658,16 +662,11 @@ class OutboxGeminiClient:
     def generate_json(self, role: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         if role not in {"writer", "reviewer"}:
             raise ValueError("role must be writer or reviewer")
-        primary = self.writer_model if role == "writer" else self.reviewer_model
-        fallback = (
-            pipeline.DEFAULT_WRITER_FALLBACK_MODEL
-            if role == "writer"
-            else pipeline.DEFAULT_REVIEWER_FALLBACK_MODEL
-        )
+        primary = self._model_routes[role][0]
         other_role = "reviewer" if role == "writer" else "writer"
         candidates = tuple(
             model
-            for model in dict.fromkeys((primary, fallback))
+            for model in self._model_routes[role]
             if model != self._active_models[other_role]
         )
         last_failure: ExternalJobFailed | None = None
@@ -729,6 +728,8 @@ class OutboxGeminiClient:
                         / f"{self.namespace}-{role}.json",
                         {
                             "schema_version": 1,
+                            "model_route_config_path": str(self.route_config_path),
+                            "model_route_config_digest": self.route_config_digest,
                             "namespace": self.namespace,
                             "role": role,
                             "primary_model": primary,
@@ -748,18 +749,12 @@ def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     run_id = str(brief["run_id"])
     namespace = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     legacy_queue_root = queue_root.parent.parent if queue_root.parent.name == "lanes" else None
+    route_config = pipeline.model_route_config_from_environment()
     client = OutboxGeminiClient(
         queue_root,
         legacy_queue_root=legacy_queue_root,
         namespace=namespace,
-        writer_model=_model_from_environment(
-            "AGY_WRITER_MODEL",
-            pipeline.DEFAULT_WRITER_MODEL,
-        ),
-        reviewer_model=_model_from_environment(
-            "AGY_REVIEWER_MODEL",
-            pipeline.DEFAULT_REVIEWER_MODEL,
-        ),
+        route_config=route_config,
     )
     runner = multilingual.run_writer_reviewer if brief.get("mode") == "translate_existing" else pipeline.run_writer_reviewer
     candidate, review = runner(run_dir, client, max_repairs=OUTBOX_MAX_REPAIRS)

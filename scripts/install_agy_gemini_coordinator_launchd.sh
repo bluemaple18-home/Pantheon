@@ -19,8 +19,8 @@ RUNTIME_MANIFEST_FILE="${PANTHEON_RUNTIME_MANIFEST_FILE:-${REPO_ROOT}/.work/pant
 EXPECTED_RUNTIME_MANIFEST_DIGEST="${PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST:-}"
 AGY_CLI_PATH="${AGY_GEMINI_CLI_PATH:-${USER_HOME_DIR}/.antigravity/bin/agy-1.1.3}"
 PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"
-WRITER_MODEL="${AGY_WRITER_MODEL:-gemini-3.5-flash}"
-REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-gemini-3.1-flash-lite}"
+REQUESTED_WRITER_MODEL="${AGY_WRITER_MODEL:-}"
+REQUESTED_REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"
 NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"
 RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"
 GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-${REPO_ROOT}/.work/gsc-copy}"
@@ -66,23 +66,6 @@ fi
 PYTHON_BIN="${PYTHON_REALPATH}"
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
-  exit 1
-fi
-if [[ -n "${WRITER_MODEL}" && ! "${WRITER_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]]; then
-  echo "AGY_WRITER_MODEL 只能使用 model identifier 安全字元。" >&2
-  exit 1
-fi
-if [[ -n "${REVIEWER_MODEL}" && ! "${REVIEWER_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]]; then
-  echo "AGY_REVIEWER_MODEL 只能使用 model identifier 安全字元。" >&2
-  exit 1
-fi
-if [[ "${WRITER_MODEL}" == "${REVIEWER_MODEL}" ]]; then
-  echo "Writer 與 Reviewer 必須使用不同模型。" >&2
-  exit 1
-fi
-if [[ "${WRITER_MODEL}" != "gemini-3.5-flash" \
-  || "${REVIEWER_MODEL}" != "gemini-3.1-flash-lite" ]]; then
-  echo "正式 Writer／Reviewer model route 不符合鎖定契約。" >&2
   exit 1
 fi
 if [[ "${NEW_ONLY}" != "0" && "${NEW_ONLY}" != "1" ]]; then
@@ -142,6 +125,16 @@ RUNTIME_GENERATION="$(manifest_field generation)"
 RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
 RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
 RUNTIME_UV_EXECUTABLE="$(manifest_field uv_executable)"
+MODEL_ROUTE_CONFIG_PATH="${REPO_ROOT}/config/agy_gemini_model_routes.v1.json"
+read -r MODEL_ROUTE_CONFIG_DIGEST WRITER_MODEL REVIEWER_MODEL < <(
+  cd "${REPO_ROOT}"
+  "${PYTHON_BIN}" -c 'from pathlib import Path; from scripts.agy_seo_copy_pipeline import load_model_route_config; route = load_model_route_config(Path("config/agy_gemini_model_routes.v1.json")); print(route.digest, route.routes["writer"][0], route.routes["reviewer"][0])'
+)
+if [[ ( -n "${REQUESTED_WRITER_MODEL}" && "${REQUESTED_WRITER_MODEL}" != "${WRITER_MODEL}" ) \
+  || ( -n "${REQUESTED_REVIEWER_MODEL}" && "${REQUESTED_REVIEWER_MODEL}" != "${REVIEWER_MODEL}" ) ]]; then
+  echo "正式 Writer／Reviewer model route 不符合鎖定契約。" >&2
+  exit 1
+fi
 add_hardened_runtime_identity() {
   local PLIST_PATH="$1"
   if [[ -n "${RUNTIME_ACTOR_HEAD}" ]]; then
@@ -249,6 +242,8 @@ fi
 add_hardened_runtime_identity "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string ${REVIEWER_MODEL}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${MODEL_ROUTE_CONFIG_PATH}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST string ${MODEL_ROUTE_CONFIG_DIGEST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-coordinator.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-coordinator.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
@@ -291,6 +286,10 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${CONTENT_PUBLISHER_ROOT}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${LANE_TEMP_PLIST}"
   add_hardened_runtime_identity "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_WRITER_MODEL string ${WRITER_MODEL}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_REVIEWER_MODEL string ${REVIEWER_MODEL}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG string ${MODEL_ROUTE_CONFIG_PATH}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST string ${MODEL_ROUTE_CONFIG_DIGEST}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_DIR}/agy-gemini-${LANE}.stdout.log" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_DIR}/agy-gemini-${LANE}.stderr.log" "${LANE_TEMP_PLIST}"
   plutil -lint "${LANE_TEMP_PLIST}" >/dev/null

@@ -1501,7 +1501,7 @@ def test_all_slots_quota_blocked_preserves_primary_and_allows_fallback_model(
     queue_root = tmp_path / "queue"
     state = tmp_path / "round-robin-state.json"
     primary = pipeline.DEFAULT_WRITER_MODEL
-    fallback = pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+    fallback = pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
     quota_body = json.dumps(
         {
             "error": {
@@ -3875,7 +3875,7 @@ def test_pipeline_tick_reserves_one_bounded_final_content_repair(
     assert observed == [2]
 
 
-def test_pipeline_tick_honors_explicit_model_environment(
+def test_pipeline_tick_rejects_explicit_model_environment_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3899,10 +3899,10 @@ def test_pipeline_tick_honors_explicit_model_environment(
     monkeypatch.setenv("AGY_REVIEWER_MODEL", "gemini-explicit-reviewer")
     monkeypatch.setattr(outbox.pipeline, "run_writer_reviewer", fake_run_writer_reviewer)
 
-    result = run_pipeline_tick(run_dir, tmp_path / "queue")
+    with pytest.raises(ValueError, match="model route environment drift"):
+        run_pipeline_tick(run_dir, tmp_path / "queue")
 
-    assert result["status"] == "complete"
-    assert observed == [("gemini-explicit-writer", "gemini-explicit-reviewer")]
+    assert observed == []
 
 
 def test_pipeline_tick_routes_translation_brief_to_multilingual_pipeline(
@@ -4296,7 +4296,7 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
         tmp_path,
         namespace=namespace,
         role="writer",
-        model=pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        model=pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
         prompt=prompt,
         response_schema=SCHEMA,
     )
@@ -4314,7 +4314,7 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
 
     assert client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
     assert client._active_models == {
-        "writer": pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        "writer": pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
         "reviewer": pipeline.DEFAULT_REVIEWER_MODEL,
     }
     routing = json.loads(
@@ -4326,13 +4326,97 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
     )
     assert routing == {
         "schema_version": 1,
+        "model_route_config_path": str(pipeline.MODEL_ROUTE_CONFIG_PATH),
+        "model_route_config_digest": pipeline.MODEL_ROUTE_CONFIG_DIGEST,
         "namespace": namespace,
         "role": "writer",
         "primary_model": pipeline.DEFAULT_WRITER_MODEL,
-        "selected_model": pipeline.DEFAULT_WRITER_FALLBACK_MODEL,
+        "selected_model": pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
         "reason": "API_QUOTA",
         "exhausted_slot_ids": list(allocator.PRODUCTION_SLOT_IDS),
     }
+
+
+def test_ordered_route_skips_fully_quota_blocked_middle_model(
+    tmp_path: Path,
+) -> None:
+    namespace = "ordered-route-skips-middle"
+    prompt = "公開 ordered route"
+    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    writer_route = pipeline.MODEL_ROUTE_CONFIG.routes["writer"]
+    for model in writer_route[:2]:
+        for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
+            request = outbox.create_external_request(
+                tmp_path,
+                namespace=namespace,
+                role="writer",
+                model=model,
+                prompt=prompt,
+                response_schema=SCHEMA,
+                transport_attempt=attempt,
+            )
+            outbox.atomic_write_json(
+                tmp_path / "failed" / f"{request['job_id']}.json",
+                _failure_receipt(
+                    request,
+                    error_type="GeminiApiFailure",
+                    error_code="API_QUOTA",
+                    credential_slot_id=slot_id,
+                ),
+            )
+    selected = outbox.create_external_request(
+        tmp_path,
+        namespace=namespace,
+        role="writer",
+        model=writer_route[2],
+        prompt=prompt,
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{selected['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": selected["job_id"],
+            "request_sha256": selected["request_sha256"],
+            "model": selected["model"],
+            "completed_at": "2026-08-17T12:00:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+
+    assert client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
+    assert client.active_model("writer") == writer_route[2]
+
+
+def test_route_returns_to_role_primary_on_next_admission(
+    tmp_path: Path,
+) -> None:
+    namespace = "daily-primary-reset"
+    prompt = "公開 next-day admission"
+    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    client._active_models["writer"] = pipeline.MODEL_ROUTE_CONFIG.routes["writer"][-1]
+    request = outbox.create_external_request(
+        tmp_path,
+        namespace=namespace,
+        role="writer",
+        model=pipeline.DEFAULT_WRITER_MODEL,
+        prompt=prompt,
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{request['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": request["job_id"],
+            "request_sha256": request["request_sha256"],
+            "model": request["model"],
+            "completed_at": "2026-08-18T00:00:01-07:00",
+            "result": {"ok": True},
+        },
+    )
+
+    assert client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
+    assert client.active_model("writer") == pipeline.DEFAULT_WRITER_MODEL
 
 
 @pytest.mark.parametrize("error_code", ["API_RATE_LIMITED", "API_HTTP_ERROR"])
@@ -4382,7 +4466,7 @@ def test_reviewer_fails_closed_when_only_fallback_matches_active_writer(
     namespace = "independent-reviewer-route"
     prompt = "公開 independent reviewer route"
     client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
-    client._active_models["writer"] = pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+    client._active_models["writer"] = pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
     last_request: dict[str, object] | None = None
     for attempt in range(3):
         request = outbox.create_external_request(

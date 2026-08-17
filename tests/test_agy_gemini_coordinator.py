@@ -12,6 +12,7 @@ import pytest
 
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
+from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
@@ -3900,8 +3901,8 @@ def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path
     assert 'LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-' in installer
     assert "Set :EnvironmentVariables:PATH ${LAUNCHD_PATH}" in installer
     assert 'PRODUCTION_POOL_FILE="${AGY_GEMINI_CREDENTIAL_POOL_FILE:-}"' in installer
-    assert 'WRITER_MODEL="${AGY_WRITER_MODEL:-gemini-3.5-flash}"' in installer
-    assert 'REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-gemini-3.1-flash-lite}"' in installer
+    assert 'MODEL_ROUTE_CONFIG_PATH="${REPO_ROOT}/config/agy_gemini_model_routes.v1.json"' in installer
+    assert "load_model_route_config" in installer
     assert 'NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"' in installer
     assert 'USER_HOME_DIR="${PANTHEON_USER_HOME_DIR:-}"' in installer
     assert (
@@ -6448,8 +6449,14 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         key: coordinator_variables[key]
         for key in shared_contract
     } == shared_contract
-    assert coordinator_variables["AGY_WRITER_MODEL"] == "gemini-3.5-flash"
-    assert coordinator_variables["AGY_REVIEWER_MODEL"] == "gemini-3.1-flash-lite"
+    assert coordinator_variables["AGY_WRITER_MODEL"] == pipeline.DEFAULT_WRITER_MODEL
+    assert coordinator_variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
+    assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
+        pipeline.MODEL_ROUTE_CONFIG_PATH
+    )
+    assert coordinator_variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
+        pipeline.MODEL_ROUTE_CONFIG_DIGEST
+    )
     for lane in ("new", "rewrite", "i18n-new", "i18n-rewrite"):
         installed = plistlib.loads(
             (
@@ -6465,8 +6472,14 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         assert arguments[arguments.index("--lane") + 1] == lane
         assert {key: variables[key] for key in shared_contract} == shared_contract
         assert variables["AGY_GEMINI_NEW_ONLY"] == "0"
-        assert "AGY_WRITER_MODEL" not in variables
-        assert "AGY_REVIEWER_MODEL" not in variables
+        assert variables["AGY_WRITER_MODEL"] == pipeline.DEFAULT_WRITER_MODEL
+        assert variables["AGY_REVIEWER_MODEL"] == pipeline.DEFAULT_REVIEWER_MODEL
+        assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG"] == str(
+            pipeline.MODEL_ROUTE_CONFIG_PATH
+        )
+        assert variables["AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST"] == (
+            pipeline.MODEL_ROUTE_CONFIG_DIGEST
+        )
 
     for key, value in coordinator_variables.items():
         monkeypatch.setenv(key, str(value))

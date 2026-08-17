@@ -78,6 +78,97 @@ AGY_VENUS_BATCH_04_IDS = {
 }
 
 AGY_MATRIX_IDS = AGY_V1_MATRIX_IDS | AGY_ASC_BATCH_02_IDS | AGY_ASC_VENUS_BATCH_03_IDS | AGY_VENUS_BATCH_04_IDS
+
+
+def test_model_route_config_is_versioned_ordered_and_canonical() -> None:
+    route = pipeline.load_model_route_config(pipeline.MODEL_ROUTE_CONFIG_PATH)
+
+    assert route.schema_version == 1
+    assert route.routes == {
+        "writer": (
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
+        ),
+        "reviewer": (
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash-lite",
+        ),
+    }
+    assert route.digest == pipeline.load_model_route_config(
+        pipeline.MODEL_ROUTE_CONFIG_PATH
+    ).digest
+    assert pipeline.DEFAULT_WRITER_MODEL == route.routes["writer"][0]
+    assert pipeline.DEFAULT_REVIEWER_MODEL == route.routes["reviewer"][0]
+
+
+def test_model_route_config_digest_is_format_independent(tmp_path: Path) -> None:
+    path = tmp_path / "route.json"
+    path.write_text(
+        json.dumps(
+            {
+                "routes": {
+                    "reviewer": list(pipeline.MODEL_ROUTE_CONFIG.routes["reviewer"]),
+                    "writer": list(pipeline.MODEL_ROUTE_CONFIG.routes["writer"]),
+                },
+                "schema_version": 1,
+            },
+            indent=4,
+        ),
+        encoding="utf-8",
+    )
+
+    assert pipeline.load_model_route_config(path).digest == (
+        pipeline.MODEL_ROUTE_CONFIG_DIGEST
+    )
+
+
+def test_gemini_client_environment_rejects_route_digest_and_model_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST", "0" * 64)
+    with pytest.raises(ValueError, match="model route config digest mismatch"):
+        GeminiClient.from_environment()
+
+    monkeypatch.setenv(
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST",
+        pipeline.MODEL_ROUTE_CONFIG_DIGEST,
+    )
+    monkeypatch.setenv("AGY_WRITER_MODEL", "gemini-drift")
+    with pytest.raises(ValueError, match="model route environment drift"):
+        GeminiClient.from_environment()
+
+
+def test_formal_model_route_environment_requires_path_and_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.delenv("AGY_GEMINI_MODEL_ROUTE_CONFIG", raising=False)
+    monkeypatch.delenv("AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST", raising=False)
+
+    with pytest.raises(ValueError, match="formal model route config identity is incomplete"):
+        pipeline.model_route_config_from_environment()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"schema_version": 2, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": 1, "routes": {"writer": ["../unsafe"], "reviewer": ["gemini-b"]}},
+        {"schema_version": 1, "routes": {"writer": ["gemini-a", "gemini-a"], "reviewer": ["gemini-b"]}},
+        {"schema_version": 1, "routes": {"writer": ["gemini-a"], "reviewer": ["gemini-a"]}},
+        {"schema_version": 1, "routes": {"writer": [], "reviewer": ["gemini-b"]}},
+    ],
+)
+def test_model_route_config_rejects_invalid_contract(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    path = tmp_path / "route.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model route"):
+        pipeline.load_model_route_config(path)
 DAILY_QUEUE_IDS = {
     "ASTRO-SCENARIO-SATURN-RETURN",
     "ASTRO-SCENARIO-SEVENTH-HOUSE-EMPTY",
@@ -919,7 +1010,7 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
         assert "--resume" not in args
         assert "--continue" not in args
         assert "--conversation" not in args
-    assert calls[0]["args"][2] == "Gemini 3.5 Flash (Low)"
+    assert calls[0]["args"][2] == "Gemini 3.5 Flash-Lite (Low)"
     assert calls[1]["args"][2] == "Gemini 3.1 Flash-Lite (Low)"
 
 
@@ -4456,7 +4547,7 @@ def test_operation_receipt_records_selected_fallback_model(tmp_path: Path) -> No
 
         def active_model(self, role: str) -> str:
             assert role == "writer"
-            return pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+            return pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
 
     receipt_path = tmp_path / "writer-operation.json"
 
@@ -4469,7 +4560,7 @@ def test_operation_receipt_records_selected_fallback_model(tmp_path: Path) -> No
     )
 
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    assert receipt["model"] == pipeline.DEFAULT_WRITER_FALLBACK_MODEL
+    assert receipt["model"] == pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
 
 
 def test_operation_receipt_persists_closed_cli_code_without_exception_text(

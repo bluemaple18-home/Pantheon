@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -26,10 +27,84 @@ from scripts.update_articles_hub_dates import articles_hub_updated_date, render_
 SCHEMA_VERSION = 1
 MAX_RUN_ARTICLES = 5
 MAX_ARTICLE_BRIEF_BYTES = 8192
-DEFAULT_WRITER_MODEL = "gemini-3.5-flash"
-DEFAULT_REVIEWER_MODEL = "gemini-3.1-flash-lite"
-DEFAULT_WRITER_FALLBACK_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_REVIEWER_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+MODEL_ROUTE_CONFIG_PATH = (
+    Path(__file__).resolve().parents[1] / "config" / "agy_gemini_model_routes.v1.json"
+)
+MODEL_ROUTE_SCHEMA_VERSION = 1
+MODEL_ROUTE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+@dataclass(frozen=True)
+class ModelRouteConfig:
+    schema_version: int
+    routes: dict[str, tuple[str, ...]]
+    digest: str
+    path: Path
+
+
+def load_model_route_config(path: Path) -> ModelRouteConfig:
+    try:
+        canonical_path = path.resolve(strict=True)
+        payload = json.loads(canonical_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("model route config is unavailable") from error
+    if not isinstance(payload, dict) or set(payload) != {"schema_version", "routes"}:
+        raise ValueError("model route config fields are invalid")
+    raw_routes = payload.get("routes")
+    if payload.get("schema_version") != MODEL_ROUTE_SCHEMA_VERSION or not isinstance(raw_routes, dict):
+        raise ValueError("model route config schema is invalid")
+    if set(raw_routes) != {"writer", "reviewer"}:
+        raise ValueError("model route roles are invalid")
+    routes: dict[str, tuple[str, ...]] = {}
+    for role in ("writer", "reviewer"):
+        values = raw_routes.get(role)
+        if (
+            not isinstance(values, list)
+            or not values
+            or any(type(value) is not str or MODEL_ROUTE_PATTERN.fullmatch(value) is None for value in values)
+            or len(set(values)) != len(values)
+        ):
+            raise ValueError(f"model route {role} order is invalid")
+        routes[role] = tuple(values)
+    if routes["writer"][0] == routes["reviewer"][0]:
+        raise ValueError("model route primary role collision")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return ModelRouteConfig(
+        schema_version=MODEL_ROUTE_SCHEMA_VERSION,
+        routes=routes,
+        digest=hashlib.sha256(canonical).hexdigest(),
+        path=canonical_path,
+    )
+
+
+MODEL_ROUTE_CONFIG = load_model_route_config(MODEL_ROUTE_CONFIG_PATH)
+MODEL_ROUTE_CONFIG_DIGEST = MODEL_ROUTE_CONFIG.digest
+DEFAULT_WRITER_MODEL = MODEL_ROUTE_CONFIG.routes["writer"][0]
+DEFAULT_REVIEWER_MODEL = MODEL_ROUTE_CONFIG.routes["reviewer"][0]
+
+
+def model_route_config_from_environment() -> ModelRouteConfig:
+    configured_path = os.environ.get("AGY_GEMINI_MODEL_ROUTE_CONFIG", "").strip()
+    expected_digest = os.environ.get(
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST", ""
+    ).strip()
+    if os.environ.get("PANTHEON_FORMAL_RUNTIME") == "1" and (
+        not configured_path or not expected_digest
+    ):
+        raise ValueError("formal model route config identity is incomplete")
+    route_config = load_model_route_config(
+        Path(configured_path) if configured_path else MODEL_ROUTE_CONFIG_PATH
+    )
+    if expected_digest and expected_digest != route_config.digest:
+        raise ValueError("model route config digest mismatch")
+    for environment_name, role in (
+        ("AGY_WRITER_MODEL", "writer"),
+        ("AGY_REVIEWER_MODEL", "reviewer"),
+    ):
+        override = os.environ.get(environment_name, "").strip()
+        if override and override != route_config.routes[role][0]:
+            raise ValueError("model route environment drift")
+    return route_config
 MAX_WRITER_SCHEMA_REPAIRS = 2
 NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
     "本文只提供通用理解，不能替個人下結論。",
@@ -37,10 +112,18 @@ NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
     "請核對當下狀況與可用資訊後再決定。",
     "這些線索僅供整理問題與下一步。",
 )
+
+
+def _antigravity_model_label(model: str) -> str:
+    parts = model.removeprefix("gemini-").split("-")
+    name = "-".join(part.capitalize() for part in parts[1:])
+    return f"Gemini {parts[0]} {name} (Low)"
+
+
 ANTIGRAVITY_MODEL_LABELS = {
-    DEFAULT_WRITER_MODEL: "Gemini 3.5 Flash (Low)",
-    DEFAULT_REVIEWER_MODEL: "Gemini 3.1 Flash-Lite (Low)",
-    DEFAULT_WRITER_FALLBACK_MODEL: "Gemini 3.5 Flash-Lite (Low)",
+    model: _antigravity_model_label(model)
+    for route in MODEL_ROUTE_CONFIG.routes.values()
+    for model in route
 }
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
@@ -2332,18 +2415,28 @@ def _single_request_urlopen(
     )
 
 
-GEMINI_25_FLASH_MODELS = frozenset(
-    {
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-    }
-)
-GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = frozenset(
-    {
-        "gemini-3.5-flash-lite",
-        "gemini-3.6-flash",
-    }
-)
+def _gemini_version_and_variant(model: str) -> tuple[tuple[int, int], str] | None:
+    match = re.fullmatch(r"gemini-(\d+)\.(\d+)-([a-z0-9-]+)", model)
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2))), match.group(3)
+
+
+def _is_gemini_25_flash(model: str) -> bool:
+    parsed = _gemini_version_and_variant(model)
+    return parsed is not None and parsed[0] == (2, 5) and parsed[1] in {"flash", "flash-lite"}
+
+
+def _omits_sampling_parameters(model: str) -> bool:
+    parsed = _gemini_version_and_variant(model)
+    return parsed is not None and parsed[0] >= (3, 5)
+
+
+def _has_provider_enum_limit(model: str) -> bool:
+    parsed = _gemini_version_and_variant(model)
+    return parsed is not None and parsed[0] >= (3, 5) and parsed[1] == "flash-lite"
+
+
 GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
     {
         "maxItems",
@@ -2352,19 +2445,14 @@ GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(
         "minLength",
     }
 )
-GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT = frozenset(
-    {
-        "gemini-3.5-flash-lite",
-    }
-)
 MAX_PROVIDER_SCHEMA_ENUM_VALUES = 8
 
 
 def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, Any]:
     """依 model 降低 provider schema 複雜度；完整限制仍由本地 validator 執行。"""
     if (
-        model not in GEMINI_25_FLASH_MODELS
-        and model not in GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT
+        not _is_gemini_25_flash(model)
+        and not _has_provider_enum_limit(model)
     ):
         return schema
 
@@ -2374,11 +2462,11 @@ def _response_schema_for_model(model: str, schema: dict[str, Any]) -> dict[str, 
                 key: strip_complexity(item)
                 for key, item in value.items()
                 if not (
-                    model in GEMINI_25_FLASH_MODELS
+                    _is_gemini_25_flash(model)
                     and key in GEMINI_25_COMPLEX_SCHEMA_KEYS
                 )
                 and not (
-                    model in GEMINI_MODELS_WITH_PROVIDER_ENUM_LIMIT
+                    _has_provider_enum_limit(model)
                     and key == "enum"
                     and isinstance(item, list)
                     and len(item) > MAX_PROVIDER_SCHEMA_ENUM_VALUES
@@ -2412,13 +2500,21 @@ class GeminiClient:
 
     @classmethod
     def from_environment(cls) -> "GeminiClient":
+        route_config = model_route_config_from_environment()
         transport_name = os.environ.get("AGY_GEMINI_TRANSPORT", "cli").strip().lower()
         if transport_name == "cli":
-            client = cls()
+            client = cls(
+                writer_model=route_config.routes["writer"][0],
+                reviewer_model=route_config.routes["reviewer"][0],
+            )
             client.transport = client._cli_transport
             return client
         if transport_name == "api":
-            return cls(_load_api_key())
+            return cls(
+                _load_api_key(),
+                writer_model=route_config.routes["writer"][0],
+                reviewer_model=route_config.routes["reviewer"][0],
+            )
         raise ValueError("AGY_GEMINI_TRANSPORT must be cli or api")
 
     def generate_json(self, role: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -2432,7 +2528,7 @@ class GeminiClient:
         )
         thinking_config = (
             {"thinkingBudget": 0}
-            if model in GEMINI_25_FLASH_MODELS
+            if _is_gemini_25_flash(model)
             else {"thinkingLevel": "LOW"}
         )
         generation_config: dict[str, Any] = {
@@ -2440,7 +2536,7 @@ class GeminiClient:
             "responseJsonSchema": _response_schema_for_model(model, schema),
             "thinkingConfig": thinking_config,
         }
-        if model not in GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS:
+        if not _omits_sampling_parameters(model):
             generation_config["temperature"] = 0.45 if role == "writer" else 0.1
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
