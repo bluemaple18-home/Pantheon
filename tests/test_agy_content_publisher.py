@@ -1159,7 +1159,7 @@ def test_policy_v2_run_prerender_passes_explicit_rewrite_mode(
     monkeypatch.setattr(
         publisher,
         "_run_checked",
-        lambda _repo, command: commands.append(command),
+        lambda _repo, command, **_kwargs: commands.append(command),
     )
 
     publisher._run_prerender(
@@ -1170,6 +1170,62 @@ def test_policy_v2_run_prerender_passes_explicit_rewrite_mode(
     assert len(commands) == 1
     assert "--required-article-mode" in commands[0]
     assert "LEGACY-001=rewrite_existing_body" in commands[0]
+
+
+def test_run_prerender_times_out_with_observable_fail_closed_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    command: list[str] = []
+
+    def never_finishes(
+        args: list[str],
+        *,
+        cwd: Path,
+        check: bool,
+        timeout: float | None = None,
+    ) -> None:
+        command.extend(args)
+        assert cwd == tmp_path
+        assert check is True
+        assert timeout == 300
+        raise subprocess.TimeoutExpired(args, timeout)
+
+    monkeypatch.setattr(publisher.subprocess, "run", never_finishes)
+
+    with pytest.raises(publisher.PrerenderTimeout) as raised:
+        publisher._run_prerender(tmp_path)
+
+    assert raised.value.diagnostic == {
+        "command": command,
+        "cwd": str(tmp_path),
+        "elapsed_seconds": pytest.approx(0.0, abs=1.0),
+        "timeout_seconds": 300,
+        "process_outcome": "timed_out",
+    }
+
+
+def test_run_prerender_preserves_policy_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_for_policy(_repo: Path, command: list[str], **_kwargs: object) -> None:
+        output_index = command.index("--policy-failure-output") + 1
+        Path(command[output_index]).write_text(
+            json.dumps(
+                {
+                    "article_ids": ["LEGACY-001"],
+                    "failure_codes": ["initial_html_complete"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(publisher, "_run_checked", reject_for_policy)
+
+    with pytest.raises(publisher.PolicyRejected, match="initial_html_complete"):
+        publisher._run_prerender(tmp_path)
 
 
 def test_policy_v2_noop_rewrite_apply_fails_before_modified_is_written(
@@ -2423,7 +2479,7 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
     monkeypatch.setattr(
         publisher,
         "_run_checked",
-        lambda _repo, command: prerender_commands.append(command),
+        lambda _repo, command, **_kwargs: prerender_commands.append(command),
     )
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     seeded: list[tuple[str, str]] = []

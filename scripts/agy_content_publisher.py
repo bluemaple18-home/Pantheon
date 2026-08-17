@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from typing import Any, Callable
 
 from scripts import agy_multilingual_pipeline as multilingual
@@ -88,6 +89,7 @@ SUCCESS_STATUSES = {
 }
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
+PRERENDER_TIMEOUT_SECONDS = 300
 PUBLISHER_LOG_MAX_BYTES = 32 * 1024 * 1024
 PUBLISHER_LOG_RETAIN_BYTES = 4 * 1024 * 1024
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -853,6 +855,17 @@ class PolicyRejected(PublishBlocked):
         )
         super().__init__(
             "policy v2 required rejection: " + ",".join(codes or ["unknown"])
+        )
+
+
+class PrerenderTimeout(PublishBlocked):
+    """預渲染子程序逾時；保留可重驗的最小診斷。"""
+
+    def __init__(self, diagnostic: dict[str, object]) -> None:
+        self.diagnostic = diagnostic
+        super().__init__(
+            "prerender subprocess timed out: "
+            + json.dumps(diagnostic, sort_keys=True)
         )
 
 
@@ -3372,8 +3385,22 @@ def _run_prerender(
     with tempfile.TemporaryDirectory(prefix="agy-prerender-policy-") as temp_dir:
         failure_path = Path(temp_dir) / "failure.json"
         command.extend(["--policy-failure-output", str(failure_path)])
+        started_at = time.monotonic()
         try:
-            _run_checked(repo_root, command)
+            _run_checked(
+                repo_root,
+                command,
+                timeout_seconds=PRERENDER_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            diagnostic = {
+                "command": command,
+                "cwd": str(repo_root),
+                "elapsed_seconds": time.monotonic() - started_at,
+                "timeout_seconds": PRERENDER_TIMEOUT_SECONDS,
+                "process_outcome": "timed_out",
+            }
+            raise PrerenderTimeout(diagnostic) from error
         except subprocess.CalledProcessError as error:
             if not failure_path.is_file():
                 raise
@@ -3394,8 +3421,13 @@ def _run_feed(repo_root: Path) -> None:
     _run_checked(repo_root, [*PROJECT_PYTHON_COMMAND, "scripts/generate_feed.py"])
 
 
-def _run_checked(repo_root: Path, args: list[str]) -> None:
-    subprocess.run(args, cwd=repo_root, check=True)
+def _run_checked(
+    repo_root: Path,
+    args: list[str],
+    *,
+    timeout_seconds: float | None = None,
+) -> None:
+    subprocess.run(args, cwd=repo_root, check=True, timeout=timeout_seconds)
 
 
 def _run_release_tests(repo_root: Path) -> None:
