@@ -4,7 +4,8 @@ card_id: CARD-PANTHEON-RUNTIME-QUEUE-PRESERVATION-REPAIR-20260817
 dispatch_key: v1:e91fd7273749aebd0a744f48e0d2d92fb6c113f45a6aa74b7d71c97e62a238ce
 activation_token: act-v1:1f0066d320680ccb49bda2d925432ad6b4dbd40f9fcbc006f97d8370f3d87e0c
 base_sha: 8fad3fcbc3940bfde311eac02a5f6010e10f0b41
-candidate_sha: recorded in final delivery receipt after commit
+implementation_candidate_sha: b30cf964818e823611dec26b102d4984e01e9214
+delivery_tip_sha: this evidence-only repair commit becomes the final delivery tip
 
 ## Scope
 
