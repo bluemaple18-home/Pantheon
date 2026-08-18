@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-AUDIT-20260818",
+  "source_head": "b268d4e1a202c535713e9ed4f9ded857c160b35c",
+  "audited_worktree": "/Users/mattkuo/.codex/worktrees/5c40/Pantheon",
+  "capability_verdict": "BLOCKED",
+  "capacity_verdict": "NO-GO",
+  "overall": "NO-GO",
+  "overall_reason": "Required readiness artifacts are absent from the audited source tree, fallback artifacts are stale or untracked, and current runtime/capacity evidence cannot be aligned to source_head or coordinator repair commits.",
+  "production_authorization": false,
+  "canary_authorization": false,
+  "canary_created_by_this_audit": false,
+  "hard_blockers": [
+    {
+      "id": "missing-required-artifacts-in-source",
+      "severity": "P1",
+      "detail": "The task-card required handoff and readiness package paths are not present in the audited worktree at source_head.",
+      "affected_paths": [
+        "handoff_20260817_pantheon_writer_vnext_four_lane_recovery.md",
+        "artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/readiness-package/production-canary-capability-receipt.json",
+        "artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/readiness-package/capacity-proof-normalized.json"
+      ]
+    },
+    {
+      "id": "untracked-external-package-not-authoritative",
+      "severity": "P1",
+      "detail": "A same-name readiness package exists only as untracked files in /Users/mattkuo/Documents/Pantheon, not in the audited checkout or HEAD tree."
+    },
+    {
+      "id": "freshness-fields-missing",
+      "severity": "P1",
+      "detail": "Available capability receipts omit source_sha/git_sha/manifest_authority/runtime_identity, so the audit cannot verify source SHA, script digest, runtime identity, or manifest authority."
+    },
+    {
+      "id": "coordinator-repairs-not-covered",
+      "severity": "P1",
+      "detail": "Tracked APF readiness package was added at 75dd38bd07, before b711184af2 and db74e966b4; current runtime heads inspected are also older than those repairs."
+    },
+    {
+      "id": "current-runtime-capacity-not-passable",
+      "severity": "P1",
+      "detail": "Current LaunchAgents/runtime evidence is inconsistent or stopped: launchctl has no Pantheon jobs, plist runtime values do not match the runtime-manifest file, and capacity guard state is STOPPED with unavailable RSS telemetry."
+    }
+  ],
+  "next_single_repair_card_scope": [
+    "Commit or regenerate the four_lane_runtime_execution publisher_recovery_rewrite_acceptance_20260817 readiness package inside the audited source tree.",
+    "Regenerate capability receipt after b711184af2/db74e966b4 with explicit source SHA, script digests, manifest authority, runtime identity, and current correlation lineage.",
+    "Regenerate capacity proof from the current formal runtime after manifest/plist alignment, including host reserve, RSS/swap, stop-loss, cleanup, and two-cycle evidence.",
+    "Run the official production_canary_readiness_gate.py against the committed receipt and keep canary_created=false."
+  ]
+}
