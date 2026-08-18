@@ -1760,6 +1760,42 @@ def test_lane_mode_keeps_missing_brief_state_unroutable_without_blocking_migrati
     assert (queue_root / "outbox" / f"{missing_request['job_id']}.json").exists()
 
 
+def test_lane_migration_write_failure_is_not_silently_unroutable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "legacy-new-run"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "legacy-new-run",
+                "mode": "create",
+                "articles": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = {
+        "schema_version": 1,
+        "run_id": "legacy-new-run",
+        "run_dir": str(run_dir.resolve()),
+        "status": "active",
+        "registered_at": "2026-08-18T10:00:00+08:00",
+        "updated_at": "2026-08-18T10:00:00+08:00",
+    }
+    monkeypatch.setattr(
+        coordinator,
+        "_write_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state root is read-only")),
+    )
+
+    with pytest.raises(OSError, match="state root is read-only"):
+        coordinator._lane_for_state_or_none(state, set(), queue_root)
+
+
 def test_lane_mode_cycle_skips_unroutable_missing_brief_state_and_advances_others(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1982,6 +2018,74 @@ def test_seed_failed_translation_replacements_is_bounded_per_i18n_lane(
         ("i18n-new-base", "LOCALE_PLAN_VALIDATION"),
         ("i18n-rewrite-base", "LOCALE_PLAN_VALIDATION"),
     ]
+
+
+def test_seed_failed_translation_replacements_persists_legacy_routing_before_enqueue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    run_id = "failed-legacy-translation"
+    run_dir = queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "mode": "translate_existing",
+                "articles": [{"source_article_id": "LEGACY-001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir.resolve()),
+        "status": "failed",
+        "error_type": "LocalePlanValidationError",
+        "registered_at": "2026-08-18T10:00:00+08:00",
+        "updated_at": "2026-08-18T10:00:00+08:00",
+    }
+    coordinator.atomic_write_json(coordinator._state_path(run_id, queue_root), state)
+    seen_terminal_states: list[dict[str, object]] = []
+
+    def fake_enqueue(
+        _repo_root: Path,
+        _queue_root: Path,
+        *,
+        terminal_state: dict[str, object],
+        recovery_reason: str,
+    ) -> dict[str, object]:
+        seen_terminal_states.append(dict(terminal_state))
+        assert recovery_reason == "LOCALE_PLAN_VALIDATION"
+        return {"run_id": f"{terminal_state['run_id']}-replacement-01"}
+
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "enqueue_translation_replacement",
+        fake_enqueue,
+    )
+
+    summary = coordinator.seed_failed_translation_replacements(
+        repo_root,
+        queue_root,
+        legacy_article_ids={"LEGACY-001"},
+    )
+
+    persisted = json.loads(
+        coordinator._state_path(run_id, queue_root).read_text(encoding="utf-8")
+    )
+    assert summary["created_run_ids"] == [f"{run_id}-replacement-01"]
+    assert seen_terminal_states[0]["routing_schema_version"] == 1
+    assert seen_terminal_states[0]["lane"] == "i18n-rewrite"
+    assert persisted["routing_schema_version"] == 1
+    assert persisted["mode"] == "translate_existing"
+    assert persisted["lane"] == "i18n-rewrite"
+    assert coordinator._lane_for_state(persisted, set(), queue_root) == "i18n-rewrite"
 
 
 def test_lane_cycle_reports_bounded_translation_replacement_seeding(

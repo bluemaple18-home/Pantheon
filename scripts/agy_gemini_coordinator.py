@@ -1510,7 +1510,7 @@ def _lane_for_state_or_none(
 ) -> str | None:
     try:
         return _lane_for_state(state, legacy_article_ids, queue_root)
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except ValueError:
         return None
 
 
@@ -1596,8 +1596,8 @@ def seed_failed_translation_replacements(
         if not state.get("replacement_of"):
             continue
         try:
-            lane = _lane_for_state(state, legacy_article_ids)
-        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            lane = _lane_for_state(state, legacy_article_ids, root)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             continue
         if lane in {"i18n-new", "i18n-rewrite"}:
             busy_lanes.add(lane)
@@ -1608,8 +1608,8 @@ def seed_failed_translation_replacements(
         if reason is None:
             continue
         try:
-            lane = _lane_for_state(state, legacy_article_ids)
-        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            lane = _lane_for_state(state, legacy_article_ids, root)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             continue
         if (
             lane not in {"i18n-new", "i18n-rewrite"}
