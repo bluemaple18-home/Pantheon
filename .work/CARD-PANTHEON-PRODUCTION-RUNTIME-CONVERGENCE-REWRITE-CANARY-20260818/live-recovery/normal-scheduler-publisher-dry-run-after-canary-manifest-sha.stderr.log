@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4537, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4498, in main
+    result = publisher_fn(
+        repo_root,
+    ...<7 lines>...
+        **selector_kwargs,
+    )
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4214, in publish_ready_all
+    create_result = publish_ready_runs(
+        repo_root,
+    ...<8 lines>...
+        **selector_kwargs,
+    )
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 2375, in wrapped
+    base_sha = _assert_clean_origin_head(repo_root, git)
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 1837, in _assert_clean_origin_head
+    raise PublishBlocked(f"local HEAD differs from origin/main: {local[:12]} != {remote[:12]}")
+PublishBlocked: local HEAD differs from origin/main: aab1eec46a23 != 45942c29710f
