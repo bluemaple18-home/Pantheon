@@ -1,3 +1,22 @@
+---
+id: CARD-PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-AUDIT-20260818
+chain_id: PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-20260818
+role: audit
+cycle: 1
+status: ready
+thickness: strict
+risk: high
+model: gpt-5.5
+reasoning: high
+model_reason: production 前置能力與容量證據雖為唯讀，但屬固定契約的高影響 fail-closed 驗收。
+ownership:
+  - .work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-AUDIT-20260818/**
+forbidden_scope:
+  - production mutation、canary、deploy、restart、reload、queue、transaction、registry、article、tag、push
+  - 修改 source、tests、既有 readiness evidence
+evidence_path: .work/CARD-PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-AUDIT-20260818/
+---
+
 # CARD-PANTHEON-FOUR-LANE-PRODUCTION-CANARY-READINESS-AUDIT-20260818
 
 ## 工作名稱
@@ -6,7 +25,7 @@
 
 ## Root Question
 
-目前 main `1fffc42a5039ed460982c963536cc9cca529856c` 與既有 production 狀態，是否已有足夠證據允許後續另行申請四線 canary？
+目前 main（以正式 task 建立來源 SHA 為準）與既有 production 狀態，是否已有足夠證據允許後續另行申請四線 canary？
 
 ## 任務性質
 
@@ -38,7 +57,7 @@
 
 ## Freshness／Drift Gate
 
-- 比對 receipt 的 source SHA、script digest、runtime identity、manifest authority 與 main `1fffc42a5039ed460982c963536cc9cca529856c`。
+- 比對 receipt 的 source SHA、script digest、runtime identity、manifest authority 與正式 task 建立來源 SHA。
 - 比對 production／launchd／runtime 的現況只能唯讀。
 - Coordinator 修補 commits `b711184af27a8624410704f3c086b9150fd2a517`、`db74e966b4ac67d6a4b2acd14b8e8729a339b467` 若未被既有 receipt 覆蓋，必須判定 stale／BLOCKED；不得推論等價。
 
