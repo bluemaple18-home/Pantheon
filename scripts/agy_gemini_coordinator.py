@@ -45,6 +45,7 @@ DEFAULT_NEW_MATRIX_MAX_ARTICLES_PER_RUN = 5
 DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
 MAX_LEGACY_REWRITE_LINEAGE_RETRIES = 100
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
+ROUTING_SCHEMA_VERSION = 1
 OPERATOR_TERMINALIZATION_REASONS = frozenset({
     "UNSUPPORTED_MODEL_CANARY_ABORT",
 })
@@ -516,6 +517,40 @@ def _brief(run_dir: Path) -> dict[str, Any]:
     return brief
 
 
+def _validate_mode_lane_pair(mode: object, lane: object) -> tuple[str, str]:
+    if type(mode) is not str or type(lane) is not str:
+        raise ValueError("invalid active run routing")
+    expected_lanes = {
+        "create": {"new"},
+        "rewrite_existing_body": {"rewrite"},
+        "translate_existing": {"i18n-new", "i18n-rewrite"},
+    }.get(mode)
+    if expected_lanes is None or lane not in expected_lanes:
+        raise ValueError("invalid active run routing")
+    return mode, lane
+
+
+def _routing_from_brief(
+    brief: dict[str, Any],
+    legacy_article_ids: set[str],
+) -> tuple[str, str]:
+    mode = brief.get("mode")
+    if mode == "create":
+        return _validate_mode_lane_pair(mode, brief.get("lane", "new"))
+    if mode == "rewrite_existing_body":
+        return _validate_mode_lane_pair(mode, brief.get("lane", "rewrite"))
+    if mode != "translate_existing":
+        raise ValueError(f"unsupported active run mode: {mode}")
+    articles = brief.get("articles")
+    if not isinstance(articles, list) or not articles or not isinstance(articles[0], dict):
+        raise ValueError("translation run has no source article")
+    lane = brief.get("lane")
+    if lane is None:
+        source_article_id = str(articles[0].get("source_article_id") or "")
+        lane = "i18n-rewrite" if source_article_id in legacy_article_ids else "i18n-new"
+    return _validate_mode_lane_pair(mode, lane)
+
+
 def _state_path(run_id: str, queue_root: Path) -> Path:
     opaque_id = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     return queue_root / "runs" / f"{opaque_id}.json"
@@ -762,6 +797,11 @@ def register_run(
         "registered_at": now,
         "updated_at": now,
     }
+    if brief.get("mode") != "translate_existing" or brief.get("lane") is not None:
+        mode, lane = _routing_from_brief(brief, set())
+        state["routing_schema_version"] = ROUTING_SCHEMA_VERSION
+        state["mode"] = mode
+        state["lane"] = lane
     atomic_write_json(path, state)
     return state
 
@@ -1440,27 +1480,44 @@ def _lane_queue_root(queue_root: Path, lane: str) -> Path:
     return queue_root / "lanes" / lane
 
 
-def _lane_for_state(state: dict[str, Any], legacy_article_ids: set[str]) -> str:
+def _lane_for_state(
+    state: dict[str, Any],
+    legacy_article_ids: set[str],
+    queue_root: Path | None = None,
+) -> str:
+    routing_version = state.get("routing_schema_version")
+    if routing_version is not None or "mode" in state or "lane" in state:
+        if routing_version != ROUTING_SCHEMA_VERSION:
+            raise ValueError("unknown active run routing schema")
+        _mode, lane = _validate_mode_lane_pair(state.get("mode"), state.get("lane"))
+        return lane
     brief = _read_run_brief_from_state(state)
     if not isinstance(brief, dict):
         raise ValueError("active run brief is unavailable")
-    mode = brief.get("mode")
-    if mode == "create":
-        return "new"
-    if mode == "rewrite_existing_body":
-        return "rewrite"
-    if mode != "translate_existing":
-        raise ValueError(f"unsupported active run mode: {mode}")
-    articles = brief.get("articles")
-    if not isinstance(articles, list) or not articles or not isinstance(articles[0], dict):
-        raise ValueError("translation run has no source article")
-    source_article_id = str(articles[0].get("source_article_id") or "")
-    return "i18n-rewrite" if source_article_id in legacy_article_ids else "i18n-new"
+    mode, lane = _routing_from_brief(brief, legacy_article_ids)
+    if queue_root is not None:
+        state["routing_schema_version"] = ROUTING_SCHEMA_VERSION
+        state["mode"] = mode
+        state["lane"] = lane
+        _write_state(queue_root, state)
+    return lane
+
+
+def _lane_for_state_or_none(
+    state: dict[str, Any],
+    legacy_article_ids: set[str],
+    queue_root: Path | None = None,
+) -> str | None:
+    try:
+        return _lane_for_state(state, legacy_article_ids, queue_root)
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
 
 
 def _select_lane_states(
     states: list[dict[str, Any]],
     legacy_article_ids: set[str],
+    queue_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """每條 lane 固定推進最早註冊的 run，直到它進入終態。"""
     selected: dict[str, dict[str, Any]] = {}
@@ -1472,7 +1529,9 @@ def _select_lane_states(
         ),
     )
     for state in ordered_states:
-        lane = _lane_for_state(state, legacy_article_ids)
+        lane = _lane_for_state_or_none(state, legacy_article_ids, queue_root)
+        if lane is None:
+            continue
         selected.setdefault(lane, state)
         if len(selected) == len(CONTENT_LANES):
             break
@@ -1486,7 +1545,9 @@ def _lane_summary(
 ) -> dict[str, dict[str, int]]:
     counts = {lane: 0 for lane in CONTENT_LANES}
     for state in states:
-        counts[_lane_for_state(state, legacy_article_ids)] += 1
+        lane = _lane_for_state_or_none(state, legacy_article_ids, queue_root)
+        if lane is not None:
+            counts[lane] += 1
     return {
         lane: {
             "active": counts[lane],
@@ -1607,13 +1668,15 @@ def _migrate_pending_jobs(
     legacy_article_ids: set[str],
 ) -> dict[str, int]:
     """把舊 shared outbox 的 pending job 原子搬到對應 lane。"""
-    lane_by_namespace = {
-        hashlib.sha256(str(state["run_id"]).encode("utf-8")).hexdigest()[:24]: _lane_for_state(
-            state,
-            legacy_article_ids,
-        )
-        for state in states
-    }
+    lane_by_namespace: dict[str, str] = {}
+    for state in states:
+        run_id = state.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            continue
+        lane = _lane_for_state_or_none(state, legacy_article_ids, queue_root)
+        if lane is None:
+            continue
+        lane_by_namespace[hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]] = lane
     moved = {lane: 0 for lane in CONTENT_LANES}
     outbox = queue_root / "outbox"
     for source in sorted(outbox.glob("*.json")) if outbox.exists() else []:
@@ -4047,17 +4110,17 @@ def cycle_once(
             states = [
                 state
                 for state in active_states
-                if _lane_for_state(state, legacy_article_ids) == "new"
+                if _lane_for_state_or_none(state, legacy_article_ids, root) == "new"
             ][:1]
         elif lane_mode:
-            states = _select_lane_states(active_states, legacy_article_ids)
+            states = _select_lane_states(active_states, legacy_article_ids, root)
         else:
             states = active_states[:MAX_ACTIVE_RUNS_PER_CYCLE]
         pending = 0
         completed = 0
         failed = 0
         for state in states:
-            lane = _lane_for_state(state, legacy_article_ids) if lane_mode else None
+            lane = _lane_for_state(state, legacy_article_ids, root) if lane_mode else None
             outcome = _advance(
                 root,
                 state,
@@ -4107,7 +4170,7 @@ def cycle_once(
             [
                 state
                 for state in remaining_states
-                if _lane_for_state(state, legacy_article_ids) == "new"
+                if _lane_for_state_or_none(state, legacy_article_ids, root) == "new"
             ]
             if new_only
             else remaining_states

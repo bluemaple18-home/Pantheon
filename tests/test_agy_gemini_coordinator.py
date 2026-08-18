@@ -1188,6 +1188,45 @@ def test_register_run_is_idempotent_and_keeps_private_path_local(tmp_path: Path)
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+@pytest.mark.parametrize(
+    ("run_id", "brief", "expected_lane"),
+    [
+        ("new-routing", {"mode": "create", "articles": []}, "new"),
+        ("rewrite-routing", {"mode": "rewrite_existing_body", "articles": [{"article_id": "LEGACY-001"}]}, "rewrite"),
+        (
+            "i18n-new-routing",
+            {"mode": "translate_existing", "lane": "i18n-new", "articles": [{"source_article_id": "NEW-001"}]},
+            "i18n-new",
+        ),
+        (
+            "i18n-rewrite-routing",
+            {"mode": "translate_existing", "lane": "i18n-rewrite", "articles": [{"source_article_id": "LEGACY-001"}]},
+            "i18n-rewrite",
+        ),
+    ],
+)
+def test_register_run_persists_immutable_mode_and_lane(
+    tmp_path: Path,
+    run_id: str,
+    brief: dict[str, object],
+    expected_lane: str,
+) -> None:
+    run_dir = tmp_path / "private-runs" / run_id
+    queue_root = tmp_path / "queue"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps({"schema_version": 1, "run_id": run_id, **brief}),
+        encoding="utf-8",
+    )
+
+    state = register_run(run_dir, queue_root)
+
+    assert state["routing_schema_version"] == 1
+    assert state["mode"] == brief["mode"]
+    assert state["lane"] == expected_lane
+    assert coordinator._lane_for_state(state, {"LEGACY-001"}) == expected_lane
+
+
 def test_formal_coordinator_rejects_manifest_drift_before_lock_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1670,6 +1709,141 @@ def test_lane_mode_migrates_shared_pending_jobs_by_run_namespace(tmp_path: Path)
     assert result == {"new": 1, "rewrite": 0, "i18n-new": 0, "i18n-rewrite": 0}
     assert not (queue_root / "outbox" / f"{request['job_id']}.json").exists()
     assert (queue_root / "lanes/new/outbox" / f"{request['job_id']}.json").exists()
+
+
+def test_lane_mode_keeps_missing_brief_state_unroutable_without_blocking_migration(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    good_run_dir = tmp_path / "runs" / "new-run"
+    _write_brief(good_run_dir, "new-run")
+    good_state = register_run(good_run_dir, queue_root)
+    missing_run_dir = tmp_path / "runs" / "missing-brief-run"
+    missing_run_dir.mkdir(parents=True)
+    missing_state = {
+        "schema_version": 1,
+        "run_id": "missing-brief-run",
+        "run_dir": str(missing_run_dir.resolve()),
+        "status": "active",
+        "registered_at": "2026-08-18T10:00:00+08:00",
+        "updated_at": "2026-08-18T10:00:00+08:00",
+    }
+    coordinator.atomic_write_json(
+        coordinator._state_path("missing-brief-run", queue_root),
+        missing_state,
+    )
+    good_request = create_external_request(
+        queue_root,
+        namespace=coordinator._state_path("new-run", queue_root).stem,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開新文 prompt",
+        response_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
+    )
+    missing_request = create_external_request(
+        queue_root,
+        namespace=coordinator._state_path("missing-brief-run", queue_root).stem,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="缺 brief prompt",
+        response_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
+    )
+
+    result = coordinator._migrate_pending_jobs(
+        queue_root,
+        [missing_state, good_state],
+        set(),
+    )
+
+    assert result == {"new": 1, "rewrite": 0, "i18n-new": 0, "i18n-rewrite": 0}
+    assert (queue_root / "lanes/new/outbox" / f"{good_request['job_id']}.json").exists()
+    assert (queue_root / "outbox" / f"{missing_request['job_id']}.json").exists()
+
+
+def test_lane_mode_cycle_skips_unroutable_missing_brief_state_and_advances_others(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    good_run_dir = tmp_path / "runs" / "new-run"
+    _write_brief(good_run_dir, "new-run")
+    register_run(good_run_dir, queue_root)
+    missing_run_dir = tmp_path / "runs" / "missing-brief-run"
+    missing_run_dir.mkdir(parents=True)
+    coordinator.atomic_write_json(
+        coordinator._state_path("missing-brief-run", queue_root),
+        {
+            "schema_version": 1,
+            "run_id": "missing-brief-run",
+            "run_dir": str(missing_run_dir.resolve()),
+            "status": "active",
+            "registered_at": "2026-08-18T10:00:00+08:00",
+            "updated_at": "2026-08-18T10:00:00+08:00",
+        },
+    )
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+    advanced: list[str] = []
+
+    def pending_tick(run_dir: Path, _job_queue_root: Path) -> dict[str, object]:
+        advanced.append(run_dir.name)
+        raise ExternalJobPending(f"job-{run_dir.name}")
+
+    summary = cycle_once(
+        queue_root,
+        tick=pending_tick,
+        process=lambda _root: {"status": "idle"},
+        repo_root=repo_root,
+        lane_mode=True,
+    )
+
+    assert advanced == ["new-run"]
+    assert summary["active"] == 2
+    assert summary["lanes"]["new"]["active"] == 1
+    assert read_run_state(good_run_dir, queue_root)["status"] == "active"
+    assert json.loads(
+        coordinator._state_path("missing-brief-run", queue_root).read_text(encoding="utf-8")
+    )["status"] == "active"
+
+
+def test_lane_for_state_uses_immutable_state_over_brief_and_rejects_bad_routing(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "rewrite-run"
+    queue_root = tmp_path / "queue"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "rewrite-run",
+                "mode": "rewrite_existing_body",
+                "articles": [{"article_id": "LEGACY-001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = {
+        "schema_version": 1,
+        "routing_schema_version": 1,
+        "run_id": "rewrite-run",
+        "run_dir": str(run_dir.resolve()),
+        "status": "active",
+        "mode": "create",
+        "lane": "new",
+        "registered_at": "2026-08-18T10:00:00+08:00",
+        "updated_at": "2026-08-18T10:00:00+08:00",
+    }
+
+    assert coordinator._lane_for_state(state, {"LEGACY-001"}) == "new"
+
+    with pytest.raises(ValueError, match="invalid active run routing"):
+        coordinator._lane_for_state({**state, "lane": "rewrite"}, {"LEGACY-001"})
+    with pytest.raises(ValueError, match="unknown active run routing schema"):
+        coordinator._lane_for_state({**state, "routing_schema_version": 999}, {"LEGACY-001"})
+    with pytest.raises(ValueError, match="invalid active run routing"):
+        coordinator._lane_for_state({**state, "lane": "bogus"}, {"LEGACY-001"})
 
 
 def test_cycle_marks_run_failed_without_retrying_external_job(tmp_path: Path) -> None:
