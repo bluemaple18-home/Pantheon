@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from typing import Any
 
 import pytest
@@ -39,6 +40,7 @@ def _manifest(
         runtime_digest=digest_seed * 64,
         config_version="runtime-v2",
         generation=generation,
+        uv_executable=Path(sys.executable).resolve(strict=True),
     )
 
 
@@ -63,6 +65,7 @@ def _install_environment(
         "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
         "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": manifest["uv_executable"],
         "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(token_path),
     }
     for key, value in values.items():

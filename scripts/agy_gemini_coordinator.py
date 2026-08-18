@@ -3270,13 +3270,16 @@ def _create_run_adapter_new_brief(
     item: Mapping[str, str],
     run_id: str,
 ) -> dict[str, Any]:
-    backlog = {
+    authority = {
         str(row.get("id") or ""): row
-        for row in pipeline.build_matrix_backlog(repo_root)
+        for row in [
+            *pipeline._matrix_rows((repo_root / pipeline.MATRIX_PLAN).read_text(encoding="utf-8")),
+            *pipeline._structured_matrix_rows(repo_root / pipeline.MATRIX_V2_PLAN),
+        ]
     }
-    row = backlog.get(item["article_id"])
+    row = authority.get(item["article_id"])
     if row is None:
-        raise ValueError("create-run adapter new article is not in matrix backlog")
+        raise ValueError("create-run adapter new article is not in matrix authority")
     target = pipeline._matrix_targets(repo_root, [row])[item["article_id"]]
     brief = {
         "schema_version": pipeline.SCHEMA_VERSION,
@@ -3637,7 +3640,6 @@ def create_single_source_run_adapter(
         correlation_id=correlation_id,
         max_runs=max_runs,
     )
-    source_briefs = _create_run_adapter_single_source_brief(plan, by_lane)
     result = {
         "schema_version": 1,
         "status": "planned" if plan_only else "applied",
@@ -3655,6 +3657,7 @@ def create_single_source_run_adapter(
     }
     if plan_only:
         return result
+    source_briefs = _create_run_adapter_single_source_brief(plan, by_lane)
     queue_root_resolved = Path(str(plan["roots"]["queue_root"]))
     _create_run_adapter_preflight_apply(plan, source_briefs)
     created_registered = 0

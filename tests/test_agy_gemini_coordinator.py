@@ -934,6 +934,19 @@ def test_apf_004_create_run_adapter_plan_only_is_deterministic_and_zero_write(
     assert _tree_bytes(tmp_path) == before
 
 
+def test_apf_004_create_run_adapter_uses_unfiltered_matrix_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(coordinator.pipeline, "build_matrix_backlog", lambda _: [])
+
+    result = coordinator.create_campaign_run_adapter(
+        **_apf_004_kwargs(tmp_path), plan_only=False
+    )
+
+    assert result["created"] == {"registered": 2, "pending_dependencies": 2}
+
+
 def test_apf_004_create_run_adapter_apply_is_idempotent_and_resume_safe(
     tmp_path: Path,
 ) -> None:

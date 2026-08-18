@@ -128,6 +128,10 @@ def _provision_and_preflight(
     (actor / "node_modules").symlink_to(node_root, target_is_directory=True)
     python = actor / ".venv/bin/python"
     node_cli = actor / "node_modules" / NODE_CLI_RELATIVE
+    uv_path = shutil.which("uv")
+    if uv_path is None:
+        raise ActorRecoveryError("uv executable is unavailable")
+    uv = Path(uv_path).resolve(strict=True)
     env = os.environ.copy()
     queue = runtime_root / "queue"
     state = runtime_root / "publisher-state"
@@ -145,6 +149,9 @@ def _provision_and_preflight(
         runtime_digest=runtime_digest,
         config_version="formal-runtime-v2",
         generation=f"actor-recovery-{source_sha[:16]}",
+        actor_head=source_sha,
+        python_executable=python.resolve(strict=True),
+        uv_executable=uv,
     )
     write_manifest(manifest_path, manifest)
     env.update(

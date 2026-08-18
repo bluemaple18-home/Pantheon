@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -121,6 +122,7 @@ def run_probe(
         runtime_digest=actual_source_digest,
         config_version="formal-runtime-v2",
         generation=generation,
+        uv_executable=Path(sys.executable).resolve(strict=True),
     )
     manifest_path = evidence_root / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -181,12 +183,15 @@ def run_probe(
             "--actor-identity",
             actor_identity,
         ]
+        environment = os.environ.copy()
+        environment["PANTHEON_RUNTIME_UV_EXECUTABLE"] = manifest["uv_executable"]
         invoked = subprocess.run(
             command,
             cwd=resolved_source,
             check=False,
             capture_output=True,
             text=True,
+            env=environment,
         )
         adapter_payload: dict[str, Any] = {}
         if adapter_receipt.is_file():
