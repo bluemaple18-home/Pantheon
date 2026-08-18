@@ -120,3 +120,53 @@ G5 negative drift evidence:
 - staged manifest digest mismatch rejected before capacity stage write
 - missing Publisher exact receipt rejected before capacity stage write
 - staged lane manifest digest mismatch rejected before capacity stage write
+
+## G5 Re-Review NO-GO Repair
+
+Reviewer thread: `01a014b5-3848-7612-a69e-99a42797d965`.
+
+NO-GO root cause:
+
+- Candidate `4975a189425e41f443fc3f76341362503e903cce` checked each old live activation-only plist independently.
+- A single live plist could drift to a different coherent old tuple: different manifest digest, matching `--expected-digest`, different activation-only identity, and different barrier path with the same generation suffix.
+- Because the validator did not bind all seven live plists as one old runtime aggregate, the transition was incorrectly accepted and the staged capacity plist was written.
+
+Repair:
+
+- Derived the old runtime aggregate tuple from live plists only; no old manifest load is required after promotion.
+- Required equality across all seven live activation-only plists for identity, manifest digest, runtime identity digest, runtime digest, config version, generation, actor/log/queue/state roots, optional actor head, optional python/uv executable, exact barrier path, and manifest argument path.
+- Preserved per-label service identity and loaded/no-PID launchctl topology checks.
+- Added stage-side checks for wrong Publisher exact-run receipt and zero-child-exec staged plist I/O drift.
+
+RED command:
+
+```bash
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_rejects_one_live_plist_coherent_old_runtime_drift -q
+```
+
+Pre-fix result:
+
+```text
+1 failed
+accepted transition and wrote staged capacity plist
+```
+
+GREEN commands:
+
+```bash
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_rejects_g5_preactivation_stage_drift tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_rejects_one_live_plist_coherent_old_runtime_drift tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_rejects_unsafe_preactivation_transition_cases -q
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py -q
+.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_content_runtime_promotion.py -q
+bash -n scripts/install_pantheon_content_capacity_guard_launchd.sh
+git diff --check
+```
+
+Results:
+
+```text
+13 passed
+47 passed
+75 passed
+bash -n passed
+git diff --check passed
+```

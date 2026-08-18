@@ -697,6 +697,21 @@ def validate_preactivation_transition(
         stage_dir / "com.pantheon.agy-content-publisher.plist",
         expected_exact_run_id=publisher_exact_run_id,
     )
+    for label in SERVICE_LABELS:
+        stage_plist = stage_dir / f"{label}.plist"
+        with stage_plist.open("rb") as stream:
+            stage_payload = plistlib.load(stream)
+        stage_arguments = stage_payload.get("ProgramArguments")
+        if not isinstance(stage_arguments, list):
+            raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
+        stage_separator = (
+            stage_arguments.index("--") if "--" in stage_arguments else len(stage_arguments)
+        )
+        if "--activation-only" in stage_arguments[:stage_separator] and any(
+            field in stage_payload
+            for field in ("StandardInPath", "StandardOutPath", "StandardErrorPath")
+        ):
+            raise formal_runtime.RuntimeManifestError("preactivation stage child io mismatch")
     for label in SERVICE_LABELS[1:]:
         stage_receipt = formal_runtime.plist_receipt(
             stage_dir / f"{label}.plist",
@@ -707,6 +722,7 @@ def validate_preactivation_transition(
             raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
     domain = f"gui/{os.getuid()}"
     loaded: list[dict[str, Any]] = []
+    live_aggregate: dict[str, Any] | None = None
     for label in formal_runtime.SERVICE_LABELS:
         plist_path = launch_agents / f"{label}.plist"
         live_receipt = formal_runtime.plist_receipt(
@@ -731,10 +747,35 @@ def validate_preactivation_transition(
                 live_arguments,
                 "--service-label",
             )
+            live_manifest_path = formal_runtime._single_argument_value(
+                live_arguments,
+                "--manifest",
+            )
         except formal_runtime.RuntimeManifestError as error:
             raise formal_runtime.RuntimeManifestError(
                 "preactivation live plist mismatch"
             ) from error
+        current_live_aggregate = {
+            "identity": live_receipt.get("identity"),
+            "manifest_digest": live_receipt.get("manifest_digest"),
+            "runtime_identity_digest": live_receipt.get("runtime_identity_digest"),
+            "runtime_digest": live_receipt.get("runtime_digest"),
+            "config_version": live_receipt.get("config_version"),
+            "generation": live_receipt.get("generation"),
+            "actor_root": live_receipt.get("actor_root"),
+            "queue_root": live_receipt.get("queue_root"),
+            "publisher_state_root": live_receipt.get("publisher_state_root"),
+            "log_root": live_receipt.get("log_root"),
+            "actor_head": live_receipt.get("actor_head"),
+            "python_executable": live_receipt.get("python_executable"),
+            "uv_executable": live_receipt.get("uv_executable"),
+            "barrier": live_barrier,
+            "manifest_path": live_manifest_path,
+        }
+        if live_aggregate is None:
+            live_aggregate = current_live_aggregate
+        elif current_live_aggregate != live_aggregate:
+            raise formal_runtime.RuntimeManifestError("preactivation live aggregate mismatch")
         if (
             live_receipt.get("label") != label
             or live_receipt.get("service_label") != label

@@ -934,7 +934,9 @@ def test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists(
     [
         "stage_manifest_digest",
         "publisher_exact_receipt_missing",
+        "publisher_exact_receipt_wrong",
         "staged_lane_digest",
+        "staged_activation_only_child_io",
     ],
 )
 def test_capacity_installer_rejects_g5_preactivation_stage_drift(
@@ -949,10 +951,22 @@ def test_capacity_installer_rejects_g5_preactivation_stage_drift(
         (stage_dir / "manifest-digest").write_text("0" * 64 + "\n", encoding="utf-8")
     elif case == "publisher_exact_receipt_missing":
         (stage_dir / "publisher-exact-run-id").unlink()
+    elif case == "publisher_exact_receipt_wrong":
+        (stage_dir / "publisher-exact-run-id").write_text(
+            "wrong-exact-run\n",
+            encoding="utf-8",
+        )
     elif case == "staged_lane_digest":
         lane_plist = stage_dir / "com.pantheon.agy-gemini-new.plist"
         payload = plistlib.loads(lane_plist.read_bytes())
         payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST_DIGEST"] = "0" * 64
+        with lane_plist.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
+    elif case == "staged_activation_only_child_io":
+        lane_plist = stage_dir / "com.pantheon.agy-gemini-new.plist"
+        payload = plistlib.loads(lane_plist.read_bytes())
+        payload["ProgramArguments"].insert(payload["ProgramArguments"].index("--"), "--activation-only")
+        payload["StandardOutPath"] = str(tmp_path / "child-io.log")
         with lane_plist.open("wb") as stream:
             plistlib.dump(payload, stream, sort_keys=True)
 
@@ -968,6 +982,63 @@ def test_capacity_installer_rejects_g5_preactivation_stage_drift(
     assert completed.returncode != 0, case
     assert not (
         stage_dir / "com.pantheon.content-capacity-guard.plist"
+    ).exists()
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_rejects_one_live_plist_coherent_old_runtime_drift(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    python = Path(sys.executable).resolve(strict=True)
+    drift_manifest = runtime_manifest.build_manifest(
+        actor_root=repo,
+        queue_root=Path(str(manifest["queue_root"])),
+        publisher_state_root=Path(str(manifest["publisher_state_root"])),
+        log_root=Path(str(manifest["log_root"])),
+        identity=f"gate2-actor:{'7' * 40}:activation-only",
+        runtime_digest="7" * 64,
+        config_version="formal-runtime-v2-gate2",
+        generation="g8-previous-activation-only",
+        python_executable=python,
+        uv_executable=python,
+    )
+    drift_manifest_path = tmp_path / "drift-runtime-manifest.json"
+    runtime_manifest.write_manifest(drift_manifest_path, drift_manifest)
+    drift_barrier = (
+        Path(str(drift_manifest["publisher_state_root"]))
+        / "drift"
+        / f"four-lane-activation-{drift_manifest['generation']}.barrier"
+    )
+    _write_activation_only_live_plists(
+        launch_agents / "drift",
+        manifest=drift_manifest,
+        manifest_path=drift_manifest_path,
+        barrier=drift_barrier,
+        python=python,
+    )
+    drift_payload = plistlib.loads(
+        (launch_agents / "drift/com.pantheon.agy-content-publisher.plist").read_bytes()
+    )
+    with (launch_agents / "com.pantheon.agy-content-publisher.plist").open("wb") as stream:
+        plistlib.dump(drift_payload, stream, sort_keys=True)
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
     ).exists()
     assert not mutation_log.exists()
 

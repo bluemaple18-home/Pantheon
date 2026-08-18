@@ -15,6 +15,8 @@ base_source_sha: 2e8d4776725f75208ebf49d12a48924f538ab031
 blocked_canary_evidence_sha: 7d4030608be8c36ca68b57d0a121277bec62ec09
 g5_source_sha: 35cfdd52739f3e2896bf151ed6434a5e6d6ab95e
 g5_blocked_canary_evidence_sha: 29f69e9e237ad94a44d3c86baac6f39e572b410e
+g5_re_review_thread_id: 01a014b5-3848-7612-a69e-99a42797d965
+g5_re_review_no_go_candidate_sha: 4975a189425e41f443fc3f76341362503e903cce
 ownership:
   - scripts/install_pantheon_content_capacity_guard_launchd.sh
   - scripts/pantheon_content_capacity_guard.py
@@ -64,6 +66,8 @@ evidence_path: .work/CARD-PANTHEON-CAPACITY-GUARD-PREACTIVATION-TRANSITION-REPAI
 - G5 blocker：`preactivation manifest mismatch`，隨後仍是 `rss_telemetry_unknown / loaded_service_pid_missing:com.pantheon.agy-content-publisher`。
 - G5 stage topology：六個新 staged plists 與 Publisher exact markers 已存在，capacity guard 第七張 staged plist 尚未寫入；七個舊 live activation-only plists 仍 loaded/no-PID。
 - G5 evidence commit：`29f69e9e237ad94a44d3c86baac6f39e572b410e`。
+- G5 re-review NO-GO：candidate `4975a189425e41f443fc3f76341362503e903cce` 逐張驗 old live plist，未把七張綁成同一 old runtime aggregate，導致單張 coherent drift 可被接受。
+- Re-review repair requirement：old manifest path 可能已被 promotion 覆寫；必須從 live plists 派生 aggregate tuple，七張 identity／generation／manifest digest／config/runtime/actor fields／exact barrier path／barrier-exec activation-only shape 全等才可接受。
 
 ## 執行契約
 
