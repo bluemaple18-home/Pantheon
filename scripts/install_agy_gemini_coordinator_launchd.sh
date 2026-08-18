@@ -695,6 +695,17 @@ if [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] \
     false
   fi
 fi
+ACTIVATION_PHASE="normal_transition_barrier_validation"
+if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+  if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
+    scripts.pantheon_content_runtime_manifest barrier-validate \
+    --barrier "${ACTIVATION_BARRIER}" \
+    --manifest "${RUNTIME_MANIFEST_FILE}" \
+    --expected-digest "${RUNTIME_MANIFEST_DIGEST}") >/dev/null; then
+    echo "normal activation 缺少 matching activation barrier，拒絕 activation。" >&2
+    false
+  fi
+fi
 ACTIVATION_PHASE="legacy_capacity_adoption_pre_replace"
 if ! verify_legacy_capacity_adoption_pre_replace; then
   echo "legacy inert plist set 在 replace 前 drift，拒絕 activation。" >&2
@@ -703,7 +714,9 @@ fi
 
 ACTIVATION_PHASE="replace_live_plists"
 trap 'rollback_activation $? "${ACTIVATION_PHASE}"' ERR
-rm -f "${ACTIVATION_BARRIER}"
+if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+  rm -f "${ACTIVATION_BARRIER}"
+fi
 rm -rf "${READY_ROOT}"
 mkdir -p "${READY_ROOT}"
 for INDEX in 0 1 2 3 4 5 6; do
