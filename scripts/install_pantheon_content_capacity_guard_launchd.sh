@@ -147,11 +147,14 @@ run_capacity_preflight() {
   )"
   PREFLIGHT_STATUS="$?"
   set -e
-  if [[ "${PREFLIGHT_STATUS}" == "0" ]]; then
+  printf '%s\n' "${PREFLIGHT_OUTPUT}" > "${PREFLIGHT_RECEIPT}"
+  if [[ "${PREFLIGHT_STATUS}" == "0" \
+    && ! -f "${STAGE_DIR}/manifest-digest" \
+    && ! -f "${STAGE_DIR}/generation" \
+    && ! -f "${STAGE_DIR}/publisher-max-runs" ]]; then
     printf '%s\n' "${PREFLIGHT_OUTPUT}"
     return 0
   fi
-  printf '%s\n' "${PREFLIGHT_OUTPUT}" > "${PREFLIGHT_RECEIPT}"
   if (
     cd "${REPO_ROOT}"
     "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
@@ -160,14 +163,17 @@ run_capacity_preflight() {
       --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
       --barrier "${ACTIVATION_BARRIER}" \
       --launch-agents-dir "${LAUNCH_AGENTS_DIR}" \
+      --capacity-plist "${TEMP_PLIST}" \
       preactivation-transition
   ); then
     return 0
   fi
   printf '%s\n' "${PREFLIGHT_OUTPUT}"
+  if [[ "${PREFLIGHT_STATUS}" == "0" ]]; then
+    return 1
+  fi
   return "${PREFLIGHT_STATUS}"
 }
-run_capacity_preflight
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"
@@ -204,6 +210,7 @@ fi
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_ROOT}/pantheon-content-capacity-guard.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_ROOT}/pantheon-content-capacity-guard.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
+run_capacity_preflight
 
 if [[ "${ACTION}" == "--preflight" ]]; then
   exit 0

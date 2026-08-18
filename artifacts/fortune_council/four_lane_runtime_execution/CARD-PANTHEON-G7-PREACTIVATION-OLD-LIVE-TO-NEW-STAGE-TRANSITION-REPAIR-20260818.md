@@ -78,3 +78,21 @@
 - Root cause：明確指出 pre-check／post-check 錯位欄位。
 - Candidate SHA、變更檔案、RED/GREEN 與完整測試數。
 - Production mutation 必須為 `0`。
+
+## Repair receipt
+
+- Root cause：preactivation old-live half still required the new-form `gate2-actor:<sha>:activation-only` identity, incorrectly applying a post-activation live identity requirement before activation.
+- Source fix：old live seven plists are now derived as one coherent aggregate tuple and may differ from the new target; new staged aggregate now includes the capacity guard candidate plist before it is written.
+- RED：G6 old live `four-lane-model-route-v1` activation-only loaded/no-PID topology failed with `preactivation live plist mismatch`.
+- GREEN：G6 happy path, G5 happy path, old-live drift, staged drift, capacity candidate drift, and original negative matrix all pass locally.
+- Production mutation：`0`。
+
+## Repair receipt iteration 2
+
+- Reviewer NO-GO：candidate `5fdf66bb51e4d37aa91224264d24b1fa62120e7f` allowed installer stage write when normal preflight returned `PASS`.
+- Root cause：`run_capacity_preflight` treated preflight `PASS` as final success before checking whether the staged transition context existed, so PID-bearing old live activation-only wrappers with valid RSS bypassed `preactivation-transition`.
+- Source fix：when stage manifest/generation/Publisher markers exist, installer writes the preflight receipt and always runs `preactivation-transition` before any destination write; preflight `PASS` is accepted only as receipt evidence, not as a bypass.
+- RED：G6 old activation-only live seven with `pid = 4242`, `state = waiting`, valid RSS failed because installer returned `0` and wrote the staged capacity plist.
+- GREEN：the same PID-bearing topology is rejected nonzero, staged destination remains absent, and mutation log remains absent.
+- Regression：normal non-transition capacity preflight semantics remain unchanged; real G6 loaded/no-PID transition remains accepted.
+- Production mutation：`0`。

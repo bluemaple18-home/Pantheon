@@ -649,20 +649,23 @@ def validate_preactivation_transition(
     expected_digest: str,
     barrier: Path,
     launch_agents_dir: Path,
+    capacity_plist: Path,
     runner: Runner = _run,
 ) -> dict[str, Any]:
     try:
         receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
         raise formal_runtime.RuntimeManifestError("preactivation receipt is invalid") from error
-    if (
-        not isinstance(receipt, dict)
-        or receipt.get("reasons") != ["rss_telemetry_unknown"]
-        or receipt.get("rss_available") is not False
-        or not str(receipt.get("rss_error", "")).startswith(
+    preflight_pass = isinstance(receipt, dict) and receipt.get("status") == "PASS"
+    preflight_pid_gap = (
+        isinstance(receipt, dict)
+        and receipt.get("reasons") == ["rss_telemetry_unknown"]
+        and receipt.get("rss_available") is False
+        and str(receipt.get("rss_error", "")).startswith(
             "loaded_service_pid_missing:"
         )
-    ):
+    )
+    if not (preflight_pass or preflight_pid_gap):
         raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
     if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", ""))) is None:
@@ -697,8 +700,11 @@ def validate_preactivation_transition(
         stage_dir / "com.pantheon.agy-content-publisher.plist",
         expected_exact_run_id=publisher_exact_run_id,
     )
-    for label in SERVICE_LABELS:
-        stage_plist = stage_dir / f"{label}.plist"
+    staged_plists = {
+        **{label: stage_dir / f"{label}.plist" for label in SERVICE_LABELS},
+        CAPACITY_GUARD_LABEL: capacity_plist,
+    }
+    for label, stage_plist in staged_plists.items():
         with stage_plist.open("rb") as stream:
             stage_payload = plistlib.load(stream)
         stage_arguments = stage_payload.get("ProgramArguments")
@@ -712,9 +718,9 @@ def validate_preactivation_transition(
             for field in ("StandardInPath", "StandardOutPath", "StandardErrorPath")
         ):
             raise formal_runtime.RuntimeManifestError("preactivation stage child io mismatch")
-    for label in SERVICE_LABELS[1:]:
+    for label in (*SERVICE_LABELS[1:], CAPACITY_GUARD_LABEL):
         stage_receipt = formal_runtime.plist_receipt(
-            stage_dir / f"{label}.plist",
+            staged_plists[label],
             expected_activation_mode="normal",
         )
         expected_stage = formal_runtime.receipt_for_label(manifest, label)
@@ -784,10 +790,7 @@ def validate_preactivation_transition(
             or not str(live_barrier).endswith(
                 f"/four-lane-activation-{live_receipt.get('generation')}.barrier"
             )
-            or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
-                str(live_receipt.get("identity", ""))
-            )
-            is None
+            or not str(live_receipt.get("identity", ""))
         ):
             raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
         target = f"{domain}/{label}"
@@ -1029,6 +1032,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-digest")
     parser.add_argument("--barrier", type=Path)
     parser.add_argument("--launch-agents-dir", type=Path)
+    parser.add_argument("--capacity-plist", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
     parser.add_argument(
         "command",
@@ -1052,6 +1056,7 @@ def main() -> int:
             args.expected_digest,
             args.barrier,
             args.launch_agents_dir,
+            args.capacity_plist,
         ):
             raise SystemExit("preactivation-transition requires transition inputs")
         try:
@@ -1061,6 +1066,7 @@ def main() -> int:
                 expected_digest=args.expected_digest,
                 barrier=args.barrier,
                 launch_agents_dir=args.launch_agents_dir,
+                capacity_plist=args.capacity_plist,
             )
         except formal_runtime.RuntimeManifestError as error:
             print(
