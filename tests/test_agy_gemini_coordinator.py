@@ -5614,6 +5614,31 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
         assert live_path.read_bytes() == live_payloads[label]
 
 
+def test_publisher_only_bounded_activation_allows_no_exact_run_receipt(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, _fake_home, mutation_log, _manifest, _barrier, _loaded, _live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path, exact_run_id=None)
+    )
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-publisher-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert mutation_log.exists()
+
+
 @pytest.mark.parametrize(
     ("variant", "expected_phase", "expected_error"),
     [
@@ -5621,6 +5646,10 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
         ("max-runs", "publisher_only_stage_validation", "max-runs=1"),
         ("exact-run-format", "publisher_only_stage_validation", "exact-run-id"),
         ("plist-drift", "publisher_only_stage_validation", "mismatch"),
+        ("missing-exact-run-receipt", "publisher_only_stage_validation", "receipt mismatch"),
+        ("stale-exact-run-receipt", "publisher_only_stage_validation", "receipt mismatch"),
+        ("exact-run-receipt-mismatch", "publisher_only_stage_validation", "receipt mismatch"),
+        ("empty-exact-run-receipt", "publisher_only_stage_validation", "receipt is empty"),
     ],
 )
 def test_publisher_only_bounded_activation_fails_closed_before_mutation(
@@ -5640,6 +5669,21 @@ def test_publisher_only_bounded_activation_fails_closed_before_mutation(
     env, fake_home, mutation_log, _manifest, _barrier, _loaded, live_payloads = fixture
     env["PANTHEON_ACTIVATION_CORRELATION_ID"] = f"publisher-only-{variant}"
     launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    exact_run_receipt = stage_dir / "publisher-exact-run-id"
+    if variant == "missing-exact-run-receipt":
+        exact_run_receipt.unlink()
+    elif variant == "stale-exact-run-receipt":
+        _write_publisher_normal_plist(
+            stage_dir / "com.pantheon.agy-content-publisher.plist",
+            manifest=_manifest,
+            max_runs="1",
+            exact_run_id=None,
+        )
+    elif variant == "exact-run-receipt-mismatch":
+        exact_run_receipt.write_text("publisher-only-run-002\\n", encoding="utf-8")
+    elif variant == "empty-exact-run-receipt":
+        exact_run_receipt.write_text("", encoding="utf-8")
 
     activated = subprocess.run(
         [

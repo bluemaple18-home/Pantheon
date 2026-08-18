@@ -415,12 +415,28 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
     echo "Publisher-only activation requires matching stage receipt with max-runs=1." >&2
     false
   fi
+  PUBLISHER_PLIST_PREFLIGHT_ARGS=(
+    publisher-plist
+    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
+    --plist "${PUBLISHER_STAGE_PLIST}"
+  )
+  if [[ -f "${STAGE_DIR}/publisher-exact-run-id" ]]; then
+    PUBLISHER_EXACT_RUN_ID="$(cat "${STAGE_DIR}/publisher-exact-run-id")"
+    if [[ -z "${PUBLISHER_EXACT_RUN_ID}" ]]; then
+      echo "Publisher-only activation exact-run-id receipt is empty." >&2
+      false
+    fi
+    PUBLISHER_PLIST_PREFLIGHT_ARGS+=(
+      --expected-exact-run-id "${PUBLISHER_EXACT_RUN_ID}"
+    )
+  else
+    PUBLISHER_PLIST_PREFLIGHT_ARGS+=(--require-no-exact-run-id)
+  fi
   (
     cd "${REPO_ROOT}"
-    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest publisher-plist \
-      --manifest "${RUNTIME_MANIFEST_FILE}" \
-      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
-      --plist "${PUBLISHER_STAGE_PLIST}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      "${PUBLISHER_PLIST_PREFLIGHT_ARGS[@]}"
   )
   ACTIVATION_PHASE="publisher_only_live_activation_only_validation"
   LIVE_ACTIVATION_ONLY_ARGS=()

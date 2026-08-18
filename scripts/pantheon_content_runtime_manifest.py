@@ -452,6 +452,9 @@ def _single_argument_value(arguments: list[Any], name: str) -> str:
 def publisher_plist_preflight(
     manifest: dict[str, Any],
     plist_path: Path,
+    *,
+    expected_exact_run_id: str | None = None,
+    require_no_exact_run_id: bool = False,
 ) -> dict[str, Any]:
     """驗證 staged Publisher normal plist 的單筆 bounded contract。"""
     label = "com.pantheon.agy-content-publisher"
@@ -486,6 +489,10 @@ def publisher_plist_preflight(
         exact_run_id = child[index + 1]
         if PUBLISHER_EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
             raise RuntimeManifestError("publisher plist exact-run-id contract mismatch")
+    if expected_exact_run_id is not None and exact_run_id != expected_exact_run_id:
+        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
+    if require_no_exact_run_id and exact_run_id:
+        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
     return {
         "status": "PASS",
         "label": label,
@@ -809,6 +816,9 @@ def parse_args() -> argparse.Namespace:
     publisher_plist.add_argument("--manifest", type=Path, required=True)
     publisher_plist.add_argument("--expected-digest", required=True)
     publisher_plist.add_argument("--plist", type=Path, required=True)
+    exact_run_group = publisher_plist.add_mutually_exclusive_group()
+    exact_run_group.add_argument("--expected-exact-run-id")
+    exact_run_group.add_argument("--require-no-exact-run-id", action="store_true")
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
     barrier.add_argument("--expected-digest", required=True)
@@ -985,6 +995,8 @@ def main() -> int:
                         publisher_plist_preflight(
                             manifest,
                             args.plist,
+                            expected_exact_run_id=args.expected_exact_run_id,
+                            require_no_exact_run_id=args.require_no_exact_run_id,
                         ),
                         sort_keys=True,
                     )
