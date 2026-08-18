@@ -244,4 +244,12 @@ fi
 run_preflight >/dev/null
 mkdir -p "${STAGE_DIR}"
 install -m 600 "${TEMP_PLIST}" "${STAGE_DIR}/com.pantheon.agy-content-publisher.plist"
+printf '%s\n' "${RUNTIME_MANIFEST_DIGEST}" > "${STAGE_DIR}/manifest-digest"
+printf '%s\n' "${RUNTIME_GENERATION}" > "${STAGE_DIR}/generation"
+printf '%s\n' "${MAX_RUNS}" > "${STAGE_DIR}/publisher-max-runs"
+if [[ -n "${EXACT_RUN_ID}" ]]; then
+  printf '%s\n' "${EXACT_RUN_ID}" > "${STAGE_DIR}/publisher-exact-run-id"
+else
+  rm -f "${STAGE_DIR}/publisher-exact-run-id"
+fi
 echo "Pantheon content publisher plist 已寫入 private aggregate stage；尚未 activation。"

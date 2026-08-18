@@ -51,8 +51,9 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
-  && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" ]]; then
-  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only]" >&2
+  && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" \
+  && "${ACTION}" != "--activate-publisher-only" ]]; then
+  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only|--activate-publisher-only]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -358,31 +359,10 @@ ACTIVATION_ONLY=0
 if [[ "${ACTION}" == "--activate-only" ]]; then
   ACTIVATION_ONLY=1
 fi
-if ! STAGED_MODEL_ROUTE_IDENTITY="$(route_identity "${STAGED_MODEL_ROUTE_CONFIG}" 2>/dev/null)"; then
-  echo "model route stage identity 無效，拒絕 activation。" >&2
-  exit 1
+PUBLISHER_ONLY_ACTIVATION=0
+if [[ "${ACTION}" == "--activate-publisher-only" ]]; then
+  PUBLISHER_ONLY_ACTIVATION=1
 fi
-IFS=$'\t' read -r STAGED_MODEL_ROUTE_DIGEST _STAGED_WRITER_MODEL _STAGED_REVIEWER_MODEL STAGED_MODEL_ROUTE_CANONICAL_PATH <<< "${STAGED_MODEL_ROUTE_IDENTITY}"
-if [[ "$(cat "${STAGE_DIR}/model-route-digest" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
-  || "$(cat "${STAGE_DIR}/model-route-path" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
-  || "${STAGED_MODEL_ROUTE_DIGEST}" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
-  || "${STAGED_MODEL_ROUTE_CANONICAL_PATH}" != "${STAGED_MODEL_ROUTE_CONFIG}" ]]; then
-  echo "model route stage identity 無效，拒絕 activation。" >&2
-  exit 1
-fi
-if [[ ! -d "${STAGE_DIR}" \
-  || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
-  || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" ]]; then
-  echo "找不到 matching aggregate stage receipt，拒絕 activation。" >&2
-  exit 1
-fi
-for STAGED_GEMINI_PLIST in "${STAGED_PLISTS[@]:0:5}"; do
-  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
-    || "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" ]]; then
-    echo "model route stage identity 無效，拒絕 activation。" >&2
-    exit 1
-  fi
-done
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
 ACTIVATION_PHASE="correlation_validation"
 write_failure_receipt() {
@@ -414,6 +394,148 @@ if [[ -n "${PANTHEON_ACTIVATION_CORRELATION_ID:-}" ]]; then
   fi
   ACTIVATION_CORRELATION_ID="${PANTHEON_ACTIVATION_CORRELATION_ID}"
 fi
+if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
+  PUBLISHER_LABEL="com.pantheon.agy-content-publisher"
+  PUBLISHER_STAGE_PLIST="${STAGE_DIR}/${PUBLISHER_LABEL}.plist"
+  PUBLISHER_TARGET_PLIST="${LAUNCH_AGENTS_DIR}/${PUBLISHER_LABEL}.plist"
+  OTHER_LIVE_PLISTS=(
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-new.plist"
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-rewrite.plist"
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-i18n-new.plist"
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-i18n-rewrite.plist"
+    "${LAUNCH_AGENTS_DIR}/com.pantheon.content-capacity-guard.plist"
+  )
+  ACTIVATION_PHASE="publisher_only_stage_validation"
+  if [[ ! -d "${STAGE_DIR}" \
+    || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
+    || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" \
+    || "$(cat "${STAGE_DIR}/publisher-max-runs" 2>/dev/null || true)" != "1" \
+    || ! -f "${PUBLISHER_STAGE_PLIST}" ]]; then
+    echo "Publisher-only activation requires matching stage receipt with max-runs=1." >&2
+    false
+  fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest publisher-plist \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+      --plist "${PUBLISHER_STAGE_PLIST}"
+  )
+  ACTIVATION_PHASE="publisher_only_live_activation_only_validation"
+  LIVE_ACTIVATION_ONLY_ARGS=()
+  for TARGET_PLIST_PATH in "${TARGET_PLISTS[@]}"; do
+    LIVE_ACTIVATION_ONLY_ARGS+=(--plist "${TARGET_PLIST_PATH}")
+  done
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+      --activation-mode activation-only \
+      "${LIVE_ACTIVATION_ONLY_ARGS[@]}"
+  ) >/dev/null
+  ACTIVATION_PHASE="publisher_only_barrier_validation"
+  if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
+    scripts.pantheon_content_runtime_manifest barrier-validate \
+    --barrier "${ACTIVATION_BARRIER}" \
+    --manifest "${RUNTIME_MANIFEST_FILE}" \
+    --expected-digest "${RUNTIME_MANIFEST_DIGEST}") >/dev/null; then
+    echo "Publisher-only normal activation 缺少 matching activation barrier，拒絕 activation。" >&2
+    false
+  fi
+  ACTIVATION_PHASE="publisher_only_snapshot_previous_state"
+  rm -rf "${STAGE_DIR}/publisher-only-backups"
+  mkdir -p "${STAGE_DIR}/publisher-only-backups"
+  cp "${PUBLISHER_TARGET_PLIST}" "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.plist"
+  for OTHER_PLIST in "${OTHER_LIVE_PLISTS[@]}"; do
+    cp "${OTHER_PLIST}" "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")"
+  done
+  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+    > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_identity" 2>/dev/null; then
+    printf '1\n' > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded"
+  else
+    printf '0\n' > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded"
+  fi
+  rollback_publisher_only_activation() {
+    local RETURN_CODE="$1"
+    local EXIT_PHASE="$2"
+    local ROLLBACK_STATUS="ROLLBACK_COMPLETE"
+    trap - ERR
+    set +e
+    install -m 600 "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.plist" \
+      "${PUBLISHER_TARGET_PLIST}" || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
+    if [[ "$(cat "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded" 2>/dev/null || true)" == "1" ]]; then
+      launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}" >/dev/null 2>&1 \
+        || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    fi
+    for OTHER_PLIST in "${OTHER_LIVE_PLISTS[@]}"; do
+      cmp -s "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")" \
+        "${OTHER_PLIST}" || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    done
+    write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
+    exit "${RETURN_CODE}"
+  }
+  ACTIVATION_PHASE="publisher_only_pre_replace_drift_check"
+  for OTHER_PLIST in "${OTHER_LIVE_PLISTS[@]}"; do
+    cmp -s "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")" \
+      "${OTHER_PLIST}"
+  done
+  ACTIVATION_PHASE="publisher_only_replace_live_plist"
+  trap 'rollback_publisher_only_activation $? "${ACTIVATION_PHASE}"' ERR
+  install -m 600 "${PUBLISHER_STAGE_PLIST}" "${PUBLISHER_TARGET_PLIST}"
+  ACTIVATION_PHASE="publisher_only_restart_publisher"
+  launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
+  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1; then
+    false
+  fi
+  launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}"
+  launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null
+  ACTIVATION_PHASE="publisher_only_postcheck"
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest publisher-plist \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+      --plist "${PUBLISHER_TARGET_PLIST}"
+  ) >/dev/null
+  for OTHER_PLIST in "${OTHER_LIVE_PLISTS[@]}"; do
+    cmp -s "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")" \
+      "${OTHER_PLIST}"
+  done
+  trap - ERR
+  rm -rf "${STAGE_DIR}"
+  echo "Pantheon Publisher-only bounded activation 已完成。"
+  echo "Queue root：${QUEUE_ROOT}"
+  echo "狀態：launchctl print gui/${USER_ID}/${PUBLISHER_LABEL}"
+  exit 0
+fi
+if ! STAGED_MODEL_ROUTE_IDENTITY="$(route_identity "${STAGED_MODEL_ROUTE_CONFIG}" 2>/dev/null)"; then
+  echo "model route stage identity 無效，拒絕 activation。" >&2
+  false
+fi
+IFS=$'\t' read -r STAGED_MODEL_ROUTE_DIGEST _STAGED_WRITER_MODEL _STAGED_REVIEWER_MODEL STAGED_MODEL_ROUTE_CANONICAL_PATH <<< "${STAGED_MODEL_ROUTE_IDENTITY}"
+if [[ "$(cat "${STAGE_DIR}/model-route-digest" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
+  || "$(cat "${STAGE_DIR}/model-route-path" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
+  || "${STAGED_MODEL_ROUTE_DIGEST}" != "${MODEL_ROUTE_CONFIG_DIGEST}" \
+  || "${STAGED_MODEL_ROUTE_CANONICAL_PATH}" != "${STAGED_MODEL_ROUTE_CONFIG}" ]]; then
+  echo "model route stage identity 無效，拒絕 activation。" >&2
+  false
+fi
+if [[ ! -d "${STAGE_DIR}" \
+  || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
+  || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" ]]; then
+  echo "找不到 matching aggregate stage receipt，拒絕 activation。" >&2
+  false
+fi
+for STAGED_GEMINI_PLIST in "${STAGED_PLISTS[@]:0:5}"; do
+  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${STAGED_MODEL_ROUTE_CONFIG}" \
+    || "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST' "${STAGED_GEMINI_PLIST}" 2>/dev/null || true)" != "${MODEL_ROUTE_CONFIG_DIGEST}" ]]; then
+    echo "model route stage identity 無效，拒絕 activation。" >&2
+    false
+  fi
+done
 ACTIVATION_PHASE="aggregate_preflight"
 AGGREGATE_ARGS=()
 for STAGED_PLIST in "${STAGED_PLISTS[@]}"; do

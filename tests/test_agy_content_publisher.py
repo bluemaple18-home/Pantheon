@@ -3950,6 +3950,14 @@ def test_content_publisher_installer_omits_unset_exact_run_args_under_bash32_set
     if action == "--install":
         staged = home / "Library" / "LaunchAgents" / ".pantheon-four-lane-stage"
         assert (staged / "com.pantheon.agy-content-publisher.plist").is_file()
+        assert (staged / "manifest-digest").read_text(encoding="utf-8").strip() == (
+            "a" * 64
+        )
+        assert (staged / "generation").read_text(encoding="utf-8").strip() == (
+            "canary-exact-unset"
+        )
+        assert (staged / "publisher-max-runs").read_text(encoding="utf-8").strip() == "3"
+        assert not (staged / "publisher-exact-run-id").exists()
 
 
 def test_four_lane_recovery_publisher_rejects_new_only_before_mutation(

@@ -4617,6 +4617,152 @@ def _write_activation_stage_plist(
     path.chmod(0o600)
 
 
+def _write_publisher_normal_plist(
+    path: Path,
+    *,
+    manifest: dict[str, object],
+    max_runs: str = "1",
+    exact_run_id: str | None = None,
+    manifest_digest: str | None = None,
+) -> None:
+    _write_activation_stage_plist(
+        path,
+        label="com.pantheon.agy-content-publisher",
+        manifest=manifest,
+    )
+    with path.open("rb") as stream:
+        payload = plistlib.load(stream)
+    payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST_DIGEST"] = (
+        manifest_digest or manifest["manifest_digest"]
+    )
+    arguments = list(payload["ProgramArguments"])
+    separator = arguments.index("--")
+    child = arguments[separator + 1 :]
+    child.extend(
+        [
+            "--repo-root",
+            str(manifest["actor_root"]),
+            "--queue-root",
+            str(manifest["queue_root"]),
+            "--state-root",
+            str(manifest["publisher_state_root"]),
+            "--max-runs",
+            max_runs,
+        ]
+    )
+    if exact_run_id is not None:
+        child.extend(["--exact-run-id", exact_run_id])
+    payload["ProgramArguments"] = arguments[: separator + 1] + child
+    with path.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    path.chmod(0o600)
+
+
+def _write_activation_only_live_plists(
+    launch_agents: Path,
+    manifest: dict[str, object],
+) -> dict[str, bytes]:
+    payloads: dict[str, bytes] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        path = launch_agents / f"{label}.plist"
+        _write_activation_stage_plist(path, label=label, manifest=manifest)
+        with path.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["ProgramArguments"].insert(
+            payload["ProgramArguments"].index("--"),
+            "--activation-only",
+        )
+        with path.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        path.chmod(0o600)
+        payloads[label] = path.read_bytes()
+    return payloads
+
+
+def _prepare_publisher_only_activation_fixture(
+    tmp_path: Path,
+    *,
+    max_runs: str = "1",
+    exact_run_id: str | None = "publisher-only-run-001",
+    write_barrier: bool = True,
+    stage_manifest_digest: str | None = None,
+) -> tuple[dict[str, str], Path, Path, dict[str, object], Path, Path, dict[str, bytes]]:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "publisher-only-bounded"
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    live_payloads = _write_activation_only_live_plists(launch_agents, manifest)
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    (stage_dir / "manifest-digest").write_text(
+        str(manifest["manifest_digest"]) + "\n",
+        encoding="utf-8",
+    )
+    (stage_dir / "generation").write_text(
+        str(manifest["generation"]) + "\n",
+        encoding="utf-8",
+    )
+    (stage_dir / "publisher-max-runs").write_text(max_runs + "\n", encoding="utf-8")
+    if exact_run_id is not None:
+        (stage_dir / "publisher-exact-run-id").write_text(
+            exact_run_id + "\n",
+            encoding="utf-8",
+        )
+    _write_publisher_normal_plist(
+        stage_dir / "com.pantheon.agy-content-publisher.plist",
+        manifest=manifest,
+        max_runs=max_runs,
+        exact_run_id=exact_run_id,
+        manifest_digest=stage_manifest_digest,
+    )
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    if write_barrier:
+        ready = tmp_path / "publisher-only-ready"
+        for label in runtime_manifest.SERVICE_LABELS:
+            runtime_manifest.write_readiness_ack(ready, manifest, label)
+        runtime_manifest.activate_barrier(barrier, ready, manifest)
+    loaded = tmp_path / "publisher-only-loaded"
+    loaded.mkdir()
+    for label in runtime_manifest.SERVICE_LABELS:
+        (loaded / label).touch()
+    launchctl = tmp_path / "bin" / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' 'state = waiting'\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        f"  touch '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    return env, fake_home, mutation_log, manifest, barrier, loaded, live_payloads
+
+
 def _write_legacy_capacity_guard_plist(
     path: Path,
     *,
@@ -5407,6 +5553,123 @@ def test_normal_activate_rejects_activation_only_staged_plist_before_mutation(
     assert receipt["correlation_id"] == "apf-004-normal-rejects-ao"
     assert receipt["exit_reason"] == {
         "phase": "aggregate_preflight",
+        "exit_code": 1,
+    }
+
+
+def test_publisher_only_bounded_activation_replaces_only_publisher(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    (
+        env,
+        fake_home,
+        mutation_log,
+        manifest,
+        barrier,
+        loaded,
+        live_payloads,
+    ) = _prepare_publisher_only_activation_fixture(tmp_path)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-publisher-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert "Publisher-only bounded activation 已完成" in activated.stdout
+    assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+    assert not stage_dir.exists()
+    mutations = mutation_log.read_text(encoding="utf-8").splitlines()
+    user_id = os.getuid()
+    assert mutations == [
+        f"bootout gui/{user_id}/com.pantheon.agy-content-publisher",
+        f"bootstrap gui/{user_id} {launch_agents / 'com.pantheon.agy-content-publisher.plist'}",
+    ]
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_path = launch_agents / f"{label}.plist"
+        if label == "com.pantheon.agy-content-publisher":
+            with live_path.open("rb") as stream:
+                arguments = plistlib.load(stream)["ProgramArguments"]
+            separator = arguments.index("--")
+            assert "--activation-only" not in arguments[:separator]
+            assert arguments[arguments.index("--max-runs") + 1] == "1"
+            assert arguments[arguments.index("--exact-run-id") + 1] == (
+                "publisher-only-run-001"
+            )
+            continue
+        assert live_path.read_bytes() == live_payloads[label]
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_phase", "expected_error"),
+    [
+        ("missing-barrier", "publisher_only_barrier_validation", "matching activation barrier"),
+        ("max-runs", "publisher_only_stage_validation", "max-runs=1"),
+        ("exact-run-format", "publisher_only_stage_validation", "exact-run-id"),
+        ("plist-drift", "publisher_only_stage_validation", "mismatch"),
+    ],
+)
+def test_publisher_only_bounded_activation_fails_closed_before_mutation(
+    tmp_path: Path,
+    variant: str,
+    expected_phase: str,
+    expected_error: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fixture = _prepare_publisher_only_activation_fixture(
+        tmp_path,
+        max_runs="2" if variant == "max-runs" else "1",
+        exact_run_id="invalid run id" if variant == "exact-run-format" else "publisher-only-run-001",
+        write_barrier=variant != "missing-barrier",
+        stage_manifest_digest="0" * 64 if variant == "plist-drift" else None,
+    )
+    env, fake_home, mutation_log, _manifest, _barrier, _loaded, live_payloads = fixture
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = f"publisher-only-{variant}"
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-publisher-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    assert expected_error in activated.stderr or expected_error in activated.stdout
+    assert not mutation_log.exists()
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == live_payloads[label]
+    receipt = json.loads(
+        (
+            launch_agents
+            / ".pantheon-four-lane-stage"
+            / "failure-receipt.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "ACTIVATION_REJECTED"
+    assert receipt["correlation_id"] == f"publisher-only-{variant}"
+    assert receipt["exit_reason"] == {
+        "phase": expected_phase,
         "exit_code": 1,
     }
 

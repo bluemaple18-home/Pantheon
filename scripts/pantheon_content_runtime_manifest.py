@@ -33,6 +33,7 @@ PATH_FIELDS = ("actor_root", "queue_root", "publisher_state_root", "log_root")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 GENERATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+PUBLISHER_EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class RuntimeManifestError(ValueError):
@@ -427,6 +428,75 @@ def aggregate_plist_preflight(
     return {**result, "receipts": receipts}
 
 
+def _plist_payload(path: Path) -> dict[str, Any]:
+    try:
+        with path.open("rb") as stream:
+            payload = plistlib.load(stream)
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise RuntimeManifestError("plist is unreadable") from error
+    if not isinstance(payload, dict):
+        raise RuntimeManifestError("plist is unreadable")
+    return payload
+
+
+def _single_argument_value(arguments: list[Any], name: str) -> str:
+    positions = [index for index, value in enumerate(arguments) if value == name]
+    if len(positions) != 1:
+        raise RuntimeManifestError(f"publisher plist {name} contract mismatch")
+    index = positions[0]
+    if index + 1 >= len(arguments) or type(arguments[index + 1]) is not str:
+        raise RuntimeManifestError(f"publisher plist {name} contract mismatch")
+    return arguments[index + 1]
+
+
+def publisher_plist_preflight(
+    manifest: dict[str, Any],
+    plist_path: Path,
+) -> dict[str, Any]:
+    """驗證 staged Publisher normal plist 的單筆 bounded contract。"""
+    label = "com.pantheon.agy-content-publisher"
+    receipt = plist_receipt(plist_path, expected_activation_mode="normal")
+    expected = receipt_for_label(manifest, label)
+    if any(receipt.get(field) != value for field, value in expected.items()):
+        raise RuntimeManifestError("publisher plist identity mismatch")
+    payload = _plist_payload(plist_path)
+    arguments = payload.get("ProgramArguments")
+    if not isinstance(arguments, list):
+        raise RuntimeManifestError("publisher plist arguments are invalid")
+    try:
+        separator = arguments.index("--")
+    except ValueError as error:
+        raise RuntimeManifestError("publisher plist arguments are invalid") from error
+    child = arguments[separator + 1 :]
+    if len(child) < 3 or child[1:3] != ["-m", "scripts.agy_content_publisher"]:
+        raise RuntimeManifestError("publisher plist child command mismatch")
+    max_runs = _single_argument_value(child, "--max-runs")
+    if max_runs != "1":
+        raise RuntimeManifestError("publisher-only activation requires max-runs=1")
+    exact_positions = [
+        index for index, value in enumerate(child) if value == "--exact-run-id"
+    ]
+    exact_run_id = ""
+    if len(exact_positions) > 1:
+        raise RuntimeManifestError("publisher plist exact-run-id contract mismatch")
+    if exact_positions:
+        index = exact_positions[0]
+        if index + 1 >= len(child) or type(child[index + 1]) is not str:
+            raise RuntimeManifestError("publisher plist exact-run-id contract mismatch")
+        exact_run_id = child[index + 1]
+        if PUBLISHER_EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
+            raise RuntimeManifestError("publisher plist exact-run-id contract mismatch")
+    return {
+        "status": "PASS",
+        "label": label,
+        "manifest_digest": manifest["manifest_digest"],
+        "generation": manifest["generation"],
+        "max_runs": max_runs,
+        "exact_run_id": exact_run_id,
+        "plist_realpath": receipt["plist_realpath"],
+    }
+
+
 def validate_runtime_tick(
     service_label: str,
     *,
@@ -735,6 +805,10 @@ def parse_args() -> argparse.Namespace:
         default="normal",
     )
     aggregate.add_argument("--plist", type=Path, action="append", required=True)
+    publisher_plist = subparsers.add_parser("publisher-plist")
+    publisher_plist.add_argument("--manifest", type=Path, required=True)
+    publisher_plist.add_argument("--expected-digest", required=True)
+    publisher_plist.add_argument("--plist", type=Path, required=True)
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
     barrier.add_argument("--expected-digest", required=True)
@@ -901,6 +975,16 @@ def main() -> int:
                             manifest,
                             args.plist,
                             expected_activation_mode=args.activation_mode,
+                        ),
+                        sort_keys=True,
+                    )
+                )
+            elif args.command == "publisher-plist":
+                print(
+                    json.dumps(
+                        publisher_plist_preflight(
+                            manifest,
+                            args.plist,
                         ),
                         sort_keys=True,
                     )
