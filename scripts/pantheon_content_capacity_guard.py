@@ -665,25 +665,90 @@ def validate_preactivation_transition(
     ):
         raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
-    if (
-        manifest.get("config_version") != "formal-runtime-v2-gate2"
-        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", "")))
-        is None
-    ):
+    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", ""))) is None:
         raise formal_runtime.RuntimeManifestError("preactivation manifest mismatch")
     formal_runtime.validate_barrier(barrier, manifest)
     launch_agents = launch_agents_dir.resolve(strict=True)
-    plist_paths = [
-        launch_agents / f"{label}.plist" for label in formal_runtime.SERVICE_LABELS
-    ]
-    formal_runtime.aggregate_plist_preflight(
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    try:
+        stage_manifest_digest = (stage_dir / "manifest-digest").read_text(
+            encoding="utf-8"
+        ).strip()
+        stage_generation = (stage_dir / "generation").read_text(
+            encoding="utf-8"
+        ).strip()
+        publisher_max_runs = (stage_dir / "publisher-max-runs").read_text(
+            encoding="utf-8"
+        ).strip()
+        publisher_exact_run_id = (stage_dir / "publisher-exact-run-id").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError as error:
+        raise formal_runtime.RuntimeManifestError("preactivation stage mismatch") from error
+    if (
+        stage_manifest_digest != manifest["manifest_digest"]
+        or stage_generation != manifest["generation"]
+        or publisher_max_runs != "1"
+        or not publisher_exact_run_id
+    ):
+        raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
+    formal_runtime.publisher_plist_preflight(
         manifest,
-        plist_paths,
-        expected_activation_mode="activation-only",
+        stage_dir / "com.pantheon.agy-content-publisher.plist",
+        expected_exact_run_id=publisher_exact_run_id,
     )
+    for label in SERVICE_LABELS[1:]:
+        stage_receipt = formal_runtime.plist_receipt(
+            stage_dir / f"{label}.plist",
+            expected_activation_mode="normal",
+        )
+        expected_stage = formal_runtime.receipt_for_label(manifest, label)
+        if any(stage_receipt.get(field) != value for field, value in expected_stage.items()):
+            raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
     domain = f"gui/{os.getuid()}"
     loaded: list[dict[str, Any]] = []
-    for label, plist_path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+    for label in formal_runtime.SERVICE_LABELS:
+        plist_path = launch_agents / f"{label}.plist"
+        live_receipt = formal_runtime.plist_receipt(
+            plist_path,
+            expected_activation_mode="activation-only",
+        )
+        with plist_path.open("rb") as stream:
+            live_payload = plistlib.load(stream)
+        live_arguments = live_payload.get("ProgramArguments")
+        if not isinstance(live_arguments, list):
+            raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
+        try:
+            live_barrier = formal_runtime._single_argument_value(
+                live_arguments,
+                "--barrier",
+            )
+            live_expected_digest = formal_runtime._single_argument_value(
+                live_arguments,
+                "--expected-digest",
+            )
+            live_service_label = formal_runtime._single_argument_value(
+                live_arguments,
+                "--service-label",
+            )
+        except formal_runtime.RuntimeManifestError as error:
+            raise formal_runtime.RuntimeManifestError(
+                "preactivation live plist mismatch"
+            ) from error
+        if (
+            live_receipt.get("label") != label
+            or live_receipt.get("service_label") != label
+            or live_service_label != label
+            or live_expected_digest != live_receipt.get("manifest_digest")
+            or not str(live_barrier).endswith(
+                f"/four-lane-activation-{live_receipt.get('generation')}.barrier"
+            )
+            or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
+                str(live_receipt.get("identity", ""))
+            )
+            is None
+        ):
+            raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
         target = f"{domain}/{label}"
         result = runner(["launchctl", "print", target])
         if result.returncode != 0:

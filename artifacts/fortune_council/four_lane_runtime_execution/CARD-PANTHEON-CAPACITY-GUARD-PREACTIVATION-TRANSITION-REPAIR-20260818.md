@@ -13,6 +13,8 @@ reasoning: high
 model_reason: Production capacity fail-closed 與 LaunchAgent 過渡期契約交界；需固定邊界修復，避免用 5.6，採 GPT-5.5 high。
 base_source_sha: 2e8d4776725f75208ebf49d12a48924f538ab031
 blocked_canary_evidence_sha: 7d4030608be8c36ca68b57d0a121277bec62ec09
+g5_source_sha: 35cfdd52739f3e2896bf151ed6434a5e6d6ab95e
+g5_blocked_canary_evidence_sha: 29f69e9e237ad94a44d3c86baac6f39e572b410e
 ownership:
   - scripts/install_pantheon_content_capacity_guard_launchd.sh
   - scripts/pantheon_content_capacity_guard.py
@@ -51,6 +53,17 @@ evidence_path: .work/CARD-PANTHEON-CAPACITY-GUARD-PREACTIVATION-TRANSITION-REPAI
 - 七個舊 live labels 均 loaded、無 PID、status 78；Publisher 尚未啟動。
 - Production mutation：publish/transaction/tag/public artifact 全為 0。
 - G4 evidence commit：`7d4030608be8c36ca68b57d0a121277bec62ec09`。
+
+## G5 follow-up 固定事實
+
+- G5 source/main/origin：`35cfdd52739f3e2896bf151ed6434a5e6d6ab95e`。
+- Promotion 已 `COMMITTED`；final manifest digest：`46c37d3440d5938a1022b99dec8779ecc02168ba0c00fd7c05418fc4191912ac`。
+- G5 identity：`gate2-actor:35cfdd52739f3e2896bf151ed6434a5e6d6ab95e:activation-only`。
+- G5 generation：`g12-35cfdd5273-20260818T120632Z`。
+- G5 actual `config_version`：`formal-runtime-v3-model-route-v1`。
+- G5 blocker：`preactivation manifest mismatch`，隨後仍是 `rss_telemetry_unknown / loaded_service_pid_missing:com.pantheon.agy-content-publisher`。
+- G5 stage topology：六個新 staged plists 與 Publisher exact markers 已存在，capacity guard 第七張 staged plist 尚未寫入；七個舊 live activation-only plists 仍 loaded/no-PID。
+- G5 evidence commit：`29f69e9e237ad94a44d3c86baac6f39e572b410e`。
 
 ## 執行契約
 
