@@ -605,6 +605,296 @@ def test_hardened_capacity_installer_rejects_python_drift_before_stage_mutation(
     assert not mutation_log.exists()
 
 
+def _write_capacity_transition_barrier(
+    root: Path,
+    manifest: dict[str, object],
+) -> Path:
+    ready = root / "ready" / str(manifest["generation"])
+    barrier = root / f"four-lane-activation-{manifest['generation']}.barrier"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(ready, manifest, label)
+    runtime_manifest.activate_barrier(barrier, ready, manifest)
+    return barrier
+
+
+def _write_activation_only_live_plists(
+    launch_agents: Path,
+    *,
+    manifest: dict[str, object],
+    manifest_path: Path,
+    barrier: Path,
+    python: Path,
+) -> None:
+    ready_root = launch_agents / ".pantheon-four-lane-stage/readiness" / str(
+        manifest["generation"]
+    )
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    environment_fields = {
+        "PANTHEON_RUNTIME_SERVICE_LABEL": "service_label",
+        "PANTHEON_RUNTIME_IDENTITY": "identity",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "manifest_digest",
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": "runtime_identity_digest",
+        "PANTHEON_RUNTIME_CODE_DIGEST": "runtime_digest",
+        "PANTHEON_RUNTIME_CONFIG_VERSION": "config_version",
+        "PANTHEON_RUNTIME_GENERATION": "generation",
+        "PANTHEON_RUNTIME_ACTOR_ROOT": "actor_root",
+        "PANTHEON_RUNTIME_QUEUE_ROOT": "queue_root",
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "publisher_state_root",
+        "PANTHEON_RUNTIME_LOG_ROOT": "log_root",
+        "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "python_executable",
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": "uv_executable",
+    }
+    for label in runtime_manifest.SERVICE_LABELS:
+        receipt = runtime_manifest.receipt_for_label(manifest, label)
+        payload = {
+            "Label": label,
+            "ProgramArguments": [
+                str(python),
+                "-m",
+                "scripts.pantheon_content_runtime_manifest",
+                "barrier-exec",
+                "--barrier",
+                str(barrier),
+                "--expected-digest",
+                str(manifest["manifest_digest"]),
+                "--manifest",
+                str(manifest_path),
+                "--service-label",
+                label,
+                "--ready-root",
+                str(ready_root),
+                "--timeout",
+                "90",
+                "--activation-only",
+                "--",
+                str(python),
+                "-m",
+                "scripts.agy_content_publisher",
+            ],
+            "WorkingDirectory": receipt["actor_root"],
+            "RunAtLoad": True,
+            "EnvironmentVariables": {
+                name: receipt[field] for name, field in environment_fields.items()
+            },
+        }
+        path = launch_agents / f"{label}.plist"
+        with path.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
+        path.chmod(0o600)
+
+
+def _write_capacity_transition_launchctl(
+    path: Path,
+    *,
+    launch_agents: Path,
+    mutation_log: Path,
+    unknown_service: bool = False,
+) -> None:
+    root_line = (
+        "printf 'gui/%s/com.pantheon.unknown = {\\n' \"$(id -u)\""
+        if unknown_service
+        else "printf '%s = {\\n' \"$2\""
+    )
+    path.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  plist='{launch_agents}/'$label'.plist'\n"
+        "  [ -f \"$plist\" ] || exit 113\n"
+        f"  {root_line}\n"
+        "  printf '\\tpath = %s\\n' \"$plist\"\n"
+        "  printf '%s\\n' '\tstate = waiting'\n"
+        "  printf '%s\\n' '\tlast exit code = 78'\n"
+        "  printf '%s\\n' '}'\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o700)
+
+
+def _capacity_transition_installer_env(
+    tmp_path: Path,
+) -> tuple[dict[str, str], Path, Path, dict[str, object], Path]:
+    repo = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_home = tmp_path / "home"
+    queue_root = tmp_path / "queue"
+    publisher_root = tmp_path / "publisher"
+    log_root = tmp_path / "logs"
+    python = Path(sys.executable).resolve(strict=True)
+    for path in (fake_bin, queue_root, publisher_root, log_root):
+        path.mkdir(parents=True)
+    actor_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    manifest = runtime_manifest.build_manifest(
+        actor_root=repo,
+        queue_root=queue_root,
+        publisher_state_root=publisher_root,
+        log_root=log_root,
+        identity=f"gate2-actor:{actor_head}:activation-only",
+        runtime_digest="c" * 64,
+        config_version="formal-runtime-v2-gate2",
+        generation="g2-capacity-transition",
+        python_executable=python,
+        uv_executable=python,
+    )
+    manifest_path = tmp_path / "runtime-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    barrier = _write_capacity_transition_barrier(publisher_root, manifest)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _write_activation_only_live_plists(
+        launch_agents,
+        manifest=manifest,
+        manifest_path=manifest_path,
+        barrier=barrier,
+        python=python,
+    )
+    mutation_log = tmp_path / "launchctl-mutations.log"
+    _write_capacity_transition_launchctl(
+        fake_bin / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+    )
+    (fake_bin / "sysctl").write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'total = 0.00M  used = 0.00M  free = 0.00M'\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "sysctl").chmod(0o700)
+    env = os.environ.copy()
+    env.update(
+        {
+            "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
+            "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
+            "PANTHEON_CAPACITY_GUARD_STATE_FILE": str(queue_root / "capacity-state.json"),
+            "PANTHEON_USER_HOME_DIR": str(fake_home),
+            "PANTHEON_PYTHON_PATH": str(python),
+            "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
+            "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": str(
+                manifest["manifest_digest"]
+            ),
+            "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "TMPDIR": str(tmp_path),
+        }
+    )
+    return env, fake_home, mutation_log, manifest, manifest_path
+
+
+def test_capacity_installer_stages_during_manifest_bound_preactivation_transition(
+    tmp_path: Path,
+) -> None:
+    """RED：promoted manifest + live activation-only no-PID 只能完成純 staging。"""
+    repo = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _capacity_transition_installer_env(tmp_path)
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert "preactivation_transition" in completed.stdout
+    staged = (
+        fake_home
+        / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    )
+    assert staged.is_file()
+    assert not mutation_log.exists()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "stale_barrier",
+        "wrong_generation_digest",
+        "normal_live_plist",
+        "malformed_live_plist",
+        "missing_identity",
+        "unknown_service",
+    ],
+)
+def test_capacity_installer_rejects_unsafe_preactivation_transition_cases(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    repo = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, manifest, manifest_path = (
+        _capacity_transition_installer_env(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_plist = launch_agents / "com.pantheon.agy-content-publisher.plist"
+    if case == "stale_barrier":
+        stale_barrier = Path(manifest["publisher_state_root"]) / (
+            f"four-lane-activation-{manifest['generation']}.barrier"
+        )
+        runtime_manifest.write_manifest(stale_barrier, {
+            "schema_version": runtime_manifest.SCHEMA_VERSION,
+            "service_labels": list(runtime_manifest.SERVICE_LABELS),
+            "owner_uid": os.getuid(),
+            "generation": "stale-capacity-transition",
+            "manifest_digest": str(manifest["manifest_digest"]),
+            "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
+            "ack_digests": ["0" * 64 for _label in runtime_manifest.SERVICE_LABELS],
+        })
+    elif case == "wrong_generation_digest":
+        payload = plistlib.loads(publisher_plist.read_bytes())
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_GENERATION"] = (
+            "wrong-capacity-transition"
+        )
+        with publisher_plist.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
+    elif case == "normal_live_plist":
+        payload = plistlib.loads(publisher_plist.read_bytes())
+        payload["ProgramArguments"].remove("--activation-only")
+        with publisher_plist.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
+    elif case == "malformed_live_plist":
+        publisher_plist.write_text("not a plist\n", encoding="utf-8")
+    elif case == "missing_identity":
+        payload = plistlib.loads(publisher_plist.read_bytes())
+        del payload["EnvironmentVariables"]["PANTHEON_RUNTIME_IDENTITY"]
+        with publisher_plist.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
+    elif case == "unknown_service":
+        _write_capacity_transition_launchctl(
+            tmp_path / "bin" / "launchctl",
+            launch_agents=launch_agents,
+            mutation_log=mutation_log,
+            unknown_service=True,
+        )
+    assert manifest_path.is_file()
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0, case
+    staged = (
+        fake_home
+        / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    )
+    assert not staged.exists()
+    assert not mutation_log.exists()
+
+
 def test_unknown_rss_or_swap_telemetry_is_no_go(tmp_path: Path, monkeypatch) -> None:
     """REG-PANTHEON-CAPACITY-UNKNOWN-METRICS-NO-GO-001。"""
     sample = _available_snapshot()

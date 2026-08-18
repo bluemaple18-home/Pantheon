@@ -22,10 +22,11 @@ TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.content-capacity-guard.plist"
 STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.content-capacity-guard.plist.example"
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-content-capacity-guard.XXXXXX")"
+PREFLIGHT_RECEIPT="$(mktemp "${TMPDIR:-/tmp}/pantheon-content-capacity-guard-preflight.XXXXXX")"
 
 cleanup() {
   local RETURN_CODE="$?"
-  rm -f "${TEMP_PLIST}"
+  rm -f "${TEMP_PLIST}" "${PREFLIGHT_RECEIPT}"
   return "${RETURN_CODE}"
 }
 trap cleanup EXIT
@@ -116,30 +117,57 @@ if [[ -n "${RUNTIME_PYTHON_EXECUTABLE}" ]]; then
   HARDENED_RUNTIME_ENV+=("PANTHEON_RUNTIME_PYTHON_EXECUTABLE=${RUNTIME_PYTHON_EXECUTABLE}")
 fi
 
-(
-  cd "${REPO_ROOT}"
-  env \
-    PANTHEON_FORMAL_RUNTIME=1 \
-    PANTHEON_RUNTIME_MANIFEST="${RUNTIME_MANIFEST_FILE}" \
-    PANTHEON_RUNTIME_MANIFEST_DIGEST="${RUNTIME_MANIFEST_DIGEST}" \
-    PANTHEON_RUNTIME_IDENTITY="${RUNTIME_IDENTITY}" \
-    PANTHEON_RUNTIME_IDENTITY_DIGEST="${RUNTIME_IDENTITY_DIGEST}" \
-    PANTHEON_RUNTIME_CODE_DIGEST="${RUNTIME_CODE_DIGEST}" \
-    PANTHEON_RUNTIME_CONFIG_VERSION="${RUNTIME_CONFIG_VERSION}" \
-    PANTHEON_RUNTIME_GENERATION="${RUNTIME_GENERATION}" \
-    PANTHEON_RUNTIME_ACTOR_ROOT="${ACTOR_ROOT}" \
-    PANTHEON_RUNTIME_QUEUE_ROOT="${QUEUE_ROOT}" \
-    PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT="${PUBLISHER_ROOT}" \
-    PANTHEON_RUNTIME_LOG_ROOT="${LOG_ROOT}" \
-    PANTHEON_RUNTIME_SERVICE_LABEL="com.pantheon.content-capacity-guard" \
-    "${HARDENED_RUNTIME_ENV[@]}" \
+run_capacity_preflight() {
+  local PREFLIGHT_OUTPUT
+  local PREFLIGHT_STATUS
+  set +e
+  PREFLIGHT_OUTPUT="$(
+    cd "${REPO_ROOT}"
+    env \
+      PANTHEON_FORMAL_RUNTIME=1 \
+      PANTHEON_RUNTIME_MANIFEST="${RUNTIME_MANIFEST_FILE}" \
+      PANTHEON_RUNTIME_MANIFEST_DIGEST="${RUNTIME_MANIFEST_DIGEST}" \
+      PANTHEON_RUNTIME_IDENTITY="${RUNTIME_IDENTITY}" \
+      PANTHEON_RUNTIME_IDENTITY_DIGEST="${RUNTIME_IDENTITY_DIGEST}" \
+      PANTHEON_RUNTIME_CODE_DIGEST="${RUNTIME_CODE_DIGEST}" \
+      PANTHEON_RUNTIME_CONFIG_VERSION="${RUNTIME_CONFIG_VERSION}" \
+      PANTHEON_RUNTIME_GENERATION="${RUNTIME_GENERATION}" \
+      PANTHEON_RUNTIME_ACTOR_ROOT="${ACTOR_ROOT}" \
+      PANTHEON_RUNTIME_QUEUE_ROOT="${QUEUE_ROOT}" \
+      PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT="${PUBLISHER_ROOT}" \
+      PANTHEON_RUNTIME_LOG_ROOT="${LOG_ROOT}" \
+      PANTHEON_RUNTIME_SERVICE_LABEL="com.pantheon.content-capacity-guard" \
+      "${HARDENED_RUNTIME_ENV[@]}" \
+      "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
+      --queue-root "${QUEUE_ROOT}" \
+      --publisher-root "${PUBLISHER_ROOT}" \
+      --log-root "${LOG_ROOT}" \
+      --state-file "${STATE_FILE}" \
+      preflight
+  )"
+  PREFLIGHT_STATUS="$?"
+  set -e
+  if [[ "${PREFLIGHT_STATUS}" == "0" ]]; then
+    printf '%s\n' "${PREFLIGHT_OUTPUT}"
+    return 0
+  fi
+  printf '%s\n' "${PREFLIGHT_OUTPUT}" > "${PREFLIGHT_RECEIPT}"
+  if (
+    cd "${REPO_ROOT}"
     "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
-    --queue-root "${QUEUE_ROOT}" \
-    --publisher-root "${PUBLISHER_ROOT}" \
-    --log-root "${LOG_ROOT}" \
-    --state-file "${STATE_FILE}" \
-    preflight
-)
+      --preflight-receipt "${PREFLIGHT_RECEIPT}" \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
+      --barrier "${ACTIVATION_BARRIER}" \
+      --launch-agents-dir "${LAUNCH_AGENTS_DIR}" \
+      preactivation-transition
+  ); then
+    return 0
+  fi
+  printf '%s\n' "${PREFLIGHT_OUTPUT}"
+  return "${PREFLIGHT_STATUS}"
+}
+run_capacity_preflight
 
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${PYTHON_BIN}" "${TEMP_PLIST}"

@@ -41,6 +41,7 @@ SERVICE_LABELS = (
     "com.pantheon.agy-gemini-i18n-new",
     "com.pantheon.agy-gemini-i18n-rewrite",
 )
+CAPACITY_GUARD_LABEL = "com.pantheon.content-capacity-guard"
 ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
     r"gate2-actor:[0-9a-f]{40}:activation-only"
 )
@@ -641,6 +642,74 @@ def preflight(
     return {"status": "PASS" if not reasons else "NO-GO", "reasons": reasons, **sample}
 
 
+def validate_preactivation_transition(
+    *,
+    preflight_receipt: Path,
+    manifest_path: Path,
+    expected_digest: str,
+    barrier: Path,
+    launch_agents_dir: Path,
+    runner: Runner = _run,
+) -> dict[str, Any]:
+    try:
+        receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
+        raise formal_runtime.RuntimeManifestError("preactivation receipt is invalid") from error
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("reasons") != ["rss_telemetry_unknown"]
+        or receipt.get("rss_available") is not False
+        or not str(receipt.get("rss_error", "")).startswith(
+            "loaded_service_pid_missing:"
+        )
+    ):
+        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
+    manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+    if (
+        manifest.get("config_version") != "formal-runtime-v2-gate2"
+        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", "")))
+        is None
+    ):
+        raise formal_runtime.RuntimeManifestError("preactivation manifest mismatch")
+    formal_runtime.validate_barrier(barrier, manifest)
+    launch_agents = launch_agents_dir.resolve(strict=True)
+    plist_paths = [
+        launch_agents / f"{label}.plist" for label in formal_runtime.SERVICE_LABELS
+    ]
+    formal_runtime.aggregate_plist_preflight(
+        manifest,
+        plist_paths,
+        expected_activation_mode="activation-only",
+    )
+    domain = f"gui/{os.getuid()}"
+    loaded: list[dict[str, Any]] = []
+    for label, plist_path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+        target = f"{domain}/{label}"
+        result = runner(["launchctl", "print", target])
+        if result.returncode != 0:
+            raise formal_runtime.RuntimeManifestError("preactivation service is absent")
+        if re.search(r"^\s*pid = [1-9][0-9]*\s*$", result.stdout, re.MULTILINE):
+            raise formal_runtime.RuntimeManifestError("preactivation service has pid")
+        identity = _launchctl_top_level_identity(result.stdout, expected_target=target)
+        if (
+            identity is None
+            or identity["paths"] != [str(plist_path)]
+            or identity["states"] not in (["not running"], ["waiting"])
+            or identity["last_exit_codes"] not in ([], [78])
+        ):
+            raise formal_runtime.RuntimeManifestError("preactivation service mismatch")
+        loaded.append({"label": label, "topology": "activation-only-loaded-no-pid"})
+    return {
+        "status": "PASS",
+        "preactivation_transition": "accepted",
+        "production_mutation": False,
+        "manifest_digest": manifest["manifest_digest"],
+        "runtime_identity_digest": manifest["runtime_identity_digest"],
+        "generation": manifest["generation"],
+        "loaded_labels": loaded,
+    }
+
+
 def check_once(
     queue_root: Path,
     publisher_root: Path,
@@ -849,8 +918,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-file", type=Path)
     parser.add_argument("--exercise-root", type=Path)
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--preflight-receipt", type=Path)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--expected-digest")
+    parser.add_argument("--barrier", type=Path)
+    parser.add_argument("--launch-agents-dir", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
-    parser.add_argument("command", choices=("preflight", "check", "exercise"))
+    parser.add_argument(
+        "command",
+        choices=("preflight", "check", "exercise", "preactivation-transition"),
+    )
     return parser.parse_args()
 
 
@@ -862,6 +939,36 @@ def main() -> int:
         result = run_bounded_exercise(
             args.exercise_root, args.receipt, cycle_bytes=args.cycle_bytes
         )
+    elif args.command == "preactivation-transition":
+        if None in (
+            args.preflight_receipt,
+            args.manifest,
+            args.expected_digest,
+            args.barrier,
+            args.launch_agents_dir,
+        ):
+            raise SystemExit("preactivation-transition requires transition inputs")
+        try:
+            result = validate_preactivation_transition(
+                preflight_receipt=args.preflight_receipt,
+                manifest_path=args.manifest,
+                expected_digest=args.expected_digest,
+                barrier=args.barrier,
+                launch_agents_dir=args.launch_agents_dir,
+            )
+        except formal_runtime.RuntimeManifestError as error:
+            print(
+                json.dumps(
+                    {
+                        "status": "NO-GO",
+                        "reasons": [str(error)],
+                        "preactivation_transition": "rejected",
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return 1
     elif None in (args.queue_root, args.publisher_root, args.log_root, args.state_file):
         raise SystemExit("preflight/check require queue, publisher, log, and state paths")
     elif args.command == "preflight":
