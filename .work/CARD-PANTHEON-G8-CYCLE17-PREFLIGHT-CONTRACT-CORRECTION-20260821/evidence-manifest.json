@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-CONTRACT-CORRECTION-20260821",
+  "verdict": "PATCHED",
+  "runtime_invocation": 0,
+  "production_mutation": 0,
+  "files": [
+    {
+      "path": "contract-diff.md",
+      "sha256": "912e8450ce1e9aa48a70127e38c23f2b18e048a274392b62b6546ca9fcdd1833"
+    },
+    {
+      "path": "source-test-evidence.json",
+      "sha256": "0b301a9af59062917b87a27ff14410990532c6b47a9cd339554287cfdd29e98e"
+    },
+    {
+      "path": "verdict.json",
+      "sha256": "7d7e15562e30ea0d1fc15d418ed1b71d13a6d92aea532535c82a623b54ba1ae2"
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821.md",
+      "sha256": "82513dce1f0d307c0538440b16d3cfa2a1b75ce1a16101508405c96e1e986e3e"
+    }
+  ]
+}

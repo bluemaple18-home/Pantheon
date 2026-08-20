@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-CONTRACT-CORRECTION-20260821",
+  "recorded_at": "2026-08-20T17:36:15Z",
+  "codegraph": {
+    "status": "CONTEXT_DEGRADED",
+    "reason": "worktree CodeGraph index is not initialized",
+    "query_completed_against_primary_index": true,
+    "fallback_scope": [
+      "runtime promotion source/tests",
+      "coordinator, Publisher, and capacity installer source",
+      "capacity transition tests",
+      "parameter RCA verdict"
+    ]
+  },
+  "evidence": [
+    {
+      "path": "scripts/pantheon_content_runtime_promotion.py",
+      "symbols": [
+        "plan_promotion",
+        "apply_promotion",
+        "_write_runtime_manifest",
+        "_install_private_stage",
+        "_postcheck"
+      ],
+      "proves": "plan is zero-write; apply materializes target actor and manifest, then readiness/barrier, before postcheck"
+    },
+    {
+      "path": "tests/test_pantheon_content_runtime_promotion.py",
+      "symbols": [
+        "test_plan_is_deterministic_and_zero_write",
+        "test_apply_success_keeps_rollback_bundle_until_finalize"
+      ],
+      "proves": "deterministic plan and materialized target tuple are separately observable"
+    },
+    {
+      "path": "scripts/install_agy_gemini_coordinator_launchd.sh",
+      "proves": "--install writes coordinator plus four lane plists and stage manifest/generation metadata without activation"
+    },
+    {
+      "path": "scripts/install_agy_content_publisher_launchd.sh",
+      "proves": "Publisher install writes the sixth staged plist plus max-runs and exact-run receipt without activation"
+    },
+    {
+      "path": "scripts/install_pantheon_content_capacity_guard_launchd.sh",
+      "proves": "run_capacity_preflight executes before the ACTION branch; --preflight exits before mkdir/install, while --install writes the capacity plist only after validation"
+    },
+    {
+      "path": "tests/test_pantheon_content_capacity_guard.py",
+      "symbols": [
+        "_capacity_transition_installer_env",
+        "test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists",
+        "test_capacity_installer_stages_during_manifest_bound_preactivation_transition"
+      ],
+      "proves": "promoted manifest/barrier plus staged six and old-live loaded/no-PID is an accepted preactivation seam; no launchctl mutation occurs"
+    },
+    {
+      "commit": "1f0c0f0511",
+      "path": ".work/CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-NO-GO-PARAMETER-RCA-20260821/verdict.json",
+      "proves": "PARAMETER RECOVERY; TMPDIR=/private/tmp is required and Publisher no-PID is not an activation/reload prerequisite"
+    }
+  ],
+  "seam_verdict": "EXISTING_SEAM_CONFIRMED"
+}
