@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO",
+  "error": "python_executable must use its canonical realpath",
+  "configured_target_python": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+  "resolved_target_python": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "configured_path_is_symlink": true,
+  "target_manifest_digest": null,
+  "plan_digest": null,
+  "exact_apply_argv_created": false,
+  "exact_formal_preflight_argv_created": false,
+  "production_mutation": 0
+}

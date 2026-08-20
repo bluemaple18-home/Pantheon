@@ -5,12 +5,20 @@
   "canary_status": "NO_CANARY",
   "files": [
     {
-      "path": "blocked-receipt.json",
-      "sha256": "1043b544ce47161e010f3b48e402eb618dd6495d9a9713903ef2e31b2d3485bf"
+      "path": "capacity-receipt.json",
+      "sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce"
     },
     {
-      "path": "capacity-preflight.stderr.txt",
-      "sha256": "7fbc01017ddfc3a8c0d991a5c74b193cfe5e1c18b6303b022343f8982ae4f6af"
+      "path": "preflight-receipt.json",
+      "sha256": "77da6649a48576913679ffbb02c033469f24896b239bda9fe749b2a2049b86ba"
+    },
+    {
+      "path": "plan-result.json",
+      "sha256": "1444951a212603a2380c4e74eac4fb5f2313ccc48232c768c1194221af65f504"
+    },
+    {
+      "path": "blocked-receipt.json",
+      "sha256": "1ef943334f92a9347f07d9d5a884698c1b6a4b91e742f90acbdaf9d171697968"
     }
   ]
 }

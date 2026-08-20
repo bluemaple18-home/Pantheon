@@ -4,47 +4,35 @@
   "status": "BLOCKED",
   "canary_status": "NO_CANARY",
   "source_sha": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
-  "expected_actor_sha": "88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5",
-  "expected_remote_sha": "88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5",
-  "python": {
-    "executable": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
-    "version": "3.12.12",
-    "status": "PASS"
-  },
-  "cycle_16_capacity_receipt": {
-    "path": ".work/CARD-PANTHEON-G8-HOST-SWAP-CAPACITY-EXERCISE-CYCLE-16-20260821/capacity-receipt.json",
-    "sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce",
-    "status": "PASS",
-    "cycles": 2,
-    "production_mutation": false,
-    "exercise_rerun": false
-  },
-  "current_capability": {
-    "execution_line_id": "exec-apf-004-readiness",
-    "status": "READY",
-    "failures": []
-  },
   "blocker": {
-    "gate": "current_capacity_preflight",
-    "status": "ERROR",
-    "error": "scripts.pantheon_content_runtime_manifest.RuntimeManifestError: formal runtime environment is incomplete",
+    "gate": "deterministic_promotion_plan",
+    "status": "NO-GO",
+    "error": "python_executable must use its canonical realpath",
+    "contract_conflict": "實體卡鎖定 /Users/mattkuo/Documents/Pantheon/.venv/bin/python，但 promotion seam 要求 target Python 本身是 canonical realpath；該路徑實際為 symlink。",
     "retry_performed": false
   },
-  "remote": {
-    "before": null,
-    "after": null,
-    "network_check_performed": false
+  "post_stop_reconciliation": {
+    "remote_after": "88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5",
+    "actor_after": "88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5",
+    "stage_after": "df6974e75d90ab4594055bcc91aa712355683a0677de9881ac4471581b564ea4",
+    "transaction_root_exists": false,
+    "live_services_unchanged": true
   },
   "counts": {
+    "current_capability_gate_calls": 1,
     "capacity_exercise_calls": 0,
-    "capacity_preflight_calls": 1,
+    "release_dry_preflight_calls": 2,
+    "promotion_plan_calls": 1,
+    "gate_a_authorizations_created": 0,
+    "formal_preflight_authorizations_created": 0,
     "gate_a_invocations": 0,
     "push_calls": 0,
-    "promotion_plan_calls": 0,
     "promotion_apply_calls": 0,
     "promotion_postcheck_calls": 0,
     "promotion_finalize_calls": 0,
     "restaging_calls": 0,
+    "formal_public_preflight_calls": 0,
+    "capacity_install_calls": 0,
     "activation_calls": 0,
     "canary_calls": 0,
     "lane_calls": 0,
