@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-CONTRACT-REVIEW-20260821",
+  "candidate": "48f66d9c21f428b8d27e0ddda5011d98888e018d",
+  "verdict": "ACCEPT",
+  "finding_counts": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "checks": {
+    "cycle16_receipt_vs_formal_preflight_separated": true,
+    "six_service_stage_then_single_preflight_then_capacity_install": true,
+    "tmpdir_actor_manifest_digest_python_authority_locked": true,
+    "publisher_no_pid_preserved_as_preactivation_input": true,
+    "first_non_pass_stops_and_install_revalidation_is_not_retry": true,
+    "production_authority_not_expanded": true,
+    "candidate_scope_allowlisted": true,
+    "git_show_check": "PASS",
+    "candidate_evidence_hashes": "PASS",
+    "cycle16_receipt_sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce"
+  },
+  "scope": {
+    "modified_card_count": 1,
+    "correction_evidence_file_count": 4,
+    "source_changes": 0,
+    "test_changes": 0
+  },
+  "codegraph": {
+    "status": "CONTEXT_DEGRADED",
+    "reason": "worktree CodeGraph index is not initialized",
+    "fallback": "bounded git show and git grep"
+  },
+  "runtime_invocation": 0,
+  "production_mutation": 0
+}
