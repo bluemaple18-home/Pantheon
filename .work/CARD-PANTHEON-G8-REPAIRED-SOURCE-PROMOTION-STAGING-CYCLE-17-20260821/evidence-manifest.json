@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821",
+  "status": "BLOCKED",
+  "canary_status": "NO_CANARY",
+  "files": [
+    {
+      "path": "blocked-receipt.json",
+      "sha256": "1043b544ce47161e010f3b48e402eb618dd6495d9a9713903ef2e31b2d3485bf"
+    },
+    {
+      "path": "capacity-preflight.stderr.txt",
+      "sha256": "7fbc01017ddfc3a8c0d991a5c74b193cfe5e1c18b6303b022343f8982ae4f6af"
+    }
+  ]
+}
