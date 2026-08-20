@@ -29,14 +29,14 @@
         "worktree",
         "add",
         "--detach",
-        "publisher-state/transaction-b445ba634793f4c36c9d5b60/repo",
-        "8d9fd69047b301facd48134456da00c86946f31a"
+        "publisher-state/transaction-0b7b429c788c1dde79189a2f/repo",
+        "0343bb7199b90794c10ce28cc4aff7ebbd0242b4"
       ],
       [
         "worktree",
         "remove",
         "--force",
-        "publisher-state/transaction-b445ba634793f4c36c9d5b60/repo"
+        "publisher-state/transaction-0b7b429c788c1dde79189a2f/repo"
       ]
     ],
     "run_ids": [
@@ -47,7 +47,7 @@
   "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
   "execution_line_id": "exec-apf-004-readiness",
   "input_digest": "9c1ba8333aeb1e1abcc5daca60dc7c377c10e43503b31058f5eb5800d6c76ef0",
-  "operation_trace_digest": "88c70096e7efb88c561806f77b72c6bfddeb75bc3303080ec9cc455c05e83839",
+  "operation_trace_digest": "439c3bb95903a348197a7b8c9cafbe7f5c4f27317478e83d56fd2e129414acb9",
   "outcome": "PASS",
   "output_digest": "6a0c32157f66db90c5c5764f9a91b13634c71b5322f6766845df9a20f1207320",
   "production_mutation": false,

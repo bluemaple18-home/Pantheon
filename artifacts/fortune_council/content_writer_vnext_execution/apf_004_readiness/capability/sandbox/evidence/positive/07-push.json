@@ -48,7 +48,7 @@
   "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
   "execution_line_id": "exec-apf-004-readiness",
   "input_digest": "6a489ea47ab953cae460552475fd8bc608158ff0f98318401959f782f5c0b842",
-  "operation_trace_digest": "599a30ead590b377a6e89bd780728e4bc0cf9fe16e3b84fa56989c7e6a3d3d9b",
+  "operation_trace_digest": "04d2f9a557894064e87c0f21df981c5785a9947b7e4f777c69bb7ca4f398cc87",
   "outcome": "PASS",
   "output_digest": "0b64507f5ee62fefb50b8d3758ca9335905ffa86cfd1f7e0258c8751d82403ab",
   "production_mutation": false,

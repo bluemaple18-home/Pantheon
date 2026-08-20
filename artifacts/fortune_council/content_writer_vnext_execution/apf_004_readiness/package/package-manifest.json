@@ -2,7 +2,7 @@
   "caller_verdict_not_accepted": true,
   "canary_created": false,
   "capability_receipt_digest": "454a06415bc35271a9fbad45d614b289db16810508ab5ed2b21141209120b9fb",
-  "capacity_receipt_digest": "959937b568f5ccf26faa96ca81a8f753e5443e2ea1b818f053acd56765a31b32",
+  "capacity_receipt_digest": "0f24cc78a2c6fda8bfcb9e80ff4da2486dd6406ee39e540741cdec2bc0501018",
   "files": [
     "adversarial-thin-gate-receipt.json",
     "capacity-proof-normalized.json",

@@ -49,7 +49,7 @@
       "positive_evidence": {
         "artifact": "evidence/positive/04-publish.json",
         "outcome": "PASS",
-        "source_digest": "e3a806893be64ed44de7a019105cdd5f01687a31d97ddd837d090bafe87a7c4b"
+        "source_digest": "b114ca3518a383ba8c57c88d3cd41bb83527d4808158104b46f7db84cb77d454"
       },
       "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
     },
@@ -95,7 +95,7 @@
       "positive_evidence": {
         "artifact": "evidence/positive/03-select.json",
         "outcome": "PASS",
-        "source_digest": "13ca69679ce8269d9efe1310ce39e18b8dde937e07a1391c0168c9494bc88c68"
+        "source_digest": "dcbfabf7f8f864659ca7dff6e5b54fe51c28d6d2acba11c7c8178c310c9a68c3"
       },
       "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
     },
@@ -118,7 +118,7 @@
       "positive_evidence": {
         "artifact": "evidence/positive/06-tag.json",
         "outcome": "PASS",
-        "source_digest": "1a599c1bcb2962000bd7cc79d0437f55bb4d859e7243260d8375ca3d37d30649"
+        "source_digest": "b36e0166bfb2ee2e893abc97729e533d3c9fe2967324e096dc6cb45cffbca3f6"
       },
       "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
     },
@@ -141,7 +141,7 @@
       "positive_evidence": {
         "artifact": "evidence/positive/05-transaction.json",
         "outcome": "PASS",
-        "source_digest": "e6116f324a9eb3920171041ccab3c179a3fdc76a969776f24699f5fcc0e5f667"
+        "source_digest": "ac5f09c31d621cdebbda8011374901043bbf1b832dfe9558230a4b87de76f136"
       },
       "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271"
     }
