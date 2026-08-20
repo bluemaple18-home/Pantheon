@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-PRODUCTION-CANARY-PREACTIVATION-20260820",
+  "dispatch_key": "v1:fc6495bfafc67f526372912465faafd549834678fc257426deb946a219bca041",
+  "activation_token": "act-v1:14221ffff9cc92a745510110e5ab574eda68dbac5688bd87ec2de097e257e72e",
+  "checked_at_local_date": "2026-08-20",
+  "decision": "NO-GO",
+  "production_mutation": false,
+  "canary_created": false,
+  "commit_or_push_performed_before_receipt": false,
+  "source": {
+    "cwd": "/Users/mattkuo/.codex/worktrees/7025/Pantheon",
+    "required_base_sha": "fe2221bd9cf0ca98848eca811eb08fa083ddf5bd",
+    "local_head": "fe2221bd9cf0ca98848eca811eb08fa083ddf5bd",
+    "local_status_before_evidence": "## HEAD (no branch)",
+    "codegraph_status": "NOT_READY",
+    "codegraph_error": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/7025/Pantheon",
+    "readiness_source": "0343bb7199b90794c10ce28cc4aff7ebbd0242b4",
+    "source_to_head_production_code_diff": []
+  },
+  "remote_and_actor": {
+    "origin_main": "b8a34451e7a2b10a9e7ce1f11f366250cc67d87b",
+    "production_actor_head": "b8a34451e7a2b10a9e7ce1f11f366250cc67d87b",
+    "production_actor_status": "## HEAD (no branch)",
+    "local_head_matches_origin_main": false,
+    "local_head_matches_actor_head": false,
+    "authority_status": "NO-GO",
+    "reason": "Remote main and production actor are on b8a34451e7a2b10a9e7ce1f11f366250cc67d87b, while this preactivation candidate is locked to fe2221bd9cf0ca98848eca811eb08fa083ddf5bd."
+  },
+  "readiness": {
+    "summary_status": "READY",
+    "capability_status": "PASS",
+    "official_gate_status": "READY",
+    "missing_step_fixture_status": "BLOCKED",
+    "official_gate_rerun_status": "READY",
+    "official_gate_rerun_returncode": 0,
+    "canary_created": false,
+    "production_mutation": false,
+    "receipt": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/package/production-canary-capability-receipt.json"
+  },
+  "capacity": {
+    "status": "PASS",
+    "cycles": 2,
+    "negative_case_count": 10,
+    "cleanup_reclaimed_bytes_per_cycle": [
+      33367,
+      33367
+    ],
+    "cleanup_reclaimed_file_count_per_cycle": [
+      36,
+      36
+    ],
+    "host_reserve_policy": "max(20 GiB, 10% total)",
+    "canary_created": false,
+    "production_mutation": false,
+    "receipt": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/capacity/capacity-receipt.json"
+  },
+  "runtime_identity": {
+    "runtime_manifest_digest": "1b064cc10cf1de804523441fa4b7d6c173665fc5d78a723287e3d7286281447c",
+    "runtime_manifest_actor_head": "b8a34451e7a2b10a9e7ce1f11f366250cc67d87b",
+    "runtime_identity_digest": "0a217d91a10de30a796e728dec664b735e8011902ee0cb010d23bf93b8647e64",
+    "live_publisher_actor_head": "b74646c4d9ab5d1300ee5e77056fbd43ee5f62e5",
+    "live_publisher_manifest_digest": "f78faa3743bcd1ead4687dedfe093c9b11f1507461787f794c281ce201cec6a6",
+    "staged_publisher_actor_head": "b8a34451e7a2b10a9e7ce1f11f366250cc67d87b",
+    "staged_publisher_manifest_digest": "1b064cc10cf1de804523441fa4b7d6c173665fc5d78a723287e3d7286281447c",
+    "staged_publisher_exact_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "staged_publisher_max_runs": 1,
+    "identity_status": "NO-GO",
+    "reason": "Live Publisher plist is still on g8/b74646c while staged manifest is g13/b8a344; this is a mixed live/staged runtime state and not a single active production identity."
+  },
+  "selector": {
+    "existing_rewrite_dry_run_status": "dry-run",
+    "existing_rewrite_dry_run_ready_runs": [
+      "legacy-auto-sweep-v1-astrology-0003-astro-base-03"
+    ],
+    "existing_rewrite_dry_run_base_sha": "aab1eec46a2315a2648cc0d1495f958dcc098b9b",
+    "staged_exact_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "staged_exact_run_files_observed": true,
+    "transaction_directory_count": 0,
+    "selector_status": "NO-GO",
+    "reason": "The only saved dry-run evidence is for a different stale rewrite run/base SHA; the staged exact run id has files, but no current no-lock dry-run receipt tied to fe2221bd or b8a34451 was found."
+  },
+  "baseline_counts": {
+    "transaction_directories": 0,
+    "launchctl_pantheon_loaded_rows": 0
+  },
+  "fail_closed_reasons": [
+    "origin/main and production actor are b8a34451 while this candidate is fe2221bd",
+    "live Publisher plist identity is g8/b74646c while staged manifest identity is g13/b8a34451",
+    "canonical selector dry-run evidence is stale/different from the staged exact run id and current authority",
+    "CodeGraph is not initialized for this worktree, so CodeGraph readiness is NOT_READY"
+  ],
+  "next_action": "Return to mainline for source-authority reconciliation before any production activation request. Do not create canary, lock queue, consume run, tag, push, launchctl mutate, or apply promotion from this candidate."
+}
