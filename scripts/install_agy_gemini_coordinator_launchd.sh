@@ -718,14 +718,51 @@ def read_plist(path: Path) -> dict:
     return payload
 
 
-def argument_value(arguments: list[object], name: str) -> str:
-    try:
-        index = arguments.index(name)
-    except ValueError:
+def parse_outer_arguments(arguments: list[object]) -> dict[str, str]:
+    value_controls = {
+        "--barrier",
+        "--expected-digest",
+        "--manifest",
+        "--service-label",
+    }
+    authority_controls = value_controls | {"--activation-only"}
+    if any(not isinstance(value, str) for value in arguments):
         reject()
-    if index + 1 >= len(arguments) or not isinstance(arguments[index + 1], str):
+    string_arguments = [str(value) for value in arguments]
+    if string_arguments.count("--") != 1:
         reject()
-    return arguments[index + 1]
+    separator = string_arguments.index("--")
+    outer = string_arguments[:separator]
+    child = string_arguments[separator + 1 :]
+    if (
+        len(outer) < 4
+        or outer[1:4]
+        != ["-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec"]
+        or any(value in authority_controls for value in child)
+    ):
+        reject()
+
+    counts = {name: 0 for name in authority_controls}
+    values: dict[str, str] = {}
+    index = 4
+    while index < len(outer):
+        name = outer[index]
+        if name == "--activation-only":
+            counts[name] += 1
+            index += 1
+            continue
+        if not name.startswith("--") or index + 1 >= len(outer):
+            reject()
+        value = outer[index + 1]
+        if value.startswith("--"):
+            reject()
+        if name in value_controls:
+            counts[name] += 1
+            values[name] = value
+        index += 2
+    if any(counts[name] != 1 for name in authority_controls):
+        reject()
+    return values
 
 
 def read_identity_path(path: Path) -> str:
@@ -801,21 +838,14 @@ for label, target in zip(labels, TARGETS):
     environment = payload.get("EnvironmentVariables")
     if not isinstance(arguments, list) or not isinstance(environment, dict):
         reject()
-    try:
-        separator = arguments.index("--")
-    except ValueError:
+    outer_arguments = parse_outer_arguments(arguments)
+    if outer_arguments["--barrier"] != expected_barrier:
         reject()
-    if "--activation-only" not in arguments[:separator]:
+    if outer_arguments["--expected-digest"] != EXPECTED_DIGEST:
         reject()
-    if "--activation-only" in arguments[separator + 1 :]:
+    if outer_arguments["--service-label"] != label:
         reject()
-    if argument_value(arguments, "--barrier") != expected_barrier:
-        reject()
-    if argument_value(arguments, "--expected-digest") != EXPECTED_DIGEST:
-        reject()
-    if argument_value(arguments, "--service-label") != label:
-        reject()
-    manifest_path = argument_value(arguments, "--manifest")
+    manifest_path = outer_arguments["--manifest"]
     if environment.get("PANTHEON_RUNTIME_MANIFEST") not in (None, manifest_path):
         reject()
     tuple_fields = {

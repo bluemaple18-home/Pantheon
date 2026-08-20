@@ -7319,6 +7319,133 @@ def test_activate_only_promoted_manifest_legacy_barrier_blocks_invalid_transitio
     }
 
 
+@pytest.mark.parametrize(
+    ("variant", "control"),
+    [
+        *(
+            ("duplicate-same", control)
+            for control in (
+                "--barrier",
+                "--expected-digest",
+                "--manifest",
+                "--service-label",
+                "--activation-only",
+            )
+        ),
+        *(
+            ("duplicate-drift", control)
+            for control in (
+                "--barrier",
+                "--expected-digest",
+                "--manifest",
+                "--service-label",
+            )
+        ),
+        *(
+            ("missing-value", control)
+            for control in (
+                "--barrier",
+                "--expected-digest",
+                "--manifest",
+                "--service-label",
+            )
+        ),
+        ("odd-outer-token", "--expected-digest"),
+        ("multiple-separator", "--expected-digest"),
+        *(
+            ("child-control", control)
+            for control in (
+                "--barrier",
+                "--expected-digest",
+                "--manifest",
+                "--service-label",
+                "--activation-only",
+            )
+        ),
+    ],
+)
+def test_activate_only_promoted_manifest_rejects_malformed_outer_authority_before_mutation(
+    tmp_path: Path,
+    variant: str,
+    control: str,
+) -> None:
+    fixture = _prepare_promoted_manifest_legacy_barrier_fixture(
+        tmp_path,
+        correlation_id=f"g8-legacy-outer-argv-{variant}-{control.removeprefix('--')}",
+    )
+    (
+        env,
+        mutation_log,
+        launch_agents,
+        _new_manifest,
+        _old_manifest,
+        old_barrier,
+        stage_dir,
+        child_io_marker,
+        repo_root,
+    ) = fixture
+    drifted = launch_agents / "com.pantheon.agy-gemini-new.plist"
+    with drifted.open("rb") as stream:
+        payload = plistlib.load(stream)
+    arguments = payload["ProgramArguments"]
+    separator = arguments.index("--")
+    if variant.startswith("duplicate"):
+        if control == "--activation-only":
+            duplicate = [control]
+        else:
+            current_value = arguments[arguments.index(control) + 1]
+            duplicate = [
+                control,
+                current_value if variant == "duplicate-same" else f"{current_value}-drift",
+            ]
+        arguments[separator:separator] = duplicate
+    elif variant == "missing-value":
+        del arguments[arguments.index(control) + 1]
+    elif variant == "odd-outer-token":
+        arguments.insert(separator, "unexpected-outer-token")
+    elif variant == "multiple-separator":
+        arguments.insert(separator, "--")
+    elif variant == "child-control":
+        child_value = [] if control == "--activation-only" else ["child-value"]
+        arguments.extend([control, *child_value])
+    else:
+        raise AssertionError(f"unknown variant: {variant}")
+    with drifted.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    drifted.chmod(0o600)
+    protected_before = {
+        path: path.read_bytes()
+        for path in sorted(launch_agents.glob("*.plist")) + [old_barrier]
+    }
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    assert not mutation_log.exists()
+    assert not child_io_marker.exists()
+    for path, content in protected_before.items():
+        assert path.read_bytes() == content
+    receipt = json.loads(
+        (stage_dir / "failure-receipt.json").read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "ACTIVATION_REJECTED"
+    assert receipt["exit_reason"] == {
+        "phase": "previous_barrier_validation",
+        "exit_code": 1,
+    }
+
+
 def test_normal_activate_rejects_inert_six_adoption_authority_before_mutation(
     tmp_path: Path,
 ) -> None:
