@@ -1,10 +1,11 @@
 ---
-id: CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-20260820
+id: CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-RETRY-1-20260820
 chain_id: PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-20260820
 parent_card_id: CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REPAIR-20260820
+supersedes: CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-20260820
 role: reviewer
 cycle: 1
-status: superseded
+status: ready
 type: source_review
 thickness: strict
 risk: high
@@ -12,9 +13,8 @@ model: gpt-5.5
 reasoning: high
 model_reason: Production 邊界需獨立檢查 fail-closed、selector 隔離與零 mutation，使用 GPT-5.5 high。
 candidate_sha: 0894ace3b8
-superseded_by: CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-RETRY-1-20260820
 ownership:
-  - artifacts/fortune_council/four_lane_runtime_execution/g8_production_preactivation_reconciliation_review_20260820/**
+  - artifacts/fortune_council/four_lane_runtime_execution/g8_production_preactivation_reconciliation_review_retry_1_20260820/**
 forbidden_scope:
   - 修改任何 source、test、production、queue/state/transaction、registry、manifest、plist 或 git refs
   - production activation、publisher、promotion、installer、launchctl、push、tag
@@ -23,18 +23,22 @@ verification:
   - 重跑新測試與受影響 collector/capacity tests
   - 驗證 reject/invalid selector 只寫 temporary snapshot，不碰 production roots
   - git diff --check 通過，candidate source tree 不變
-evidence_path: artifacts/fortune_council/four_lane_runtime_execution/g8_production_preactivation_reconciliation_review_20260820/
+evidence_path: artifacts/fortune_council/four_lane_runtime_execution/g8_production_preactivation_reconciliation_review_retry_1_20260820/
 ---
 
-# G8 production preactivation reconciliation review
+# G8 production preactivation reconciliation review retry 1
 
 ## 工作名稱 → 正在做什麼 → 現在狀態
 
-審查 G8 preactivation reconciliation → 獨立驗證 candidate `0894ace3b8` 的 fail-closed 與零 production mutation → `READY TO DISPATCH`
+獨立審查 G8 preactivation reconciliation → 驗證 candidate `0894ace3b8` 的 fail-closed 與零 production mutation → `READY TO DISPATCH`
 
 ## Root Question
 
 Candidate 是否能在不碰 production roots 的前提下，正確判定 authority、coherent old-live→new-stage 與 current exact selector，並對所有 drift／cardinality／mutation 路徑 fail-closed？
+
+## Retry Cause
+
+前卡在 create request 形成前因缺 `model_reason` 被控制面終止；未建立 formal thread、client thread 或 worktree。本卡補齊 routing 契約，不改 review scope。
 
 ## Review Contract
 
@@ -66,5 +70,5 @@ git diff --check 0894ace3b8^..0894ace3b8
 ## 正式 task 初始 prompt 核心契約
 
 ```text
-你負責 CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-20260820，role=reviewer、cycle=1。先 CodeGraph，失敗才限域 rg。獨立 review candidate 0894ace3b8，只新增本卡 evidence，不得修改 source/tests。驗 authority ancestry+allowlist、coherent old-live→new-stage、temporary selector snapshot parity、mutation tripwire與全部負向 fail-closed；特別確認 collect_ready_runs 不可能收到 production state_root。重跑指定 26 tests與 git diff --check。Verdict 只可 GO/NO-GO；finding 必須含 severity、path:line、觸發條件與修法。禁止 production/remote/git refs/queue/state/transaction/LaunchAgent mutation。
+你負責 CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REVIEW-RETRY-1-20260820，role=reviewer、cycle=1。先 CodeGraph，失敗才限域 rg。獨立 review candidate 0894ace3b8，只新增本卡 evidence，不得修改 source/tests。驗 authority ancestry+allowlist、coherent old-live→new-stage、temporary selector snapshot parity、mutation tripwire與全部負向 fail-closed；特別確認 collect_ready_runs 不可能收到 production state_root。重跑指定 26 tests與 git diff --check。Verdict 只可 GO/NO-GO；finding 必須含 severity、path:line、觸發條件與修法。禁止 production/remote/git refs/queue/state/transaction/LaunchAgent mutation。
 ```
