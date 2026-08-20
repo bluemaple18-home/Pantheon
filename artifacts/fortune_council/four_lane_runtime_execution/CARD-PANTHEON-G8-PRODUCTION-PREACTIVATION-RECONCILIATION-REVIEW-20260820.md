@@ -10,6 +10,7 @@ thickness: strict
 risk: high
 model: gpt-5.5
 reasoning: high
+model_reason: Production 邊界需獨立檢查 fail-closed、selector 隔離與零 mutation，使用 GPT-5.5 high。
 candidate_sha: 0894ace3b8
 ownership:
   - artifacts/fortune_council/four_lane_runtime_execution/g8_production_preactivation_reconciliation_review_20260820/**
