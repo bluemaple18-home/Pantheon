@@ -1,5 +1,5 @@
 ---
-id: CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820
+id: CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820
 chain_id: PANTHEON-G8-CURRENT-READINESS-20260819
 parent_card_id: CARD-PANTHEON-G8-CURRENT-READINESS-RECEIPT-RETRY-20260820
 role: verification
@@ -13,7 +13,7 @@ reasoning: medium
 model_reason: 規格與驗收契約固定，唯一 runtime 差異已由 RCA 連續驗證；以 standard verification 使用 Terra medium，無架構岔路。
 ownership:
   - artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/**
-  - .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820/**
+  - .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820/**
 forbidden_scope:
   - 修改 scripts、tests、rules、config、workflow、Ai Core、Codex、sandbox 或既有 G8 卡
   - 修改全域 UV cache、外接硬碟 ACL 或 macOS privacy
@@ -57,9 +57,9 @@ evidence_path: artifacts/fortune_council/content_writer_vnext_execution/apf_004_
 
 ```bash
 cd <repo-root>
-mkdir -p .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820/uv-cache
-export UV_CACHE_DIR="$PWD/.work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820/uv-cache"
-zsh -o pipefail -c 'uv run --frozen --no-sync python scripts/pantheon_content_capability_receipt.py apf-004-readiness --output-root artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness --ai-core-root <ai-core-root> 2>&1 | tee .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820/generation.log'
+mkdir -p .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820/uv-cache
+export UV_CACHE_DIR="$PWD/.work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820/uv-cache"
+zsh -o pipefail -c 'uv run --frozen --no-sync python scripts/pantheon_content_capability_receipt.py apf-004-readiness --output-root artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness --ai-core-root <ai-core-root> 2>&1 | tee .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820/generation.log'
 ```
 
 `<ai-core-root>` 必須由 shared-resource locator 解析，不得寫入 committed artifact。`.venv` 必須在 activation 前由控制面以 locked dependencies 準備完成；`--no-sync` 禁止同步、安裝或變更環境。
@@ -88,5 +88,5 @@ zsh -o pipefail -c 'uv run --frozen --no-sync python scripts/pantheon_content_ca
 ## 正式 task 初始 prompt 核心契約
 
 ```text
-你負責 CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820，role=verification、cycle=3。目標是在零 production mutation 下，以 task-local UV_CACHE_DIR 和已由 RCA 連續驗證成功的 uv run --frozen --no-sync，執行一次既有 APF-004 readiness generator，產出 current capability、兩週期 capacity 與 official gate receipts。禁止修改 scripts、tests、rules、config、workflow、Ai Core、Codex、sandbox、外接硬碟或 production；禁止第二次生成、fallback、direct Python、sync、network install 或另開 Repair。先完成卡片指定 preflight 與 CodeGraph query，收到 activation 後只執行唯一命令一次。非零或任一 gate／capacity／identity drift，保存完整 log 後立即停止。只有全部 READY／PASS、零 mutation、allowlist diff 與 git diff --check 通過，才提交 evidence candidate 並回報 SHA；不得整合、push、deploy 或宣稱 production READY。
+你負責 CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-1-20260820，role=verification、cycle=3。目標是在零 production mutation 下，以 task-local UV_CACHE_DIR 和已由 RCA 連續驗證成功的 uv run --frozen --no-sync，執行一次既有 APF-004 readiness generator，產出 current capability、兩週期 capacity 與 official gate receipts。禁止修改 scripts、tests、rules、config、workflow、Ai Core、Codex、sandbox、外接硬碟或 production；禁止第二次生成、fallback、direct Python、sync、network install 或另開 Repair。先完成卡片指定 preflight 與 CodeGraph query，收到 activation 後只執行唯一命令一次。非零或任一 gate／capacity／identity drift，保存完整 log 後立即停止。只有全部 READY／PASS、零 mutation、allowlist diff 與 git diff --check 通過，才提交 evidence candidate 並回報 SHA；不得整合、push、deploy 或宣稱 production READY。
 ```
