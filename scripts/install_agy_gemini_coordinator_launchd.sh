@@ -668,6 +668,241 @@ canonical_existing_path() {
   PHYSICAL_DIR="$(cd "${INPUT_DIR}" 2>/dev/null && pwd -P)" || return 1
   printf '%s/%s\n' "${PHYSICAL_DIR}" "${INPUT_BASE}"
 }
+capture_legacy_transition_previous_barrier() {
+  local OUTPUT_MANIFEST="${STAGE_DIR}/previous-runtime-manifest.json"
+  [[ "${ACTIVATION_ONLY}" == "1" ]] || return 1
+  [[ "${PREVIOUS_BARRIER_PATH}" == /* && -f "${PREVIOUS_BARRIER_PATH}" ]] \
+    || return 1
+  [[ "${PREVIOUS_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]] || return 1
+  if ! (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" - "${STAGE_DIR}" "${PREVIOUS_BARRIER_PATH}" \
+      "${PREVIOUS_MANIFEST_DIGEST}" "${OUTPUT_MANIFEST}" \
+      "${TARGET_PLISTS[@]}" <<'PY'
+import json
+import os
+import plistlib
+import re
+import sys
+from pathlib import Path
+
+from scripts import pantheon_content_runtime_manifest as runtime_manifest
+
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+STAGE_DIR = Path(sys.argv[1])
+BARRIER_PATH = Path(sys.argv[2])
+EXPECTED_DIGEST = sys.argv[3]
+OUTPUT_MANIFEST = Path(sys.argv[4])
+TARGETS = [Path(value) for value in sys.argv[5:]]
+
+
+def reject() -> None:
+    raise SystemExit(1)
+
+
+def canonical_existing(path: Path) -> str:
+    try:
+        return str(path.parent.resolve(strict=True) / path.name)
+    except OSError:
+        reject()
+
+
+def read_plist(path: Path) -> dict:
+    try:
+        with path.open("rb") as stream:
+            payload = plistlib.load(stream)
+    except (OSError, plistlib.InvalidFileException):
+        reject()
+    if not isinstance(payload, dict):
+        reject()
+    return payload
+
+
+def argument_value(arguments: list[object], name: str) -> str:
+    try:
+        index = arguments.index(name)
+    except ValueError:
+        reject()
+    if index + 1 >= len(arguments) or not isinstance(arguments[index + 1], str):
+        reject()
+    return arguments[index + 1]
+
+
+def read_identity_path(path: Path) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        reject()
+    matches = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("pid =") and stripped != "pid = 0":
+            reject()
+        if stripped == "state = running":
+            reject()
+        match = re.fullmatch(r"\s*path = (/[^\s]+)", line)
+        if match:
+            matches.append(match.group(1))
+    if len(matches) != 1:
+        reject()
+    return matches[0]
+
+
+def require_env(environment: dict[str, object], key: str) -> str:
+    value = environment.get(key)
+    if not isinstance(value, str) or not value:
+        reject()
+    return value
+
+
+runtime_labels = list(runtime_manifest.SERVICE_LABELS)
+labels = [target.name.removesuffix(".plist") for target in TARGETS]
+if (
+    len(TARGETS) != len(runtime_labels)
+    or any(not target.name.endswith(".plist") for target in TARGETS)
+    or set(labels) != set(runtime_labels)
+):
+    reject()
+common: dict[str, str] | None = None
+expected_barrier = str(BARRIER_PATH)
+
+if BARRIER_PATH.is_symlink():
+    reject()
+try:
+    barrier_payload = json.loads(BARRIER_PATH.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    reject()
+
+for label, target in zip(labels, TARGETS):
+    backup = STAGE_DIR / "backups" / f"{label}.plist"
+    loaded_marker = STAGE_DIR / f"{label}.previous_loaded"
+    identity_path = STAGE_DIR / f"{label}.previous_identity"
+    if loaded_marker.read_text(encoding="utf-8").strip() != "1":
+        reject()
+    if backup.is_symlink() or target.is_symlink():
+        reject()
+    if not backup.is_file() or not target.is_file():
+        reject()
+    try:
+        if backup.read_bytes() != target.read_bytes():
+            reject()
+    except OSError:
+        reject()
+    loaded_path = read_identity_path(identity_path)
+    if loaded_path != str(target):
+        reject()
+    if canonical_existing(Path(loaded_path)) != canonical_existing(target):
+        reject()
+
+    payload = read_plist(backup)
+    if payload.get("Label") != label:
+        reject()
+    arguments = payload.get("ProgramArguments")
+    environment = payload.get("EnvironmentVariables")
+    if not isinstance(arguments, list) or not isinstance(environment, dict):
+        reject()
+    try:
+        separator = arguments.index("--")
+    except ValueError:
+        reject()
+    if "--activation-only" not in arguments[:separator]:
+        reject()
+    if "--activation-only" in arguments[separator + 1 :]:
+        reject()
+    if argument_value(arguments, "--barrier") != expected_barrier:
+        reject()
+    if argument_value(arguments, "--expected-digest") != EXPECTED_DIGEST:
+        reject()
+    if argument_value(arguments, "--service-label") != label:
+        reject()
+    manifest_path = argument_value(arguments, "--manifest")
+    if environment.get("PANTHEON_RUNTIME_MANIFEST") not in (None, manifest_path):
+        reject()
+    tuple_fields = {
+        "identity": require_env(environment, "PANTHEON_RUNTIME_IDENTITY"),
+        "runtime_identity_digest": require_env(
+            environment, "PANTHEON_RUNTIME_IDENTITY_DIGEST"
+        ),
+        "runtime_digest": require_env(environment, "PANTHEON_RUNTIME_CODE_DIGEST"),
+        "config_version": require_env(
+            environment, "PANTHEON_RUNTIME_CONFIG_VERSION"
+        ),
+        "generation": require_env(environment, "PANTHEON_RUNTIME_GENERATION"),
+        "actor_root": require_env(environment, "PANTHEON_RUNTIME_ACTOR_ROOT"),
+        "queue_root": require_env(environment, "PANTHEON_RUNTIME_QUEUE_ROOT"),
+        "publisher_state_root": require_env(
+            environment, "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"
+        ),
+        "log_root": require_env(environment, "PANTHEON_RUNTIME_LOG_ROOT"),
+        "manifest_path": manifest_path,
+    }
+    if require_env(environment, "PANTHEON_RUNTIME_MANIFEST_DIGEST") != EXPECTED_DIGEST:
+        reject()
+    if require_env(environment, "PANTHEON_RUNTIME_SERVICE_LABEL") != label:
+        reject()
+    for source, target_key in (
+        ("PANTHEON_RUNTIME_ACTOR_HEAD", "actor_head"),
+        ("PANTHEON_RUNTIME_PYTHON_EXECUTABLE", "python_executable"),
+        ("PANTHEON_RUNTIME_UV_EXECUTABLE", "uv_executable"),
+    ):
+        value = environment.get(source)
+        if isinstance(value, str) and value:
+            tuple_fields[target_key] = value
+    if common is None:
+        common = tuple_fields
+    elif common != tuple_fields:
+        reject()
+
+if common is None:
+    reject()
+manifest = runtime_manifest.build_manifest(
+    actor_root=Path(common["actor_root"]),
+    queue_root=Path(common["queue_root"]),
+    publisher_state_root=Path(common["publisher_state_root"]),
+    log_root=Path(common["log_root"]),
+    identity=common["identity"],
+    runtime_digest=common["runtime_digest"],
+    config_version=common["config_version"],
+    generation=common["generation"],
+    actor_head=common.get("actor_head"),
+    python_executable=Path(common["python_executable"])
+    if "python_executable" in common
+    else None,
+    uv_executable=Path(common["uv_executable"])
+    if "uv_executable" in common
+    else None,
+)
+if manifest["manifest_digest"] != EXPECTED_DIGEST:
+    reject()
+if manifest["runtime_identity_digest"] != common["runtime_identity_digest"]:
+    reject()
+expected_payload = {
+    "schema_version": runtime_manifest.SCHEMA_VERSION,
+    "manifest_digest": EXPECTED_DIGEST,
+    "runtime_identity_digest": manifest["runtime_identity_digest"],
+    "generation": manifest["generation"],
+    "owner_uid": os.getuid(),
+    "service_labels": runtime_labels,
+}
+if any(barrier_payload.get(key) != value for key, value in expected_payload.items()):
+    reject()
+ack_digests = barrier_payload.get("ack_digests")
+if (
+    not isinstance(ack_digests, list)
+    or len(ack_digests) != len(runtime_labels)
+    or any(not isinstance(value, str) or SHA256_RE.fullmatch(value) is None for value in ack_digests)
+):
+    reject()
+runtime_manifest.write_manifest(OUTPUT_MANIFEST, manifest)
+PY
+  ) >/dev/null; then
+    return 1
+  fi
+  cp "${PREVIOUS_BARRIER_PATH}" "${STAGE_DIR}/previous-barrier" || return 1
+  printf '%s\n' "${PREVIOUS_MANIFEST_DIGEST}" > "${STAGE_DIR}/previous-manifest-digest"
+  printf '%s\n' "${PREVIOUS_BARRIER_PATH}" > "${STAGE_DIR}/previous-barrier-path"
+  return 0
+}
 prepare_legacy_capacity_adoption() {
   local CAPACITY_LABEL="com.pantheon.content-capacity-guard"
   local CAPACITY_INDEX=6
@@ -822,6 +1057,8 @@ if [[ "${PREVIOUS_BARRIER_PATH}" == /* && -f "${PREVIOUS_BARRIER_PATH}" \
   cp "${PREVIOUS_MANIFEST}" "${STAGE_DIR}/previous-runtime-manifest.json"
   printf '%s\n' "${PREVIOUS_MANIFEST_DIGEST}" > "${STAGE_DIR}/previous-manifest-digest"
   printf '%s\n' "${PREVIOUS_BARRIER_PATH}" > "${STAGE_DIR}/previous-barrier-path"
+elif capture_legacy_transition_previous_barrier; then
+  :
 else
   : > "${STAGE_DIR}/previous-barrier-missing"
 fi

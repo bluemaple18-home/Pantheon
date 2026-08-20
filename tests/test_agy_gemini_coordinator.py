@@ -6917,6 +6917,408 @@ def test_activation_rejects_legacy_loaded_without_valid_barrier_before_live_repl
     }
 
 
+def _prepare_promoted_manifest_legacy_barrier_fixture(
+    tmp_path: Path,
+    *,
+    correlation_id: str,
+    launch_state: str = "waiting",
+    include_pid: bool = False,
+) -> tuple[
+    dict[str, str],
+    Path,
+    Path,
+    dict[str, object],
+    dict[str, object],
+    Path,
+    Path,
+    Path,
+    Path,
+]:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = correlation_id
+    env["PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS"] = "1"
+    shared_manifest_path = Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"])
+    new_manifest = runtime_manifest.load_manifest(shared_manifest_path)
+    old_manifest = runtime_manifest.build_manifest(
+        actor_root=repo_root,
+        queue_root=Path(str(new_manifest["queue_root"])),
+        publisher_state_root=Path(str(new_manifest["publisher_state_root"])),
+        log_root=Path(str(new_manifest["log_root"])),
+        identity="g8-old-live",
+        runtime_digest="8" * 64,
+        generation="g8-old-generation",
+        python_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path("/usr/bin/true"),
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    old_ready = tmp_path / "old-ready"
+    old_barrier = (
+        Path(str(old_manifest["publisher_state_root"]))
+        / f"four-lane-activation-{old_manifest['generation']}.barrier"
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(old_ready, old_manifest, label)
+    runtime_manifest.activate_barrier(old_barrier, old_ready, old_manifest)
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_plist = launch_agents / f"{label}.plist"
+        _write_activation_stage_plist(live_plist, label=label, manifest=old_manifest)
+        with live_plist.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST"] = str(
+            shared_manifest_path
+        )
+        payload["ProgramArguments"].insert(
+            payload["ProgramArguments"].index("--"),
+            "--activation-only",
+        )
+        payload["ProgramArguments"][
+            payload["ProgramArguments"].index("--manifest") + 1
+        ] = str(shared_manifest_path)
+        with live_plist.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        live_plist.chmod(0o600)
+    runtime_manifest.write_manifest(shared_manifest_path, new_manifest)
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    ready_root = stage_dir / "readiness" / str(new_manifest["generation"])
+    readiness_fixture = tmp_path / "new-readiness-fixture"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(readiness_fixture, new_manifest, label)
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    for label in runtime_manifest.SERVICE_LABELS:
+        (loaded / label).touch()
+    child_io_marker = tmp_path / "child-io-marker"
+    pid_line = "  printf '%s\\n' 'pid = 123'\n" if include_pid else ""
+    launchctl = tmp_path / "bin" / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        f"  printf '%s\\n' 'state = {launch_state}'\n"
+        f"{pid_line}"
+        f"  printf '%s\\n' \"    path = {launch_agents}/$label.plist\"\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        "  /usr/libexec/PlistBuddy -c 'Print :ProgramArguments' \"$3\" "
+        f"| grep -q -- '--activation-only' || touch '{child_io_marker}'\n"
+        f"  touch '{loaded}/'$label\n"
+        f"  mkdir -p '{ready_root}'\n"
+        f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    for label in {
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    }:
+        _write_activation_stage_plist(
+            stage_dir / f"{label}.plist",
+            label=label,
+            manifest=new_manifest,
+        )
+    return (
+        env,
+        mutation_log,
+        launch_agents,
+        new_manifest,
+        old_manifest,
+        old_barrier,
+        stage_dir,
+        child_io_marker,
+        repo_root,
+    )
+
+
+def test_activate_only_accepts_coherent_old_live_with_promoted_manifest_path(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "g8-legacy-shared-manifest"
+    shared_manifest_path = Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"])
+    new_manifest = runtime_manifest.load_manifest(shared_manifest_path)
+    old_manifest = runtime_manifest.build_manifest(
+        actor_root=repo_root,
+        queue_root=Path(str(new_manifest["queue_root"])),
+        publisher_state_root=Path(str(new_manifest["publisher_state_root"])),
+        log_root=Path(str(new_manifest["log_root"])),
+        identity="g8-old-live",
+        runtime_digest="8" * 64,
+        generation="g8-old-generation",
+        python_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path("/usr/bin/true"),
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    old_ready = tmp_path / "old-ready"
+    old_barrier = (
+        Path(str(old_manifest["publisher_state_root"]))
+        / f"four-lane-activation-{old_manifest['generation']}.barrier"
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(old_ready, old_manifest, label)
+    runtime_manifest.activate_barrier(old_barrier, old_ready, old_manifest)
+    old_payloads: dict[str, bytes] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_plist = launch_agents / f"{label}.plist"
+        _write_activation_stage_plist(live_plist, label=label, manifest=old_manifest)
+        with live_plist.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST"] = str(
+            shared_manifest_path
+        )
+        payload["ProgramArguments"].insert(
+            payload["ProgramArguments"].index("--"),
+            "--activation-only",
+        )
+        payload["ProgramArguments"][
+            payload["ProgramArguments"].index("--manifest") + 1
+        ] = str(shared_manifest_path)
+        with live_plist.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        live_plist.chmod(0o600)
+        old_payloads[label] = live_plist.read_bytes()
+    runtime_manifest.write_manifest(shared_manifest_path, new_manifest)
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    ready_root = stage_dir / "readiness" / str(new_manifest["generation"])
+    readiness_fixture = tmp_path / "new-readiness-fixture"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(readiness_fixture, new_manifest, label)
+    loaded = tmp_path / "loaded"
+    loaded.mkdir()
+    for label in runtime_manifest.SERVICE_LABELS:
+        (loaded / label).touch()
+    child_io_marker = tmp_path / "child-io-marker"
+    launchctl = tmp_path / "bin" / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' 'state = waiting'\n"
+        f"  printf '%s\\n' \"    path = {launch_agents}/$label.plist\"\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        "  /usr/libexec/PlistBuddy -c 'Print :ProgramArguments' \"$3\" "
+        f"| grep -q -- '--activation-only' || touch '{child_io_marker}'\n"
+        f"  touch '{loaded}/'$label\n"
+        f"  mkdir -p '{ready_root}'\n"
+        f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    for label in {
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    }:
+        _write_activation_stage_plist(
+            stage_dir / f"{label}.plist",
+            label=label,
+            manifest=new_manifest,
+        )
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == old_payloads[label]
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert not child_io_marker.exists()
+    mutations = mutation_log.read_text(encoding="utf-8")
+    assert mutations.count("bootout") == len(runtime_manifest.SERVICE_LABELS)
+    assert mutations.count("bootstrap") == len(runtime_manifest.SERVICE_LABELS)
+    assert not stage_dir.exists()
+
+
+@pytest.mark.parametrize(
+    ("variant", "action", "expected_phase"),
+    [
+        ("mixed-old-live", "--activate-only", "previous_barrier_validation"),
+        ("running-old-live", "--activate-only", "previous_barrier_validation"),
+        ("pid-old-live", "--activate-only", "previous_barrier_validation"),
+        ("barrier-digest", "--activate-only", "previous_barrier_validation"),
+        ("barrier-generation", "--activate-only", "previous_barrier_validation"),
+        ("barrier-missing", "--activate-only", "previous_barrier_validation"),
+        ("barrier-malformed", "--activate-only", "previous_barrier_validation"),
+        ("new-stage-drift", "--activate-only", "aggregate_preflight"),
+        ("normal-activation", "--activate", "previous_barrier_validation"),
+    ],
+)
+def test_activate_only_promoted_manifest_legacy_barrier_blocks_invalid_transition_before_mutation(
+    tmp_path: Path,
+    variant: str,
+    action: str,
+    expected_phase: str,
+) -> None:
+    launch_state = "running" if variant == "running-old-live" else "waiting"
+    fixture = _prepare_promoted_manifest_legacy_barrier_fixture(
+        tmp_path,
+        correlation_id=f"g8-legacy-shared-manifest-{variant}",
+        launch_state=launch_state,
+        include_pid=variant == "pid-old-live",
+    )
+    (
+        env,
+        mutation_log,
+        launch_agents,
+        _new_manifest,
+        _old_manifest,
+        old_barrier,
+        stage_dir,
+        child_io_marker,
+        repo_root,
+    ) = fixture
+    if variant == "mixed-old-live":
+        drifted = launch_agents / "com.pantheon.agy-gemini-new.plist"
+        with drifted.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_GENERATION"] = (
+            "g8-old-generation-drift"
+        )
+        with drifted.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        drifted.chmod(0o600)
+    elif variant in {"barrier-digest", "barrier-generation"}:
+        barrier_payload = json.loads(old_barrier.read_text(encoding="utf-8"))
+        if variant == "barrier-digest":
+            barrier_payload["manifest_digest"] = "0" * 64
+        else:
+            barrier_payload["generation"] = "g8-old-generation-drift"
+        old_barrier.write_text(
+            json.dumps(barrier_payload, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        old_barrier.chmod(0o600)
+    elif variant == "barrier-missing":
+        old_barrier.unlink()
+    elif variant == "barrier-malformed":
+        old_barrier.write_text("{broken\n", encoding="utf-8")
+        old_barrier.chmod(0o600)
+    elif variant == "new-stage-drift":
+        staged_plist = stage_dir / "com.pantheon.agy-gemini-new.plist"
+        with staged_plist.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST_DIGEST"] = (
+            "0" * 64
+        )
+        with staged_plist.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        staged_plist.chmod(0o600)
+    protected_before = {
+        path: path.read_bytes()
+        for path in sorted(launch_agents.glob("*.plist")) + [old_barrier]
+        if path.exists()
+    }
+    missing_before = {
+        path for path in sorted(launch_agents.glob("*.plist")) + [old_barrier]
+        if not path.exists()
+    }
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            action,
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode != 0
+    assert not mutation_log.exists()
+    assert not child_io_marker.exists()
+    for path, payload in protected_before.items():
+        assert path.read_bytes() == payload
+    for path in missing_before:
+        assert not path.exists()
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "ACTIVATION_REJECTED"
+    assert receipt["correlation_id"] == f"g8-legacy-shared-manifest-{variant}"
+    assert receipt["exit_reason"] == {
+        "phase": expected_phase,
+        "exit_code": 1,
+    }
+
+
 def test_normal_activate_rejects_inert_six_adoption_authority_before_mutation(
     tmp_path: Path,
 ) -> None:
