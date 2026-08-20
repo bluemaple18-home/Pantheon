@@ -58,6 +58,94 @@ class ReconciliationBlocked(RuntimeError):
         self.details = details or {}
 
 
+def _absolute_lexical(path: Path) -> Path:
+    return Path(os.path.abspath(path))
+
+
+def _canonical_existing(path: Path, field: str) -> Path:
+    try:
+        return _absolute_lexical(path).resolve(strict=True)
+    except OSError as error:
+        raise ReconciliationBlocked(
+            "PROTECTED_PATH_UNAVAILABLE",
+            f"{field} must be canonicalizable",
+            {"path": str(path)},
+        ) from error
+
+
+def _canonical_intended(path: Path, field: str) -> Path:
+    raw = _absolute_lexical(path)
+    try:
+        resolved = raw.resolve(strict=False)
+    except OSError as error:
+        raise ReconciliationBlocked(
+            "PATH_CANONICALIZATION_FAILED",
+            f"{field} must be canonicalizable",
+            {"path": str(path)},
+        ) from error
+    if raw != resolved:
+        raise ReconciliationBlocked(
+            "EVIDENCE_PATH_ALIAS",
+            "evidence path must not use a symlink or realpath alias",
+            {"path": str(raw), "canonical_path": str(resolved)},
+        )
+    return resolved
+
+
+def _canonicalize_protected_args(args: argparse.Namespace) -> argparse.Namespace:
+    args.repo_root = _canonical_existing(args.repo_root, "repo_root")
+    args.actor_root = _canonical_existing(args.actor_root, "actor_root")
+    args.queue_root = _canonical_existing(args.queue_root, "queue_root")
+    args.state_root = _canonical_existing(args.state_root, "state_root")
+    args.transaction_root = _canonical_intended(args.transaction_root, "transaction_root")
+    args.live_root = _canonical_existing(args.live_root, "live_root")
+    args.staged_root = _canonical_existing(args.staged_root, "staged_root")
+    args.manifest = _canonical_existing(args.manifest, "manifest")
+    return args
+
+
+def _is_at_or_inside(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
+def _validate_evidence_path(args: argparse.Namespace) -> None:
+    evidence_path = _canonical_intended(args.evidence_path, "evidence_path")
+    if evidence_path.exists() and evidence_path.is_dir():
+        raise ReconciliationBlocked(
+            "EVIDENCE_PATH_INVALID",
+            "evidence path must be a file path",
+            {"evidence_path": str(evidence_path)},
+        )
+    git_common = _canonical_existing(_git_common_dir(args.repo_root), "git_common_dir")
+    protected_roots = {
+        "queue_root": args.queue_root,
+        "state_root": args.state_root,
+        "transaction_root": args.transaction_root,
+        "live_root": args.live_root,
+        "staged_root": args.staged_root,
+        "git_common_dir": git_common,
+    }
+    for label, root in protected_roots.items():
+        if _is_at_or_inside(evidence_path, root):
+            raise ReconciliationBlocked(
+                "EVIDENCE_PATH_PROTECTED",
+                "evidence path must not be inside a protected production root",
+                {"evidence_path": str(evidence_path), "protected_root": label, "protected_path": str(root)},
+            )
+    protected_exact = {
+        "publisher_lock": args.state_root / "publisher.lock",
+        "manifest": args.manifest,
+    }
+    for label, exact_path in protected_exact.items():
+        if evidence_path == exact_path:
+            raise ReconciliationBlocked(
+                "EVIDENCE_PATH_PROTECTED",
+                "evidence path must not target a protected production artifact",
+                {"evidence_path": str(evidence_path), "protected_artifact": label, "protected_path": str(exact_path)},
+            )
+    args.evidence_path = evidence_path
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -405,6 +493,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        _canonicalize_protected_args(args)
+        _validate_evidence_path(args)
+    except ReconciliationBlocked as error:
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "status": BLOCKED_STATUS,
+            "blocked_code": error.code,
+            "reasons": [error.reason],
+            "details": error.details,
+            "production_mutation": False,
+        }
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 1
     if not args.allow_source_drift and args.required_source != args.origin_main:
         payload = {
             "schema_version": SCHEMA_VERSION,

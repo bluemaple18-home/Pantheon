@@ -196,6 +196,18 @@ def _run(fixture: dict[str, Any], **overrides: Any) -> tuple[int, dict[str, Any]
     return code, receipt
 
 
+def _run_cli(fixture: dict[str, Any], **overrides: Any) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    completed = subprocess.run(
+        [sys.executable, "scripts/pantheon_g8_production_preactivation.py", *_args(fixture, **overrides)],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return completed, json.loads(completed.stdout)
+
+
 def _protected_snapshot(fixture: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     return preactivation._snapshot(preactivation.parse_args(_args(fixture, **overrides)))
 
@@ -405,17 +417,75 @@ def test_selector_snapshot_preserves_existing_production_state_parity(
 def test_cli_writes_machine_readable_receipt_and_exit_code(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
 
-    completed = subprocess.run(
-        [sys.executable, "scripts/pantheon_g8_production_preactivation.py", *_args(fixture)],
-        cwd=Path(__file__).resolve().parents[1],
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    completed, stdout_receipt = _run_cli(fixture)
 
     assert completed.returncode == 0
-    stdout_receipt = json.loads(completed.stdout)
     file_receipt = json.loads(fixture["evidence"].read_text(encoding="utf-8"))
     assert stdout_receipt["status"] == "READY_FOR_PRODUCTION_AUTHORIZATION"
     assert file_receipt == stdout_receipt
+
+
+@pytest.mark.parametrize(
+    ("label", "path_factory", "created_parent_factory"),
+    [
+        (
+            "state_child",
+            lambda fixture, tmp_path: fixture["state"] / "blocked-evidence" / "receipt.json",
+            lambda fixture, tmp_path: fixture["state"] / "blocked-evidence",
+        ),
+        (
+            "queue_child",
+            lambda fixture, tmp_path: fixture["queue"] / "blocked-evidence" / "receipt.json",
+            lambda fixture, tmp_path: fixture["queue"] / "blocked-evidence",
+        ),
+        (
+            "manifest_exact",
+            lambda fixture, tmp_path: fixture["manifest_path"],
+            lambda fixture, tmp_path: None,
+        ),
+        (
+            "symlink_alias",
+            lambda fixture, tmp_path: tmp_path / "state-link" / "receipt.json",
+            lambda fixture, tmp_path: tmp_path / "state-link" / "receipt.json",
+        ),
+    ],
+)
+def test_cli_rejects_protected_evidence_paths_without_side_effect(
+    tmp_path: Path,
+    label: str,
+    path_factory: object,
+    created_parent_factory: object,
+) -> None:
+    fixture = _fixture(tmp_path)
+    if label == "symlink_alias":
+        (tmp_path / "state-link").symlink_to(fixture["state"], target_is_directory=True)
+    evidence_path = path_factory(fixture, tmp_path)  # type: ignore[operator]
+    created_parent = created_parent_factory(fixture, tmp_path)  # type: ignore[operator]
+    before = _protected_snapshot(fixture, evidence_path=evidence_path)
+    manifest_before = fixture["manifest_path"].read_bytes()
+
+    completed, receipt = _run_cli(fixture, evidence_path=evidence_path)
+
+    assert completed.returncode == 1
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["blocked_code"] in {"EVIDENCE_PATH_PROTECTED", "EVIDENCE_PATH_ALIAS"}
+    assert _protected_snapshot(fixture, evidence_path=evidence_path) == before
+    assert fixture["manifest_path"].read_bytes() == manifest_before
+    if label == "manifest_exact":
+        assert json.loads(fixture["manifest_path"].read_text(encoding="utf-8"))["manifest_digest"] == fixture["manifest"]["manifest_digest"]
+    elif created_parent is not None:
+        assert not created_parent.exists()
+
+
+def test_cli_writes_legal_external_evidence_path(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    evidence_path = tmp_path / "external-evidence" / "receipt.json"
+    before = _protected_snapshot(fixture, evidence_path=evidence_path)
+
+    completed, receipt = _run_cli(fixture, evidence_path=evidence_path)
+
+    assert completed.returncode == 0
+    assert receipt["status"] == "READY_FOR_PRODUCTION_AUTHORIZATION"
+    assert evidence_path.is_file()
+    assert json.loads(evidence_path.read_text(encoding="utf-8")) == receipt
+    assert _protected_snapshot(fixture, evidence_path=evidence_path) == before
