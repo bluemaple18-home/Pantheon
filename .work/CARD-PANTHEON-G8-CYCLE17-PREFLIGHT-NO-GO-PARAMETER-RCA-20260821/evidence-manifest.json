@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-NO-GO-PARAMETER-RCA-20260821",
+  "verdict": "PARAMETER RECOVERY",
+  "production_mutation": 0,
+  "files": [
+    {
+      "path": "hypotheses.json",
+      "sha256": "61fba0257b068d16f37fae68ea50f554c629748e5bf83b58b8d8b8fc06336d38"
+    },
+    {
+      "path": "evidence.md",
+      "sha256": "0ff9a31e492c59e4c9049963c0cd13f1fb4ee2712126e3f131e72ef3f29d04f0"
+    },
+    {
+      "path": "verdict.json",
+      "sha256": "a34ed166dc31dbac0893873a20bd806ffb0f2601d502912ac0938a982125980b"
+    }
+  ]
+}

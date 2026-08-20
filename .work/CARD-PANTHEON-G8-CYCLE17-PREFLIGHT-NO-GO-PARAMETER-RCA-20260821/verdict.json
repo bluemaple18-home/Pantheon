@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-NO-GO-PARAMETER-RCA-20260821",
+  "recorded_at": "2026-08-20T17:29:35Z",
+  "verdict": "PARAMETER RECOVERY",
+  "single_root_cause": "The public installer invocation omitted TMPDIR=/private/tmp, so mktemp returned a /tmp candidate plist path that resolved to /private/tmp and failed the canonical-path check.",
+  "publisher_no_pid": {
+    "classification": "EXPECTED_PREACTIVATION_TRANSITION_INPUT",
+    "requires_activation_or_reload_before_preflight": false,
+    "reason": "The transition validator explicitly accepts the exact loaded_service_pid_missing receipt and then independently verifies loaded/no-PID inert topology."
+  },
+  "exact_recovery": {
+    "execution_status": "not_executed",
+    "argv": [
+      "/usr/bin/env",
+      "TMPDIR=/private/tmp",
+      "PANTHEON_USER_HOME_DIR=/Users/mattkuo",
+      "PANTHEON_PYTHON_PATH=/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+      "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=db6cc697831947734c86b76e3e0054309d0854aacb7d55044cc559e02f1e24bb",
+      "/bin/bash",
+      "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/install_pantheon_content_capacity_guard_launchd.sh",
+      "--preflight"
+    ],
+    "preconditions": [
+      "actor remains 88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5 and clean",
+      "manifest digest remains db6cc697831947734c86b76e3e0054309d0854aacb7d55044cc559e02f1e24bb",
+      "manifest, barrier, stage metadata, staged non-capacity plists, and Publisher exact-run receipt are coherent",
+      "old-live aggregate is activation-only, loaded, coherent, and has no PID",
+      "a new formal preflight authorization exists because the prior one-call budget is already consumed"
+    ],
+    "correct_timing": "After the candidate/current runtime tuple and preactivation stage are complete; before capacity plist installation/restaging and before activation."
+  },
+  "counts": {
+    "prior_public_preflight": 1,
+    "this_task_public_preflight": 0,
+    "direct_module": 0,
+    "capacity_exercise": 0,
+    "launchctl_mutation": 0,
+    "production_mutation": 0
+  }
+}

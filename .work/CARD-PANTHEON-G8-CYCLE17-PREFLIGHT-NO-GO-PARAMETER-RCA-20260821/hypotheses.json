@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-PREFLIGHT-NO-GO-PARAMETER-RCA-20260821",
+  "recorded_at": "2026-08-20T17:29:35Z",
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "未設定 TMPDIR 使 installer 以 /tmp 建立 candidate plist；macOS 將 /tmp 解析成 /private/tmp，因此 plist_receipt 的 canonical != path 條件必然拒絕。",
+      "verdict": "SUPPORTED",
+      "evidence": [
+        "installer: TEMP_PLIST uses ${TMPDIR:-/tmp}",
+        "manifest validation: plist_receipt rejects when path.resolve(strict=True) != path",
+        "host read-only check: /tmp is a symlink to private/tmp and both resolve to /private/tmp",
+        "ef2cdf9e47 exact argv contains no TMPDIR",
+        "b2995858c9 card records accepted/PASS with TMPDIR=/private/tmp"
+      ]
+    },
+    {
+      "id": "H2",
+      "statement": "plist error 是 owner mismatch，而非 noncanonical path。",
+      "verdict": "FALSIFIED_AS_ROOT_CAUSE",
+      "evidence": [
+        "the shared error joins two predicates, but canonical path inequality alone is sufficient",
+        "mktemp creates the file as the invoking user and no ownership-changing operation occurs before plist_receipt",
+        "the recorded recovery changes TMPDIR only; it does not change owner"
+      ]
+    },
+    {
+      "id": "H3",
+      "statement": "Publisher no-PID requires activation or reload before public preflight can pass。",
+      "verdict": "FALSIFIED",
+      "evidence": [
+        "validate_preactivation_transition explicitly accepts the exact rss_telemetry_unknown / loaded_service_pid_missing:* receipt shape",
+        "the same transition then requires all live services to be loaded with no PID and validates their inert topology",
+        "tests cover manifest-bound preactivation with loaded/no-PID and accept the transition without launchctl mutation"
+      ]
+    }
+  ],
+  "single_root_cause": "Missing TMPDIR=/private/tmp caused the temporary capacity plist path to be noncanonical (/tmp/... versus resolved /private/tmp/...), so the transition rejected before it could treat Publisher no-PID as the expected preactivation topology."
+}
