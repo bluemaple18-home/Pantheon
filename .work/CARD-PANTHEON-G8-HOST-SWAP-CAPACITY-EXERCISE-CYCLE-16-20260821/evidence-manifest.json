@@ -1,0 +1,29 @@
+{
+  "card_id": "CARD-PANTHEON-G8-HOST-SWAP-CAPACITY-EXERCISE-CYCLE-16-20260821",
+  "python": {
+    "path": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+    "version": "3.12.12"
+  },
+  "exercise": {
+    "invocation_count": 1,
+    "exit_code": 0,
+    "host_escalated": true
+  },
+  "receipt": {
+    "path": ".work/CARD-PANTHEON-G8-HOST-SWAP-CAPACITY-EXERCISE-CYCLE-16-20260821/capacity-receipt.json",
+    "sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce",
+    "status": "PASS",
+    "production_mutation": false,
+    "production_mutation_count": 0
+  },
+  "contract": {
+    "cycle_count": 2,
+    "all_rss_available": true,
+    "all_swap_available": true,
+    "all_swap_values_non_negative_integers": true,
+    "reclamation_allowlist_only": true,
+    "stop_loss_status": "STOPPED",
+    "remaining_loaded": [],
+    "cross_project_deletions": []
+  }
+}
