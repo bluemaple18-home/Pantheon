@@ -10,6 +10,7 @@ thickness: standard
 risk: medium
 model: gpt-5.6-terra
 reasoning: medium
+model_reason: 規格與驗收契約固定，唯一 runtime 差異已由 RCA 連續驗證；以 standard verification 使用 Terra medium，無架構岔路。
 ownership:
   - artifacts/fortune_council/content_writer_vnext_execution/apf_004_readiness/**
   - .work/CARD-PANTHEON-G8-CURRENT-READINESS-NO-SYNC-RETRY-20260820/**
