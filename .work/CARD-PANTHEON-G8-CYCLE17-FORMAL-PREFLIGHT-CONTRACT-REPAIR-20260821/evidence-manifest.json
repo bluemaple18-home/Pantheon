@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-CYCLE17-FORMAL-PREFLIGHT-CONTRACT-REPAIR-20260821",
+  "status": "BLOCKED",
+  "blocker": "PUBLIC_PREFLIGHT_NO_GO",
+  "cycle17_card_modified": false,
+  "files": [
+    {
+      "path": "contract-analysis.md",
+      "sha256": "f5ee5e13c6d6aa1d8bf14329ac809678b78c971159e59230c736c666b7f1e5f6"
+    },
+    {
+      "path": "public-preflight-result.json",
+      "sha256": "9975e9bf7f6f53ccc63b657d3a1c2548f64787409482c5d57e0c47e121c44a19"
+    }
+  ]
+}
