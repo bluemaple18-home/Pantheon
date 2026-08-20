@@ -1,0 +1,14 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "case": "run-boundary",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+  "execution_line_id": "exec-apf-004-readiness",
+  "outcome": "BLOCKED",
+  "production_mutation": false,
+  "reason": "exact run ids not found: ra-slice-002-missing-negative-probe",
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/blocked-run.json",
+  "step": "run"
+}

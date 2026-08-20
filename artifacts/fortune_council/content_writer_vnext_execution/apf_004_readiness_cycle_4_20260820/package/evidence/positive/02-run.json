@@ -1,0 +1,20 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "a147b4cc121b8b3a83ffac357131de5563ae3c383ffe14443ab865d83f631d0f",
+  "outcome": "PASS",
+  "output_digest": "4135429380deebe019be6c99124385adb491f076952ba50ac0dc00fb9d95748e",
+  "packaged_source_artifact": "positive/02-run.json",
+  "packaged_source_digest": "0c5399fec37ada0001cd3bf587ed5d0e1cd78398eb3af06d8fd710ca8f20db65",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/positive-run.json",
+  "state_digest": "563359952fdfe21e8c6d8d336d06acd29ce383dec05107347ab9ec697c0960f2",
+  "step": "run",
+  "summary_digest": "74918012b55a85b9cd4020016368ddb25e6b9c16128f0730feafc915e7300dca"
+}
