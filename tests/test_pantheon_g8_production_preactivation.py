@@ -378,6 +378,89 @@ def test_release_reconciliation_current_historical_mix_is_ambiguous(tmp_path: Pa
     assert receipt["reconciliation_status"] == "AMBIGUOUS"
 
 
+def test_reg_g8_rel_rev_002_conflicting_duplicate_service_scope_is_ambiguous(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    publisher_service = next(
+        item
+        for item in payload["services"]
+        if item["service"] == "com.pantheon.agy-content-publisher" and item["scope"] == "live"
+    )
+    conflicting = dict(publisher_service)
+    conflicting["activation_mode"] = "activation-only"
+    conflicting["path"] = "/fixture/conflict/com.pantheon.agy-content-publisher.plist"
+    payload["services"].insert(payload["services"].index(publisher_service), conflicting)
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["blocked_code"] == "RELEASE_AMBIGUOUS"
+    assert receipt["reconciliation_status"] == "AMBIGUOUS"
+    assert receipt["matched_state"] is None
+    assert receipt["duplicate_conflicts"] == [
+        {
+            "service": "com.pantheon.agy-content-publisher",
+            "scope": "live",
+            "fields": ["activation_mode", "path"],
+            "paths": [
+                "/fixture/conflict/com.pantheon.agy-content-publisher.plist",
+                "/fixture/live/com.pantheon.agy-content-publisher.plist",
+            ],
+        }
+    ]
+
+
+def test_reg_g8_rel_rev_002_identical_duplicate_service_scope_is_deduped(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    publisher_service = next(
+        item
+        for item in payload["services"]
+        if item["service"] == "com.pantheon.agy-content-publisher" and item["scope"] == "live"
+    )
+    payload["services"].append(dict(publisher_service))
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 0
+    assert receipt["reconciliation_status"] == "CONVERGED"
+    assert receipt["matched_state"] == "ST-TARGET-STAGED"
+
+
+def test_reg_g8_rel_rev_002_duplicate_service_scope_path_drift_is_ambiguous(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    publisher_service = next(
+        item
+        for item in payload["services"]
+        if item["service"] == "com.pantheon.agy-content-publisher" and item["scope"] == "live"
+    )
+    path_drift = dict(publisher_service)
+    path_drift["path"] = "/fixture/other/com.pantheon.agy-content-publisher.plist"
+    payload["services"].append(path_drift)
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["blocked_code"] == "RELEASE_AMBIGUOUS"
+    assert receipt["reconciliation_status"] == "AMBIGUOUS"
+    assert receipt["duplicate_conflicts"][0]["fields"] == ["path"]
+    assert receipt["duplicate_conflicts"][0]["paths"] == [
+        "/fixture/live/com.pantheon.agy-content-publisher.plist",
+        "/fixture/other/com.pantheon.agy-content-publisher.plist",
+    ]
+
+
 def test_release_reconciliation_forbids_implicit_transitioning(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
@@ -410,6 +493,28 @@ def test_canonical_edge_maps_existing_installer_effector(edge_id: str, action: s
         "effector": "scripts/install_agy_gemini_coordinator_launchd.sh",
         "action": action,
         "production_mutation": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("edge_id", "action"),
+    [
+        ("TE-CAPACITY-TO-ACTIVATED", "--activate"),
+        ("TE-CANARY-READY-TO-RUNNING", "--activate"),
+    ],
+)
+def test_reg_g8_rel_rev_001_edge_action_prefix_collision_blocks(
+    edge_id: str,
+    action: str,
+) -> None:
+    with pytest.raises(preactivation.ReconciliationBlocked) as error:
+        preactivation.validate_effector_edge(edge_id, action)
+
+    assert error.value.code == "EDGE_EFFECTOR_MISMATCH"
+    assert error.value.details["actual"] == {
+        "edge_id": edge_id,
+        "effector": "scripts/install_agy_gemini_coordinator_launchd.sh",
+        "action": action,
     }
 
 

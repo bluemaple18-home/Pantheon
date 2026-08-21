@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -258,6 +259,87 @@ def _expected_values(value: str) -> set[str]:
     return {value}
 
 
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _observation_normative_fields(contracts: dict[str, Any]) -> set[str]:
+    fields = {"path"}
+    for row in contracts["matrix"]:
+        fields.update(
+            field
+            for field in row
+            if field not in {"state_id", "service_group", "scope", "required_receipt_set"}
+        )
+    fields.update(
+        {
+            "receipt",
+            "receipts",
+            "receipt_path",
+            "receipt_paths",
+            "current_receipt",
+            "current_receipts",
+            "required_receipt_set",
+        }
+    )
+    return fields
+
+
+def _evidence_path(item: dict[str, Any], fallback: Path) -> str:
+    path = item.get("path")
+    return str(path) if path else str(fallback)
+
+
+def _index_observed_services(
+    services: list[Any],
+    *,
+    normative_fields: set[str],
+    fallback_path: Path,
+) -> tuple[dict[tuple[Any, Any], dict[str, Any]], list[dict[str, Any]]]:
+    observed: dict[tuple[Any, Any], dict[str, Any]] = {}
+    conflicts: list[dict[str, Any]] = []
+    for item in (value for value in services if isinstance(value, dict)):
+        key = (item.get("service"), item.get("scope"))
+        existing = observed.get(key)
+        if existing is None:
+            observed[key] = item
+            continue
+        if item == existing:
+            continue
+        conflict_fields = sorted(
+            field
+            for field in normative_fields
+            if (field in existing or field in item)
+            and _stable_json(existing.get(field)) != _stable_json(item.get(field))
+        )
+        if not conflict_fields:
+            conflict_fields = ["observation"]
+        conflicts.append(
+            {
+                "service": str(key[0]),
+                "scope": str(key[1]),
+                "fields": conflict_fields,
+                "paths": [
+                    _evidence_path(existing, fallback_path),
+                    _evidence_path(item, fallback_path),
+                ],
+            }
+        )
+    return observed, conflicts
+
+
+def _edge_effector_action(authority: str, effector: str) -> tuple[str | None, str | None]:
+    try:
+        tokens = shlex.split(authority)
+    except ValueError:
+        return None, None
+    for index, token in enumerate(tokens):
+        if token == effector:
+            action = tokens[index + 1] if index + 1 < len(tokens) else None
+            return token, action
+    return None, None
+
+
 def evaluate_release_state(args: argparse.Namespace) -> dict[str, Any]:
     contracts = _load_release_contracts(args.release_state_contract, args.transition_edge_map)
     observation = _read_json(args.release_observation)
@@ -271,6 +353,33 @@ def evaluate_release_state(args: argparse.Namespace) -> dict[str, Any]:
     services = observation.get("services")
     if not isinstance(evidence_scopes, list) or not isinstance(services, list):
         raise ReconciliationBlocked("OBSERVATION_INVALID", "release observation fields are invalid", {"path": str(args.release_observation)})
+    observed, duplicate_conflicts = _index_observed_services(
+        services,
+        normative_fields=_observation_normative_fields(contracts),
+        fallback_path=args.release_observation,
+    )
+    if duplicate_conflicts:
+        return {
+            "reconciliation_status": "AMBIGUOUS",
+            "matched_state": None,
+            "divergences": [
+                {
+                    "service": conflict["service"],
+                    "scope": conflict["scope"],
+                    "path": ", ".join(conflict["paths"]),
+                    "field": "duplicate_service_scope",
+                    "expected": "single unambiguous current evidence",
+                    "actual": conflict["fields"],
+                }
+                for conflict in duplicate_conflicts
+            ],
+            "missing": [],
+            "next_edge": None,
+            "effector_mapping": None,
+            "invalidations": [],
+            "duplicate_conflicts": duplicate_conflicts,
+            "production_mutation": False,
+        }
     if observation.get("state") == "TRANSITIONING" and not observation.get("explicit_transition_execution"):
         return {
             "reconciliation_status": "DIVERGED",
@@ -287,7 +396,6 @@ def evaluate_release_state(args: argparse.Namespace) -> dict[str, Any]:
         matches: list[str] = []
         evaluations: dict[str, dict[str, Any]] = {}
     else:
-        observed = {(item.get("service"), item.get("scope")): item for item in services if isinstance(item, dict)}
         receipts = set(observation.get("current_receipts") or [])
         evaluations = {}
         for state in contracts["states"]:
@@ -349,14 +457,19 @@ def validate_effector_edge(edge_id: str, action: str) -> dict[str, Any]:
     edge = next((item for item in contracts["edges"] if item["edge_id"] == edge_id), None)
     authority = "" if edge is None else edge["unique mutation authority"].replace("`", "")
     effector = "scripts/install_agy_gemini_coordinator_launchd.sh"
-    if edge is None or effector not in authority or action not in authority:
+    authorized_effector, authorized_action = _edge_effector_action(authority, effector)
+    if edge is None or authorized_effector != effector or authorized_action != action:
         raise ReconciliationBlocked(
             "EDGE_EFFECTOR_MISMATCH",
             "release edge does not authorize the requested effector",
             {
                 "service": "com.pantheon.agy-gemini-coordinator",
                 "path": str(TRANSITION_EDGE_MAP),
-                "expected": authority or "known canonical edge",
+                "expected": {
+                    "authority": authority or "known canonical edge",
+                    "effector": authorized_effector,
+                    "action": authorized_action,
+                },
                 "actual": {"edge_id": edge_id, "effector": effector, "action": action},
             },
         )

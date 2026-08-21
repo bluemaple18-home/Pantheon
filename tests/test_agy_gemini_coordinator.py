@@ -5049,7 +5049,19 @@ def test_four_lane_installer_separates_stage_and_activation_with_rollback() -> N
     assert install_section.index("exit 0") < install_section.index("launchctl bootstrap")
 
 
-def test_installer_rejects_wrong_release_edge_before_mutation(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("edge_id", "action"),
+    [
+        ("TE-QUIESCED-TO-CAPACITY", "--activate-only"),
+        ("TE-CAPACITY-TO-ACTIVATED", "--activate"),
+        ("TE-CANARY-READY-TO-RUNNING", "--activate"),
+    ],
+)
+def test_installer_rejects_wrong_release_edge_before_mutation(
+    tmp_path: Path,
+    edge_id: str,
+    action: str,
+) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     pool, _manifest_sha256 = _write_installer_pool(tmp_path)
     env, fake_home, mutation_log = _installer_test_env(
@@ -5057,13 +5069,13 @@ def test_installer_rejects_wrong_release_edge_before_mutation(tmp_path: Path) ->
         pool=pool,
         state=tmp_path / "state.json",
     )
-    env["PANTHEON_RELEASE_NEXT_EDGE"] = "TE-QUIESCED-TO-CAPACITY"
+    env["PANTHEON_RELEASE_NEXT_EDGE"] = edge_id
 
     completed = subprocess.run(
         [
             "/bin/bash",
             str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
-            "--activate-only",
+            action,
         ],
         cwd=tmp_path,
         env=env,
@@ -5076,9 +5088,9 @@ def test_installer_rejects_wrong_release_edge_before_mutation(tmp_path: Path) ->
     receipt = json.loads(completed.stdout)
     assert receipt["blocked_code"] == "EDGE_EFFECTOR_MISMATCH"
     assert receipt["details"]["actual"] == {
-        "edge_id": "TE-QUIESCED-TO-CAPACITY",
+        "edge_id": edge_id,
         "effector": "scripts/install_agy_gemini_coordinator_launchd.sh",
-        "action": "--activate-only",
+        "action": action,
     }
     assert not mutation_log.exists()
     assert not fake_home.exists()
