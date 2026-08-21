@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-REVIEW-20260821-ab05219ce2",
+  "review_base": "ab05219ce237d2af7bf878a219aebb91bef36594",
+  "candidate": "7e30deb3f87bbc60c577bb31a33810b08d5b6791",
+  "verdict": "ACCEPT",
+  "finding_counts": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "checks": {
+    "discovery_symlink_separated_from_canonical_identity": true,
+    "python_version_3_12_12_evidenced": true,
+    "canonical_executable_regular_file": true,
+    "canonical_executable_sha256_verified": true,
+    "plan_apply_manifest_postcheck_preflight_literal_unified": true,
+    "source_canonical_realpath_check_weakened": false,
+    "production_authority_expanded": false,
+    "scope_allowlisted": true,
+    "git_diff_check": "PASS"
+  },
+  "hashes": {
+    "canonical_python": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+    "candidate_card": "43efaeea189e8c72f7a2de26c189df8cfcf5d8fdc31ed608da8894825bf0ff86",
+    "canonical_python_evidence": "731cc024a05b951189ce91fbcc4966b6ad6cf55cb3eebc6bde1c0fac83c261b7",
+    "contract_repair": "d9d503abf47e04f23a2d5c2e811eb57ce1caf89d9910fc6a0978b57200c5dd5a",
+    "repair_verdict": "ff1847dfe26deaabba82f56fd9f822852da2680cf1d5a031eafef66059670010"
+  },
+  "scope": {
+    "candidate_card_modified": 1,
+    "repair_evidence_added": 4,
+    "source_changes": 0,
+    "test_changes": 0
+  },
+  "remaining_risk": "Canonical Python literal and binary digest are host-bound; every new host/worktree must rediscover and revalidate them before formal plan execution.",
+  "next_single_entry": "Return candidate 7e30deb3f8 to the original Cycle 17 implementation thread and execute only CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821.md under its corrected fail-closed contract.",
+  "codegraph": {
+    "status": "CONTEXT_DEGRADED",
+    "reason": "worktree CodeGraph index is not initialized",
+    "fallback": "bounded git show and git grep"
+  },
+  "runtime_invocation": 0,
+  "production_mutation": 0,
+  "commit_created": false
+}
