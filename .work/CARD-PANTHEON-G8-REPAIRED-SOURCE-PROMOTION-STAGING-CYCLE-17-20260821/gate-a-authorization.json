@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "authorization_id": "G8-C17-CANONICAL-PYTHON-GATE-A-8278047CED",
+  "authorization_status": "AUTHORIZED",
+  "authorization_expires_at": "2099-01-01T00:00:00Z",
+  "authorization_revoked": false,
+  "production_target": "gate2-actor:c05929f2a7dac86e94aaeaa5ab6c5455892f5f77:activation-only",
+  "source_sha": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+  "plan_digest": "7bdee0915cf78b50df8e81b19be77812a78e2cfe5c906e28b679984e90a046a8",
+  "exact_apply_argv_artifact": ".work/CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821/exact-apply-argv.json",
+  "exact_apply_argv_digest": "75ca827a8c443bce05697390c2867d9ccf41c354a54480cb04100d3e96500053",
+  "mutation_scope": "runtime-promotion-apply-once",
+  "rollback_contract": "rollback-bundle-retained-until-explicit-finalize",
+  "evidence_root": ".work/CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821/apply-evidence-root-uncreated"
+}

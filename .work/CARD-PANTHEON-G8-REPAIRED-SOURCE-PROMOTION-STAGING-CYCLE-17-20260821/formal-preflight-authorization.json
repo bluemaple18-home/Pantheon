@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "authorization_id": "G8-C17-CANONICAL-PYTHON-FORMAL-PREFLIGHT-8278047CED",
+  "authorization_status": "AUTHORIZED",
+  "authorization_expires_at": "2099-01-01T00:00:00Z",
+  "authorization_revoked": false,
+  "single_use": true,
+  "invocation_count": 1,
+  "target_actor_sha": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+  "manifest_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+  "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "python_version": "Python 3.12.12",
+  "python_executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+  "exact_argv_artifact": ".work/CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821/exact-formal-preflight-argv.json",
+  "exact_argv_sha256": "1eb78e0569998b62d617cc6e9a098317dd9d51cee745f67469811d3940fdde75",
+  "production_mutation": 0,
+  "last_outcome": "PASS_ACCEPTED"
+}

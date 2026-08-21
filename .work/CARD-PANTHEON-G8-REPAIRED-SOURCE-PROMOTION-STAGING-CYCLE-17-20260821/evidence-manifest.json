@@ -1,24 +1,23 @@
 {
   "schema_version": 1,
-  "card_id": "CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821",
-  "status": "BLOCKED",
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-EXECUTION-20260821-8278047ced",
+  "status": "STAGED",
   "canary_status": "NO_CANARY",
-  "files": [
-    {
-      "path": "capacity-receipt.json",
-      "sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce"
-    },
-    {
-      "path": "preflight-receipt.json",
-      "sha256": "77da6649a48576913679ffbb02c033469f24896b239bda9fe749b2a2049b86ba"
-    },
-    {
-      "path": "plan-result.json",
-      "sha256": "1444951a212603a2380c4e74eac4fb5f2313ccc48232c768c1194221af65f504"
-    },
-    {
-      "path": "blocked-receipt.json",
-      "sha256": "1ef943334f92a9347f07d9d5a884698c1b6a4b91e742f90acbdaf9d171697968"
-    }
-  ]
+  "algorithm": "sha256",
+  "files": {
+    "canonical-python-evidence.json": "b50fa2dc8b19a3fa3723d560fc7fe7a91360f5069d14227747061bb8777d48d3",
+    "capacity-receipt.json": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce",
+    "exact-apply-argv.json": "704dc8c579949d1250bf148a813f3f6c964968d815ed14612740197f1abffd51",
+    "exact-formal-preflight-argv.json": "a35e0089a04a7edec70c1b348360b3598a31031b9848975167887798fa1ddbdc",
+    "final-receipt.json": "f0f1a72a95d5e9d765e9ba0d4256e017f1cfc638aaf7d6670b25dba91105b5cd",
+    "formal-preflight-authorization.json": "17f379b44a56bcf6c64984ff09ff0139c3bae013098f110c55628c8236142fdd",
+    "formal-preflight-result.json": "158e06df65084c830989020d82b8f0dc526bbf3a6ce54ce259128f7bbc04a281",
+    "gate-a-authorization-state.json": "cd7bcc879216a78d39a716917f826324868225c006890af913bf7da5a49afb61",
+    "gate-a-authorization.json": "e309cb3a7d2625f7070854ea36c604ce2685a4dcc896e69dc835b0e5ef93eb34",
+    "gate-a-result.json": "6caa8ffcd77fb1ef6f89aa77bcc6d9fb38da9d8570d15a4acfe312ba20841332",
+    "plan-result.json": "4d9b4d8ba32f2f54a9308892d30e0a3f954253e532792da426c9606a92161b48",
+    "preflight-receipt.json": "f4215f20c58e5288f9d7c257ee4de97bbe6acc9f73e6c393e1805ce023af55ca",
+    "promotion-result.json": "86163e1d7337cfad9d87db5b857abc436c8e182c07723f43ee4f97428d0cd600",
+    "push-receipt.json": "b5e9beb2047ce9a605a38a5e0c33fbb166aa2af06caf006365c9df13d249016e"
+  }
 }

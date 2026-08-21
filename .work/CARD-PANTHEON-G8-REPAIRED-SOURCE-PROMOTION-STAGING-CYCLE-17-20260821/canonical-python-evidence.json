@@ -1,0 +1,10 @@
+{
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-EXECUTION-20260821-8278047ced",
+  "tooling_source": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+  "tooling_source_is_symlink": true,
+  "canonical_realpath": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "canonical_realpath_is_regular_executable": true,
+  "python_version": "Python 3.12.12",
+  "canonical_executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+  "status": "PASS"
+}

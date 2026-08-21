@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-EXECUTION-20260821-8278047ced",
+  "card_id": "CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821",
+  "status": "STAGED",
+  "canary_status": "NO_CANARY",
+  "remote": {
+    "before": "88c6c0a95a013d0e9e8ab84c1a0f75a58ada1ff5",
+    "after": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77"
+  },
+  "runtime": {
+    "actor_sha": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+    "stage_digest": "d63db21a621fbf5eed8c352ea8d6f0769a1bdb78edbddd3b61d982a40ae61bd0",
+    "generation": "g17-c05929f2a7-20260821T827804Z",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12"
+  },
+  "stage": {
+    "aggregate_status": "PASS",
+    "top_level_plist_count": 7,
+    "publisher_max_runs": 1,
+    "publisher_exact_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "barrier_status": "PASS"
+  },
+  "live": {
+    "hashes_unchanged": true,
+    "topology": "activation-only-loaded-no-pid",
+    "activation_performed": false,
+    "reload_performed": false
+  },
+  "queue": {
+    "preserved_run_count": 140,
+    "snapshot_digest_before": "58d51ecd0facb43b896c11bdbb8f13002829aedc91d1d38737e8160244357ac0",
+    "snapshot_digest_after": "58d51ecd0facb43b896c11bdbb8f13002829aedc91d1d38737e8160244357ac0",
+    "complete": true
+  },
+  "counts": {
+    "capacity_exercise_calls": 0,
+    "release_dry_preflight_calls": 1,
+    "deterministic_plan_calls": 1,
+    "gate_a_authorizations_created": 1,
+    "formal_preflight_authorizations_created": 1,
+    "gate_a_invocations": 1,
+    "push_calls": 1,
+    "promotion_apply_calls": 1,
+    "promotion_postcheck_calls": 1,
+    "promotion_finalize_calls": 1,
+    "coordinator_lane_restage_calls": 1,
+    "publisher_restage_calls": 1,
+    "formal_public_preflight_calls": 1,
+    "capacity_install_calls": 1,
+    "install_side_revalidation_calls": 1,
+    "activation_calls": 0,
+    "canary_calls": 0,
+    "lane_run_calls": 0,
+    "publisher_transaction_calls": 0,
+    "tag_calls": 0,
+    "publish_calls": 0,
+    "production_mutation_calls": 5
+  }
+}

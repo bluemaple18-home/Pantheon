@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
-  "status": "READY_TO_APPLY",
+  "status": "COMMITTED",
   "plan_digest": "7bdee0915cf78b50df8e81b19be77812a78e2cfe5c906e28b679984e90a046a8",
   "target_manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
   "target_actor_sha": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
-  "target_generation": "g17-c05929f2a7-20260821T827804Z",
-  "target_python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+  "generation": "g17-c05929f2a7-20260821T827804Z",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "barrier": "PASS",
+  "readiness": "PASS",
   "queue_snapshot_digest": "58d51ecd0facb43b896c11bdbb8f13002829aedc91d1d38737e8160244357ac0",
-  "preserved_run_count": 140,
-  "production_mutation": 0
+  "rollback_bundle_finalized": true
 }

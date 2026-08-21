@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "argv": [
+    "/usr/bin/env",
+    "TMPDIR=/private/tmp",
+    "PANTHEON_USER_HOME_DIR=/Users/mattkuo",
+    "PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "/bin/bash",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/install_pantheon_content_capacity_guard_launchd.sh",
+    "--preflight"
+  ],
+  "canonical_argv_sha256": "1eb78e0569998b62d617cc6e9a098317dd9d51cee745f67469811d3940fdde75",
+  "execution_status": "executed_once"
+}

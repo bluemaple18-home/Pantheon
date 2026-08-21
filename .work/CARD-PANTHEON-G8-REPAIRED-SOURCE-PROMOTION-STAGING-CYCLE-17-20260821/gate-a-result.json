@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "READY",
+  "authorization_id": "G8-C17-CANONICAL-PYTHON-GATE-A-8278047CED",
+  "authorization_state_before_apply": "UNCONSUMED",
+  "apply_calls_before_apply": 0,
+  "apply_call_budget": 1,
+  "immutable_tuple_digest": "ba735b54a2d49fc9391f38143b8d78b64d893f5516c33a37019b210a37fd98d4",
+  "errors": [],
+  "production_mutation": 0
+}

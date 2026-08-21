@@ -1,10 +1,7 @@
 {
   "schema_version": 1,
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-EXECUTION-20260821-8278047ced",
   "status": "PASS",
-  "tooling_python": {
-    "configured_path": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
-    "version": "3.12.12"
-  },
   "cycle16_capacity_receipt": {
     "sha256": "3773594ff3e3dea71902ff122b280818b91fb826659570606e45f34b6fc3f6ce",
     "status": "PASS",
