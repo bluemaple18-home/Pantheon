@@ -2,6 +2,7 @@
 id: CARD-PANTHEON-G8-CAPACITY-EXIT0-CONTRACT-REPAIR-CYCLE-21-20260821-RESULT
 card_id: CARD-PANTHEON-G8-CAPACITY-EXIT0-CONTRACT-REPAIR-CYCLE-21-20260821
 status: fixed
+full_suite_status: BLOCKED_BY_HOST_CAPACITY
 runtime_mutation: false
 ---
 
@@ -21,8 +22,8 @@ runtime_mutation: false
 ## 驗證證據
 
 - RED：`test_preactivation_transition_accepts_exit_zero_and_rejects_unknown` 在 source 修正前失敗於 `preactivation service mismatch`，`1 failed`。
-- targeted GREEN：同一測試修正後 `1 passed in 0.41s`。
-- 完整檔：`46 passed, 5 failed in 18.46s`。五個失敗均在目標 transition seam 前由當前主機 `disk_free_below_start_floor` 觸發；未修改或繞過 10% 容量安全門檻。
+- targeted GREEN：主線重跑為 `1 passed`。
+- 完整檔：`46 passed, 5 failed`，狀態為 `BLOCKED_BY_HOST_CAPACITY`。五個失敗均在目標 transition seam 前由當前主機 `disk_free_below_start_floor` 觸發，不是本 diff regression；未修改或繞過 10% 容量安全門檻。
 - `git diff --check`：PASS。
 
 ## 剩餘驗收條件
