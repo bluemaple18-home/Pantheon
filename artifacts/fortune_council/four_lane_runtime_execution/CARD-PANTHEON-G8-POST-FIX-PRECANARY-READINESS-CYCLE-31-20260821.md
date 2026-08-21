@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-G8-POST-FIX-PRECANARY-READINESS-CYCLE-31-20260821
-status: queued_resource_blocked
+status: ready_to_dispatch
 execution_line_id: pantheon-g8-publisher-post-fix-precanary-cycle31
 role: readiness-auditor
 model: gpt-5.6-terra
@@ -12,7 +12,7 @@ candidate_source_sha: 6498d1fe756e6e76a499cc79df8fe228dd65311b
 
 ## 工作名稱 → 正在做什麼 → 現在狀態
 
-Publisher canonical TMPDIR 修復後 readiness 重驗 → 只重建與核對 non-production readiness 證據 → `QUEUED / RESOURCE BLOCKED`，未建立正式 thread。
+Publisher canonical TMPDIR 修復後 readiness 重驗 → 只重建與核對 non-production readiness 證據 → `READY TO DISPATCH`，等待正式 thread bootstrap。
 
 ## Root question
 
@@ -23,7 +23,7 @@ Publisher canonical TMPDIR 修復後 readiness 重驗 → 只重建與核對 non
 - candidate source：`6498d1fe756e6e76a499cc79df8fe228dd65311b`；正式 bootstrap SHA 由包含本卡的主線 commit 決定。
 - canonical TMPDIR candidate 已獨立 `REVIEW_GO`；main focused tests 為 `2 passed`、reset suite `16 passed`。
 - Cycle 30 終局為 `BLOCKED / NO RETRY`，因此本卡不繼承 production mutation 授權。
-- 建卡前 resource snapshot：`complete=true`、missing 空、host available `64283385856` bytes、memory pressure `normal`、Codex worktree `20 / 20`、worktree bytes `4790480896`、active scoped worktree thread `0`、snapshot digest `b7521167fa71b85aecba1689ba9bb73a7ac467af7e07bb988af4026e1d323f26`。
+- 清理後 resource snapshot：`complete=true`、missing 空、host available `64877338624` bytes、memory pressure `normal`、Codex worktree `17 / 20`、worktree bytes `4218818560`、active scoped worktree thread `0`、snapshot digest `a8b8db8e6a4456201640c5f85680deafd7225c9b33eb58f85fb0975ebba5f3e5`。
 
 ## 唯一責任
 
