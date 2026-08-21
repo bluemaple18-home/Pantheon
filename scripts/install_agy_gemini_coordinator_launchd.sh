@@ -474,10 +474,15 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     echo "Publisher activation-only reset requires a normal terminal Publisher plist." >&2
     false
   fi
-  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :RunAtLoad' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" != "true" \
-    || -n "$(/usr/libexec/PlistBuddy -c 'Print :StartInterval' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" \
-    || -n "$(/usr/libexec/PlistBuddy -c 'Print :KeepAlive' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" ]]; then
-    echo "Publisher activation-only reset requires a terminal one-shot Publisher plist." >&2
+  PUBLISHER_RUN_AT_LOAD="$(/usr/libexec/PlistBuddy -c 'Print :RunAtLoad' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)"
+  PUBLISHER_START_INTERVAL="$(/usr/libexec/PlistBuddy -c 'Print :StartInterval' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)"
+  PUBLISHER_KEEP_ALIVE="$(/usr/libexec/PlistBuddy -c 'Print :KeepAlive' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)"
+  if [[ "${PUBLISHER_RUN_AT_LOAD}" != "true" || -n "${PUBLISHER_KEEP_ALIVE}" ]]; then
+    echo "Publisher activation-only reset requires a normal one-shot or scheduled Publisher plist." >&2
+    false
+  fi
+  if [[ -n "${PUBLISHER_START_INTERVAL}" && "${PUBLISHER_START_INTERVAL}" != "60" ]]; then
+    echo "Publisher activation-only reset rejects unexpected Publisher StartInterval." >&2
     false
   fi
   (
