@@ -12,13 +12,19 @@ candidate_thread: 01a02340-7497-7dd2-af4d-78c9e651d40f
 
 `BLOCKED / NO RETRY`
 
-本次未執行 promotion apply、stage install、Capacity preactivation、Rule25 readiness、Publisher-only activation、Publisher transaction、tag 或 push。正式 promotion plan gate 在 apply 前 fail-closed：
+本次 ACTIVATE NOW 未執行 promotion apply、stage install、Capacity preactivation、Rule25 readiness、Publisher-only activation、Publisher transaction、tag 或 push。正式 capacity bounded exercise gate 在 production mutation 前 fail-closed：
+
+```json
+{"status": "NO-GO", "mode": "bounded-synthetic-dry-run", "swap_available": false}
+```
+
+依卡片契約，任一 gate 非 PASS 即停止，不換 receipt、不 retry、不建立新卡。
+
+前一次 BOOTSTRAP 後的 apply 前 promotion plan 也曾 fail-closed：
 
 ```json
 {"error": "capacity stop-loss is not PASS", "status": "NO-GO"}
 ```
-
-依卡片契約，任一 gate 非 PASS 即停止，不換 receipt、不 retry、不建立新卡。
 
 ## Bootstrap 與 authority
 
@@ -39,17 +45,32 @@ candidate_thread: 01a02340-7497-7dd2-af4d-78c9e651d40f
 - Source authority temp clone：`/private/tmp/pantheon-g8-final-source-4c16` at `4c16a2f4ab81865ba854cff6cf79a82dfe700c71`, clean, origin `git@github.com:bluemaple18-home/Pantheon.git`。
 - Release/pre-push local gate for `b1719c0d... -> 4c16a2f4...`：PASS。
 - Synthetic capacity harness summary：PASS, two cycles, canary_created=false, production_mutation=false.
-- Promotion plan gate：NO-GO，`capacity stop-loss is not PASS`。
+- ACTIVATE NOW formal capacity bounded exercise：NO-GO，兩個 cycle 的 `rss_available=true`，但 `swap_available=false` / `swap_before=null` / `swap_after=null`。
+- Promotion plan gate：未重跑；因 current formal capacity gate 已非 PASS，依卡片停止。
 
 ## Blocker
 
-The capacity receipt generated in this task is a Rule24-style synthetic proof with:
+ACTIVATE NOW 的 formal capacity receipt 由 `scripts.pantheon_content_capacity_guard exercise` 產生，契約為：
+
+- `regression_id: REG-PANTHEON-CAPACITY-WRITE-CYCLES-001`
+- `mode: bounded-synthetic-dry-run`
+- `production_mutation: false`
+- `status: NO-GO`
+
+兩個 cycle 均有 RSS telemetry，但 swap telemetry 不可用：
+
+- cycle 1：`rss_available=true`, `swap_available=false`
+- cycle 2：`rss_available=true`, `swap_available=false`
+
+因 Rule24 與 promotion 入口都要求容量／swap evidence 可用，正式 gate 非 PASS，停止在 production mutation 前。
+
+前一次使用的 capacity receipt 是 Rule24-style synthetic proof：
 
 - `mode: synthetic-non-production-capacity-proof`
 - `status: PASS`
 - `stop_loss_negative_result: BLOCKED`
 
-The formal promotion entrance requires the stricter promotion capacity contract checked by `scripts.pantheon_content_runtime_promotion`: `regression_id=REG-PANTHEON-CAPACITY-WRITE-CYCLES-001`, `mode=bounded-synthetic-dry-run`, per-cycle RSS/swap availability, reclamation bytes before/after, and a structured `stop_loss.status=STOPPED` payload. Because that contract did not pass, the promotion plan returned `NO-GO` before any production mutation.
+That receipt was not accepted by the formal promotion entrance. The current ACTIVATE NOW run used the stricter formal receipt shape and failed because swap telemetry was unavailable.
 
 ## Mutation accounting
 
@@ -70,6 +91,8 @@ The formal promotion entrance requires the stricter promotion capacity contract 
 
 - Ignored evidence root：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/`
 - Capacity receipt：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/capacity/capacity-receipt.json`
+- Formal capacity receipt：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/capacity-formal-receipt.json`
+- Formal capacity exercise root：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/capacity-formal-exercise/`
 - Promotion plan argv：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/plan-argv.json`
 - Promotion plan result：`.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/plan-result.json`
 
@@ -96,4 +119,4 @@ The formal promotion entrance requires the stricter promotion capacity contract 
 
 - `4c16a2f4...` 仍未進 origin/main 或 runtime actor；Cycle30 的 Publisher failure 修復尚未正式開通。
 - exact run `auto-i18n-en-614aa4dc3542ab2c5637` 仍待正式 Publisher canary，發布狀態未改變。
-- Capacity contract mismatch 需要另由主線決定是否開新授權修補；本卡不得 retry 或補洞。
+- Current capacity swap telemetry unavailable，需要另由主線決定是否處置；本卡不得 retry 或補洞。
