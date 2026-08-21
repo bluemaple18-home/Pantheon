@@ -33,6 +33,11 @@ SELECTOR_READY = "CURRENT_EXACT_SELECTOR_READY"
 MUTATION_DETECTED = "MUTATION_DETECTED"
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 SERVICE_LABELS = runtime_manifest.SERVICE_LABELS
+RELEASE_STATE_CONTRACT = ROOT / "artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-G8-RELEASE-STATE-CONTRACT-V1-20260821.md"
+TRANSITION_EDGE_MAP = ROOT / "artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-G8-TRANSITION-EDGE-MAP-V1-20260821.md"
+RELEASE_STATE_CONTRACT_ID = "PANTHEON-G8-RELEASE-STATE-CONTRACT-V1-20260821"
+TRANSITION_EDGE_MAP_ID = "PANTHEON-G8-TRANSITION-EDGE-MAP-V1-20260821"
+RECONCILIATION_STATUSES = {"CONVERGED", "DIVERGED", "UNKNOWN", "AMBIGUOUS"}
 IDENTITY_FIELDS = (
     "identity",
     "manifest_digest",
@@ -101,6 +106,9 @@ def _canonicalize_protected_args(args: argparse.Namespace) -> argparse.Namespace
     args.live_root = _canonical_existing(args.live_root, "live_root")
     args.staged_root = _canonical_existing(args.staged_root, "staged_root")
     args.manifest = _canonical_existing(args.manifest, "manifest")
+    args.release_observation = _canonical_existing(args.release_observation, "release_observation")
+    args.release_state_contract = _canonical_existing(args.release_state_contract, "release_state_contract")
+    args.transition_edge_map = _canonical_existing(args.transition_edge_map, "transition_edge_map")
     return args
 
 
@@ -154,6 +162,211 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ReconciliationBlocked("INVALID_JSON", f"{path} must contain a JSON object")
     return payload
+
+
+def _frontmatter(text: str, path: Path) -> dict[str, str]:
+    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+        raise ReconciliationBlocked("CONTRACT_INVALID", "contract frontmatter is missing", {"path": str(path)})
+    block = text[4 : text.index("\n---\n", 4)]
+    fields: dict[str, str] = {}
+    for line in block.splitlines():
+        if ":" in line:
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def _markdown_tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
+    lines = text.splitlines()
+    tables: list[tuple[list[str], list[list[str]]]] = []
+    index = 0
+    while index + 1 < len(lines):
+        if lines[index].startswith("|") and lines[index + 1].startswith("| ---"):
+            header = [cell.strip().strip("`") for cell in lines[index].strip("|").split("|")]
+            rows: list[list[str]] = []
+            index += 2
+            while index < len(lines) and lines[index].startswith("|"):
+                rows.append([cell.strip().strip("`") for cell in lines[index].strip("|").split("|")])
+                index += 1
+            tables.append((header, rows))
+            continue
+        index += 1
+    return tables
+
+
+def _table(tables: list[tuple[list[str], list[list[str]]]], required: tuple[str, ...], path: Path) -> tuple[list[str], list[list[str]]]:
+    for header, rows in tables:
+        if all(field in header for field in required):
+            return header, rows
+    raise ReconciliationBlocked(
+        "CONTRACT_INVALID",
+        "required contract table is missing",
+        {"path": str(path), "expected": list(required), "actual": [header for header, _rows in tables]},
+    )
+
+
+def _row_dict(header: list[str], row: list[str]) -> dict[str, str]:
+    return dict(zip(header, row, strict=False))
+
+
+def _load_release_contracts(state_path: Path, edge_path: Path) -> dict[str, Any]:
+    try:
+        state_text = state_path.read_text(encoding="utf-8")
+        edge_text = edge_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ReconciliationBlocked("CONTRACT_UNAVAILABLE", "release contract is unreadable") from error
+    state_meta = _frontmatter(state_text, state_path)
+    edge_meta = _frontmatter(edge_text, edge_path)
+    for meta, expected_id, path in (
+        (state_meta, RELEASE_STATE_CONTRACT_ID, state_path),
+        (edge_meta, TRANSITION_EDGE_MAP_ID, edge_path),
+    ):
+        if meta.get("id") != expected_id or meta.get("version") != "1":
+            raise ReconciliationBlocked(
+                "CONTRACT_IDENTITY_MISMATCH",
+                "release contract identity mismatch",
+                {"path": str(path), "expected": {"id": expected_id, "version": "1"}, "actual": meta},
+            )
+    state_tables = _markdown_tables(state_text)
+    group_header, group_rows = _table(state_tables, ("service group", "labels"), state_path)
+    groups: dict[str, list[str]] = {}
+    for raw in group_rows:
+        row = _row_dict(group_header, raw)
+        groups[row["service group"]] = [value.strip().strip("`") for value in row["labels"].split("、")]
+    if set(groups) != {"SVC-PUBLISHER", "SVC-CORE", "SVC-CAPACITY"} or len(groups["SVC-CORE"]) != 5:
+        raise ReconciliationBlocked("CONTRACT_INVALID", "service group expansion is invalid", {"path": str(state_path), "actual": groups})
+    matrix_header, matrix_rows = _table(
+        state_tables,
+        ("state_id", "service_group", "scope", "activation_mode", "required_receipt_set"),
+        state_path,
+    )
+    matrix = [_row_dict(matrix_header, raw) for raw in matrix_rows]
+    states = list(dict.fromkeys(row["state_id"] for row in matrix))
+    if len(states) != 8 or any(state == "TRANSITIONING" for state in states):
+        raise ReconciliationBlocked("CONTRACT_INVALID", "release state vocabulary is invalid", {"path": str(state_path), "actual": states})
+    edge_tables = _markdown_tables(edge_text)
+    edge_header, edge_rows = _table(edge_tables, ("edge_id", "from", "to", "unique mutation authority"), edge_path)
+    edges = [_row_dict(edge_header, raw) for raw in edge_rows]
+    if len({edge["edge_id"] for edge in edges}) != len(edges) or any(edge["from"] not in states or edge["to"] not in states for edge in edges):
+        raise ReconciliationBlocked("CONTRACT_INVALID", "transition edge references are invalid", {"path": str(edge_path)})
+    return {"states": states, "groups": groups, "matrix": matrix, "edges": edges}
+
+
+def _expected_values(value: str) -> set[str]:
+    if value.startswith("one_of(") and value.endswith(")"):
+        return {item.strip() for item in value[7:-1].split(",")}
+    return {value}
+
+
+def evaluate_release_state(args: argparse.Namespace) -> dict[str, Any]:
+    contracts = _load_release_contracts(args.release_state_contract, args.transition_edge_map)
+    observation = _read_json(args.release_observation)
+    if observation.get("schema_version") != 1 or observation.get("contract_id") != RELEASE_STATE_CONTRACT_ID or observation.get("edge_map_id") != TRANSITION_EDGE_MAP_ID:
+        raise ReconciliationBlocked(
+            "OBSERVATION_IDENTITY_MISMATCH",
+            "release observation identity mismatch",
+            {"path": str(args.release_observation), "expected": {"schema_version": 1, "contract_id": RELEASE_STATE_CONTRACT_ID, "edge_map_id": TRANSITION_EDGE_MAP_ID}, "actual": {key: observation.get(key) for key in ("schema_version", "contract_id", "edge_map_id")}},
+        )
+    evidence_scopes = observation.get("evidence_scopes")
+    services = observation.get("services")
+    if not isinstance(evidence_scopes, list) or not isinstance(services, list):
+        raise ReconciliationBlocked("OBSERVATION_INVALID", "release observation fields are invalid", {"path": str(args.release_observation)})
+    if observation.get("state") == "TRANSITIONING" and not observation.get("explicit_transition_execution"):
+        return {
+            "reconciliation_status": "DIVERGED",
+            "matched_state": None,
+            "divergences": [{"service": "release-control-plane", "path": str(args.release_observation), "field": "state", "expected": contracts["states"], "actual": "TRANSITIONING"}],
+            "missing": [],
+            "next_edge": None,
+            "effector_mapping": None,
+            "invalidations": [],
+            "production_mutation": False,
+        }
+    if "current" in evidence_scopes and "historical" in evidence_scopes:
+        status = "AMBIGUOUS"
+        matches: list[str] = []
+        evaluations: dict[str, dict[str, Any]] = {}
+    else:
+        observed = {(item.get("service"), item.get("scope")): item for item in services if isinstance(item, dict)}
+        receipts = set(observation.get("current_receipts") or [])
+        evaluations = {}
+        for state in contracts["states"]:
+            divergences: list[dict[str, Any]] = []
+            missing: list[dict[str, Any]] = []
+            required_receipts: set[str] = set()
+            for row in (item for item in contracts["matrix"] if item["state_id"] == state):
+                for service in contracts["groups"][row["service_group"]]:
+                    item = observed.get((service, row["scope"]))
+                    path = item.get("path") if item else str(args.release_observation)
+                    if item is None:
+                        missing.append({"service": service, "path": path, "field": "service_scope", "expected": row["scope"], "actual": None})
+                        continue
+                    for field, expected in row.items():
+                        if field in {"state_id", "service_group", "scope", "required_receipt_set"}:
+                            continue
+                        actual = item.get(field)
+                        if actual is None:
+                            missing.append({"service": service, "path": path, "field": field, "expected": expected, "actual": None})
+                        elif str(actual) not in _expected_values(expected):
+                            divergences.append({"service": service, "path": path, "field": field, "expected": expected, "actual": actual})
+                    required_receipts.add(row["required_receipt_set"])
+            for receipt in required_receipts - {"RR-NONE"} - receipts:
+                missing.append({"service": "release-control-plane", "path": str(args.release_observation), "field": "required_receipt_set", "expected": receipt, "actual": None})
+            evaluations[state] = {"divergences": divergences, "missing": missing}
+        matches = [state for state, result in evaluations.items() if not result["divergences"] and not result["missing"]]
+        if len(matches) > 1:
+            status = "AMBIGUOUS"
+        elif len(matches) == 1:
+            status = "CONVERGED"
+        elif any(not result["divergences"] for result in evaluations.values()):
+            status = "UNKNOWN"
+        else:
+            status = "DIVERGED"
+    matched_state = matches[0] if len(matches) == 1 else None
+    selected = evaluations.get(matched_state or str(observation.get("expected_state_id")), {"divergences": [], "missing": []})
+    outgoing = [edge for edge in contracts["edges"] if edge["from"] == matched_state]
+    desired_target = observation.get("desired_target_state")
+    if desired_target:
+        outgoing = [edge for edge in outgoing if edge["to"] == desired_target]
+    next_edge = outgoing[0] if len(outgoing) == 1 else None
+    result = {
+        "reconciliation_status": status,
+        "matched_state": matched_state,
+        "divergences": selected["divergences"],
+        "missing": selected["missing"],
+        "next_edge": None if next_edge is None else {"edge_id": next_edge["edge_id"], "from": next_edge["from"], "to": next_edge["to"]},
+        "effector_mapping": None if next_edge is None else next_edge["unique mutation authority"],
+        "invalidations": [] if next_edge is None else [value.strip() for value in next_edge["evidence invalidated"].split(",")],
+        "production_mutation": False,
+    }
+    if result["reconciliation_status"] not in RECONCILIATION_STATUSES:
+        raise ReconciliationBlocked("CONTRACT_INVALID", "unexpected reconciliation status")
+    return result
+
+
+def validate_effector_edge(edge_id: str, action: str) -> dict[str, Any]:
+    contracts = _load_release_contracts(RELEASE_STATE_CONTRACT, TRANSITION_EDGE_MAP)
+    edge = next((item for item in contracts["edges"] if item["edge_id"] == edge_id), None)
+    authority = "" if edge is None else edge["unique mutation authority"].replace("`", "")
+    effector = "scripts/install_agy_gemini_coordinator_launchd.sh"
+    if edge is None or effector not in authority or action not in authority:
+        raise ReconciliationBlocked(
+            "EDGE_EFFECTOR_MISMATCH",
+            "release edge does not authorize the requested effector",
+            {
+                "service": "com.pantheon.agy-gemini-coordinator",
+                "path": str(TRANSITION_EDGE_MAP),
+                "expected": authority or "known canonical edge",
+                "actual": {"edge_id": edge_id, "effector": effector, "action": action},
+            },
+        )
+    return {
+        "status": "PASS",
+        "edge_id": edge_id,
+        "effector": effector,
+        "action": action,
+        "production_mutation": False,
+    }
 
 
 def _read_manifest_identity(path: Path, expected_digest: str) -> dict[str, Any]:
@@ -439,6 +652,11 @@ def reconcile(args: argparse.Namespace) -> dict[str, Any]:
         manifest = runtime_manifest.load_manifest(args.manifest, args.expected_manifest_digest)
         result["runtime_transition"] = evaluate_runtime(args, manifest)
         result["selector"] = evaluate_selector(args)
+        result["release_reconciliation"] = evaluate_release_state(args)
+        result.update(result["release_reconciliation"])
+        if result["reconciliation_status"] != "CONVERGED":
+            result["status"] = BLOCKED_STATUS
+            result["blocked_code"] = f"RELEASE_{result['reconciliation_status']}"
     except (runtime_manifest.RuntimeManifestError, publisher.PublishBlocked, ReconciliationBlocked) as error:
         code = error.code if isinstance(error, ReconciliationBlocked) else type(error).__name__
         details = error.details if isinstance(error, ReconciliationBlocked) else {}
@@ -486,12 +704,34 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--origin-main", required=True)
     parser.add_argument("--exact-run-id", required=True)
     parser.add_argument("--evidence-path", type=Path, required=True)
+    parser.add_argument("--release-observation", type=Path, required=True)
+    parser.add_argument("--release-state-contract", type=Path, default=RELEASE_STATE_CONTRACT)
+    parser.add_argument("--transition-edge-map", type=Path, default=TRANSITION_EDGE_MAP)
     parser.add_argument("--allow-source-drift", action="append", default=[])
     parser.add_argument("--selector-limit", type=int, default=2)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
+    effective_argv = sys.argv[1:] if argv is None else argv
+    if effective_argv[:1] == ["--validate-effector-edge"]:
+        parser = argparse.ArgumentParser(description="驗證 canonical edge 的既有 effector mapping。")
+        parser.add_argument("--validate-effector-edge", action="store_true")
+        parser.add_argument("--edge-id", required=True)
+        parser.add_argument("--action", required=True)
+        edge_args = parser.parse_args(effective_argv)
+        try:
+            payload = validate_effector_edge(edge_args.edge_id, edge_args.action)
+        except ReconciliationBlocked as error:
+            payload = {
+                "status": BLOCKED_STATUS,
+                "blocked_code": error.code,
+                "reasons": [error.reason],
+                "details": error.details,
+                "production_mutation": False,
+            }
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 0 if payload["status"] == "PASS" else 1
     args = parse_args(argv)
     try:
         _canonicalize_protected_args(args)

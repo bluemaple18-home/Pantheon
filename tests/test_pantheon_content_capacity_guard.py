@@ -1549,7 +1549,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         lambda *_args, **_kwargs: {
             "status": "PASS",
             "identity": identity["value"],
-            "config_version": "formal-runtime-v2-gate2",
+            "config_version": "formal-runtime-v3-model-route-v1",
         },
     )
     monkeypatch.setattr(
@@ -1580,7 +1580,11 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     assert inert["rss_identity"]["inert_labels"] == [
         {
             "label": "com.pantheon.agy-content-publisher",
-            "topology": "loaded-but-inert",
+            "topology": "INERT_LOADED",
+            "pid_required": False,
+            "measurement_required": False,
+            "expected_process_count": 0,
+            "resource_usage": "NOT_APPLICABLE",
         }
     ]
 
@@ -1590,9 +1594,6 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         ),
         "running": lambda target: exact_fixture(target).replace(
             "\tstate = not running\n", "\tstate = running\n", 1
-        ),
-        "waiting": lambda target: exact_fixture(target).replace(
-            "\tstate = not running\n", "\tstate = waiting\n", 1
         ),
         "missing": lambda target: exact_fixture(target).replace(
             "\tstate = not running\n", "", 1
@@ -1672,6 +1673,38 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
             "topology": "loaded-but-idle",
         }
     ]
+
+
+def test_inert_loaded_pid_is_violation() -> None:
+    label = "com.pantheon.agy-gemini-coordinator"
+    target = f"gui/{os.getuid()}/{label}"
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command == ["launchctl", "print", target]:
+            return _completed(
+                0,
+                ANONYMIZED_INERT_LAUNCHCTL_FIXTURE.replace("<target>", target, 1).replace(
+                    "\tstate = not running\n",
+                    "\tstate = running\n\tpid = 4242\n",
+                    1,
+                ),
+            )
+        if command[:2] == ["launchctl", "print"]:
+            return _completed(113)
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = guard._service_rss_bytes(
+        runner,
+        expected_inert_labels=frozenset({label}),
+    )
+
+    assert result["available"] is False
+    assert result["error"] == f"inert_service_pid_present:{label}"
+    assert result["identity"]["violation"] == {
+        "service": label,
+        "expected": "no-pid",
+        "actual": 4242,
+    }
 
 
 @pytest.mark.parametrize(

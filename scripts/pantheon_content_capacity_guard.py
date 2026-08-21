@@ -135,15 +135,30 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozenset[str]:
-    if (
-        runtime_receipt.get("status") == "PASS"
-        and runtime_receipt.get("config_version") == "formal-runtime-v2-gate2"
-        and ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
-            str(runtime_receipt.get("identity", ""))
-        )
-    ):
+    if runtime_receipt.get("status") != "PASS":
+        return frozenset()
+    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(runtime_receipt.get("identity", ""))):
         return frozenset(SERVICE_LABELS)
-    return frozenset()
+    try:
+        home = Path(
+            os.environ.get("PANTHEON_USER_HOME_DIR")
+            or pwd.getpwuid(os.getuid()).pw_dir
+        ).resolve(strict=True)
+        for label in formal_runtime.SERVICE_LABELS:
+            with (home / "Library" / "LaunchAgents" / f"{label}.plist").open("rb") as stream:
+                payload = plistlib.load(stream)
+            arguments = payload.get("ProgramArguments")
+            separator = arguments.index("--") if isinstance(arguments, list) and "--" in arguments else -1
+            if (
+                payload.get("Label") != label
+                or separator < 0
+                or arguments[:separator].count("--activation-only") != 1
+                or any(field in payload for field in ("StandardInPath", "StandardOutPath", "StandardErrorPath"))
+            ):
+                return frozenset()
+    except (OSError, plistlib.InvalidFileException):
+        return frozenset()
+    return frozenset(SERVICE_LABELS)
 
 
 def _normal_scheduled_service_labels(
@@ -285,9 +300,18 @@ def _service_rss_bytes(
             if (
                 label in expected_inert_labels
                 and identity is not None
-                and identity["states"] == ["not running"]
+                and identity["states"] in (["not running"], ["waiting"])
             ):
-                inert.append({"label": label, "topology": "loaded-but-inert"})
+                inert.append(
+                    {
+                        "label": label,
+                        "topology": "INERT_LOADED",
+                        "pid_required": False,
+                        "measurement_required": False,
+                        "expected_process_count": 0,
+                        "resource_usage": "NOT_APPLICABLE",
+                    }
+                )
                 continue
             expected_plist = str(
                 Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
@@ -365,6 +389,23 @@ def _service_rss_bytes(
                 },
             }
         pid = match.group(1)
+        if label in expected_inert_labels:
+            return {
+                "value": None,
+                "available": False,
+                "error": f"inert_service_pid_present:{label}",
+                "identity": {
+                    "loaded_labels": loaded,
+                    "inert_labels": inert,
+                    "idle_labels": idle,
+                    "absent_labels": absent,
+                    "violation": {
+                        "service": label,
+                        "expected": "no-pid",
+                        "actual": int(pid),
+                    },
+                },
+            }
         pids.append(pid)
         loaded.append({"label": label, "pid": int(pid)})
     if not pids:
@@ -639,7 +680,18 @@ def preflight(
         reasons.append("rss_telemetry_unknown")
     if sample.get("swap_available") is not True:
         reasons.append("swap_telemetry_unknown")
-    return {"status": "PASS" if not reasons else "NO-GO", "reasons": reasons, **sample}
+    process_policy = {
+        "topology": "INERT_LOADED",
+        "pid_required": False,
+        "measurement_required": False,
+        "expected_process_count": 0,
+        "resource_usage": "NOT_APPLICABLE",
+    } if expected_inert_labels else {
+        "topology": "RSS_REQUIRED",
+        "pid_required": True,
+        "measurement_required": True,
+    }
+    return {"status": "PASS" if not reasons else "NO-GO", "reasons": reasons, "process_policy": process_policy, **sample}
 
 
 def validate_preactivation_transition(
@@ -656,16 +708,7 @@ def validate_preactivation_transition(
         receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
         raise formal_runtime.RuntimeManifestError("preactivation receipt is invalid") from error
-    preflight_pass = isinstance(receipt, dict) and receipt.get("status") == "PASS"
-    preflight_pid_gap = (
-        isinstance(receipt, dict)
-        and receipt.get("reasons") == ["rss_telemetry_unknown"]
-        and receipt.get("rss_available") is False
-        and str(receipt.get("rss_error", "")).startswith(
-            "loaded_service_pid_missing:"
-        )
-    )
-    if not (preflight_pass or preflight_pid_gap):
+    if not isinstance(receipt, dict) or receipt.get("status") != "PASS":
         raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
     if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", ""))) is None:

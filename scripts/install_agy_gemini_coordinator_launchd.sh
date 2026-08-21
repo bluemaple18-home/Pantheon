@@ -71,6 +71,15 @@ if [[ -z "${PYTHON_REALPATH}" || ! -f "${PYTHON_REALPATH}" || ! -x "${PYTHON_REA
   exit 1
 fi
 PYTHON_BIN="${PYTHON_REALPATH}"
+if [[ -n "${PANTHEON_RELEASE_NEXT_EDGE:-}" ]]; then
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_g8_production_preactivation \
+      --validate-effector-edge \
+      --edge-id "${PANTHEON_RELEASE_NEXT_EDGE}" \
+      --action="${ACTION}"
+  ) || exit 1
+fi
 if [[ ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
   exit 1

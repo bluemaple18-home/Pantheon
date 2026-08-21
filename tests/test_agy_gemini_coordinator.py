@@ -5049,6 +5049,68 @@ def test_four_lane_installer_separates_stage_and_activation_with_rollback() -> N
     assert install_section.index("exit 0") < install_section.index("launchctl bootstrap")
 
 
+def test_installer_rejects_wrong_release_edge_before_mutation(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_RELEASE_NEXT_EDGE"] = "TE-QUIESCED-TO-CAPACITY"
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    receipt = json.loads(completed.stdout)
+    assert receipt["blocked_code"] == "EDGE_EFFECTOR_MISMATCH"
+    assert receipt["details"]["actual"] == {
+        "edge_id": "TE-QUIESCED-TO-CAPACITY",
+        "effector": "scripts/install_agy_gemini_coordinator_launchd.sh",
+        "action": "--activate-only",
+    }
+    assert not mutation_log.exists()
+    assert not fake_home.exists()
+
+
+def test_activation_invalidation_requires_publisher_restage(tmp_path: Path) -> None:
+    env, fake_home, mutation_log, manifest, _barrier, _loaded, _live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    stage_dir.rename(tmp_path / "invalidated-preactivation-stage")
+    env["PANTHEON_RELEASE_NEXT_EDGE"] = "TE-CANARY-READY-TO-RUNNING"
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(Path(__file__).resolve().parents[1] / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-publisher-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert not mutation_log.exists()
+    assert not stage_dir.exists()
+    assert manifest["generation"] in completed.stderr or "stage" in completed.stderr.lower()
+
+
 @pytest.mark.parametrize(
     ("external_correlation", "expected_correlation", "expected_phase"),
     [

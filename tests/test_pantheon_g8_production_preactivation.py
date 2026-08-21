@@ -19,6 +19,48 @@ from tests.test_agy_content_publisher import _write_run
 CARD_ID = "CARD-PANTHEON-G8-PRODUCTION-PREACTIVATION-RECONCILIATION-REPAIR-20260820"
 
 
+def _write_release_observation(
+    path: Path,
+    state_id: str,
+    *,
+    evidence_scopes: list[str] | None = None,
+    desired_target_state: str | None = None,
+) -> dict[str, Any]:
+    contracts = preactivation._load_release_contracts(
+        preactivation.RELEASE_STATE_CONTRACT,
+        preactivation.TRANSITION_EDGE_MAP,
+    )
+    services: list[dict[str, Any]] = []
+    receipts: set[str] = set()
+    for row in (item for item in contracts["matrix"] if item["state_id"] == state_id):
+        for service in contracts["groups"][row["service_group"]]:
+            item = {
+                "service": service,
+                "scope": row["scope"],
+                "path": f"/fixture/{row['scope']}/{service}.plist",
+            }
+            for field, expected in row.items():
+                if field in {"state_id", "service_group", "scope", "required_receipt_set"}:
+                    continue
+                item[field] = sorted(preactivation._expected_values(expected))[0]
+            services.append(item)
+            if row["required_receipt_set"] != "RR-NONE":
+                receipts.add(row["required_receipt_set"])
+    payload = {
+        "schema_version": 1,
+        "contract_id": preactivation.RELEASE_STATE_CONTRACT_ID,
+        "edge_map_id": preactivation.TRANSITION_EDGE_MAP_ID,
+        "evidence_scopes": evidence_scopes or ["current"],
+        "expected_state_id": state_id,
+        "desired_target_state": desired_target_state,
+        "current_receipts": sorted(receipts),
+        "explicit_transition_execution": False,
+        "services": services,
+    }
+    _write_json(path, payload)
+    return payload
+
+
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -120,6 +162,12 @@ def _fixture(tmp_path: Path) -> dict[str, Any]:
         path.mkdir(parents=True)
     live, staged, manifest_path, manifest = _runtime_dirs(tmp_path, actor, queue, state, logs)
     _write_run(queue, tmp_path / "runs" / "target-run", make_publishable_article("AUTO-TARGET"))
+    release_observation = tmp_path / "release-observation.json"
+    _write_release_observation(
+        release_observation,
+        "ST-TARGET-STAGED",
+        desired_target_state="ST-QUIESCED-TARGET-STAGED",
+    )
     return {
         "repo": repo,
         "actor": actor,
@@ -133,6 +181,7 @@ def _fixture(tmp_path: Path) -> dict[str, Any]:
         "required": required,
         "origin_main": origin_main,
         "evidence": tmp_path / "evidence" / "receipt.json",
+        "release_observation": release_observation,
     }
 
 
@@ -152,6 +201,7 @@ def _args(fixture: dict[str, Any], **overrides: Any) -> list[str]:
         "origin_main": fixture["origin_main"],
         "exact_run_id": "target-run",
         "evidence_path": fixture["evidence"],
+        "release_observation": fixture["release_observation"],
         "allow_source_drift": ["artifacts/fortune_council/four_lane_runtime_execution/**"],
     }
     values.update(overrides)
@@ -184,6 +234,8 @@ def _args(fixture: dict[str, Any], **overrides: Any) -> list[str]:
         values["exact_run_id"],
         "--evidence-path",
         str(values["evidence_path"]),
+        "--release-observation",
+        str(values["release_observation"]),
     ]
     for pattern in values["allow_source_drift"]:
         args.extend(["--allow-source-drift", pattern])
@@ -234,8 +286,131 @@ def test_positive_planned_fast_forward_old_live_to_new_stage_exact_selector(tmp_
     assert receipt["authority"]["status"] == "PLANNED_FAST_FORWARD"
     assert receipt["runtime_transition"]["status"] == "OLD_LIVE_TO_NEW_STAGE_READY"
     assert receipt["selector"]["status"] == "CURRENT_EXACT_SELECTOR_READY"
+    assert receipt["reconciliation_status"] == "CONVERGED"
+    assert receipt["matched_state"] == "ST-TARGET-STAGED"
+    assert receipt["next_edge"]["edge_id"] == "TE-TARGET-STAGED-TO-QUIESCED"
+    assert receipt["production_mutation"] is False
     assert receipt["mutation_tripwire"]["status"] == "PASS"
     assert not (fixture["state"] / "publisher.lock").exists()
+
+
+@pytest.mark.parametrize(
+    ("state_id", "desired_target"),
+    [
+        ("ST-STEADY", None),
+        ("ST-CANARY-TERMINAL", "ST-TARGET-STAGED"),
+        ("ST-TARGET-STAGED", "ST-QUIESCED-TARGET-STAGED"),
+        ("ST-QUIESCED-TARGET-STAGED", "ST-CAPACITY-READY"),
+        ("ST-CAPACITY-READY", "ST-ACTIVATED"),
+        ("ST-ACTIVATED", "ST-CANARY-READY"),
+        ("ST-CANARY-READY", "ST-CANARY-RUNNING"),
+        ("ST-CANARY-RUNNING", "ST-CANARY-TERMINAL"),
+    ],
+)
+def test_release_contract_matches_all_eight_states(
+    tmp_path: Path,
+    state_id: str,
+    desired_target: str | None,
+) -> None:
+    fixture = _fixture(tmp_path)
+    _write_release_observation(
+        fixture["release_observation"],
+        state_id,
+        desired_target_state=desired_target,
+    )
+
+    code, receipt = _run(fixture)
+
+    assert code == 0
+    assert receipt["reconciliation_status"] == "CONVERGED"
+    assert receipt["matched_state"] == state_id
+
+
+def test_release_reconciliation_reports_per_service_divergence(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    publisher = next(
+        item
+        for item in payload["services"]
+        if item["service"] == "com.pantheon.agy-content-publisher" and item["scope"] == "live"
+    )
+    publisher["activation_mode"] = "activation-only"
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["reconciliation_status"] == "DIVERGED"
+    assert receipt["divergences"] == [
+        {
+            "service": "com.pantheon.agy-content-publisher",
+            "path": "/fixture/live/com.pantheon.agy-content-publisher.plist",
+            "field": "activation_mode",
+            "expected": "normal",
+            "actual": "activation-only",
+        }
+    ]
+
+
+def test_release_reconciliation_missing_current_is_unknown(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    payload["services"] = payload["services"][:-1]
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["reconciliation_status"] == "UNKNOWN"
+    assert receipt["missing"]
+    assert all(item["service"] and item["path"] for item in receipt["missing"])
+
+
+def test_release_reconciliation_current_historical_mix_is_ambiguous(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    payload["evidence_scopes"] = ["current", "historical"]
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["reconciliation_status"] == "AMBIGUOUS"
+
+
+def test_release_reconciliation_forbids_implicit_transitioning(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    payload = json.loads(fixture["release_observation"].read_text(encoding="utf-8"))
+    payload["state"] = "TRANSITIONING"
+    _write_json(fixture["release_observation"], payload)
+
+    code, receipt = _run(fixture)
+
+    assert code == 1
+    assert receipt["reconciliation_status"] == "DIVERGED"
+    assert receipt["divergences"][0]["service"] == "release-control-plane"
+    assert receipt["divergences"][0]["path"] == str(fixture["release_observation"])
+    assert receipt["divergences"][0]["actual"] == "TRANSITIONING"
+
+
+@pytest.mark.parametrize(
+    ("edge_id", "action"),
+    [
+        ("TE-TARGET-STAGED-TO-QUIESCED", "--reset-publisher-activation-only"),
+        ("TE-CAPACITY-TO-ACTIVATED", "--activate-only"),
+        ("TE-CANARY-READY-TO-RUNNING", "--activate-publisher-only"),
+    ],
+)
+def test_canonical_edge_maps_existing_installer_effector(edge_id: str, action: str) -> None:
+    receipt = preactivation.validate_effector_edge(edge_id, action)
+
+    assert receipt == {
+        "status": "PASS",
+        "edge_id": edge_id,
+        "effector": "scripts/install_agy_gemini_coordinator_launchd.sh",
+        "action": action,
+        "production_mutation": False,
+    }
 
 
 def test_remote_diverged_blocks(tmp_path: Path) -> None:
