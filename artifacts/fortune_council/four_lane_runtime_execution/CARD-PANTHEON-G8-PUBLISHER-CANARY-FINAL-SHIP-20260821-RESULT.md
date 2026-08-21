@@ -4,6 +4,7 @@ card_id: CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821
 status: blocked
 terminal_state: BLOCKED / NO RETRY
 candidate_thread: 01a01dc1-0e97-75d2-9baa-4b7f261f9c40
+cycle: repaired-continuation-7b2
 ---
 
 # G8 Publisher 單筆正式開通完整收尾 RESULT
@@ -12,96 +13,153 @@ candidate_thread: 01a01dc1-0e97-75d2-9baa-4b7f261f9c40
 
 `BLOCKED / NO RETRY`
 
-正式 promotion、finalize 與 ordinary fast-forward push 已完成，runtime actor 與 origin/main 均收斂到 `a07647309b9df89ed55cc000b65f151f9622b76b`。G32 coordinator、四 lanes 與 Publisher exact-run private stage 亦已建立。
+修復後 continuation 已把 source `7b2f9b546bdac7c162c7ade2271eca6922020070` 以正式 promotion 入口收斂到 runtime actor，並 ordinary fast-forward push 到 origin/main。current actor 與 origin/main 均為 `7b2f9b546bdac7c162c7ade2271eca6922020070`，actor clean。
 
-停止點在 Publisher terminal reset 前的 pre-mutation contract：live Publisher plist 仍有 `StartInterval=60`。source authority `a076...` 的 `--reset-publisher-activation-only` handler 明文要求 terminal one-shot live Publisher 必須 `RunAtLoad=true` 且沒有 `StartInterval`／`KeepAlive`；focused success test 也先移除這兩個 schedule key 才呼叫 reset。依本次明示分支，正式契約不允許目前 legacy scheduled live Publisher 作為 reset input，因此未呼叫 reset、未執行 Capacity/readiness/activation，亦未產生 Publisher child。
+停止點在唯一一次 `--reset-publisher-activation-only`：formal entrypoint exit `1`，failure receipt 為 `ACTIVATION_REJECTED`，phase `publisher_reset_stage_validation`。依本 cycle stop-loss 契約，reset 不 retry，Capacity、Rule25 readiness、Publisher-only activation、exact-run transaction/tag/push 均未執行。
 
 ## Bootstrap 與 authority
 
-- 工作 worktree：clean detached `aa4fa7403848b8e9054fe07e0806e21f76efe617`。
-- Source authority：共享 main `a07647309b9df89ed55cc000b65f151f9622b76b`；使用 clean detached temp clone，origin URL 精確相符。
-- Card 與既有 RESULT blob：source commit 內可讀。
-- CodeGraph：目前 session 無可用 CodeGraph tool，依授權退化為限域查詢；未掃全 repo、未跑 release suite。
-- exact run：`auto-i18n-en-614aa4dc3542ab2c5637`，target `ASTRO-BASE-01:en`；promotion request 證明 preserved run count `140` 且授權 run 存在。
+- formal thread：`01a01dc1-0e97-75d2-9baa-4b7f261f9c40`
+- cwd：`/Users/mattkuo/.codex/worktrees/f6a7/Pantheon`
+- f6a7 HEAD：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- f6a7 status before production work：clean
+- source main/local main：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- origin/main before promotion：`a07647309b9df89ed55cc000b65f151f9622b76b`
+- runtime actor before promotion：`a07647309b9df89ed55cc000b65f151f9622b76b`
+- card blob：readable from HEAD
+- repair RESULT blob：readable from HEAD
+- exact run：`auto-i18n-en-614aa4dc3542ab2c5637`
+- target：`ASTRO-BASE-01:en`
+
+## Current Preflight
+
+- queue run count：`140`
+- authorized exact run present：yes
+- exact run status snapshot：`status=complete`，`published=null`，`transaction_id=null`
+- runtime manifest before promotion：`g32-a0764730-20260821T190500Z`
+- runtime manifest digest before promotion：`170621da19d8ce1c6b29218d1a8ef56b7aa992668db1e19ec1b82b54b2b35509`
+- private stage before promotion：G32/a076 six plists，Publisher exact-run receipt present，Capacity absent
+- live Publisher before reset：plist exists，service absent，`RunAtLoad=true`，`StartInterval=60`，`KeepAlive=null`，normal mode
+- other six live services before reset：loaded/no-PID
+- disk snapshot：free `65290915840` bytes，total `245107195904` bytes
 
 ## Promotion
 
-- Host capacity PASS receipt：重用既有正式 receipt，sha256 `3172bbaf48cb5c2dc34af6d4dedb9310324c18ad68a8c67fd7e627c00da0fe95`；兩個 cycle 均 `rss_available=true`、`swap_available=true`，reclamation PASS，stop-loss `STOPPED`。
-- Promotion plan：`READY_TO_APPLY`，plan digest `e9a30408c098585aadb3979a3522e617b87945eb00ce9f43a88f0470e88efe1e`。
-- Apply/postcheck/finalize：`POSTCHECK_PASSED / COMMITTED`。
-- Target manifest digest：`170621da19d8ce1c6b29218d1a8ef56b7aa992668db1e19ec1b82b54b2b35509`。
-- Target runtime identity digest：`a3100865affb23095e5681704882109fb44ddbd19dda1b38ce90b3d3a869bfea`。
-- Target generation：`g32-a0764730-20260821T190500Z`。
-- Queue snapshot digest 在 plan 與終態均為 `e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2`。
-- Ordinary fast-forward push：唯一一次成功，remote main `4c16a2f4... -> a0764730...`；終態 ls-remote 精確為 `a07647309b9df89ed55cc000b65f151f9622b76b`。
+- source temp clone：`/private/tmp/pantheon-g8-final-source-7b2-20260821`
+- source temp clone HEAD：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- source temp clone status：clean
+- source temp clone origin：`git@github.com:bluemaple18-home/Pantheon.git`
+- capacity receipt reused：sha256 `3172bbaf48cb5c2dc34af6d4dedb9310324c18ad68a8c67fd7e627c00da0fe95`
+- promotion plan：`READY_TO_APPLY`
+- plan digest：`a03e4850ff065ee3bb2281fd1fcd78499dd9f737d0ec1426ddb239e455cebaf7`
+- target actor：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- target generation：`g33-7b2f9b54-20260821T192500Z`
+- target manifest digest：`94256c77394fc3ee90ec934002a461507b3da4336f528d72315d2520fb8ea4ac`
+- queue snapshot digest：`e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2`
+- apply result：`POSTCHECK_PASSED`
+- finalize result：`COMMITTED`
+- ordinary fast-forward push：`a07647309b..7b2f9b546b -> main`
+- origin/main after push：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- runtime actor after promotion：`7b2f9b546bdac7c162c7ade2271eca6922020070`
+- runtime actor final status：clean
 
-## Stage 與 reset 契約
+## Stage
 
-- coordinator＋四 lanes private-stage install：`1`，PASS。
-- Publisher exact-run private-stage install：`1`，PASS；`max-runs=1`、exact run 與 manifest/generation receipt 精確相符。
-- Capacity staged plist：未安裝。
-- 新 private stage 有六份 service plist，manifest digest 與 generation 為 G32。
-- live Publisher plist sha256：`76b67acb55c5b980ecc8376f8f882ac0c620acc56818254ef85eabfa830b9bc5`。
-- live Publisher mode：normal、`RunAtLoad=true`、`StartInterval=60`、無 `--activation-only`；launchctl service absent。
-- Handler 證據：`scripts/install_agy_gemini_coordinator_launchd.sh` 在任何 live replacement/bootstrap 前，若 `StartInterval` 或 `KeepAlive` 存在即回報 `requires a terminal one-shot Publisher plist` 並 fail-closed。
-- Focused test 證據：`tests/test_agy_gemini_coordinator.py::_write_publisher_terminal_live` 明確 `pop("StartInterval")` 與 `pop("KeepAlive")`；成功 reset test 只使用此 one-shot fixture。
-- 因契約明文拒絕目前輸入，reset invocation count 保持 `0`，未以實際 invocation 製造 failure receipt。
+- coordinator + four lanes stage install：`1`，PASS
+- Publisher exact-run stage install：`1`，PASS
+- Publisher stage exact run：`auto-i18n-en-614aa4dc3542ab2c5637`
+- Publisher stage max-runs：`1`
+- stage generation：`g33-7b2f9b54-20260821T192500Z`
+- stage manifest digest：`94256c77394fc3ee90ec934002a461507b3da4336f528d72315d2520fb8ea4ac`
+- staged plists after blocker：six service plists，Capacity absent
+- staged Publisher plist after blocker：normal scheduled，`RunAtLoad=true`，`StartInterval=60`，`KeepAlive=null`
+- stage failure receipt：present
+
+## Reset Failure
+
+- reset invocation：`1`
+- reset command：`install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only`
+- reset correlation：`G8-PUBLISHER-CANARY-FINAL-SHIP-20260821-RESET-7B2`
+- reset exit：`1`
+- reset stdout/stderr：empty
+- failure receipt status：`ACTIVATION_REJECTED`
+- failure receipt phase：`publisher_reset_stage_validation`
+- failure receipt stage identity：`g33-7b2f9b54-20260821T192500Z` / `94256c77394fc3ee90ec934002a461507b3da4336f528d72315d2520fb8ea4ac`
+
+Post-failure bounded diagnostics were read-only only:
+
+- staged Publisher `publisher-plist --expected-exact-run-id auto-i18n-en-614aa4dc3542ab2c5637` -> PASS
+- live Publisher `publisher-plist-receipt --activation-mode normal` -> PASS
+- live Publisher vs coordinator `LIVE_IDENTITY_FIELDS` comparison -> no mismatches
+- `/private/tmp` diagnostic copy converted to activation-only and validated with `publisher-plist-receipt --activation-mode activation-only` -> PASS
+
+No second reset was executed. The terminal blocker remains the formal reset entrypoint's first invocation returning `ACTIVATION_REJECTED` in `publisher_reset_stage_validation`.
 
 ## 七服務終態
 
-- Publisher：service absent、PID `0`、child `0`、transaction/tag/push `0/0/0`。
-- Coordinator、new、rewrite、i18n-new、i18n-rewrite、Capacity：均 loaded、`state=not running`、無 PID。
-- 其他六服務 live plist sha256 與 bootstrap 前快照完全相同。
-- 其他六服務 business child I/O：`0`；queue snapshot digest 與 run count `140` 均不變。
-- Publisher scheduled plist 未載入；因此未執行額外 bootout，也未 bootstrap Publisher。
-- Actor 終態：clean detached `a07647309b9df89ed55cc000b65f151f9622b76b`。
+- Publisher launchctl：service absent，PID none
+- Publisher live plist：unchanged legacy scheduled normal plist，sha256 `76b67acb55c5b980ecc8376f8f882ac0c620acc56818254ef85eabfa830b9bc5`
+- coordinator：loaded/no-PID，old G23 activation-only plist unchanged
+- new：loaded/no-PID，old G23 activation-only plist unchanged
+- rewrite：loaded/no-PID，old G23 activation-only plist unchanged
+- i18n-new：loaded/no-PID，old G23 activation-only plist unchanged
+- i18n-rewrite：loaded/no-PID，old G23 activation-only plist unchanged
+- Capacity：loaded/no-PID，old G23 activation-only plist unchanged
+- Publisher child count observed by this cycle：`0`
+- other six business child I/O observed by this cycle：`0`
+- Publisher retry risk after blocker：no loaded Publisher service; no stop-loss bootout required
 
-## Mutation accounting
+## Mutation Accounting
 
-- promotion plan/apply/finalize：`1 / 1 / 1`。
-- ordinary fast-forward push：`1`。
-- coordinator＋four lanes stage install：`1`。
-- Publisher exact-run stage install：`1`。
-- Publisher activation-only reset：`0`。
-- no-PID 三連續取樣：`0`。
-- Capacity public preflight/install：`0 / 0`。
-- Rule25 readiness official gate/fail-closed fixture：`0 / 0`。
-- Publisher-only activation entrypoint：`0`。
-- Publisher child：`0`。
-- exact-run transaction/release commit/annotated tag/push：`0 / 0 / 0 / 0`。
-- 其他六服務 business child I/O：`0`。
-- retry 或替代入口：`0`。
+- current preflight snapshot：`1`
+- promotion plan/apply/finalize：`1 / 1 / 1`
+- ordinary fast-forward push to origin/main：`1`
+- coordinator + four lanes stage install：`1`
+- Publisher exact-run stage install：`1`
+- Publisher activation-only reset：`1` failed closed
+- reset retry：`0`
+- Capacity preflight/install：`0 / 0`
+- Rule25 readiness：`0`
+- no-PID triple sampling after Capacity：`0`
+- Publisher-only activation：`0`
+- exact-run transaction/release commit/annotated tag/push：`0 / 0 / 0 / 0`
+- stop-loss bootout：`0`
+- force push/tag/deploy：`0`
 
 ## Evidence
 
+- `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/run_promotion.py`
 - `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/capacity-receipt.json`
 - `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/promotion-request.json`
 - `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/promotion-plan-result.json`
 - `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/promotion-apply-result.json`
 - `<repo-root>/.work/CARD-PANTHEON-G8-PUBLISHER-CANARY-FINAL-SHIP-20260821/promotion-finalize-result.json`
-- `<runtime-root>/transactions/g8-publisher-canary-final-ship-20260821-a076/promotion-receipt.json`
+- `<runtime-root>/transactions/g8-publisher-canary-final-ship-20260821-7b2/rollback-bundle`
+- `<launch-agents>/.pantheon-four-lane-stage/failure-receipt.json`
 
 ## 未做
 
-- 未呼叫 `--reset-publisher-activation-only`，因 focused contract 明文拒絕目前 legacy scheduled live Publisher。
+- 未重試 reset。
+- 未手改 live plist、stage plist、queue、manifest、actor 或 barrier。
 - 未安裝 Capacity private-stage plist。
-- 未執行七服務連續三次 loaded/no-PID 取樣。
 - 未執行 Capacity `--preflight` 或 `--install`。
 - 未執行 Rule25 readiness。
+- 未執行七服務三次 no-PID gate。
 - 未執行 `--activate-publisher-only`。
-- 未執行 exact-run transaction、release commit、annotated tag 或 canary push。
+- 未建立 exact-run transaction、release commit、annotated tag 或 canary push。
 
 ## 未驗
 
 - 未驗 reset 成功後七服務 coherent activation-only 終態。
 - 未驗 Capacity preactivation transition。
-- 未驗 current capability `READY` 與 fail-closed fixture `BLOCKED`。
-- 未驗 Publisher activation 成功路徑、child 上限、transaction/tag/push 對帳。
-- 未驗 post-canary actor/origin clean coherent，因 canary 未開始。
+- 未驗 Rule25 capability `READY` 與 fail-closed fixture `BLOCKED`。
+- 未驗 Publisher activation 成功路徑、Publisher child 上限與其他六服務 I/O 上限。
+- 未驗 exact-run transaction/tag/push 對帳。
 
 ## 殘餘風險
 
-- live Publisher plist 仍有 `StartInterval=60`，雖 service 現為 absent，但若由其他入口載入會恢復週期排程風險。
-- G32 private stage 尚缺 Capacity；不得以此 partial stage 執行替代 activation。
-- origin/main 與 runtime actor 已正式 promotion 到 `a076...`，但 exact run 尚未發布。
-- 本卡已命中 stop-loss；不得在此 thread retry reset、Capacity 或 activation，也不得開 replacement/cycle/Repair/Reviewer。
+- origin/main 與 runtime actor 已 promotion 到 `7b2...`，但 production exact run 未發布。
+- private stage 停在 G33 six-plist partial stage，含 failure receipt，Capacity absent；不得以此 partial stage 執行替代 activation。
+- live Publisher plist 仍是 legacy scheduled normal plist；service 目前 absent，因此沒有即時 retry，但若由其他入口載入仍會回到 scheduled mode。
+- formal reset entrypoint 首次 invocation 在 `publisher_reset_stage_validation` fail-closed；read-only diagnostics 未定位出可在本 terminal cycle 內安全處理的 production-side mutation。
+- 本 cycle 已命中 NO RETRY；不得在此 terminal state 後補跑 reset、Capacity、readiness 或 activation。
