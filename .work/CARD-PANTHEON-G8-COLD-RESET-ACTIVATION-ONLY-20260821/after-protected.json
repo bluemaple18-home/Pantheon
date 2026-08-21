@@ -1,0 +1,11 @@
+{
+  "queue": "938c2c2b70bbea01a7fe8531aa8d5b6c504da5e93b88609125e563b8549338c7",
+  "state": "dbf4cf852fc45a6d9a9f77487653763caf1a3885258052fdc951e9ca460f2eac",
+  "transactions": "aed751eed157e72e4229b7e906e55630a577d7d286ac8d5bb7e934f83805a751",
+  "public_artifacts": "8776071d64537112f8e99a93fcb411bc3c8ae4c5f7d2e536f09f65bf2497b40a",
+  "manifest": "8d3653a2eb545accb4076e29e624a3cbe13321acf259a6c23401802d461db076",
+  "actor_refs": "26d5b998e3940d3c4d50627ad3d4f324abb5a67ef462a44b13ccb63195788c50",
+  "queue_run_count": 140,
+  "exact_run_directory_count": 1,
+  "transaction_directory_count": 10
+}

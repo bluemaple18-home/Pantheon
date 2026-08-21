@@ -1,0 +1,111 @@
+gui/501/com.pantheon.agy-gemini-i18n-new = {
+	active count = 0
+	path = /Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14
+	arguments = {
+		/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14
+		-m
+		scripts.pantheon_content_runtime_manifest
+		barrier-exec
+		--barrier
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g8-b74646c4d9-20260818T055847Z.barrier
+		--expected-digest
+		f78faa3743bcd1ead4687dedfe093c9b11f1507461787f794c281ce201cec6a6
+		--manifest
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json
+		--service-label
+		com.pantheon.agy-gemini-i18n-new
+		--ready-root
+		/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g8-b74646c4d9-20260818T055847Z
+		--timeout
+		90
+		--activation-only
+		--
+		/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14
+		-m
+		scripts.agy_gemini_runner
+		--queue-root
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new
+		--lane
+		i18n-new
+		process-once
+	}
+
+	working directory = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor
+
+	stdout path = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs/agy-gemini-i18n-new.stdout.log
+	stderr path = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs/agy-gemini-i18n-new.stderr.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.X9tAkUvOUG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PANTHEON_RUNTIME_IDENTITY_DIGEST => cd8a5fea1f7159270cbf977f6eb089b4f9b90681e5358d493cb5aa48098b9446
+		PANTHEON_RUNTIME_IDENTITY => gate2-actor:b74646c4d9ab5d1300ee5e77056fbd43ee5f62e5:four-lane-model-route-v1
+		PANTHEON_RUNTIME_GENERATION => g8-b74646c4d9-20260818T055847Z
+		PANTHEON_RUNTIME_ACTOR_HEAD => b74646c4d9ab5d1300ee5e77056fbd43ee5f62e5
+		AGY_GEMINI_NEW_ONLY => 0
+		PANTHEON_RUNTIME_UV_EXECUTABLE => /Users/mattkuo/.local/bin/uv
+		PANTHEON_RUNTIME_LOG_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs
+		PANTHEON_FORMAL_RUNTIME => 1
+		PANTHEON_RUNTIME_SERVICE_LABEL => com.pantheon.agy-gemini-i18n-new
+		PANTHEON_RUNTIME_MANIFEST_DIGEST => f78faa3743bcd1ead4687dedfe093c9b11f1507461787f794c281ce201cec6a6
+		AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS => 300
+		AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST => 781f243c541e4829ba1e5beebc41fec78bac196d258340faf4aae384dd5d9463
+		PATH => /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state
+		PANTHEON_RUNTIME_ACTOR_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor
+		AGY_GEMINI_CLI => /Users/mattkuo/.antigravity/bin/agy-1.1.3
+		PANTHEON_RUNTIME_PYTHON_EXECUTABLE => /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14
+		PANTHEON_RUNTIME_CODE_DIGEST => e8261a1dbd08dac632f11aeb03ea3fa037b012e66a874be7fdf1ab9e59f297a7
+		AGY_WRITER_MODEL => gemini-3.5-flash-lite
+		PANTHEON_RUNTIME_CONFIG_VERSION => formal-runtime-v3-model-route-v1
+		PANTHEON_RUNTIME_QUEUE_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue
+		PANTHEON_RUNTIME_MANIFEST => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json
+		AGY_REVIEWER_MODEL => gemini-3.1-flash-lite
+		AGY_GEMINI_MODEL_ROUTE_CONFIG => /Users/mattkuo/Library/LaunchAgents/.pantheon-model-routes/model-route-config-781f243c541e4829ba1e5beebc41fec78bac196d258340faf4aae384dd5d9463.json
+		XPC_SERVICE_NAME => com.pantheon.agy-gemini-i18n-new
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 30
+	exit timeout = 5
+	runs = 3982
+	last exit code = 78: EX_CONFIG
+
+	resource coalition = {
+		ID = 30640
+		type = resource
+		state = active
+		active count = 1
+		name = com.pantheon.agy-gemini-i18n-new
+	}
+
+	jetsam coalition = {
+		ID = 30641
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.pantheon.agy-gemini-i18n-new
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 60 seconds
+
+	properties = runatload | inferred program
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-COLD-RESET-ACTIVATION-ONLY-20260821",
+  "status": "REBUILT",
+  "terminal_state": "REBUILT / NO CANARY",
+  "authority": {
+    "actor_head": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+    "generation": "g17-c05929f2a7-20260821T827804Z",
+    "exact_run": "auto-i18n-en-614aa4dc3542ab2c5637"
+  },
+  "execution": {
+    "host_escalated": true,
+    "cold_reset_calls": 1,
+    "bootout_calls": 7,
+    "activation_only_calls": 1,
+    "normal_activation_calls": 0,
+    "rollback_calls": 0,
+    "retry_calls": 0,
+    "publisher_child_invocations": 0,
+    "canary_calls": 0
+  },
+  "verification": {
+    "live_aggregate": "PASS",
+    "barrier": "PASS",
+    "live_services_loaded": 7,
+    "live_services_with_pid": 0,
+    "protected_delta": 0,
+    "queue_run_count": 140,
+    "exact_run_preserved": true,
+    "transaction_directory_count": 10
+  },
+  "backup_path": ".work/CARD-PANTHEON-G8-COLD-RESET-ACTIVATION-ONLY-20260821/backup-20260821T005814Z",
+  "completed_at": "2026-08-21T01:01:58Z"
+}

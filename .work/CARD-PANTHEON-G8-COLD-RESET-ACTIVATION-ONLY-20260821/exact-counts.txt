@@ -1,0 +1,5 @@
+cold-reset-calls=1
+activation-calls=1
+publisher-child-invocations=0
+canary-calls=0
+retry-calls=0
