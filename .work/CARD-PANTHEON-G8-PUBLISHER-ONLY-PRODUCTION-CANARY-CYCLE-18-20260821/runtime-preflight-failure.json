@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "dispatch_id": "G8-C18-PUBLISHER-ONLY-CANARY-20260821-606e4cd4d9",
+  "checked_at": "2026-08-21T00:39:50Z",
+  "status": "BLOCKED",
+  "production_mutation": false,
+  "checks": {
+    "formal_readiness": "READY",
+    "runtime_manifest_validate": "PASS",
+    "staged_publisher_plist": "PASS",
+    "staged_aggregate_normal": "PASS",
+    "live_aggregate_activation_only": "NO-GO",
+    "barrier_validate": "NOT_RUN_FAIL_CLOSED",
+    "capacity_install_check": "NOT_RUN_FAIL_CLOSED",
+    "publisher_dry_run_selector": "NOT_RUN_FAIL_CLOSED"
+  },
+  "blocked_code": "LIVE_PUBLISHER_IDENTITY_MISMATCH",
+  "blocked_reason": "Formal live activation-only aggregate returned NO-GO: com.pantheon.agy-content-publisher identity mismatch.",
+  "authority": {
+    "source": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "origin_main": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "actor_head": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "actor_clean": true,
+    "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "stage_digest": "d63db21a621fbf5eed8c352ea8d6f0769a1bdb78edbddd3b61d982a40ae61bd0",
+    "queue_digest": "58d51ecd0facb43b896c11bdbb8f13002829aedc91d1d38737e8160244357ac0"
+  },
+  "selector_contract": {
+    "authorized_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "staged_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "publisher_max_runs": 1,
+    "formal_selector_executed": false
+  },
+  "baseline": {
+    "queue_run_count": 140,
+    "ledger_sha256": "34f550c63d0c88a1217976614a2eb37a73dc2d082ea20ea7ec9c514d60a32177",
+    "authorized_ledger_count": 0,
+    "transaction_directory_count": 10,
+    "tag_count": 379,
+    "tag_list_sha256": "084e5cda58cb79c3d54bededd4a8c9d99bfcf1e88f6a0fc3c993589cb9767a63",
+    "target_public_artifact_exists": false
+  }
+}

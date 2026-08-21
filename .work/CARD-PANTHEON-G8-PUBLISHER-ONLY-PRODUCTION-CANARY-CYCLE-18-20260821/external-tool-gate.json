@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tool_service": "target actor installer, launchd, git origin",
+  "operation_level": "write_action",
+  "connection_status": "origin read verified; production actor and launchd locally available",
+  "schema_checked": true,
+  "confirmation_required": true,
+  "confirmation": "ACTIVATE authorization for one bounded --activate-publisher-only invocation",
+  "execution_status": "BLOCKED_BEFORE_WRITE_ACTION",
+  "write_action_executed": false,
+  "evidence": "runtime-preflight-failure.json",
+  "remaining_risk": "Live Publisher identity does not satisfy the formal activation-only aggregate boundary."
+}

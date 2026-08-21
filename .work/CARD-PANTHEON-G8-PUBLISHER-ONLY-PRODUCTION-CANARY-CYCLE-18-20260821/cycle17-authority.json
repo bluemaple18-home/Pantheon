@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-PUBLISHER-ONLY-PRODUCTION-CANARY-CYCLE-18-20260821",
+  "cycle17_evidence_commit": "ad49eccf1da5224b89df6776475c7746bcb6e952",
+  "cycle18_card_commit": "606e4cd4d9ea727857b13d308adb68320d1b14c7",
+  "cycle17_manifest_hashes_checked": 14,
+  "cycle17_manifest_hashes_passed": 14,
+  "cycle17_final_status": "STAGED",
+  "cycle17_canary_status": "NO_CANARY",
+  "required_source": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+  "origin_main": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+  "actor_head": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+  "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+  "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+  "stage_digest": "d63db21a621fbf5eed8c352ea8d6f0769a1bdb78edbddd3b61d982a40ae61bd0",
+  "queue_digest": "58d51ecd0facb43b896c11bdbb8f13002829aedc91d1d38737e8160244357ac0",
+  "queue_run_count": 140,
+  "status": "PASS"
+}

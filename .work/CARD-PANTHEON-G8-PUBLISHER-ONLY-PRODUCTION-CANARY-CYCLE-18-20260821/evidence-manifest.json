@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "dispatch_id": "G8-C18-PUBLISHER-ONLY-CANARY-20260821-606e4cd4d9",
+  "status": "BLOCKED",
+  "terminal_state": "BLOCKED / NO CANARY",
+  "algorithm": "sha256",
+  "files": {
+    "cycle17-authority.json": "8ad6d637bf73711a95d7ec930e91c94e9c89d0d68246b0aba00d475f82632849",
+    "exact-counts.json": "bb675fe5864bbe207518eed8515bfdc7e9ab558ddf11b45775477263a76c0239",
+    "external-tool-gate.json": "c5a00dfbeaede83689bb152d08be0c0c129c3b1e866cbe8c025c3f881fe9bcb9",
+    "final-receipt.json": "53457b80bf98a1cff06c7d0fc3ce11fde719ebd2b29d73b19beb95e49e7079cd",
+    "formal-readiness.txt": "7abf924dfaf10584448f21ba7a52e0bcce5d755f05a8c184ac96482d362428b4",
+    "runtime-preflight-failure.json": "5ab781d2a410b6e608ef5939401d8f518956ac077e38fa8cc4cd24244f4d61b1"
+  }
+}
