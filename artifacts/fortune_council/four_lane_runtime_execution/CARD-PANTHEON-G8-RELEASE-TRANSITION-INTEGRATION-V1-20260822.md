@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-G8-RELEASE-TRANSITION-INTEGRATION-V1-20260822
 chain_id: PANTHEON-G8-RELEASE-CONTROL-PLANE-V1
 role: integration
-cycle: 1
+cycle: 2
 status: ready
 type: strict_bounded_mainline_integration
 thickness: strict
