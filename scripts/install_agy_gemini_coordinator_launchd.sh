@@ -466,7 +466,13 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
       "${RESET_PUBLISHER_PREFLIGHT_ARGS[@]}"
   ) >/dev/null
-  PUBLISHER_RESET_TEMP="$(mktemp "${TMPDIR:-/tmp}/pantheon-publisher-reset.XXXXXX")"
+  PUBLISHER_RESET_TEMP_DIR="$(/usr/bin/perl -MCwd=realpath -e \
+    'print realpath($ARGV[0]) // ""' "${TMPDIR:-/tmp}")"
+  if [[ -z "${PUBLISHER_RESET_TEMP_DIR}" || ! -d "${PUBLISHER_RESET_TEMP_DIR}" ]]; then
+    echo "Publisher activation-only reset temp directory is not canonical." >&2
+    false
+  fi
+  PUBLISHER_RESET_TEMP="$(mktemp "${PUBLISHER_RESET_TEMP_DIR}/pantheon-publisher-reset.XXXXXX")"
   cp "${PUBLISHER_TARGET_PLIST}" "${PUBLISHER_RESET_TEMP}"
   chmod 600 "${PUBLISHER_RESET_TEMP}"
   if /usr/libexec/PlistBuddy -c "Print :ProgramArguments" \
@@ -521,13 +527,16 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     false
   fi
   make_publisher_activation_only_plist "${PUBLISHER_RESET_TEMP}"
-  (
+  if ! PUBLISHER_RESET_RECEIPT="$(
     cd "${REPO_ROOT}"
     "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
       publisher-plist-receipt \
       --plist "${PUBLISHER_RESET_TEMP}" \
       --activation-mode activation-only
-  ) >/dev/null
+  )"; then
+    echo "Publisher activation-only reset temp receipt failed: ${PUBLISHER_RESET_RECEIPT:-no receipt output}" >&2
+    false
+  fi
   ACTIVATION_PHASE="publisher_reset_other_services_validation"
   rm -rf "${RESET_BACKUP_ROOT}"
   mkdir -p "${RESET_BACKUP_ROOT}"
