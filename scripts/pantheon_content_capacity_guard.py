@@ -804,7 +804,7 @@ def validate_preactivation_transition(
             identity is None
             or identity["paths"] != [str(plist_path)]
             or identity["states"] not in (["not running"], ["waiting"])
-            or identity["last_exit_codes"] not in ([], [78])
+            or identity["last_exit_codes"] not in ([], [0], [78])
         ):
             raise formal_runtime.RuntimeManifestError("preactivation service mismatch")
         loaded.append({"label": label, "topology": "activation-only-loaded-no-pid"})

@@ -743,6 +743,7 @@ def _write_capacity_transition_launchctl(
     mutation_log: Path,
     unknown_service: bool = False,
     include_pid: bool = False,
+    last_exit_code: int | None = 78,
 ) -> None:
     root_line = (
         "printf 'gui/%s/com.pantheon.unknown = {\\n' \"$(id -u)\""
@@ -750,6 +751,11 @@ def _write_capacity_transition_launchctl(
         else "printf '%s = {\\n' \"$2\""
     )
     pid_line = "  printf '%s\\n' '\tpid = 4242'\n" if include_pid else ""
+    exit_line = (
+        f"  printf '%s\\n' '\tlast exit code = {last_exit_code}'\n"
+        if last_exit_code is not None
+        else ""
+    )
     path.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"print\" ]; then\n"
@@ -760,7 +766,7 @@ def _write_capacity_transition_launchctl(
         "  printf '\\tpath = %s\\n' \"$plist\"\n"
         f"{pid_line}"
         "  printf '%s\\n' '\tstate = waiting'\n"
-        "  printf '%s\\n' '\tlast exit code = 78'\n"
+        f"{exit_line}"
         "  printf '%s\\n' '}'\n"
         "  exit 0\n"
         "fi\n"
@@ -1240,6 +1246,78 @@ def test_capacity_installer_stages_during_manifest_bound_preactivation_transitio
         / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
     )
     assert staged.is_file()
+    assert not mutation_log.exists()
+
+
+def test_preactivation_transition_accepts_exit_zero_and_rejects_unknown(
+    tmp_path: Path,
+) -> None:
+    _repo, _env, fake_home, mutation_log, manifest, manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    python = Path(sys.executable).resolve(strict=True)
+    barrier = Path(str(manifest["publisher_state_root"])) / (
+        f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    candidate_dir = tmp_path / "capacity-candidate"
+    _write_activation_only_live_plists(
+        candidate_dir,
+        manifest=manifest,
+        manifest_path=manifest_path,
+        barrier=barrier,
+        python=python,
+    )
+    capacity_plist = candidate_dir / "com.pantheon.content-capacity-guard.plist"
+    payload = plistlib.loads(capacity_plist.read_bytes())
+    payload["ProgramArguments"].remove("--activation-only")
+    with capacity_plist.open("wb") as stream:
+        plistlib.dump(payload, stream, sort_keys=True)
+    preflight_receipt = tmp_path / "preflight.json"
+    preflight_receipt.write_text('{"status": "PASS"}\n', encoding="utf-8")
+    fake_launchctl = tmp_path / "bin" / "launchctl"
+    _write_capacity_transition_launchctl(
+        fake_launchctl,
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        last_exit_code=0,
+    )
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(fake_launchctl), *command[1:]],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    result = guard.validate_preactivation_transition(
+        preflight_receipt=preflight_receipt,
+        manifest_path=manifest_path,
+        expected_digest=str(manifest["manifest_digest"]),
+        barrier=barrier,
+        launch_agents_dir=launch_agents,
+        capacity_plist=capacity_plist,
+        runner=runner,
+    )
+
+    assert result["status"] == "PASS"
+    _write_capacity_transition_launchctl(
+        fake_launchctl,
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        last_exit_code=1,
+    )
+    with pytest.raises(runtime_manifest.RuntimeManifestError):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            runner=runner,
+        )
     assert not mutation_log.exists()
 
 
