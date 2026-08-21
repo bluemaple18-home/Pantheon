@@ -1,0 +1,23 @@
+{
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-REPAIR-20260821-f78d8c0b13",
+  "evidence_commit": "68fdc5569e",
+  "tooling_source": "<repo-root>/.venv/bin/python",
+  "observed_tooling_source": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+  "tooling_source_is_symlink": true,
+  "canonical_realpath": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "python_version": "Python 3.12.12",
+  "canonical_executable_sha256": "d7e27bef360beb2146e27f6d7edf7dac70e5cbc3a800c15369a0eb73bcea33ae",
+  "canonical_executable_type": "regular file",
+  "canonical_executable_mode": "-rwxr-xr-x",
+  "source_contract": {
+    "file": "scripts/pantheon_content_runtime_manifest.py",
+    "lines": "56-66",
+    "canonical_realpath_check_preserved": true
+  },
+  "test_contract": {
+    "file": "tests/test_pantheon_content_runtime_promotion.py",
+    "lines": [143, 168, 173, 234],
+    "uses_resolved_executable": true
+  },
+  "source_change_required": false
+}

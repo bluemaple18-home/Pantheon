@@ -1,0 +1,18 @@
+{
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-REPAIR-20260821-f78d8c0b13",
+  "status": "CONTRACT REPAIRED",
+  "source_change_required": false,
+  "canonical_realpath_check_weakened": false,
+  "runtime_invocations": {
+    "deterministic_plan": 0,
+    "gate_a": 0,
+    "public_preflight": 0,
+    "promotion": 0,
+    "restage": 0,
+    "install": 0,
+    "activation": 0,
+    "canary": 0
+  },
+  "production_mutation": 0,
+  "commit_created": false
+}

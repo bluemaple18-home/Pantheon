@@ -1,0 +1,10 @@
+{
+  "dispatch_id": "G8-C17-CANONICAL-PYTHON-REPAIR-20260821-f78d8c0b13",
+  "algorithm": "sha256",
+  "files": {
+    "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-REPAIRED-SOURCE-PROMOTION-STAGING-CYCLE-17-20260821.md": "43efaeea189e8c72f7a2de26c189df8cfcf5d8fdc31ed608da8894825bf0ff86",
+    ".work/CARD-PANTHEON-G8-CYCLE17-CANONICAL-PYTHON-CONTRACT-REPAIR-20260821/canonical-python-evidence.json": "731cc024a05b951189ce91fbcc4966b6ad6cf55cb3eebc6bde1c0fac83c261b7",
+    ".work/CARD-PANTHEON-G8-CYCLE17-CANONICAL-PYTHON-CONTRACT-REPAIR-20260821/contract-repair.md": "d9d503abf47e04f23a2d5c2e811eb57ce1caf89d9910fc6a0978b57200c5dd5a",
+    ".work/CARD-PANTHEON-G8-CYCLE17-CANONICAL-PYTHON-CONTRACT-REPAIR-20260821/verdict.json": "ff1847dfe26deaabba82f56fd9f822852da2680cf1d5a031eafef66059670010"
+  }
+}
