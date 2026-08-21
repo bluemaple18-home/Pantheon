@@ -3425,15 +3425,44 @@ def _run_checked(
     repo_root: Path,
     args: list[str],
     *,
+    env: Mapping[str, str] | None = None,
     timeout_seconds: float | None = None,
 ) -> None:
-    subprocess.run(args, cwd=repo_root, check=True, timeout=timeout_seconds)
+    run_kwargs: dict[str, Any] = {
+        "cwd": repo_root,
+        "check": True,
+        "timeout": timeout_seconds,
+    }
+    if env is not None:
+        run_kwargs["env"] = env
+    subprocess.run(args, **run_kwargs)
+
+
+_RELEASE_TEST_ENV_PREFIXES = ("PANTHEON_RUNTIME_",)
+_RELEASE_TEST_ENV_KEYS = {
+    "PANTHEON_FORMAL_RUNTIME",
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG",
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST",
+    "AGY_WRITER_MODEL",
+    "AGY_REVIEWER_MODEL",
+}
+
+
+def _release_test_child_env() -> dict[str, str]:
+    env = dict(os.environ)
+    for key in list(env):
+        if key in _RELEASE_TEST_ENV_KEYS or any(
+            key.startswith(prefix) for prefix in _RELEASE_TEST_ENV_PREFIXES
+        ):
+            env.pop(key, None)
+    return env
 
 
 def _run_release_tests(repo_root: Path) -> None:
     """先跑快速結構檢查，通過後才進完整 release gate。"""
-    _run_checked(repo_root, PREFLIGHT_TEST_COMMAND)
-    _run_checked(repo_root, TEST_COMMAND)
+    child_env = _release_test_child_env()
+    _run_checked(repo_root, PREFLIGHT_TEST_COMMAND, env=child_env)
+    _run_checked(repo_root, TEST_COMMAND, env=child_env)
 
 
 def _stage_commit_tag_push(

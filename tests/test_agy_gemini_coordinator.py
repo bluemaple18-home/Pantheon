@@ -4776,6 +4776,54 @@ def _prepare_publisher_only_activation_fixture(
     return env, fake_home, mutation_log, manifest, barrier, loaded, live_payloads
 
 
+def _write_launchctl_that_records_publisher_child(
+    launchctl: Path,
+    *,
+    loaded: Path,
+    mutation_log: Path,
+    child_log: Path,
+) -> None:
+    launchctl.write_text(
+        f"#!{sys.executable}\n"
+        "import os, plistlib, sys\n"
+        "from pathlib import Path\n"
+        f"loaded = Path({str(loaded)!r})\n"
+        f"mutation_log = Path({str(mutation_log)!r})\n"
+        f"child_log = Path({str(child_log)!r})\n"
+        "args = sys.argv[1:]\n"
+        "if args[:1] == ['print']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    if not (loaded / label).exists():\n"
+        "        sys.exit(113)\n"
+        "    print('state = waiting')\n"
+        "    sys.exit(0)\n"
+        "with mutation_log.open('a', encoding='utf-8') as stream:\n"
+        "    stream.write(' '.join(args) + '\\n')\n"
+        "if args[:1] == ['bootout']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    try:\n"
+        "        (loaded / label).unlink()\n"
+        "    except FileNotFoundError:\n"
+        "        pass\n"
+        "    sys.exit(0)\n"
+        "if args[:1] == ['bootstrap']:\n"
+        "    plist_path = Path(args[2])\n"
+        "    with plist_path.open('rb') as stream:\n"
+        "        payload = plistlib.load(stream)\n"
+        "    label = payload['Label']\n"
+        "    (loaded / label).touch()\n"
+        "    runs = 2 if 'StartInterval' in payload or payload.get('KeepAlive') else 1\n"
+        "    child_exit = int(os.environ.get('PUBLISHER_CHILD_EXIT_CODE', '0'))\n"
+        "    with child_log.open('a', encoding='utf-8') as stream:\n"
+        "        for index in range(runs):\n"
+        "            stream.write(f'{label} run={index + 1} exit={child_exit}\\n')\n"
+        "    sys.exit(0)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+
 def _write_legacy_capacity_guard_plist(
     path: Path,
     *,
@@ -5616,7 +5664,11 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
         live_path = launch_agents / f"{label}.plist"
         if label == "com.pantheon.agy-content-publisher":
             with live_path.open("rb") as stream:
-                arguments = plistlib.load(stream)["ProgramArguments"]
+                payload = plistlib.load(stream)
+            assert payload["RunAtLoad"] is True
+            assert "StartInterval" not in payload
+            assert "KeepAlive" not in payload
+            arguments = payload["ProgramArguments"]
             separator = arguments.index("--")
             assert "--activation-only" not in arguments[:separator]
             assert arguments[arguments.index("--max-runs") + 1] == "1"
@@ -5625,6 +5677,58 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
             )
             continue
         assert live_path.read_bytes() == live_payloads[label]
+
+
+@pytest.mark.parametrize("child_exit", [0, 7])
+def test_publisher_only_activation_is_one_shot_for_child_success_and_failure(
+    tmp_path: Path,
+    child_exit: int,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    (
+        env,
+        fake_home,
+        mutation_log,
+        _manifest,
+        _barrier,
+        loaded,
+        live_payloads,
+    ) = _prepare_publisher_only_activation_fixture(tmp_path)
+    env["PUBLISHER_CHILD_EXIT_CODE"] = str(child_exit)
+    child_log = tmp_path / "publisher-child.log"
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _write_launchctl_that_records_publisher_child(
+        tmp_path / "bin" / "launchctl",
+        loaded=loaded,
+        mutation_log=mutation_log,
+        child_log=child_log,
+    )
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-publisher-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert activated.returncode == 0, activated.stderr
+    assert child_log.read_text(encoding="utf-8").splitlines() == [
+        f"com.pantheon.agy-content-publisher run=1 exit={child_exit}"
+    ]
+    with (launch_agents / "com.pantheon.agy-content-publisher.plist").open("rb") as stream:
+        payload = plistlib.load(stream)
+    assert payload["RunAtLoad"] is True
+    assert "StartInterval" not in payload
+    assert "KeepAlive" not in payload
+    for label in runtime_manifest.SERVICE_LABELS:
+        if label != "com.pantheon.agy-content-publisher":
+            assert (launch_agents / f"{label}.plist").read_bytes() == live_payloads[label]
 
 
 def test_publisher_only_bounded_activation_allows_no_exact_run_receipt(
@@ -5729,6 +5833,7 @@ def test_publisher_only_bounded_activation_fails_closed_before_mutation(
         "phase": expected_phase,
         "exit_code": 1,
     }
+    assert not (stage_dir / "publisher-only-backups").exists()
 
 
 def test_activation_only_adopts_exact_legacy_capacity_guard(

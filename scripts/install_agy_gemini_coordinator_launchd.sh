@@ -161,6 +161,15 @@ add_hardened_runtime_identity() {
     /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_UV_EXECUTABLE string ${RUNTIME_UV_EXECUTABLE}" "${PLIST_PATH}"
   fi
 }
+make_publisher_only_one_shot_plist() {
+  local PLIST_PATH="$1"
+  /usr/libexec/PlistBuddy -c "Delete :StartInterval" "${PLIST_PATH}" >/dev/null 2>&1 || true
+  /usr/libexec/PlistBuddy -c "Delete :KeepAlive" "${PLIST_PATH}" >/dev/null 2>&1 || true
+  if ! /usr/libexec/PlistBuddy -c "Set :RunAtLoad true" "${PLIST_PATH}" >/dev/null 2>&1; then
+    /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool true" "${PLIST_PATH}" >/dev/null
+  fi
+  plutil -lint "${PLIST_PATH}" >/dev/null
+}
 ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
 READY_ROOT="${STAGE_DIR}/readiness/${RUNTIME_GENERATION}"
 PRODUCTION_STATE_FILE="${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-${QUEUE_ROOT}/production-credential-pool-state.json}"
@@ -460,6 +469,8 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
     echo "Publisher-only normal activation 缺少 matching activation barrier，拒絕 activation。" >&2
     false
   fi
+  ACTIVATION_PHASE="publisher_only_one_shot_plist"
+  make_publisher_only_one_shot_plist "${PUBLISHER_STAGE_PLIST}"
   ACTIVATION_PHASE="publisher_only_snapshot_previous_state"
   rm -rf "${STAGE_DIR}/publisher-only-backups"
   mkdir -p "${STAGE_DIR}/publisher-only-backups"

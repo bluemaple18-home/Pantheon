@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import fcntl
 import json
+import os
 import plistlib
 from pathlib import Path
 import subprocess
@@ -1622,7 +1623,11 @@ def test_rewrite_full_test_failure_rolls_back_updated_date_transaction(
     )
     test_commands: list[list[str]] = []
 
-    def fail_full_test(_repo: Path, command: list[str]) -> None:
+    def fail_full_test(
+        _repo: Path,
+        command: list[str],
+        **_kwargs: object,
+    ) -> None:
         test_commands.append(command)
         if command == publisher.TEST_COMMAND:
             raise subprocess.CalledProcessError(1, command)
@@ -1807,7 +1812,7 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
     monkeypatch.setattr(
         publisher,
         "_run_checked",
-        lambda _repo, args: (_ for _ in ()).throw(subprocess.CalledProcessError(1, args)),
+        lambda _repo, args, **_kwargs: (_ for _ in ()).throw(subprocess.CalledProcessError(1, args)),
     )
 
     result = publisher.publish_ready_translation_runs(
@@ -1849,7 +1854,7 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
         "collect_ready_translation_runs",
         lambda *_args, **_kwargs: [(next_state, {"run_id": "translate-en"}, next_candidate, {"run_id": "translate-en"})],
     )
-    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args, **_kwargs: None)
 
     next_result = publisher.publish_ready_translation_runs(
         repo_root,
@@ -4935,12 +4940,54 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
 def test_run_release_tests_runs_fast_preflight_before_full_gate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[list[str]] = []
-    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: calls.append(args))
+    formal_environment = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": "/formal/manifest.json",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": "a" * 64,
+        "PANTHEON_RUNTIME_ACTIVATION_TOKEN": "/formal/activation.token",
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG": "/formal/model-routes.json",
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST": "b" * 64,
+        "AGY_WRITER_MODEL": "formal-writer",
+        "AGY_REVIEWER_MODEL": "formal-reviewer",
+        "UNRELATED_SETTING": "kept",
+    }
+    for key, value in formal_environment.items():
+        monkeypatch.setenv(key, value)
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def record_release_test_env(
+        _repo: Path,
+        args: list[str],
+        **kwargs: object,
+    ) -> None:
+        env = kwargs.get("env")
+        assert isinstance(env, dict)
+        calls.append((args, env))
+
+    monkeypatch.setattr(publisher, "_run_checked", record_release_test_env)
 
     publisher._run_release_tests(tmp_path)
 
-    assert calls == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND]
+    assert [args for args, _env in calls] == [
+        publisher.PREFLIGHT_TEST_COMMAND,
+        publisher.TEST_COMMAND,
+    ]
+    assert calls[0][1] == calls[1][1]
+    for key in formal_environment:
+        assert os.environ.get(key) == formal_environment[key]
+    child_env = calls[0][1]
+    assert child_env["UNRELATED_SETTING"] == "kept"
+    for key in (
+        "PANTHEON_FORMAL_RUNTIME",
+        "PANTHEON_RUNTIME_MANIFEST",
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST",
+        "PANTHEON_RUNTIME_ACTIVATION_TOKEN",
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG",
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST",
+        "AGY_WRITER_MODEL",
+        "AGY_REVIEWER_MODEL",
+    ):
+        assert key not in child_env
 
 
 def test_preflight_test_command_selectors_resolve_to_top_level_tests() -> None:
@@ -4966,7 +5013,8 @@ def test_run_release_tests_skips_full_gate_when_preflight_fails(
 ) -> None:
     calls: list[list[str]] = []
 
-    def fail_preflight(_repo: Path, args: list[str]) -> None:
+    def fail_preflight(_repo: Path, args: list[str], **kwargs: object) -> None:
+        assert "env" in kwargs
         calls.append(args)
         raise subprocess.CalledProcessError(1, args)
 
