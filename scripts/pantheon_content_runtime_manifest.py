@@ -503,6 +503,29 @@ def publisher_plist_receipt(
         separator = arguments.index("--")
     except ValueError as error:
         raise RuntimeManifestError("publisher plist arguments are invalid") from error
+    expected_separator = 17 if expected_activation_mode == "activation-only" else 16
+    outer = arguments[:separator]
+    if (
+        separator != expected_separator
+        or outer[1:4]
+        != ["-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec"]
+        or outer[4::2][:6]
+        != [
+            "--barrier",
+            "--expected-digest",
+            "--manifest",
+            "--service-label",
+            "--ready-root",
+            "--timeout",
+        ]
+        or any(type(value) is not str or not value for value in outer[5::2][:6])
+        or outer[11] != label
+        or (
+            expected_activation_mode == "activation-only"
+            and outer[16] != "--activation-only"
+        )
+    ):
+        raise RuntimeManifestError("publisher plist barrier-exec arguments are invalid")
     child = arguments[separator + 1 :]
     if len(child) < 3 or child[1:3] != ["-m", "scripts.agy_content_publisher"]:
         raise RuntimeManifestError("publisher plist child command mismatch")

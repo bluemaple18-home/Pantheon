@@ -5890,6 +5890,46 @@ def test_publisher_terminal_reset_rejects_live_publisher_argv_drift(
     assert not mutation_log.exists()
 
 
+def test_publisher_terminal_reset_rejects_live_publisher_outer_argv_drift(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, _loaded, _live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    _write_publisher_terminal_live(
+        launch_agents / ".pantheon-four-lane-stage" / f"{publisher_label}.plist",
+        publisher_live,
+    )
+    with publisher_live.open("rb") as stream:
+        payload = plistlib.load(stream)
+    assert "PANTHEON_RUNTIME_PYTHON_EXECUTABLE" not in payload["EnvironmentVariables"]
+    payload["ProgramArguments"][2] = "scripts.drifted_outer"
+    with publisher_live.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    publisher_before = publisher_live.read_bytes()
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert publisher_live.read_bytes() == publisher_before
+    assert not mutation_log.exists()
+
+
 def test_publisher_terminal_reset_rejects_other_service_launchctl_path_drift(
     tmp_path: Path,
 ) -> None:
