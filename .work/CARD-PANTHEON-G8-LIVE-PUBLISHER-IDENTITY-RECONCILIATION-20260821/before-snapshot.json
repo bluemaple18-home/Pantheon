@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-21T00:49:33.120637+00:00",
+  "authority": {
+    "actor_clean": true,
+    "actor_head": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "source_head": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "origin_main": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+    "generation": "g17-c05929f2a7-20260821T827804Z"
+  },
+  "counts": {
+    "queue_run_count": 140,
+    "exact_run_directory_count": 1,
+    "transaction_directory_count": 10
+  },
+  "protected": {
+    "queue": {"exists": true, "files": 1644, "sha256": "413a7393b3bf19d75fe45ba33d53d76bc4e42ecf4dcc3c3435b9df12ee791fab"},
+    "state": {"exists": true, "files": 42, "sha256": "41af0edb891da897e400b06e53c0627f3cb392c828bf14558e1d7ad1eb6c86f6"},
+    "transactions": {"exists": true, "files": 10, "sha256": "62c58a7d28d67c8f5b6ca3ae285086e1308b71ab0de9d31c06548fde33161a88"},
+    "manifest": {"exists": true, "files": 1, "sha256": "8d3653a2eb545accb4076e29e624a3cbe13321acf259a6c23401802d461db076"},
+    "barrier": {"exists": true, "files": 1, "sha256": "23946ebeabe08411e2b4ce2fd64682e867562aa44b24dc74b9645eb30ce4a0ae"},
+    "stage": {"exists": true, "files": 20, "sha256": "8d6df8628ef0903324a407fc63218113c6f11daae064e6dae2791466c0ac56cb"},
+    "public_artifacts": {"exists": true, "files": 460, "sha256": "e7766297036b2778b7a557bb8f0a61d6ba44ac315468dec981fb709d87ae15ee"},
+    "actor_refs": {"sha256": "26d5b998e3940d3c4d50627ad3d4f324abb5a67ef462a44b13ccb63195788c50", "tag_count": 379},
+    "live_plists": {
+      "com.pantheon.agy-content-publisher": "773b2ced8fd7085b8a3bf31277efa7ee5e52ae999712316add7fac9fb7651445",
+      "com.pantheon.agy-gemini-coordinator": "3baf365e87ffe6e8308a49366fdaa7df5c6e2700eb99e70a2f8b7e49a21291bb",
+      "com.pantheon.agy-gemini-new": "ddf8ce1f11fe3cc2ae5d464b2fd3758e93cbb9c2563a395317e93acc1dbdb037",
+      "com.pantheon.agy-gemini-rewrite": "6f27c45613c5c2345057d4d110343cfee4f3e7642d19fc5f1cbd7a1bb9420f71",
+      "com.pantheon.agy-gemini-i18n-new": "25c3fcef1e0e8557ec8975d33a259de04b32b26eca98acbceb92c3c38ad2ac0b",
+      "com.pantheon.agy-gemini-i18n-rewrite": "0d2b231f5e6ea544716631e0513a35ef2d014500ea271748ab67d9c613d07158",
+      "com.pantheon.content-capacity-guard": "e97f539c2a405d2a233e8c00b1dde694a351a1858a631e02231c889f39c925fb"
+    }
+  },
+  "services": {
+    "loaded_count": 7,
+    "pid_count": 0,
+    "running_count": 0
+  }
+}

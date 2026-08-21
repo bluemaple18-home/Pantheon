@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-LIVE-PUBLISHER-IDENTITY-RECONCILIATION-20260821",
+  "status": "BLOCKED",
+  "terminal_state": "BLOCKED / NO CANARY",
+  "blocking_gate": "formal capacity/preactivation preflight",
+  "blocked_code": "CAPACITY_PREACTIVATION_PREFLIGHT_EXIT_70",
+  "blocked_reason": "Formal capacity/preactivation preflight returned exit 70: Operation failed with error: eServerError",
+  "authority_verified": true,
+  "production_mutation": false,
+  "protected_delta": 0,
+  "activation_calls": 0,
+  "publisher_child_invocations": 0,
+  "canary_calls": 0,
+  "retry_calls": 0,
+  "queue_run_count": 140,
+  "exact_run_preserved": true,
+  "live_services_loaded": 7,
+  "live_services_with_pid": 0,
+  "completed_at": "2026-08-21T00:50:38.511751+00:00"
+}

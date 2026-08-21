@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "cwd": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "tmpdir": "/private/tmp",
+  "command": "env TMPDIR=/private/tmp PANTHEON_PYTHON_PATH=<canonical-python> PANTHEON_RUNTIME_MANIFEST_FILE=<runtime-manifest> PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32 bash scripts/install_pantheon_content_capacity_guard_launchd.sh --preflight",
+  "calls": 1,
+  "exit_code": 70,
+  "output": "Operation failed with error: eServerError",
+  "status": "BLOCKED",
+  "activate_only_calls": 0,
+  "retry_calls": 0
+}

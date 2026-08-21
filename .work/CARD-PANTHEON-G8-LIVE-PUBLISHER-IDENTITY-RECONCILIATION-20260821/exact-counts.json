@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "capacity_preactivation_preflight_calls": 1,
+  "activate_only_calls": 0,
+  "normal_activation_calls": 0,
+  "publisher_child_invocations": 0,
+  "canary_calls": 0,
+  "retry_calls": 0,
+  "queue_run_count_before": 140,
+  "queue_run_count_after": 140,
+  "exact_run_directory_count_before": 1,
+  "exact_run_directory_count_after": 1,
+  "transaction_directory_count_before": 10,
+  "transaction_directory_count_after": 10,
+  "state_delta": 0,
+  "transaction_delta": 0,
+  "content_delta": 0,
+  "registry_delta": 0,
+  "tag_delta": 0,
+  "push_delta": 0,
+  "ref_delta": 0
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "terminal_state": "BLOCKED / NO CANARY",
+  "algorithm": "sha256",
+  "files": {
+    "before-snapshot.json": "75fe7285a9755cf5c462e32be67e389c18b9901f83c39c79666035dc2eb1081b",
+    "after-snapshot.json": "68a8a5e9a853edc7c1c95953e7836dcca5965fa3668b45d2e8f6cdd7c298f1ed",
+    "command.json": "433d07b4279856fe7c1d2d529fcd5e7177041daa84600d8a77774db05ed55c96",
+    "aggregate-barrier.json": "7d1b691433457d8cfa38fad4b0e66aaacc1d146a72f156981d14c3be53990643",
+    "exact-counts.json": "2ee96f6f627a161687c8827ce7df542060abdf31ca9ea538f5d7c9d406b51462",
+    "final-receipt.json": "6fceb6486674759e1ad0eae421cec0f18969c970ebfde78303b684c9e846913c"
+  }
+}

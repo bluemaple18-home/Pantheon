@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "capacity_preactivation_preflight": "BLOCKED",
+  "capacity_preactivation_exit_code": 70,
+  "aggregate_activation": "NOT_RUN_FAIL_CLOSED",
+  "live_aggregate_postcheck": "NOT_RUN_FAIL_CLOSED",
+  "current_barrier": {
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g17-c05929f2a7-20260821T827804Z.barrier",
+    "exists": true,
+    "sha256_before": "23946ebeabe08411e2b4ce2fd64682e867562aa44b24dc74b9645eb30ce4a0ae",
+    "sha256_after": "23946ebeabe08411e2b4ce2fd64682e867562aa44b24dc74b9645eb30ce4a0ae",
+    "delta": 0
+  },
+  "activation_authorized": false
+}
