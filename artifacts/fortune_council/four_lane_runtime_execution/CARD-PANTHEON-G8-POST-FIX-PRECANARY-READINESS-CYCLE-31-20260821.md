@@ -5,7 +5,7 @@ execution_line_id: pantheon-g8-publisher-post-fix-precanary-cycle31
 role: readiness-auditor
 model: gpt-5.6-terra
 thinking: medium
-required_base_sha: 6498d1fe756e6e76a499cc79df8fe228dd65311b
+candidate_source_sha: 6498d1fe756e6e76a499cc79df8fe228dd65311b
 ---
 
 # G8 Publisher 修復後 pre-canary readiness Cycle 31
@@ -20,7 +20,7 @@ Publisher canonical TMPDIR 修復後 readiness 重驗 → 只重建與核對 non
 
 ## 已知事實
 
-- required base：`6498d1fe756e6e76a499cc79df8fe228dd65311b`。
+- candidate source：`6498d1fe756e6e76a499cc79df8fe228dd65311b`；正式 bootstrap SHA 由包含本卡的主線 commit 決定。
 - canonical TMPDIR candidate 已獨立 `REVIEW_GO`；main focused tests 為 `2 passed`、reset suite `16 passed`。
 - Cycle 30 終局為 `BLOCKED / NO RETRY`，因此本卡不繼承 production mutation 授權。
 - 建卡前 resource snapshot：`complete=true`、missing 空、host available `64283385856` bytes、memory pressure `normal`、Codex worktree `20 / 20`、worktree bytes `4790480896`、active scoped worktree thread `0`、snapshot digest `b7521167fa71b85aecba1689ba9bb73a7ac467af7e07bb988af4026e1d323f26`。
