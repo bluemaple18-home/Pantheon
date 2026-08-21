@@ -480,6 +480,13 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     echo "Publisher activation-only reset requires a terminal one-shot Publisher plist." >&2
     false
   fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      publisher-plist-receipt \
+      --plist "${PUBLISHER_TARGET_PLIST}" \
+      --activation-mode normal
+  ) >/dev/null
   LIVE_REFERENCE_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
   LIVE_IDENTITY_FIELDS=(
     PANTHEON_RUNTIME_IDENTITY
@@ -509,6 +516,13 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     false
   fi
   make_publisher_activation_only_plist "${PUBLISHER_RESET_TEMP}"
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      publisher-plist-receipt \
+      --plist "${PUBLISHER_RESET_TEMP}" \
+      --activation-mode activation-only
+  ) >/dev/null
   ACTIVATION_PHASE="publisher_reset_other_services_validation"
   rm -rf "${RESET_BACKUP_ROOT}"
   mkdir -p "${RESET_BACKUP_ROOT}"
@@ -610,10 +624,13 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     false
   fi
   ACTIVATION_PHASE="publisher_reset_postcheck"
-  if ! /usr/libexec/PlistBuddy -c "Print :ProgramArguments" \
-    "${PUBLISHER_TARGET_PLIST}" | grep -q -- '--activation-only'; then
-    false
-  fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      publisher-plist-receipt \
+      --plist "${PUBLISHER_TARGET_PLIST}" \
+      --activation-mode activation-only
+  ) >/dev/null
   for LABEL in "${OTHER_LABELS[@]}"; do
     cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
       "${LAUNCH_AGENTS_DIR}/${LABEL}.plist"

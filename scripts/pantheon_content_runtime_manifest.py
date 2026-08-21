@@ -458,10 +458,43 @@ def publisher_plist_preflight(
 ) -> dict[str, Any]:
     """驗證 staged Publisher normal plist 的單筆 bounded contract。"""
     label = "com.pantheon.agy-content-publisher"
-    receipt = plist_receipt(plist_path, expected_activation_mode="normal")
+    receipt = publisher_plist_receipt(
+        plist_path,
+        expected_activation_mode="normal",
+    )
     expected = receipt_for_label(manifest, label)
     if any(receipt.get(field) != value for field, value in expected.items()):
         raise RuntimeManifestError("publisher plist identity mismatch")
+
+    exact_run_id = str(receipt["exact_run_id"])
+    if expected_exact_run_id is not None and exact_run_id != expected_exact_run_id:
+        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
+    if require_no_exact_run_id and exact_run_id:
+        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
+    return {
+        "status": "PASS",
+        "label": label,
+        "manifest_digest": manifest["manifest_digest"],
+        "generation": manifest["generation"],
+        "max_runs": receipt["max_runs"],
+        "exact_run_id": exact_run_id,
+        "plist_realpath": receipt["plist_realpath"],
+    }
+
+
+def publisher_plist_receipt(
+    plist_path: Path,
+    *,
+    expected_activation_mode: str,
+) -> dict[str, Any]:
+    """驗證 Publisher plist 結構，不把舊 live cohort 綁到下一代 manifest。"""
+    label = "com.pantheon.agy-content-publisher"
+    receipt = plist_receipt(
+        plist_path,
+        expected_activation_mode=expected_activation_mode,
+    )
+    if receipt.get("label") != label or receipt.get("service_label") != label:
+        raise RuntimeManifestError("publisher plist label mismatch")
     payload = _plist_payload(plist_path)
     arguments = payload.get("ProgramArguments")
     if not isinstance(arguments, list):
@@ -489,18 +522,10 @@ def publisher_plist_preflight(
         exact_run_id = child[index + 1]
         if PUBLISHER_EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
             raise RuntimeManifestError("publisher plist exact-run-id contract mismatch")
-    if expected_exact_run_id is not None and exact_run_id != expected_exact_run_id:
-        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
-    if require_no_exact_run_id and exact_run_id:
-        raise RuntimeManifestError("publisher plist exact-run-id receipt mismatch")
     return {
-        "status": "PASS",
-        "label": label,
-        "manifest_digest": manifest["manifest_digest"],
-        "generation": manifest["generation"],
+        **receipt,
         "max_runs": max_runs,
         "exact_run_id": exact_run_id,
-        "plist_realpath": receipt["plist_realpath"],
     }
 
 
@@ -819,6 +844,15 @@ def parse_args() -> argparse.Namespace:
     exact_run_group = publisher_plist.add_mutually_exclusive_group()
     exact_run_group.add_argument("--expected-exact-run-id")
     exact_run_group.add_argument("--require-no-exact-run-id", action="store_true")
+    publisher_plist_receipt_parser = subparsers.add_parser(
+        "publisher-plist-receipt"
+    )
+    publisher_plist_receipt_parser.add_argument("--plist", type=Path, required=True)
+    publisher_plist_receipt_parser.add_argument(
+        "--activation-mode",
+        choices=["normal", "activation-only"],
+        required=True,
+    )
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
     barrier.add_argument("--expected-digest", required=True)
@@ -954,6 +988,16 @@ def main() -> int:
             )
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))
+        elif args.command == "publisher-plist-receipt":
+            print(
+                json.dumps(
+                    publisher_plist_receipt(
+                        args.plist,
+                        expected_activation_mode=args.activation_mode,
+                    ),
+                    sort_keys=True,
+                )
+            )
         else:
             manifest = load_manifest(
                 args.manifest,

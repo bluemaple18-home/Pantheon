@@ -19,6 +19,7 @@ status: delivered_candidate
 - 驗 matching manifest、generation、one-shot stage、exact-run receipt。
 - stage 只驗證下一代 Publisher one-shot authority；reset 候選則由現有 live Publisher 轉換，保留舊 live cohort 的 generation 與 identity，避免跨代混接。
 - 將 Publisher 與其他六服務逐欄比對 live cohort identity，並驗證各自 service label、activation mode 與 launchctl 實際載入路徑。
+- reset 前的 normal live、轉換後候選與 bootstrap 後 live 都走同一份 Publisher structural receipt，驗 barrier-exec 外層、child module、`max-runs=1` 與 exact-run-id 格式。
 - 拒絕任何 live PID、identity/path/mode drift 或無效 stage。
 - reset candidate 移除 `StartInterval`／`KeepAlive`，保留 `RunAtLoad=true`，避免週期性 child。
 - mutation 僅限 Publisher plist與 Publisher launchctl target。
@@ -28,8 +29,9 @@ status: delivered_candidate
 ## RED / GREEN
 
 - RED：新增 reset public action 測試，原入口回 usage exit 2。
-- GREEN：Publisher reset、live identity drift、launchctl path drift、任一服務 PID、bootstrap rollback共 6 passed。
-- Publisher-only bounded regression（含 reset）：18 passed，228 deselected。
+- GREEN：Publisher reset、live identity drift、argv drift、launchctl path drift、任一服務 PID、bootstrap rollback共 7 passed。
+- Publisher-only bounded regression（含 reset）：19 passed，228 deselected。
+- Runtime manifest regression：48 passed。
 - Capacity preactivation transition：10 passed，41 deselected。
 - `bash -n scripts/install_agy_gemini_coordinator_launchd.sh`：PASS。
 - `git diff --check`：PASS。
@@ -37,6 +39,7 @@ status: delivered_candidate
 ## 變更檔
 
 - `scripts/install_agy_gemini_coordinator_launchd.sh`
+- `scripts/pantheon_content_runtime_manifest.py`
 - `tests/test_agy_gemini_coordinator.py`
 
 ## 未做
