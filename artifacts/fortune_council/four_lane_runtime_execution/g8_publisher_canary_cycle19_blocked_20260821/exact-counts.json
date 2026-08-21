@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-PUBLISHER-ONLY-PRODUCTION-CANARY-CYCLE-19-20260821",
+  "queue_run_count": 140,
+  "authorized_exact_run_count": 1,
+  "capacity_preflight_calls": 1,
+  "publisher_activation_calls": 0,
+  "publisher_transaction_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "retry_calls": 0,
+  "production_mutation_calls": 0
+}

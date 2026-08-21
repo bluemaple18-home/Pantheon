@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-PUBLISHER-ONLY-PRODUCTION-CANARY-CYCLE-19-20260821",
+  "status": "BLOCKED",
+  "terminal_state": "BLOCKED / NO CANARY",
+  "canary_status": "NO_CANARY",
+  "production_mutation": false,
+  "activation_calls": 0,
+  "retry_calls": 0,
+  "authorized_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+  "publisher_max_runs": 1,
+  "blocking_gate": "capacity preflight",
+  "blocked_code": "CAPACITY_NO_GO",
+  "blocked_reasons": [
+    "preactivation stage mismatch",
+    "rss_telemetry_unknown",
+    "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+  ],
+  "checks": {
+    "cold_reset_receipt": "PASS",
+    "actor_source_origin_authority": "PASS",
+    "actor_clean": true,
+    "live_aggregate_activation_only": "PASS",
+    "seven_services_loaded_no_pid": "PASS",
+    "queue_run_count": 140,
+    "exact_run_unique": true,
+    "capacity": "NO-GO"
+  },
+  "authority": {
+    "source_origin_actor": "c05929f2a7dac86e94aaeaa5ab6c5455892f5f77",
+    "manifest_digest": "e3c393bb18a55eba1c8c6cb9e92abfb63b4241936dc78772bfaa5ec952177d32",
+    "runtime_identity_digest": "db8c1691bb5433b23a4803743782d686d8779ef4fec5d5b7d1cb9e038092999e",
+    "generation": "g17-c05929f2a7-20260821T827804Z"
+  },
+  "evidence": {
+    "capacity": "capacity-before.json",
+    "live_aggregate": "live-aggregate-before.json",
+    "launchctl": "launchctl-before/",
+    "counts": "exact-counts.json"
+  }
+}

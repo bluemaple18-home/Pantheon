@@ -1,0 +1,2 @@
+{"preactivation_transition": "rejected", "reasons": ["preactivation stage mismatch"], "status": "NO-GO"}
+{"bytes": 13387863, "disk_free_bytes": 32103096320, "disk_total_bytes": 245107195904, "file_count": 1700, "reasons": ["rss_telemetry_unknown"], "rss_available": false, "rss_bytes": null, "rss_error": "loaded_service_pid_missing:com.pantheon.agy-content-publisher", "rss_identity": {"absent_labels": [], "idle_labels": [], "inert_labels": [], "loaded_labels": []}, "status": "NO-GO", "swap_available": true, "swap_error": null, "swap_used_bytes": 17187932733}
