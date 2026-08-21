@@ -4692,6 +4692,21 @@ def _write_activation_only_live_plists(
     return payloads
 
 
+def _write_publisher_terminal_live(source: Path, target: Path) -> None:
+    with source.open("rb") as stream:
+        payload = plistlib.load(stream)
+    arguments = list(payload["ProgramArguments"])
+    if "--activation-only" in arguments:
+        arguments.remove("--activation-only")
+    payload["ProgramArguments"] = arguments
+    payload["RunAtLoad"] = True
+    payload.pop("StartInterval", None)
+    payload.pop("KeepAlive", None)
+    with target.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    target.chmod(0o600)
+
+
 def _prepare_publisher_only_activation_fixture(
     tmp_path: Path,
     *,
@@ -4755,6 +4770,7 @@ def _prepare_publisher_only_activation_fixture(
         "  label=${2##*/}\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
         "  printf '%s\\n' 'state = waiting'\n"
+        f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
         "  exit 0\n"
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
@@ -5747,13 +5763,8 @@ def test_publisher_terminal_reset_restores_only_publisher_activation_only(
     launch_agents = fake_home / "Library" / "LaunchAgents"
     publisher_label = "com.pantheon.agy-content-publisher"
     publisher_live = launch_agents / f"{publisher_label}.plist"
-    publisher_stage = (
-        launch_agents
-        / ".pantheon-four-lane-stage"
-        / f"{publisher_label}.plist"
-    )
-    publisher_live.write_bytes(publisher_stage.read_bytes())
-    publisher_live.chmod(0o600)
+    publisher_live.write_bytes(live_payloads[publisher_label])
+    _write_publisher_terminal_live(publisher_live, publisher_live)
     (loaded / publisher_label).unlink()
 
     reset = subprocess.run(
@@ -5796,6 +5807,91 @@ def test_publisher_terminal_reset_restores_only_publisher_activation_only(
     assert (launch_agents / ".pantheon-four-lane-stage").is_dir()
 
 
+def test_publisher_terminal_reset_rejects_live_publisher_identity_drift(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, _loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    publisher_live.write_bytes(live_payloads[publisher_label])
+    _write_publisher_terminal_live(publisher_live, publisher_live)
+    with publisher_live.open("rb") as stream:
+        payload = plistlib.load(stream)
+    payload["EnvironmentVariables"]["PANTHEON_RUNTIME_GENERATION"] = "drifted"
+    with publisher_live.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    publisher_before = publisher_live.read_bytes()
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert "live identity drift" in reset.stderr
+    assert publisher_live.read_bytes() == publisher_before
+    assert not mutation_log.exists()
+
+
+def test_publisher_terminal_reset_rejects_other_service_launchctl_path_drift(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, _loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    publisher_live.write_bytes(live_payloads[publisher_label])
+    _write_publisher_terminal_live(publisher_live, publisher_live)
+    publisher_before = publisher_live.read_bytes()
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    launchctl.write_text(
+        original.replace(
+            f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n",
+            "  if [ \"$label\" = \"com.pantheon.agy-gemini-coordinator\" ]; then\n"
+            "    printf '%s\\n' 'path = /tmp/drifted.plist'\n"
+            "  else\n"
+            f"    printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
+            "  fi\n",
+        ),
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert "other-service launchctl path drift" in reset.stderr
+    assert publisher_live.read_bytes() == publisher_before
+    assert not mutation_log.exists()
+
+
 @pytest.mark.parametrize(
     ("pid_label", "expected_error"),
     [
@@ -5821,13 +5917,8 @@ def test_publisher_terminal_reset_rejects_any_live_pid_before_mutation(
     launch_agents = fake_home / "Library" / "LaunchAgents"
     publisher_label = "com.pantheon.agy-content-publisher"
     publisher_live = launch_agents / f"{publisher_label}.plist"
-    publisher_stage = (
-        launch_agents
-        / ".pantheon-four-lane-stage"
-        / f"{publisher_label}.plist"
-    )
-    publisher_live.write_bytes(publisher_stage.read_bytes())
-    publisher_live.chmod(0o600)
+    publisher_live.write_bytes(live_payloads[publisher_label])
+    _write_publisher_terminal_live(publisher_live, publisher_live)
     launchctl = tmp_path / "bin" / "launchctl"
     original = launchctl.read_text(encoding="utf-8")
     launchctl.write_text(
@@ -5872,8 +5963,8 @@ def test_publisher_terminal_reset_rolls_back_bootstrap_failure(tmp_path: Path) -
     stage_dir = launch_agents / ".pantheon-four-lane-stage"
     publisher_label = "com.pantheon.agy-content-publisher"
     publisher_live = launch_agents / f"{publisher_label}.plist"
-    publisher_live.write_bytes((stage_dir / f"{publisher_label}.plist").read_bytes())
-    publisher_live.chmod(0o600)
+    publisher_live.write_bytes(live_payloads[publisher_label])
+    _write_publisher_terminal_live(publisher_live, publisher_live)
     (loaded / publisher_label).unlink()
     publisher_before = publisher_live.read_bytes()
     launchctl = tmp_path / "bin" / "launchctl"

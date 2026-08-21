@@ -17,8 +17,9 @@ status: delivered_candidate
 ## 修復
 
 - 驗 matching manifest、generation、one-shot stage、exact-run receipt。
-- 先用候選 Publisher activation-only plist與其他六個 live plist做完整 aggregate preflight。
-- 拒絕任何 live PID、identity/mode drift 或無效 stage。
+- stage 只驗證下一代 Publisher one-shot authority；reset 候選則由現有 live Publisher 轉換，保留舊 live cohort 的 generation 與 identity，避免跨代混接。
+- 將 Publisher 與其他六服務逐欄比對 live cohort identity，並驗證各自 service label、activation mode 與 launchctl 實際載入路徑。
+- 拒絕任何 live PID、identity/path/mode drift 或無效 stage。
 - reset candidate 移除 `StartInterval`／`KeepAlive`，保留 `RunAtLoad=true`，避免週期性 child。
 - mutation 僅限 Publisher plist與 Publisher launchctl target。
 - bootstrap/postcheck 失敗會恢復原 Publisher plist與原 loaded/absent 狀態，並寫 failure receipt。
@@ -27,9 +28,9 @@ status: delivered_candidate
 ## RED / GREEN
 
 - RED：新增 reset public action 測試，原入口回 usage exit 2。
-- GREEN：Publisher reset／running Publisher／其他服務 PID／bootstrap rollback 共 4 passed。
-- Publisher-only bounded regression：15 passed，228 deselected。
-- Capacity preactivation transition：9 passed，42 deselected。
+- GREEN：Publisher reset、live identity drift、launchctl path drift、任一服務 PID、bootstrap rollback共 6 passed。
+- Publisher-only bounded regression（含 reset）：18 passed，228 deselected。
+- Capacity preactivation transition：10 passed，41 deselected。
 - `bash -n scripts/install_agy_gemini_coordinator_launchd.sh`：PASS。
 - `git diff --check`：PASS。
 
@@ -44,5 +45,5 @@ status: delivered_candidate
 
 ## 殘餘風險
 
-- production 使用前仍須固定 candidate SHA 做獨立 review。
+- production 使用前仍須固定最終 candidate SHA 做原 reviewer thread 的針對性 re-review。
 - review GO 後須先 promotion candidate，再以 host 正式入口執行一次 reset；reset PASS 後才能接既有 Capacity/readiness 與唯一 exact-run canary。

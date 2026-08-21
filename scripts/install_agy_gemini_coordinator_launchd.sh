@@ -467,35 +467,84 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
       "${RESET_PUBLISHER_PREFLIGHT_ARGS[@]}"
   ) >/dev/null
   PUBLISHER_RESET_TEMP="$(mktemp "${TMPDIR:-/tmp}/pantheon-publisher-reset.XXXXXX")"
-  cp "${PUBLISHER_STAGE_PLIST}" "${PUBLISHER_RESET_TEMP}"
+  cp "${PUBLISHER_TARGET_PLIST}" "${PUBLISHER_RESET_TEMP}"
   chmod 600 "${PUBLISHER_RESET_TEMP}"
-  make_publisher_activation_only_plist "${PUBLISHER_RESET_TEMP}"
-  RESET_AGGREGATE_ARGS=()
-  for LABEL in "${LABELS[@]}"; do
-    if [[ "${LABEL}" == "${PUBLISHER_LABEL}" ]]; then
-      RESET_AGGREGATE_ARGS+=(--plist "${PUBLISHER_RESET_TEMP}")
-    else
-      RESET_AGGREGATE_ARGS+=(--plist "${LAUNCH_AGENTS_DIR}/${LABEL}.plist")
+  if /usr/libexec/PlistBuddy -c "Print :ProgramArguments" \
+    "${PUBLISHER_TARGET_PLIST}" | grep -q -- '--activation-only'; then
+    echo "Publisher activation-only reset requires a normal terminal Publisher plist." >&2
+    false
+  fi
+  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :RunAtLoad' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" != "true" \
+    || -n "$(/usr/libexec/PlistBuddy -c 'Print :StartInterval' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" \
+    || -n "$(/usr/libexec/PlistBuddy -c 'Print :KeepAlive' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" ]]; then
+    echo "Publisher activation-only reset requires a terminal one-shot Publisher plist." >&2
+    false
+  fi
+  LIVE_REFERENCE_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
+  LIVE_IDENTITY_FIELDS=(
+    PANTHEON_RUNTIME_IDENTITY
+    PANTHEON_RUNTIME_MANIFEST_DIGEST
+    PANTHEON_RUNTIME_IDENTITY_DIGEST
+    PANTHEON_RUNTIME_CODE_DIGEST
+    PANTHEON_RUNTIME_CONFIG_VERSION
+    PANTHEON_RUNTIME_GENERATION
+    PANTHEON_RUNTIME_ACTOR_ROOT
+    PANTHEON_RUNTIME_QUEUE_ROOT
+    PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT
+    PANTHEON_RUNTIME_LOG_ROOT
+    PANTHEON_RUNTIME_ACTOR_HEAD
+    PANTHEON_RUNTIME_PYTHON_EXECUTABLE
+    PANTHEON_RUNTIME_UV_EXECUTABLE
+  )
+  for FIELD in "${LIVE_IDENTITY_FIELDS[@]}"; do
+    REFERENCE_VALUE="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${FIELD}" "${LIVE_REFERENCE_PLIST}" 2>/dev/null || true)"
+    PUBLISHER_VALUE="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${FIELD}" "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)"
+    if [[ "${PUBLISHER_VALUE}" != "${REFERENCE_VALUE}" ]]; then
+      echo "Publisher activation-only reset live identity drift." >&2
+      false
     fi
   done
-  (
-    cd "${REPO_ROOT}"
-    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
-      --manifest "${RUNTIME_MANIFEST_FILE}" \
-      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
-      --activation-mode activation-only \
-      "${RESET_AGGREGATE_ARGS[@]}"
-  ) >/dev/null
+  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PANTHEON_RUNTIME_SERVICE_LABEL' "${PUBLISHER_TARGET_PLIST}" 2>/dev/null || true)" != "${PUBLISHER_LABEL}" ]]; then
+    echo "Publisher activation-only reset live service-label drift." >&2
+    false
+  fi
+  make_publisher_activation_only_plist "${PUBLISHER_RESET_TEMP}"
   ACTIVATION_PHASE="publisher_reset_other_services_validation"
   rm -rf "${RESET_BACKUP_ROOT}"
   mkdir -p "${RESET_BACKUP_ROOT}"
   for LABEL in "${OTHER_LABELS[@]}"; do
-    cp "${LAUNCH_AGENTS_DIR}/${LABEL}.plist" "${RESET_BACKUP_ROOT}/${LABEL}.plist"
+    OTHER_LIVE_PLIST="${LAUNCH_AGENTS_DIR}/${LABEL}.plist"
+    if ! /usr/libexec/PlistBuddy -c "Print :ProgramArguments" \
+      "${OTHER_LIVE_PLIST}" | grep -q -- '--activation-only'; then
+      echo "Publisher activation-only reset requires other services activation-only." >&2
+      false
+    fi
+    for FIELD in "${LIVE_IDENTITY_FIELDS[@]}"; do
+      REFERENCE_VALUE="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${FIELD}" "${LIVE_REFERENCE_PLIST}" 2>/dev/null || true)"
+      OTHER_VALUE="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:${FIELD}" "${OTHER_LIVE_PLIST}" 2>/dev/null || true)"
+      if [[ "${OTHER_VALUE}" != "${REFERENCE_VALUE}" ]]; then
+        echo "Publisher activation-only reset other-service identity drift." >&2
+        false
+      fi
+    done
+    if [[ "$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PANTHEON_RUNTIME_SERVICE_LABEL' "${OTHER_LIVE_PLIST}" 2>/dev/null || true)" != "${LABEL}" ]]; then
+      echo "Publisher activation-only reset other-service service-label drift." >&2
+      false
+    fi
+    cp "${OTHER_LIVE_PLIST}" "${RESET_BACKUP_ROOT}/${LABEL}.plist"
     launchctl print "gui/${USER_ID}/${LABEL}" \
       > "${RESET_BACKUP_ROOT}/${LABEL}.identity"
     if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
       "${RESET_BACKUP_ROOT}/${LABEL}.identity"; then
       echo "Publisher activation-only reset requires other services loaded without PID." >&2
+      false
+    fi
+    LOADED_PATH_COUNT="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+      "${RESET_BACKUP_ROOT}/${LABEL}.identity" | wc -l | tr -d '[:space:]')"
+    LOADED_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+      "${RESET_BACKUP_ROOT}/${LABEL}.identity")"
+    if [[ "${LOADED_PATH_COUNT}" != "1" || "${LOADED_PATH}" != "${OTHER_LIVE_PLIST}" ]]; then
+      echo "Publisher activation-only reset other-service launchctl path drift." >&2
       false
     fi
   done
@@ -507,6 +556,12 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
       "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.identity"; then
       echo "Publisher activation-only reset refuses a running Publisher." >&2
+      false
+    fi
+    PUBLISHER_LOADED_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+      "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.identity")"
+    if [[ "${PUBLISHER_LOADED_PATH}" != "${PUBLISHER_TARGET_PLIST}" ]]; then
+      echo "Publisher activation-only reset Publisher launchctl path drift." >&2
       false
     fi
   fi
@@ -549,19 +604,16 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
     "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
     false
   fi
+  PUBLISHER_POST_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+    "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity")"
+  if [[ "${PUBLISHER_POST_PATH}" != "${PUBLISHER_TARGET_PLIST}" ]]; then
+    false
+  fi
   ACTIVATION_PHASE="publisher_reset_postcheck"
-  LIVE_RESET_AGGREGATE_ARGS=()
-  for LABEL in "${LABELS[@]}"; do
-    LIVE_RESET_AGGREGATE_ARGS+=(--plist "${LAUNCH_AGENTS_DIR}/${LABEL}.plist")
-  done
-  (
-    cd "${REPO_ROOT}"
-    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
-      --manifest "${RUNTIME_MANIFEST_FILE}" \
-      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
-      --activation-mode activation-only \
-      "${LIVE_RESET_AGGREGATE_ARGS[@]}"
-  ) >/dev/null
+  if ! /usr/libexec/PlistBuddy -c "Print :ProgramArguments" \
+    "${PUBLISHER_TARGET_PLIST}" | grep -q -- '--activation-only'; then
+    false
+  fi
   for LABEL in "${OTHER_LABELS[@]}"; do
     cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
       "${LAUNCH_AGENTS_DIR}/${LABEL}.plist"
