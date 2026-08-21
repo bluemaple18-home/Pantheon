@@ -5731,6 +5731,190 @@ def test_publisher_only_activation_is_one_shot_for_child_success_and_failure(
             assert (launch_agents / f"{label}.plist").read_bytes() == live_payloads[label]
 
 
+def test_publisher_terminal_reset_restores_only_publisher_activation_only(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    (
+        env,
+        fake_home,
+        mutation_log,
+        manifest,
+        _barrier,
+        loaded,
+        live_payloads,
+    ) = _prepare_publisher_only_activation_fixture(tmp_path)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    publisher_stage = (
+        launch_agents
+        / ".pantheon-four-lane-stage"
+        / f"{publisher_label}.plist"
+    )
+    publisher_live.write_bytes(publisher_stage.read_bytes())
+    publisher_live.chmod(0o600)
+    (loaded / publisher_label).unlink()
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode == 0, reset.stderr
+    assert "Publisher activation-only reset 已完成" in reset.stdout
+    assert mutation_log.read_text(encoding="utf-8").splitlines() == [
+        f"bootstrap gui/{os.getuid()} {publisher_live}",
+    ]
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_path = launch_agents / f"{label}.plist"
+        if label == publisher_label:
+            receipt = runtime_manifest.plist_receipt(
+                live_path,
+                expected_activation_mode="activation-only",
+            )
+            assert receipt["label"] == publisher_label
+            assert receipt["manifest_digest"] == manifest["manifest_digest"]
+            with live_path.open("rb") as stream:
+                payload = plistlib.load(stream)
+            assert payload["RunAtLoad"] is True
+            assert "StartInterval" not in payload
+            assert "KeepAlive" not in payload
+            continue
+        assert live_path.read_bytes() == live_payloads[label]
+    assert (launch_agents / ".pantheon-four-lane-stage").is_dir()
+
+
+@pytest.mark.parametrize(
+    ("pid_label", "expected_error"),
+    [
+        (
+            "com.pantheon.agy-content-publisher",
+            "refuses a running Publisher",
+        ),
+        (
+            "com.pantheon.agy-gemini-coordinator",
+            "requires other services loaded without PID",
+        ),
+    ],
+)
+def test_publisher_terminal_reset_rejects_any_live_pid_before_mutation(
+    tmp_path: Path,
+    pid_label: str,
+    expected_error: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    publisher_stage = (
+        launch_agents
+        / ".pantheon-four-lane-stage"
+        / f"{publisher_label}.plist"
+    )
+    publisher_live.write_bytes(publisher_stage.read_bytes())
+    publisher_live.chmod(0o600)
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    launchctl.write_text(
+        original.replace(
+            "  printf '%s\\n' 'state = waiting'\n",
+            "  printf '%s\\n' 'state = waiting'\n"
+            f"  [ \"$label\" != \"{pid_label}\" ] || printf '%s\\n' 'pid = 4242'\n",
+        ),
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+    publisher_before = publisher_live.read_bytes()
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert expected_error in reset.stderr
+    assert publisher_live.read_bytes() == publisher_before
+    assert not mutation_log.exists()
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+
+
+def test_publisher_terminal_reset_rolls_back_bootstrap_failure(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, _mutation_log, _manifest, _barrier, loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    publisher_live.write_bytes((stage_dir / f"{publisher_label}.plist").read_bytes())
+    publisher_live.chmod(0o600)
+    (loaded / publisher_label).unlink()
+    publisher_before = publisher_live.read_bytes()
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    launchctl.write_text(
+        original.replace(
+            f"  touch '{loaded}/'$label\n",
+            f"  [ \"$label\" != \"{publisher_label}\" ] || exit 9\n"
+            f"  touch '{loaded}/'$label\n",
+        ),
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert publisher_live.read_bytes() == publisher_before
+    assert not (loaded / publisher_label).exists()
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"] == {
+        "phase": "publisher_reset_bootstrap",
+        "exit_code": 9,
+    }
+
+
 def test_publisher_only_bounded_activation_allows_no_exact_run_receipt(
     tmp_path: Path,
 ) -> None:

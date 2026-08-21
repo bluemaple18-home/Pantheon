@@ -30,6 +30,7 @@ TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-coordinator.plist.example"
 LANE_TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-lane.plist.example"
 TEMP_PLIST=""
+PUBLISHER_RESET_TEMP=""
 LANE_TEMP_PLISTS=()
 LANE_TARGET_PLISTS=()
 ACTIVATION_BARRIER=""
@@ -40,6 +41,9 @@ cleanup() {
   local RETURN_CODE="$?"
   if [[ -n "${TEMP_PLIST}" ]]; then
     rm -f "${TEMP_PLIST}"
+  fi
+  if [[ -n "${PUBLISHER_RESET_TEMP}" ]]; then
+    rm -f "${PUBLISHER_RESET_TEMP}"
   fi
   if (( ${#LANE_TEMP_PLISTS[@]} > 0 )); then
     for LANE_TEMP_PLIST in "${LANE_TEMP_PLISTS[@]}"; do
@@ -52,8 +56,9 @@ trap cleanup EXIT
 
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" \
-  && "${ACTION}" != "--activate-publisher-only" ]]; then
-  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only|--activate-publisher-only]" >&2
+  && "${ACTION}" != "--activate-publisher-only" \
+  && "${ACTION}" != "--reset-publisher-activation-only" ]]; then
+  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only|--activate-publisher-only|--reset-publisher-activation-only]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -168,6 +173,16 @@ make_publisher_only_one_shot_plist() {
   if ! /usr/libexec/PlistBuddy -c "Set :RunAtLoad true" "${PLIST_PATH}" >/dev/null 2>&1; then
     /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool true" "${PLIST_PATH}" >/dev/null
   fi
+  plutil -lint "${PLIST_PATH}" >/dev/null
+}
+make_publisher_activation_only_plist() {
+  local PLIST_PATH="$1"
+  make_publisher_only_one_shot_plist "${PLIST_PATH}"
+  /usr/libexec/PlistBuddy -c "Add :ProgramArguments:16 string --activation-only" \
+    "${PLIST_PATH}" >/dev/null
+  /usr/libexec/PlistBuddy -c "Delete :StandardInPath" "${PLIST_PATH}" >/dev/null 2>&1 || true
+  /usr/libexec/PlistBuddy -c "Delete :StandardOutPath" "${PLIST_PATH}" >/dev/null 2>&1 || true
+  /usr/libexec/PlistBuddy -c "Delete :StandardErrorPath" "${PLIST_PATH}" >/dev/null 2>&1 || true
   plutil -lint "${PLIST_PATH}" >/dev/null
 }
 ACTIVATION_BARRIER="${CONTENT_PUBLISHER_ROOT}/four-lane-activation-${RUNTIME_GENERATION}.barrier"
@@ -372,6 +387,10 @@ PUBLISHER_ONLY_ACTIVATION=0
 if [[ "${ACTION}" == "--activate-publisher-only" ]]; then
   PUBLISHER_ONLY_ACTIVATION=1
 fi
+PUBLISHER_ACTIVATION_ONLY_RESET=0
+if [[ "${ACTION}" == "--reset-publisher-activation-only" ]]; then
+  PUBLISHER_ACTIVATION_ONLY_RESET=1
+fi
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
 ACTIVATION_PHASE="correlation_validation"
 write_failure_receipt() {
@@ -402,6 +421,156 @@ if [[ -n "${PANTHEON_ACTIVATION_CORRELATION_ID:-}" ]]; then
     false
   fi
   ACTIVATION_CORRELATION_ID="${PANTHEON_ACTIVATION_CORRELATION_ID}"
+fi
+if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
+  PUBLISHER_LABEL="com.pantheon.agy-content-publisher"
+  PUBLISHER_STAGE_PLIST="${STAGE_DIR}/${PUBLISHER_LABEL}.plist"
+  PUBLISHER_TARGET_PLIST="${LAUNCH_AGENTS_DIR}/${PUBLISHER_LABEL}.plist"
+  RESET_BACKUP_ROOT="${STAGE_DIR}/publisher-reset-backups"
+  OTHER_LABELS=(
+    "com.pantheon.agy-gemini-coordinator"
+    "com.pantheon.agy-gemini-new"
+    "com.pantheon.agy-gemini-rewrite"
+    "com.pantheon.agy-gemini-i18n-new"
+    "com.pantheon.agy-gemini-i18n-rewrite"
+    "com.pantheon.content-capacity-guard"
+  )
+  ACTIVATION_PHASE="publisher_reset_stage_validation"
+  if [[ ! -d "${STAGE_DIR}" \
+    || "$(cat "${STAGE_DIR}/manifest-digest" 2>/dev/null || true)" != "${RUNTIME_MANIFEST_DIGEST}" \
+    || "$(cat "${STAGE_DIR}/generation" 2>/dev/null || true)" != "${RUNTIME_GENERATION}" \
+    || "$(cat "${STAGE_DIR}/publisher-max-runs" 2>/dev/null || true)" != "1" \
+    || ! -f "${PUBLISHER_STAGE_PLIST}" \
+    || ! -f "${PUBLISHER_TARGET_PLIST}" ]]; then
+    echo "Publisher activation-only reset requires matching one-shot stage and live plist." >&2
+    false
+  fi
+  RESET_PUBLISHER_PREFLIGHT_ARGS=(
+    publisher-plist
+    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}"
+    --plist "${PUBLISHER_STAGE_PLIST}"
+  )
+  if [[ -f "${STAGE_DIR}/publisher-exact-run-id" ]]; then
+    RESET_EXACT_RUN_ID="$(cat "${STAGE_DIR}/publisher-exact-run-id")"
+    if [[ -z "${RESET_EXACT_RUN_ID}" ]]; then
+      echo "Publisher activation-only reset exact-run receipt is empty." >&2
+      false
+    fi
+    RESET_PUBLISHER_PREFLIGHT_ARGS+=(--expected-exact-run-id "${RESET_EXACT_RUN_ID}")
+  else
+    RESET_PUBLISHER_PREFLIGHT_ARGS+=(--require-no-exact-run-id)
+  fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      "${RESET_PUBLISHER_PREFLIGHT_ARGS[@]}"
+  ) >/dev/null
+  PUBLISHER_RESET_TEMP="$(mktemp "${TMPDIR:-/tmp}/pantheon-publisher-reset.XXXXXX")"
+  cp "${PUBLISHER_STAGE_PLIST}" "${PUBLISHER_RESET_TEMP}"
+  chmod 600 "${PUBLISHER_RESET_TEMP}"
+  make_publisher_activation_only_plist "${PUBLISHER_RESET_TEMP}"
+  RESET_AGGREGATE_ARGS=()
+  for LABEL in "${LABELS[@]}"; do
+    if [[ "${LABEL}" == "${PUBLISHER_LABEL}" ]]; then
+      RESET_AGGREGATE_ARGS+=(--plist "${PUBLISHER_RESET_TEMP}")
+    else
+      RESET_AGGREGATE_ARGS+=(--plist "${LAUNCH_AGENTS_DIR}/${LABEL}.plist")
+    fi
+  done
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+      --activation-mode activation-only \
+      "${RESET_AGGREGATE_ARGS[@]}"
+  ) >/dev/null
+  ACTIVATION_PHASE="publisher_reset_other_services_validation"
+  rm -rf "${RESET_BACKUP_ROOT}"
+  mkdir -p "${RESET_BACKUP_ROOT}"
+  for LABEL in "${OTHER_LABELS[@]}"; do
+    cp "${LAUNCH_AGENTS_DIR}/${LABEL}.plist" "${RESET_BACKUP_ROOT}/${LABEL}.plist"
+    launchctl print "gui/${USER_ID}/${LABEL}" \
+      > "${RESET_BACKUP_ROOT}/${LABEL}.identity"
+    if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
+      "${RESET_BACKUP_ROOT}/${LABEL}.identity"; then
+      echo "Publisher activation-only reset requires other services loaded without PID." >&2
+      false
+    fi
+  done
+  cp "${PUBLISHER_TARGET_PLIST}" "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.plist"
+  RESET_PUBLISHER_PREVIOUS_LOADED=0
+  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+    > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.identity" 2>/dev/null; then
+    RESET_PUBLISHER_PREVIOUS_LOADED=1
+    if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
+      "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.identity"; then
+      echo "Publisher activation-only reset refuses a running Publisher." >&2
+      false
+    fi
+  fi
+  printf '%s\n' "${RESET_PUBLISHER_PREVIOUS_LOADED}" \
+    > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.previous_loaded"
+  rollback_publisher_activation_only_reset() {
+    local RETURN_CODE="$1"
+    local EXIT_PHASE="$2"
+    local ROLLBACK_STATUS="ROLLBACK_COMPLETE"
+    trap - ERR
+    set +e
+    install -m 600 "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.plist" \
+      "${PUBLISHER_TARGET_PLIST}" || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
+    if [[ "${RESET_PUBLISHER_PREVIOUS_LOADED}" == "1" ]]; then
+      launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}" >/dev/null 2>&1 \
+        || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    fi
+    for LABEL in "${OTHER_LABELS[@]}"; do
+      cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
+        "${LAUNCH_AGENTS_DIR}/${LABEL}.plist" || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    done
+    write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
+    exit "${RETURN_CODE}"
+  }
+  ACTIVATION_PHASE="publisher_reset_replace_live_plist"
+  trap 'rollback_publisher_activation_only_reset $? "${ACTIVATION_PHASE}"' ERR
+  install -m 600 "${PUBLISHER_RESET_TEMP}" "${PUBLISHER_TARGET_PLIST}"
+  if [[ "${RESET_PUBLISHER_PREVIOUS_LOADED}" == "1" ]]; then
+    launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null
+  fi
+  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1; then
+    false
+  fi
+  ACTIVATION_PHASE="publisher_reset_bootstrap"
+  launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}"
+  launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+    > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"
+  if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
+    "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
+    false
+  fi
+  ACTIVATION_PHASE="publisher_reset_postcheck"
+  LIVE_RESET_AGGREGATE_ARGS=()
+  for LABEL in "${LABELS[@]}"; do
+    LIVE_RESET_AGGREGATE_ARGS+=(--plist "${LAUNCH_AGENTS_DIR}/${LABEL}.plist")
+  done
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest aggregate \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" \
+      --activation-mode activation-only \
+      "${LIVE_RESET_AGGREGATE_ARGS[@]}"
+  ) >/dev/null
+  for LABEL in "${OTHER_LABELS[@]}"; do
+    cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
+      "${LAUNCH_AGENTS_DIR}/${LABEL}.plist"
+  done
+  trap - ERR
+  rm -rf "${RESET_BACKUP_ROOT}"
+  echo "Pantheon Publisher activation-only reset 已完成。"
+  echo "狀態：launchctl print gui/${USER_ID}/${PUBLISHER_LABEL}"
+  exit 0
 fi
 if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
   PUBLISHER_LABEL="com.pantheon.agy-content-publisher"
