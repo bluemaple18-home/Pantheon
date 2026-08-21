@@ -1,0 +1,22 @@
+{
+  "authorization_digest": "d4020977c609fab423124829312d09946da6a2d93a3772717e4bb9bd4c9f43bf",
+  "authorized_exact_run_present": true,
+  "capacity_receipt": "/Users/mattkuo/.codex/worktrees/de01/Pantheon/.work/CARD-PANTHEON-G8-HOST-CAPACITY-FINAL-CONTINUATION-20260821/capacity-receipt.json",
+  "capacity_receipt_digest": "3172bbaf48cb5c2dc34af6d4dedb9310324c18ad68a8c67fd7e627c00da0fe95",
+  "card_id": "CARD-PANTHEON-G8-HOST-CAPACITY-FINAL-CONTINUATION-20260821",
+  "correlation_id": "G8-HOST-CAPACITY-FINAL-CONTINUATION-20260821",
+  "expected_current_actor_sha": "b1719c0d6243c7ec6372889405a846ccd1b666ed",
+  "expected_current_manifest_digest": "d1ec853fd1b32e4a77e9ab45a19a9482bad5a5c692cfc5c8396cf365a23cccbf",
+  "expected_current_stage_digest": "73d252199145a7d3dcb6784e1a1eb3d734e01a87a3d33709407c66153c8e45fe",
+  "preserved_run_count": 140,
+  "schema_version": 1,
+  "source_repo": "/private/tmp/pantheon-g8-final-source-4c16-continuation-20260821",
+  "source_sha": "4c16a2f4ab81865ba854cff6cf79a82dfe700c71",
+  "target_config_version": "formal-runtime-v3-model-route-v1",
+  "target_generation": "g31-4c16a2f4-20260821T180000Z",
+  "target_identity": "gate2-actor:4c16a2f4ab81865ba854cff6cf79a82dfe700c71:activation-only",
+  "target_python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "target_runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92",
+  "target_uv_executable": "/Users/mattkuo/.local/bin/uv",
+  "transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-host-capacity-final-continuation-20260821"
+}

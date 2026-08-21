@@ -1,0 +1,6 @@
+{
+  "plan_digest": "c3ce28979fcb618fc0ca9762d82df6987232bbd67aab90985419678d33e4d16e",
+  "rollback_bundle": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-host-capacity-final-continuation-20260821/rollback-bundle",
+  "status": "POSTCHECK_PASSED",
+  "target_manifest_digest": "dd6dcf51e30044200d0e6bcc1e6b9e80b2f40e744670c690484bee682f4120e2"
+}

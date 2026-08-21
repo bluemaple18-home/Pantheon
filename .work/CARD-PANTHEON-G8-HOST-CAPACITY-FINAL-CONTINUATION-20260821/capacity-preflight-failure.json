@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO",
+  "command_boundary": "host-escalated formal Capacity public preflight",
+  "argv_summary": "TMPDIR=/private/tmp ... install_pantheon_content_capacity_guard_launchd.sh --preflight",
+  "preactivation_transition": {
+    "status": "NO-GO",
+    "transition": "rejected",
+    "reasons": [
+      "plist activation mode mismatch"
+    ]
+  },
+  "raw_preflight": {
+    "status": "NO-GO",
+    "bytes": 15162872,
+    "file_count": 1709,
+    "disk_free_bytes": 65215512576,
+    "disk_total_bytes": 245107195904,
+    "rss_available": false,
+    "rss_bytes": null,
+    "rss_error": "loaded_service_pid_missing:com.pantheon.agy-gemini-coordinator",
+    "swap_available": true,
+    "swap_used_bytes": 11810174402,
+    "swap_error": null,
+    "reasons": [
+      "rss_telemetry_unknown"
+    ],
+    "rss_identity": {
+      "absent_labels": [
+        {
+          "label": "com.pantheon.agy-content-publisher",
+          "returncode": 113
+        }
+      ],
+      "idle_labels": [],
+      "inert_labels": [],
+      "loaded_labels": []
+    }
+  },
+  "stop_contract": "BLOCKED / NO RETRY"
+}

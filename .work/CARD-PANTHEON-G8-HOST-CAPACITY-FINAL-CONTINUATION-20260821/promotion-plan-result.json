@@ -1,0 +1,11 @@
+{
+  "capacity_receipt_digest": "3172bbaf48cb5c2dc34af6d4dedb9310324c18ad68a8c67fd7e627c00da0fe95",
+  "plan_digest": "c3ce28979fcb618fc0ca9762d82df6987232bbd67aab90985419678d33e4d16e",
+  "preserved_run_count": 140,
+  "queue_snapshot_digest": "e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2",
+  "schema_version": 1,
+  "status": "READY_TO_APPLY",
+  "target_actor_sha": "4c16a2f4ab81865ba854cff6cf79a82dfe700c71",
+  "target_generation": "g31-4c16a2f4-20260821T180000Z",
+  "target_manifest_digest": "dd6dcf51e30044200d0e6bcc1e6b9e80b2f40e744670c690484bee682f4120e2"
+}
