@@ -2,15 +2,63 @@
 id: CARD-PANTHEON-G8-RELEASE-TRANSITION-BOUNDED-IMPLEMENTATION-V1-20260821-REVIEW-RESULT
 card_id: CARD-PANTHEON-G8-RELEASE-TRANSITION-BOUNDED-IMPLEMENTATION-V1-20260821-REVIEW
 chain_id: PANTHEON-G8-RELEASE-CONTROL-PLANE-V1
-status: REVIEW_NO_GO
-reviewed_commit: 3875b0e669e0450ea62a0b14b42b129bd08070c7
+status: REVIEW_GO
+reviewed_commit: 92ffd718b3b771e25dadeaf24cb2ba0c7ca65e50
+base_candidate: 3875b0e669e0450ea62a0b14b42b129bd08070c7
+prior_review_commit: c7eca18254522554969f9be9518a329a72fdb535
+rereview_generation: 1
 base_commit: 3bf77c032f85586ddcf00b0b6dfe66bc6110a6dd
 date: 2026-08-22
 ---
 
 # G8 Release Transition independent Review RESULT
 
-## Verdict
+## Generation 1 Targeted Re-Review
+
+`REVIEW_GO`
+
+reviewed_commit：`92ffd718b3b771e25dadeaf24cb2ba0c7ca65e50`
+
+Spec axis：`GO`。Repair generation 1 關閉原兩個 P1：edge/action guard 改為 explicit effector/action token exact equality；release observation duplicate evidence 在 state matching 前 fail-closed，完全一致 duplicate 可去重，conflicting normative/path/receipt drift 均不得 `CONVERGED`。
+
+Standards axis：`GO`。未發現 Repair source/test regression；P1 清空。Repair diff 範圍包含 source/tests/Repair RESULT，另包含既有 Repair task card `CARD-PANTHEON-G8-RELEASE-TRANSITION-BOUNDED-IMPLEMENTATION-V1-20260821-REPAIR.md`；本 re-review 未建立新 thread/card，且該 artifact 不改 source/tests/canonical evidence，不列為阻擋 regression。
+
+### Finding Closure
+
+- `G8-REL-REV-001`：CLOSED。`TE-CAPACITY-TO-ACTIVATED + --activate` 與 `TE-CANARY-READY-TO-RUNNING + --activate` 均回 `EDGE_EFFECTOR_MISMATCH`；授權的 `--activate-only` 與 `--activate-publisher-only` 回 `PASS`。
+- `G8-REL-REV-002`：CLOSED。Identical duplicate 回 `CONVERGED`；conflicting normative duplicate、path drift、receipt-path drift 均回 `RELEASE_AMBIGUOUS` / `AMBIGUOUS`，且 `matched_state=null`、`next_edge=null`。
+
+### Repair Diff Scope
+
+`git diff --name-status 3875b0e669e0450ea62a0b14b42b129bd08070c7 92ffd718b3b771e25dadeaf24cb2ba0c7ca65e50`：
+
+```text
+A artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-RELEASE-TRANSITION-BOUNDED-IMPLEMENTATION-V1-20260821-REPAIR-RESULT.md
+A artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-RELEASE-TRANSITION-BOUNDED-IMPLEMENTATION-V1-20260821-REPAIR.md
+M scripts/pantheon_g8_production_preactivation.py
+M tests/test_agy_gemini_coordinator.py
+M tests/test_pantheon_g8_production_preactivation.py
+```
+
+No Capacity guard, installer, canonical evidence, implementation RESULT, production artifact, registry, metadata, generated page, sitemap, feed, redirect, tag, push, merge, launchctl, deploy, or canary mutation was introduced by the Repair diff.
+
+### Re-Review Verification
+
+- CodeGraph readiness：ready，578 files / 6618 nodes / 14424 edges.
+- Repair RESULT read from `92ffd718b3b771e25dadeaf24cb2ba0c7ca65e50`.
+- Regression selector on repair tree：`<main-checkout>/.venv/bin/python -m pytest -q tests/test_pantheon_g8_production_preactivation.py tests/test_agy_gemini_coordinator.py -k "reg_g8_rel_rev or wrong_release_edge"`：`8 passed, 293 deselected in 2.53s`.
+- Action replay on repair tree:
+  - `TE-CAPACITY-TO-ACTIVATED + --activate`：BLOCKED / `EDGE_EFFECTOR_MISMATCH`.
+  - `TE-CAPACITY-TO-ACTIVATED + --activate-only`：PASS.
+  - `TE-CANARY-READY-TO-RUNNING + --activate`：BLOCKED / `EDGE_EFFECTOR_MISMATCH`.
+  - `TE-CANARY-READY-TO-RUNNING + --activate-publisher-only`：PASS.
+- Receipt-path drift replay：BLOCKED / `RELEASE_AMBIGUOUS`; duplicate conflict field `receipt_path`.
+- Focused suite on valid git checkout of repair commit：`<main-checkout>/.venv/bin/python -m pytest -q tests/test_pantheon_g8_production_preactivation.py tests/test_pantheon_content_capacity_guard.py tests/test_agy_gemini_coordinator.py`：`353 passed in 431.71s (0:07:11)`.
+- Archive-tree focused suite attempt was invalid because the archive had no `.git`; representative failures were `git rev-parse HEAD` returning `fatal: not a git repository`. It was not used for verdict.
+- `bash -n scripts/install_agy_gemini_coordinator_launchd.sh` on repair tree：PASS.
+- `git diff --check 3875b0e669e0450ea62a0b14b42b129bd08070c7..92ffd718b3b771e25dadeaf24cb2ba0c7ca65e50`：PASS.
+
+## Initial Verdict
 
 `REVIEW_NO_GO`
 
