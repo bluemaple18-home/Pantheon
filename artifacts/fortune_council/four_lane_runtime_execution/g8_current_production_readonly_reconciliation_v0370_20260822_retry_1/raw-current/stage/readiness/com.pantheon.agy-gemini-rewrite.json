@@ -1,0 +1,9 @@
+{
+  "ack_digest": "6d59c5780d43ca0559c613c9df883dcbffb35f518151b41d38d5d031f587a3e3",
+  "generation": "g34-db9fb434-20260822T041850Z",
+  "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "owner_uid": 501,
+  "runtime_identity_digest": "1f6395163f34817a1dd5c36cba33a735cf3319a6c26ff9c811aa84bd6df596f9",
+  "schema_version": 2,
+  "service_label": "com.pantheon.agy-gemini-rewrite"
+}

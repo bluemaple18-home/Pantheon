@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-08-22T14:36:25Z",
+  "provisioning": {
+    "head": "2cf48822341f5d44d726cd90c7bf6cef997cbfd2",
+    "required_base_sha": "2cf48822341f5d44d726cd90c7bf6cef997cbfd2",
+    "tracked_clean": true,
+    "untracked_before_activation": []
+  },
+  "product_authority": {
+    "origin_main": "9f48abaadc6474859f1e6f805ad36086b84e8700",
+    "expected": "9f48abaadc6474859f1e6f805ad36086b84e8700",
+    "contains_release_baseline": true,
+    "is_ancestor_of_provisioning_head": true
+  },
+  "release_authority": {
+    "tag": "v0.3.370",
+    "tag_object_type": "tag",
+    "peeled_commit": "b0950d4c436cc902e17ac110b579b35b84aa53e4",
+    "expected_commit": "b0950d4c436cc902e17ac110b579b35b84aa53e4"
+  },
+  "production_actor": {
+    "head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "manifest_actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "version": "0.3.369",
+    "contains_v0_3_370_release": false,
+    "release_contains_actor": true,
+    "clean": true
+  },
+  "status": "NO-GO",
+  "reason": "production actor未採用v0.3.370 release與Exit 78 provenance repair"
+}

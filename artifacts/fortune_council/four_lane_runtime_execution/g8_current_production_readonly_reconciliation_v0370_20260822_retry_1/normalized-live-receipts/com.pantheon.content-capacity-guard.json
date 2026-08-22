@@ -1,0 +1,17 @@
+{
+  "actor_head": "b1719c0d6243c7ec6372889405a846ccd1b666ed",
+  "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "config_version": "formal-runtime-v3-model-route-v1",
+  "generation": "g23-b1719c0d-20260821T022959Z",
+  "identity": "gate2-actor:b1719c0d6243c7ec6372889405a846ccd1b666ed:activation-only",
+  "label": "com.pantheon.content-capacity-guard",
+  "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+  "manifest_digest": "d1ec853fd1b32e4a77e9ab45a19a9482bad5a5c692cfc5c8396cf365a23cccbf",
+  "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+  "runtime_digest": "e8261a1dbd08dac632f11aeb03ea3fa037b012e66a874be7fdf1ab9e59f297a7",
+  "runtime_identity_digest": "0152d79f9901b4000c43c70966907e5001846dc7792e865d9255ada62f91ebae",
+  "service_label": "com.pantheon.content-capacity-guard",
+  "uv_executable": "/Users/mattkuo/.local/bin/uv"
+}

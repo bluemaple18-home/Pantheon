@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "phase": "translation",
+  "run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+  "attempts": 1,
+  "max_attempts": 3,
+  "error_type": "CalledProcessError",
+  "error": "Command '['/Users/mattkuo/.local/bin/uv', 'run', '--frozen', 'python', '-m', 'pytest', 'tests/test_web.py', 'tests/test_agy_seo_copy_pipeline.py', 'tests/test_agy_multilingual_pipeline.py', 'tests/test_release_record.py', '-q']' returned non-zero exit status 1.",
+  "evidence": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-08240d2029/failure.json",
+  "last_attempt_at": "2026-08-21T12:11:10+08:00",
+  "next_eligible_at": "2026-08-21T12:16:10+08:00",
+  "eligibility": "deferred",
+  "candidate_preserved": true,
+  "recovery_count": 0,
+  "last_recovery_id": null
+}

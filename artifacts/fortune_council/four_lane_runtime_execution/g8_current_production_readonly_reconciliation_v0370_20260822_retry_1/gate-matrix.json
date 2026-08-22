@@ -1,0 +1,27 @@
+{
+  "observed_at": "2026-08-22T14:36:25Z",
+  "verdict": "NO-GO",
+  "matched_state": null,
+  "topology_candidate": "ST-TARGET-STAGED",
+  "rows": [
+    {"gate":"Release authority","status":"PASS","evidence":"authority-receipt.json","reason":"provisioning/product/tag authorities分層精確"},
+    {"gate":"CodeGraph context","status":"UNKNOWN","evidence":"codegraph-receipt.json","reason":"indexed SHA缺失且task query未執行"},
+    {"gate":"Mutation tripwire","status":"PASS","evidence":"mutation-tripwire.json","reason":"protected bytes/trees/refs/runtime identity與normalized launchctl topology完全相同"},
+    {"gate":"State uniqueness","status":"UNKNOWN","evidence":"state-reconciliation.json","reason":"topology只指向ST-TARGET-STAGED，但正式reconciler blocked且current live receipt set不完整"},
+    {"gate":"Runtime source adoption","status":"NO-GO","evidence":"authority-receipt.json","reason":"production actor db9fb434 / 0.3.369未包含v0.3.370"},
+    {"gate":"Publisher reset provenance","status":"NO-GO","evidence":"raw-current/stage/failure-receipt.json","reason":"只有Cycle33 rollback failure receipt，current success reset receipt不存在"},
+    {"gate":"Launchctl topology","status":"PASS","evidence":"release-observation.json","reason":"Publisher absent；other-six loaded/no-PID/exact path/exit78，符合ST-TARGET-STAGED topology"},
+    {"gate":"Target stage／selector","status":"PASS","evidence":"release-observation.json","reason":"G34 six-plist stage、exact-run current、max-runs=1、Capacity target absent"},
+    {"gate":"Cycle 29–34","status":"PASS","evidence":"cycle-29-34-currentness.json","reason":"歷史與current分離，未重用stale GO/receipt"},
+    {"gate":"Rule 24","status":"PASS","evidence":"synthetic-readiness/capacity/capacity-receipt.json","reason":"current兩週期、容量預算、host reserve、cleanup、projection與stop-loss fixtures完整"},
+    {"gate":"Rule 25","status":"NO-GO","evidence":"synthetic-readiness/readiness-summary.json","reason":"synthetic七段與official gate READY，但phase不是ST-CANARY-READY且runtime identity不current"},
+    {"gate":"Canary boundary","status":"PASS","evidence":"synthetic-readiness/readiness-summary.json","reason":"canary_created=false、production_mutation=false、production_authorized=false"}
+  ],
+  "blocking_reasons": [
+    "production actor未採用v0.3.370",
+    "Publisher reset current success provenance不存在",
+    "current phase不是ST-CANARY-READY",
+    "CodeGraph indexed HEAD/task query缺失",
+    "正式reconciler因禁止的drift allowlist前置條件而BLOCKED"
+  ]
+}

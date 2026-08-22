@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-08-22T14:36:25Z",
+  "cycles": [
+    {
+      "cycle": 29,
+      "historical_claim": "G23 quiescent Capacity two-cycle PASS與七份stage",
+      "current_verifiable": "current target是G34且Capacity target plist缺席",
+      "historical_generation": "g23-b1719c0d-20260821T022959Z",
+      "current_generation": "g34-db9fb434-20260822T041850Z",
+      "currentness": "STALE",
+      "reason": "generation與stage inventory均不同"
+    },
+    {
+      "cycle": 30,
+      "historical_claim": "Publisher exact-run失敗回復，未tag/push，終態terminal",
+      "current_verifiable": "exact run仍complete且published/transaction皆null，retry attempts=1/deferred",
+      "currentness": "PARTIAL_CURRENT_LINEAGE_ONLY",
+      "reason": "failure lineage可對帳，但不能授權current target或canary"
+    },
+    {
+      "cycle": 31,
+      "historical_claim": "synthetic readiness READY但actor/stage不current",
+      "current_verifiable": "本卡已新生成synthetic READY；production actor仍為0.3.369",
+      "currentness": "HISTORICAL_REPLACED_BY_CURRENT_SYNTHETIC",
+      "reason": "synthetic seam current，但仍不證runtime adoption"
+    },
+    {
+      "cycle": 32,
+      "historical_claim": "G34暫時promotion後Capacity拒絕並rollback",
+      "current_verifiable": "current actor是Cycle33 promotion的db9fb434，不是Cycle32暫態",
+      "currentness": "HISTORICAL_ONLY",
+      "reason": "Cycle32 rollback evidence不可填current authority"
+    },
+    {
+      "cycle": 33,
+      "historical_claim": "promotion committed；Publisher reset失敗rollback；legal return ST-TARGET-STAGED",
+      "current_verifiable": "actor/manifest/stage仍為同一G34 identity；failure receipt digest 212e1e...；success reset receipt不存在",
+      "currentness": "CURRENT_LINEAGE_WITH_FAILED_EDGE",
+      "reason": "failure receipt可證rollback，不能冒充reset success"
+    },
+    {
+      "cycle": 34,
+      "historical_claim": "Exit 78 provenance repair與bounded settle完成離線驗證",
+      "current_verifiable": "repair已進v0.3.370，但production actor仍db9fb434 / 0.3.369",
+      "currentness": "RELEASE_ONLY_NOT_RUNTIME_ADOPTED",
+      "reason": "code release存在不等於production adoption"
+    }
+  ]
+}

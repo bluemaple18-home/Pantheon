@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "identity": "gate2-actor:db9fb4343df212fd3b65546b017aba159620a058:activation-only",
+  "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "runtime_identity_digest": "1f6395163f34817a1dd5c36cba33a735cf3319a6c26ff9c811aa84bd6df596f9",
+  "runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92",
+  "config_version": "formal-runtime-v3-model-route-v1",
+  "generation": "g34-db9fb434-20260822T041850Z",
+  "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+  "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+  "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+  "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "uv_executable": "/Users/mattkuo/.local/bin/uv"
+}

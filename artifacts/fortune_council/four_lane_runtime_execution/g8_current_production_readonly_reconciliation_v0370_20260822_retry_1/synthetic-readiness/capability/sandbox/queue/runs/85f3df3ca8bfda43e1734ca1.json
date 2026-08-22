@@ -1,0 +1,19 @@
+{
+  "correlation_id": "corr-apf-004-readiness",
+  "lane": "new",
+  "last_job_id": "ra-slice-002-local-job",
+  "mode": "create",
+  "registered_at": "2026-08-22T22:33:07+08:00",
+  "result": {
+    "bounded": true,
+    "job_queue": "queue",
+    "run_id": "ra-slice-002-synthetic-create-run",
+    "status": "complete"
+  },
+  "routing_schema_version": 1,
+  "run_dir": "<apf-004-readiness-root>/sandbox/runs/ra-slice-002-synthetic-create-run",
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "schema_version": 1,
+  "status": "complete",
+  "updated_at": "2026-08-22T22:33:07+08:00"
+}

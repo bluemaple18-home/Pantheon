@@ -1,0 +1,28 @@
+{
+  "observed_at": "2026-08-22T14:32:18.172376Z",
+  "topology_candidate": "ST-TARGET-STAGED",
+  "reconciliation_status": "UNKNOWN",
+  "candidate_basis": {
+    "live_publisher": "normal plist present, launchctl not loaded, no PID, generation g23",
+    "live_other_six": "activation-only, loaded, no PID, exact live plist paths, terminal exit 78, generation g23",
+    "target_stage": "G34 six-plist target, Publisher exact-run, max-runs=1, Capacity target absent",
+    "target_generation_relation": "target newer than old live"
+  },
+  "current_stage_receipts": [
+    "RR-TARGET-STAGE",
+    "RR-PUBLISHER-EXACT-STAGE"
+  ],
+  "missing_or_invalid_current_receipts": [
+    "RR-TERMINAL-PUBLISHER current receipt未由正式reconciler證實",
+    "RR-LIVE-AO current receipt未由正式reconciler證實",
+    "publisher-reset-receipt.json不存在"
+  ],
+  "formal_reconciler": {
+    "status": "BLOCKED",
+    "blocked_code": "ALLOWLIST_REQUIRED",
+    "drift_allowlist_used": false,
+    "mutation_tripwire_available_from_reconciler": false
+  },
+  "phase_is_canary_ready": false,
+  "production_mutation": false
+}

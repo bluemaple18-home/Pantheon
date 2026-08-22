@@ -1,0 +1,1 @@
+{"blocked_code": "ALLOWLIST_REQUIRED", "reasons": ["planned fast-forward requires at least one explicit allowlist pattern"], "schema_version": 1, "status": "BLOCKED"}

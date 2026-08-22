@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-08-22T14:36:25Z",
+  "head": "2cf48822341f5d44d726cd90c7bf6cef997cbfd2",
+  "status": "needs_prepare",
+  "indexed_sha": null,
+  "code_context": "not_ready",
+  "reason": "index_missing",
+  "prepare_attempts": 0,
+  "query_attempts": 0,
+  "task_semantic_query": "G8 current production read-only reconciliation, release state matching, production preactivation mutation tripwire, Publisher reset receipt provenance, Capacity and Rule 25 readiness",
+  "fallback_scope": [
+    "scripts/pantheon_g8_production_preactivation.py",
+    "scripts/pantheon_content_capacity_guard.py",
+    "scripts/pantheon_content_capability_receipt.py",
+    "scripts/install_agy_gemini_coordinator_launchd.sh",
+    "scripts/install_pantheon_content_capacity_guard_launchd.sh"
+  ],
+  "boundary": "本卡只允許evidence與RESULT寫入，因此未在worktree建立.codegraph索引",
+  "acceptance": "UNKNOWN"
+}
