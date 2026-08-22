@@ -741,10 +741,12 @@ def _write_capacity_transition_launchctl(
     *,
     launch_agents: Path,
     mutation_log: Path,
+    observed_launch_agents: Path | None = None,
     unknown_service: bool = False,
     include_pid: bool = False,
     last_exit_code: int | None = 78,
 ) -> None:
+    observed_launch_agents = observed_launch_agents or launch_agents
     root_line = (
         "printf 'gui/%s/com.pantheon.unknown = {\\n' \"$(id -u)\""
         if unknown_service
@@ -761,9 +763,10 @@ def _write_capacity_transition_launchctl(
         "if [ \"$1\" = \"print\" ]; then\n"
         "  label=${2##*/}\n"
         f"  plist='{launch_agents}/'$label'.plist'\n"
+        f"  observed_plist='{observed_launch_agents}/'$label'.plist'\n"
         "  [ -f \"$plist\" ] || exit 113\n"
         f"  {root_line}\n"
-        "  printf '\\tpath = %s\\n' \"$plist\"\n"
+        "  printf '\\tpath = %s\\n' \"$observed_plist\"\n"
         f"{pid_line}"
         "  printf '%s\\n' '\tstate = waiting'\n"
         f"{exit_line}"
@@ -1249,7 +1252,7 @@ def test_capacity_installer_stages_during_manifest_bound_preactivation_transitio
     assert not mutation_log.exists()
 
 
-def test_preactivation_transition_accepts_exit_zero_and_rejects_unknown(
+def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
     tmp_path: Path,
 ) -> None:
     _repo, _env, fake_home, mutation_log, manifest, manifest_path = (
@@ -1276,12 +1279,6 @@ def test_preactivation_transition_accepts_exit_zero_and_rejects_unknown(
     preflight_receipt = tmp_path / "preflight.json"
     preflight_receipt.write_text('{"status": "PASS"}\n', encoding="utf-8")
     fake_launchctl = tmp_path / "bin" / "launchctl"
-    _write_capacity_transition_launchctl(
-        fake_launchctl,
-        launch_agents=launch_agents,
-        mutation_log=mutation_log,
-        last_exit_code=0,
-    )
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -1291,25 +1288,14 @@ def test_preactivation_transition_accepts_exit_zero_and_rejects_unknown(
             text=True,
         )
 
-    result = guard.validate_preactivation_transition(
-        preflight_receipt=preflight_receipt,
-        manifest_path=manifest_path,
-        expected_digest=str(manifest["manifest_digest"]),
-        barrier=barrier,
-        launch_agents_dir=launch_agents,
-        capacity_plist=capacity_plist,
-        runner=runner,
-    )
-
-    assert result["status"] == "PASS"
-    _write_capacity_transition_launchctl(
-        fake_launchctl,
-        launch_agents=launch_agents,
-        mutation_log=mutation_log,
-        last_exit_code=1,
-    )
-    with pytest.raises(runtime_manifest.RuntimeManifestError):
-        guard.validate_preactivation_transition(
+    for last_exit_code in (None, 0, 78):
+        _write_capacity_transition_launchctl(
+            fake_launchctl,
+            launch_agents=launch_agents,
+            mutation_log=mutation_log,
+            last_exit_code=last_exit_code,
+        )
+        result = guard.validate_preactivation_transition(
             preflight_receipt=preflight_receipt,
             manifest_path=manifest_path,
             expected_digest=str(manifest["manifest_digest"]),
@@ -1318,6 +1304,40 @@ def test_preactivation_transition_accepts_exit_zero_and_rejects_unknown(
             capacity_plist=capacity_plist,
             runner=runner,
         )
+
+        assert result["status"] == "PASS", last_exit_code
+
+    invalid_cases = [
+        ("other_nonzero", None, False, 1, "preactivation service mismatch"),
+        ("pid", None, True, 78, "preactivation service has pid"),
+        (
+            "path_drift",
+            tmp_path / "wrong-launch-agents",
+            False,
+            78,
+            "preactivation service mismatch",
+        ),
+    ]
+    for case, observed_path, include_pid, last_exit_code, expected_error in invalid_cases:
+        _write_capacity_transition_launchctl(
+            fake_launchctl,
+            launch_agents=launch_agents,
+            mutation_log=mutation_log,
+            observed_launch_agents=observed_path,
+            include_pid=include_pid,
+            last_exit_code=last_exit_code,
+        )
+        with pytest.raises(runtime_manifest.RuntimeManifestError) as error:
+            guard.validate_preactivation_transition(
+                preflight_receipt=preflight_receipt,
+                manifest_path=manifest_path,
+                expected_digest=str(manifest["manifest_digest"]),
+                barrier=barrier,
+                launch_agents_dir=launch_agents,
+                capacity_plist=capacity_plist,
+                runner=runner,
+            )
+        assert str(error.value) == expected_error, case
     assert not mutation_log.exists()
 
 

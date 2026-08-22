@@ -231,6 +231,15 @@ resource_usage = NOT_APPLICABLE
 pid_present = violation
 ```
 
+Activation-only inert terminal exit 的唯一合法集合為 `absent`、`0`、`78`。其中 `78` 只可代表 activation wrapper／barrier validation 在 production workload child 啟動前 fail-closed；它只在下列條件全部成立時合法：
+
+1. transition 是 `TE-TARGET-STAGED-TO-QUIESCED`，live service 仍為 `old_live + activation-only`，target stage 為 current 且 generation 明確 newer than live；
+2. current live plist receipt、`RR-PUBLISHER-RESET`／`RR-LIVE-AO` 與 target-stage receipts 全部存在且一致；
+3. launchctl identity 為 loaded、`not running` 或 `waiting`、no-PID，且 observed plist path 精確等於該 label 的 live plist path；
+4. `78` 來自 old expected digest 對 promoted shared manifest mismatch 的 wrapper validation，沒有 production workload child、child I/O 或 retry 被執行。
+
+任一條件缺失時固定為 `UNKNOWN`；任一條件衝突、任意其他 nonzero exit、PID 存在、path drift、normal mode 或 target generation 非 newer 時固定為 `DIVERGED`。`child_policy=forbidden` 禁止的是 production workload child；activation wrapper／barrier 在 child spawn 前執行的 validation 不屬於 production workload child，因此不與合法 inert terminal `78` 矛盾。
+
 此 mapping 只定義 contract 語意，不修改 Capacity code，也不放寬真正需要 RSS 的 phase。若 raw Capacity sampler 在 activation-only inert phase 回 `loaded_service_pid_missing:<label>`，state reconciliation 應標記為 contract split evidence，而不是把合法 no-PID 服務當成 running process 缺失。
 
 ## Content Plane Invariant
