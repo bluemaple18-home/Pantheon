@@ -2,6 +2,7 @@
 id: CARD-PANTHEON-G8-CURRENT-PRODUCTION-READONLY-RECONCILIATION-V0370-20260822
 chain_id: PANTHEON-G8-CURRENT-PRODUCTION-READONLY-RECONCILIATION-V0370-20260822
 role: production-readonly-reconciliation-auditor
+cycle: 1
 status: ready
 type: production_reconciliation
 thickness: strict
