@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.370] - 2026-08-22
+
+- Release tag：`v0.3.370`
+- 公開文章總數：621（未新增或修改文章）
+- 發布範圍：整合 G8 `TARGET_STAGED → QUIESCED_TARGET_STAGED` transition edge 修復；為 activation-only Publisher exit 78 加入 current durable reset provenance、generation、correlation 與 unchanged-service fail-closed 驗證。
+- 驗證：Capacity `59 passed`、Publisher reset `20 passed`、G8 preactivation `41 passed`、兩個 installer `bash -n`、獨立 `RE_REVIEW_GO` 與 `git diff --check`。
+- 證據：Repair candidate `3da4caf01efbc3851f7da22670bfaa130aa9d21e`、re-review RESULT `a65e9b7b213f81195ce4bdd32a69b8ee5829ebd8`。
+
 ## [0.3.369] - 2026-08-18
 
 - Release tag：`v0.3.369`
