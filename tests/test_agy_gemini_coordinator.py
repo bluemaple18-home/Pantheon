@@ -4865,6 +4865,84 @@ def _write_launchctl_that_records_publisher_child(
     launchctl.chmod(0o700)
 
 
+def _replace_plist_manifest_path(path: Path, manifest_path: Path) -> None:
+    with path.open("rb") as stream:
+        payload = plistlib.load(stream)
+    arguments = payload["ProgramArguments"]
+    arguments[arguments.index("--manifest") + 1] = str(manifest_path)
+    with path.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    path.chmod(0o600)
+
+
+def _write_launchctl_that_executes_publisher_during_settle(
+    launchctl: Path,
+    *,
+    loaded: Path,
+    mutation_log: Path,
+    lifecycle_log: Path,
+    launch_agents: Path,
+) -> None:
+    settling = loaded.parent / "publisher-bootstrap-settling"
+    last_exit = loaded.parent / "publisher-bootstrap-last-exit"
+    launchctl.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, plistlib, subprocess, sys\n"
+        "from pathlib import Path\n"
+        f"loaded = Path({str(loaded)!r})\n"
+        f"mutation_log = Path({str(mutation_log)!r})\n"
+        f"lifecycle_log = Path({str(lifecycle_log)!r})\n"
+        f"launch_agents = Path({str(launch_agents)!r})\n"
+        f"settling = Path({str(settling)!r})\n"
+        f"last_exit = Path({str(last_exit)!r})\n"
+        "args = sys.argv[1:]\n"
+        "def append(path, line):\n"
+        "    with path.open('a', encoding='utf-8') as stream:\n"
+        "        stream.write(line + '\\n')\n"
+        "if args[:1] == ['print']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    if label == 'com.pantheon.agy-content-publisher' and settling.exists():\n"
+        "        settling.unlink()\n"
+        "        append(lifecycle_log, f'print label={label} state=settling')\n"
+        "        sys.exit(1)\n"
+        "    if not (loaded / label).exists():\n"
+        "        sys.exit(113)\n"
+        "    print('state = waiting')\n"
+        "    print(f'path = {launch_agents / (label + \".plist\")}')\n"
+        "    if label == 'com.pantheon.agy-content-publisher' and last_exit.exists():\n"
+        "        print(f'last exit code = {last_exit.read_text()}')\n"
+        "    append(lifecycle_log, f'print label={label} state=stable')\n"
+        "    sys.exit(0)\n"
+        "with mutation_log.open('a', encoding='utf-8') as stream:\n"
+        "    stream.write(' '.join(args) + '\\n')\n"
+        "if args[:1] == ['bootout']:\n"
+        "    label = args[1].split('/')[-1]\n"
+        "    (loaded / label).unlink(missing_ok=True)\n"
+        "    settling.unlink(missing_ok=True)\n"
+        "    sys.exit(0)\n"
+        "if args[:1] == ['bootstrap']:\n"
+        "    plist_path = Path(args[2])\n"
+        "    with plist_path.open('rb') as stream:\n"
+        "        payload = plistlib.load(stream)\n"
+        "    label = payload['Label']\n"
+        "    child_env = os.environ.copy()\n"
+        "    child_env.update(payload.get('EnvironmentVariables', {}))\n"
+        "    child = subprocess.run(payload['ProgramArguments'], "
+        "cwd=payload['WorkingDirectory'], env=child_env, "
+        "text=True, capture_output=True, check=False)\n"
+        "    append(lifecycle_log, json.dumps({'event': 'bootstrap-child', "
+        "'returncode': child.returncode}, sort_keys=True))\n"
+        "    (loaded / label).touch()\n"
+        "    last_exit.write_text(str(child.returncode), encoding='utf-8')\n"
+        "    if child.returncode != 0:\n"
+        "        settling.touch()\n"
+        "    sys.exit(0)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+
 def _write_legacy_capacity_guard_plist(
     path: Path,
     *,
@@ -6106,6 +6184,107 @@ def test_publisher_terminal_reset_preserves_terminal_one_shot_input(
     assert "KeepAlive" not in payload
 
 
+def test_publisher_terminal_reset_settles_after_manifest_promotion(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    (
+        env,
+        fake_home,
+        mutation_log,
+        old_manifest,
+        _barrier,
+        loaded,
+        live_payloads,
+    ) = _prepare_publisher_only_activation_fixture(tmp_path)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    current_manifest_path = Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"])
+    _write_publisher_scheduled_live(
+        stage_dir / f"{publisher_label}.plist",
+        publisher_live,
+    )
+    _replace_plist_manifest_path(publisher_live, current_manifest_path)
+    (loaded / publisher_label).unlink()
+
+    promoted_manifest = runtime_manifest.build_manifest(
+        actor_root=Path(str(old_manifest["actor_root"])),
+        queue_root=Path(str(old_manifest["queue_root"])),
+        publisher_state_root=Path(str(old_manifest["publisher_state_root"])),
+        log_root=Path(str(old_manifest["log_root"])),
+        identity="synthetic-installer-promoted:501",
+        config_version=str(old_manifest["config_version"]),
+        generation="g34-promoted-fixture",
+        python_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path("/usr/bin/true"),
+    )
+    runtime_manifest.write_manifest(current_manifest_path, promoted_manifest)
+    env["PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST"] = str(
+        promoted_manifest["manifest_digest"]
+    )
+    (stage_dir / "manifest-digest").write_text(
+        str(promoted_manifest["manifest_digest"]) + "\n",
+        encoding="utf-8",
+    )
+    (stage_dir / "generation").write_text(
+        str(promoted_manifest["generation"]) + "\n",
+        encoding="utf-8",
+    )
+    _write_publisher_normal_plist(
+        stage_dir / f"{publisher_label}.plist",
+        manifest=promoted_manifest,
+        max_runs="1",
+        exact_run_id="publisher-only-run-001",
+    )
+    _replace_plist_manifest_path(
+        stage_dir / f"{publisher_label}.plist",
+        current_manifest_path,
+    )
+    lifecycle_log = tmp_path / "publisher-reset-lifecycle.jsonl"
+    _write_launchctl_that_executes_publisher_during_settle(
+        tmp_path / "bin" / "launchctl",
+        loaded=loaded,
+        mutation_log=mutation_log,
+        lifecycle_log=lifecycle_log,
+        launch_agents=launch_agents,
+    )
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode == 0, reset.stderr
+    lifecycle = lifecycle_log.read_text(encoding="utf-8").splitlines()
+    child = next(json.loads(line) for line in lifecycle if line.startswith("{"))
+    assert child == {"event": "bootstrap-child", "returncode": 78}
+    assert lifecycle.count(
+        f"print label={publisher_label} state=settling"
+    ) == 1
+    assert lifecycle.count(f"print label={publisher_label} state=stable") == 1
+    assert mutation_log.read_text(encoding="utf-8").splitlines() == [
+        f"bootstrap gui/{os.getuid()} {publisher_live}",
+    ]
+    assert (loaded / publisher_label).exists()
+    assert (stage_dir / "publisher-exact-run-id").read_text(encoding="utf-8") == (
+        "publisher-only-run-001\n"
+    )
+    assert (stage_dir / "publisher-max-runs").read_text(encoding="utf-8") == "1\n"
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+
+
 @pytest.mark.parametrize(
     ("variant", "expected_error"),
     [
@@ -6504,6 +6683,137 @@ def test_publisher_terminal_reset_rolls_back_bootstrap_failure(tmp_path: Path) -
     assert receipt["exit_reason"] == {
         "phase": "publisher_reset_bootstrap",
         "exit_code": 9,
+    }
+
+
+def test_publisher_terminal_reset_rolls_back_when_settle_remains_absent(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    _write_publisher_scheduled_live(
+        stage_dir / f"{publisher_label}.plist",
+        publisher_live,
+    )
+    (loaded / publisher_label).unlink()
+    publisher_before = publisher_live.read_bytes()
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    launchctl.write_text(
+        original.replace(
+            f"  touch '{loaded}/'$label\n",
+            f"  [ \"$label\" != \"{publisher_label}\" ] || exit 0\n"
+            f"  touch '{loaded}/'$label\n",
+        ),
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert "did not settle" in reset.stderr
+    assert publisher_live.read_bytes() == publisher_before
+    assert not (loaded / publisher_label).exists()
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+    mutations = mutation_log.read_text(encoding="utf-8").splitlines()
+    assert mutations.count(f"bootstrap gui/{os.getuid()} {publisher_live}") == 1
+    assert mutations.count(f"bootout gui/{os.getuid()}/{publisher_label}") == 1
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"] == {
+        "phase": "publisher_reset_settle",
+        "exit_code": 1,
+    }
+
+
+@pytest.mark.parametrize("drift", ["pid", "path"])
+def test_publisher_terminal_reset_rolls_back_settle_identity_drift(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _barrier, loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    _write_publisher_scheduled_live(
+        stage_dir / f"{publisher_label}.plist",
+        publisher_live,
+    )
+    (loaded / publisher_label).unlink()
+    publisher_before = publisher_live.read_bytes()
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    path_line = f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
+    if drift == "pid":
+        replacement = (
+            path_line
+            + f"  [ \"$label\" != \"{publisher_label}\" ] || printf '%s\\n' 'pid = 4242'\n"
+        )
+    else:
+        replacement = (
+            f"  if [ \"$label\" = \"{publisher_label}\" ]; then\n"
+            f"    printf '%s\\n' 'path = {launch_agents}/wrong-publisher.plist'\n"
+            "  else\n"
+            + path_line
+            + "  fi\n"
+        )
+    launchctl.write_text(original.replace(path_line, replacement), encoding="utf-8")
+    launchctl.chmod(0o700)
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode != 0
+    assert (
+        "running Publisher" if drift == "pid" else "path drift"
+    ) in reset.stderr
+    assert publisher_live.read_bytes() == publisher_before
+    assert not (loaded / publisher_label).exists()
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+    mutations = mutation_log.read_text(encoding="utf-8").splitlines()
+    assert mutations.count(f"bootstrap gui/{os.getuid()} {publisher_live}") == 1
+    assert mutations.count(f"bootout gui/{os.getuid()}/{publisher_label}") == 1
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"] == {
+        "phase": "publisher_reset_settle",
+        "exit_code": 1,
     }
 
 

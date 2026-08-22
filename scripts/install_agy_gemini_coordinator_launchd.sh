@@ -635,15 +635,34 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
   fi
   ACTIVATION_PHASE="publisher_reset_bootstrap"
   launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}"
-  launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
-    > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"
-  if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
-    "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
-    false
-  fi
-  PUBLISHER_POST_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
-    "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity")"
-  if [[ "${PUBLISHER_POST_PATH}" != "${PUBLISHER_TARGET_PLIST}" ]]; then
+  ACTIVATION_PHASE="publisher_reset_settle"
+  RESET_PUBLISHER_SETTLED=0
+  for ((RESET_SETTLE_ATTEMPT=1; RESET_SETTLE_ATTEMPT<=20; RESET_SETTLE_ATTEMPT++)); do
+    if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+      > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity" 2>/dev/null; then
+      if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
+        "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
+        echo "Publisher activation-only reset settled with a running Publisher." >&2
+        false
+      fi
+      PUBLISHER_POST_PATH_COUNT="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+        "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity" | wc -l | tr -d '[:space:]')"
+      PUBLISHER_POST_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
+        "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity")"
+      if [[ "${PUBLISHER_POST_PATH_COUNT}" != "1" \
+        || "${PUBLISHER_POST_PATH}" != "${PUBLISHER_TARGET_PLIST}" ]]; then
+        echo "Publisher activation-only reset settled with launchctl path drift." >&2
+        false
+      fi
+      RESET_PUBLISHER_SETTLED=1
+      break
+    fi
+    if (( RESET_SETTLE_ATTEMPT < 20 )); then
+      /bin/sleep 0.05
+    fi
+  done
+  if [[ "${RESET_PUBLISHER_SETTLED}" != "1" ]]; then
+    echo "Publisher activation-only reset did not settle as loaded without PID." >&2
     false
   fi
   ACTIVATION_PHASE="publisher_reset_postcheck"
