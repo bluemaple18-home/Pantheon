@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -45,6 +46,10 @@ CAPACITY_GUARD_LABEL = "com.pantheon.content-capacity-guard"
 ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
     r"gate2-actor:[0-9a-f]{40}:activation-only"
 )
+ACTIVATION_CORRELATION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+PUBLISHER_RESET_RECEIPT_NAME = "publisher-reset-receipt.json"
+PUBLISHER_RESET_RECEIPT_SCHEMA_VERSION = 1
+PUBLISHER_RESET_TRANSITION = "TE-TARGET-STAGED-TO-QUIESCED"
 LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ = \{$")
 LAUNCHCTL_STATE_FIELD_PATTERN = re.compile(r"^state = ([^\r\n]+)$")
 LAUNCHCTL_PATH_FIELD_PATTERN = re.compile(r"^path = ([^\r\n]+)$")
@@ -264,6 +269,331 @@ def _launchctl_top_level_identity(
         "paths": paths,
         "last_exit_codes": last_exit_codes,
     }
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _snapshot_launchctl_identity(output: str, *, expected_path: Path) -> dict[str, Any]:
+    if re.search(r"^\s*pid = [1-9][0-9]*\s*$", output, re.MULTILINE):
+        raise formal_runtime.RuntimeManifestError("publisher reset proof has pid")
+    states = re.findall(r"^\s*state = ([^\r\n]+)\s*$", output, re.MULTILINE)
+    paths = re.findall(r"^\s*path = ([^\r\n]+)\s*$", output, re.MULTILINE)
+    last_exit_codes = [
+        int(value)
+        for value in re.findall(
+            r"^\s*last exit code = (-?[0-9]+)\s*$", output, re.MULTILINE
+        )
+    ]
+    if paths != [str(expected_path)] or states not in (["not running"], ["waiting"]):
+        raise formal_runtime.RuntimeManifestError("publisher reset identity mismatch")
+    return {
+        "states": states,
+        "paths": paths,
+        "last_exit_codes": last_exit_codes,
+    }
+
+
+def _live_receipt_aggregate(
+    live_receipt: dict[str, Any],
+    live_arguments: list[Any],
+) -> dict[str, Any]:
+    return {
+        "identity": live_receipt.get("identity"),
+        "manifest_digest": live_receipt.get("manifest_digest"),
+        "runtime_identity_digest": live_receipt.get("runtime_identity_digest"),
+        "runtime_digest": live_receipt.get("runtime_digest"),
+        "config_version": live_receipt.get("config_version"),
+        "generation": live_receipt.get("generation"),
+        "actor_root": live_receipt.get("actor_root"),
+        "queue_root": live_receipt.get("queue_root"),
+        "publisher_state_root": live_receipt.get("publisher_state_root"),
+        "log_root": live_receipt.get("log_root"),
+        "actor_head": live_receipt.get("actor_head"),
+        "python_executable": live_receipt.get("python_executable"),
+        "uv_executable": live_receipt.get("uv_executable"),
+        "barrier": formal_runtime._single_argument_value(live_arguments, "--barrier"),
+        "manifest_path": formal_runtime._single_argument_value(
+            live_arguments, "--manifest"
+        ),
+    }
+
+
+def _publisher_reset_old_live_identity(aggregate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        field: aggregate.get(field)
+        for field in (
+            "identity",
+            "manifest_digest",
+            "runtime_identity_digest",
+            "runtime_digest",
+            "config_version",
+            "generation",
+            "actor_root",
+            "queue_root",
+            "publisher_state_root",
+            "log_root",
+            "actor_head",
+            "python_executable",
+            "uv_executable",
+            "barrier",
+        )
+    }
+
+
+def write_publisher_reset_receipt(
+    *,
+    receipt_path: Path,
+    correlation_id: str,
+    manifest_path: Path,
+    expected_digest: str,
+    launch_agents_dir: Path,
+    proof_dir: Path,
+) -> dict[str, Any]:
+    if ACTIVATION_CORRELATION_PATTERN.fullmatch(correlation_id) is None:
+        raise formal_runtime.RuntimeManifestError("publisher reset correlation mismatch")
+    manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+    launch_agents = launch_agents_dir.resolve(strict=True)
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    if receipt_path != stage_dir / PUBLISHER_RESET_RECEIPT_NAME:
+        raise formal_runtime.RuntimeManifestError("publisher reset receipt path mismatch")
+    if proof_dir != stage_dir / "publisher-reset-backups":
+        raise formal_runtime.RuntimeManifestError("publisher reset proof path mismatch")
+    try:
+        stage_manifest_digest = (stage_dir / "manifest-digest").read_text(
+            encoding="utf-8"
+        ).strip()
+        stage_generation = (stage_dir / "generation").read_text(
+            encoding="utf-8"
+        ).strip()
+        publisher_exact_run_id = (stage_dir / "publisher-exact-run-id").read_text(
+            encoding="utf-8"
+        ).strip()
+        publisher_max_runs = (stage_dir / "publisher-max-runs").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError as error:
+        raise formal_runtime.RuntimeManifestError("publisher reset stage mismatch") from error
+    if (
+        stage_manifest_digest != manifest["manifest_digest"]
+        or stage_generation != manifest["generation"]
+        or not publisher_exact_run_id
+        or publisher_max_runs != "1"
+    ):
+        raise formal_runtime.RuntimeManifestError("publisher reset stage mismatch")
+
+    publisher_label = "com.pantheon.agy-content-publisher"
+    live_aggregate: dict[str, Any] | None = None
+    publisher_proof: dict[str, Any] | None = None
+    other_six: list[dict[str, Any]] = []
+    for label in formal_runtime.SERVICE_LABELS:
+        live_path = launch_agents / f"{label}.plist"
+        live_receipt = formal_runtime.plist_receipt(
+            live_path,
+            expected_activation_mode="activation-only",
+        )
+        with live_path.open("rb") as stream:
+            live_payload = plistlib.load(stream)
+        live_arguments = live_payload.get("ProgramArguments")
+        if not isinstance(live_arguments, list):
+            raise formal_runtime.RuntimeManifestError("publisher reset live mismatch")
+        aggregate = _publisher_reset_old_live_identity(
+            _live_receipt_aggregate(live_receipt, live_arguments)
+        )
+        if live_aggregate is None:
+            live_aggregate = aggregate
+        elif aggregate != live_aggregate:
+            drift_fields = sorted(
+                field
+                for field in set(live_aggregate) | set(aggregate)
+                if live_aggregate.get(field) != aggregate.get(field)
+            )
+            raise formal_runtime.RuntimeManifestError(
+                "publisher reset live aggregate mismatch:"
+                f"{label}:{','.join(drift_fields)}"
+            )
+
+        pre_plist = proof_dir / f"{label}.plist"
+        pre_identity = proof_dir / f"{label}.identity"
+        post_identity = proof_dir / f"{label}.post_identity"
+        current_sha256 = _file_sha256(live_path)
+        pre_sha256 = _file_sha256(pre_plist)
+        post_snapshot = _snapshot_launchctl_identity(
+            post_identity.read_text(encoding="utf-8"),
+            expected_path=live_path,
+        )
+        if label == publisher_label:
+            previous_loaded = (
+                proof_dir / f"{publisher_label}.previous_loaded"
+            ).read_text(encoding="utf-8").strip()
+            if previous_loaded not in {"0", "1"}:
+                raise formal_runtime.RuntimeManifestError(
+                    "publisher reset previous state mismatch"
+                )
+            publisher_proof = {
+                "pre_plist_sha256": pre_sha256,
+                "post_plist_sha256": current_sha256,
+                "post_plist_receipt": live_receipt,
+                "post_launchctl_identity": post_snapshot,
+                "previous_loaded": previous_loaded == "1",
+            }
+            continue
+        if pre_sha256 != current_sha256:
+            raise formal_runtime.RuntimeManifestError(
+                "publisher reset other-service drift"
+            )
+        pre_snapshot = _snapshot_launchctl_identity(
+            pre_identity.read_text(encoding="utf-8"),
+            expected_path=live_path,
+        )
+        other_six.append(
+            {
+                "label": label,
+                "pre_plist_sha256": pre_sha256,
+                "post_plist_sha256": current_sha256,
+                "pre_launchctl_identity": pre_snapshot,
+                "post_launchctl_identity": post_snapshot,
+            }
+        )
+    if live_aggregate is None or publisher_proof is None:
+        raise formal_runtime.RuntimeManifestError("publisher reset live proof missing")
+    old_generation = str(live_aggregate.get("generation", ""))
+    generation_relation = (
+        "target_same_generation"
+        if old_generation == manifest["generation"]
+        else "target_newer_than_live"
+    )
+    payload = {
+        "schema_version": PUBLISHER_RESET_RECEIPT_SCHEMA_VERSION,
+        "status": "PASS",
+        "transition": PUBLISHER_RESET_TRANSITION,
+        "correlation_id": correlation_id,
+        "target": {
+            "manifest_digest": manifest["manifest_digest"],
+            "runtime_identity_digest": manifest["runtime_identity_digest"],
+            "generation": manifest["generation"],
+            "publisher_exact_run_id": publisher_exact_run_id,
+        },
+        "old_live": {
+            **live_aggregate,
+            "generation_relation": generation_relation,
+        },
+        "publisher": publisher_proof,
+        "other_six": other_six,
+    }
+    _write_state(receipt_path, payload)
+    return payload
+
+
+def _load_publisher_reset_receipt(
+    receipt_path: Path,
+    *,
+    stage_dir: Path,
+) -> dict[str, Any]:
+    expected_path = stage_dir / PUBLISHER_RESET_RECEIPT_NAME
+    try:
+        if receipt_path != expected_path or receipt_path.is_symlink():
+            raise formal_runtime.RuntimeManifestError(
+                "publisher reset receipt path mismatch"
+            )
+        receipt_stat = receipt_path.stat()
+        if (
+            not receipt_path.is_file()
+            or receipt_stat.st_uid != os.getuid()
+            or receipt_stat.st_mode & 0o777 != 0o600
+        ):
+            raise formal_runtime.RuntimeManifestError(
+                "publisher reset receipt ownership mismatch"
+            )
+        payload = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
+        raise formal_runtime.RuntimeManifestError(
+            "publisher reset receipt is invalid"
+        ) from error
+    if not isinstance(payload, dict):
+        raise formal_runtime.RuntimeManifestError("publisher reset receipt is invalid")
+    return payload
+
+
+def _validate_publisher_reset_provenance(
+    *,
+    receipt_path: Path | None,
+    expected_correlation_id: str | None,
+    stage_dir: Path,
+    manifest: dict[str, Any],
+    publisher_exact_run_id: str,
+    live_aggregate: dict[str, Any],
+    live_receipts: dict[str, dict[str, Any]],
+    live_identities: dict[str, dict[str, list[Any]]],
+    live_plist_sha256: dict[str, str],
+) -> None:
+    if (
+        receipt_path is None
+        or expected_correlation_id is None
+        or ACTIVATION_CORRELATION_PATTERN.fullmatch(expected_correlation_id) is None
+    ):
+        raise formal_runtime.RuntimeManifestError("publisher reset provenance missing")
+    payload = _load_publisher_reset_receipt(receipt_path, stage_dir=stage_dir)
+    if (
+        payload.get("schema_version") != PUBLISHER_RESET_RECEIPT_SCHEMA_VERSION
+        or payload.get("status") != "PASS"
+        or payload.get("transition") != PUBLISHER_RESET_TRANSITION
+        or payload.get("correlation_id") != expected_correlation_id
+        or payload.get("target")
+        != {
+            "manifest_digest": manifest["manifest_digest"],
+            "runtime_identity_digest": manifest["runtime_identity_digest"],
+            "generation": manifest["generation"],
+            "publisher_exact_run_id": publisher_exact_run_id,
+        }
+    ):
+        raise formal_runtime.RuntimeManifestError("publisher reset provenance mismatch")
+    expected_old_live = {
+        **_publisher_reset_old_live_identity(live_aggregate),
+        "generation_relation": "target_newer_than_live",
+    }
+    if (
+        payload.get("old_live") != expected_old_live
+        or live_aggregate.get("generation") == manifest["generation"]
+    ):
+        raise formal_runtime.RuntimeManifestError("publisher reset generation mismatch")
+
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher = payload.get("publisher")
+    if not isinstance(publisher, dict) or (
+        publisher.get("post_plist_sha256") != live_plist_sha256[publisher_label]
+        or publisher.get("post_plist_receipt") != live_receipts[publisher_label]
+        or publisher.get("post_launchctl_identity") != live_identities[publisher_label]
+    ):
+        raise formal_runtime.RuntimeManifestError("publisher reset Publisher proof mismatch")
+    expected_labels = [
+        label for label in formal_runtime.SERVICE_LABELS if label != publisher_label
+    ]
+    other_six = payload.get("other_six")
+    if not isinstance(other_six, list) or [
+        item.get("label") if isinstance(item, dict) else None for item in other_six
+    ] != expected_labels:
+        raise formal_runtime.RuntimeManifestError("publisher reset unchanged proof mismatch")
+    for item in other_six:
+        label = str(item["label"])
+        if (
+            item.get("pre_plist_sha256") != live_plist_sha256[label]
+            or item.get("post_plist_sha256") != live_plist_sha256[label]
+            or item.get("post_launchctl_identity") != live_identities[label]
+            or not isinstance(item.get("pre_launchctl_identity"), dict)
+            or item["pre_launchctl_identity"].get("paths")
+            != [str(stage_dir.parent / f"{label}.plist")]
+            or item["pre_launchctl_identity"].get("states")
+            not in (["not running"], ["waiting"])
+        ):
+            raise formal_runtime.RuntimeManifestError(
+                "publisher reset unchanged proof mismatch"
+            )
 
 
 def _service_rss_bytes(
@@ -702,6 +1032,8 @@ def validate_preactivation_transition(
     barrier: Path,
     launch_agents_dir: Path,
     capacity_plist: Path,
+    publisher_reset_receipt: Path | None = None,
+    expected_reset_correlation_id: str | None = None,
     runner: Runner = _run,
 ) -> dict[str, Any]:
     try:
@@ -772,6 +1104,9 @@ def validate_preactivation_transition(
     domain = f"gui/{os.getuid()}"
     loaded: list[dict[str, Any]] = []
     live_aggregate: dict[str, Any] | None = None
+    live_receipts: dict[str, dict[str, Any]] = {}
+    live_identities: dict[str, dict[str, list[Any]]] = {}
+    live_plist_sha256: dict[str, str] = {}
     for label in formal_runtime.SERVICE_LABELS:
         plist_path = launch_agents / f"{label}.plist"
         live_receipt = formal_runtime.plist_receipt(
@@ -804,23 +1139,10 @@ def validate_preactivation_transition(
             raise formal_runtime.RuntimeManifestError(
                 "preactivation live plist mismatch"
             ) from error
-        current_live_aggregate = {
-            "identity": live_receipt.get("identity"),
-            "manifest_digest": live_receipt.get("manifest_digest"),
-            "runtime_identity_digest": live_receipt.get("runtime_identity_digest"),
-            "runtime_digest": live_receipt.get("runtime_digest"),
-            "config_version": live_receipt.get("config_version"),
-            "generation": live_receipt.get("generation"),
-            "actor_root": live_receipt.get("actor_root"),
-            "queue_root": live_receipt.get("queue_root"),
-            "publisher_state_root": live_receipt.get("publisher_state_root"),
-            "log_root": live_receipt.get("log_root"),
-            "actor_head": live_receipt.get("actor_head"),
-            "python_executable": live_receipt.get("python_executable"),
-            "uv_executable": live_receipt.get("uv_executable"),
-            "barrier": live_barrier,
-            "manifest_path": live_manifest_path,
-        }
+        current_live_aggregate = _live_receipt_aggregate(
+            live_receipt,
+            live_arguments,
+        )
         if live_aggregate is None:
             live_aggregate = current_live_aggregate
         elif current_live_aggregate != live_aggregate:
@@ -850,7 +1172,24 @@ def validate_preactivation_transition(
             or identity["last_exit_codes"] not in ([], [0], [78])
         ):
             raise formal_runtime.RuntimeManifestError("preactivation service mismatch")
+        live_receipts[label] = live_receipt
+        live_identities[label] = identity
+        live_plist_sha256[label] = _file_sha256(plist_path)
         loaded.append({"label": label, "topology": "activation-only-loaded-no-pid"})
+    if live_aggregate is None:
+        raise formal_runtime.RuntimeManifestError("preactivation live aggregate mismatch")
+    if any(identity["last_exit_codes"] == [78] for identity in live_identities.values()):
+        _validate_publisher_reset_provenance(
+            receipt_path=publisher_reset_receipt,
+            expected_correlation_id=expected_reset_correlation_id,
+            stage_dir=stage_dir,
+            manifest=manifest,
+            publisher_exact_run_id=publisher_exact_run_id,
+            live_aggregate=live_aggregate,
+            live_receipts=live_receipts,
+            live_identities=live_identities,
+            live_plist_sha256=live_plist_sha256,
+        )
     return {
         "status": "PASS",
         "preactivation_transition": "accepted",
@@ -1076,10 +1415,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--barrier", type=Path)
     parser.add_argument("--launch-agents-dir", type=Path)
     parser.add_argument("--capacity-plist", type=Path)
+    parser.add_argument("--publisher-reset-receipt", type=Path)
+    parser.add_argument("--expected-reset-correlation-id")
+    parser.add_argument("--reset-proof-dir", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
     parser.add_argument(
         "command",
-        choices=("preflight", "check", "exercise", "preactivation-transition"),
+        choices=(
+            "preflight",
+            "check",
+            "exercise",
+            "preactivation-transition",
+            "publisher-reset-receipt",
+        ),
     )
     return parser.parse_args()
 
@@ -1091,6 +1439,24 @@ def main() -> int:
             raise SystemExit("exercise requires --exercise-root and --receipt")
         result = run_bounded_exercise(
             args.exercise_root, args.receipt, cycle_bytes=args.cycle_bytes
+        )
+    elif args.command == "publisher-reset-receipt":
+        if None in (
+            args.publisher_reset_receipt,
+            args.expected_reset_correlation_id,
+            args.manifest,
+            args.expected_digest,
+            args.launch_agents_dir,
+            args.reset_proof_dir,
+        ):
+            raise SystemExit("publisher-reset-receipt requires reset proof inputs")
+        result = write_publisher_reset_receipt(
+            receipt_path=args.publisher_reset_receipt,
+            correlation_id=args.expected_reset_correlation_id,
+            manifest_path=args.manifest,
+            expected_digest=args.expected_digest,
+            launch_agents_dir=args.launch_agents_dir,
+            proof_dir=args.reset_proof_dir,
         )
     elif args.command == "preactivation-transition":
         if None in (
@@ -1110,6 +1476,8 @@ def main() -> int:
                 barrier=args.barrier,
                 launch_agents_dir=args.launch_agents_dir,
                 capacity_plist=args.capacity_plist,
+                publisher_reset_receipt=args.publisher_reset_receipt,
+                expected_reset_correlation_id=args.expected_reset_correlation_id,
             )
         except formal_runtime.RuntimeManifestError as error:
             print(

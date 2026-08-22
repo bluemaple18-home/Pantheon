@@ -240,6 +240,8 @@ Activation-only inert terminal exit 的唯一合法集合為 `absent`、`0`、`7
 
 任一條件缺失時固定為 `UNKNOWN`；任一條件衝突、任意其他 nonzero exit、PID 存在、path drift、normal mode 或 target generation 非 newer 時固定為 `DIVERGED`。`child_policy=forbidden` 禁止的是 production workload child；activation wrapper／barrier 在 child spawn 前執行的 validation 不屬於 production workload child，因此不與合法 inert terminal `78` 矛盾。
 
+`RR-PUBLISHER-RESET` 的 executable artifact 固定為 private stage 內 owner-only、atomic replace 的 `publisher-reset-receipt.json`。正式 reset 每次開始前先使舊 success receipt 失效；成功 receipt 必須綁定同一 activation correlation、target manifest digest／runtime identity digest／generation、old-live identity／generation relation、post-reset Publisher plist receipt 與 launchctl identity，以及 other-six pre/post plist digest 與 launchctl identity。Capacity preactivation validator 只有在任一 live service 觀察到 `78` 時才消費此 receipt，並要求 caller 提供相同 correlation；same-generation、missing／stale receipt 或任一 identity／unchanged proof drift 皆拒絕。`absent` 與 `0` 沿用既有 inert terminal 語意，不新增 reset receipt 前置條件。
+
 此 mapping 只定義 contract 語意，不修改 Capacity code，也不放寬真正需要 RSS 的 phase。若 raw Capacity sampler 在 activation-only inert phase 回 `loaded_service_pid_missing:<label>`，state reconciliation 應標記為 contract split evidence，而不是把合法 no-PID 服務當成 running process 缺失。
 
 ## Content Plane Invariant

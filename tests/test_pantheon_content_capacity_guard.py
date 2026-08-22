@@ -744,7 +744,7 @@ def _write_capacity_transition_launchctl(
     observed_launch_agents: Path | None = None,
     unknown_service: bool = False,
     include_pid: bool = False,
-    last_exit_code: int | None = 78,
+    last_exit_code: int | None = 0,
 ) -> None:
     observed_launch_agents = observed_launch_agents or launch_agents
     root_line = (
@@ -911,6 +911,94 @@ def _g5_capacity_transition_fixture(
         exact_run_id="auto-i18n-en-614aa4dc3542ab2c5637",
     )
     return repo, env, fake_home, mutation_log, manifest, manifest_path
+
+
+def _write_capacity_publisher_reset_receipt(
+    launch_agents: Path,
+    *,
+    target_manifest: dict[str, object],
+    correlation_id: str,
+    last_exit_code: int = 78,
+) -> Path:
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    live_aggregate: dict[str, object] | None = None
+    live_receipts: dict[str, dict[str, object]] = {}
+    live_sha256: dict[str, str] = {}
+    identities: dict[str, dict[str, list[object]]] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_path = launch_agents / f"{label}.plist"
+        live_receipt = runtime_manifest.plist_receipt(
+            live_path,
+            expected_activation_mode="activation-only",
+        )
+        with live_path.open("rb") as stream:
+            arguments = plistlib.load(stream)["ProgramArguments"]
+        aggregate = guard._publisher_reset_old_live_identity(
+            guard._live_receipt_aggregate(live_receipt, arguments)
+        )
+        if live_aggregate is None:
+            live_aggregate = aggregate
+        else:
+            assert aggregate == live_aggregate
+        live_receipts[label] = live_receipt
+        live_sha256[label] = guard._file_sha256(live_path)
+        identities[label] = {
+            "states": ["waiting"],
+            "paths": [str(live_path)],
+            "last_exit_codes": [last_exit_code],
+        }
+    assert live_aggregate is not None
+    publisher_label = "com.pantheon.agy-content-publisher"
+    other_six = []
+    for label in runtime_manifest.SERVICE_LABELS:
+        if label == publisher_label:
+            continue
+        other_six.append(
+            {
+                "label": label,
+                "pre_plist_sha256": live_sha256[label],
+                "post_plist_sha256": live_sha256[label],
+                "pre_launchctl_identity": identities[label],
+                "post_launchctl_identity": identities[label],
+            }
+        )
+    payload = {
+        "schema_version": guard.PUBLISHER_RESET_RECEIPT_SCHEMA_VERSION,
+        "status": "PASS",
+        "transition": guard.PUBLISHER_RESET_TRANSITION,
+        "correlation_id": correlation_id,
+        "target": {
+            "manifest_digest": target_manifest["manifest_digest"],
+            "runtime_identity_digest": target_manifest["runtime_identity_digest"],
+            "generation": target_manifest["generation"],
+            "publisher_exact_run_id": (
+                stage_dir / "publisher-exact-run-id"
+            ).read_text(encoding="utf-8").strip(),
+        },
+        "old_live": {
+            **live_aggregate,
+            "generation_relation": (
+                "target_same_generation"
+                if live_aggregate["generation"] == target_manifest["generation"]
+                else "target_newer_than_live"
+            ),
+        },
+        "publisher": {
+            "pre_plist_sha256": live_sha256[publisher_label],
+            "post_plist_sha256": live_sha256[publisher_label],
+            "post_plist_receipt": live_receipts[publisher_label],
+            "post_launchctl_identity": identities[publisher_label],
+            "previous_loaded": True,
+        },
+        "other_six": other_six,
+    }
+    receipt_path = stage_dir / guard.PUBLISHER_RESET_RECEIPT_NAME
+    receipt_path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    receipt_path.chmod(0o600)
+    return receipt_path
 
 
 def test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists(
@@ -1295,6 +1383,17 @@ def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
             mutation_log=mutation_log,
             last_exit_code=last_exit_code,
         )
+        reset_inputs: dict[str, object] = {}
+        if last_exit_code == 78:
+            correlation_id = "g8-exit78-valid-current"
+            reset_inputs = {
+                "publisher_reset_receipt": _write_capacity_publisher_reset_receipt(
+                    launch_agents,
+                    target_manifest=manifest,
+                    correlation_id=correlation_id,
+                ),
+                "expected_reset_correlation_id": correlation_id,
+            }
         result = guard.validate_preactivation_transition(
             preflight_receipt=preflight_receipt,
             manifest_path=manifest_path,
@@ -1303,6 +1402,7 @@ def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
             launch_agents_dir=launch_agents,
             capacity_plist=capacity_plist,
             runner=runner,
+            **reset_inputs,
         )
 
         assert result["status"] == "PASS", last_exit_code
@@ -1338,6 +1438,116 @@ def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
                 runner=runner,
             )
         assert str(error.value) == expected_error, case
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_accepts_exit_78_with_current_reset_provenance(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    correlation_id = "g8-exit78-installer-current"
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = correlation_id
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        last_exit_code=78,
+    )
+    _write_capacity_publisher_reset_receipt(
+        launch_agents,
+        target_manifest=manifest,
+        correlation_id=correlation_id,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert "preactivation_transition" in completed.stdout
+    assert not mutation_log.exists()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "same_generation",
+        "missing_receipt",
+        "stale_receipt",
+        "correlation_drift",
+        "publisher_identity_drift",
+        "other_six_drift",
+    ],
+)
+def test_capacity_installer_rejects_exit_78_provenance_failures(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    if case == "same_generation":
+        repo = Path(__file__).resolve().parents[1]
+        env, fake_home, mutation_log, manifest, _manifest_path = (
+            _capacity_transition_installer_env(tmp_path)
+        )
+    else:
+        repo, env, fake_home, mutation_log, manifest, _manifest_path = (
+            _g5_capacity_transition_fixture(tmp_path)
+        )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    correlation_id = f"g8-exit78-{case}"
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = correlation_id
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        last_exit_code=78,
+    )
+    if case != "missing_receipt":
+        receipt_path = _write_capacity_publisher_reset_receipt(
+            launch_agents,
+            target_manifest=manifest,
+            correlation_id=correlation_id,
+        )
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if case == "stale_receipt":
+            receipt["target"]["generation"] = "stale-target-generation"
+        elif case == "correlation_drift":
+            env["PANTHEON_ACTIVATION_CORRELATION_ID"] = correlation_id + "-drift"
+        elif case == "publisher_identity_drift":
+            receipt["publisher"]["post_launchctl_identity"]["paths"] = [
+                str(tmp_path / "wrong-publisher.plist")
+            ]
+        elif case == "other_six_drift":
+            receipt["other_six"][0]["post_plist_sha256"] = "0" * 64
+        receipt_path.write_text(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        receipt_path.chmod(0o600)
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0, case
+    assert "preactivation_transition" in completed.stdout
+    staged_capacity = (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    )
+    assert not staged_capacity.exists()
     assert not mutation_log.exists()
 
 

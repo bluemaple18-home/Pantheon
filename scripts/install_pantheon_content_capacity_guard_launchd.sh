@@ -20,6 +20,8 @@ EXPECTED_RUNTIME_MANIFEST_DIGEST="${PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST:-}
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.content-capacity-guard.plist"
 STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
+PUBLISHER_RESET_RECEIPT="${STAGE_DIR}/publisher-reset-receipt.json"
+EXPECTED_RESET_CORRELATION_ID="${PANTHEON_ACTIVATION_CORRELATION_ID:-}"
 TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.content-capacity-guard.plist.example"
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-content-capacity-guard.XXXXXX")"
 PREFLIGHT_RECEIPT="$(mktemp "${TMPDIR:-/tmp}/pantheon-content-capacity-guard-preflight.XXXXXX")"
@@ -164,6 +166,8 @@ run_capacity_preflight() {
       --barrier "${ACTIVATION_BARRIER}" \
       --launch-agents-dir "${LAUNCH_AGENTS_DIR}" \
       --capacity-plist "${TEMP_PLIST}" \
+      --publisher-reset-receipt "${PUBLISHER_RESET_RECEIPT}" \
+      --expected-reset-correlation-id "${EXPECTED_RESET_CORRELATION_ID}" \
       preactivation-transition
   ); then
     return 0

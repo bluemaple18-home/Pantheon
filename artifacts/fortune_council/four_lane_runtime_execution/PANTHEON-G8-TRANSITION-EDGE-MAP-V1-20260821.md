@@ -90,6 +90,8 @@ Therefore `ST-CANARY-TERMINAL -> ST-TARGET-STAGED -> ST-QUIESCED-TARGET-STAGED` 
 
 `78` 在此 edge 只可視為 old-live activation-only wrapper 因 old expected digest 對 promoted shared manifest mismatch 而產生的 inert validation terminal。接受它仍要求 target stage current/newer、current receipts、loaded/no-PID、`not running` 或 `waiting`，以及 launchctl observed path 精確等於該 label 的 live plist path。這不授權 production workload child；任意其他 nonzero、PID、path drift、normal mode 或 target generation mismatch 一律 `REJECTED`。
 
+正式 reset 成功後必須在 private stage 原子寫入 `publisher-reset-receipt.json`，內容綁定 activation correlation、old-live／target generation、post-reset Publisher receipt／identity 及 other-six unchanged proof；下一次 reset 開始即先使舊 success receipt 失效。Capacity installer 把 receipt path 與同一 correlation 傳給 production validator；validator 僅在觀察到 `78` 時要求 receipt 與當下 target stage、live plist digest 及 launchctl identity 逐欄一致。same-generation、missing／stale receipt、correlation drift 或 other-six drift 固定 `REJECTED`；`absent`／`0` 不因本 provenance gate 改變。
+
 ### Activation Deletes Stage
 
 `TE-03`：`--activate-only` replaces live plists and then removes the private stage. Once `TE-CAPACITY-TO-ACTIVATED` is `VERIFIED`, every pre-activation private-stage evidence item is invalid:

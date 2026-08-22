@@ -400,6 +400,10 @@ PUBLISHER_ACTIVATION_ONLY_RESET=0
 if [[ "${ACTION}" == "--reset-publisher-activation-only" ]]; then
   PUBLISHER_ACTIVATION_ONLY_RESET=1
 fi
+PUBLISHER_RESET_SUCCESS_RECEIPT="${STAGE_DIR}/publisher-reset-receipt.json"
+if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
+  rm -f "${PUBLISHER_RESET_SUCCESS_RECEIPT}"
+fi
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
 ACTIVATION_PHASE="correlation_validation"
 write_failure_receipt() {
@@ -676,7 +680,21 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
   for LABEL in "${OTHER_LABELS[@]}"; do
     cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
       "${LAUNCH_AGENTS_DIR}/${LABEL}.plist"
+    launchctl print "gui/${USER_ID}/${LABEL}" \
+      > "${RESET_BACKUP_ROOT}/${LABEL}.post_identity"
   done
+  ACTIVATION_PHASE="publisher_reset_success_receipt"
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
+      --publisher-reset-receipt "${PUBLISHER_RESET_SUCCESS_RECEIPT}" \
+      --expected-reset-correlation-id "${ACTIVATION_CORRELATION_ID}" \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
+      --launch-agents-dir "${LAUNCH_AGENTS_DIR}" \
+      --reset-proof-dir "${RESET_BACKUP_ROOT}" \
+      publisher-reset-receipt
+  ) >/dev/null
   trap - ERR
   rm -rf "${RESET_BACKUP_ROOT}"
   echo "Pantheon Publisher activation-only reset 已完成。"

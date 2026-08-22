@@ -5962,6 +5962,25 @@ def test_publisher_terminal_reset_accepts_scheduled_live_publisher_absent(
 
     assert reset.returncode == 0, reset.stderr
     assert "Publisher activation-only reset 已完成" in reset.stdout
+    reset_receipt_path = (
+        launch_agents / ".pantheon-four-lane-stage/publisher-reset-receipt.json"
+    )
+    reset_receipt = json.loads(reset_receipt_path.read_text(encoding="utf-8"))
+    assert reset_receipt_path.stat().st_mode & 0o777 == 0o600
+    assert reset_receipt["status"] == "PASS"
+    assert reset_receipt["correlation_id"] == "publisher-only-bounded"
+    assert reset_receipt["target"]["generation"] == manifest["generation"]
+    assert reset_receipt["old_live"]["generation_relation"] == (
+        "target_same_generation"
+    )
+    assert reset_receipt["publisher"]["post_plist_receipt"]["label"] == (
+        publisher_label
+    )
+    assert len(reset_receipt["other_six"]) == 6
+    assert all(
+        proof["pre_plist_sha256"] == proof["post_plist_sha256"]
+        for proof in reset_receipt["other_six"]
+    )
     assert mutation_log.read_text(encoding="utf-8").splitlines() == [
         f"bootstrap gui/{os.getuid()} {publisher_live}",
     ]
@@ -6049,6 +6068,11 @@ def test_publisher_terminal_reset_reports_temp_receipt_failure_before_mutation(
         publisher_live,
     )
     publisher_before = publisher_live.read_bytes()
+    stale_success_receipt = (
+        launch_agents / ".pantheon-four-lane-stage/publisher-reset-receipt.json"
+    )
+    stale_success_receipt.write_text('{"status":"PASS"}\n', encoding="utf-8")
+    stale_success_receipt.chmod(0o600)
     plutil = Path(env["PATH"].split(":", 1)[0]) / "plutil"
     plutil.write_text(
         "#!/bin/sh\n"
@@ -6079,6 +6103,7 @@ def test_publisher_terminal_reset_reports_temp_receipt_failure_before_mutation(
     assert "Publisher activation-only reset temp receipt failed" in reset.stderr
     assert '"status": "NO-GO"' in reset.stderr
     assert publisher_live.read_bytes() == publisher_before
+    assert not stale_success_receipt.exists()
     assert not mutation_log.exists()
     for label, payload in live_payloads.items():
         if label != publisher_label:
@@ -6280,6 +6305,22 @@ def test_publisher_terminal_reset_settles_after_manifest_promotion(
         "publisher-only-run-001\n"
     )
     assert (stage_dir / "publisher-max-runs").read_text(encoding="utf-8") == "1\n"
+    reset_receipt = json.loads(
+        (stage_dir / "publisher-reset-receipt.json").read_text(encoding="utf-8")
+    )
+    assert reset_receipt["correlation_id"] == "publisher-only-bounded"
+    assert reset_receipt["target"]["generation"] == promoted_manifest["generation"]
+    assert reset_receipt["old_live"]["generation"] == old_manifest["generation"]
+    assert reset_receipt["old_live"]["generation_relation"] == (
+        "target_newer_than_live"
+    )
+    assert reset_receipt["publisher"]["post_launchctl_identity"][
+        "last_exit_codes"
+    ] == [78]
+    assert all(
+        proof["pre_plist_sha256"] == proof["post_plist_sha256"]
+        for proof in reset_receipt["other_six"]
+    )
     for label, payload in live_payloads.items():
         if label != publisher_label:
             assert (launch_agents / f"{label}.plist").read_bytes() == payload
