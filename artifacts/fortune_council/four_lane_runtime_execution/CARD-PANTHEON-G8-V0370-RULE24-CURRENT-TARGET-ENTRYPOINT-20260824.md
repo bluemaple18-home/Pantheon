@@ -9,7 +9,7 @@ risk: critical
 model: gpt-5.5
 reasoning: high
 required_base_ref: main
-required_base_sha: c0e39a4e87061065268038e1095dda55ce201a96
+implementation_baseline_sha: c0e39a4e87061065268038e1095dda55ce201a96
 ownership:
   - scripts/pantheon_writer_vnext_runtime_activation_capacity.py
   - tests/test_pantheon_writer_vnext_runtime_activation_capacity.py
@@ -118,7 +118,7 @@ Machine-readable JSON 至少包含：
 
 ## Delivery
 
-- 單一 candidate commit，parent 精確為 `c0e39a4e87061065268038e1095dda55ce201a96`。
+- 單一 candidate commit，parent 精確為正式派工 prompt 鎖定的 dispatch commit；bootstrap 必須先核對。
 - 只改 ownership。
 - 回報 candidate、tests、正負 receipts、remaining risks。
 - 不整合、不 push、不 tag、不執行 production。
