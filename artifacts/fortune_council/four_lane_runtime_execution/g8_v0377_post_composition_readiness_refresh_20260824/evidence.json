@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-V0377-POST-COMPOSITION-READINESS-REFRESH-20260824",
+  "dispatch_key": "v1:9f01e70fa520c9989038ef56c87d4e37c4848eadf8dedd608ade8bfa02ca7113",
+  "activation_token_received": true,
+  "timestamp_local": "2026-08-24",
+  "root_question": "Whether current repo evidence after V0376 composition and final review is enough to form a unique rollback-capable fail-closed adoption/reset authorization request.",
+  "verdict": "BLOCKED",
+  "cwd": "<repo-root>",
+  "pre_result_source_head": "7a487a1026a0e4df2b7a5772ed9ceb139b8f166a",
+  "result_commit": "RESULT_CONTAINING_COMMIT_REPORTED_IN_FINAL_RESPONSE",
+  "required_base_sha": "1a5a60977281ee0418f8c467b3651caa8799741e",
+  "required_base_is_head_ancestor": true,
+  "worktree_clean_before_edit": true,
+  "codegraph": {
+    "readiness": "NOT_READY",
+    "reason": "CodeGraph not initialized in current detached worktree; not initialized because task ownership permits only RESULT and evidence outputs."
+  },
+  "authority_boundaries": {
+    "repo_only": true,
+    "production_read_authorized": false,
+    "production_mutation_authorized": false,
+    "remote_git_authorized": false,
+    "canary_authorized": false,
+    "production_read_executed": false,
+    "production_mutation_executed": false,
+    "remote_git_query_executed": false,
+    "remote_git_mutation_executed": false,
+    "push_executed": false,
+    "new_thread_created": false
+  },
+  "lineage": {
+    "v0375_upstream_integration_main_commit": "ac7368cdf79c7f6563743baffa268d6d16cf24f4",
+    "v0375_is_head_ancestor": true,
+    "v0376_final_integrated_main": "1a5a60977281ee0418f8c467b3651caa8799741e",
+    "v0376_is_head_ancestor": true,
+    "head_delta_from_required_base": "V0377 readiness card only by local log inspection",
+    "forbidden_old_composition_commits": [
+      {
+        "sha": "0af881df2a7091e5a6817bc4ba1a4de8c26671cb",
+        "is_head_ancestor": false
+      },
+      {
+        "sha": "6de8e4874d77aacce90ffee3e265ed527686a0f0",
+        "is_head_ancestor": false
+      },
+      {
+        "sha": "5ca75022ba74103b950faca7930d9eb7ca9b9b5d",
+        "is_head_ancestor": false
+      },
+      {
+        "sha": "d90137815d2aa0f55cc28a7f4f4a77252f517525",
+        "is_head_ancestor": false
+      },
+      {
+        "sha": "d1e1be51aa34d01402415100a9e620abd2168ba6",
+        "is_head_ancestor": false
+      }
+    ]
+  },
+  "repo_evidence_classification": {
+    "available": [
+      {
+        "id": "V0375_LINEAGE",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0375-RULE24-UPSTREAM-SEAMS-MINIMAL-INTEGRATION-20260824-RESULT.md",
+        "summary": "Upstream seam integration result and current ancestor relationship are available."
+      },
+      {
+        "id": "V0376_REPAIR_90_TESTS",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0376_rule24_signed_evidence_composition_generation_2_repair_001_20260824/verification-receipt.json",
+        "summary": "Repair receipt records full three-file tests as 90 passed."
+      },
+      {
+        "id": "V0376_REVIEW_GO",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0376-RULE24-SIGNED-EVIDENCE-COMPOSITION-GENERATION-2-REVIEW-002-20260824-RESULT.md",
+        "summary": "Review-002 verdict is REVIEW_GO and V0376-REVIEW-P1-001 is closed."
+      },
+      {
+        "id": "RULE24_SYNTHETIC_CAPACITY_PASS",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/synthetic-readiness/capacity/capacity-receipt.json",
+        "summary": "Synthetic capacity receipt status PASS with two cycles, budget, cleanup, projection, and stop-loss negative result."
+      },
+      {
+        "id": "RULE25_SYNTHETIC_CAPABILITY_RECEIPT",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/synthetic-readiness/package/production-canary-capability-receipt.json",
+        "summary": "Seven-step capability receipt has positive PASS and negative BLOCKED evidence for create/run/select/publish/transaction/tag/push."
+      }
+    ],
+    "stale": [
+      {
+        "id": "V0370_PRODUCTION_IDENTITY",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822-RESULT.md",
+        "summary": "Historical production identity and REMOTE_DIVERGED blocker cannot be used as current authority."
+      },
+      {
+        "id": "V0370_READONLY_RECONCILIATION",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-CURRENT-PRODUCTION-READONLY-RECONCILIATION-V0370-20260822-RETRY-1-RESULT.md",
+        "summary": "Prior read-only reconciliation says Rule25 NO-GO because phase is not ST-CANARY-READY and production identity is not current."
+      },
+      {
+        "id": "V0370_AUTHORIZATION_PACKET",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0370-ADOPTION-RESET-AUTHORIZATION-PACKET-20260824-RESULT.md",
+        "summary": "Prior packet remains BLOCKED due canonical target source checkout unavailable and no current plan digest."
+      }
+    ],
+    "missing": [
+      "Current remote Git authority read for main or selected source of truth.",
+      "Fresh production observation under current authorization boundary.",
+      "Fresh production identity and phase evidence for post-composition target.",
+      "Current publisher reset success receipt.",
+      "Current plan digest and exact authorization envelope.",
+      "Current rollback bundle and stop-loss evidence tied to the authorization correlation.",
+      "Current Rule24/Rule25 verdict after fresh authority and phase observation."
+    ]
+  },
+  "rule24_assessment": {
+    "global_requirement_summary": "Rule24 needs write inventory, budget, host baseline, two representative cycles, peak projection, cleanup verification, and stop-loss drill; missing evidence is NO-GO.",
+    "repo_evidence_status": "AVAILABLE_SYNTHETIC_PASS",
+    "authorization_readiness_status": "NOT_CURRENT_AUTHORITY"
+  },
+  "rule25_assessment": {
+    "global_requirement_summary": "Rule25 needs create/run/select/publish/transaction/tag/push official-entry positive PASS and fail-closed BLOCKED evidence, with identity/correlation continuity and canary_created=false.",
+    "repo_evidence_status": "AVAILABLE_SYNTHETIC_READY_BUT_RECONCILIATION_NO_GO",
+    "authorization_readiness_status": "NOT_CURRENT_AUTHORITY"
+  },
+  "blockers": [
+    "Remote Git authority is not current because remote_git_authorized=false and no remote query was executed.",
+    "Production authority is not current because production_read_authorized=false and no fresh production observation was executed.",
+    "Existing V0370 production identity and observations are stale historical evidence.",
+    "Existing Rule25 readiness is synthetic and prior reconciliation explicitly classifies Rule25 as NO-GO for canary because phase and identity are not current.",
+    "No current authorization envelope can be formed without fresh authority, current plan digest, rollback bundle, and stop-loss evidence."
+  ],
+  "candidate_fork": "Refresh authority rather than repair V0376 composition.",
+  "next_step": "Create one minimal read-only authority probe to collect current remote Git authority, current production observation, and canonical source checkout/locator existence evidence, with no mutation permissions.",
+  "waiting_conditions": [
+    "Read-only remote Git authority is authorized and captured.",
+    "Fresh production observation is authorized and captured.",
+    "Canonical source checkout or locator authority is available.",
+    "Rule24/Rule25 are reclassified from stale/synthetic to current evidence after the authority probe."
+  ],
+  "limits": {
+    "tests_rerun": false,
+    "existing_receipts_only": true,
+    "mutation_commands_emitted": false,
+    "result_path": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0377-POST-COMPOSITION-READINESS-REFRESH-20260824-RESULT.md"
+  }
+}
