@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -185,6 +186,20 @@ def _read_exact_path_bytes(path: Path | str, raw_bytes: bytes, label: str) -> Pa
             f"{label} bytes must match caller-owned path",
         )
     return canonical
+
+
+def _read_bundle_authority_bytes(artifact: object, label: str) -> bytes:
+    path = _canonical_path(getattr(artifact, "path"), label)
+    raw_bytes = path.read_bytes()
+    if (
+        hashlib.sha256(raw_bytes).hexdigest() != getattr(artifact, "sha256")
+        or len(raw_bytes) != getattr(artifact, "byte_length")
+    ):
+        raise SignedCapacityEvidenceError(
+            "capacity_bundle_drift",
+            f"{label} bytes drifted from bundle authority",
+        )
+    return raw_bytes
 
 
 def _load_json_bytes(raw_bytes: bytes, reason: str) -> Mapping[str, Any]:
@@ -394,15 +409,21 @@ def produce_signed_capacity_evidence(
         if cleanup is not None:
             bundle_kwargs["cleanup"] = cleanup
         bundle = run_capacity_proof_evidence_bundle(**bundle_kwargs)
-        capacity_receipt_bytes = bundle.capacity_receipt.path.read_bytes()
+        capacity_receipt_bytes = _read_bundle_authority_bytes(
+            bundle.capacity_receipt,
+            "capacity_receipt",
+        )
         cycle_artifacts = tuple(
             CapacityArtifactInput(
                 logical_name=artifact.logical_name,
                 media_type=artifact.media_type,
                 path=artifact.path,
-                raw_bytes=artifact.path.read_bytes(),
+                raw_bytes=_read_bundle_authority_bytes(
+                    artifact,
+                    f"capacity_cycle_{index + 1}",
+                ),
             )
-            for artifact in bundle.cycle_measurements
+            for index, artifact in enumerate(bundle.cycle_measurements)
         )
         measurement_inputs, parsed_cycles = _capacity_cycle_resources(cycle_artifacts)
         _validate_capacity_domain(

@@ -287,6 +287,98 @@ def test_producer_runs_capacity_bundle_then_offline_verifier_reauth_domain_claim
     assert len(list(Path(fixture["replay_state"]).glob("*.json"))) == 1
 
 
+def test_producer_rejects_post_bundle_capacity_receipt_drift_without_signed_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    original_bundle = signed.run_capacity_proof_evidence_bundle
+
+    def drift_after_bundle(**kwargs: object) -> object:
+        bundle = original_bundle(**kwargs)
+        receipt_path = bundle.capacity_receipt.path
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["policy"]["normal_growth_bytes_per_hour"] += 1
+        _write_json(receipt_path, receipt)
+        return bundle
+
+    monkeypatch.setattr(signed, "run_capacity_proof_evidence_bundle", drift_after_bundle)
+
+    result = signed.produce_signed_capacity_evidence(
+        private_key_path=fixture["private_key"],
+        public_key_path=fixture["public_key"],
+        producer_id=PRODUCER_ID,
+        target_path=fixture["target"],
+        target_name=TARGET_NAME,
+        target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+        evidence_root=fixture["evidence_root"],
+        runtime_receipt={"status": "PASS", "runtime_identity_digest": "d" * 64},
+        actor_identity="actor-rule24-composition",
+        brief={"schema_version": 1, "run_id": "rule24-composition"},
+        capacity_policy=DEFAULT_POLICY,
+        correlation=CORRELATION,
+        challenge=CHALLENGE,
+        capacity_evaluator=lambda **kwargs: _write_capacity_artifacts(Path(kwargs["evidence_root"])),
+    )
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == "capacity_bundle_drift"
+    assert "envelope" not in result
+    assert "authenticated_statement_digest" not in result
+    assert "capacity_artifacts" not in result
+    assert result["authorization_granted"] is False
+
+
+def test_producer_rejects_post_bundle_cycle_artifact_drift_without_signed_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    original_bundle = signed.run_capacity_proof_evidence_bundle
+
+    def drift_after_bundle(**kwargs: object) -> object:
+        bundle = original_bundle(**kwargs)
+        receipt_path = bundle.capacity_receipt.path
+        cycle_path = bundle.cycle_measurements[0].path
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["cycles"][0]["growth_bytes_per_hour"] += 1
+        _write_json(cycle_path, receipt["cycles"][0])
+        _write_json(receipt_path, receipt)
+        return bundle
+
+    monkeypatch.setattr(signed, "run_capacity_proof_evidence_bundle", drift_after_bundle)
+
+    result = signed.produce_signed_capacity_evidence(
+        private_key_path=fixture["private_key"],
+        public_key_path=fixture["public_key"],
+        producer_id=PRODUCER_ID,
+        target_path=fixture["target"],
+        target_name=TARGET_NAME,
+        target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+        evidence_root=fixture["evidence_root"],
+        runtime_receipt={"status": "PASS", "runtime_identity_digest": "d" * 64},
+        actor_identity="actor-rule24-composition",
+        brief={"schema_version": 1, "run_id": "rule24-composition"},
+        capacity_policy=DEFAULT_POLICY,
+        correlation=CORRELATION,
+        challenge=CHALLENGE,
+        capacity_evaluator=lambda **kwargs: _write_capacity_artifacts(Path(kwargs["evidence_root"])),
+    )
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == "capacity_bundle_drift"
+    assert "envelope" not in result
+    assert "authenticated_statement_digest" not in result
+    assert "capacity_artifacts" not in result
+    assert result["authorization_granted"] is False
+
+
 def test_signature_pass_cannot_wash_capacity_domain_failure_or_release_payload(
     tmp_path: Path,
 ) -> None:

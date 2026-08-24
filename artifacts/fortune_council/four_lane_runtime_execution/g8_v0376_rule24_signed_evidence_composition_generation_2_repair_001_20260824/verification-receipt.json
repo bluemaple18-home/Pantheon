@@ -1,0 +1,27 @@
+{
+  "candidate_under_review": "097a2f164e7d77f913f30bd9c364c5a06102c48b",
+  "forbidden_commits_not_read_or_applied": [
+    "0af881df",
+    "6de8e487",
+    "5ca75022ba",
+    "d90137815d",
+    "d1e1be51aa"
+  ],
+  "full_tests": {
+    "command": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q tests/test_pantheon_rule24_signed_capacity_evidence.py tests/test_pantheon_rule24_dsse_attestation.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py",
+    "result": "90 passed in 6.61s"
+  },
+  "git_diff_check": "passed",
+  "json_parse": "passed",
+  "parent": "387f0fbe4a4da9c7640edc38f633a6fc41f462de",
+  "py_compile": "passed",
+  "repair_status": "DELIVERED_REPAIR_CANDIDATE",
+  "targeted_green": {
+    "command": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q tests/test_pantheon_rule24_signed_capacity_evidence.py -k \"post_bundle_capacity_receipt_drift or post_bundle_cycle_artifact_drift\"",
+    "result": "2 passed, 12 deselected in 0.08s"
+  },
+  "targeted_red": {
+    "command": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q tests/test_pantheon_rule24_signed_capacity_evidence.py -k \"post_bundle_capacity_receipt_drift or post_bundle_cycle_artifact_drift\"",
+    "result": "2 failed, 12 deselected"
+  }
+}
