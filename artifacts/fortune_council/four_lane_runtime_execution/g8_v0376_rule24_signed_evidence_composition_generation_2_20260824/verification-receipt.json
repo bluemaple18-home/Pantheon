@@ -1,0 +1,26 @@
+{
+  "authorization_granted": false,
+  "canary_created": false,
+  "card_id": "CARD-PANTHEON-G8-V0376-RULE24-SIGNED-EVIDENCE-COMPOSITION-GENERATION-2-20260824",
+  "codegraph": {
+    "edges": 15019,
+    "files_indexed": 580,
+    "nodes": 6810,
+    "readiness": "READY"
+  },
+  "dispatch_key": "v1:0d0f598a14da69a93407a0c5e322d17defef8810ca96a87ee2e2d1b7dbed8dea",
+  "fixed_implementation_baseline": "ac7368cdf79c7f6563743baffa268d6d16cf24f4",
+  "fixed_source_head": "09a313bc6fed08613626856f246442732d872d13",
+  "machine_readable_json_parse": "PASS",
+  "production_mutation": false,
+  "status": "DELIVERED_CANDIDATE",
+  "verification": {
+    "git_diff_check": "PASS",
+    "ownership_audit": "PASS",
+    "py_compile": "PASS",
+    "pytest": {
+      "result": "PASS",
+      "tests": 88
+    }
+  }
+}
