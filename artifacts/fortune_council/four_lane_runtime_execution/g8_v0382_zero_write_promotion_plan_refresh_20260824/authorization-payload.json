@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED",
+  "authorization_state": "NOT_GRANTED",
+  "authorization_digest": "873908181584917d1e3de641be0edfce4c5f5dedd135f38c0db773f2aed2e66b",
+  "plan_digest": "d10b57b440f644dc7e9e91f96e218a8f1f97b8a4ff6f1d14abc6245535450ec8",
+  "target_source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+  "exact_apply_argv_artifact": "<repo-root>/artifacts/fortune_council/four_lane_runtime_execution/g8_v0382_zero_write_promotion_plan_refresh_20260824/exact-apply-argv.json",
+  "required_preflight_gates": [
+    "fresh remote main equality == 5872284828f9dd6f0a75adf407becaeadb50d61a as first apply gate; must be newly sampled at apply time",
+    "fresh capacity receipt and Rule 24 storage-capacity safety PASS",
+    "Rule 25 production canary readiness capability receipt PASS",
+    "actor/manifest/stage/queue/state no-drift against before identities",
+    "production protected tripwire PASS with changed=[]",
+    "explicit human authorization for this exact plan digest and exact argv"
+  ],
+  "terminal_stops": [
+    "remote unavailable, unequal, or query contract violation",
+    "capacity/Rule24/Rule25 missing or fail",
+    "any no-drift mismatch",
+    "any protected changed surface",
+    "authorization absent or plan digest/argv mismatch"
+  ],
+  "next_action": "Only after all fresh gates pass and explicit authorization may a separate authorized operator consider apply; this task performs no mutation."
+}

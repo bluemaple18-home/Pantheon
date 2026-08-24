@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "planner": "scripts.pantheon_content_runtime_promotion.plan_promotion",
+  "mode": "plan",
+  "status": "READY_TO_APPLY",
+  "production_mutation": false,
+  "authorization_state": "NOT_GRANTED",
+  "plan_digest": "d10b57b440f644dc7e9e91f96e218a8f1f97b8a4ff6f1d14abc6245535450ec8",
+  "target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+  "returncode": 0,
+  "source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+}

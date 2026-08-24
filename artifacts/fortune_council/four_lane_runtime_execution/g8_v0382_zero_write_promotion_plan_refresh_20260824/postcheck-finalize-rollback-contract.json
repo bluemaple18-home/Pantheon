@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "postchecks": [
+    "actor_clean_head_origin",
+    "manifest_digest_actor_head_generation",
+    "private_stage_readiness_and_barrier",
+    "queue_preserved",
+    "capacity_receipt_payload_stop_loss_pass"
+  ],
+  "ordered_states": [
+    "PREPARED",
+    "ACTOR_PROMOTED",
+    "MANIFEST_WRITTEN",
+    "STAGE_INSTALLED",
+    "POSTCHECK_PASSED",
+    "COMMITTED"
+  ],
+  "rollback_order": [
+    "STAGE_INSTALLED",
+    "MANIFEST_WRITTEN",
+    "ACTOR_PROMOTED"
+  ],
+  "rollback_bundle": [
+    {
+      "path": "/private/tmp/pantheon-g8-v0382-zero-write-promotion-plan-refresh-20260824/transaction/rollback-bundle/actor.previous",
+      "source": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor"
+    },
+    {
+      "path": "/private/tmp/pantheon-g8-v0382-zero-write-promotion-plan-refresh-20260824/transaction/rollback-bundle/runtime-manifest.previous.json",
+      "source": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json"
+    },
+    {
+      "path": "/private/tmp/pantheon-g8-v0382-zero-write-promotion-plan-refresh-20260824/transaction/rollback-bundle/private-stage.previous",
+      "source": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage"
+    },
+    {
+      "path": "/private/tmp/pantheon-g8-v0382-zero-write-promotion-plan-refresh-20260824/transaction/rollback-bundle/activation-barrier.previous",
+      "source": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g36-5872284828-zero-write-20260824.barrier"
+    }
+  ],
+  "finalize_condition": "Only after apply reaches POSTCHECK_PASSED, fresh postcheck receipts pass, and explicit finalize authorization matches plan digest; not executed.",
+  "terminal_stops": [
+    "first non-PASS gate",
+    "actor/manifest/stage/queue/state drift",
+    "missing rollback bundle",
+    "postcheck failure",
+    "plan or authorization digest mismatch"
+  ],
+  "production_mutation": false
+}
