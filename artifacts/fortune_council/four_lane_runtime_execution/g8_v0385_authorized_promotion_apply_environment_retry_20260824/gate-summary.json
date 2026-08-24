@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED",
+  "remote_query": {
+    "command": "git ls-remote --heads origin main",
+    "invocation_count": 1,
+    "execution": "host-network-approved",
+    "returncode": 0,
+    "ref": "refs/heads/main",
+    "sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+  },
+  "apply_invocation_count": 0,
+  "production_mutation_count": 0,
+  "bindings": {
+    "target_source": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+    "plan_digest": "415eff6d83e48bc16ccb5335b77a170b750a0e8e2a45a9f6dc453fceead29840",
+    "exact_apply_argv_digest": "db697635302ab6c44803cabb6aa6b9fcf16c7b36368a7d42b291a0ab0b6cc9b2",
+    "target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+    "transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0383-5872284828-promotion-20260824",
+    "capacity_receipt": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+    "capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+    "source_clone": "/private/tmp/pantheon-g8-v0383-durable-promotion-plan-repair-20260824/source"
+  },
+  "gates": {
+    "remote_main_equality": "PASS",
+    "transaction_root_absent": "PASS",
+    "source_clone_clean_target_identity": "PASS",
+    "actor_before_identity": "PASS",
+    "capacity_receipt_payload": "PASS",
+    "rule24_fresh_current_receipt": "BLOCKED",
+    "rule25_capability_receipt": "PASS",
+    "rule25_readiness_gate": "PASS",
+    "target_private_stage_readiness": "BLOCKED",
+    "protected_before_snapshot": "BLOCKED"
+  },
+  "blockers": [
+    {
+      "gate": "target_private_stage_readiness",
+      "path": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g36-5872284828-zero-write-20260824",
+      "observed": "missing",
+      "effect": "required target generation readiness binding cannot be verified"
+    },
+    {
+      "gate": "rule24_fresh_current_receipt",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+      "observed": "payload PASS and digest matches, but receipt is a prior dated artifact; no fresh host baseline artifact was created in this attempt",
+      "effect": "cannot certify the required fresh Rule24 gate"
+    }
+  ],
+  "durable_receipt": null,
+  "rollback_bundle": null,
+  "notes": [
+    "Detached HEAD is accepted: HEAD and codex/g8-v0381-exact-target-source both equal target.",
+    "V0383 exact-apply-argv.json was read-only copied to task-owned /private/tmp and its canonical digest matched.",
+    "No transaction root was created; no apply, finalize, rollback, deploy, canary, activation, launchctl mutation, push, or tag occurred."
+  ]
+}
