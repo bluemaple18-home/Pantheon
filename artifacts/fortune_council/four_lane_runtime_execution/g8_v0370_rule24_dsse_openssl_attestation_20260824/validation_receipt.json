@@ -1,0 +1,52 @@
+{
+  "canary_created": false,
+  "dependency_install": 0,
+  "ed25519_capability": true,
+  "focused_pytest": {
+    "path": "tests/test_pantheon_rule24_dsse_attestation.py",
+    "passed": 34,
+    "status": "PASS"
+  },
+  "json_parse": "PASS",
+  "openssl": {
+    "path": "/opt/homebrew/bin/openssl",
+    "version": "OpenSSL 3.6.2 7 Apr 2026"
+  },
+  "ownership_audit": "PASS",
+  "pae_vector": {
+    "expected": "DSSEv1 4 test 3 abc",
+    "payload": "abc",
+    "payload_type": "test",
+    "status": "PASS"
+  },
+  "parent": "4d59fa859c06789e94c4b1f15571ebb8b06ed5ea",
+  "private_key_audit": "PASS",
+  "production_mutation": false,
+  "provenance": {
+    "openssl_delegated": [
+      "version",
+      "list -public-key-algorithms",
+      "pkey -pubin -outform DER",
+      "pkeyutl -sign -rawin",
+      "pkeyutl -verify -rawin -pubin"
+    ],
+    "pantheon_owned_glue": [
+      "resource_descriptor_binding",
+      "canonical_json_bytes",
+      "trust_policy_validation",
+      "challenge_validation",
+      "pass_no_go_receipts"
+    ],
+    "spec_wire_contract": [
+      "in-toto Statement v1 _type",
+      "DSSE payloadType",
+      "DSSE PAE",
+      "Rule24 predicateType"
+    ],
+    "third_party_source_vendor": false
+  },
+  "py_compile": "PASS",
+  "remote_query": 0,
+  "status": "PASS",
+  "vendor_header_audit": "PASS"
+}
