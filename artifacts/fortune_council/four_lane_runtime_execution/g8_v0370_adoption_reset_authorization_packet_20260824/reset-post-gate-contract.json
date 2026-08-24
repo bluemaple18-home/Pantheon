@@ -1,0 +1,45 @@
+{
+  "canary_created": false,
+  "execution_status": "NOT_EXECUTED_UPSTREAM_BLOCKED",
+  "fresh_reconciliation": {
+    "entrypoint": "scripts.pantheon_g8_production_preactivation",
+    "required_after_adoption_reset": true,
+    "success_contract": "READY_FOR_PRODUCTION_AUTHORIZATION with actor_head and manifest actor_head equal to the authorized current source; any authority/schema/receipt/selector/tripwire error remains BLOCKED or UNKNOWN"
+  },
+  "publisher_reset": {
+    "installer_entrypoint": "scripts/install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only",
+    "provenance_validator": "scripts.pantheon_content_capacity_guard._validate_publisher_reset_provenance",
+    "receipt_writer": "scripts.pantheon_content_capacity_guard.write_publisher_reset_receipt",
+    "success_contract": [
+      "status PASS and transition PUBLISHER_RESET_ACTIVATION_ONLY",
+      "exact authorized correlation id",
+      "target manifest/runtime identity/generation/exact run id",
+      "Publisher post plist and launchctl identity match current live evidence",
+      "other six plist digests unchanged with inert pre/post launchctl identity",
+      "receipt is owner-only mode 0600 at the canonical private-stage path"
+    ],
+    "write_authorized_in_this_card": false
+  },
+  "rule_24": {
+    "authority": "<ai-core-root>/rules/24-storage-capacity-safety.md",
+    "current_post_adoption_receipt_required": true,
+    "result_when_missing_or_stale": "NO-GO"
+  },
+  "rule_25": {
+    "authority": "<ai-core-root>/scripts/production_canary_readiness_gate.py",
+    "canary_created_must_be_false": true,
+    "current_post_adoption_receipt_required": true,
+    "required_chain": [
+      "create",
+      "run",
+      "select",
+      "publish",
+      "transaction",
+      "tag",
+      "push"
+    ],
+    "result_when_missing_or_stale": "BLOCKED"
+  },
+  "schema_version": 1,
+  "status": "LOCKED_BUT_NOT_EVALUATED"
+}

@@ -1,0 +1,17 @@
+{
+  "blocking_condition": "CANONICAL_TARGET_SOURCE_CHECKOUT_UNAVAILABLE",
+  "deterministic": true,
+  "errors": [
+    "source SHA drift",
+    "source SHA drift"
+  ],
+  "plan_ready_to_apply": false,
+  "production_mutation": false,
+  "remote_query_invocation_count": 0,
+  "run_statuses": [
+    "BLOCKED",
+    "BLOCKED"
+  ],
+  "schema_version": 1,
+  "status": "PASS"
+}

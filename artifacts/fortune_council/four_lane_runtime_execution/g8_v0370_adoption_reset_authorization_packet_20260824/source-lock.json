@@ -1,0 +1,13 @@
+{
+  "accepted_exception": "bounded_remote_query_invocation_2_after_dns_failure",
+  "accepted_exception_scope": "evidence_acceptance_only",
+  "authority_source": "g8_v0370_preauth_blocker_resolution_20260824/source-decision.json",
+  "future_promotion_source_sha": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "remote_git_mutation_count": 0,
+  "remote_query_invocation_count_this_card": 0,
+  "runtime_equivalence_status": "PASS",
+  "schema_version": 1,
+  "source_sha_unique": true,
+  "status": "PASS",
+  "target_runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92"
+}

@@ -1,0 +1,39 @@
+{
+  "frontier_stop": "G8-ARP-002",
+  "schema_version": 1,
+  "slices": {
+    "G8-ARP-001": {
+      "evidence": "source-lock.json",
+      "status": "PASS",
+      "traces_to": ["FR-006", "SC-005"]
+    },
+    "G8-ARP-002": {
+      "blocker": "CANONICAL_TARGET_SOURCE_CHECKOUT_UNAVAILABLE",
+      "evidence": ["current-plan-run-1.json", "current-plan-run-2.json", "current-plan-determinism.json", "mutation-tripwire.json"],
+      "status": "BLOCKED",
+      "traces_to": ["FR-007", "SC-006", "SC-008"]
+    },
+    "G8-ARP-003": {
+      "evidence": "authorization-envelope.json",
+      "status": "NOT_EXECUTED_UPSTREAM_BLOCKED",
+      "traces_to": ["FR-008", "SC-006", "SC-007"]
+    },
+    "G8-ARP-004": {
+      "evidence": "reset-post-gate-contract.json",
+      "status": "NOT_EXECUTED_UPSTREAM_BLOCKED",
+      "traces_to": ["FR-009", "SC-007"]
+    },
+    "G8-ARP-005": {
+      "evidence": "mutation-tripwire.json",
+      "status": "PARTIAL_TRIPWIRE_ONLY",
+      "traces_to": ["FR-010", "SC-008"]
+    }
+  },
+  "success_criteria": {
+    "SC-005": "PASS",
+    "SC-006": "BLOCKED",
+    "SC-007": "NOT_EVALUATED_UPSTREAM_BLOCKED",
+    "SC-008": "PASS"
+  },
+  "verdict": "BLOCKED"
+}

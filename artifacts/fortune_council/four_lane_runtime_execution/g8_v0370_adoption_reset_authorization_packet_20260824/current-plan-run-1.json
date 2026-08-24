@@ -1,0 +1,10 @@
+{
+  "authorization_state": "NOT_GRANTED",
+  "error": "source SHA drift",
+  "failure_code": "CURRENT_PLAN_NOT_REPRODUCIBLE",
+  "forbidden_entrypoints_invoked": [],
+  "production_mutation": false,
+  "run_ordinal": 1,
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

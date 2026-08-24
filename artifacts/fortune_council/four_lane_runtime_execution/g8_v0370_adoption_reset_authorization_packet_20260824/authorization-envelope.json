@@ -1,0 +1,52 @@
+{
+  "actionable": false,
+  "authorization_state": "NOT_GRANTED",
+  "blocker": {
+    "code": "CANONICAL_TARGET_SOURCE_CHECKOUT_UNAVAILABLE",
+    "evidence": [
+      "current-plan-inputs.json",
+      "current-plan-run-1.json",
+      "current-plan-run-2.json",
+      "current-plan-determinism.json"
+    ],
+    "reason": "既有 canonical target source checkout 已不存在；activated worktree HEAD 不是鎖定 source SHA，正式 plan 兩次都以 source SHA drift fail closed。卡片禁止建立 branch/ref、改 origin 或重造 source workflow。"
+  },
+  "command_boundary": {
+    "allowed_in_this_card": [
+      "scripts.pantheon_content_runtime_promotion.plan_promotion"
+    ],
+    "forbidden_and_not_invoked": [
+      "apply_promotion",
+      "finalize_promotion",
+      "rollback_promotion",
+      "write_publisher_reset_receipt",
+      "validate_preactivation_transition",
+      "production canary",
+      "fetch",
+      "pull",
+      "push",
+      "tag",
+      "Git branch/ref mutation"
+    ]
+  },
+  "current_plan": {
+    "deterministic": true,
+    "plan_digest": null,
+    "status": "BLOCKED"
+  },
+  "previous_integrated_plan_advisory_only": {
+    "authorization_digest": "7d4e41bfd51b4d98898856f616b744919b26663acb4c781afa9518909f254c04",
+    "backup_set_locator": "../g8_v0370_preauth_blocker_resolution_20260824/promotion-plan.json#/backup_set",
+    "plan_digest": "e4d385214ccc09318be454e8c21a8c213d1cb1d126ed41a7e08a1c3a08422f1c",
+    "rollback_order": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "status": "READY_TO_APPLY",
+    "write_set_locator": "../g8_v0370_preauth_blocker_resolution_20260824/promotion-plan.json#/write_set"
+  },
+  "production_mutation_authorized": false,
+  "schema_version": 1,
+  "status": "BLOCKED"
+}
