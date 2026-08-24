@@ -1,0 +1,7 @@
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/actor-git-refs.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/actor-head.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/actor-remotes.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/actor-status.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/task-head.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/before/timestamp.txt
+?? artifacts/fortune_council/four_lane_runtime_execution/g8_v0380_production_adoption_preactivation_20260824/remote-ls-remote.txt

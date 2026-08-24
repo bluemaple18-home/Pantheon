@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-V0380-PRODUCTION-ADOPTION-PREACTIVATION-20260824",
+  "target": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "local_source_checkout": "ce22dfb414a82ca2930d449ef24c657a40f079e8",
+  "production_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "runtime_manifest_actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+  "runtime_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "runtime_generation": "g34-db9fb434-20260822T041850Z",
+  "remote_main": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "remote_publication_receipt": {
+    "operation": "git ls-remote --heads origin main",
+    "read_only": true,
+    "ref": "refs/heads/main",
+    "sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+    "evidence": "remote-ls-remote.txt"
+  },
+  "relations": {
+    "target_is_ancestor_of_local_source_checkout": true,
+    "local_source_checkout_is_ancestor_of_target": false,
+    "local_vs_target_left_right_count": "3 0",
+    "remote_equals_target": true,
+    "actor_equals_target": false,
+    "manifest_actor_equals_target": false
+  }
+}

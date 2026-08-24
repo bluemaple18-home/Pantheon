@@ -1,0 +1,238 @@
+{
+  "changed": [],
+  "comparisons": [
+    {
+      "after": "fa7f4dcfd167c4d8ba554432e5bc2ebd015fe3a3e5debd0c3e8665b4ea0d1d4c",
+      "before": "fa7f4dcfd167c4d8ba554432e5bc2ebd015fe3a3e5debd0c3e8665b4ea0d1d4c",
+      "surface": "actor-head.txt",
+      "unchanged": true
+    },
+    {
+      "after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "surface": "actor-status.txt",
+      "unchanged": true
+    },
+    {
+      "after": "a496f2ed6cd3f0ee40004a8df00831af0dfdb2df8b0cbe243f193953f697f9f1",
+      "before": "a496f2ed6cd3f0ee40004a8df00831af0dfdb2df8b0cbe243f193953f697f9f1",
+      "surface": "actor-remotes.txt",
+      "unchanged": true
+    },
+    {
+      "after": "087d09f09170ce22ffd61594c3f1676bc41579d42551cad79831a977f4c2cd54",
+      "before": "087d09f09170ce22ffd61594c3f1676bc41579d42551cad79831a977f4c2cd54",
+      "surface": "actor-git-refs.txt",
+      "unchanged": true
+    },
+    {
+      "after": "13d3a12b83286e66135e0807dd40cc741e22f8753c9d74e1120b0e9aefae3f6a",
+      "before": "13d3a12b83286e66135e0807dd40cc741e22f8753c9d74e1120b0e9aefae3f6a",
+      "surface": "task-head.txt",
+      "unchanged": true
+    },
+    {
+      "after": "745e2fc0480bb2462e0b808688eed2a3a63af52adde88b8e5b66053cf4d16753",
+      "before": "745e2fc0480bb2462e0b808688eed2a3a63af52adde88b8e5b66053cf4d16753",
+      "surface": "task-git-refs.txt",
+      "unchanged": true
+    },
+    {
+      "after": "369817be12b5458dfeb7db48932015d510f7df9e32c5e71e397f0ffd7719a269",
+      "before": "369817be12b5458dfeb7db48932015d510f7df9e32c5e71e397f0ffd7719a269",
+      "surface": "release-tag-peeled.txt",
+      "unchanged": true
+    },
+    {
+      "after": "fe699d11662b940136e2e0e750b302dcdd54bd52f7740279612594b6a1756e2b",
+      "before": "fe699d11662b940136e2e0e750b302dcdd54bd52f7740279612594b6a1756e2b",
+      "surface": "manifest.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "9de6e1de8596b3beb678e6758951f7c4f6df927da8f2f810e443b84d98c0dfd7",
+      "before": "9de6e1de8596b3beb678e6758951f7c4f6df927da8f2f810e443b84d98c0dfd7",
+      "surface": "manifest-identity.json",
+      "unchanged": true
+    },
+    {
+      "after": "a19bbbe8dee96ecfc0f420fbaef3eb59a8ce66e5c0521fe30be228d2436ed027",
+      "before": "a19bbbe8dee96ecfc0f420fbaef3eb59a8ce66e5c0521fe30be228d2436ed027",
+      "surface": "queue-tree.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "201762cfc293451316d2773289edf95cef98c76e3c5b5c4e868e4b506c802f1a",
+      "before": "201762cfc293451316d2773289edf95cef98c76e3c5b5c4e868e4b506c802f1a",
+      "surface": "state-tree.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "57a0c376ae9396d62a3fc49e70b9f4b9aeb7406855b80662df95d60daf3a1cd6",
+      "before": "57a0c376ae9396d62a3fc49e70b9f4b9aeb7406855b80662df95d60daf3a1cd6",
+      "surface": "transaction-tree.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "535cada6b0c1845180a885a207a73df438f70e5bc18fd9379c660c84c545dbf1",
+      "before": "535cada6b0c1845180a885a207a73df438f70e5bc18fd9379c660c84c545dbf1",
+      "surface": "publisher-lock.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "1fcc46802eeda55e8f19041b7a6cce00ca6518e51b3fa223340b11d82b1439e6",
+      "before": "1fcc46802eeda55e8f19041b7a6cce00ca6518e51b3fa223340b11d82b1439e6",
+      "surface": "live-plists.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca",
+      "before": "94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca",
+      "surface": "stage-tree.sha256",
+      "unchanged": true
+    },
+    {
+      "after": "e25402174072fddcc6e753caed6e2f87d762ae8836a24867215ba0fdd7f6d2b1",
+      "before": "e25402174072fddcc6e753caed6e2f87d762ae8836a24867215ba0fdd7f6d2b1",
+      "surface": "barrier-paths.txt",
+      "unchanged": true
+    },
+    {
+      "after": "7940c0bdbbd2bb5df8af695f88e59a16381917ba87d36af9eabc84452cb58049",
+      "before": "7940c0bdbbd2bb5df8af695f88e59a16381917ba87d36af9eabc84452cb58049",
+      "surface": "barriers.sha256",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": null,
+        "loaded": false,
+        "path": null,
+        "pid": null,
+        "state": null
+      },
+      "before": {
+        "last exit code": null,
+        "loaded": false,
+        "path": null,
+        "pid": null,
+        "state": null
+      },
+      "surface": "launchctl/com.pantheon.agy-content-publisher.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-coordinator.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.agy-gemini-coordinator.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.agy-gemini-i18n-new.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-rewrite.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-rewrite.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.agy-gemini-i18n-rewrite.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-new.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-new.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.agy-gemini-new.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-rewrite.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-rewrite.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.agy-gemini-rewrite.txt",
+      "unchanged": true
+    },
+    {
+      "after": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.content-capacity-guard.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "before": {
+        "last exit code": "78: EX_CONFIG",
+        "loaded": true,
+        "path": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.content-capacity-guard.plist",
+        "pid": null,
+        "state": "not running"
+      },
+      "surface": "launchctl/com.pantheon.content-capacity-guard.txt",
+      "unchanged": true
+    }
+  ],
+  "launchctl_volatile_fields_ignored": [
+    "runs"
+  ],
+  "production_mutation": false,
+  "status": "PASS"
+}

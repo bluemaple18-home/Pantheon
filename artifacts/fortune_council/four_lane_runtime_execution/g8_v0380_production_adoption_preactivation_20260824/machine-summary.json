@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-V0380-PRODUCTION-ADOPTION-PREACTIVATION-20260824",
+  "verdict": "BLOCKED",
+  "formal_contract": "scripts.pantheon_g8_production_preactivation",
+  "contract_result": "BLOCKED / LOCAL_HEAD_MISMATCH",
+  "root_blocker": "required source checkout is not at the published target; no existing checkout/worktree was found at the target SHA",
+  "target": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "remote_main": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "production_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "manifest_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "generation": "g34-db9fb434-20260822T041850Z",
+  "fresh_observation": "2026-08-24T14:11:40.201593Z",
+  "protected_tripwire": {"status": "PASS", "changed": []},
+  "production_mutation": false,
+  "next_step": "Obtain or prepare an exact target source checkout through a separately authorized, non-production workflow, then run a new fresh preactivation card.",
+  "authorization_state": "NOT_GRANTED"
+}

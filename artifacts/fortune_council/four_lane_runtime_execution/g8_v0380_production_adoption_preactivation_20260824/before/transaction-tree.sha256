@@ -1,0 +1,17 @@
+a7ec399688013b6c83d9c8748b678e6825773caddd53b4faa760b693170f2bf5  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-host-capacity-final-continuation-20260821/promotion-receipt.json
+fa41980d9e9c09e0ae5923f250c7dc5784484f55ddef0cd5acc0f91b87b04199  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-main-push-runtime-promotion-staging-retry-2-20260820/promotion-receipt.json
+bf5f440b4dad047828b8ee620bbfe0939e85af02d243fc2acafffd9855b4a697  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-publisher-canary-final-ship-20260821-7b2/promotion-receipt.json
+72bc837fb64ea22034ee25897f7290e4dedbe32672ccae06362976ee76652841  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-publisher-canary-final-ship-20260821-a076/promotion-receipt.json
+3850211fae42b008b4fc7062505f8014fdb10e11dfe116ab0cd0514f4c6db1eb  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-repaired-source-promotion-staging-cycle-17-20260821/promotion-receipt.json
+20dc49c14e1b94284fadfe3040289023b3c71c407489dc9f4a793e264d0dbc09  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-runtime-promotion-cycle-23-20260821/promotion-receipt.json
+d045f921b1304a880d1ec8bde8f4002e8a39cfb623a6917b8c43470b954c27a7  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-runtime-promotion-stage-convergence-cycle32-20260821/promotion-receipt.json
+719f85e609a7c89187f287f0c44f18b08dfc9ed92763027f124a15545e440529  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-runtime-promotion-stage-convergence-cycle32-20260821/rollback-bundle/runtime-manifest.previous.json
+d61b5b3474bb63b1da58f3831721731f79518c940d16fe3e5f988aebf4531845  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-transition-to-canary-ready-cycle33-20260822/promotion-receipt.json
+082d5cfe797ce55667fa0e4ae8471c0bf733084f0c6fa5dceedc0c46cfb5fd51  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g3-20260818/promotion-receipt.json
+04aefd9a6847c60b80a7e122146ee5c052350457f6b0757b9b187bb7789522c8  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g4-20260818T095829Z/promotion-receipt.json
+597c722c0ae8c3e9e1a08470b916f305da940ff0a6b5835bfd1302621522ca35  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g5-20260818T120411Z/promotion-receipt.json
+e9507d35ccd99e34cf902fa3869d841a4bdc90db6cc8fbdb046b9450842d027c  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g5b-20260818T120632Z/promotion-receipt.json
+f1485d0b80c973ebb983a55051e9966154989a31c8e29aec80c682a955659f51  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g6-20260818T123555Z/promotion-receipt.json
+046054d122499bc0fb91366b4f477084f5f261f0211af40c214383d5e8ef59f2  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-20260818-rewrite-canary/promotion-receipt.json
+c3b830f617c7be9620072331eb279ca8ea32f0883fc98ba1f5661150f368c5ac  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-20260818-rewrite-canary-digest-convergence/promotion-receipt.json
+2f8778667b5d3d7fd208e0fe7f398b78509d712ac3eb6e67df2c72a665541064  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-publisher-scheduler-safe-activation-20260818/promotion-receipt.json
