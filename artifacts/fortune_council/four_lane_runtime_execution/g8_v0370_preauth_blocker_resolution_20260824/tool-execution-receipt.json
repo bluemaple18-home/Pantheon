@@ -1,0 +1,54 @@
+{
+  "events": [
+    {
+      "classification": "TOOLCHAIN_PATH_MISSING",
+      "command": ".venv/bin/python ... collect_readiness_evidence.py snapshot",
+      "exit_code": 127,
+      "resolution": "使用 runtime manifest 已綁定的 Python locator；未建立或下載新環境"
+    },
+    {
+      "classification": "NO_MATCH",
+      "command": "bounded rg for capacity receipt candidates",
+      "exit_code": 1,
+      "resolution": "視為無 match，不盲目重跑同一查詢"
+    },
+    {
+      "classification": "REMOTE_QUERY_INVOCATION_1_DNS_FAILURE",
+      "command": "git ls-remote --heads origin main",
+      "exit_code": 128,
+      "resolution": "未取得 authority；此 invocation 仍計入 bounded-query 契約"
+    },
+    {
+      "classification": "REMOTE_QUERY_INVOCATION_2_SUCCESS",
+      "command": "git ls-remote --heads origin main",
+      "exit_code": 0,
+      "resolution": "取得 remote main；此後禁止並未再執行 remote query"
+    },
+    {
+      "classification": "PLAN_INPUT_PATH_ALIAS",
+      "command": "public plan_promotion via build_readonly_evidence.py",
+      "exit_code": 1,
+      "resolution": "把 /tmp alias 修正為 canonical /private/tmp；固定輸入後成功"
+    },
+    {
+      "classification": "TEST_RUNNER_MODULE_MISSING",
+      "command": "runtime manifest Python -m pytest",
+      "exit_code": 1,
+      "resolution": "runtime Python 不含 pytest；未安裝或下載依賴"
+    },
+    {
+      "classification": "TEST_RUNNER_PATH_MISSING",
+      "command": "pytest --version",
+      "exit_code": 127,
+      "resolution": "PATH 無 pytest executable；改用已存在的 main workspace .venv"
+    },
+    {
+      "classification": "TESTS_PASS",
+      "command": "<main-workspace>/.venv/bin/python -m pytest tests/test_pantheon_g8_production_preactivation.py tests/test_pantheon_content_runtime_promotion.py -q",
+      "exit_code": 0,
+      "resolution": "68 passed in 19.36s"
+    }
+  ],
+  "remote_query_invocation_count": 2,
+  "schema_version": 1
+}

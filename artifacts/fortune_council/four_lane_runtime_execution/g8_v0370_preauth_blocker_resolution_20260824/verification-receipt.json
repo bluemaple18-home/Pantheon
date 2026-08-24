@@ -1,0 +1,23 @@
+{
+  "evidence_digest_manifest": "evidence-digests.sha256",
+  "formal_reconciler_result": {
+    "blocked_code": "ACTOR_MANIFEST_AUTHORITY_MISMATCH",
+    "changed_protected_surfaces": [],
+    "status": "EXPECTED_PRE_ADOPTION_BLOCKED"
+  },
+  "git_diff_check": "PASS",
+  "helper_ast_parse": "PASS (2 files)",
+  "json_parse": "PASS (13 files)",
+  "plan_determinism": {
+    "file_sha256_first": "81237460b9088fd33799b22e999af46e9dcb99d52ba4f5cc3d596a73806b526c",
+    "file_sha256_second": "81237460b9088fd33799b22e999af46e9dcb99d52ba4f5cc3d596a73806b526c",
+    "status": "PASS"
+  },
+  "production_mutation": false,
+  "schema_version": 1,
+  "tests": {
+    "command": "<main-workspace>/.venv/bin/python -m pytest tests/test_pantheon_g8_production_preactivation.py tests/test_pantheon_content_runtime_promotion.py -q",
+    "result": "68 passed in 19.36s",
+    "status": "PASS"
+  }
+}

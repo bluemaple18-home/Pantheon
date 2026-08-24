@@ -1,0 +1,14 @@
+{
+  "actual_changed_paths": [],
+  "formal_probe": "reconciler-result.json",
+  "formal_probe_expected_earliest_blocker": "ACTOR_MANIFEST_AUTHORITY_MISMATCH",
+  "matched_paths": [],
+  "origin_main": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "overmatched_paths": [],
+  "patterns": [],
+  "reason": "required source 精確等於 current remote main，formal authority diff 為空；新增 pattern 只會擴權。",
+  "required_source": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "schema_version": 1,
+  "status": "PASS_EMPTY_EXACT_ALLOWLIST",
+  "unmatched_paths": []
+}

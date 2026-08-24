@@ -1,0 +1,62 @@
+{
+  "ancestry": {
+    "actor_is_ancestor_of_release": true,
+    "local_main_is_ancestor_of_remote_main": false,
+    "release_is_ancestor_of_actor": false,
+    "release_is_ancestor_of_remote_main": true,
+    "remote_main_is_ancestor_of_local_main": false
+  },
+  "authority_basis": "成功的 bounded read-only remote query 回傳 current refs/heads/main；local tracking ref 僅交叉佐證。",
+  "bounded_query_contract": "FAIL",
+  "future_promotion_source_sha": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "local_main_sha": "a0391c298a4eff80be113c2a06c03529cd2dcbf6",
+  "local_origin_main_sha": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "patch_id_pairs": [
+    {
+      "equivalent": true,
+      "left": "cf2a341ecf79755a7d7ca756bb9d59b4085c37d6",
+      "left_patch_id": "030a79780c5ac6f3dcc6c9dbb2b7645c77da675c",
+      "right": "e7892fd2c66f41044cfb58d61f693d89f20f5faf",
+      "right_patch_id": "030a79780c5ac6f3dcc6c9dbb2b7645c77da675c"
+    },
+    {
+      "equivalent": true,
+      "left": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+      "left_patch_id": "618c3e19057a2f2f99f551ffc5bfa50f7f1681ae",
+      "right": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+      "right_patch_id": "618c3e19057a2f2f99f551ffc5bfa50f7f1681ae"
+    }
+  ],
+  "post_adoption_convergence": "Future authorized promotion/reset must bind actor HEAD and runtime manifest actor_head to the same remote main SHA, then run fresh formal reconciliation before canary.",
+  "production_actor_sha": "db9fb4343df212fd3b65546b017aba159620a058",
+  "release_sha": "b0950d4c436cc902e17ac110b579b35b84aa53e4",
+  "release_to_remote_changed_paths": [
+    "docs/content_expansion_backlog.md",
+    "docs/content_prior_art_registry.md",
+    "handoff_20260822_g8_exit78_release_v0370.md"
+  ],
+  "release_to_remote_classification": {
+    "docs_evidence_only": [
+      "docs/content_expansion_backlog.md",
+      "docs/content_prior_art_registry.md",
+      "handoff_20260822_g8_exit78_release_v0370.md"
+    ],
+    "runtime_affecting": [],
+    "unknown": []
+  },
+  "remote_to_local_changed_path_count": 280,
+  "remote_to_local_changed_paths_digest": "a2bab3f918f406b0ffc35148db2e8778aec4c99daeda65d090436db3b8db401a",
+  "runtime_equivalence": {
+    "reason": "release 到 remote main 的三個 changed paths 全為 docs/handoff；runtime manifest path set 無變更。",
+    "status": "PASS",
+    "target_runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92"
+  },
+  "schema_version": 1,
+  "status": "SOURCE_UNIQUE_BUT_TASK_BLOCKED",
+  "trees": {
+    "local_main": "4fb2459bf0dda6134ca937c63e289802cdae4a7a",
+    "production_actor": "b1f4fa6caf6690b3872f3c0ca00798ee6dbdef30",
+    "release": "53fa295000480e7d04f3b0e91aed5b9d8371d0f5",
+    "remote_main": "6f5c45a9ac3702ad858ef17d6558a0e18954e961"
+  }
+}

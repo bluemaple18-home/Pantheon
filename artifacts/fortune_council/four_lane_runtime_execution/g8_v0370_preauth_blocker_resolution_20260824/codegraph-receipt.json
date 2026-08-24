@@ -1,0 +1,21 @@
+{
+  "current_worktree": {
+    "path": "<repo-root>",
+    "status": "NOT_INITIALIZED",
+    "tool_result": "CodeGraph not initialized"
+  },
+  "main_workspace": {
+    "backend": "native (better-sqlite3)",
+    "edges": 16446,
+    "files": 645,
+    "nodes": 7648,
+    "status": "READY"
+  },
+  "query_order": [
+    "task-semantic codegraph_context",
+    "symbol search: evaluate_authority / plan_promotion / _validate_capacity_receipt / runtime_manifest_digest",
+    "bounded codegraph_explore",
+    "limited source reads"
+  ],
+  "schema_version": 1
+}

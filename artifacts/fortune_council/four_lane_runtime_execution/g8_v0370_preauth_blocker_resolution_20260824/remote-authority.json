@@ -1,0 +1,38 @@
+{
+  "bounded_query_contract_pass": false,
+  "bounded_query_limit": 1,
+  "fetch_count": 0,
+  "interpretation": "命令層共執行兩次 ls-remote；第一次在 DNS 前失敗、第二次成功。即使只有一次實際連線，仍不得把最多一次 invocation 的契約寫成 PASS。",
+  "local_main_sha": "a0391c298a4eff80be113c2a06c03529cd2dcbf6",
+  "local_origin_main_sha": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "production_actor_sha": "db9fb4343df212fd3b65546b017aba159620a058",
+  "query_invocations": [
+    {
+      "command": "git ls-remote --heads origin main",
+      "connected_to_remote": false,
+      "exit_code": 128,
+      "ordinal": 1,
+      "result": "DNS_RESOLUTION_FAILED",
+      "stderr_summary": "ssh could not resolve github.com; remote authority was not returned"
+    },
+    {
+      "command": "git ls-remote --heads origin main",
+      "connected_to_remote": true,
+      "exit_code": 0,
+      "ordinal": 2,
+      "result": "REMOTE_MAIN_RETURNED",
+      "stdout": "5a9103785ebfc8d5a28fa8188def6069beb12d88\\trefs/heads/main"
+    }
+  ],
+  "query_time_utc": "2026-08-24T03:32:35Z",
+  "release_tag": "v0.3.370",
+  "release_tag_peeled_sha": "b0950d4c436cc902e17ac110b579b35b84aa53e4",
+  "remote_connection_success_count": 1,
+  "remote_main_sha": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+  "remote_mutation_count": 0,
+  "remote_query_invocation_count": 2,
+  "remote_url_redacted": "git@github.com:<owner>/Pantheon.git",
+  "schema_version": 1,
+  "status": "BLOCKED_CONTRACT_VIOLATION",
+  "task_head_sha": "a0391c298a4eff80be113c2a06c03529cd2dcbf6"
+}

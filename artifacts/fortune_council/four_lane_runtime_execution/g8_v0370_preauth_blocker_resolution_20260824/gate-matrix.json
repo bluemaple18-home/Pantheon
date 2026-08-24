@@ -1,0 +1,32 @@
+{
+  "card_id": "CARD-PANTHEON-G8-V0370-PREAUTH-BLOCKER-RESOLUTION-20260824",
+  "gates": [
+    {
+      "evidence": "remote-authority.json",
+      "gate": "SC-001 remote authority",
+      "reason": "remote main SHA 唯一取得，但 ls-remote 命令 invocation 2 次超過一次上限",
+      "status": "FAIL"
+    },
+    {
+      "evidence": "source-decision.json, source-allowlist.json, reconciler-result.json",
+      "gate": "SC-002 source / allowlist / formal probe",
+      "reason": "唯一 source 5a910...；empty exact allowlist；formal probe 最早停在允許的 actor/manifest mismatch",
+      "status": "PASS"
+    },
+    {
+      "evidence": "promotion-plan-inputs.json, promotion-plan.json, promotion-plan-command.md",
+      "gate": "SC-003 promotion plan",
+      "reason": "public plan 回 READY_TO_APPLY 且 deterministic plan digest 已鎖定；authorization state 為 NOT_GRANTED",
+      "status": "PASS"
+    },
+    {
+      "evidence": "reconciler-result.json, mutation-tripwire.json",
+      "gate": "SC-004 zero mutation",
+      "reason": "protected surfaces 未變，但 bounded remote-query count 契約失敗",
+      "status": "FAIL"
+    }
+  ],
+  "overall": "BLOCKED",
+  "production_mutation": false,
+  "schema_version": 1
+}
