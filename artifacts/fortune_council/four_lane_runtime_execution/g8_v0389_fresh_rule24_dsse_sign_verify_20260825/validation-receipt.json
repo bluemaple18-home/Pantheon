@@ -1,0 +1,1 @@
+{"canary_created":false,"checks":{"affected_tests":"PASS: 77 passed in 8.07s","git_diff_check":"PASS","json_parse":"PASS","private_key_absent_from_repo":"PASS","private_key_destroyed_from_task_root":"PASS","production_mutation_count":0,"secret_scan":"PASS","v0388_exact_bytes":"PASS"},"production_mutation":false,"schema_version":1,"status":"PASS"}

@@ -1,0 +1,1 @@
+{"authorization_granted":false,"canary_created":false,"expected_exit_code":2,"observed_exit_code":2,"production_mutation":false,"reason":"challenge_replay","schema_version":1,"status":"NO-GO"}

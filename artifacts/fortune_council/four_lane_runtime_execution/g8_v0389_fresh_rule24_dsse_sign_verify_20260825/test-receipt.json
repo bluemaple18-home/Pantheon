@@ -1,0 +1,1 @@
+{"command":"<repo-root>/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pantheon_rule24_signed_capacity_evidence.py tests/test_pantheon_rule24_dsse_attestation.py","duration_seconds":8.07,"exit_code":0,"passed":77,"schema_version":1,"status":"PASS"}
