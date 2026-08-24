@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-G8-V0376-RULE24-SIGNED-EVIDENCE-COMPOSITION-GENERATION-2-REVIEW-001-20260824
 chain_id: PANTHEON-G8-RULE24-SIGNED-EVIDENCE
 role: reviewer
-cycle: 1
+cycle: 2
 status: ready
 type: strict_independent_code_review
 thickness: strict
