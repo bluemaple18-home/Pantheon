@@ -1,0 +1,98 @@
+{
+  "after": {
+    "git_packed_refs": {
+      "digest": "9166f12d8b195597b9cedf75b9b272cb1f998a7761b91b76cb3983f39b2df048",
+      "exists": true,
+      "files": 1
+    },
+    "git_refs": {
+      "digest": "f09332f7387e356ab94b7584373096df2df4229c262830c11b67e5bf0b6f200e",
+      "exists": true,
+      "files": 327
+    },
+    "live_root": {
+      "digest": "5e8e96d127432d7c0a8bfea2e30207ac488f3ab59f0f01f9d6a7dc6718792334",
+      "exists": true,
+      "files": 87
+    },
+    "manifest": {
+      "digest": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23",
+      "exists": true,
+      "files": 1
+    },
+    "publisher_lock": {
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exists": true,
+      "files": 1
+    },
+    "queue_root": {
+      "digest": "218ebdf7d477da085e220b370b706d6a714ae2092d3602ee8f7558a8d35da4a7",
+      "exists": true,
+      "files": 1645
+    },
+    "staged_root": {
+      "digest": "0f51d426e848908c6c9b404fc8285f1eef2c09f034a55394355e0b791cb241bb",
+      "exists": true,
+      "files": 7
+    },
+    "state_root": {
+      "digest": "5be85c0e91352b95f02b0619a1f99d722e33fb315084d34338539e78cbae754b",
+      "exists": true,
+      "files": 53
+    },
+    "transaction_root": {
+      "digest": "b3826a988c99482dec15bba5e0c0497b5bc5cd43536c492807ea264530aacc8d",
+      "exists": true,
+      "files": 17
+    }
+  },
+  "before": {
+    "git_packed_refs": {
+      "digest": "9166f12d8b195597b9cedf75b9b272cb1f998a7761b91b76cb3983f39b2df048",
+      "exists": true,
+      "files": 1
+    },
+    "git_refs": {
+      "digest": "f09332f7387e356ab94b7584373096df2df4229c262830c11b67e5bf0b6f200e",
+      "exists": true,
+      "files": 327
+    },
+    "live_root": {
+      "digest": "5e8e96d127432d7c0a8bfea2e30207ac488f3ab59f0f01f9d6a7dc6718792334",
+      "exists": true,
+      "files": 87
+    },
+    "manifest": {
+      "digest": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23",
+      "exists": true,
+      "files": 1
+    },
+    "publisher_lock": {
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exists": true,
+      "files": 1
+    },
+    "queue_root": {
+      "digest": "218ebdf7d477da085e220b370b706d6a714ae2092d3602ee8f7558a8d35da4a7",
+      "exists": true,
+      "files": 1645
+    },
+    "staged_root": {
+      "digest": "0f51d426e848908c6c9b404fc8285f1eef2c09f034a55394355e0b791cb241bb",
+      "exists": true,
+      "files": 7
+    },
+    "state_root": {
+      "digest": "5be85c0e91352b95f02b0619a1f99d722e33fb315084d34338539e78cbae754b",
+      "exists": true,
+      "files": 53
+    },
+    "transaction_root": {
+      "digest": "b3826a988c99482dec15bba5e0c0497b5bc5cd43536c492807ea264530aacc8d",
+      "exists": true,
+      "files": 17
+    }
+  },
+  "changed": [],
+  "status": "PASS"
+}

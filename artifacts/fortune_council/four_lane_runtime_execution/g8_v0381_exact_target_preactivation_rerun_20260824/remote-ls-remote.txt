@@ -1,0 +1,7 @@
+operation: git ls-remote --heads origin main
+read_only: true
+attempts: 1
+status: FAILED
+error: ssh: Could not resolve hostname github.com: -65563
+constraint: no retry
+cached_published_target_receipt: V0380 evidence recorded refs/heads/main = 5872284828f9dd6f0a75adf407becaeadb50d61a

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-V0381-EXACT-TARGET-PREACTIVATION-RERUN-20260824",
+  "target": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "local_source_checkout": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "remote_main": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "remote_fresh_check": "FAILED_ONCE_DNS_SSH_NO_RETRY",
+  "production_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "runtime_manifest_actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+  "runtime_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "relations": {
+    "local_equals_target": true,
+    "actor_equals_target": false,
+    "manifest_actor_equals_target": false,
+    "remote_value_equals_target": true,
+    "remote_freshly_verified": false
+  },
+  "verdict": "BLOCKED"
+}
