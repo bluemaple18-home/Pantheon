@@ -38,3 +38,5 @@
 - 受影響 tests：formal reconciler 與 promotion plan 兩個 test files，`68 passed in 19.36s`。
 - runtime Python 與 PATH 均沒有 pytest；未下載依賴，改用已存在的 main workspace `.venv`。
 - 所有 task-owned JSON parse、helper AST parse、evidence digest 與 staged `git diff --check` 由 `verification-receipt.json` 鎖定。
+- digest manifest 以 evidence root 為基準保存相對路徑；任意 checkout 可執行 `python g8_v0370_preauth_blocker_resolution_20260824/evidence_digest_tool.py verify`，或在 evidence root 執行 `shasum -a 256 -c evidence-digests.sha256`。
+- Repair 只離線修改既有 ownership；未重跑 remote、formal production probe、promotion plan 或 production snapshot。

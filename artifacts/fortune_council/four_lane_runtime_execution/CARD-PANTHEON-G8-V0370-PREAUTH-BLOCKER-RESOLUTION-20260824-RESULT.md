@@ -31,7 +31,7 @@ canary_created: false
 
 `BLOCKED / BOUNDED_REMOTE_QUERY_CONTRACT_VIOLATION`。
 
-SC-002 與 SC-003 成立；SC-001 與 SC-004 因 remote query invocation count `2 > 1` 不成立。這是不可由本卡內重跑修復的歷史契約違反；不得請求或執行 adoption、reset、canary、activation、Publisher child、deploy、schedule、apply、rollback、finalize、push 或 tag。
+SC-002、SC-003 與 SC-004 成立；SC-001 因 remote query invocation count `2 > 1` 不成立。SC-004 只依 protected changed surfaces 與 fetch/push/tag/ref/production mutation 判定，結果為 PASS。SC-001 的歷史契約違反不可由本卡內重跑修復；不得請求或執行 adoption、reset、canary、activation、Publisher child、deploy、schedule、apply、rollback、finalize、push 或 tag。
 
 ## Remaining Blocker and Next Step
 

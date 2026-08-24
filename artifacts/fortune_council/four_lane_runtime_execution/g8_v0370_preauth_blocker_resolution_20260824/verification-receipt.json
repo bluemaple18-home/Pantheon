@@ -1,12 +1,19 @@
 {
-  "evidence_digest_manifest": "evidence-digests.sha256",
+  "evidence_digest_manifest": {
+    "format": "sha256 + evidence-root-relative POSIX path",
+    "file_count": 70,
+    "path": "evidence-digests.sha256",
+    "portable_verify_command": "python evidence_digest_tool.py verify",
+    "shasum_verify_command": "cd <repo-root>/artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_preauth_blocker_resolution_20260824 && shasum -a 256 -c evidence-digests.sha256",
+    "status": "PASS"
+  },
   "formal_reconciler_result": {
     "blocked_code": "ACTOR_MANIFEST_AUTHORITY_MISMATCH",
     "changed_protected_surfaces": [],
     "status": "EXPECTED_PRE_ADOPTION_BLOCKED"
   },
   "git_diff_check": "PASS",
-  "helper_ast_parse": "PASS (2 files)",
+  "helper_ast_parse": "PASS (3 files)",
   "json_parse": "PASS (13 files)",
   "plan_determinism": {
     "file_sha256_first": "81237460b9088fd33799b22e999af46e9dcb99d52ba4f5cc3d596a73806b526c",
@@ -14,6 +21,12 @@
     "status": "PASS"
   },
   "production_mutation": false,
+  "repair_constraints": {
+    "formal_probe_rerun": false,
+    "production_probe_rerun": false,
+    "promotion_plan_rerun": false,
+    "remote_query_rerun": false
+  },
   "schema_version": 1,
   "tests": {
     "command": "<main-workspace>/.venv/bin/python -m pytest tests/test_pantheon_g8_production_preactivation.py tests/test_pantheon_content_runtime_promotion.py -q",

@@ -47,6 +47,12 @@
       "command": "<main-workspace>/.venv/bin/python -m pytest tests/test_pantheon_g8_production_preactivation.py tests/test_pantheon_content_runtime_promotion.py -q",
       "exit_code": 0,
       "resolution": "68 passed in 19.36s"
+    },
+    {
+      "classification": "DIGEST_TOOL_PATH_CONTEXT_ERROR",
+      "command": "python <repo-relative-evidence-path>/evidence_digest_tool.py from evidence-root cwd",
+      "exit_code": 2,
+      "resolution": "首次離線 Repair 驗證把 repo-relative path 與 evidence-root cwd 重複組合，未寫入 manifest；改用 evidence-root-relative script path 後 PASS"
     }
   ],
   "remote_query_invocation_count": 2,

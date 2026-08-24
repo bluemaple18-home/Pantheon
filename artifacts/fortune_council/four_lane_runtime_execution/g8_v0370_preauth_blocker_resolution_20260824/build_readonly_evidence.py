@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -11,8 +12,7 @@ import sys
 from typing import Any
 
 
-TASK_ROOT = Path("/Users/mattkuo/.codex/worktrees/5924/Pantheon")
-SOURCE_ROOT = Path("/private/tmp/pantheon-g8-v0370-source-5a910-20260824")
+TASK_ROOT = Path(__file__).resolve().parents[4]
 EVIDENCE_ROOT = TASK_ROOT / "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_preauth_blocker_resolution_20260824"
 CARD_PATH = TASK_ROOT / "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-G8-V0370-PREAUTH-BLOCKER-RESOLUTION-20260824.md"
 RUNTIME_ROOT = Path("/Users/mattkuo/Documents/Pantheon-canary-runtime-v8")
@@ -107,8 +107,26 @@ def patch_id(commit: str) -> str:
     return result.split()[0] if result else "EMPTY"
 
 
-def main() -> int:
-    sys.path.insert(0, str(SOURCE_ROOT))
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source-root",
+        type=Path,
+        required=True,
+        help="已存在、canonical 且 HEAD 綁定既有 source decision 的唯讀 checkout",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        source_root = args.source_root.resolve(strict=True)
+    except OSError as error:
+        raise SystemExit(f"source root is unavailable: {error}") from error
+    if not args.source_root.is_absolute() or source_root != args.source_root or not source_root.is_dir():
+        raise SystemExit("source root must be an explicit canonical directory")
+    sys.path.insert(0, str(source_root))
     from scripts.agy_content_publisher import runtime_manifest_digest
     from scripts.pantheon_content_runtime_promotion import (
         PromotionError,
@@ -198,7 +216,7 @@ def main() -> int:
         "runtime_equivalence": {
             "status": "PASS",
             "reason": "release 到 remote main 的三個 changed paths 全為 docs/handoff；runtime manifest path set 無變更。",
-            "target_runtime_digest": runtime_manifest_digest(SOURCE_ROOT),
+            "target_runtime_digest": runtime_manifest_digest(source_root),
         },
         "post_adoption_convergence": "Future authorized promotion/reset must bind actor HEAD and runtime manifest actor_head to the same remote main SHA, then run fresh formal reconciliation before canary.",
     }
@@ -226,7 +244,7 @@ def main() -> int:
         payload = json.loads(path.read_text(encoding="utf-8"))
         preserved_runs.append({"run_id": payload.get("run_id"), "status": payload.get("status"), "path": path.name})
     preserved_ids = tuple(sorted(str(item["run_id"]) for item in preserved_runs))
-    target_runtime_digest = runtime_manifest_digest(SOURCE_ROOT)
+    target_runtime_digest = runtime_manifest_digest(source_root)
     capacity_digest = sha256_file(CAPACITY_RECEIPT)
     planning_contract_digest = sha256_file(CARD_PATH)
     inputs = {
@@ -266,7 +284,7 @@ def main() -> int:
     write_json("promotion-plan-inputs.json", inputs)
 
     request = PromotionRequest(
-        source_repo=SOURCE_ROOT,
+        source_repo=source_root,
         source_sha=REMOTE_MAIN_SHA,
         expected_origin=EXPECTED_ORIGIN,
         actor_root=ACTOR_ROOT,

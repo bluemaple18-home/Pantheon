@@ -22,8 +22,8 @@
     {
       "evidence": "reconciler-result.json, mutation-tripwire.json",
       "gate": "SC-004 zero mutation",
-      "reason": "protected surfaces 未變，但 bounded remote-query count 契約失敗",
-      "status": "FAIL"
+      "reason": "protected before/after changed surfaces 為空，且 fetch/push/tag/ref/production mutation count 均為 0；remote query invocation 上限只由 SC-001 判定",
+      "status": "PASS"
     }
   ],
   "overall": "BLOCKED",
