@@ -1,69 +1,114 @@
 {
   "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
-  "matched_state": null,
+  "matched_state": "PRE_AUTHORIZATION_READINESS_BLOCKED",
   "observed_at": "2026-08-24T02:20:33Z",
   "rows": [
     {
       "evidence": "authority-receipt.json",
       "gate": "Release tag authority",
+      "phase": "pre_authorization",
       "reason": "peeled v0.3.370 is b0950d4c436cc902e17ac110b579b35b84aa53e4",
       "status": "PASS"
     },
     {
       "evidence": "authority-receipt.json",
-      "gate": "Provisioning HEAD",
-      "reason": "task HEAD equals required_base_sha eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+      "gate": "Repair candidate lineage",
+      "phase": "pre_authorization",
+      "reason": "repair HEAD 6de8e4874d77aacce90ffee3e265ed527686a0f0 has parent eb2ddd8157901e8764ffcc5fd8a5c68822fa357c; no amend/rebase was used in this repair",
       "status": "PASS"
+    },
+    {
+      "evidence": "authority-receipt.json and reconciler-result-repair-2.json",
+      "gate": "Git topology authority",
+      "phase": "pre_authorization",
+      "reason": "formal repair-head probe returned BLOCKED / REMOTE_DIVERGED because required_source 6de8e4874d77aacce90ffee3e265ed527686a0f0 is not an ancestor of local origin_main 5a9103785ebfc8d5a28fa8188def6069beb12d88; fetch/ref mutation was forbidden",
+      "status": "BLOCKED"
     },
     {
       "evidence": "authority-receipt.json",
-      "gate": "Origin main authority",
-      "reason": "local origin/main ref is stale/mismatched; fetching is forbidden in this card because it would mutate Git refs",
-      "status": "BLOCKED"
+      "gate": "Patch equivalence scope",
+      "phase": "pre_authorization",
+      "reason": "e7892fd2c6/cf2a341ecf and eb2ddd8157/5a9103785e patch-id pairs are equivalent, but whole trees differ and this does not prove Git authority convergence",
+      "status": "PASS_LIMITED"
     },
     {
-      "evidence": "production-identity.json",
-      "gate": "Production runtime identity",
-      "reason": "actor db9fb4343df212fd3b65546b017aba159620a058 and manifest d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e remain old/current",
+      "evidence": "authority-receipt.json and machine-local-locators.json",
+      "gate": "Canonical release observation",
+      "phase": "pre_authorization",
+      "reason": "locked prior canonical observation path has formal schema fields and sha256 839dcb7b0f9009779ccc4966ca98e0f6d5e0619de1cd5be75fdf25001c4d20a9",
       "status": "PASS"
     },
     {
-      "evidence": "production-identity.json",
-      "gate": "Runtime source adoption",
-      "reason": "production has not adopted v0.3.370 release actor b0950d4c436cc902e17ac110b579b35b84aa53e4",
-      "status": "BLOCKED"
-    },
-    {
-      "evidence": "release-observation.json",
-      "gate": "Publisher reset provenance",
-      "reason": "publisher-reset-receipt.json is absent; only failure-receipt.json status ROLLBACK_COMPLETE at phase publisher_reset_bootstrap is present",
-      "status": "BLOCKED"
-    },
-    {
-      "evidence": "mutation-tripwire.json",
-      "gate": "Production tripwire",
-      "reason": "before/after protected surfaces were unchanged",
-      "status": "PASS"
+      "evidence": "release-observation.json and authority-receipt.json",
+      "gate": "Candidate release observation",
+      "phase": "pre_authorization",
+      "reason": "candidate observation is advisory only because it lacks formal schema fields contract_id, edge_map_id, evidence_scopes, and services",
+      "status": "BLOCKED_AS_FORMAL_INPUT"
     },
     {
       "evidence": "reconciler-result.json",
-      "gate": "Formal reconciler",
-      "reason": "existing read-only reconciler returned BLOCKED / ALLOWLIST_REQUIRED without --allow-source-drift",
+      "gate": "Original formal reconciler result",
+      "phase": "pre_authorization",
+      "reason": "BLOCKED / ALLOWLIST_REQUIRED was an argv early guard before reconcile(); it is retained as evidence but is not treated as proof that only allowlist remains",
+      "status": "BLOCKED_EARLY_GUARD"
+    },
+    {
+      "evidence": "reconciler-result-repair-1.json",
+      "gate": "Formal reconciler baseline-parent probe",
+      "phase": "pre_authorization",
+      "reason": "BLOCKED / LOCAL_HEAD_MISMATCH because repair worktree HEAD is 6de8e4874d77aacce90ffee3e265ed527686a0f0 while original parent required_source was eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+      "status": "BLOCKED"
+    },
+    {
+      "evidence": "reconciler-result-repair-2.json",
+      "gate": "Formal reconciler repair-head probe",
+      "phase": "pre_authorization",
+      "reason": "BLOCKED / REMOTE_DIVERGED with canonical observation; actor-manifest authority was not evaluated because topology failed first",
       "status": "BLOCKED"
     },
     {
       "evidence": "authority-receipt.json",
       "gate": "CodeGraph readiness",
-      "reason": "CodeGraph is not initialized in this worktree; bounded rg/source reads were used as degraded evidence",
-      "status": "UNKNOWN"
+      "phase": "pre_authorization",
+      "reason": "main workspace CodeGraph at /Users/mattkuo/Documents/Pantheon is READY with 645 files, 7648 nodes, and 16446 edges; current detached worktree index remained degraded",
+      "status": "PASS_WITH_SCOPE_NOTE"
     },
     {
-      "evidence": "CARD-PANTHEON-G8-CURRENT-PRODUCTION-READONLY-RECONCILIATION-V0370-20260822-RETRY-1-RESULT.md and evidence-digests.sha256",
-      "gate": "Rule 24 / Rule 25 carried evidence",
-      "reason": "previous current reconciliation preserved synthetic Rule 24 PASS and Rule 25 NO-GO because phase/runtime identity is not current; this card did not rerun synthetic probes",
-      "status": "UNKNOWN"
+      "evidence": "production-identity.json",
+      "gate": "Production runtime identity",
+      "phase": "pre_authorization",
+      "reason": "current production actor/manifest identity was observed read-only and remains old/current",
+      "status": "PASS"
+    },
+    {
+      "evidence": "production-identity.json",
+      "gate": "Runtime source adoption",
+      "phase": "post_authorization_mutation_expected",
+      "reason": "production has not adopted v0.3.370 yet; this is expected before adoption authorization and must be rechecked after adoption/reset before canary",
+      "status": "EXPECTED_NOT_YET"
+    },
+    {
+      "evidence": "release-observation.json",
+      "gate": "Publisher reset provenance",
+      "phase": "post_reset_pre_canary",
+      "reason": "publisher-reset-receipt.json is absent before the future authorized reset; a fresh success receipt is required after reset and before canary",
+      "status": "EXPECTED_NOT_YET"
+    },
+    {
+      "evidence": "mutation-tripwire.json and reconciler-result-repair-*.json",
+      "gate": "Production tripwire",
+      "phase": "pre_authorization",
+      "reason": "before/after protected surfaces were unchanged in original tripwire and both repair reconciler probes reported changed surfaces []",
+      "status": "PASS"
+    },
+    {
+      "evidence": "execution-contract.json",
+      "gate": "Shared command template portability",
+      "phase": "pre_authorization",
+      "reason": "shared mutation command templates use locator tokens; machine-local values are isolated to machine-local-locators.json and command receipts",
+      "status": "PASS"
     }
   ],
-  "topology_candidate": "ST-TARGET-STAGED",
+  "topology_candidate": "PRE_AUTH_REMOTE_DIVERGED",
   "verdict": "BLOCKED"
 }

@@ -1,27 +1,83 @@
 {
   "blocked_reasons": [
-    "local origin/main ref is 5a9103785ebfc8d5a28fa8188def6069beb12d88, not required base eb2ddd8157901e8764ffcc5fd8a5c68822fa357c; no fetch was run because Git ref mutation is forbidden",
-    "production actor and runtime manifest remain db9fb4343df212fd3b65546b017aba159620a058 / d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
-    "formal reconciler returned BLOCKED / ALLOWLIST_REQUIRED with no drift allowlist",
-    "CodeGraph is not initialized in this worktree"
+    "pre-authorization Git authority is not converged: local main is 58e6e0bae776fa22100b2d32d74a709e827a6ae4, local origin/main is 5a9103785ebfc8d5a28fa8188def6069beb12d88, repair HEAD is 6de8e4874d77aacce90ffee3e265ed527686a0f0, and the original candidate parent is eb2ddd8157901e8764ffcc5fd8a5c68822fa357c; no fetch or ref mutation was run",
+    "formal reconciler repair probe with the canonical observation and repair HEAD returned BLOCKED / REMOTE_DIVERGED before actor-manifest authority could be evaluated",
+    "promotion plan readiness is not proven with an exact allowlist, capacity receipt, target digest, rollback bundle, and locator binding sufficient for a human authorization request"
   ],
   "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
   "checked_at": "2026-08-24T02:20:33Z",
   "codegraph": {
-    "ready": false,
-    "status": "CONTEXT_DEGRADED",
-    "reason": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/9aa8/Pantheon"
+    "current_worktree": {
+      "ready": false,
+      "reason": "CodeGraph was not initialized for /Users/mattkuo/.codex/worktrees/9aa8/Pantheon during the original candidate; bounded source reads were used there",
+      "status": "CONTEXT_DEGRADED"
+    },
+    "main_workspace": {
+      "files": 645,
+      "nodes": 7648,
+      "project_path": "/Users/mattkuo/Documents/Pantheon",
+      "ready": true,
+      "status": "READY"
+    },
+    "source_findings": [
+      "scripts.pantheon_g8_production_preactivation.evaluate_authority first requires local HEAD to equal required_source",
+      "the same authority gate requires required_source to be an ancestor of origin_main before any allowlist diff is evaluated",
+      "after topology convergence, the same authority gate requires production actor_head and manifest_actor_head to equal origin_main; before adoption this can legitimately block as ACTOR_MANIFEST_AUTHORITY_MISMATCH and must not be required to GO for adoption/reset authorization",
+      "scripts.pantheon_g8_production_preactivation.evaluate_release_state requires formal observation fields contract_id, edge_map_id, evidence_scopes, and services"
+    ]
+  },
+  "formal_reconciler": {
+    "candidate_release_observation": {
+      "formal_schema_complete": false,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_production_adoption_reset_readiness_20260822/release-observation.json",
+      "sha256": "85c02a5b61655a039b2bd9ee111eb2a54dac89bf7a7eedb2a6a3eeccaa8d6f7f",
+      "use": "advisory read-only snapshot only; not valid as formal reconciler release observation"
+    },
+    "canonical_release_observation": {
+      "formal_schema_complete": true,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/release-observation.json",
+      "sha256": "839dcb7b0f9009779ccc4966ca98e0f6d5e0619de1cd5be75fdf25001c4d20a9",
+      "source": "previous current production readonly reconciliation"
+    },
+    "original_candidate_reconciler_result": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_production_adoption_reset_readiness_20260822/reconciler-result.json",
+      "status": "BLOCKED",
+      "blocked_code": "ALLOWLIST_REQUIRED",
+      "interpretation": "argv early guard only; reconcile() was not reached, so this does not prove the only remaining issue was allowlist and does not diagnose actor/manifest authority"
+    },
+    "repair_base_probe": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_production_adoption_reset_readiness_20260822/reconciler-result-repair-1.json",
+      "sha256": "468bf2491a488b4e9ba602d6b7ef6575e08330b39fc0b28ed92839ba37ad5fd2",
+      "status": "BLOCKED",
+      "blocked_code": "LOCAL_HEAD_MISMATCH",
+      "interpretation": "repair worktree is on candidate 6de8e4874d77aacce90ffee3e265ed527686a0f0, not original parent eb2ddd8157901e8764ffcc5fd8a5c68822fa357c"
+    },
+    "repair_head_probe": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_production_adoption_reset_readiness_20260822/reconciler-result-repair-2.json",
+      "sha256": "1cc2c48f266d3826fcadc23cdc71c146944eb9cc07cbb503c160f92943c6eb70",
+      "status": "BLOCKED",
+      "blocked_code": "REMOTE_DIVERGED",
+      "interpretation": "required_source 6de8e4874d77aacce90ffee3e265ed527686a0f0 is not an ancestor of local origin_main 5a9103785ebfc8d5a28fa8188def6069beb12d88; no adoption/reset authorization can rely on this topology"
+    }
   },
   "local_git_authority": {
-    "clean_before_evidence_write": true,
-    "head": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
-    "main": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+    "clean_before_repair_probes": true,
+    "head": "6de8e4874d77aacce90ffee3e265ed527686a0f0",
+    "local_main": "58e6e0bae776fa22100b2d32d74a709e827a6ae4",
     "origin_main_local_ref": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
-    "parent_candidate_sha": "2255cc504ae9f8925728eb789594aa00f48c98fc",
+    "parent_candidate_sha": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+    "patch_id_equivalence": [
+      "e7892fd2c6 and cf2a341ecf have equivalent patch-id",
+      "eb2ddd8157 and 5a9103785e have equivalent patch-id"
+    ],
+    "patch_id_equivalence_scope": "patch equivalence only; whole trees differ and this is not Git authority convergence",
     "required_base_ref": "main",
     "required_base_sha": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
-    "release_baseline_is_ancestor_of_required_base": true,
     "worktree": "detached"
+  },
+  "phase_specific_facts_not_pre_authorization_blockers": {
+    "production_actor_not_adopted_to_v0370": "expected before any authorized adoption; must be rechecked after adoption/reset before canary",
+    "publisher_reset_success_receipt_absent": "expected before the future authorized reset; a fresh receipt is required after reset and before canary"
   },
   "production_actor": {
     "actor_describe": "v0.3.368-162-gdb9fb4343d",

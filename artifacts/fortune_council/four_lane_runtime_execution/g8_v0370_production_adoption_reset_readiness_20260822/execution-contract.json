@@ -1,14 +1,13 @@
 {
   "authorization_ready": false,
   "blocked_codes": [
-    "ORIGIN_MAIN_AUTHORITY_MISMATCH",
-    "CODEGRAPH_NOT_INITIALIZED",
-    "FORMAL_RECONCILER_ALLOWLIST_REQUIRED",
-    "PUBLISHER_RESET_SUCCESS_RECEIPT_ABSENT",
-    "PRODUCTION_NOT_ADOPTED_TO_V0370"
+    "PRE_AUTH_GIT_TOPOLOGY_REMOTE_DIVERGED",
+    "PRE_AUTH_PROMOTION_PLAN_READINESS_NOT_PROVEN",
+    "FORMAL_RECONCILER_PRE_ADOPTION_BLOCKED_REMOTE_DIVERGED",
+    "CANONICAL_OBSERVATION_CARRIED_FROM_PRIOR_READONLY_RECONCILIATION"
   ],
   "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
-  "command_contract_status": "BLOCKED_NOT_EXECUTABLE",
+  "command_contract_status": "BLOCKED_PHASE_SPLIT_NOT_AUTHORIZABLE",
   "current_identity": {
     "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
     "generation": "g34-db9fb434-20260822T041850Z",
@@ -28,11 +27,15 @@
   "evidence": {
     "authority": "authority-receipt.json",
     "before_snapshot": "before/",
+    "canonical_observation": "../g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/release-observation.json",
+    "candidate_observation": "release-observation.json",
     "gate_matrix": "gate-matrix.json",
+    "machine_local_locators": "machine-local-locators.json",
     "mutation_tripwire": "mutation-tripwire.json",
-    "observation": "release-observation.json",
     "production_identity": "production-identity.json",
-    "reconciler": "reconciler-result.json"
+    "reconciler_early_guard": "reconciler-result.json",
+    "reconciler_repair_base_probe": "reconciler-result-repair-1.json",
+    "reconciler_repair_head_probe": "reconciler-result-repair-2.json"
   },
   "forbidden_without_new_authorization": [
     "adoption",
@@ -49,27 +52,61 @@
     "schedule",
     "steady autonomy"
   ],
-  "preconditions_required_before_any_future_authorization": [
-    {
-      "id": "P0",
-      "requirement": "refresh Git authority in a separate authorized card and prove required release/source/main/origin refs without protected ref drift"
-    },
-    {
-      "id": "P1",
-      "requirement": "initialize or provide CodeGraph context, or explicitly authorize degraded source review as sufficient"
-    },
-    {
-      "id": "P2",
-      "requirement": "run the existing formal read-only reconciler without --allow-source-drift and obtain a non-BLOCKED result, or resolve the authority mismatch causing ALLOWLIST_REQUIRED"
-    },
-    {
-      "id": "P3",
-      "requirement": "produce a fresh Rule 24 / Rule 25 readiness package for the target phase after adoption/reset; old synthetic readiness cannot authorize canary"
-    }
-  ],
+  "locator_contract": {
+    "<launch-agent-root>": "machine-local LaunchAgents root; bind in machine-local-locators.json",
+    "<private-stage-root>": "<launch-agent-root>/.pantheon-four-lane-stage",
+    "<repo-root>": "caller-provided source checkout for the authorized run; bind in machine-local evidence, not in shared command templates",
+    "<runtime-actor-root>": "<runtime-root>/actor",
+    "<runtime-log-root>": "<runtime-root>/logs",
+    "<runtime-manifest>": "<runtime-root>/runtime-manifest.json",
+    "<runtime-python>": "machine-local Python executable from runtime manifest; bind in machine-local-locators.json",
+    "<runtime-queue-root>": "<runtime-root>/queue",
+    "<runtime-root>": "machine-local Pantheon runtime root; bind in machine-local-locators.json",
+    "<runtime-state-root>": "<runtime-root>/state",
+    "<runtime-transaction-root>": "<runtime-root>/transactions",
+    "<uv-executable>": "machine-local uv executable from runtime manifest; bind in machine-local-locators.json"
+  },
+  "phase_split": {
+    "not_required_before_adoption_reset_authorization": [
+      "production actor already adopted to v0.3.370",
+      "publisher-reset-receipt.json already present for the future authorized reset"
+    ],
+    "post_adoption_reset_pre_canary_gate": [
+      {
+        "id": "C0",
+        "requirement": "run a fresh formal reconciliation after adoption/reset with actor_head and manifest_actor_head equal to origin_main"
+      },
+      {
+        "id": "C1",
+        "requirement": "prove the authorized Publisher reset success receipt with exact correlation id, target generation, post-reset Publisher identity, and other-six unchanged evidence"
+      },
+      {
+        "id": "C2",
+        "requirement": "rerun Rule 24 / Rule 25 production readiness for the post-adoption target phase before any canary"
+      }
+    ],
+    "pre_authorization_readiness": [
+      {
+        "id": "P0",
+        "requirement": "read-only Git authority convergence must be proven against a current main/origin authority; this repair observed local main 58e6e0bae776fa22100b2d32d74a709e827a6ae4, local origin/main 5a9103785ebfc8d5a28fa8188def6069beb12d88, repair HEAD 6de8e4874d77aacce90ffee3e265ed527686a0f0, and candidate parent eb2ddd8157901e8764ffcc5fd8a5c68822fa357c without fetching"
+      },
+      {
+        "id": "P1",
+        "requirement": "use the existing canonical release observation or formal collector output; the locked canonical observation is artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/release-observation.json with sha256 839dcb7b0f9009779ccc4966ca98e0f6d5e0619de1cd5be75fdf25001c4d20a9"
+      },
+      {
+        "id": "P2",
+        "requirement": "pre-authorization formal reconciler invocation is advisory for topology and observation validity only; it is not required to return GO while production has not yet been adopted/reset"
+      },
+      {
+        "id": "P3",
+        "requirement": "promotion plan readiness must be proven with exact allowlist, locators, capacity receipt, target digest, and rollback bundle before any human authorization request is actionable"
+      }
+    ]
+  },
   "steps_if_preconditions_are_later_satisfied": [
     {
-      "command_template": "<runtime-python> -m scripts.pantheon_content_runtime_promotion plan --source-repo <clean-v0.3.370-source-repo> --source-sha b0950d4c436cc902e17ac110b579b35b84aa53e4 --expected-origin <origin-url> --actor-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --expected-current-actor-sha db9fb4343df212fd3b65546b017aba159620a058 --manifest-path /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json --expected-current-manifest-digest d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e --private-stage-root /Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage --expected-current-stage-digest 94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca --transaction-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0370-production-adoption-reset-<authorized-correlation-id> --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --publisher-state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --log-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs --target-identity gate2-actor:b0950d4c436cc902e17ac110b579b35b84aa53e4:activation-only --target-runtime-digest <computed-by-plan-source> --target-config-version formal-runtime-v3-model-route-v1 --target-generation g35-b0950d4c-<authorized-utc> --target-python-executable /Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 --target-uv-executable /Users/mattkuo/.local/bin/uv --authorization-digest <authorization-request-sha256> --capacity-receipt <fresh-capacity-receipt-path> --capacity-receipt-digest <fresh-capacity-receipt-sha256> --correlation-id <authorized-correlation-id> --preserve-run-id auto-i18n-en-614aa4dc3542ab2c5637",
+      "command_template": "<runtime-python> -m scripts.pantheon_content_runtime_promotion plan --source-repo <clean-v0.3.370-source-repo> --source-sha b0950d4c436cc902e17ac110b579b35b84aa53e4 --expected-origin <origin-url> --actor-root <runtime-actor-root> --expected-current-actor-sha db9fb4343df212fd3b65546b017aba159620a058 --manifest-path <runtime-manifest> --expected-current-manifest-digest d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e --private-stage-root <private-stage-root> --expected-current-stage-digest 94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca --transaction-root <runtime-transaction-root>/g8-v0370-production-adoption-reset-<authorized-correlation-id> --queue-root <runtime-queue-root> --publisher-state-root <runtime-state-root> --log-root <runtime-log-root> --target-identity gate2-actor:b0950d4c436cc902e17ac110b579b35b84aa53e4:activation-only --target-runtime-digest <computed-by-plan-source> --target-config-version formal-runtime-v3-model-route-v1 --target-generation g35-b0950d4c-<authorized-utc> --target-python-executable <runtime-python> --target-uv-executable <uv-executable> --authorization-digest <authorization-request-sha256> --capacity-receipt <fresh-capacity-receipt-path> --capacity-receipt-digest <fresh-capacity-receipt-sha256> --correlation-id <authorized-correlation-id> --preserve-run-id auto-i18n-en-614aa4dc3542ab2c5637",
       "expected_receipt": "plan JSON with status READY_TO_APPLY and plan_digest",
       "id": "plan-runtime-adoption",
       "mutation": false,
@@ -84,26 +121,33 @@
       "stop_if": "any state is ROLLED_BACK/NO-GO, actor/manifest/stage postcheck fails, or queue identity changes"
     },
     {
-      "command_template": "PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --install",
+      "command_template": "PANTHEON_PYTHON_PATH=<runtime-python> PANTHEON_RUNTIME_MANIFEST_FILE=<runtime-manifest> PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --install",
       "expected_receipt": "private stage contains coordinator plus four lane plists bound to <new-manifest-digest>",
       "id": "stage-coordinator-and-lanes",
       "mutation": true,
       "stop_if": "preflight fails, stage digest does not match target generation, or live plists change"
     },
     {
-      "command_template": "PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> PANTHEON_PUBLISH_MAX_RUNS=1 PANTHEON_PUBLISH_EXACT_RUN_ID=auto-i18n-en-614aa4dc3542ab2c5637 <repo-root>/scripts/install_agy_content_publisher_launchd.sh --install",
+      "command_template": "PANTHEON_PYTHON_PATH=<runtime-python> PANTHEON_RUNTIME_MANIFEST_FILE=<runtime-manifest> PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> PANTHEON_PUBLISH_MAX_RUNS=1 PANTHEON_PUBLISH_EXACT_RUN_ID=auto-i18n-en-614aa4dc3542ab2c5637 <repo-root>/scripts/install_agy_content_publisher_launchd.sh --install",
       "expected_receipt": "private stage publisher plist plus publisher-exact-run-id and publisher-max-runs=1",
       "id": "stage-publisher-exact-run",
       "mutation": true,
       "stop_if": "publisher deployment preflight fails or exact run is not complete/unique"
     },
     {
-      "command_template": "PANTHEON_ACTIVATION_CORRELATION_ID=<authorized-correlation-id> PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only",
-      "expected_receipt": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/publisher-reset-receipt.json with matching correlation, target generation, post-reset Publisher receipt, and other-six unchanged proof",
+      "command_template": "PANTHEON_ACTIVATION_CORRELATION_ID=<authorized-correlation-id> PANTHEON_PYTHON_PATH=<runtime-python> PANTHEON_RUNTIME_MANIFEST_FILE=<runtime-manifest> PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only",
+      "expected_receipt": "<private-stage-root>/publisher-reset-receipt.json with matching correlation, target generation, post-reset Publisher receipt, and other-six unchanged proof",
       "id": "reset-publisher-activation-only",
       "mutation": true,
       "rollback": "installer rollback trap restores previous Publisher plist and launchctl loaded state; failure writes failure-receipt.json",
       "stop_if": "Publisher PID is present, launchctl path drifts, other-six plists/identity drift, non-allowed exit is observed, or success receipt is absent/stale"
+    },
+    {
+      "command_template": "<runtime-python> -m scripts.pantheon_g8_production_preactivation --release-observation <fresh-post-adoption-canonical-observation> --required-source <post-adoption-source-sha> --origin-main <current-origin-main-sha> <all-protected-roots-and-digests>",
+      "expected_receipt": "formal reconciliation status READY_FOR_PRODUCTION_AUTHORIZATION/GO before canary only",
+      "id": "post-adoption-reset-formal-reconciliation-before-canary",
+      "mutation": false,
+      "stop_if": "any authority, schema, receipt, actor/manifest, selector, or tripwire gate is BLOCKED/UNKNOWN"
     }
   ],
   "tripwire": {

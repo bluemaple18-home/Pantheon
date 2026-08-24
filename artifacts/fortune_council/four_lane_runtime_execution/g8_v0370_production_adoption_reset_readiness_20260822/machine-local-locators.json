@@ -1,0 +1,31 @@
+{
+  "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
+  "checked_at": "2026-08-24T02:20:33Z",
+  "locator_bindings": {
+    "<launch-agent-root>": "/Users/mattkuo/Library/LaunchAgents",
+    "<private-stage-root>": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage",
+    "<repo-root>": "/Users/mattkuo/.codex/worktrees/9aa8/Pantheon",
+    "<runtime-actor-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "<runtime-log-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "<runtime-manifest>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "<runtime-python>": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "<runtime-queue-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "<runtime-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8",
+    "<runtime-state-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "<runtime-transaction-root>": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions",
+    "<uv-executable>": "/Users/mattkuo/.local/bin/uv"
+  },
+  "digest_bindings": {
+    "canonical_release_observation_path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/release-observation.json",
+    "canonical_release_observation_sha256": "839dcb7b0f9009779ccc4966ca98e0f6d5e0619de1cd5be75fdf25001c4d20a9",
+    "candidate_release_observation_path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_production_adoption_reset_readiness_20260822/release-observation.json",
+    "candidate_release_observation_sha256": "85c02a5b61655a039b2bd9ee111eb2a54dac89bf7a7eedb2a6a3eeccaa8d6f7f",
+    "runtime_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+    "stage_tree_digest": "94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca"
+  },
+  "notes": [
+    "This file is machine-local evidence only; shared command templates in execution-contract.json use locator tokens.",
+    "No production mutation, fetch, push, tag, adoption, reset, canary, activation, or deploy was performed while collecting these bindings."
+  ],
+  "production_mutation": false
+}
