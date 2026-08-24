@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-G8-V0379-AUTHORITY-CONVERGENCE-DECISION-PACKET-20260824",
+  "observed_at": "2026-08-24",
+  "candidate_integration_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "worktree_head_at_observation": "064654bf7f1c599cd01853d7fceb8fb9fcc37d65",
+  "remote_main": "91095924b1fe06955f525310b62cc0cfbf7948cd",
+  "production_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "manifest_actor": "db9fb4343df212fd3b65546b017aba159620a058",
+  "relations_to_remote_main": [
+    {
+      "identity": "local_integration",
+      "sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+      "ancestry": "remote_is_ancestor",
+      "ahead": 21,
+      "behind": 0,
+      "evidence": "read-only git merge-base/rev-list in this worktree"
+    },
+    {
+      "identity": "production_actor",
+      "sha": "db9fb4343df212fd3b65546b017aba159620a058",
+      "ancestry": "production_is_ancestor",
+      "ahead": 0,
+      "behind": 43,
+      "evidence": "V0378 supplied baseline and read-only actor graph"
+    },
+    {
+      "identity": "runtime_manifest_actor",
+      "sha": "db9fb4343df212fd3b65546b017aba159620a058",
+      "ancestry": "production_is_ancestor",
+      "ahead": 0,
+      "behind": 43,
+      "evidence": "V0378 summary.json and release-observation.json"
+    }
+  ],
+  "current_authority_status": {
+    "v0378_verdict": "BLOCKED",
+    "v0378_blocked_code": "REMOTE_DIVERGED",
+    "tripwire": "PASS",
+    "fresh_recheck_required_after_each_authorized_mutation": true,
+    "production_write_performed": false
+  }
+}

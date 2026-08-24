@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "sequence": [
+    {
+      "step": "P0",
+      "name": "remote Git publication",
+      "mutation": "Publish the already-identified candidate integration commit 5872284828f9dd6f0a75adf407becaeadb50d61a to the authorized remote main publication boundary; exact refspec and actor must be separately approved.",
+      "preconditions": ["clean source worktree", "candidate SHA is immutable and reviewed", "Rule 24 storage gate is PASS/ not applicable to this Git-only publication", "explicit user authorization for push"],
+      "success_evidence": ["push receipt with remote ref and resulting SHA", "read-only remote main verification equals candidate SHA", "publication actor/correlation identity"],
+      "fail_closed": ["remote rejects or resolves to any other SHA", "dirty source, changed candidate, missing authorization, or ambiguous remote ref"],
+      "rollback_boundary": "Do not rewrite or delete remote history. Stop and retain the published SHA; any revert or corrective publication requires a new explicit authorization.",
+      "separate_authorization": true
+    },
+    {
+      "step": "P1",
+      "name": "production adoption/reset",
+      "mutation": "Using the existing formal promotion/adoption contract, adopt the published target into the production actor/manifest and perform only the separately authorized publisher activation-only reset if its preconditions pass.",
+      "preconditions": ["P0 remote verification PASS", "fresh promotion plan READY_TO_APPLY", "exact current actor and manifest digests match the plan", "Rule 24 production readiness PASS", "Rule 25 capability/readiness gates PASS where applicable", "explicit user authorization for production adoption and reset"],
+      "success_evidence": ["formal promotion transaction receipt", "actor HEAD and manifest actor_head equal published remote SHA", "manifest digest and target generation", "reset success receipt with correlation, target generation, post-reset identity, and six-other-services-unchanged proof", "protected before/after tripwire PASS"],
+      "fail_closed": ["any identity, digest, generation, lock, stage, queue, state, transaction, or service drift", "missing or failed reset receipt", "Rule 24/25 unknown or NO-GO", "any mutation outside allowlist"],
+      "rollback_boundary": "Use only the formal command's built-in rollback bundle for a failed reset/adoption; do not hand-edit actor, manifest, queue, state, stage, barriers, or LaunchAgents. A rollback receipt is terminal for this execution line and requires new authorization to retry.",
+      "separate_authorization": true
+    },
+    {
+      "step": "P2",
+      "name": "fresh read-only authority recheck",
+      "mutation": "None. Re-read remote main, production actor, runtime manifest, release observation, and protected mutation surfaces through the formal read-only reconciler.",
+      "preconditions": ["P1 success receipts are complete", "no intervening mutation", "fresh correlation ID and evidence directory"],
+      "success_evidence": ["remote SHA equals actor HEAD equals manifest actor_head", "formal reconciler PASS", "release state is contract-valid", "Rule 24/25 evidence is current", "tripwire PASS with changed=[]"],
+      "fail_closed": ["any SHA mismatch, stale observation, missing receipt, reconciler BLOCKED, unknown state, or tripwire change"],
+      "rollback_boundary": "No rollback is performed by a read-only recheck. Preserve all evidence and stop; any corrective mutation needs a new authorization.",
+      "separate_authorization": false
+    }
+  ],
+  "minimum_order": ["P0", "P1", "P2"],
+  "forbidden_in_this_packet": ["fetch", "pull", "push", "tag", "production_write", "adoption", "reset", "canary", "launchctl_mutation"]
+}
