@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-G8-V0376-RULE24-SIGNED-EVIDENCE-COMPOSITION-GENERATION-2-20260824
 chain_id: PANTHEON-G8-RULE24-SIGNED-EVIDENCE
 role: implementer
-cycle: 1
+cycle: 2
 status: ready
 type: strict_core_bounded_implementation
 thickness: strict
