@@ -286,6 +286,46 @@ def test_same_challenge_digest_can_only_verify_once(tmp_path: Path) -> None:
     assert fixture["fingerprint"] not in json.dumps(claim)
 
 
+def test_replay_rejection_does_not_release_payload_to_observer(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+    observed: list[bytes] = []
+
+    first = rule24.verify_rule24_attestation(
+        envelope=envelope,
+        trust_policy_path=fixture["trust_policy"],
+        pinned_public_key_path=fixture["public_key"],
+        target_path=fixture["target"],
+        expected_target_name=TARGET_NAME,
+        expected_target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
+        verified_payload_observer=observed.append,
+    )
+    second = rule24.verify_rule24_attestation(
+        envelope=envelope,
+        trust_policy_path=fixture["trust_policy"],
+        pinned_public_key_path=fixture["public_key"],
+        target_path=fixture["target"],
+        expected_target_name=TARGET_NAME,
+        expected_target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
+        verified_payload_observer=observed.append,
+    )
+
+    assert first["status"] == "PASS"
+    assert second["status"] == "NO-GO"
+    assert second["reason"] == "challenge_replay"
+    assert observed == [base64.b64decode(envelope["payload"])]
+
+
 def test_concurrent_verifiers_allow_at_most_one_replay_claim_pass(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     envelope = _produce(fixture)["envelope"]
@@ -308,6 +348,41 @@ def test_pre_validation_failure_does_not_create_replay_claim(tmp_path: Path) -> 
     assert result["status"] == "NO-GO"
     assert result["reason"] == "payload_type"
     assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+def test_replay_claim_write_oserror_is_deterministic_no_go_without_observer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+    observed: list[bytes] = []
+    real_open = rule24.os.open
+
+    def fail_claim_open(path: object, flags: int, mode: int = 0o777, **kwargs: object) -> int:
+        if Path(path).parent == fixture["replay_state"]:
+            raise OSError("synthetic claim write failure")
+        return real_open(path, flags, mode, **kwargs)
+
+    monkeypatch.setattr(rule24.os, "open", fail_claim_open)
+    result = rule24.verify_rule24_attestation(
+        envelope=envelope,
+        trust_policy_path=fixture["trust_policy"],
+        pinned_public_key_path=fixture["public_key"],
+        target_path=fixture["target"],
+        expected_target_name=TARGET_NAME,
+        expected_target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
+        verified_payload_observer=observed.append,
+    )
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == "replay_state_claim"
+    assert observed == []
 
 
 def test_private_public_keypair_mismatch_fails_without_authenticated_pass_fields(

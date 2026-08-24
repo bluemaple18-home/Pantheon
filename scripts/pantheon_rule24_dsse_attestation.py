@@ -643,8 +643,11 @@ def _claim_challenge_digest(
         raise Rule24AttestationError("challenge_replay", "challenge digest is already claimed") from error
     except OSError as error:
         raise Rule24AttestationError("replay_state_claim", "challenge claim cannot be created") from error
-    with os.fdopen(fd, "wb") as claim_file:
-        claim_file.write(encoded)
+    try:
+        with os.fdopen(fd, "wb") as claim_file:
+            claim_file.write(encoded)
+    except OSError as error:
+        raise Rule24AttestationError("replay_state_claim", "challenge claim cannot be written") from error
 
 
 def verify_rule24_attestation(
@@ -698,13 +701,13 @@ def verify_rule24_attestation(
             )
         )
         authenticated_statement_digest = _digest_bytes(payload)
-        if verified_payload_observer is not None:
-            verified_payload_observer(payload)
         _claim_challenge_digest(
             replay_state,
             challenge_digest=challenge_digest,
             authenticated_statement_digest=authenticated_statement_digest,
         )
+        if verified_payload_observer is not None:
+            verified_payload_observer(payload)
         return _pass(
             "verify",
             authenticated_statement_digest=authenticated_statement_digest,

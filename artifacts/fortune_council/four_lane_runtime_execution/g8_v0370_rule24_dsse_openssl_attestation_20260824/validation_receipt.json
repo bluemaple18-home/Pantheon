@@ -4,7 +4,7 @@
   "ed25519_capability": true,
   "focused_pytest": {
     "path": "tests/test_pantheon_rule24_dsse_attestation.py",
-    "passed": 38,
+    "passed": 40,
     "status": "PASS"
   },
   "json_parse": "PASS",
@@ -48,11 +48,14 @@
   "py_compile": "PASS",
   "repair_001": {
     "focused_pytest_runtime": "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+    "followup_parent": "9b407901669502b97b6e220fc268162c7b98defc",
     "parent": "36edc4d323f9f1a2624158e8376cb2570b7d01fa",
     "repaired_p1": [
       "sequential_challenge_replay",
       "concurrent_exclusive_claim",
-      "producer_key_pair_mismatch"
+      "producer_key_pair_mismatch",
+      "observer_after_replay_claim",
+      "replay_state_claim_oserror_no_observer"
     ],
     "replay_claim_contract": {
       "claim_fields": [

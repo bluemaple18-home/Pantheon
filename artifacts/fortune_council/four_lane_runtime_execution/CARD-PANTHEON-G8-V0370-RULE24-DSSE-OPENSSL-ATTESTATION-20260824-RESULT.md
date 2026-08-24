@@ -14,14 +14,18 @@
 
 - status: SUCCESSOR_CANDIDATE_READY
 - repair_parent: `36edc4d323f9f1a2624158e8376cb2570b7d01fa`
+- repair_followup_parent: `9b407901669502b97b6e220fc268162c7b98defc`
 - repaired_P1:
   - Same envelope + consumed=false challenge now PASS only once; second verify returns `challenge_replay`.
   - Concurrent verifiers now race on stdlib exclusive-create claim; at most one verifier returns PASS.
   - Producer now proves supplied private/public keypair with an OpenSSL sign/verify probe; mismatch returns `key_pair_mismatch` without authenticated PASS fields.
+  - Application-facing `verified_payload_observer` is now called only after replay claim succeeds; replay NO-GO keeps observer calls at 0 for the rejected attempt.
+  - Claim create/write `OSError` returns deterministic `NO-GO/replay_state_claim` without releasing payload to observer.
 - replay_state_contract:
   - verifier requires caller-supplied `replay_state_dir`.
   - replay state path must be absolute, canonical, existing directory, and repo-external.
   - claim is created only after signature, trust policy, target, policy, measurements, challenge, and freshness verification.
+  - authenticated payload observer is called only after claim succeeds.
   - claim uses `os.O_CREAT | os.O_EXCL`; no read-then-write replay decision.
   - claim contains only schema, challenge digest, authenticated statement digest, and claim time.
 
@@ -32,7 +36,7 @@
   - Ed25519 sign/verify 與 public key DER export 全部委派給 PATH `openssl`。
   - producer/verify API 與 explicit `produce` / `verify` CLI。
 - `tests/test_pantheon_rule24_dsse_attestation.py`
-  - 38 個 focused tests，覆蓋 trusted path、CLI JSON roundtrip、determinism、DSSE tamper、key substitution、statement binding、policy/measurement drift、sequential replay、concurrent replay claim、pre-validation no-claim、trust-policy mismatch、verify-then-parse、OpenSSL fail-closed、canonical path 與 repo key audit。
+  - 40 個 focused tests，覆蓋 trusted path、CLI JSON roundtrip、determinism、DSSE tamper、key substitution、statement binding、policy/measurement drift、sequential replay、concurrent replay claim、replay observer ordering、replay_state_claim OSError、pre-validation no-claim、trust-policy mismatch、verify-then-parse、OpenSSL fail-closed、canonical path 與 repo key audit。
 - `artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_rule24_dsse_openssl_attestation_20260824/validation_receipt.json`
   - 本卡驗證 receipt。
 
@@ -63,7 +67,7 @@
 ## Verification receipt
 
 - TDD red: PASS，focused pytest first failed on missing `scripts.pantheon_rule24_dsse_attestation` module.
-- Focused pytest: PASS，initial candidate `34 passed in 2.62s`; Repair 001 `38 passed in 3.31s`
+- Focused pytest: PASS，initial candidate `34 passed in 2.62s`; Repair 001 `38 passed in 3.31s`; Repair 001 follow-up `40 passed in 3.43s`
 - Test runtime path: `/Users/mattkuo/Documents/Pantheon/.venv/bin/python`
 - py_compile / AST parse: PASS
 - PAE vector: PASS，`PAE("test", b"abc") == b"DSSEv1 4 test 3 abc"`
