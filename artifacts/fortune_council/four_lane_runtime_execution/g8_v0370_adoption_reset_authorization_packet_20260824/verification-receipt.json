@@ -1,0 +1,20 @@
+{
+  "evidence_digest_manifest": {
+    "format": "sha256 + evidence-root-relative POSIX path",
+    "file_count": 69,
+    "path": "evidence-digests.sha256",
+    "portable_verify_command": "python evidence_digest_tool.py verify",
+    "shasum_verify_command": "cd <repo-root>/artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_adoption_reset_authorization_packet_20260824 && shasum -a 256 -c evidence-digests.sha256",
+    "status": "PASS"
+  },
+  "git_diff_check": "PASS",
+  "helper_ast_parse": "PASS (2 files)",
+  "json_parse": "PASS",
+  "ownership_only": true,
+  "production_probe_rerun": false,
+  "promotion_plan_rerun": false,
+  "remote_query_rerun": false,
+  "schema_version": 1,
+  "snapshot_rerun": false,
+  "verdict": "BLOCKED / CANONICAL_TARGET_SOURCE_CHECKOUT_UNAVAILABLE"
+}

@@ -32,11 +32,12 @@ canary_created: false
 
 ## Verification
 
-- JSON evidence：全部 parse PASS；`evidence-digests.sha256` 已生成。
+- JSON evidence：全部 parse PASS；`evidence-digests.sha256` 已改為 evidence-root-relative POSIX paths，portable verify PASS。
 - current plan：兩次 deterministic fail-closed；未執行 mutation entrypoint。
 - protected tripwire：`PASS`，changed surfaces `[]`。
 - focused tests：因 `G8-ARP-002` frontier blocker 未執行；未以單元測試掩蓋 current production plan 缺口。
-- 靜態檢查：collector script AST parse PASS；`git diff --check` PASS。
+- 靜態檢查：兩個 task-owned helper AST parse PASS；`git diff --check` 與 ownership-only 檢查 PASS。
+- Repair 沒有重跑 remote、production probe、promotion plan 或 snapshot；verdict 維持 `BLOCKED / CANONICAL_TARGET_SOURCE_CHECKOUT_UNAVAILABLE`。
 
 ## Required Next Authority
 
