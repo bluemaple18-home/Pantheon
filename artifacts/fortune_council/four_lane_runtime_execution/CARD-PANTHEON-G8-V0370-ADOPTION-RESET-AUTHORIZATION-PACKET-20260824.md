@@ -127,6 +127,6 @@ Trace preflight：`acceptance_scenarios: not-applicable`；原因：本卡是 de
 
 ## Delivery
 
-- 單一 candidate commit，parent 必須是 `0bca7d03ca67e89dd6f39578d6e33e5199d78a9a`。
+- 單一 candidate commit，parent 必須是任務卡 commit `3e7d0e66d56d4e5efb24b169beb6618836b31412`；`parent_integrated_sha` 仍是整合 baseline `0bca7d03ca67e89dd6f39578d6e33e5199d78a9a`。
 - 只新增 ownership 內 RESULT/evidence。
 - 回報 verdict、candidate SHA、changed files、tests、tripwire、remaining risks；不整合、不 push、不 tag、不執行 production。
