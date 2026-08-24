@@ -9,6 +9,7 @@ thickness: strict
 risk: critical
 model: gpt-5.5
 reasoning: high
+model_reason: 固定 critical trust/capacity candidate 的 correctness、security、regression 與 adversarial full review。
 review_base_sha: 09a313bc6fed08613626856f246442732d872d13
 reviewed_commit_sha: 097a2f164e7d77f913f30bd9c364c5a06102c48b
 ownership:
