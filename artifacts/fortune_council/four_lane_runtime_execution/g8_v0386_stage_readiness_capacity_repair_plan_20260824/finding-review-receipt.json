@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "finding": "V0385 required target generation readiness before promotion apply",
+  "status": "CONFIRMED_PREMATURE_GATE",
+  "evidence": [
+    "scripts/pantheon_content_runtime_promotion.py:478-495",
+    "scripts/pantheon_content_runtime_promotion.py:611-626",
+    "scripts/pantheon_content_runtime_promotion.py:665-674",
+    "scripts/pantheon_content_runtime_promotion.py:681-700",
+    "tests/test_pantheon_content_runtime_promotion.py:191",
+    "tests/test_pantheon_content_runtime_promotion.py:558-608"
+  ],
+  "classification": {
+    "drift": false,
+    "v0385_early_gate": true,
+    "v0383_plan_bug": false,
+    "real_precondition_gap": "fresh Rule24 evidence and a separately authorized replan"
+  },
+  "required_contract_change": "Move target-generation readiness assertion from preflight to post-apply STAGE_INSTALLED/postcheck; retain current-stage digest as the only pre-apply stage input.",
+  "v0383_bindings_reuse": false,
+  "production_mutation": false,
+  "remote_access": false
+}

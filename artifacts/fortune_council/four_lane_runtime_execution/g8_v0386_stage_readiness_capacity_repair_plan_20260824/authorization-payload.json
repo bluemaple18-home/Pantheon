@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED",
+  "authorization_state": "NOT_GRANTED",
+  "authorization_digest": null,
+  "plan_digest": null,
+  "canonical_argv_digest": null,
+  "target_source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "analysis_baseline_only": {
+    "v0383_plan_digest": "415eff6d83e48bc16ccb5335b77a170b750a0e8e2a45a9f6dc453fceead29840",
+    "v0383_exact_apply_argv_digest": "db697635302ab6c44803cabb6aa6b9fcf16c7b36368a7d42b291a0ab0b6cc9b2",
+    "v0383_target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca"
+  },
+  "required_before_any_authorization": [
+    "fresh Rule24 two-cycle bundle and signed/verified evidence",
+    "fresh machine baseline and current receipt",
+    "new deterministic promotion plan with readiness preflight corrected",
+    "new exact argv and digests",
+    "fresh protected tripwire/no-drift snapshot",
+    "explicit human approval for exact new plan and argv"
+  ],
+  "terminal_stops": [
+    "target readiness is required before apply",
+    "fresh Rule24 evidence missing or not PASS",
+    "any machine binding drift",
+    "any protected changed surface",
+    "missing or mismatched new authorization digest"
+  ],
+  "mutation_allowlist": [],
+  "forbidden": ["apply", "finalize", "rollback", "reset", "deploy", "canary", "activation", "launchctl", "remote query/write", "push", "tag"],
+  "production_mutation": false,
+  "remote_access": false
+}

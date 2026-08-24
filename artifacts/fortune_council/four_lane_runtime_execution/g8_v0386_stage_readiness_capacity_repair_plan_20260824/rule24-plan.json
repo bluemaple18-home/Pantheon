@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO",
+  "verdict": "BLOCKED",
+  "formal_entrypoints": {
+    "two_cycle_proof": "scripts.pantheon_writer_vnext_runtime_activation_capacity:run_capacity_proof_evidence_bundle",
+    "signed_rule24": "scripts.pantheon_rule24_signed_capacity_evidence:produce_signed_capacity_evidence",
+    "dsse_cli": "python -m scripts.pantheon_rule24_dsse_attestation produce"
+  },
+  "required_inputs": [
+    "fresh canonical evidence_root",
+    "task-owned capacity_sandbox_root under /private/tmp",
+    "runtime_receipt, actor_identity, brief",
+    "bounded policy with max_bytes=67108864, max_file_count=1024, sampling_interval_seconds<=300",
+    "two cycle measurements with host free/total, project bytes/files, RSS, swap, cleanup reclaim",
+    "Rule24 policy, keys, target, two measurements, correlation and challenge"
+  ],
+  "required_outputs": [
+    "capacity-receipt.json",
+    "cycle-1-measurements.json",
+    "cycle-2-measurements.json",
+    "signed Rule24 envelope and verification receipt",
+    "fresh SHA-256 digests and evidence locator"
+  ],
+  "stop_loss": {
+    "host_free": ">= max(20 GiB, 10% host total)",
+    "project": "<= max_bytes and <= max_file_count",
+    "sampling": "<= 300 seconds",
+    "rss_swap": "each sample growth within policy",
+    "reclaim": "each cycle removes its own cycle root and reclaims positive bytes/files",
+    "projection": "retention projection remains above host reserve",
+    "unknown_write": "BLOCKED; no cross-project cleanup"
+  },
+  "production_write_allowlist": [],
+  "production_write_forbidden": ["actor", "manifest", "private-stage", "readiness", "barrier", "queue", "state", "transaction", "launchctl", "canary", "remote", "push", "tag"],
+  "current_blocker": "No single formal CLI produces the fresh two-cycle bundle; DSSE CLI only signs already-produced measurements.",
+  "production_mutation": false,
+  "remote_access": false
+}

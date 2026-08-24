@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "execution_status": "not_executed",
+  "verdict": "BLOCKED",
+  "phase_order": [
+    "fresh_rule24_bundle_in_task_owned_sandbox",
+    "fresh_rule24_sign_and_verify",
+    "replan_promotion_without_pre_apply_target_readiness_gate",
+    "operator_review_and_explicit_authorization",
+    "apply_then_postcheck_readiness"
+  ],
+  "formal_commands": {
+    "rule24_sign_existing_fresh_measurements": ["<repo-root>/.venv/bin/python", "-m", "scripts.pantheon_rule24_dsse_attestation", "produce", "--private-key", "<task-owned-key>", "--public-key", "<task-owned-key>", "--producer-id", "<trusted-producer>", "--target-path", "<task-owned-target>", "--target-name", "<target-name>", "--target-media-type", "<target-media-type>", "--rule24-policy-path", "<task-owned-policy>", "--rule24-policy-name", "rule24-policy.json", "--measurement", "cycle-1:application/vnd.pantheon.rule24.capacity-cycle-measurement+json:<fresh-cycle-1>", "--measurement", "cycle-2:application/vnd.pantheon.rule24.capacity-cycle-measurement+json:<fresh-cycle-2>", "--capacity-evidence", "<fresh-capacity-receipt>", "--correlation", "<new-correlation>", "--challenge", "<new-challenge>"],
+    "promotion_apply_after_separate_authorization": ["<repo-root>/.venv/bin/python", "-m", "scripts.pantheon_content_runtime_promotion", "apply", "--expected-plan-digest", "<new-plan-digest>", "--capacity-receipt", "<fresh-capacity-receipt>", "--capacity-receipt-digest", "<fresh-capacity-digest>", "--correlation-id", "<new-correlation>"]
+  },
+  "why_not_exact_production_argv": "Fresh receipt, new plan digest, authorization digest, machine bindings, and production locators do not exist in this read-only task; placeholders are intentionally non-authorizing.",
+  "canonical_argv_digest": null,
+  "authorization_payload_digest": null,
+  "production_mutation": false,
+  "remote_access": false
+}
