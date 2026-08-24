@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-G8-V0378-CURRENT-AUTHORITY-READONLY-PROBE-20260824
 chain_id: PANTHEON-G8-RULE24-SIGNED-EVIDENCE
 role: authority-probe
-cycle: 1
+cycle: 2
 status: ready
 type: strict_readonly_external_probe
 thickness: strict
