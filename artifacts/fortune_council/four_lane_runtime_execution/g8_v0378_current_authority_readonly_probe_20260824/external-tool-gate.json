@@ -1,0 +1,10 @@
+{
+  "confirmation_required": false,
+  "connection_status": "authorized_by_activation_token",
+  "evidence": "remote-authority.json",
+  "execution_status": "PASS",
+  "operation_level": "read_only",
+  "remaining_risk": "remote contents are observed once only; no retry allowed",
+  "schema_checked": "fixed command: git ls-remote --heads origin main",
+  "tool_service": "git remote origin"
+}

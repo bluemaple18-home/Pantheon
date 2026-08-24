@@ -1,0 +1,94 @@
+{
+  "changed": [],
+  "comparisons": [
+    {
+      "after": "bed04f062b70ae0911c57a6eba1857b906645b1c9b7297ab6b766fad8f4fef97",
+      "before": "bed04f062b70ae0911c57a6eba1857b906645b1c9b7297ab6b766fad8f4fef97",
+      "surface": "actor_git",
+      "unchanged": true
+    },
+    {
+      "after": "00266ad61ce4feeb70ff0a05d2abab43c00ca04142a5f1a10f6ff68f054f5cf4",
+      "before": "00266ad61ce4feeb70ff0a05d2abab43c00ca04142a5f1a10f6ff68f054f5cf4",
+      "surface": "barriers",
+      "unchanged": true
+    },
+    {
+      "after": "0d8758342be849ef60e5f56eb127b076866c9c69d7c77c12adce325ef82feddf",
+      "before": "0d8758342be849ef60e5f56eb127b076866c9c69d7c77c12adce325ef82feddf",
+      "surface": "live_plists",
+      "unchanged": true
+    },
+    {
+      "after": "4a5b3964e052b429a0b0c6396e9730b4eb12ea4b89b381badf92717334d26fce",
+      "before": "4a5b3964e052b429a0b0c6396e9730b4eb12ea4b89b381badf92717334d26fce",
+      "surface": "locators",
+      "unchanged": true
+    },
+    {
+      "after": "47e01fa6eb10a9f53b405cdad603548f86af0051cd1c0c5911e3782a0164bcd2",
+      "before": "47e01fa6eb10a9f53b405cdad603548f86af0051cd1c0c5911e3782a0164bcd2",
+      "surface": "manifest_digest",
+      "unchanged": true
+    },
+    {
+      "after": "5e93609dcce4d4c33d0e3b69e0b6d2cf1edf8d457a88e249fdd0757b3a5f57fe",
+      "before": "5e93609dcce4d4c33d0e3b69e0b6d2cf1edf8d457a88e249fdd0757b3a5f57fe",
+      "surface": "manifest_identity",
+      "unchanged": true
+    },
+    {
+      "after": "6a44bd3c7651cce3ce029e5d491e00438dc16c5c664cc81e41e7652f6054bb39",
+      "before": "6a44bd3c7651cce3ce029e5d491e00438dc16c5c664cc81e41e7652f6054bb39",
+      "surface": "publisher_lock",
+      "unchanged": true
+    },
+    {
+      "after": "76c2ecd988ead99b438b6c8871615f56806e6db54f318fa0e715ac06b65c2803",
+      "before": "76c2ecd988ead99b438b6c8871615f56806e6db54f318fa0e715ac06b65c2803",
+      "surface": "queue_tree",
+      "unchanged": true
+    },
+    {
+      "after": "9fd49c910166257d15ee09039f2e886c52226beb47fc62ca016dccb4bb560604",
+      "before": "9fd49c910166257d15ee09039f2e886c52226beb47fc62ca016dccb4bb560604",
+      "surface": "reset_phase_evidence",
+      "unchanged": true
+    },
+    {
+      "after": "8ef773298ee64fb9510d43124bdd9d51f19a51ca2fda3e5e83ebfe80ed6cddca",
+      "before": "8ef773298ee64fb9510d43124bdd9d51f19a51ca2fda3e5e83ebfe80ed6cddca",
+      "surface": "runtime_status",
+      "unchanged": true
+    },
+    {
+      "after": "2ef64c37a242cebb1e96b99b862035c63469f193085161a28d1deb35b743ca50",
+      "before": "2ef64c37a242cebb1e96b99b862035c63469f193085161a28d1deb35b743ca50",
+      "surface": "stage_controls",
+      "unchanged": true
+    },
+    {
+      "after": "98b684a663657431503009737e26a0ad4ade99f49ef8b12c0df9de2978450349",
+      "before": "98b684a663657431503009737e26a0ad4ade99f49ef8b12c0df9de2978450349",
+      "surface": "stage_tree",
+      "unchanged": true
+    },
+    {
+      "after": "ce073a3f1c9c1e5667d4b924c938211b27fc6ab5409a9d7d37a8e3f88614530d",
+      "before": "ce073a3f1c9c1e5667d4b924c938211b27fc6ab5409a9d7d37a8e3f88614530d",
+      "surface": "state_tree",
+      "unchanged": true
+    },
+    {
+      "after": "936884274977121c23f0968430dabcc5b69508aef8fa89e752cad81c1c98055f",
+      "before": "936884274977121c23f0968430dabcc5b69508aef8fa89e752cad81c1c98055f",
+      "surface": "transaction_tree",
+      "unchanged": true
+    }
+  ],
+  "launchctl_volatile_fields_ignored": [
+    "runs"
+  ],
+  "production_mutation": false,
+  "status": "PASS"
+}

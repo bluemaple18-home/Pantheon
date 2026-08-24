@@ -1,0 +1,10 @@
+{
+  "exit_code": 0,
+  "invocation_count": 1,
+  "operation": "ls-remote --heads origin main",
+  "operation_level": "read_only",
+  "service": "git",
+  "sha": "91095924b1fe06955f525310b62cc0cfbf7948cd",
+  "stderr": "",
+  "stdout_sha256": "a3e41f7d9567551d959378ce7f9516c5bc30683b5e076556030c40e9d7958a30"
+}

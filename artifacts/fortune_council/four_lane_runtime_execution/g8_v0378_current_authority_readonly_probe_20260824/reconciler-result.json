@@ -1,0 +1,112 @@
+{
+  "blocked_code": "REMOTE_DIVERGED",
+  "card_id": "CARD-PANTHEON-G8-V0378-CURRENT-AUTHORITY-READONLY-PROBE-20260824",
+  "details": {
+    "origin_main": "91095924b1fe06955f525310b62cc0cfbf7948cd",
+    "required_source": "8b53dc7961db1e7294322da17dd2bcdc6680f625"
+  },
+  "mutation_tripwire": {
+    "after": {
+      "git_packed_refs": {
+        "digest": "9166f12d8b195597b9cedf75b9b272cb1f998a7761b91b76cb3983f39b2df048",
+        "exists": true,
+        "files": 1
+      },
+      "git_refs": {
+        "digest": "920c412b826dec723ab0af0db0d77f82df93e9b1f99a2d8fb330b23a81350d50",
+        "exists": true,
+        "files": 326
+      },
+      "live_root": {
+        "digest": "5e8e96d127432d7c0a8bfea2e30207ac488f3ab59f0f01f9d6a7dc6718792334",
+        "exists": true,
+        "files": 87
+      },
+      "manifest": {
+        "digest": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23",
+        "exists": true,
+        "files": 1
+      },
+      "publisher_lock": {
+        "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exists": true,
+        "files": 1
+      },
+      "queue_root": {
+        "digest": "218ebdf7d477da085e220b370b706d6a714ae2092d3602ee8f7558a8d35da4a7",
+        "exists": true,
+        "files": 1645
+      },
+      "staged_root": {
+        "digest": "82652e323b51a0e249be872869885d342441c92c9e094c63a558fde87a564f43",
+        "exists": true,
+        "files": 36
+      },
+      "state_root": {
+        "digest": "5be85c0e91352b95f02b0619a1f99d722e33fb315084d34338539e78cbae754b",
+        "exists": true,
+        "files": 53
+      },
+      "transaction_root": {
+        "digest": "b3826a988c99482dec15bba5e0c0497b5bc5cd43536c492807ea264530aacc8d",
+        "exists": true,
+        "files": 17
+      }
+    },
+    "before": {
+      "git_packed_refs": {
+        "digest": "9166f12d8b195597b9cedf75b9b272cb1f998a7761b91b76cb3983f39b2df048",
+        "exists": true,
+        "files": 1
+      },
+      "git_refs": {
+        "digest": "920c412b826dec723ab0af0db0d77f82df93e9b1f99a2d8fb330b23a81350d50",
+        "exists": true,
+        "files": 326
+      },
+      "live_root": {
+        "digest": "5e8e96d127432d7c0a8bfea2e30207ac488f3ab59f0f01f9d6a7dc6718792334",
+        "exists": true,
+        "files": 87
+      },
+      "manifest": {
+        "digest": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23",
+        "exists": true,
+        "files": 1
+      },
+      "publisher_lock": {
+        "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exists": true,
+        "files": 1
+      },
+      "queue_root": {
+        "digest": "218ebdf7d477da085e220b370b706d6a714ae2092d3602ee8f7558a8d35da4a7",
+        "exists": true,
+        "files": 1645
+      },
+      "staged_root": {
+        "digest": "82652e323b51a0e249be872869885d342441c92c9e094c63a558fde87a564f43",
+        "exists": true,
+        "files": 36
+      },
+      "state_root": {
+        "digest": "5be85c0e91352b95f02b0619a1f99d722e33fb315084d34338539e78cbae754b",
+        "exists": true,
+        "files": 53
+      },
+      "transaction_root": {
+        "digest": "b3826a988c99482dec15bba5e0c0497b5bc5cd43536c492807ea264530aacc8d",
+        "exists": true,
+        "files": 17
+      }
+    },
+    "changed": [],
+    "status": "PASS"
+  },
+  "production_mutation": false,
+  "reasons": [
+    "origin main is not a descendant of the required source"
+  ],
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

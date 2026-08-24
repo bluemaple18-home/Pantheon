@@ -1,0 +1,5 @@
+{
+  "fallback": "bounded rg/source reads and existing contract files",
+  "reason": "CodeGraph not initialized in this worktree during bootstrap check",
+  "status": "NOT_READY"
+}
