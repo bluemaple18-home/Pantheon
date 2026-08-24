@@ -17,7 +17,11 @@ import stat
 import sys
 import time
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.pantheon_writer_vnext_runtime_activation_e2e import (
     run_runtime_activation_e2e,
@@ -1170,44 +1174,137 @@ def _write_verification_receipt(evidence_root: Path) -> None:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-root", type=Path, default=EVIDENCE_PATH)
-    parser.add_argument("--capacity-sandbox-root", type=Path)
-    args = parser.parse_args()
-    output_root = args.output_root.resolve()
-    output_root.mkdir(parents=True, exist_ok=True)
-    sandbox_root = (
-        args.capacity_sandbox_root.resolve()
-        if args.capacity_sandbox_root is not None
-        else (output_root / "capacity-sandbox").resolve()
-    )
-    receipt = run_capacity_proof(
-        capacity_sandbox_root=sandbox_root,
-        evidence_root=output_root,
-        runtime_receipt={
-            "status": "PASS",
-            "runtime_identity_digest": "d" * 64,
-        },
-        actor_identity="actor-ra-slice-005",
-        brief={
-            "schema_version": 1,
-            "run_id": "ra-slice-002-synthetic-create-run",
-            "mode": "create",
-            "articles": [
-                {
-                    "id": "RA-SLICE-004-SYNTHETIC",
-                    "title": "Synthetic local E2E receipt",
-                }
-            ],
-        },
-        policy=DEFAULT_POLICY,
-    )
-    run_capacity_negative_matrix(evidence_root=output_root)
-    _write_source_inventory(output_root)
-    _write_verification_receipt(output_root)
-    print(json.dumps({"status": receipt["status"], "cycles": len(receipt["cycles"])}))
-    return 0
+CLI_TASK_ROOT_PARENT = Path("/private/tmp")
+
+
+def _cli_task_root(path: Path) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise ValueError("task root must be canonical absolute")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise ValueError("task root must be an existing canonical directory") from error
+    parent = CLI_TASK_ROOT_PARENT.resolve(strict=True)
+    if resolved != candidate or not candidate.is_dir() or candidate.is_symlink():
+        raise ValueError("task root must be an existing canonical directory")
+    if resolved == parent or not resolved.is_relative_to(parent):
+        raise ValueError("task root must be a strict descendant of /private/tmp")
+    return candidate
+
+
+def _cli_owned_root(task_root: Path, path: Path, label: str) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise ValueError(f"{label} must be canonical absolute")
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise ValueError(f"{label} is invalid") from error
+    if resolved != candidate:
+        raise ValueError(f"{label} must not contain symlink escape")
+    if resolved == task_root or not resolved.is_relative_to(task_root):
+        raise ValueError(f"{label} must be a strict descendant of task root")
+    if candidate.exists() and (candidate.is_symlink() or not candidate.is_dir()):
+        raise ValueError(f"{label} must be a directory or a new directory")
+    return candidate
+
+
+def _cli_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not valid JSON: {error}") from error
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} must contain a JSON object")
+    return payload
+
+
+def _bundle_cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Fresh unsigned Rule24 capacity evidence bundle")
+    commands = parser.add_subparsers(dest="command", required=True)
+    bundle = commands.add_parser("bundle", help="run the existing two-cycle bundle evaluator")
+    bundle.add_argument("--task-root", type=Path, required=True)
+    bundle.add_argument("--evidence-root", type=Path, required=True)
+    bundle.add_argument("--capacity-sandbox-root", type=Path, required=True)
+    bundle.add_argument("--runtime-receipt", type=Path, required=True)
+    bundle.add_argument("--brief", type=Path, required=True)
+    bundle.add_argument("--policy", type=Path, required=True)
+    bundle.add_argument("--actor-identity", required=True)
+    return parser
+
+
+def _bundle_summary(bundle: CapacityEvidenceBundle) -> dict[str, Any]:
+    return {
+        "status": "PASS",
+        "evidence_root": str(bundle.evidence_root),
+        "cycle_count": len(bundle.receipt.get("cycles", ())),
+        "artifacts": [
+            {
+                "logical_name": artifact.logical_name,
+                "path": str(artifact.path),
+                "sha256": artifact.sha256,
+                "media_type": artifact.media_type,
+                "byte_length": artifact.byte_length,
+            }
+            for artifact in bundle.artifacts
+        ],
+        "canary_created": bundle.receipt.get("canary_created", False),
+        "production_mutation": bundle.receipt.get("production_mutation", False),
+        "signed": False,
+    }
+
+
+def _run_bundle_cli(args: argparse.Namespace) -> int:
+    try:
+        task_root = _cli_task_root(args.task_root)
+        evidence_root = _cli_owned_root(task_root, args.evidence_root, "evidence root")
+        sandbox_root = _cli_owned_root(
+            task_root,
+            args.capacity_sandbox_root,
+            "capacity sandbox root",
+        )
+        if (
+            evidence_root == sandbox_root
+            or evidence_root.is_relative_to(sandbox_root)
+            or sandbox_root.is_relative_to(evidence_root)
+        ):
+            raise ValueError("evidence root and capacity sandbox root must not overlap")
+        runtime_receipt = _cli_json_object(args.runtime_receipt, "runtime receipt")
+        brief = _cli_json_object(args.brief, "brief")
+        policy = _cli_json_object(args.policy, "policy")
+        _validate_policy(policy)
+        bundle = run_capacity_proof_evidence_bundle(
+            capacity_sandbox_root=sandbox_root,
+            evidence_root=evidence_root,
+            runtime_receipt=runtime_receipt,
+            actor_identity=args.actor_identity,
+            brief=brief,
+            policy=policy,
+        )
+        print(json.dumps(_bundle_summary(bundle), ensure_ascii=False, sort_keys=True))
+        return 0
+    except (CapacityProofBlocked, OSError, ValueError, TypeError) as error:
+        payload = error.payload if isinstance(error, CapacityProofBlocked) else {
+            "schema_version": SCHEMA_VERSION,
+            "status": "BLOCKED",
+            "case": "cli-input-invalid",
+            "reason": str(error),
+            "canary_created": False,
+            "production_mutation": False,
+            "signed": False,
+        }
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True), file=sys.stderr)
+        return 2
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _bundle_cli_parser()
+    args = parser.parse_args(argv)
+    if args.command == "bundle":
+        return _run_bundle_cli(args)
+    parser.error("a command is required")
+    return 2
 
 
 if __name__ == "__main__":

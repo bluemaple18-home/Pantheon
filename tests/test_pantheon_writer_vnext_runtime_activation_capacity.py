@@ -4,12 +4,19 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+from typing import Iterator
 
 import pytest
 
 from scripts.pantheon_writer_vnext_runtime_activation_capacity import (
     CAPACITY_RECEIPT_MEDIA_TYPE,
     CYCLE_MEASUREMENT_MEDIA_TYPE,
+    CapacityEvidenceArtifact,
+    CapacityEvidenceBundle,
     CapacityProofBlocked,
     DEFAULT_POLICY,
     GIB,
@@ -18,6 +25,7 @@ from scripts.pantheon_writer_vnext_runtime_activation_capacity import (
     run_capacity_negative_matrix,
     run_capacity_proof,
 )
+from scripts import pantheon_writer_vnext_runtime_activation_capacity as capacity_module
 
 
 RUNTIME_RECEIPT = {
@@ -472,3 +480,321 @@ def test_capacity_policy_rejects_unbounded_values_and_caller_verdict(
                 policy=policy,
                 workload=lambda **_kwargs: _fake_e2e_receipt(1),
             )
+
+
+def _write_cli_inputs(root: Path) -> dict[str, Path]:
+    root.mkdir(parents=True, exist_ok=True)
+    inputs = {
+        "runtime_receipt": root / "runtime-receipt.json",
+        "brief": root / "brief.json",
+        "policy": root / "policy.json",
+    }
+    inputs["runtime_receipt"].write_text(
+        json.dumps(RUNTIME_RECEIPT) + "\n", encoding="utf-8"
+    )
+    inputs["brief"].write_text(json.dumps(_brief()) + "\n", encoding="utf-8")
+    inputs["policy"].write_text(json.dumps(DEFAULT_POLICY) + "\n", encoding="utf-8")
+    return inputs
+
+
+@pytest.fixture
+def cli_task_root() -> Iterator[Path]:
+    root = Path(
+        tempfile.mkdtemp(prefix="pantheon-v0387-", dir="/private/tmp")
+    ).resolve()
+    try:
+        yield root
+    finally:
+        shutil.rmtree(root)
+
+
+def test_bundle_cli_help_is_public() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/pantheon_writer_vnext_runtime_activation_capacity.py",
+            "bundle",
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "--task-root" in result.stdout
+    assert "--evidence-root" in result.stdout
+    assert "--capacity-sandbox-root" in result.stdout
+
+
+def test_bundle_cli_requires_explicit_task_root_before_bundle_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    called = False
+
+    def unexpected_bundle(**_kwargs: object) -> object:
+        nonlocal called
+        called = True
+        raise AssertionError("missing task root must be rejected before API call")
+
+    monkeypatch.setattr(
+        capacity_module,
+        "run_capacity_proof_evidence_bundle",
+        unexpected_bundle,
+    )
+    with pytest.raises(SystemExit) as raised:
+        capacity_module.main(
+            [
+                "bundle",
+                "--evidence-root",
+                str((tmp_path / "evidence").resolve()),
+                "--capacity-sandbox-root",
+                str((tmp_path / "sandbox").resolve()),
+                "--runtime-receipt",
+                str(inputs["runtime_receipt"]),
+                "--brief",
+                str(inputs["brief"]),
+                "--policy",
+                str(inputs["policy"]),
+                "--actor-identity",
+                "actor-v0387",
+            ]
+        )
+    assert raised.value.code == 2
+    assert called is False
+
+
+def test_bundle_cli_happy_path_calls_existing_bundle_and_prints_summary(
+    tmp_path: Path,
+    cli_task_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    evidence_root = (cli_task_root / "evidence").resolve()
+    sandbox_root = (cli_task_root / "sandbox").resolve()
+    expected = CapacityEvidenceBundle(
+        evidence_root=evidence_root,
+        receipt={"status": "PASS", "cycles": [{"cycle": 1}, {"cycle": 2}]},
+        capacity_receipt=CapacityEvidenceArtifact(
+            logical_name="capacity-receipt.json",
+            path=evidence_root / "capacity-receipt.json",
+            sha256="a" * 64,
+            media_type=CAPACITY_RECEIPT_MEDIA_TYPE,
+            byte_length=1,
+        ),
+        cycle_measurements=(),
+    )
+
+    def fake_bundle(**kwargs: object) -> object:
+        assert kwargs["capacity_sandbox_root"] == sandbox_root
+        assert kwargs["evidence_root"] == evidence_root
+        assert kwargs["runtime_receipt"] == RUNTIME_RECEIPT
+        assert kwargs["actor_identity"] == "actor-v0387"
+        return expected
+
+    monkeypatch.setattr(capacity_module, "run_capacity_proof_evidence_bundle", fake_bundle)
+    assert capacity_module.main(
+        [
+            "bundle",
+            "--task-root",
+            str(cli_task_root),
+            "--evidence-root",
+            str(evidence_root),
+            "--capacity-sandbox-root",
+            str(sandbox_root),
+            "--runtime-receipt",
+            str(inputs["runtime_receipt"]),
+            "--brief",
+            str(inputs["brief"]),
+            "--policy",
+            str(inputs["policy"]),
+            "--actor-identity",
+            "actor-v0387",
+        ]
+    ) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "PASS"
+    assert summary["cycle_count"] == 2
+
+
+@pytest.mark.parametrize("bad_root", ["production", "runtime/manifest", "launchagents"])
+def test_bundle_cli_rejects_production_root_before_bundle_call(
+    tmp_path: Path,
+    cli_task_root: Path,
+    bad_root: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    called = False
+
+    def unexpected_bundle(**_kwargs: object) -> object:
+        nonlocal called
+        called = True
+        raise AssertionError("production root must be rejected before API call")
+
+    monkeypatch.setattr(
+        capacity_module,
+        "run_capacity_proof_evidence_bundle",
+        unexpected_bundle,
+    )
+    result = capacity_module.main(
+        [
+            "bundle",
+            "--task-root",
+            str(cli_task_root),
+            "--evidence-root",
+            str((tmp_path / bad_root / "evidence").resolve()),
+            "--capacity-sandbox-root",
+            str((cli_task_root / "sandbox").resolve()),
+            "--runtime-receipt",
+            str(inputs["runtime_receipt"]),
+            "--brief",
+            str(inputs["brief"]),
+            "--policy",
+            str(inputs["policy"]),
+            "--actor-identity",
+            "actor-v0387",
+        ]
+    )
+    assert result != 0
+    assert called is False
+
+
+def test_bundle_cli_rejects_symlink_escape_before_bundle_call(
+    tmp_path: Path,
+    cli_task_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    escaped = cli_task_root / "escaped"
+    escaped.symlink_to(outside, target_is_directory=True)
+    called = False
+
+    def unexpected_bundle(**_kwargs: object) -> object:
+        nonlocal called
+        called = True
+        raise AssertionError("symlink escape must be rejected before API call")
+
+    monkeypatch.setattr(
+        capacity_module,
+        "run_capacity_proof_evidence_bundle",
+        unexpected_bundle,
+    )
+    result = capacity_module.main(
+        [
+            "bundle",
+            "--task-root",
+            str(cli_task_root),
+            "--evidence-root",
+            str(escaped / "evidence"),
+            "--capacity-sandbox-root",
+            str(cli_task_root / "sandbox"),
+            "--runtime-receipt",
+            str(inputs["runtime_receipt"]),
+            "--brief",
+            str(inputs["brief"]),
+            "--policy",
+            str(inputs["policy"]),
+            "--actor-identity",
+            "actor-v0387",
+        ]
+    )
+    assert result == 2
+    assert called is False
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        {**DEFAULT_POLICY, "max_bytes": -1},
+        {**DEFAULT_POLICY, "max_bytes": 0},
+        {**DEFAULT_POLICY, "sampling_interval_seconds": 301},
+        {key: value for key, value in DEFAULT_POLICY.items() if key != "max_bytes"},
+    ],
+)
+def test_bundle_cli_rejects_invalid_or_unbounded_policy_before_bundle_call(
+    tmp_path: Path,
+    cli_task_root: Path,
+    policy: dict[str, int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    inputs["policy"].write_text(json.dumps(policy) + "\n", encoding="utf-8")
+    called = False
+
+    def unexpected_bundle(**_kwargs: object) -> object:
+        nonlocal called
+        called = True
+        raise AssertionError("invalid policy must be rejected before API call")
+
+    monkeypatch.setattr(
+        capacity_module,
+        "run_capacity_proof_evidence_bundle",
+        unexpected_bundle,
+    )
+    result = capacity_module.main(
+        [
+            "bundle",
+            "--task-root",
+            str(cli_task_root),
+            "--evidence-root",
+            str(cli_task_root / "evidence"),
+            "--capacity-sandbox-root",
+            str(cli_task_root / "sandbox"),
+            "--runtime-receipt",
+            str(inputs["runtime_receipt"]),
+            "--brief",
+            str(inputs["brief"]),
+            "--policy",
+            str(inputs["policy"]),
+            "--actor-identity",
+            "actor-v0387",
+        ]
+    )
+    assert result == 2
+    assert called is False
+
+
+def test_bundle_cli_rejects_missing_input_before_bundle_call(
+    tmp_path: Path,
+    cli_task_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = _write_cli_inputs(tmp_path / "inputs")
+    missing_receipt = inputs["runtime_receipt"].with_name("missing-runtime-receipt.json")
+    called = False
+
+    def unexpected_bundle(**_kwargs: object) -> object:
+        nonlocal called
+        called = True
+        raise AssertionError("missing input must be rejected before API call")
+
+    monkeypatch.setattr(
+        capacity_module,
+        "run_capacity_proof_evidence_bundle",
+        unexpected_bundle,
+    )
+    result = capacity_module.main(
+        [
+            "bundle",
+            "--task-root",
+            str(cli_task_root),
+            "--evidence-root",
+            str(cli_task_root / "evidence"),
+            "--capacity-sandbox-root",
+            str(cli_task_root / "sandbox"),
+            "--runtime-receipt",
+            str(missing_receipt),
+            "--brief",
+            str(inputs["brief"]),
+            "--policy",
+            str(inputs["policy"]),
+            "--actor-identity",
+            "actor-v0387",
+        ]
+    )
+    assert result == 2
+    assert called is False
