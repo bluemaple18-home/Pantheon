@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "finding": "V0382 transaction receipt and rollback bundle used /private/tmp production-authority locator",
+  "finding_status": "CONFIRMED_AND_REPAIRED",
+  "v0382_transaction_root": "/private/tmp/pantheon-g8-v0382-zero-write-promotion-plan-refresh-20260824/transaction",
+  "corrected_transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0383-5872284828-promotion-20260824",
+  "v0382_capacity_receipt_path": "<ephemeral-codex-worktree>/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+  "corrected_capacity_receipt_path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/aggregate_runtime_promotion_plan_replay_raw_capacity_20260815/capacity-receipt-canonical.json",
+  "corrected_capacity_receipt_digest": "7fa0036a4ce81a173bc1f16c964829d82822d9fa6a3bb4c92793b222d4954f34",
+  "transaction_parent_exists": true,
+  "transaction_child_before": false,
+  "transaction_child_after": false,
+  "production_mutation": false,
+  "remote_access": false,
+  "canary_created": false
+}

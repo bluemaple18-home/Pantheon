@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "sampling": "read-only planner-before and planner-after observation",
+  "status": "PASS",
+  "changed_protected_surfaces": [],
+  "production_mutation": false,
+  "remote_access": false,
+  "canary_created": false,
+  "before": {"actor_head": "db9fb4343df212fd3b65546b017aba159620a058", "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e", "stage_digest": "8e96f5b3ad6cb702aa69cb7749184246d09a5460894efdf6fc4d8b59b7a76ee2", "queue_tree_digest": "e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2"},
+  "after": {"actor_head": "db9fb4343df212fd3b65546b017aba159620a058", "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e", "stage_digest": "8e96f5b3ad6cb702aa69cb7749184246d09a5460894efdf6fc4d8b59b7a76ee2", "queue_tree_digest": "e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2"}
+}

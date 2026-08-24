@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "source_head_verified": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "source_status": "",
+  "target_checkout_head": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "target_checkout_status": "",
+  "current_actor_sha": "db9fb4343df212fd3b65546b017aba159620a058",
+  "current_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "current_stage_digest": "8e96f5b3ad6cb702aa69cb7749184246d09a5460894efdf6fc4d8b59b7a76ee2",
+  "current_queue_tree_digest": "e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2",
+  "current_manifest_identity": {
+    "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+    "identity": "gate2-actor:db9fb4343df212fd3b65546b017aba159620a058:activation-only",
+    "runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g34-db9fb434-20260822T041850Z",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "production_mutation": false,
+  "remote_access": false
+}

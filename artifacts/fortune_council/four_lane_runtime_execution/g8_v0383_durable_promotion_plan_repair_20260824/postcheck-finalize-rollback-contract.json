@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "postchecks": ["actor_clean_head_origin", "manifest_digest_actor_head_generation", "private_stage_readiness_and_barrier", "queue_preserved", "capacity_receipt_payload_stop_loss_pass"],
+  "ordered_states": ["PREPARED", "ACTOR_PROMOTED", "MANIFEST_WRITTEN", "STAGE_INSTALLED", "POSTCHECK_PASSED", "COMMITTED"],
+  "rollback_order": ["STAGE_INSTALLED", "MANIFEST_WRITTEN", "ACTOR_PROMOTED"],
+  "rollback_bundle_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0383-5872284828-promotion-20260824/rollback-bundle",
+  "finalize_condition": "Only after apply reaches POSTCHECK_PASSED, fresh postcheck receipts pass, and explicit finalize authorization matches plan digest; not executed.",
+  "terminal_stops": ["first non-PASS gate", "actor/manifest/stage/queue/state drift", "missing durable rollback bundle", "postcheck failure", "plan or authorization digest mismatch"],
+  "production_mutation": false
+}

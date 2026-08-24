@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "NOT_AUTHORIZED",
+  "allowlist": [
+    {"path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor", "stage": "ACTOR_PROMOTED", "type": "actor"},
+    {"digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca", "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json", "stage": "MANIFEST_WRITTEN", "type": "manifest"},
+    {"path": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g36-5872284828-zero-write-20260824", "stage": "STAGE_INSTALLED", "type": "readiness_acknowledgements"},
+    {"path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g36-5872284828-zero-write-20260824.barrier", "stage": "STAGE_INSTALLED", "type": "activation_barrier"}
+  ],
+  "forbidden": ["remote query/fetch/pull/push/tag/ref/credential write", "production actor/manifest/queue/state/transactions/stage/LaunchAgents/barriers mutation", "apply", "status", "postcheck mutation", "finalize", "rollback", "adoption", "reset", "deploy", "canary", "launchctl mutation"],
+  "authorization_state": "NOT_GRANTED"
+}

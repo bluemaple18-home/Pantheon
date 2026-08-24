@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "planner": "scripts.pantheon_content_runtime_promotion.plan_promotion",
+  "mode": "plan",
+  "status": "READY_TO_APPLY",
+  "production_mutation": false,
+  "authorization_state": "NOT_GRANTED",
+  "plan_digest": "415eff6d83e48bc16ccb5335b77a170b750a0e8e2a45a9f6dc453fceead29840",
+  "target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+  "plan_runs": 2,
+  "deterministic_equal": true,
+  "apply_plan_digest_binding": {
+    "assertion": "argv value after --expected-plan-digest == promotion-plan.plan_digest",
+    "actual": "415eff6d83e48bc16ccb5335b77a170b750a0e8e2a45a9f6dc453fceead29840",
+    "expected": "415eff6d83e48bc16ccb5335b77a170b750a0e8e2a45a9f6dc453fceead29840",
+    "status": "PASS"
+  },
+  "apply_argv_canonical_digest_binding": {
+    "assertion": "compact JSON argv array with no trailing newline SHA256 == canonical_argv_sha256 == argv_digest",
+    "actual": "db697635302ab6c44803cabb6aa6b9fcf16c7b36368a7d42b291a0ab0b6cc9b2",
+    "canonical_argv_sha256": "db697635302ab6c44803cabb6aa6b9fcf16c7b36368a7d42b291a0ab0b6cc9b2",
+    "argv_digest": "db697635302ab6c44803cabb6aa6b9fcf16c7b36368a7d42b291a0ab0b6cc9b2",
+    "status": "PASS"
+  },
+  "authority_plan_artifact_binding": {
+    "assertion": "authority path is exact and its relative suffix exists",
+    "actual": "<repo-root>/artifacts/fortune_council/four_lane_runtime_execution/g8_v0383_durable_promotion_plan_repair_20260824/promotion-plan.json",
+    "expected": "<repo-root>/artifacts/fortune_council/four_lane_runtime_execution/g8_v0383_durable_promotion_plan_repair_20260824/promotion-plan.json",
+    "relative_suffix_exists": true,
+    "status": "PASS"
+  },
+  "transaction_child_before": false,
+  "transaction_child_after": false,
+  "returncode": 0,
+  "source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+}
