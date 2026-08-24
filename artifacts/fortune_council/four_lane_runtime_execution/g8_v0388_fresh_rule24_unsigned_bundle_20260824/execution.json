@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "correlation": "20260825T000000Z-pcD2QO",
+  "baseline_sha": "d4b3921151d5b4d0cfe6f4a5c538d79d521c4b48",
+  "source_integration_sha": "6868151310",
+  "formal_bundle_exit_code": 0,
+  "status": "PASS",
+  "production_mutation_count": 0,
+  "canary_created": false,
+  "signed": false,
+  "notes": [
+    "Detached worktree interpreter preflight exit 127 was an environment-path miss, not a Rule24 verdict.",
+    "The rejected initial brief was preserved under attempts/attempt-2-input-blocked and was not accepted as bundle evidence.",
+    "The final formal bundle used the baseline-matched main repository virtual environment while cwd remained this detached worktree."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "correlation": "20260825T000000Z-pcD2QO",
+  "artifacts": [
+    {"path": "capacity-receipt.json", "byte_length": 4685, "sha256": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4"},
+    {"path": "cycle-1-measurements.json", "byte_length": 1651, "sha256": "669c6fc5b23d0ce88462a6bdd558c915d182788c91e853c6e38ee9a41bcc15e3"},
+    {"path": "cycle-2-measurements.json", "byte_length": 1650, "sha256": "b1ab2cfe0d928a1d8de975c4912752117bea51fe5ae1507ce723fe874fd1441e"},
+    {"path": "argv.json", "byte_length": 921, "sha256": "7b64a2ba979c26f6bb3ae4667698912d9fa46aaf0a180e862e95723043bb49bd"},
+    {"path": "execution.json", "byte_length": 695, "sha256": "01e35fef84163d955dde9559ad448f8051842c63d11996184e95786e96ace7dc"},
+    {"path": "inputs/brief.json", "byte_length": 172, "sha256": "c802ba8b0a571dc0aa1dc7db6594d5bae750c8f694df61890b6525c1a3b4a1a8"},
+    {"path": "inputs/policy.json", "byte_length": 291, "sha256": "191d7b468a2b4f31a603cba36807aaa5e70b7bbc9569b860ac2becf77ff58574"},
+    {"path": "inputs/runtime-receipt.json", "byte_length": 111, "sha256": "27310deab941a5c6436c34b707bbe14fa37b2d007d84da3cbf46782d392a3711"},
+    {"path": "summary.json", "byte_length": 1120, "sha256": "09eaad5c712e6b5911bfeb394532f05092819de08929d38b5615a8b36d61714a"}
+  ],
+  "production_mutation": false,
+  "canary_created": false,
+  "signed": false
+}

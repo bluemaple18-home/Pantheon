@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "correlation": "20260825T000000Z-pcD2QO",
+  "argv": [
+    "<repo-root>/.venv/bin/python",
+    "-m",
+    "scripts.pantheon_writer_vnext_runtime_activation_capacity",
+    "bundle",
+    "--task-root",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO",
+    "--evidence-root",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/evidence",
+    "--capacity-sandbox-root",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/sandbox",
+    "--runtime-receipt",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/inputs/runtime-receipt.json",
+    "--brief",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/inputs/brief.json",
+    "--policy",
+    "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/inputs/policy.json",
+    "--actor-identity",
+    "actor-v0388-20260825T000000Z-pcD2QO"
+  ],
+  "production_mutation": false,
+  "canary_created": false,
+  "signed": false
+}

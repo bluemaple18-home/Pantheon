@@ -1,0 +1,150 @@
+{
+  "canary_created": false,
+  "cycles": [
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 11.543116874992847,
+        "file_count": 0,
+        "host_free_bytes": 38911889408,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-after-cleanup",
+        "process_rss_bytes": 35766272,
+        "project_bytes": 0,
+        "sampled_epoch": 1787588093.411136,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 4.7457986511290073e-05,
+        "file_count": 0,
+        "host_free_bytes": 38912950272,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-before",
+        "process_rss_bytes": 30490624,
+        "project_bytes": 0,
+        "sampled_epoch": 1787588081.8679612,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0024295418988913298,
+        "reclaimed_bytes": 33706,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-1",
+      "cycle": 1,
+      "execution_line_id": "exec-ra-slice-005-cycle-1",
+      "growth_bytes_per_hour": 10516965,
+      "peak": {
+        "elapsed_seconds": 11.537747625028715,
+        "file_count": 36,
+        "host_free_bytes": 38911483904,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-peak",
+        "process_rss_bytes": 35700736,
+        "project_bytes": 33706,
+        "sampled_epoch": 1787588093.405767,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33706,
+      "production_mutation": false,
+      "root": "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/sandbox/cycle-1",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    },
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 11.613871917012148,
+        "file_count": 0,
+        "host_free_bytes": 38910996480,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-after-cleanup",
+        "process_rss_bytes": 37355520,
+        "project_bytes": 0,
+        "sampled_epoch": 1787588105.027563,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 5.2416929975152016e-05,
+        "file_count": 0,
+        "host_free_bytes": 38911885312,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-before",
+        "process_rss_bytes": 35831808,
+        "project_bytes": 0,
+        "sampled_epoch": 1787588093.4136372,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0019793329993262887,
+        "reclaimed_bytes": 33706,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-2",
+      "cycle": 2,
+      "execution_line_id": "exec-ra-slice-005-cycle-2",
+      "growth_bytes_per_hour": 10453002,
+      "peak": {
+        "elapsed_seconds": 11.60835320793558,
+        "file_count": 36,
+        "host_free_bytes": 38910832640,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-peak",
+        "process_rss_bytes": 37322752,
+        "project_bytes": 33706,
+        "sampled_epoch": 1787588105.022044,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33706,
+      "production_mutation": false,
+      "root": "/private/tmp/pantheon-v0388-20260825T000000Z-pcD2QO/sandbox/cycle-2",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    }
+  ],
+  "mode": "synthetic-non-production-capacity-proof",
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300
+  },
+  "production_mutation": false,
+  "projections": {
+    "day_peak_bytes": 1610646442,
+    "host_free_after_projection_bytes": 37300350038,
+    "host_reserve_bytes": 24510719590,
+    "hour_peak_bytes": 67142570,
+    "measured_max_growth_bytes_per_hour": 10516965,
+    "projected_growth_bytes_per_hour": 67108864,
+    "retention_peak_bytes": 1610646442
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss_negative_result": "BLOCKED"
+}
