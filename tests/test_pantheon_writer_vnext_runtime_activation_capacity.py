@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -7,10 +8,13 @@ from pathlib import Path
 import pytest
 
 from scripts.pantheon_writer_vnext_runtime_activation_capacity import (
+    CAPACITY_RECEIPT_MEDIA_TYPE,
+    CYCLE_MEASUREMENT_MEDIA_TYPE,
     CapacityProofBlocked,
     DEFAULT_POLICY,
     GIB,
     MIB,
+    run_capacity_proof_evidence_bundle,
     run_capacity_negative_matrix,
     run_capacity_proof,
 )
@@ -71,6 +75,32 @@ def _tree_size(root: Path) -> tuple[int, int]:
             total_bytes += path.stat().st_size
             file_count += 1
     return total_bytes, file_count
+
+
+def _write_fixture_capacity_artifacts(evidence_root: Path) -> dict[str, object]:
+    cycles = [
+        {"cycle": 1, "execution_line_id": "exec-1"},
+        {"cycle": 2, "execution_line_id": "exec-2"},
+    ]
+    receipt = {
+        "schema_version": 1,
+        "status": "PASS",
+        "mode": "synthetic-non-production-capacity-proof",
+        "cycles": cycles,
+        "canary_created": False,
+        "production_mutation": False,
+    }
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    for cycle in cycles:
+        (evidence_root / f"cycle-{cycle['cycle']}-measurements.json").write_text(
+            json.dumps(cycle, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    (evidence_root / "capacity-receipt.json").write_text(
+        json.dumps(receipt, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return receipt
 
 
 def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
@@ -143,6 +173,206 @@ def test_capacity_proof_runs_two_e2e_cycles_and_reclaims_only_cycle_roots(
     assert json.loads((tmp_path / "evidence" / "capacity-receipt.json").read_text())[
         "status"
     ] == "PASS"
+
+
+def test_capacity_proof_evidence_bundle_exposes_exact_byte_artifacts(
+    tmp_path: Path,
+) -> None:
+    calls: list[Path] = []
+
+    def capacity_evaluator(**kwargs: object) -> dict[str, object]:
+        evidence_root = Path(kwargs["evidence_root"])
+        calls.append(evidence_root)
+        return _write_fixture_capacity_artifacts(evidence_root)
+
+    evidence_root = (tmp_path / "evidence").resolve()
+    bundle = run_capacity_proof_evidence_bundle(
+        capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+        evidence_root=evidence_root,
+        runtime_receipt=RUNTIME_RECEIPT,
+        actor_identity="actor-ra-slice-005",
+        brief=_brief(),
+        policy=DEFAULT_POLICY,
+        capacity_evaluator=capacity_evaluator,
+    )
+
+    assert calls == [evidence_root]
+    assert bundle.evidence_root == evidence_root
+    assert bundle.receipt == json.loads(
+        (evidence_root / "capacity-receipt.json").read_text(encoding="utf-8")
+    )
+    assert bundle.capacity_receipt.logical_name == "capacity-receipt.json"
+    assert bundle.capacity_receipt.media_type == CAPACITY_RECEIPT_MEDIA_TYPE
+    assert bundle.capacity_receipt.path == evidence_root / "capacity-receipt.json"
+    assert bundle.capacity_receipt.sha256 == hashlib.sha256(
+        (evidence_root / "capacity-receipt.json").read_bytes()
+    ).hexdigest()
+    assert [artifact.logical_name for artifact in bundle.cycle_measurements] == [
+        "cycle-1-measurements.json",
+        "cycle-2-measurements.json",
+    ]
+    assert [artifact.media_type for artifact in bundle.cycle_measurements] == [
+        CYCLE_MEASUREMENT_MEDIA_TYPE,
+        CYCLE_MEASUREMENT_MEDIA_TYPE,
+    ]
+    assert [artifact.path for artifact in bundle.cycle_measurements] == [
+        evidence_root / "cycle-1-measurements.json",
+        evidence_root / "cycle-2-measurements.json",
+    ]
+    assert [artifact.sha256 for artifact in bundle.cycle_measurements] == [
+        hashlib.sha256((evidence_root / "cycle-1-measurements.json").read_bytes()).hexdigest(),
+        hashlib.sha256((evidence_root / "cycle-2-measurements.json").read_bytes()).hexdigest(),
+    ]
+
+    with pytest.raises(AttributeError):
+        bundle.cycle_measurements.append(bundle.capacity_receipt)  # type: ignore[attr-defined]
+
+
+def test_capacity_proof_evidence_bundle_receipt_is_deeply_immutable(
+    tmp_path: Path,
+) -> None:
+    def capacity_evaluator(**kwargs: object) -> dict[str, object]:
+        return _write_fixture_capacity_artifacts(Path(kwargs["evidence_root"]))
+
+    evidence_root = (tmp_path / "evidence").resolve()
+    bundle = run_capacity_proof_evidence_bundle(
+        capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+        evidence_root=evidence_root,
+        runtime_receipt=RUNTIME_RECEIPT,
+        actor_identity="actor-ra-slice-005",
+        brief=_brief(),
+        policy=DEFAULT_POLICY,
+        capacity_evaluator=capacity_evaluator,
+    )
+
+    assert bundle.receipt == json.loads(
+        (evidence_root / "capacity-receipt.json").read_text(encoding="utf-8")
+    )
+    with pytest.raises(TypeError):
+        bundle.receipt["status"] = "BLOCKED"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        bundle.receipt["cycles"][0]["execution_line_id"] = "drifted"  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        bundle.receipt["cycles"].append({"cycle": 3})  # type: ignore[attr-defined]
+
+
+def test_capacity_proof_evidence_bundle_calls_evaluator_once(tmp_path: Path) -> None:
+    calls = 0
+
+    def capacity_evaluator(**kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        return _write_fixture_capacity_artifacts(Path(kwargs["evidence_root"]))
+
+    run_capacity_proof_evidence_bundle(
+        capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+        evidence_root=(tmp_path / "evidence").resolve(),
+        runtime_receipt=RUNTIME_RECEIPT,
+        actor_identity="actor-ra-slice-005",
+        brief=_brief(),
+        policy=DEFAULT_POLICY,
+        capacity_evaluator=capacity_evaluator,
+    )
+
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("case", "mutate"),
+    [
+        ("missing-capacity-receipt", lambda root: (root / "capacity-receipt.json").unlink()),
+        (
+            "tampered-capacity-receipt",
+            lambda root: (root / "capacity-receipt.json").write_text(
+                json.dumps({"status": "PASS", "cycles": []}) + "\n",
+                encoding="utf-8",
+            ),
+        ),
+        (
+            "cycle-mismatch",
+            lambda root: (root / "cycle-2-measurements.json").write_text(
+                json.dumps({"cycle": 2, "execution_line_id": "drifted"}) + "\n",
+                encoding="utf-8",
+            ),
+        ),
+        (
+            "path-escape",
+            lambda root: (root / "cycle-1-measurements.json").symlink_to(
+                root.parent / "outside.json"
+            ),
+        ),
+        ("non-regular-file", lambda root: (root / "cycle-2-measurements.json").unlink()),
+    ],
+)
+def test_capacity_proof_evidence_bundle_fail_closed_on_artifact_drift(
+    tmp_path: Path,
+    case: str,
+    mutate: object,
+) -> None:
+    def capacity_evaluator(**kwargs: object) -> dict[str, object]:
+        evidence_root = Path(kwargs["evidence_root"])
+        receipt = _write_fixture_capacity_artifacts(evidence_root)
+        if case == "path-escape":
+            (evidence_root.parent / "outside.json").write_text("{}", encoding="utf-8")
+            (evidence_root / "cycle-1-measurements.json").unlink()
+        elif case == "non-regular-file":
+            (evidence_root / "cycle-2-measurements.json").unlink()
+            (evidence_root / "cycle-2-measurements.json").mkdir()
+            return receipt
+        mutate(evidence_root)  # type: ignore[operator]
+        return receipt
+
+    with pytest.raises(CapacityProofBlocked) as blocked:
+        run_capacity_proof_evidence_bundle(
+            capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+            evidence_root=(tmp_path / "evidence").resolve(),
+            runtime_receipt=RUNTIME_RECEIPT,
+            actor_identity="actor-ra-slice-005",
+            brief=_brief(),
+            policy=DEFAULT_POLICY,
+            capacity_evaluator=capacity_evaluator,
+        )
+
+    assert blocked.value.payload["status"] == "BLOCKED"
+
+
+def test_capacity_proof_evidence_bundle_blocks_replacement_symlink_race(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({"cycle": 1, "execution_line_id": "evil"}), encoding="utf-8")
+
+    def capacity_evaluator(**kwargs: object) -> dict[str, object]:
+        return _write_fixture_capacity_artifacts(Path(kwargs["evidence_root"]))
+
+    replaced = False
+
+    def replace_cycle_with_symlink(path: Path) -> None:
+        nonlocal replaced
+        if path.name != "cycle-1-measurements.json" or replaced:
+            return
+        replaced = True
+        path.unlink()
+        path.symlink_to(outside)
+
+    with pytest.raises(CapacityProofBlocked) as blocked:
+        run_capacity_proof_evidence_bundle(
+            capacity_sandbox_root=(tmp_path / "capacity-sandbox").resolve(),
+            evidence_root=(tmp_path / "evidence").resolve(),
+            runtime_receipt=RUNTIME_RECEIPT,
+            actor_identity="actor-ra-slice-005",
+            brief=_brief(),
+            policy=DEFAULT_POLICY,
+            capacity_evaluator=capacity_evaluator,
+            artifact_before_open_hook=replace_cycle_with_symlink,
+        )
+
+    assert replaced is True
+    assert blocked.value.payload["status"] == "BLOCKED"
+    assert blocked.value.payload["case"] in {
+        "capacity-artifact-identity-drift",
+        "capacity-artifact-read-failed",
+    }
 
 
 def test_capacity_proof_blocks_over_budget_before_second_cycle(tmp_path: Path) -> None:

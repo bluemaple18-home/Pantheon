@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -64,10 +65,19 @@ def _fixture(
     private_key, public_key, fingerprint = _keypair(tmp_path)
     target = tmp_path / "target.txt"
     policy = tmp_path / POLICY_NAME
+    capacity_receipt = tmp_path / "capacity-receipt.json"
     measurement_a = tmp_path / "measurement-a.json"
     measurement_b = tmp_path / "measurement-b.json"
     target.write_text("target-v1\n", encoding="utf-8")
     _write_json(policy, {"policy": "rule24", "threshold": 1})
+    _write_json(
+        capacity_receipt,
+        {
+            "schema_version": 1,
+            "status": "PASS",
+            "capacity": {"available_bytes": 1_048_576},
+        },
+    )
     _write_json(measurement_a, {"name": "a", "value": 1})
     _write_json(measurement_b, {"name": "b", "value": 2})
     trust_policy = tmp_path / "trust-policy.json"
@@ -112,6 +122,7 @@ def _fixture(
         "fingerprint": fingerprint,
         "target": target.resolve(),
         "policy": policy.resolve(),
+        "capacity_receipt": capacity_receipt.resolve(),
         "measurements": measurements,
         "trust_policy": trust_policy.resolve(),
         "challenge": challenge.resolve(),
@@ -135,6 +146,31 @@ def _produce(fixture: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _capacity_evidence(fixture: dict[str, object]) -> rule24.ResourceInput:
+    return rule24.ResourceInput(
+        name="capacity-receipt.json",
+        media_type=rule24.CAPACITY_EVIDENCE_MEDIA_TYPE,
+        path=Path(fixture["capacity_receipt"]),
+    )
+
+
+def _produce_with_capacity(fixture: dict[str, object]) -> dict[str, object]:
+    return rule24.produce_rule24_attestation(
+        private_key_path=fixture["private_key"],
+        public_key_path=fixture["public_key"],
+        producer_id=PRODUCER_ID,
+        target_path=fixture["target"],
+        target_name=TARGET_NAME,
+        target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        correlation=CORRELATION,
+        challenge=CHALLENGE,
+        capacity_evidence_input=_capacity_evidence(fixture),
+    )
+
+
 def _verify(fixture: dict[str, object], envelope: dict[str, object]) -> dict[str, object]:
     return rule24.verify_rule24_attestation(
         envelope=envelope,
@@ -149,6 +185,258 @@ def _verify(fixture: dict[str, object], envelope: dict[str, object]) -> dict[str
         expected_challenge_path=fixture["challenge"],
         replay_state_dir=fixture["replay_state"],
     )
+
+
+def _commit_with_capacity(
+    fixture: dict[str, object],
+    envelope: dict[str, object],
+    *,
+    capacity_evidence_bytes: bytes | None = None,
+) -> dict[str, object]:
+    return rule24.commit_rule24_replay_claim(
+        envelope=envelope,
+        trust_policy_path=fixture["trust_policy"],
+        pinned_public_key_path=fixture["public_key"],
+        target_path=fixture["target"],
+        expected_target_name=TARGET_NAME,
+        expected_target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
+        capacity_evidence_bytes=(
+            Path(fixture["capacity_receipt"]).read_bytes()
+            if capacity_evidence_bytes is None
+            else capacity_evidence_bytes
+        ),
+    )
+
+
+def _authenticate_with_capacity(
+    fixture: dict[str, object],
+    envelope: dict[str, object],
+) -> rule24.AuthenticatedRule24Attestation:
+    return rule24.authenticate_rule24_attestation(
+        envelope=envelope,
+        trust_policy_path=fixture["trust_policy"],
+        pinned_public_key_path=fixture["public_key"],
+        target_path=fixture["target"],
+        expected_target_name=TARGET_NAME,
+        expected_target_media_type=TARGET_TYPE,
+        rule24_policy_path=fixture["policy"],
+        rule24_policy_name=POLICY_NAME,
+        measurement_inputs=fixture["measurements"],
+        expected_challenge_path=fixture["challenge"],
+        capacity_evidence_bytes=Path(fixture["capacity_receipt"]).read_bytes(),
+    )
+
+
+def test_pure_auth_success_has_no_replay_or_observer_side_effects(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+
+    authenticated = _authenticate_with_capacity(fixture, envelope)
+
+    assert authenticated.authenticated_statement_digest == hashlib.sha256(
+        base64.b64decode(envelope["payload"])
+    ).hexdigest()
+    assert authenticated.capacity_evidence_digest == _sha256(fixture["capacity_receipt"])
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        authenticated.target_digest = "0" * 64
+
+
+def test_capacity_receipt_is_independent_descriptor_not_measurement(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    statement = json.loads(base64.b64decode(envelope["payload"]).decode("utf-8"))
+    predicate = statement["predicate"]
+
+    assert len(predicate["measurements"]) == 2
+    assert [measurement["name"] for measurement in predicate["measurements"]] == [
+        MEASUREMENTS[0][0],
+        MEASUREMENTS[1][0],
+    ]
+    assert predicate["capacity_evidence"] == {
+        "name": "capacity-receipt.json",
+        "mediaType": rule24.CAPACITY_EVIDENCE_MEDIA_TYPE,
+        "digest": {"sha256": _sha256(fixture["capacity_receipt"])},
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("target", "target_binding"),
+        ("policy", "policy_digest"),
+        ("measurement", "measurement_digest"),
+        ("capacity-receipt", "capacity_evidence_digest"),
+    ],
+)
+def test_pure_auth_tamper_matrix_fails_closed_without_replay_claim(
+    tmp_path: Path,
+    mutation: str,
+    reason: str,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    capacity_bytes = Path(fixture["capacity_receipt"]).read_bytes()
+    if mutation == "target":
+        Path(fixture["target"]).write_text("target-v2\n", encoding="utf-8")
+    elif mutation == "policy":
+        Path(fixture["policy"]).write_text('{"policy":"changed"}\n', encoding="utf-8")
+    elif mutation == "measurement":
+        Path(fixture["measurements"][0].path).write_text('{"name":"a","value":99}\n', encoding="utf-8")
+    else:
+        capacity_bytes = capacity_bytes + b"\n"
+
+    with pytest.raises(rule24.Rule24AttestationError) as error:
+        rule24.authenticate_rule24_attestation(
+            envelope=envelope,
+            trust_policy_path=fixture["trust_policy"],
+            pinned_public_key_path=fixture["public_key"],
+            target_path=fixture["target"],
+            expected_target_name=TARGET_NAME,
+            expected_target_media_type=TARGET_TYPE,
+            rule24_policy_path=fixture["policy"],
+            rule24_policy_name=POLICY_NAME,
+            measurement_inputs=fixture["measurements"],
+            expected_challenge_path=fixture["challenge"],
+            capacity_evidence_bytes=capacity_bytes,
+        )
+
+    assert error.value.reason == reason
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+def test_commit_reauthenticates_original_envelope_and_does_not_call_observer(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    observed: list[bytes] = []
+
+    first = _commit_with_capacity(fixture, envelope)
+    duplicate = _commit_with_capacity(fixture, envelope)
+
+    assert first["status"] == "PASS"
+    assert first["mode"] == "commit"
+    assert duplicate["status"] == "NO-GO"
+    assert duplicate["reason"] == "challenge_replay"
+    assert observed == []
+    assert len(list(Path(fixture["replay_state"]).glob("*.json"))) == 1
+
+
+def test_commit_api_rejects_prior_authenticated_object_input_without_claim(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    authenticated = _authenticate_with_capacity(fixture, envelope)
+
+    with pytest.raises(TypeError):
+        rule24.commit_rule24_replay_claim(
+            authenticated,
+            replay_state_dir=fixture["replay_state"],
+        )
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+@pytest.mark.parametrize("clone", [copy.copy, dataclasses.replace])
+def test_commit_api_rejects_copied_or_replaced_authenticated_result_input_without_claim(
+    tmp_path: Path,
+    clone: object,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    authenticated = _authenticate_with_capacity(fixture, envelope)
+    copied = clone(authenticated)
+
+    with pytest.raises(TypeError):
+        rule24.commit_rule24_replay_claim(
+            copied,
+            replay_state_dir=fixture["replay_state"],
+        )
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("target", "target_binding"),
+        ("policy", "policy_digest"),
+        ("measurement", "measurement_digest"),
+        ("capacity-receipt", "capacity_evidence_digest"),
+        ("challenge", "challenge_mismatch"),
+    ],
+)
+def test_commit_reauth_context_mismatch_fails_closed_without_replay_claim(
+    tmp_path: Path,
+    mutation: str,
+    reason: str,
+) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce_with_capacity(fixture)["envelope"]
+    capacity_bytes = Path(fixture["capacity_receipt"]).read_bytes()
+    if mutation == "target":
+        Path(fixture["target"]).write_text("target-v2\n", encoding="utf-8")
+    elif mutation == "policy":
+        Path(fixture["policy"]).write_text('{"policy":"changed"}\n', encoding="utf-8")
+    elif mutation == "measurement":
+        Path(fixture["measurements"][0].path).write_text('{"name":"a","value":99}\n', encoding="utf-8")
+    elif mutation == "capacity-receipt":
+        capacity_bytes = capacity_bytes + b"\n"
+    else:
+        challenge = json.loads(Path(fixture["challenge"]).read_text(encoding="utf-8"))
+        challenge["challenge"] = "changed"
+        _write_json(fixture["challenge"], challenge)
+
+    result = _commit_with_capacity(
+        fixture,
+        envelope,
+        capacity_evidence_bytes=capacity_bytes,
+    )
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == reason
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "challenge_digest",
+    [
+        "../escape",
+        "/tmp/escape",
+        "A" * 64,
+        "0" * 63,
+        ("0" * 63) + "g",
+    ],
+)
+def test_claim_rejects_malformed_challenge_digest_before_filesystem_side_effects(
+    tmp_path: Path,
+    challenge_digest: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    opened: list[object] = []
+
+    def fail_if_opened(*args: object, **_kwargs: object) -> int:
+        opened.append(args[0])
+        raise AssertionError("os.open must not run for malformed challenge digest")
+
+    monkeypatch.setattr(rule24.os, "open", fail_if_opened)
+
+    with pytest.raises(rule24.Rule24AttestationError) as error:
+        rule24._claim_challenge_digest(
+            Path(fixture["replay_state"]),
+            challenge_digest=challenge_digest,
+            authenticated_statement_digest="0" * 64,
+        )
+
+    assert error.value.reason == "challenge_digest"
+    assert opened == []
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
 
 
 def test_dsse_pae_spec_vector_is_unambiguous() -> None:

@@ -23,6 +23,8 @@ SCHEMA_VERSION = 1
 STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
 PAYLOAD_TYPE = "application/vnd.in-toto+json"
 PREDICATE_TYPE = "https://pantheon.local/rule24/trust-predicate/v1"
+CAPACITY_EVIDENCE_NAME = "capacity-receipt.json"
+CAPACITY_EVIDENCE_MEDIA_TYPE = "application/vnd.pantheon.rule24.capacity-receipt+json"
 NO_SIDE_EFFECT_FLAGS = {
     "production_mutation": False,
     "canary_created": False,
@@ -37,6 +39,18 @@ class ResourceInput:
     name: str
     media_type: str
     path: Path
+
+
+@dataclass(frozen=True)
+class AuthenticatedRule24Attestation:
+    payload: bytes
+    authenticated_statement_digest: str
+    accepted_public_key_fingerprint: str
+    target_digest: str
+    policy_digest: str
+    measurement_digests: tuple[str, str]
+    correlation_challenge_digest: str
+    capacity_evidence_digest: str | None = None
 
 
 class Rule24AttestationError(ValueError):
@@ -242,6 +256,34 @@ def _resource_descriptor(resource: ResourceInput, *, reason: str) -> dict[str, o
     }
 
 
+def _raw_resource_descriptor(
+    *,
+    name: str,
+    media_type: str,
+    raw_bytes: bytes,
+) -> dict[str, object]:
+    return {
+        "name": _identifier(name, "resource name"),
+        "mediaType": _identifier(media_type, "resource media_type"),
+        "digest": {"sha256": _digest_bytes(raw_bytes)},
+    }
+
+
+def _capacity_evidence_descriptor(resource: ResourceInput) -> dict[str, object]:
+    descriptor = _resource_descriptor(resource, reason="capacity_evidence_digest")
+    if descriptor["name"] != CAPACITY_EVIDENCE_NAME:
+        raise Rule24AttestationError(
+            "capacity_evidence_binding",
+            "capacity evidence must bind capacity-receipt.json",
+        )
+    if descriptor["mediaType"] != CAPACITY_EVIDENCE_MEDIA_TYPE:
+        raise Rule24AttestationError(
+            "capacity_evidence_binding",
+            "capacity evidence media type mismatch",
+        )
+    return descriptor
+
+
 def _target_descriptor(path: Path | str, name: str, media_type: str) -> dict[str, object]:
     target_path = _canonical_path(path, "target_path")
     return {
@@ -285,6 +327,7 @@ def build_statement(
     measurement_inputs: Sequence[ResourceInput],
     correlation: str,
     challenge: str,
+    capacity_evidence_input: ResourceInput | None = None,
 ) -> tuple[dict[str, object], bytes]:
     correlation_id = _identifier(correlation, "correlation")
     challenge_value = _identifier(challenge, "challenge")
@@ -312,6 +355,11 @@ def build_statement(
             ),
         },
     }
+    if capacity_evidence_input is not None:
+        predicate = statement["predicate"]
+        if not isinstance(predicate, dict):
+            raise Rule24AttestationError("predicate_contract", "predicate must be an object")
+        predicate["capacity_evidence"] = _capacity_evidence_descriptor(capacity_evidence_input)
     payload = _canonical_json_bytes(statement)
     return statement, payload
 
@@ -400,6 +448,7 @@ def produce_rule24_attestation(
     measurement_inputs: Sequence[ResourceInput],
     correlation: str,
     challenge: str,
+    capacity_evidence_input: ResourceInput | None = None,
 ) -> dict[str, object]:
     """Build in-toto Statement v1, sign DSSE PAE with caller-supplied Ed25519 key."""
 
@@ -417,6 +466,7 @@ def produce_rule24_attestation(
             measurement_inputs=measurement_inputs,
             correlation=correlation,
             challenge=challenge,
+            capacity_evidence_input=capacity_evidence_input,
         )
         signature = _sign_pae(private_key_path, _pae(PAYLOAD_TYPE, payload))
         target_digest = _digest_path(_canonical_path(target_path, "target_path"))
@@ -435,16 +485,20 @@ def produce_rule24_attestation(
                 }
             ],
         }
-        return _pass(
-            "produce",
-            envelope=envelope,
-            authenticated_statement_digest=_digest_bytes(payload),
-            accepted_public_key_fingerprint=fingerprint,
-            target_digest=target_digest,
-            policy_digest=policy_digest,
-            measurement_digests=measurement_digests,
-            correlation_challenge_digest=_challenge_digest(correlation, challenge),
-        )
+        fields: dict[str, object] = {
+            "envelope": envelope,
+            "authenticated_statement_digest": _digest_bytes(payload),
+            "accepted_public_key_fingerprint": fingerprint,
+            "target_digest": target_digest,
+            "policy_digest": policy_digest,
+            "measurement_digests": measurement_digests,
+            "correlation_challenge_digest": _challenge_digest(correlation, challenge),
+        }
+        if capacity_evidence_input is not None:
+            fields["capacity_evidence_digest"] = _digest_path(
+                _canonical_path(capacity_evidence_input.path, "resource path")
+            )
+        return _pass("produce", **fields)
     except Rule24AttestationError as error:
         return _no_go(error.reason)
 
@@ -544,7 +598,8 @@ def _validate_statement_contract(
     rule24_policy_name: str,
     measurement_inputs: Sequence[ResourceInput],
     expected_challenge_path: Path | str,
-) -> tuple[str, str, str, list[str], str]:
+    capacity_evidence_bytes: bytes | None = None,
+) -> tuple[str, str, str, tuple[str, str], str, str | None]:
     if statement.get("_type") != STATEMENT_TYPE:
         raise Rule24AttestationError("statement_type", "statement _type mismatch")
     if statement.get("predicateType") != PREDICATE_TYPE:
@@ -593,6 +648,31 @@ def _validate_statement_contract(
             "measurement_binding",
             digest_reason="measurement_digest",
         )
+    capacity_evidence_digest: str | None = None
+    if capacity_evidence_bytes is None:
+        if "capacity_evidence" in predicate:
+            raise Rule24AttestationError(
+                "capacity_evidence_required",
+                "capacity evidence bytes are required",
+            )
+    else:
+        if type(capacity_evidence_bytes) is not bytes:
+            raise Rule24AttestationError(
+                "capacity_evidence_contract",
+                "capacity evidence must be raw bytes",
+            )
+        expected_capacity_evidence = _raw_resource_descriptor(
+            name=CAPACITY_EVIDENCE_NAME,
+            media_type=CAPACITY_EVIDENCE_MEDIA_TYPE,
+            raw_bytes=capacity_evidence_bytes,
+        )
+        _validate_resource_descriptor(
+            predicate.get("capacity_evidence"),
+            expected_capacity_evidence,
+            "capacity_evidence_binding",
+            digest_reason="capacity_evidence_digest",
+        )
+        capacity_evidence_digest = expected_capacity_evidence["digest"]["sha256"]
     authorization = predicate.get("authorization")
     if not isinstance(authorization, Mapping):
         raise Rule24AttestationError("challenge_contract", "authorization is missing")
@@ -612,8 +692,12 @@ def _validate_statement_contract(
         expected_target["digest"]["sha256"],
         expected_policy["digest"]["sha256"],
         producer_id,
-        [descriptor["digest"]["sha256"] for descriptor in expected_measurements],
+        (
+            expected_measurements[0]["digest"]["sha256"],
+            expected_measurements[1]["digest"]["sha256"],
+        ),
         challenge_digest,
+        capacity_evidence_digest,
     )
 
 
@@ -623,11 +707,16 @@ def _claim_challenge_digest(
     challenge_digest: str,
     authenticated_statement_digest: str,
 ) -> None:
-    claim_path = replay_state_dir / f"{challenge_digest}.json"
+    validated_challenge_digest = _expect_digest(challenge_digest, "challenge_digest")
+    validated_statement_digest = _expect_digest(
+        authenticated_statement_digest,
+        "authenticated_statement_digest",
+    )
+    claim_path = replay_state_dir / f"{validated_challenge_digest}.json"
     payload = {
         "schema_version": SCHEMA_VERSION,
-        "challenge_digest": challenge_digest,
-        "authenticated_statement_digest": authenticated_statement_digest,
+        "challenge_digest": validated_challenge_digest,
+        "authenticated_statement_digest": validated_statement_digest,
         "claimed_epoch": time.time(),
     }
     encoded = json.dumps(
@@ -650,6 +739,161 @@ def _claim_challenge_digest(
         raise Rule24AttestationError("replay_state_claim", "challenge claim cannot be written") from error
 
 
+def authenticate_rule24_attestation(
+    *,
+    envelope: Mapping[str, Any],
+    trust_policy_path: Path | str,
+    pinned_public_key_path: Path | str,
+    target_path: Path | str,
+    expected_target_name: str,
+    expected_target_media_type: str,
+    rule24_policy_path: Path | str,
+    rule24_policy_name: str,
+    measurement_inputs: Sequence[ResourceInput],
+    expected_challenge_path: Path | str,
+    capacity_evidence_bytes: bytes | None = None,
+) -> AuthenticatedRule24Attestation:
+    """Authenticate DSSE and statement bindings without replay or observer effects."""
+
+    _require_openssl_ed25519()
+    if not isinstance(envelope, Mapping):
+        raise Rule24AttestationError("envelope_contract", "envelope must be an object")
+    if envelope.get("payloadType") != PAYLOAD_TYPE:
+        raise Rule24AttestationError("payload_type", "payloadType mismatch")
+    payload = _strict_b64_decode(envelope.get("payload"), "payload")
+    signatures = envelope.get("signatures")
+    if not isinstance(signatures, list) or len(signatures) != 1:
+        raise Rule24AttestationError("signature_contract", "exactly one signature is required")
+    signature_entry = signatures[0]
+    if not isinstance(signature_entry, Mapping):
+        raise Rule24AttestationError("signature_contract", "signature must be an object")
+    signature = _strict_b64_decode(signature_entry.get("sig"), "signature_contract")
+    fingerprint = public_key_fingerprint(pinned_public_key_path)
+    if not _verify_pae_signature(pinned_public_key_path, _pae(PAYLOAD_TYPE, payload), signature):
+        raise Rule24AttestationError("signature_invalid", "signature verification failed")
+    statement = _statement_from_verified_payload(payload)
+    (
+        target_digest,
+        policy_digest,
+        _producer_id,
+        measurement_digests,
+        challenge_digest,
+        capacity_evidence_digest,
+    ) = _validate_statement_contract(
+        statement,
+        trust_policy_path=trust_policy_path,
+        pinned_public_key_fingerprint=fingerprint,
+        target_path=target_path,
+        expected_target_name=expected_target_name,
+        expected_target_media_type=expected_target_media_type,
+        rule24_policy_path=rule24_policy_path,
+        rule24_policy_name=rule24_policy_name,
+        measurement_inputs=measurement_inputs,
+        expected_challenge_path=expected_challenge_path,
+        capacity_evidence_bytes=capacity_evidence_bytes,
+    )
+    return AuthenticatedRule24Attestation(
+        payload=payload,
+        authenticated_statement_digest=_digest_bytes(payload),
+        accepted_public_key_fingerprint=fingerprint,
+        target_digest=target_digest,
+        policy_digest=policy_digest,
+        measurement_digests=measurement_digests,
+        correlation_challenge_digest=challenge_digest,
+        capacity_evidence_digest=capacity_evidence_digest,
+    )
+
+
+def _pass_from_authenticated(mode: str, authenticated: AuthenticatedRule24Attestation) -> dict[str, object]:
+    fields: dict[str, object] = {
+        "authenticated_statement_digest": authenticated.authenticated_statement_digest,
+        "accepted_public_key_fingerprint": authenticated.accepted_public_key_fingerprint,
+        "target_digest": authenticated.target_digest,
+        "policy_digest": authenticated.policy_digest,
+        "measurement_digests": list(authenticated.measurement_digests),
+        "correlation_challenge_digest": authenticated.correlation_challenge_digest,
+    }
+    if authenticated.capacity_evidence_digest is not None:
+        fields["capacity_evidence_digest"] = authenticated.capacity_evidence_digest
+    return _pass(mode, **fields)
+
+
+def _commit_reauthenticated_replay_claim(
+    *,
+    envelope: Mapping[str, Any],
+    trust_policy_path: Path | str,
+    pinned_public_key_path: Path | str,
+    target_path: Path | str,
+    expected_target_name: str,
+    expected_target_media_type: str,
+    rule24_policy_path: Path | str,
+    rule24_policy_name: str,
+    measurement_inputs: Sequence[ResourceInput],
+    expected_challenge_path: Path | str,
+    replay_state_dir: Path | str,
+    capacity_evidence_bytes: bytes | None = None,
+) -> tuple[dict[str, object], AuthenticatedRule24Attestation | None]:
+    try:
+        authenticated = authenticate_rule24_attestation(
+            envelope=envelope,
+            trust_policy_path=trust_policy_path,
+            pinned_public_key_path=pinned_public_key_path,
+            target_path=target_path,
+            expected_target_name=expected_target_name,
+            expected_target_media_type=expected_target_media_type,
+            rule24_policy_path=rule24_policy_path,
+            rule24_policy_name=rule24_policy_name,
+            measurement_inputs=measurement_inputs,
+            expected_challenge_path=expected_challenge_path,
+            capacity_evidence_bytes=capacity_evidence_bytes,
+        )
+        replay_state = _external_replay_state_dir(replay_state_dir)
+        _claim_challenge_digest(
+            replay_state,
+            challenge_digest=authenticated.correlation_challenge_digest,
+            authenticated_statement_digest=authenticated.authenticated_statement_digest,
+        )
+        return _pass_from_authenticated("commit", authenticated), authenticated
+    except Rule24AttestationError as error:
+        if error.reason == "openssl_nonzero":
+            return _no_go("openssl_nonzero"), None
+        return _no_go(error.reason), None
+
+
+def commit_rule24_replay_claim(
+    *,
+    envelope: Mapping[str, Any],
+    trust_policy_path: Path | str,
+    pinned_public_key_path: Path | str,
+    target_path: Path | str,
+    expected_target_name: str,
+    expected_target_media_type: str,
+    rule24_policy_path: Path | str,
+    rule24_policy_name: str,
+    measurement_inputs: Sequence[ResourceInput],
+    expected_challenge_path: Path | str,
+    replay_state_dir: Path | str,
+    capacity_evidence_bytes: bytes | None = None,
+) -> dict[str, object]:
+    """Re-authenticate the original DSSE envelope, then atomically commit replay state."""
+
+    committed, _authenticated = _commit_reauthenticated_replay_claim(
+        envelope=envelope,
+        trust_policy_path=trust_policy_path,
+        pinned_public_key_path=pinned_public_key_path,
+        target_path=target_path,
+        expected_target_name=expected_target_name,
+        expected_target_media_type=expected_target_media_type,
+        rule24_policy_path=rule24_policy_path,
+        rule24_policy_name=rule24_policy_name,
+        measurement_inputs=measurement_inputs,
+        expected_challenge_path=expected_challenge_path,
+        replay_state_dir=replay_state_dir,
+        capacity_evidence_bytes=capacity_evidence_bytes,
+    )
+    return committed
+
+
 def verify_rule24_attestation(
     *,
     envelope: Mapping[str, Any],
@@ -664,59 +908,45 @@ def verify_rule24_attestation(
     expected_challenge_path: Path | str,
     replay_state_dir: Path | str,
     verified_payload_observer: Callable[[bytes], None] | None = None,
+    capacity_evidence_bytes: bytes | None = None,
 ) -> dict[str, object]:
-    """Verify DSSE signature first, then parse the exact authenticated payload bytes."""
+    """Compatibility wrapper: authenticate, commit replay, then notify observer."""
 
     try:
-        _require_openssl_ed25519()
-        if not isinstance(envelope, Mapping):
-            raise Rule24AttestationError("envelope_contract", "envelope must be an object")
-        if envelope.get("payloadType") != PAYLOAD_TYPE:
-            raise Rule24AttestationError("payload_type", "payloadType mismatch")
-        payload = _strict_b64_decode(envelope.get("payload"), "payload")
-        signatures = envelope.get("signatures")
-        if not isinstance(signatures, list) or len(signatures) != 1:
-            raise Rule24AttestationError("signature_contract", "exactly one signature is required")
-        signature_entry = signatures[0]
-        if not isinstance(signature_entry, Mapping):
-            raise Rule24AttestationError("signature_contract", "signature must be an object")
-        signature = _strict_b64_decode(signature_entry.get("sig"), "signature_contract")
-        fingerprint = public_key_fingerprint(pinned_public_key_path)
-        replay_state = _external_replay_state_dir(replay_state_dir)
-        if not _verify_pae_signature(pinned_public_key_path, _pae(PAYLOAD_TYPE, payload), signature):
-            raise Rule24AttestationError("signature_invalid", "signature verification failed")
-        statement = _statement_from_verified_payload(payload)
-        target_digest, policy_digest, _producer_id, measurement_digests, challenge_digest = (
-            _validate_statement_contract(
-                statement,
-                trust_policy_path=trust_policy_path,
-                pinned_public_key_fingerprint=fingerprint,
-                target_path=target_path,
-                expected_target_name=expected_target_name,
-                expected_target_media_type=expected_target_media_type,
-                rule24_policy_path=rule24_policy_path,
-                rule24_policy_name=rule24_policy_name,
-                measurement_inputs=measurement_inputs,
-                expected_challenge_path=expected_challenge_path,
-            )
+        authenticated = authenticate_rule24_attestation(
+            envelope=envelope,
+            trust_policy_path=trust_policy_path,
+            pinned_public_key_path=pinned_public_key_path,
+            target_path=target_path,
+            expected_target_name=expected_target_name,
+            expected_target_media_type=expected_target_media_type,
+            rule24_policy_path=rule24_policy_path,
+            rule24_policy_name=rule24_policy_name,
+            measurement_inputs=measurement_inputs,
+            expected_challenge_path=expected_challenge_path,
+            capacity_evidence_bytes=capacity_evidence_bytes,
         )
-        authenticated_statement_digest = _digest_bytes(payload)
-        _claim_challenge_digest(
-            replay_state,
-            challenge_digest=challenge_digest,
-            authenticated_statement_digest=authenticated_statement_digest,
+        committed, commit_authenticated = _commit_reauthenticated_replay_claim(
+            envelope=envelope,
+            trust_policy_path=trust_policy_path,
+            pinned_public_key_path=pinned_public_key_path,
+            target_path=target_path,
+            expected_target_name=expected_target_name,
+            expected_target_media_type=expected_target_media_type,
+            rule24_policy_path=rule24_policy_path,
+            rule24_policy_name=rule24_policy_name,
+            measurement_inputs=measurement_inputs,
+            expected_challenge_path=expected_challenge_path,
+            replay_state_dir=replay_state_dir,
+            capacity_evidence_bytes=capacity_evidence_bytes,
         )
+        if committed["status"] != "PASS":
+            return committed
+        if commit_authenticated is None:
+            return _no_go("authenticated_result_contract")
         if verified_payload_observer is not None:
-            verified_payload_observer(payload)
-        return _pass(
-            "verify",
-            authenticated_statement_digest=authenticated_statement_digest,
-            accepted_public_key_fingerprint=fingerprint,
-            target_digest=target_digest,
-            policy_digest=policy_digest,
-            measurement_digests=measurement_digests,
-            correlation_challenge_digest=challenge_digest,
-        )
+            verified_payload_observer(commit_authenticated.payload)
+        return _pass_from_authenticated("verify", commit_authenticated)
     except Rule24AttestationError as error:
         if error.reason == "openssl_nonzero":
             return _no_go("openssl_nonzero")
@@ -737,6 +967,7 @@ def sign_statement_for_tests(
     measurement_inputs: Sequence[ResourceInput],
     correlation: str,
     challenge: str,
+    capacity_evidence_input: ResourceInput | None = None,
 ) -> dict[str, object]:
     statement, _payload = build_statement(
         producer_id=producer_id,
@@ -748,6 +979,7 @@ def sign_statement_for_tests(
         measurement_inputs=measurement_inputs,
         correlation=correlation,
         challenge=challenge,
+        capacity_evidence_input=capacity_evidence_input,
     )
     statement_mutator(statement)
     payload = _canonical_json_bytes(statement)
@@ -794,6 +1026,7 @@ def _build_parser() -> argparse.ArgumentParser:
     produce.add_argument("--rule24-policy-path", required=True)
     produce.add_argument("--rule24-policy-name", required=True)
     produce.add_argument("--measurement", action="append", default=[])
+    produce.add_argument("--capacity-evidence")
     produce.add_argument("--correlation", required=True)
     produce.add_argument("--challenge", required=True)
     verify = subparsers.add_parser("verify")
@@ -806,6 +1039,7 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--rule24-policy-path", required=True)
     verify.add_argument("--rule24-policy-name", required=True)
     verify.add_argument("--measurement", action="append", default=[])
+    verify.add_argument("--capacity-evidence")
     verify.add_argument("--expected-challenge", required=True)
     verify.add_argument("--replay-state-dir", required=True)
     return parser
@@ -816,6 +1050,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         measurements = _read_measurements(args.measurement)
+        capacity_evidence_input = None
+        capacity_evidence_bytes = None
+        if args.capacity_evidence is not None:
+            capacity_evidence_path = _canonical_path(Path(args.capacity_evidence), "capacity_evidence_path")
+            capacity_evidence_input = ResourceInput(
+                name=CAPACITY_EVIDENCE_NAME,
+                media_type=CAPACITY_EVIDENCE_MEDIA_TYPE,
+                path=capacity_evidence_path,
+            )
+            capacity_evidence_bytes = capacity_evidence_path.read_bytes()
         if args.mode == "produce":
             result = produce_rule24_attestation(
                 private_key_path=Path(args.private_key),
@@ -829,6 +1073,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 measurement_inputs=measurements,
                 correlation=args.correlation,
                 challenge=args.challenge,
+                capacity_evidence_input=capacity_evidence_input,
             )
         else:
             result = verify_rule24_attestation(
@@ -843,6 +1088,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 measurement_inputs=measurements,
                 expected_challenge_path=Path(args.expected_challenge),
                 replay_state_dir=Path(args.replay_state_dir),
+                capacity_evidence_bytes=capacity_evidence_bytes,
             )
     except Rule24AttestationError as error:
         result = _no_go(error.reason)

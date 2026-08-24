@@ -5,14 +5,18 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import resource
 import shutil
+import stat
 import sys
 import time
+from types import MappingProxyType
 from typing import Any
 
 from scripts.pantheon_writer_vnext_runtime_activation_e2e import (
@@ -51,9 +55,51 @@ DEFAULT_POLICY = {
     "max_swap_growth_bytes_per_sample": 268_435_456,
 }
 CAPABILITIES = ("create", "run", "select", "publish", "transaction", "tag", "push")
+CAPACITY_RECEIPT_NAME = "capacity-receipt.json"
+CYCLE_MEASUREMENT_NAMES = ("cycle-1-measurements.json", "cycle-2-measurements.json")
+CAPACITY_RECEIPT_MEDIA_TYPE = "application/vnd.pantheon.rule24.capacity-receipt+json"
+CYCLE_MEASUREMENT_MEDIA_TYPE = (
+    "application/vnd.pantheon.rule24.capacity-cycle-measurement+json"
+)
 Workload = Callable[..., dict[str, Any]]
 Sampler = Callable[[Path, str, float], Mapping[str, Any]]
 Cleanup = Callable[[Path], None]
+CapacityEvaluator = Callable[..., dict[str, Any]]
+ArtifactReadHook = Callable[[Path], None]
+
+
+@dataclass(frozen=True)
+class CapacityEvidenceArtifact:
+    """磁碟上 exact-byte evidence 檔案的 immutable identity。"""
+
+    logical_name: str
+    path: Path
+    sha256: str
+    media_type: str
+    byte_length: int
+
+
+@dataclass(frozen=True)
+class CapacityEvidenceBundle:
+    """容量 evaluator PASS receipt 與固定 artifact metadata。"""
+
+    evidence_root: Path
+    receipt: Mapping[str, Any]
+    capacity_receipt: CapacityEvidenceArtifact
+    cycle_measurements: tuple[CapacityEvidenceArtifact, ...]
+
+    @property
+    def artifacts(self) -> tuple[CapacityEvidenceArtifact, ...]:
+        return (self.capacity_receipt, *self.cycle_measurements)
+
+
+class _FrozenList(tuple):
+    """保留 list equality 語意的不可變 JSON sequence。"""
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, (list, tuple)):
+            return tuple(self) == tuple(other)
+        return super().__eq__(other)
 
 
 class CapacityProofBlocked(ValueError):
@@ -658,6 +704,255 @@ def run_capacity_proof(
     }
     _write_json(evidence_root / "capacity-receipt.json", receipt)
     return receipt
+
+
+def _raise_bundle_blocked(
+    *,
+    case: str,
+    reason: str,
+    evidence_root: Path,
+    logical_name: str | None = None,
+) -> None:
+    payload = _block_payload(
+        case=case,
+        reason=reason,
+        cycle=None,
+        next_cycle_started=False,
+        external_cleanup_performed=False,
+        last_safe_sample={},
+    )
+    payload["evidence_root"] = str(evidence_root)
+    if logical_name is not None:
+        payload["logical_name"] = logical_name
+    raise CapacityProofBlocked(payload)
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return _FrozenList(_deep_freeze(item) for item in value)
+    if isinstance(value, tuple):
+        return _FrozenList(_deep_freeze(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_deep_freeze(item) for item in value)
+    return value
+
+
+def _stat_identity(file_stat: os.stat_result) -> tuple[int, int, int]:
+    return (file_stat.st_dev, file_stat.st_ino, stat.S_IFMT(file_stat.st_mode))
+
+
+def _stat_state(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        stat.S_IFMT(file_stat.st_mode),
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+    )
+
+
+def _read_exact_json_artifact(
+    *,
+    evidence_root: Path,
+    logical_name: str,
+    media_type: str,
+    before_open_hook: ArtifactReadHook | None = None,
+) -> tuple[CapacityEvidenceArtifact, Any]:
+    path = evidence_root / logical_name
+    try:
+        file_stat = path.lstat()
+    except FileNotFoundError:
+        _raise_bundle_blocked(
+            case="capacity-artifact-missing",
+            reason="required capacity artifact is missing",
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    if not stat.S_ISREG(file_stat.st_mode):
+        _raise_bundle_blocked(
+            case="capacity-artifact-not-regular",
+            reason="required capacity artifact is not a regular file",
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    try:
+        resolved_path = path.resolve(strict=True)
+        resolved_root = evidence_root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        _raise_bundle_blocked(
+            case="capacity-artifact-path-invalid",
+            reason=str(error),
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    if resolved_path != path or resolved_path.parent != resolved_root:
+        _raise_bundle_blocked(
+            case="capacity-artifact-path-escape",
+            reason="required capacity artifact must stay under canonical evidence root",
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    if before_open_hook is not None:
+        before_open_hook(path)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as error:
+        _raise_bundle_blocked(
+            case="capacity-artifact-read-failed",
+            reason=str(error),
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    try:
+        with os.fdopen(fd, "rb", closefd=True) as file:
+            opened_stat = os.fstat(file.fileno())
+            if not stat.S_ISREG(opened_stat.st_mode):
+                _raise_bundle_blocked(
+                    case="capacity-artifact-not-regular",
+                    reason="required capacity artifact is not a regular file",
+                    evidence_root=evidence_root,
+                    logical_name=logical_name,
+                )
+            if _stat_identity(opened_stat) != _stat_identity(file_stat):
+                _raise_bundle_blocked(
+                    case="capacity-artifact-identity-drift",
+                    reason="required capacity artifact identity changed before read",
+                    evidence_root=evidence_root,
+                    logical_name=logical_name,
+                )
+            raw_bytes = file.read()
+            reread_stat = os.fstat(file.fileno())
+    except OSError as error:
+        _raise_bundle_blocked(
+            case="capacity-artifact-read-failed",
+            reason=str(error),
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    if _stat_state(reread_stat) != _stat_state(opened_stat) or len(raw_bytes) != opened_stat.st_size:
+        _raise_bundle_blocked(
+            case="capacity-artifact-state-drift",
+            reason="required capacity artifact state changed while collecting bundle",
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    digest = hashlib.sha256(raw_bytes).hexdigest()
+    try:
+        parsed = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        _raise_bundle_blocked(
+            case="capacity-artifact-json-invalid",
+            reason=str(error),
+            evidence_root=evidence_root,
+            logical_name=logical_name,
+        )
+    return (
+        CapacityEvidenceArtifact(
+            logical_name=logical_name,
+            path=resolved_path,
+            sha256=digest,
+            media_type=media_type,
+            byte_length=len(raw_bytes),
+        ),
+        parsed,
+    )
+
+
+def run_capacity_proof_evidence_bundle(
+    *,
+    capacity_sandbox_root: Path,
+    evidence_root: Path,
+    runtime_receipt: Mapping[str, Any],
+    actor_identity: str,
+    brief: Mapping[str, Any],
+    policy: Mapping[str, Any],
+    sampler: Sampler = _default_sampler,
+    workload: Workload = run_runtime_activation_e2e,
+    cleanup: Cleanup = _cleanup_cycle_root,
+    capacity_evaluator: CapacityEvaluator = run_capacity_proof,
+    artifact_before_open_hook: ArtifactReadHook | None = None,
+) -> CapacityEvidenceBundle:
+    """執行既有容量 proof 一次，並回傳固定 exact-byte evidence bundle。"""
+
+    canonical_evidence_root = _canonical_path(evidence_root, "evidence root")
+    receipt = capacity_evaluator(
+        capacity_sandbox_root=capacity_sandbox_root,
+        evidence_root=canonical_evidence_root,
+        runtime_receipt=runtime_receipt,
+        actor_identity=actor_identity,
+        brief=brief,
+        policy=policy,
+        sampler=sampler,
+        workload=workload,
+        cleanup=cleanup,
+    )
+    if not isinstance(receipt, Mapping):
+        _raise_bundle_blocked(
+            case="capacity-receipt-return-invalid",
+            reason="capacity evaluator must return a parsed receipt object",
+            evidence_root=canonical_evidence_root,
+        )
+    try:
+        canonical_evidence_root = _canonical_path(
+            canonical_evidence_root,
+            "evidence root",
+            must_be_dir=True,
+        )
+    except ValueError as error:
+        _raise_bundle_blocked(
+            case="capacity-evidence-root-invalid",
+            reason=str(error),
+            evidence_root=canonical_evidence_root,
+        )
+
+    capacity_receipt, parsed_receipt = _read_exact_json_artifact(
+        evidence_root=canonical_evidence_root,
+        logical_name=CAPACITY_RECEIPT_NAME,
+        media_type=CAPACITY_RECEIPT_MEDIA_TYPE,
+        before_open_hook=artifact_before_open_hook,
+    )
+    if parsed_receipt != dict(receipt):
+        _raise_bundle_blocked(
+            case="capacity-receipt-mismatch",
+            reason="capacity receipt bytes do not parse to evaluator return value",
+            evidence_root=canonical_evidence_root,
+            logical_name=CAPACITY_RECEIPT_NAME,
+        )
+    cycles = parsed_receipt.get("cycles") if isinstance(parsed_receipt, Mapping) else None
+    if not isinstance(cycles, list) or len(cycles) != 2:
+        _raise_bundle_blocked(
+            case="capacity-cycle-count-invalid",
+            reason="capacity receipt must contain exactly two cycles",
+            evidence_root=canonical_evidence_root,
+            logical_name=CAPACITY_RECEIPT_NAME,
+        )
+
+    cycle_artifacts: list[CapacityEvidenceArtifact] = []
+    for index, logical_name in enumerate(CYCLE_MEASUREMENT_NAMES):
+        artifact, parsed_cycle = _read_exact_json_artifact(
+            evidence_root=canonical_evidence_root,
+            logical_name=logical_name,
+            media_type=CYCLE_MEASUREMENT_MEDIA_TYPE,
+            before_open_hook=artifact_before_open_hook,
+        )
+        if parsed_cycle != cycles[index]:
+            _raise_bundle_blocked(
+                case="capacity-cycle-mismatch",
+                reason="cycle measurement bytes do not match capacity receipt cycles",
+                evidence_root=canonical_evidence_root,
+                logical_name=logical_name,
+            )
+        cycle_artifacts.append(artifact)
+
+    return CapacityEvidenceBundle(
+        evidence_root=canonical_evidence_root,
+        receipt=_deep_freeze(parsed_receipt),
+        capacity_receipt=capacity_receipt,
+        cycle_measurements=tuple(cycle_artifacts),
+    )
 
 
 def _fixture_sample(
