@@ -1,0 +1,19 @@
+{
+  "apply_argv_created": false,
+  "apply_invocation_count": 0,
+  "exact_plan_argv_digest": "f65160c51769cb451f826bf896f822faf90ff2e4ba47d1660045f25dc1602e12",
+  "execution_status": "executed_zero_write_blocked",
+  "expected_failure": "capacity stop-loss is not PASS",
+  "failure_matches_source_contract": true,
+  "plan_artifact_created": false,
+  "planner": "scripts.pantheon_content_runtime_promotion plan",
+  "planning_binding_digest": "573b98cea64184b149f8e49610c951cf404a6b5cdbbd1683bb37b9a8404834b5",
+  "production_mutation_count": 0,
+  "returncode": 1,
+  "schema_version": 1,
+  "stderr": "",
+  "stdout": {
+    "error": "capacity stop-loss is not PASS",
+    "status": "NO-GO"
+  }
+}

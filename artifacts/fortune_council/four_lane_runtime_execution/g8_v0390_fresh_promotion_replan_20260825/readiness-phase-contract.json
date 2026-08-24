@@ -1,0 +1,89 @@
+{
+  "capacity_compatibility": {
+    "formal_planner_requires": {
+      "cycle_fields": [
+        "rss_available",
+        "swap_available"
+      ],
+      "mode": "bounded-synthetic-dry-run",
+      "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+      "top_level_fields": [
+        "reclamation",
+        "stop_loss"
+      ]
+    },
+    "interpretation": "fresh Rule24 bytes are valid but are not accepted by the formal promotion planner contract",
+    "line": 345,
+    "status": "BLOCKED",
+    "symbol": "_validate_capacity_receipt",
+    "v0388_observed": {
+      "cycle_fields": [
+        "before",
+        "peak",
+        "after_cleanup"
+      ],
+      "mode": "synthetic-non-production-capacity-proof",
+      "regression_id": null,
+      "top_level_fields": [
+        "projections",
+        "stop_loss_negative_result"
+      ]
+    }
+  },
+  "evidence": [
+    {
+      "fact": "preflight reads current private-stage digest; target readiness only appears in STAGE_INSTALLED write_set",
+      "line": 452,
+      "symbol": "_plan_payload"
+    },
+    {
+      "fact": "creates target readiness acknowledgements and activates the barrier",
+      "line": 624,
+      "symbol": "_install_private_stage"
+    },
+    {
+      "fact": "validates target barrier and readiness files after STAGE_INSTALLED",
+      "line": 632,
+      "symbol": "_postcheck"
+    },
+    {
+      "fact": "removes the new stage/barrier and restores backups",
+      "line": 676,
+      "symbol": "_restore_stage"
+    }
+  ],
+  "finding": "target readiness is an apply output and postcheck input, not a preflight input",
+  "phase_order": {
+    "apply": [
+      "PREPARED",
+      "ACTOR_PROMOTED",
+      "MANIFEST_WRITTEN",
+      "STAGE_INSTALLED creates readiness and barrier"
+    ],
+    "postcheck": [
+      "target readiness",
+      "target barrier",
+      "queue",
+      "capacity"
+    ],
+    "preflight": [
+      "capacity receipt",
+      "source/actor/manifest/current-stage/queue bindings"
+    ]
+  },
+  "schema_version": 1,
+  "source": "/Users/mattkuo/.codex/worktrees/be02fb30-b6fc-42aa-aad4-bad328493d45/Pantheon/scripts/pantheon_content_runtime_promotion.py",
+  "status": "PASS",
+  "tests": [
+    {
+      "fact": "planner is deterministic and zero-write",
+      "line": 191,
+      "path": "/Users/mattkuo/.codex/worktrees/be02fb30-b6fc-42aa-aad4-bad328493d45/Pantheon/tests/test_pantheon_content_runtime_promotion.py"
+    },
+    {
+      "fact": "failure matrix rolls back actor, manifest, and stage",
+      "line": 593,
+      "path": "/Users/mattkuo/.codex/worktrees/be02fb30-b6fc-42aa-aad4-bad328493d45/Pantheon/tests/test_pantheon_content_runtime_promotion.py"
+    }
+  ]
+}

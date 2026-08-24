@@ -1,0 +1,24 @@
+{
+  "apply_executed": false,
+  "compared_fields": [
+    "source.head",
+    "source.clean",
+    "actor.head",
+    "actor.clean",
+    "manifest.file_sha256",
+    "manifest.manifest_digest",
+    "private_stage.tree_digest",
+    "queue.snapshot_digest",
+    "queue.identity_digest",
+    "state.tree_digest",
+    "transactions.target_absent"
+  ],
+  "note": "An empty read_only_observed_drift list is not an apply write-set or production after snapshot.",
+  "observation_mode": "read_only_before_after_comparison",
+  "production_mutation_count": 0,
+  "production_snapshot_claimed": false,
+  "read_only_observed_drift": [],
+  "remote_mutation_count": 0,
+  "schema_version": 1,
+  "status": "PASS"
+}

@@ -1,0 +1,38 @@
+{
+  "artifacts": {
+    "authorization-payload.json": {
+      "bytes": 4891,
+      "sha256": "2a8d2672bb2bd2100e8ad5b5f6f653eb053ceea03fcb105c21a412c763b4b1e5"
+    },
+    "exact-plan-argv.json": {
+      "bytes": 11344,
+      "sha256": "15b7ce704280ab384a34f6487f3a33db0c296ec13c5af5ecbecfe9368f04da9b"
+    },
+    "fresh-facts.json": {
+      "bytes": 27263,
+      "sha256": "66ced9f57c01ba187f8cc00b3fb6727684513422b6a45a878393b8d25e74a853"
+    },
+    "planner-blocked-receipt.json": {
+      "bytes": 688,
+      "sha256": "5b72c48a4c1e565e0828a18d9a2180ae62aa0aa8fd2066d299b0acbf6b059559"
+    },
+    "protected-tripwire.json": {
+      "bytes": 691,
+      "sha256": "0f99835d09c3f6a2777baff19bf6cb8fd69eedc7c8f6cf6b376ca753da7092d1"
+    },
+    "readiness-phase-contract.json": {
+      "bytes": 2651,
+      "sha256": "449e6eee590eacf30e9dc699829d3e728423200fde57a20fd95f37220c0ab776"
+    },
+    "rollback-packet.json": {
+      "bytes": 935,
+      "sha256": "ecb619d6f2fe8402f1c9469f82156769bba72d1a4e5015c28985e69a1e846455"
+    },
+    "v0388-v0389-exact-digests.json": {
+      "bytes": 2934,
+      "sha256": "f7b916c8aa727f3446de0f0d1df39b65ad6925cb55a9cfce992cfcbbbdceaa6e"
+    }
+  },
+  "canonicalization": "SHA-256 over exact repository bytes",
+  "schema_version": 1
+}

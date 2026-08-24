@@ -1,0 +1,20 @@
+{
+  "apply_executed": false,
+  "exists": false,
+  "expected_backup_sources": [
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g36-5872284828-zero-write-20260824.barrier"
+  ],
+  "reason": "formal planner returned NO-GO before any transaction",
+  "rollback_bundle_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0390-5872284828-promotion-20260825/rollback-bundle",
+  "rollback_order": [
+    "STAGE_INSTALLED",
+    "MANIFEST_WRITTEN",
+    "ACTOR_PROMOTED"
+  ],
+  "schema_version": 1,
+  "status": "not_created_planner_blocked",
+  "transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0390-5872284828-promotion-20260825"
+}

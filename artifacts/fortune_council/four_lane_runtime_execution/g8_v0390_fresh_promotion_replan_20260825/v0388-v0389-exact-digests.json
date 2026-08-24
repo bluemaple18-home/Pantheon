@@ -1,0 +1,54 @@
+{
+  "artifacts": [
+    {
+      "bytes": 4685,
+      "commit": "033f9aaa0a09a1f68e04fd40c04db09b482dd7c3",
+      "exact_byte_match": true,
+      "git_object_sha256": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/capacity-receipt.json",
+      "sha256": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4"
+    },
+    {
+      "bytes": 1651,
+      "commit": "033f9aaa0a09a1f68e04fd40c04db09b482dd7c3",
+      "exact_byte_match": true,
+      "git_object_sha256": "669c6fc5b23d0ce88462a6bdd558c915d182788c91e853c6e38ee9a41bcc15e3",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/cycle-1-measurements.json",
+      "sha256": "669c6fc5b23d0ce88462a6bdd558c915d182788c91e853c6e38ee9a41bcc15e3"
+    },
+    {
+      "bytes": 1650,
+      "commit": "033f9aaa0a09a1f68e04fd40c04db09b482dd7c3",
+      "exact_byte_match": true,
+      "git_object_sha256": "b1ab2cfe0d928a1d8de975c4912752117bea51fe5ae1507ce723fe874fd1441e",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/cycle-2-measurements.json",
+      "sha256": "b1ab2cfe0d928a1d8de975c4912752117bea51fe5ae1507ce723fe874fd1441e"
+    },
+    {
+      "bytes": 2261,
+      "commit": "5748d2d1e1b042584f05d7f5a2b3650225f2b4fa",
+      "exact_byte_match": true,
+      "git_object_sha256": "e9755a2204d64dce5a20c6dbe681cfb5a97adc960b2369eeed11e03f0efd49d2",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0389_fresh_rule24_dsse_sign_verify_20260825/envelope.json",
+      "sha256": "e9755a2204d64dce5a20c6dbe681cfb5a97adc960b2369eeed11e03f0efd49d2"
+    },
+    {
+      "bytes": 775,
+      "commit": "5748d2d1e1b042584f05d7f5a2b3650225f2b4fa",
+      "exact_byte_match": true,
+      "git_object_sha256": "04d0dd1a91991ab8bae603749df77c130f29fb362b680cdb65aab9447c59da54",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0389_fresh_rule24_dsse_sign_verify_20260825/verify-receipt.json",
+      "sha256": "04d0dd1a91991ab8bae603749df77c130f29fb362b680cdb65aab9447c59da54"
+    },
+    {
+      "bytes": 2224,
+      "commit": "5748d2d1e1b042584f05d7f5a2b3650225f2b4fa",
+      "exact_byte_match": true,
+      "git_object_sha256": "928a92c0e34e952b9f0cf93b816df04276fece9ab960a084b9d33da08a4b8ebf",
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0389_fresh_rule24_dsse_sign_verify_20260825/digest-manifest.json",
+      "sha256": "928a92c0e34e952b9f0cf93b816df04276fece9ab960a084b9d33da08a4b8ebf"
+    }
+  ],
+  "schema_version": 1,
+  "status": "PASS"
+}

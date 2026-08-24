@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED",
+  "checks": {
+    "codegraph": {
+      "status": "UNAVAILABLE",
+      "detail": "CodeGraph not initialized in this worktree; source decision used scoped rg/inspect after the required attempt."
+    },
+    "fresh_remote_main": {
+      "status": "PASS",
+      "invocation_count": 1,
+      "sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+    },
+    "fresh_local_no_drift": {
+      "status": "PASS",
+      "evidence": "fresh-facts.json"
+    },
+    "readiness_phase_contract": {
+      "status": "PASS",
+      "evidence": "readiness-phase-contract.json"
+    },
+    "v0388_v0389_exact_bytes": {
+      "status": "PASS",
+      "evidence": "v0388-v0389-exact-digests.json"
+    },
+    "formal_planner": {
+      "status": "BLOCKED",
+      "task_invocation_count": 2,
+      "returncode": 1,
+      "error": "capacity stop-loss is not PASS",
+      "evidence": "planner-blocked-receipt.json"
+    },
+    "json_parse": {
+      "status": "PASS",
+      "scope": "all V0390 JSON artifacts"
+    },
+    "affected_tests": {
+      "status": "PASS",
+      "count": 129,
+      "elapsed_seconds": 15.97,
+      "paths": [
+        "tests/test_pantheon_content_runtime_promotion.py",
+        "tests/test_pantheon_writer_vnext_runtime_activation_capacity.py",
+        "tests/test_pantheon_rule24_signed_capacity_evidence.py",
+        "tests/test_pantheon_rule24_dsse_attestation.py"
+      ]
+    },
+    "py_compile": {
+      "status": "PASS",
+      "path": "build_read_only_evidence.py"
+    },
+    "digest_manifest_recalculation": {
+      "status": "PASS",
+      "evidence": "digest-manifest.json"
+    },
+    "git_diff_check": {
+      "status": "PASS"
+    }
+  },
+  "counts": {
+    "remote_query": 1,
+    "remote_mutation": 0,
+    "formal_plan": 2,
+    "apply": 0,
+    "postcheck": 0,
+    "production_mutation": 0,
+    "launchagent_mutation": 0,
+    "deploy_canary_activation": 0,
+    "push_tag": 0
+  },
+  "authorization_state": "not_authorized",
+  "canary_created": false
+}

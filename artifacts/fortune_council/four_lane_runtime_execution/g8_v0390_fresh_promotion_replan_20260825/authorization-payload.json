@@ -1,0 +1,97 @@
+{
+  "allowlist": [
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g36-5872284828-zero-write-20260824",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g36-5872284828-zero-write-20260824.barrier",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0390-5872284828-promotion-20260825"
+  ],
+  "authorization_granted": false,
+  "authorization_state": "not_authorized",
+  "blocker": {
+    "code": "fresh_capacity_schema_not_accepted_by_promotion_planner",
+    "observed": {
+      "mode": "synthetic-non-production-capacity-proof",
+      "regression_id": null
+    },
+    "planner_error": {
+      "error": "capacity stop-loss is not PASS",
+      "status": "NO-GO"
+    },
+    "source_expectation": {
+      "mode": "bounded-synthetic-dry-run",
+      "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001"
+    }
+  },
+  "capacity_receipt_digest": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4",
+  "dsse_digests": {
+    "authenticated_statement_digest": "406b18797851b90e31bef4f9e59e58890dce34842d34b986ad2631b437925fc9",
+    "envelope_digest": "e9755a2204d64dce5a20c6dbe681cfb5a97adc960b2369eeed11e03f0efd49d2",
+    "policy_digest": "343649dcd526162dccda22db12e30881e33d32e2477aac5a48ae548b9fa19bf8",
+    "target_digest": "950040a5e5fd55f84f4756d272803aa1ae684bc6e7c9bd0e2db944861493d5b1"
+  },
+  "exact_apply_argv_digest": null,
+  "exact_plan_argv_digest": "f65160c51769cb451f826bf896f822faf90ff2e4ba47d1660045f25dc1602e12",
+  "forbidden": [
+    "apply before a formal PASS plan exists",
+    "production write under this V0390 task",
+    "remote write/fetch/pull/push/tag",
+    "manual target readiness or barrier creation",
+    "deploy/canary/activation/launchctl mutation",
+    "V0388 rerun or V0389 resign"
+  ],
+  "human_approval": {
+    "approved_at": null,
+    "approved_by": null,
+    "granted": false,
+    "required": true
+  },
+  "payload_digest": "29293dd9c449b25bd0700a59c8ba63b7d2fe6074b4d7688da1102ae78c581a54",
+  "plan_digest": null,
+  "planning_binding": {
+    "actor_before_sha": "db9fb4343df212fd3b65546b017aba159620a058",
+    "authorization_state": "not_authorized",
+    "capacity_receipt_digest": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4",
+    "capacity_receipt_path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/capacity-receipt.json",
+    "correlation_id": "g8-v0390-5872284828-fresh-replan-20260825",
+    "current_stage_digest": "8e96f5b3ad6cb702aa69cb7749184246d09a5460894efdf6fc4d8b59b7a76ee2",
+    "dsse": {
+      "authenticated_statement_digest": "406b18797851b90e31bef4f9e59e58890dce34842d34b986ad2631b437925fc9",
+      "envelope_digest": "e9755a2204d64dce5a20c6dbe681cfb5a97adc960b2369eeed11e03f0efd49d2",
+      "policy_digest": "343649dcd526162dccda22db12e30881e33d32e2477aac5a48ae548b9fa19bf8",
+      "target_digest": "950040a5e5fd55f84f4756d272803aa1ae684bc6e7c9bd0e2db944861493d5b1"
+    },
+    "machine": {
+      "hostname": "MattkuodeMac-mini.local",
+      "runtime_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8",
+      "uid": 501
+    },
+    "manifest_before_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+    "queue_snapshot_digest": "e4e2b5e42570953ce1b29117243f972bc170ef7b68ddc2353512533fa378aca2",
+    "remote_main_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+    "rollback": {
+      "bundle_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0390-5872284828-promotion-20260825/rollback-bundle",
+      "order": [
+        "STAGE_INSTALLED",
+        "MANIFEST_WRITTEN",
+        "ACTOR_PROMOTED"
+      ],
+      "transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0390-5872284828-promotion-20260825"
+    },
+    "schema_version": 1,
+    "source_repo": "/Users/mattkuo/.codex/worktrees/10f3888a-73cf-4097-b857-5a466bffa716/Pantheon",
+    "state_snapshot_digest": "aa9f4ea0c767a920fab719fd519c20896b08cd765ef7bcd2f76a7dc37c467991",
+    "target_source_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+  },
+  "planning_binding_digest": "573b98cea64184b149f8e49610c951cf404a6b5cdbbd1683bb37b9a8404834b5",
+  "schema_version": 1,
+  "target_manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+  "target_source_digest": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+  "terminal_stops": [
+    "fresh capacity receipt rejected by formal promotion planner",
+    "any target/source/actor/manifest/current-stage/queue/state drift",
+    "missing exact plan digest or exact apply argv digest",
+    "authorization remains not_authorized"
+  ],
+  "verdict": "BLOCKED"
+}
