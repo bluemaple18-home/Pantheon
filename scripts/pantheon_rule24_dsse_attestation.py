@@ -140,7 +140,7 @@ def _canonical_json_bytes(payload: object) -> bytes:
 def _load_json(path: Path, reason: str) -> Mapping[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise Rule24AttestationError(reason, f"{path} is not valid JSON") from error
     if not isinstance(payload, Mapping):
         raise Rule24AttestationError(reason, f"{path} must contain a JSON object")

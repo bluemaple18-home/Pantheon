@@ -29,6 +29,16 @@
   - claim uses `os.O_CREAT | os.O_EXCL`; no read-then-write replay decision.
   - claim contains only schema, challenge digest, authenticated statement digest, and claim time.
 
+## Repair Exception 003 status
+
+- status: SUCCESSOR_CANDIDATE_READY
+- repair_exception_parent: `8f09e88f4087e2993daa84e9c9ca1c3f51b3f3f8`
+- repaired_P1:
+  - `_load_json()` 將非 UTF-8 fixture 的 `UnicodeDecodeError` 收斂為既有 deterministic `Rule24AttestationError`，未使用 broad `except Exception`。
+  - 非 UTF-8 trust policy 回傳 `NO-GO/trust_policy`。
+  - 非 UTF-8 challenge fixture 回傳 `NO-GO/challenge_contract`。
+  - 非 UTF-8 envelope CLI 回傳 exit `2`，stdout 為 machine-readable `NO-GO/envelope_contract` JSON。
+
 ## 交付內容
 
 - `scripts/pantheon_rule24_dsse_attestation.py`
@@ -36,7 +46,7 @@
   - Ed25519 sign/verify 與 public key DER export 全部委派給 PATH `openssl`。
   - producer/verify API 與 explicit `produce` / `verify` CLI。
 - `tests/test_pantheon_rule24_dsse_attestation.py`
-  - 40 個 focused tests，覆蓋 trusted path、CLI JSON roundtrip、determinism、DSSE tamper、key substitution、statement binding、policy/measurement drift、sequential replay、concurrent replay claim、replay observer ordering、replay_state_claim OSError、pre-validation no-claim、trust-policy mismatch、verify-then-parse、OpenSSL fail-closed、canonical path 與 repo key audit。
+  - 43 個 focused tests，覆蓋 trusted path、CLI JSON roundtrip、非 UTF-8 trust policy/challenge/envelope、determinism、DSSE tamper、key substitution、statement binding、policy/measurement drift、sequential replay、concurrent replay claim、replay observer ordering、replay_state_claim OSError、pre-validation no-claim、trust-policy mismatch、verify-then-parse、OpenSSL fail-closed、canonical path 與 repo key audit。
 - `artifacts/fortune_council/four_lane_runtime_execution/g8_v0370_rule24_dsse_openssl_attestation_20260824/validation_receipt.json`
   - 本卡驗證 receipt。
 
@@ -67,7 +77,7 @@
 ## Verification receipt
 
 - TDD red: PASS，focused pytest first failed on missing `scripts.pantheon_rule24_dsse_attestation` module.
-- Focused pytest: PASS，initial candidate `34 passed in 2.62s`; Repair 001 `38 passed in 3.31s`; Repair 001 follow-up `40 passed in 3.43s`
+- Focused pytest: PASS，initial candidate `34 passed in 2.62s`; Repair 001 `38 passed in 3.31s`; Repair 001 follow-up `40 passed in 3.43s`; Repair Exception 003 `43 passed in 3.98s`
 - Test runtime path: `/Users/mattkuo/Documents/Pantheon/.venv/bin/python`
 - py_compile / AST parse: PASS
 - PAE vector: PASS，`PAE("test", b"abc") == b"DSSEv1 4 test 3 abc"`
@@ -84,3 +94,4 @@
 - 本卡只建立 Rule24 evidence statement 的可信簽驗與 binding primitive；不做 Rule24 domain metric / threshold evaluation。
 - 正式 key provisioning 與正式 trust-policy mutation 仍在本卡 scope 外。
 - 後續 composition card 需要把本 primitive 接到既有 capacity evaluator 與 Rule24 evidence composition。
+- P2：replay claim 檔若在 exclusive create 後遭中斷而為空檔，仍是已知 residual risk；本次修復依契約明確不處理。

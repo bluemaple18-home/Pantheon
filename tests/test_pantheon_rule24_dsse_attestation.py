@@ -263,6 +263,88 @@ def test_cli_produce_and_verify_emit_machine_readable_json(tmp_path: Path) -> No
     assert verified["canary_created"] is False
 
 
+def test_non_utf8_trust_policy_fails_closed(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+    Path(fixture["trust_policy"]).write_bytes(b"\xff")
+
+    result = _verify(fixture, envelope)
+
+    assert result == {
+        "schema_version": rule24.SCHEMA_VERSION,
+        "status": "NO-GO",
+        "reason": "trust_policy",
+        "production_mutation": False,
+        "canary_created": False,
+    }
+
+
+def test_non_utf8_challenge_fixture_fails_closed(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+    Path(fixture["challenge"]).write_bytes(b"\xff")
+
+    result = _verify(fixture, envelope)
+
+    assert result == {
+        "schema_version": rule24.SCHEMA_VERSION,
+        "status": "NO-GO",
+        "reason": "challenge_contract",
+        "production_mutation": False,
+        "canary_created": False,
+    }
+
+
+def test_cli_non_utf8_envelope_fails_closed_with_machine_readable_json(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope_path = tmp_path / "envelope.json"
+    envelope_path.write_bytes(b"\xff")
+
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "scripts/pantheon_rule24_dsse_attestation.py",
+            "verify",
+            "--envelope",
+            str(envelope_path.resolve()),
+            "--trust-policy",
+            str(fixture["trust_policy"]),
+            "--pinned-public-key",
+            str(fixture["public_key"]),
+            "--target-path",
+            str(fixture["target"]),
+            "--target-name",
+            TARGET_NAME,
+            "--target-media-type",
+            TARGET_TYPE,
+            "--rule24-policy-path",
+            str(fixture["policy"]),
+            "--rule24-policy-name",
+            POLICY_NAME,
+            "--measurement",
+            f"{MEASUREMENTS[0][0]}:{MEASUREMENTS[0][1]}:{fixture['measurements'][0].path}",
+            "--measurement",
+            f"{MEASUREMENTS[1][0]}:{MEASUREMENTS[1][1]}:{fixture['measurements'][1].path}",
+            "--expected-challenge",
+            str(fixture["challenge"]),
+            "--replay-state-dir",
+            str(fixture["replay_state"]),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert verify.returncode == 2
+    assert json.loads(verify.stdout) == {
+        "schema_version": rule24.SCHEMA_VERSION,
+        "status": "NO-GO",
+        "reason": "envelope_contract",
+        "production_mutation": False,
+        "canary_created": False,
+    }
+
+
 def test_same_challenge_digest_can_only_verify_once(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     envelope = _produce(fixture)["envelope"]
