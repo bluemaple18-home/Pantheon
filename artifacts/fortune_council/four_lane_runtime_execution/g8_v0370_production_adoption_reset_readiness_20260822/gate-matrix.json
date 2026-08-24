@@ -1,0 +1,69 @@
+{
+  "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
+  "matched_state": null,
+  "observed_at": "2026-08-24T02:20:33Z",
+  "rows": [
+    {
+      "evidence": "authority-receipt.json",
+      "gate": "Release tag authority",
+      "reason": "peeled v0.3.370 is b0950d4c436cc902e17ac110b579b35b84aa53e4",
+      "status": "PASS"
+    },
+    {
+      "evidence": "authority-receipt.json",
+      "gate": "Provisioning HEAD",
+      "reason": "task HEAD equals required_base_sha eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+      "status": "PASS"
+    },
+    {
+      "evidence": "authority-receipt.json",
+      "gate": "Origin main authority",
+      "reason": "local origin/main ref is stale/mismatched; fetching is forbidden in this card because it would mutate Git refs",
+      "status": "BLOCKED"
+    },
+    {
+      "evidence": "production-identity.json",
+      "gate": "Production runtime identity",
+      "reason": "actor db9fb4343df212fd3b65546b017aba159620a058 and manifest d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e remain old/current",
+      "status": "PASS"
+    },
+    {
+      "evidence": "production-identity.json",
+      "gate": "Runtime source adoption",
+      "reason": "production has not adopted v0.3.370 release actor b0950d4c436cc902e17ac110b579b35b84aa53e4",
+      "status": "BLOCKED"
+    },
+    {
+      "evidence": "release-observation.json",
+      "gate": "Publisher reset provenance",
+      "reason": "publisher-reset-receipt.json is absent; only failure-receipt.json status ROLLBACK_COMPLETE at phase publisher_reset_bootstrap is present",
+      "status": "BLOCKED"
+    },
+    {
+      "evidence": "mutation-tripwire.json",
+      "gate": "Production tripwire",
+      "reason": "before/after protected surfaces were unchanged",
+      "status": "PASS"
+    },
+    {
+      "evidence": "reconciler-result.json",
+      "gate": "Formal reconciler",
+      "reason": "existing read-only reconciler returned BLOCKED / ALLOWLIST_REQUIRED without --allow-source-drift",
+      "status": "BLOCKED"
+    },
+    {
+      "evidence": "authority-receipt.json",
+      "gate": "CodeGraph readiness",
+      "reason": "CodeGraph is not initialized in this worktree; bounded rg/source reads were used as degraded evidence",
+      "status": "UNKNOWN"
+    },
+    {
+      "evidence": "CARD-PANTHEON-G8-CURRENT-PRODUCTION-READONLY-RECONCILIATION-V0370-20260822-RETRY-1-RESULT.md and evidence-digests.sha256",
+      "gate": "Rule 24 / Rule 25 carried evidence",
+      "reason": "previous current reconciliation preserved synthetic Rule 24 PASS and Rule 25 NO-GO because phase/runtime identity is not current; this card did not rerun synthetic probes",
+      "status": "UNKNOWN"
+    }
+  ],
+  "topology_candidate": "ST-TARGET-STAGED",
+  "verdict": "BLOCKED"
+}

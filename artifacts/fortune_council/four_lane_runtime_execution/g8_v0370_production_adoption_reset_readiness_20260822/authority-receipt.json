@@ -1,0 +1,41 @@
+{
+  "blocked_reasons": [
+    "local origin/main ref is 5a9103785ebfc8d5a28fa8188def6069beb12d88, not required base eb2ddd8157901e8764ffcc5fd8a5c68822fa357c; no fetch was run because Git ref mutation is forbidden",
+    "production actor and runtime manifest remain db9fb4343df212fd3b65546b017aba159620a058 / d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+    "formal reconciler returned BLOCKED / ALLOWLIST_REQUIRED with no drift allowlist",
+    "CodeGraph is not initialized in this worktree"
+  ],
+  "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
+  "checked_at": "2026-08-24T02:20:33Z",
+  "codegraph": {
+    "ready": false,
+    "status": "CONTEXT_DEGRADED",
+    "reason": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/9aa8/Pantheon"
+  },
+  "local_git_authority": {
+    "clean_before_evidence_write": true,
+    "head": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+    "main": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+    "origin_main_local_ref": "5a9103785ebfc8d5a28fa8188def6069beb12d88",
+    "parent_candidate_sha": "2255cc504ae9f8925728eb789594aa00f48c98fc",
+    "required_base_ref": "main",
+    "required_base_sha": "eb2ddd8157901e8764ffcc5fd8a5c68822fa357c",
+    "release_baseline_is_ancestor_of_required_base": true,
+    "worktree": "detached"
+  },
+  "production_actor": {
+    "actor_describe": "v0.3.368-162-gdb9fb4343d",
+    "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "actor_worktree_clean": true,
+    "release_contains_actor": true,
+    "release_is_ancestor_of_actor": false,
+    "runtime_manifest_actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "version_inferred_from_reconciliation": "0.3.369"
+  },
+  "production_mutation": false,
+  "release_authority": {
+    "release_tag": "v0.3.370",
+    "release_tag_peeled_commit": "b0950d4c436cc902e17ac110b579b35b84aa53e4"
+  },
+  "status": "BLOCKED"
+}

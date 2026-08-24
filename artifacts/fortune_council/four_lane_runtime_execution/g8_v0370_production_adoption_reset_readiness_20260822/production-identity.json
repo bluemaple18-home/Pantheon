@@ -1,0 +1,14 @@
+{
+  "current_actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+  "current_generation": "g34-db9fb434-20260822T041850Z",
+  "current_identity": "gate2-actor:db9fb4343df212fd3b65546b017aba159620a058:activation-only",
+  "current_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+  "current_runtime_identity_digest": "1f6395163f34817a1dd5c36cba33a735cf3319a6c26ff9c811aa84bd6df596f9",
+  "failure_receipt_phase": "publisher_reset_bootstrap",
+  "failure_receipt_status": "ROLLBACK_COMPLETE",
+  "publisher_exact_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+  "publisher_max_runs": "1",
+  "publisher_reset_success_receipt_present": false,
+  "target_stage_generation": "g34-db9fb434-20260822T041850Z",
+  "target_stage_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e"
+}

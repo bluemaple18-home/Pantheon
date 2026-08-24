@@ -1,0 +1,107 @@
+gui/501/com.pantheon.content-capacity-guard = {
+	active count = 0
+	path = /Users/mattkuo/Library/LaunchAgents/com.pantheon.content-capacity-guard.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12
+	arguments = {
+		/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12
+		-m
+		scripts.pantheon_content_runtime_manifest
+		barrier-exec
+		--barrier
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g23-b1719c0d-20260821T022959Z.barrier
+		--expected-digest
+		d1ec853fd1b32e4a77e9ab45a19a9482bad5a5c692cfc5c8396cf365a23cccbf
+		--manifest
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json
+		--service-label
+		com.pantheon.content-capacity-guard
+		--ready-root
+		/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g23-b1719c0d-20260821T022959Z
+		--timeout
+		90
+		--activation-only
+		--
+		/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12
+		-m
+		scripts.pantheon_content_capacity_guard
+		--queue-root
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue
+		--publisher-root
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state
+		--log-root
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs
+		--state-file
+		/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/capacity-guard-state.json
+		check
+	}
+
+	working directory = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor
+
+	stdout path = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs/pantheon-content-capacity-guard.stdout.log
+	stderr path = /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs/pantheon-content-capacity-guard.stderr.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.X9tAkUvOUG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PANTHEON_RUNTIME_IDENTITY_DIGEST => 0152d79f9901b4000c43c70966907e5001846dc7792e865d9255ada62f91ebae
+		PANTHEON_RUNTIME_IDENTITY => gate2-actor:b1719c0d6243c7ec6372889405a846ccd1b666ed:activation-only
+		PANTHEON_RUNTIME_GENERATION => g23-b1719c0d-20260821T022959Z
+		PANTHEON_RUNTIME_ACTOR_HEAD => b1719c0d6243c7ec6372889405a846ccd1b666ed
+		PANTHEON_RUNTIME_UV_EXECUTABLE => /Users/mattkuo/.local/bin/uv
+		PANTHEON_RUNTIME_LOG_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs
+		PANTHEON_FORMAL_RUNTIME => 1
+		PANTHEON_RUNTIME_SERVICE_LABEL => com.pantheon.content-capacity-guard
+		PANTHEON_RUNTIME_MANIFEST_DIGEST => d1ec853fd1b32e4a77e9ab45a19a9482bad5a5c692cfc5c8396cf365a23cccbf
+		PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state
+		PANTHEON_RUNTIME_ACTOR_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor
+		PANTHEON_RUNTIME_PYTHON_EXECUTABLE => /Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12
+		PANTHEON_RUNTIME_CODE_DIGEST => e8261a1dbd08dac632f11aeb03ea3fa037b012e66a874be7fdf1ab9e59f297a7
+		PANTHEON_RUNTIME_CONFIG_VERSION => formal-runtime-v3-model-route-v1
+		PANTHEON_RUNTIME_QUEUE_ROOT => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue
+		PANTHEON_RUNTIME_MANIFEST => /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json
+		XPC_SERVICE_NAME => com.pantheon.content-capacity-guard
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 30
+	exit timeout = 5
+	runs = 854
+	last exit code = 78: EX_CONFIG
+
+	resource coalition = {
+		ID = 75591
+		type = resource
+		state = active
+		active count = 1
+		name = com.pantheon.content-capacity-guard
+	}
+
+	jetsam coalition = {
+		ID = 75592
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.pantheon.content-capacity-guard
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 300 seconds
+
+	properties = runatload | inferred program
+}

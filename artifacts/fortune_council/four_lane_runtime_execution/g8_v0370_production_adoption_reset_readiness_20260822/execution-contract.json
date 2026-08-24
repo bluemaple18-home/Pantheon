@@ -1,0 +1,114 @@
+{
+  "authorization_ready": false,
+  "blocked_codes": [
+    "ORIGIN_MAIN_AUTHORITY_MISMATCH",
+    "CODEGRAPH_NOT_INITIALIZED",
+    "FORMAL_RECONCILER_ALLOWLIST_REQUIRED",
+    "PUBLISHER_RESET_SUCCESS_RECEIPT_ABSENT",
+    "PRODUCTION_NOT_ADOPTED_TO_V0370"
+  ],
+  "card_id": "CARD-PANTHEON-G8-V0370-PRODUCTION-ADOPTION-RESET-READINESS-20260822",
+  "command_contract_status": "BLOCKED_NOT_EXECUTABLE",
+  "current_identity": {
+    "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+    "generation": "g34-db9fb434-20260822T041850Z",
+    "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+    "publisher_exact_run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "publisher_max_runs": "1",
+    "runtime_identity_digest": "1f6395163f34817a1dd5c36cba33a735cf3319a6c26ff9c811aa84bd6df596f9",
+    "stage_manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e"
+  },
+  "entrypoints": {
+    "capacity_stage": "<repo-root>/scripts/install_pantheon_content_capacity_guard_launchd.sh",
+    "coordinator_and_lane_stage": "<repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh",
+    "publisher_exact_stage": "<repo-root>/scripts/install_agy_content_publisher_launchd.sh",
+    "publisher_reset": "<repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only",
+    "runtime_promotion": "<repo-root>/scripts/pantheon_content_runtime_promotion.py"
+  },
+  "evidence": {
+    "authority": "authority-receipt.json",
+    "before_snapshot": "before/",
+    "gate_matrix": "gate-matrix.json",
+    "mutation_tripwire": "mutation-tripwire.json",
+    "observation": "release-observation.json",
+    "production_identity": "production-identity.json",
+    "reconciler": "reconciler-result.json"
+  },
+  "forbidden_without_new_authorization": [
+    "adoption",
+    "promotion",
+    "reset",
+    "Capacity preflight/install",
+    "activation",
+    "restage",
+    "canary",
+    "Publisher child",
+    "deploy",
+    "tag",
+    "push",
+    "schedule",
+    "steady autonomy"
+  ],
+  "preconditions_required_before_any_future_authorization": [
+    {
+      "id": "P0",
+      "requirement": "refresh Git authority in a separate authorized card and prove required release/source/main/origin refs without protected ref drift"
+    },
+    {
+      "id": "P1",
+      "requirement": "initialize or provide CodeGraph context, or explicitly authorize degraded source review as sufficient"
+    },
+    {
+      "id": "P2",
+      "requirement": "run the existing formal read-only reconciler without --allow-source-drift and obtain a non-BLOCKED result, or resolve the authority mismatch causing ALLOWLIST_REQUIRED"
+    },
+    {
+      "id": "P3",
+      "requirement": "produce a fresh Rule 24 / Rule 25 readiness package for the target phase after adoption/reset; old synthetic readiness cannot authorize canary"
+    }
+  ],
+  "steps_if_preconditions_are_later_satisfied": [
+    {
+      "command_template": "<runtime-python> -m scripts.pantheon_content_runtime_promotion plan --source-repo <clean-v0.3.370-source-repo> --source-sha b0950d4c436cc902e17ac110b579b35b84aa53e4 --expected-origin <origin-url> --actor-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --expected-current-actor-sha db9fb4343df212fd3b65546b017aba159620a058 --manifest-path /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json --expected-current-manifest-digest d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e --private-stage-root /Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage --expected-current-stage-digest 94a1d22deeb2068c8e507ece9aec5258ce82719f184614a06233e97931edd8ca --transaction-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-v0370-production-adoption-reset-<authorized-correlation-id> --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --publisher-state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --log-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs --target-identity gate2-actor:b0950d4c436cc902e17ac110b579b35b84aa53e4:activation-only --target-runtime-digest <computed-by-plan-source> --target-config-version formal-runtime-v3-model-route-v1 --target-generation g35-b0950d4c-<authorized-utc> --target-python-executable /Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 --target-uv-executable /Users/mattkuo/.local/bin/uv --authorization-digest <authorization-request-sha256> --capacity-receipt <fresh-capacity-receipt-path> --capacity-receipt-digest <fresh-capacity-receipt-sha256> --correlation-id <authorized-correlation-id> --preserve-run-id auto-i18n-en-614aa4dc3542ab2c5637",
+      "expected_receipt": "plan JSON with status READY_TO_APPLY and plan_digest",
+      "id": "plan-runtime-adoption",
+      "mutation": false,
+      "stop_if": "plan status is not READY_TO_APPLY, target source repo HEAD is not b0950d4c436cc902e17ac110b579b35b84aa53e4, queue digest changes, or any capacity/current-stage digest drifts"
+    },
+    {
+      "command_template": "<runtime-python> -m scripts.pantheon_content_runtime_promotion apply <same-plan-arguments> --expected-plan-digest <plan_digest>",
+      "expected_receipt": "promotion-receipt.json state POSTCHECK_PASSED with rollback-bundle present",
+      "id": "apply-runtime-adoption",
+      "mutation": true,
+      "rollback": "<runtime-python> -m scripts.pantheon_content_runtime_promotion rollback <same-plan-arguments> --expected-plan-digest <plan_digest>",
+      "stop_if": "any state is ROLLED_BACK/NO-GO, actor/manifest/stage postcheck fails, or queue identity changes"
+    },
+    {
+      "command_template": "PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --install",
+      "expected_receipt": "private stage contains coordinator plus four lane plists bound to <new-manifest-digest>",
+      "id": "stage-coordinator-and-lanes",
+      "mutation": true,
+      "stop_if": "preflight fails, stage digest does not match target generation, or live plists change"
+    },
+    {
+      "command_template": "PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> PANTHEON_PUBLISH_MAX_RUNS=1 PANTHEON_PUBLISH_EXACT_RUN_ID=auto-i18n-en-614aa4dc3542ab2c5637 <repo-root>/scripts/install_agy_content_publisher_launchd.sh --install",
+      "expected_receipt": "private stage publisher plist plus publisher-exact-run-id and publisher-max-runs=1",
+      "id": "stage-publisher-exact-run",
+      "mutation": true,
+      "stop_if": "publisher deployment preflight fails or exact run is not complete/unique"
+    },
+    {
+      "command_template": "PANTHEON_ACTIVATION_CORRELATION_ID=<authorized-correlation-id> PANTHEON_PYTHON_PATH=/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 PANTHEON_RUNTIME_MANIFEST_FILE=/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=<new-manifest-digest> <repo-root>/scripts/install_agy_gemini_coordinator_launchd.sh --reset-publisher-activation-only",
+      "expected_receipt": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/publisher-reset-receipt.json with matching correlation, target generation, post-reset Publisher receipt, and other-six unchanged proof",
+      "id": "reset-publisher-activation-only",
+      "mutation": true,
+      "rollback": "installer rollback trap restores previous Publisher plist and launchctl loaded state; failure writes failure-receipt.json",
+      "stop_if": "Publisher PID is present, launchctl path drifts, other-six plists/identity drift, non-allowed exit is observed, or success receipt is absent/stale"
+    }
+  ],
+  "tripwire": {
+    "before_after_status": "PASS",
+    "changed_surfaces": []
+  },
+  "verdict": "BLOCKED"
+}
