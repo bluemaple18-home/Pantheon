@@ -1,0 +1,45 @@
+{
+  "schema": "pantheon.g8.v0384.fresh_gates.v1",
+  "verdict": "BLOCKED",
+  "production_mutation_count": 0,
+  "remote_query_count": 1,
+  "apply_invocation_count": 0,
+  "gates": {
+    "remote_main_resolves_to_target": {
+      "status": "FAIL",
+      "command": "git ls-remote --heads origin main",
+      "expected_target": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+      "observed": "ssh: Could not resolve hostname github.com: -65563; fatal: Could not read from remote repository.",
+      "retry": false
+    },
+    "startup_branch": {
+      "status": "FAIL",
+      "expected": "codex/g8-v0381-exact-target-source",
+      "observed": "detached HEAD"
+    },
+    "head_target": {
+      "status": "PASS",
+      "observed": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+    },
+    "worktree_clean": {
+      "status": "PASS",
+      "observed": true
+    }
+  },
+  "blocked_before": [
+    "remote_main_resolves_to_target",
+    "startup_branch"
+  ],
+  "forbidden_actions_not_run": [
+    "exact apply",
+    "second remote query",
+    "manual rollback",
+    "finalize",
+    "deploy",
+    "canary",
+    "activation",
+    "launchctl mutation",
+    "push",
+    "tag"
+  ]
+}
