@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -28,6 +29,7 @@ NO_SIDE_EFFECT_FLAGS = {
 }
 OPENSSL_TIMEOUT_SECONDS = 5.0
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,36 @@ def _canonical_path(path: Path | str, label: str, *, must_exist: bool = True) ->
     if must_exist and not candidate.is_file():
         raise Rule24AttestationError("path_not_canonical", f"{label} must be a file")
     return candidate
+
+
+def _canonical_directory(path: Path | str, label: str) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise Rule24AttestationError("path_not_canonical", f"{label} must be absolute")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as error:
+        raise Rule24AttestationError("path_not_canonical", f"{label} must exist") from error
+    if resolved != candidate:
+        raise Rule24AttestationError(
+            "path_not_canonical",
+            f"{label} must be its canonical realpath",
+        )
+    if not candidate.is_dir():
+        raise Rule24AttestationError("path_not_canonical", f"{label} must be a directory")
+    return candidate
+
+
+def _external_replay_state_dir(path: Path | str) -> Path:
+    replay_state = _canonical_directory(path, "replay_state_dir")
+    try:
+        replay_state.relative_to(REPO_ROOT)
+    except ValueError:
+        return replay_state
+    raise Rule24AttestationError(
+        "replay_state_in_repo",
+        "replay_state_dir must be outside the repository",
+    )
 
 
 def _identifier(value: object, label: str) -> str:
@@ -345,6 +377,16 @@ def _verify_pae_signature(public_key_path: Path | str, pae: bytes, signature: by
         return False
 
 
+def _assert_keypair_matches(private_key_path: Path | str, public_key_path: Path | str) -> None:
+    probe = _pae("application/vnd.pantheon.rule24.keypair-probe", b"rule24-keypair-probe")
+    signature = _sign_pae(private_key_path, probe)
+    if not _verify_pae_signature(public_key_path, probe, signature):
+        raise Rule24AttestationError(
+            "key_pair_mismatch",
+            "private key does not match supplied public key",
+        )
+
+
 def produce_rule24_attestation(
     *,
     private_key_path: Path | str,
@@ -364,6 +406,7 @@ def produce_rule24_attestation(
     try:
         _require_openssl_ed25519()
         fingerprint = public_key_fingerprint(public_key_path)
+        _assert_keypair_matches(private_key_path, public_key_path)
         _statement, payload = build_statement(
             producer_id=producer_id,
             target_path=target_path,
@@ -574,6 +617,36 @@ def _validate_statement_contract(
     )
 
 
+def _claim_challenge_digest(
+    replay_state_dir: Path,
+    *,
+    challenge_digest: str,
+    authenticated_statement_digest: str,
+) -> None:
+    claim_path = replay_state_dir / f"{challenge_digest}.json"
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "challenge_digest": challenge_digest,
+        "authenticated_statement_digest": authenticated_statement_digest,
+        "claimed_epoch": time.time(),
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    try:
+        fd = os.open(claim_path, flags, 0o600)
+    except FileExistsError as error:
+        raise Rule24AttestationError("challenge_replay", "challenge digest is already claimed") from error
+    except OSError as error:
+        raise Rule24AttestationError("replay_state_claim", "challenge claim cannot be created") from error
+    with os.fdopen(fd, "wb") as claim_file:
+        claim_file.write(encoded)
+
+
 def verify_rule24_attestation(
     *,
     envelope: Mapping[str, Any],
@@ -586,6 +659,7 @@ def verify_rule24_attestation(
     rule24_policy_name: str,
     measurement_inputs: Sequence[ResourceInput],
     expected_challenge_path: Path | str,
+    replay_state_dir: Path | str,
     verified_payload_observer: Callable[[bytes], None] | None = None,
 ) -> dict[str, object]:
     """Verify DSSE signature first, then parse the exact authenticated payload bytes."""
@@ -605,10 +679,9 @@ def verify_rule24_attestation(
             raise Rule24AttestationError("signature_contract", "signature must be an object")
         signature = _strict_b64_decode(signature_entry.get("sig"), "signature_contract")
         fingerprint = public_key_fingerprint(pinned_public_key_path)
+        replay_state = _external_replay_state_dir(replay_state_dir)
         if not _verify_pae_signature(pinned_public_key_path, _pae(PAYLOAD_TYPE, payload), signature):
             raise Rule24AttestationError("signature_invalid", "signature verification failed")
-        if verified_payload_observer is not None:
-            verified_payload_observer(payload)
         statement = _statement_from_verified_payload(payload)
         target_digest, policy_digest, _producer_id, measurement_digests, challenge_digest = (
             _validate_statement_contract(
@@ -624,9 +697,17 @@ def verify_rule24_attestation(
                 expected_challenge_path=expected_challenge_path,
             )
         )
+        authenticated_statement_digest = _digest_bytes(payload)
+        if verified_payload_observer is not None:
+            verified_payload_observer(payload)
+        _claim_challenge_digest(
+            replay_state,
+            challenge_digest=challenge_digest,
+            authenticated_statement_digest=authenticated_statement_digest,
+        )
         return _pass(
             "verify",
-            authenticated_statement_digest=_digest_bytes(payload),
+            authenticated_statement_digest=authenticated_statement_digest,
             accepted_public_key_fingerprint=fingerprint,
             target_digest=target_digest,
             policy_digest=policy_digest,
@@ -723,6 +804,7 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--rule24-policy-name", required=True)
     verify.add_argument("--measurement", action="append", default=[])
     verify.add_argument("--expected-challenge", required=True)
+    verify.add_argument("--replay-state-dir", required=True)
     return parser
 
 
@@ -757,6 +839,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 rule24_policy_name=args.rule24_policy_name,
                 measurement_inputs=measurements,
                 expected_challenge_path=Path(args.expected_challenge),
+                replay_state_dir=Path(args.replay_state_dir),
             )
     except Rule24AttestationError as error:
         result = _no_go(error.reason)

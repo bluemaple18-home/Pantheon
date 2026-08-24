@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -81,6 +82,8 @@ def _fixture(
         },
     )
     challenge = tmp_path / "challenge.json"
+    replay_state = tmp_path / "replay-state"
+    replay_state.mkdir()
     _write_json(
         challenge,
         {
@@ -112,6 +115,7 @@ def _fixture(
         "measurements": measurements,
         "trust_policy": trust_policy.resolve(),
         "challenge": challenge.resolve(),
+        "replay_state": replay_state.resolve(),
     }
 
 
@@ -143,6 +147,7 @@ def _verify(fixture: dict[str, object], envelope: dict[str, object]) -> dict[str
         rule24_policy_name=POLICY_NAME,
         measurement_inputs=fixture["measurements"],
         expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
     )
 
 
@@ -241,6 +246,8 @@ def test_cli_produce_and_verify_emit_machine_readable_json(tmp_path: Path) -> No
             f"{MEASUREMENTS[1][0]}:{MEASUREMENTS[1][1]}:{fixture['measurements'][1].path}",
             "--expected-challenge",
             str(fixture["challenge"]),
+            "--replay-state-dir",
+            str(fixture["replay_state"]),
         ],
         check=False,
         capture_output=True,
@@ -254,6 +261,72 @@ def test_cli_produce_and_verify_emit_machine_readable_json(tmp_path: Path) -> No
     assert verified["status"] == "PASS"
     assert verified["production_mutation"] is False
     assert verified["canary_created"] is False
+
+
+def test_same_challenge_digest_can_only_verify_once(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+
+    first = _verify(fixture, envelope)
+    second = _verify(fixture, envelope)
+
+    assert first["status"] == "PASS"
+    assert second["status"] == "NO-GO"
+    assert second["reason"] == "challenge_replay"
+    claim_files = list(Path(fixture["replay_state"]).glob("*.json"))
+    assert len(claim_files) == 1
+    claim = json.loads(claim_files[0].read_text(encoding="utf-8"))
+    assert set(claim) == {
+        "schema_version",
+        "challenge_digest",
+        "authenticated_statement_digest",
+        "claimed_epoch",
+    }
+    assert CHALLENGE not in json.dumps(claim)
+    assert fixture["fingerprint"] not in json.dumps(claim)
+
+
+def test_concurrent_verifiers_allow_at_most_one_replay_claim_pass(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = _produce(fixture)["envelope"]
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _index: _verify(fixture, envelope), range(8)))
+
+    assert [result["status"] for result in results].count("PASS") == 1
+    assert [result.get("reason") for result in results].count("challenge_replay") == 7
+    assert len(list(Path(fixture["replay_state"]).glob("*.json"))) == 1
+
+
+def test_pre_validation_failure_does_not_create_replay_claim(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    envelope = copy.deepcopy(_produce(fixture)["envelope"])
+    envelope["payloadType"] = "application/json"
+
+    result = _verify(fixture, envelope)
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == "payload_type"
+    assert list(Path(fixture["replay_state"]).iterdir()) == []
+
+
+def test_private_public_keypair_mismatch_fails_without_authenticated_pass_fields(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    _attacker_private, attacker_public, attacker_fingerprint = _keypair(tmp_path, "attacker")
+    mismatch = dict(fixture)
+    mismatch["public_key"] = attacker_public
+
+    result = _produce(mismatch)
+
+    assert result["status"] == "NO-GO"
+    assert result["reason"] == "key_pair_mismatch"
+    assert result["production_mutation"] is False
+    assert result["canary_created"] is False
+    assert "authenticated_statement_digest" not in result
+    assert "accepted_public_key_fingerprint" not in result
+    assert attacker_fingerprint not in json.dumps(result)
 
 
 def test_same_inputs_serialize_deterministically(tmp_path: Path) -> None:
@@ -474,6 +547,7 @@ def test_application_parse_uses_only_verified_payload_bytes(tmp_path: Path) -> N
         rule24_policy_name=POLICY_NAME,
         measurement_inputs=fixture["measurements"],
         expected_challenge_path=fixture["challenge"],
+        replay_state_dir=fixture["replay_state"],
         verified_payload_observer=parsed_payloads.append,
     )
 
