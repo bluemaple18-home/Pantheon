@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-G8-V0393-FAILED-EXTERNAL-JOB-REPLACEMENT-REPAIR-20260825
-status: ready
+status: completed
 chain_id: PANTHEON-G8-FAILED-EXTERNAL-JOB-REPLACEMENT-20260825
 role: implementation
 cycle: 1
@@ -67,3 +67,38 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 
 - 若原子化需要超出 allowlist、registry schema 必須變更、或無法維持 exactly-once，立即 `BLOCKED`，不得擴 scope。
 - 最多兩次有證據修正；交付 1 個原子 candidate commit、完整 SHA、RED/GREEN、CLI help/plan-only receipt 與 RESULT。不得宣稱已整合、已 promotion 或已發文。
+
+## RESULT
+
+狀態：completed
+
+候選 commit：本次交付 HEAD；完整 SHA 以 `git rev-parse HEAD` / final receipt 為準
+
+變更摘要：
+
+- 新增 `replace-failed-external-job` formal CLI/API，接受 expected job/run/correlation/namespace/failure/authority identity，從 source archive + failed receipt + active run registry 建立 deterministic exactly-once replacement。
+- 新增 outbox formal replacement lineage validation 與 consume routing；只有 replacement decision receipt 存在時才從 source failed job 導向 replacement result，`CLI_NONZERO` 未加入一般 retry allowlist。
+- 新增 coordinator/outbox tests 覆蓋 plan-only、execute、same-authority replay、第二 authority、identity drift、已有 success、非 active、last-job drift、缺 archive/failed receipt、source evidence preservation、replacement logical request identity。
+- V0394 修正 reviewer P1：replacement request 先寫 runner 不可見 staging，formal decision 與 registry state durable 後才 final atomic publish live outbox；same-authority replay 可補完 decision/state/final-publish crash partial，不產生 executable orphan。
+- V0394 收斂 P2：source archive 與 failed receipt JSON 讀取改為 descriptor-bound `O_NOFOLLOW` + `fstat` 驗證，補 path replacement drift tests。
+
+驗證：
+
+- RED：`uv run pytest tests/test_agy_gemini_coordinator.py::test_failed_external_job_replacement_cli_entrypoint_exists -q`，實作前失敗於缺少 `replace-failed-external-job` CLI entrypoint。
+- V0394 RED：`uv run pytest tests/test_agy_gemini_coordinator.py::test_failed_external_job_replacement_runner_claim_race_leaves_no_executable_orphan -q`，修復前留下 `processing/<replacement>.json` orphan。
+- GREEN targeted coordinator：`11 passed in 0.43s`。
+- GREEN targeted outbox：`6 passed in 0.13s`。
+- V0394 targeted coordinator：`8 passed in 0.28s`。
+- V0394 replacement targeted：coordinator `17 passed, 266 deselected in 0.23s`；outbox `7 passed, 167 deselected in 0.04s`。
+- 完整受影響測試：`uv run pytest tests/test_agy_gemini_outbox.py tests/test_agy_gemini_coordinator.py -q`，`457 passed in 432.06s (0:07:12)`。
+- `git diff --check`：passed。
+
+證據：
+
+- `artifacts/fortune_council/four_lane_runtime_execution/g8_v0393_failed_external_job_replacement_20260825/evidence.md`
+
+風險與邊界：
+
+- 未操作 production runtime、真實 queue/state、launchctl、activation、Publisher、publish/push/tag。
+- 未修改 model route、manifest、promotion、registry schema 或文章內容。
+- `uv run` 建立測試用 `.venv` 並曾觸碰 `uv.lock` project version；已還原 `uv.lock`，不納入候選 commit。

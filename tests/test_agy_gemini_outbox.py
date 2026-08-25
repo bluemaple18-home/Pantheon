@@ -4289,6 +4289,162 @@ def test_transport_failure_terminal_categories_do_not_enqueue_retry(
     assert classified == expected_category
 
 
+def test_failed_external_replacement_request_preserves_logical_identity(
+    tmp_path: Path,
+) -> None:
+    source = outbox.create_external_request(
+        tmp_path,
+        namespace="failed-replacement",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 failed replacement source",
+        response_schema=SCHEMA,
+    )
+    authority_digest = hashlib.sha256(b"formal authority").hexdigest()
+
+    replacement = outbox.build_external_replacement_request(
+        source,
+        authority_digest=authority_digest,
+    )
+
+    outbox.validate_external_request(replacement)
+    assert replacement["job_id"] != source["job_id"]
+    assert replacement["request_sha256"] == source["request_sha256"]
+    assert replacement["prompt_sha256"] == source["prompt_sha256"]
+    assert replacement["schema_sha256"] == source["schema_sha256"]
+    assert replacement["replacement"]["source_job_id"] == source["job_id"]
+    assert replacement["replacement"]["authority_digest"] == authority_digest
+
+
+def test_failed_external_replacement_decision_routes_source_to_replacement_result(
+    tmp_path: Path,
+) -> None:
+    source = outbox.create_external_request(
+        tmp_path,
+        namespace="failed-replacement-consume",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 failed replacement consume",
+        response_schema=SCHEMA,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "failed" / f"{source['job_id']}.json",
+        _failure_receipt(
+            source,
+            error_type="GeminiCliFailure",
+            error_code="CLI_NONZERO",
+        ),
+    )
+    outbox_path = tmp_path / "outbox" / f"{source['job_id']}.json"
+    archive_path = tmp_path / "archive" / outbox_path.name
+    archive_path.parent.mkdir()
+    os.replace(outbox_path, archive_path)
+    authority_digest = hashlib.sha256(b"formal authority").hexdigest()
+    replacement = outbox.build_external_replacement_request(
+        source,
+        authority_digest=authority_digest,
+    )
+    outbox.atomic_write_json(
+        tmp_path / "outbox" / f"{replacement['job_id']}.json",
+        replacement,
+    )
+    outbox.atomic_write_json(
+        outbox.failed_external_replacement_decision_path(tmp_path, str(source["job_id"])),
+        {
+            "schema_version": 1,
+            "status": "replacement_created",
+            "action": "replace_failed_external_job",
+            "run_id": "synthetic-run",
+            "lane": "new",
+            "correlation_id": "8ca37c8df03cbb06b4b65ac0912d485b",
+            "namespace": source["namespace"],
+            "source_job_id": source["job_id"],
+            "replacement_job_id": replacement["job_id"],
+            "request_sha256": source["request_sha256"],
+            "model": source["model"],
+            "role": source["role"],
+            "source_transport_attempt": source.get("transport_attempt", 0),
+            "authority_digest": authority_digest,
+            "replacement_lineage_id": replacement["replacement"]["lineage_id"],
+            "request_file_sha256": hashlib.sha256(
+                json.dumps(
+                    replacement,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                + b"\n"
+            ).hexdigest(),
+            "created_at": "2026-08-25T12:05:00+08:00",
+            "from": "archive+failed",
+            "to": "outbox",
+        },
+    )
+    outbox.atomic_write_json(
+        tmp_path / "inbox" / f"{replacement['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": replacement["job_id"],
+            "request_sha256": source["request_sha256"],
+            "model": source["model"],
+            "completed_at": "2026-08-25T12:06:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+
+    assert consume_external_response(tmp_path, source) == {"ok": True}
+    assert (tmp_path / "failed" / f"{source['job_id']}.json").is_file()
+    assert (tmp_path / "archive" / f"{source['job_id']}.json").is_file()
+
+
+def test_validate_external_failure_receipt_rejects_path_replacement_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = outbox.create_external_request(
+        tmp_path,
+        namespace="failed-receipt-drift",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 failed receipt drift",
+        response_schema=SCHEMA,
+    )
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    outbox.atomic_write_json(
+        failed_path,
+        _failure_receipt(
+            request,
+            error_type="GeminiCliFailure",
+            error_code="CLI_NONZERO",
+        ),
+    )
+    original_open = os.open
+    replaced = False
+
+    def replace_before_open(path: object, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+        nonlocal replaced
+        if Path(path) == failed_path and not replaced:
+            replaced = True
+            drifted = dict(request)
+            drifted["job_id"] = "0" * 40
+            outbox.atomic_write_json(
+                failed_path,
+                _failure_receipt(
+                    drifted,
+                    error_type="GeminiCliFailure",
+                    error_code="CLI_NONZERO",
+                ),
+            )
+        if dir_fd is None:
+            return original_open(path, flags, mode)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(outbox.os, "open", replace_before_open)
+
+    with pytest.raises(ValueError, match="failure receipt identity mismatch"):
+        outbox.validate_external_failure_receipt(tmp_path, request)
+
+
 def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
     tmp_path: Path,
 ) -> None:

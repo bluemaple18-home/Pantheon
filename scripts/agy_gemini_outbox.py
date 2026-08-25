@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import tempfile
 import time
 from datetime import datetime, timedelta
@@ -106,7 +107,30 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 MAX_FAILURE_RECEIPT_BYTES = 64 * 1024
+MAX_EXTERNAL_REQUEST_ARTIFACT_BYTES = MAX_PROMPT_BYTES + MAX_SCHEMA_BYTES + 16 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+FAILED_REPLACEMENT_LINEAGE_KIND = "failed_external_job_replacement"
+FAILED_REPLACEMENT_DECISION_FIELDS = frozenset({
+    "schema_version",
+    "status",
+    "action",
+    "run_id",
+    "lane",
+    "correlation_id",
+    "namespace",
+    "source_job_id",
+    "replacement_job_id",
+    "request_sha256",
+    "model",
+    "role",
+    "source_transport_attempt",
+    "authority_digest",
+    "replacement_lineage_id",
+    "request_file_sha256",
+    "created_at",
+    "from",
+    "to",
+})
 FORBIDDEN_EXTERNAL_PATTERNS = (
     re.compile(r"/(?:Users|home|private|var|tmp)/"),
     re.compile(r"\.work/"),
@@ -206,6 +230,45 @@ def atomic_write_json(path: Path, payload: object) -> None:
     os.replace(temp_path, path)
 
 
+def read_closed_json_artifact(path: Path, *, max_bytes: int, label: str) -> dict[str, Any]:
+    if type(max_bytes) is not int or type(max_bytes) is bool or max_bytes <= 0:
+        raise ValueError(f"{label} maximum size is invalid")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError(f"{label} artifact is missing") from error
+    try:
+        current = os.fstat(descriptor)
+        if not stat.S_ISREG(current.st_mode):
+            raise ValueError(f"{label} artifact must be a regular file")
+        if current.st_size > max_bytes:
+            raise ValueError(f"{label} artifact exceeds closed size")
+        chunks = bytearray()
+        while len(chunks) <= max_bytes:
+            chunk = os.read(descriptor, min(4096, max_bytes + 1 - len(chunks)))
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        encoded = bytes(chunks)
+        after = os.fstat(descriptor)
+        if (
+            (after.st_dev, after.st_ino) != (current.st_dev, current.st_ino)
+            or after.st_size != current.st_size
+            or len(encoded) != current.st_size
+        ):
+            raise ValueError(f"{label} artifact changed during read")
+    finally:
+        os.close(descriptor)
+    try:
+        payload = json.loads(encoded.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} artifact JSON is invalid") from error
+    if type(payload) is not dict:
+        raise ValueError(f"{label} artifact JSON must be an object")
+    return payload
+
+
 def _assert_external_payload_is_public(prompt: str, response_schema: dict[str, Any]) -> None:
     prompt_bytes = prompt.encode("utf-8")
     schema_bytes = _json_bytes(response_schema)
@@ -283,6 +346,36 @@ def build_external_request(
     return request
 
 
+def build_external_replacement_request(
+    source_request: dict[str, Any],
+    *,
+    authority_digest: str,
+) -> dict[str, Any]:
+    validate_external_request(source_request)
+    if "replacement" in source_request:
+        raise ValueError("replacement source request cannot be replacement lineage")
+    if SHA256_PATTERN.fullmatch(authority_digest) is None:
+        raise ValueError("replacement authority digest is invalid")
+    source_job_id = str(source_request["job_id"])
+    request_sha256 = str(source_request["request_sha256"])
+    lineage_id = hashlib.sha256(
+        f"{source_job_id}:{request_sha256}:{authority_digest}:{FAILED_REPLACEMENT_LINEAGE_KIND}".encode(
+            "ascii"
+        )
+    ).hexdigest()
+    replacement_job_id = hashlib.sha256(
+        f"{lineage_id}:job".encode("ascii")
+    ).hexdigest()[:40]
+    replacement = {
+        "source_job_id": source_job_id,
+        "authority_digest": authority_digest,
+        "lineage_kind": FAILED_REPLACEMENT_LINEAGE_KIND,
+        "lineage_attempt": 1,
+        "lineage_id": lineage_id,
+    }
+    return {**source_request, "job_id": replacement_job_id, "replacement": replacement}
+
+
 def validate_external_request(request: dict[str, Any]) -> None:
     required = {
         "schema_version",
@@ -298,9 +391,40 @@ def validate_external_request(request: dict[str, Any]) -> None:
         "job_id",
         "request_sha256",
     }
-    optional = {"transport_attempt"}
+    optional = {"transport_attempt", "replacement"}
     if not required <= set(request) or not set(request) <= required | optional:
         raise ValueError("external request fields are strict")
+    replacement = request.get("replacement")
+    if replacement is not None:
+        if (
+            type(replacement) is not dict
+            or set(replacement)
+            != {
+                "source_job_id",
+                "authority_digest",
+                "lineage_kind",
+                "lineage_attempt",
+                "lineage_id",
+            }
+            or type(replacement.get("source_job_id")) is not str
+            or re.fullmatch(r"[0-9a-f]{40}", replacement["source_job_id"]) is None
+            or type(replacement.get("authority_digest")) is not str
+            or SHA256_PATTERN.fullmatch(replacement["authority_digest"]) is None
+            or replacement.get("lineage_kind") != FAILED_REPLACEMENT_LINEAGE_KIND
+            or replacement.get("lineage_attempt") != 1
+            or type(replacement.get("lineage_id")) is not str
+            or SHA256_PATTERN.fullmatch(replacement["lineage_id"]) is None
+        ):
+            raise ValueError("external replacement lineage fields are strict")
+        source_request = {key: value for key, value in request.items() if key != "replacement"}
+        source_request["job_id"] = replacement["source_job_id"]
+        rebuilt = build_external_replacement_request(
+            source_request,
+            authority_digest=str(replacement["authority_digest"]),
+        )
+        if request != rebuilt:
+            raise ValueError("external replacement hash mismatch")
+        return
     rebuilt = build_external_request(
         namespace=str(request["namespace"]),
         role=str(request["role"]),
@@ -311,6 +435,99 @@ def validate_external_request(request: dict[str, Any]) -> None:
     )
     if request != rebuilt:
         raise ValueError("external request hash mismatch")
+
+
+def failed_external_replacement_decision_path(queue_root: Path, source_job_id: str) -> Path:
+    if re.fullmatch(r"[0-9a-f]{40}", source_job_id) is None:
+        raise ValueError("failed external replacement source job id is invalid")
+    return queue_root / "failed-external-job-replacements" / f"{source_job_id}.json"
+
+
+def _known_external_request_path(queue_root: Path, job_id: str) -> Path | None:
+    candidates = [
+        queue_root / "outbox" / f"{job_id}.json",
+        queue_root / "outbox" / f"{job_id}.json.terminalizing",
+        queue_root / "processing" / f"{job_id}.json",
+        queue_root / "archive" / f"{job_id}.json",
+    ]
+    matches = [path for path in candidates if path.exists()]
+    if len(matches) > 1:
+        raise ValueError(f"external job location is ambiguous: {job_id}")
+    return matches[0] if matches else None
+
+
+def _load_known_external_request(queue_root: Path, job_id: str) -> dict[str, Any]:
+    request_path = _known_external_request_path(queue_root, job_id)
+    if request_path is None or request_path.is_symlink() or not request_path.is_file():
+        raise ValueError("external replacement request artifact is missing")
+    request = read_closed_json_artifact(
+        request_path,
+        max_bytes=MAX_EXTERNAL_REQUEST_ARTIFACT_BYTES,
+        label="external replacement request",
+    )
+    validate_external_request(request)
+    if request.get("job_id") != job_id:
+        raise ValueError("external replacement request identity mismatch")
+    return request
+
+
+def _load_failed_external_replacement(
+    queue_root: Path,
+    source_request: dict[str, Any],
+) -> dict[str, Any] | None:
+    source_job_id = str(source_request["job_id"])
+    decision_path = failed_external_replacement_decision_path(queue_root, source_job_id)
+    if not decision_path.exists():
+        return None
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    if (
+        type(decision) is not dict
+        or set(decision) != FAILED_REPLACEMENT_DECISION_FIELDS
+        or decision.get("schema_version") != 1
+        or decision.get("status") != "replacement_created"
+        or decision.get("action") != "replace_failed_external_job"
+        or decision.get("source_job_id") != source_job_id
+        or decision.get("request_sha256") != source_request["request_sha256"]
+        or decision.get("namespace") != source_request["namespace"]
+        or decision.get("model") != source_request["model"]
+        or decision.get("role") != source_request["role"]
+        or decision.get("source_transport_attempt") != source_request.get("transport_attempt", 0)
+        or decision.get("from") != "archive+failed"
+        or decision.get("to") != "outbox"
+        or type(decision.get("authority_digest")) is not str
+        or SHA256_PATTERN.fullmatch(decision["authority_digest"]) is None
+        or type(decision.get("replacement_job_id")) is not str
+        or re.fullmatch(r"[0-9a-f]{40}", decision["replacement_job_id"]) is None
+        or type(decision.get("replacement_lineage_id")) is not str
+        or SHA256_PATTERN.fullmatch(decision["replacement_lineage_id"]) is None
+        or type(decision.get("request_file_sha256")) is not str
+        or SHA256_PATTERN.fullmatch(decision["request_file_sha256"]) is None
+    ):
+        raise ValueError("failed external replacement decision identity mismatch")
+    replacement_request = _load_known_external_request(queue_root, str(decision["replacement_job_id"]))
+    expected = build_external_replacement_request(
+        source_request,
+        authority_digest=str(decision["authority_digest"]),
+    )
+    if replacement_request != expected:
+        raise ValueError("failed external replacement request identity mismatch")
+    if decision.get("replacement_lineage_id") != replacement_request["replacement"]["lineage_id"]:
+        raise ValueError("failed external replacement lineage mismatch")
+    return replacement_request
+
+
+def validate_external_failure_receipt(queue_root: Path, request: dict[str, Any]) -> dict[str, Any]:
+    validate_external_request(request)
+    job_id = str(request["job_id"])
+    failed_path = queue_root / "failed" / f"{job_id}.json"
+    failure = read_closed_json_artifact(
+        failed_path,
+        max_bytes=MAX_FAILURE_RECEIPT_BYTES,
+        label="external failure receipt",
+    )
+    if not _failure_receipt_is_valid(failure, request):
+        raise ValueError("external failure receipt identity mismatch")
+    return failure
 
 
 def create_external_request(
@@ -546,6 +763,11 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
     job_id = str(request["job_id"])
     failed_path = queue_root / "failed" / f"{job_id}.json"
     if failed_path.exists():
+        replacement_request = (
+            None if "replacement" in request else _load_failed_external_replacement(queue_root, request)
+        )
+        if replacement_request is not None:
+            return consume_external_response(queue_root, replacement_request)
         try:
             if failed_path.stat().st_size > MAX_FAILURE_RECEIPT_BYTES:
                 raise ValueError("failure receipt exceeds closed size")

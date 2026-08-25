@@ -2978,6 +2978,511 @@ def test_seed_legacy_rewrite_runs_surfaces_exhausted_terminal_when_inventory_is_
     assert result["backlog"]["retry_exhausted"] == 1
 
 
+def test_failed_external_job_replacement_cli_entrypoint_exists(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agy_gemini_coordinator",
+            "--queue-root",
+            str(tmp_path / "queue"),
+            "replace-failed-external-job",
+            "--help",
+        ],
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "--authority-digest" in completed.stdout
+    assert "--plan-only" in completed.stdout
+
+
+def _failure_receipt(
+    request: dict[str, object],
+    *,
+    error_type: object = "GeminiCliFailure",
+    error_code: object = "CLI_NONZERO",
+) -> dict[str, object]:
+    receipt: dict[str, object] = {
+        "schema_version": 1,
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "error_type": error_type,
+        "completed_at": "2026-08-25T12:00:00+08:00",
+    }
+    if error_code is not None:
+        receipt["error_code"] = error_code
+    return receipt
+
+
+def _failed_external_replacement_fixture(
+    tmp_path: Path,
+    *,
+    run_id: str = "v0393-synthetic-run",
+) -> tuple[Path, Path, dict[str, object], str]:
+    run_dir = tmp_path / "runs" / run_id
+    queue_root = tmp_path / "queue"
+    correlation_id = "8ca37c8df03cbb06b4b65ac0912d485b"
+    _write_brief(run_dir, run_id)
+    state = register_run(run_dir, queue_root, correlation_id=correlation_id)
+    request = create_external_request(
+        queue_root,
+        namespace="v0393-fixture",
+        role="writer",
+        model="gemini-3.5-flash",
+        prompt="公開 synthetic failed replacement fixture",
+        response_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+        },
+    )
+    outbox_path = queue_root / "outbox" / f"{request['job_id']}.json"
+    archive_path = queue_root / "archive" / outbox_path.name
+    archive_path.parent.mkdir(parents=True)
+    os.replace(outbox_path, archive_path)
+    coordinator.atomic_write_json(
+        queue_root / "failed" / f"{request['job_id']}.json",
+        _failure_receipt(request),
+    )
+    state["last_job_id"] = request["job_id"]
+    coordinator._write_state(queue_root, state)
+    return run_dir, queue_root, request, correlation_id
+
+
+def _replacement_authority_digest(label: str = "v0393-authority") -> str:
+    return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _replace_failed(
+    run_dir: Path,
+    queue_root: Path,
+    request: dict[str, object],
+    correlation_id: str,
+    *,
+    execute: bool = True,
+    plan_only: bool = False,
+    authority_digest: str | None = None,
+    **overrides: object,
+) -> dict[str, object]:
+    args: dict[str, object] = {
+        "job_queue_root": queue_root,
+        "lane": "new",
+        "expected_run_id": json.loads((run_dir / "brief.json").read_text())["run_id"],
+        "source_job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "namespace": request["namespace"],
+        "correlation_id": correlation_id,
+        "failure_category": "CLI_NONZERO",
+        "error_code": "CLI_NONZERO",
+        "authority_digest": authority_digest or _replacement_authority_digest(),
+        "execute": execute,
+        "plan_only": plan_only,
+    }
+    args.update(overrides)
+    return coordinator.replace_failed_external_job(run_dir, queue_root, **args)
+
+
+def test_failed_external_job_replacement_plan_only_is_side_effect_free(tmp_path: Path) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    before = _file_snapshot(queue_root)
+
+    result = _replace_failed(
+        run_dir,
+        queue_root,
+        request,
+        correlation_id,
+        execute=False,
+        plan_only=True,
+    )
+
+    assert result["status"] == "plan_only"
+    assert result["source_job_id"] == request["job_id"]
+    assert result["request_sha256"] == request["request_sha256"]
+    assert result["failure_category"] == "CLI_NONZERO"
+    assert result["authority_digest"] == _replacement_authority_digest()
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_execute_is_exactly_once_and_consumable(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    source_archive = queue_root / "archive" / f"{request['job_id']}.json"
+    source_failed = queue_root / "failed" / f"{request['job_id']}.json"
+    source_archive_bytes = source_archive.read_bytes()
+    source_failed_bytes = source_failed.read_bytes()
+
+    result = _replace_failed(run_dir, queue_root, request, correlation_id)
+    after_first = _file_snapshot(queue_root)
+    replay = _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert result["status"] == "replacement_created"
+    assert replay["status"] == "already_replaced"
+    assert _file_snapshot(queue_root) == after_first
+    replacement_job_id = str(result["replacement_job_id"])
+    replacement_path = queue_root / "outbox" / f"{replacement_job_id}.json"
+    replacement = json.loads(replacement_path.read_text())
+    assert replacement["request_sha256"] == request["request_sha256"]
+    assert replacement["prompt"] == request["prompt"]
+    assert replacement["response_schema"] == request["response_schema"]
+    assert replacement["model"] == request["model"]
+    assert replacement["role"] == request["role"]
+    assert replacement["replacement"] == {
+        "authority_digest": _replacement_authority_digest(),
+        "lineage_attempt": 1,
+        "lineage_id": result["replacement_lineage_id"],
+        "lineage_kind": "failed_external_job_replacement",
+        "source_job_id": request["job_id"],
+    }
+    assert source_archive.read_bytes() == source_archive_bytes
+    assert source_failed.read_bytes() == source_failed_bytes
+    state = read_run_state(run_dir, queue_root)
+    assert state["status"] == "active"
+    assert state["last_job_id"] == replacement_job_id
+    assert state["failed_external_job_replacement"]["source_job_id"] == request["job_id"]
+    assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
+
+    coordinator.atomic_write_json(
+        queue_root / "inbox" / f"{replacement_job_id}.json",
+        {
+            "schema_version": 1,
+            "job_id": replacement_job_id,
+            "request_sha256": request["request_sha256"],
+            "model": request["model"],
+            "completed_at": "2026-08-25T12:05:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+    assert consume_external_response(queue_root, request) == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    ("case", "mutate", "overrides"),
+    [
+        ("namespace", lambda _run_dir, _queue_root, _request: None, {"namespace": "drift"}),
+        (
+            "existing-success",
+            lambda _run_dir, queue_root, request: coordinator.atomic_write_json(
+                queue_root / "inbox" / f"{request['job_id']}.json",
+                {
+                    "schema_version": 1,
+                    "job_id": request["job_id"],
+                    "request_sha256": request["request_sha256"],
+                    "model": request["model"],
+                    "completed_at": "2026-08-25T12:01:00+08:00",
+                    "result": {"ok": True},
+                },
+            ),
+            {},
+        ),
+        (
+            "non-active",
+            lambda run_dir, queue_root, _request: (
+                (state := read_run_state(run_dir, queue_root)).update({"status": "failed"}),
+                coordinator._write_state(queue_root, state),
+            ),
+            {},
+        ),
+        (
+            "last-job-drift",
+            lambda run_dir, queue_root, _request: (
+                (state := read_run_state(run_dir, queue_root)).update({"last_job_id": "0" * 40}),
+                coordinator._write_state(queue_root, state),
+            ),
+            {},
+        ),
+        (
+            "missing-archive",
+            lambda _run_dir, queue_root, request: (
+                queue_root / "archive" / f"{request['job_id']}.json"
+            ).unlink(),
+            {},
+        ),
+        (
+            "missing-failed",
+            lambda _run_dir, queue_root, request: (
+                queue_root / "failed" / f"{request['job_id']}.json"
+            ).unlink(),
+            {},
+        ),
+    ],
+)
+def test_failed_external_job_replacement_rejects_drift_without_mutation(
+    tmp_path: Path,
+    case: str,
+    mutate,
+    overrides: dict[str, object],
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(
+        tmp_path / case
+    )
+    mutate(run_dir, queue_root, request)
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError):
+        _replace_failed(
+            run_dir,
+            queue_root,
+            request,
+            correlation_id,
+            **overrides,
+        )
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_rejects_second_authority_without_mutation(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    _replace_failed(run_dir, queue_root, request, correlation_id)
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match="decision identity mismatch"):
+        _replace_failed(
+            run_dir,
+            queue_root,
+            request,
+            correlation_id,
+            authority_digest=_replacement_authority_digest("different-authority"),
+        )
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_runner_claim_race_leaves_no_executable_orphan(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+
+    result = _replace_failed(run_dir, queue_root, request, correlation_id)
+    claimed = runner._claim_next(queue_root)
+
+    assert claimed == queue_root / "processing" / f"{result['replacement_job_id']}.json"
+    state = read_run_state(run_dir, queue_root)
+    assert state["last_job_id"] == result["replacement_job_id"]
+    assert (
+        queue_root / "failed-external-job-replacements" / f"{request['job_id']}.json"
+    ).is_file()
+    assert state["failed_external_job_replacement"]["decision"] == (
+        f"failed-external-job-replacements/{request['job_id']}.json"
+    )
+
+
+def test_failed_external_job_replacement_crash_before_staging_is_zero_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    before = _file_snapshot(queue_root)
+    original_atomic_write = coordinator.atomic_write_json
+
+    def fail_staging(path: Path, payload: object) -> None:
+        if path.name.endswith(".request-staged.json"):
+            raise OSError("synthetic staging write failure")
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_staging)
+
+    with pytest.raises(OSError, match="synthetic staging write failure"):
+        _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert _file_snapshot(queue_root) == before
+    assert runner._claim_next(queue_root) is None
+
+
+def test_failed_external_job_replacement_decision_crash_leaves_only_non_executable_stage_and_replays(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    original_atomic_write = coordinator.atomic_write_json
+
+    def fail_decision(path: Path, payload: object) -> None:
+        if path.parent == queue_root / "failed-external-job-replacements" and path.name == f"{request['job_id']}.json":
+            raise OSError("synthetic decision write failure")
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_decision)
+
+    with pytest.raises(OSError, match="synthetic decision write failure"):
+        _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert runner._claim_next(queue_root) is None
+    assert not list((queue_root / "outbox").glob("*.json"))
+    assert not list((queue_root / "processing").glob("*.json"))
+    assert list((queue_root / "failed-external-job-replacements").glob("*.request-staged.json"))
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", original_atomic_write)
+    replay = _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert replay["status"] == "replacement_created"
+    assert [path.name for path in (queue_root / "outbox").glob("*.json")] == [
+        f"{replay['replacement_job_id']}.json"
+    ]
+
+
+def test_failed_external_job_replacement_state_crash_replays_without_second_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    original_atomic_write = coordinator.atomic_write_json
+    state_path = coordinator._state_path(str(json.loads((run_dir / "brief.json").read_text())["run_id"]), queue_root)
+
+    def fail_state(path: Path, payload: object) -> None:
+        if path == state_path and isinstance(payload, dict) and payload.get("failed_external_job_replacement"):
+            raise OSError("synthetic state write failure")
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_state)
+
+    with pytest.raises(OSError, match="synthetic state write failure"):
+        _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert runner._claim_next(queue_root) is None
+    assert not list((queue_root / "outbox").glob("*.json"))
+    assert read_run_state(run_dir, queue_root)["last_job_id"] == request["job_id"]
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", original_atomic_write)
+    replay = _replace_failed(run_dir, queue_root, request, correlation_id)
+    second = _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert replay["status"] == "replacement_created"
+    assert second["status"] == "already_replaced"
+    assert [path.name for path in (queue_root / "outbox").glob("*.json")] == [
+        f"{replay['replacement_job_id']}.json"
+    ]
+
+
+def test_failed_external_job_replacement_final_publish_crash_replays_same_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    original_replace = coordinator.os.replace
+    failed = False
+
+    def fail_final_publish(source: Path, target: Path) -> None:
+        nonlocal failed
+        if (
+            Path(source).name.endswith(".request-staged.json")
+            and Path(target).parent == queue_root / "outbox"
+            and not failed
+        ):
+            failed = True
+            raise OSError("synthetic final publish failure")
+        original_replace(source, target)
+
+    monkeypatch.setattr(coordinator.os, "replace", fail_final_publish)
+
+    with pytest.raises(OSError, match="synthetic final publish failure"):
+        _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert runner._claim_next(queue_root) is None
+    state = read_run_state(run_dir, queue_root)
+    assert state["failed_external_job_replacement"]["source_job_id"] == request["job_id"]
+    assert not list((queue_root / "outbox").glob("*.json"))
+
+    replay = _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert replay["status"] == "already_replaced"
+    assert [path.name for path in (queue_root / "outbox").glob("*.json")] == [
+        f"{replay['replacement_job_id']}.json"
+    ]
+
+
+def test_failed_external_job_replacement_revalidates_archive_path_after_location_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    original_locations = coordinator._known_request_locations
+    source_archive = queue_root / "archive" / f"{request['job_id']}.json"
+    replaced = False
+
+    def replace_archive_after_location_check(root: Path, job_id: str) -> list[tuple[str, Path]]:
+        nonlocal replaced
+        result = original_locations(root, job_id)
+        if root == queue_root and job_id == request["job_id"] and not replaced:
+            replaced = True
+            preserved = tmp_path / "preserved-source.json"
+            os.replace(source_archive, preserved)
+            source_archive.symlink_to(preserved)
+        return result
+
+    monkeypatch.setattr(coordinator, "_known_request_locations", replace_archive_after_location_check)
+    before_state = read_run_state(run_dir, queue_root)
+
+    with pytest.raises(ValueError, match="source request artifact is missing|regular file|JSON"):
+        _replace_failed(run_dir, queue_root, request, correlation_id)
+
+    assert read_run_state(run_dir, queue_root) == before_state
+    assert runner._claim_next(queue_root) is None
+    assert not list((queue_root / "failed-external-job-replacements").glob("*.json"))
+
+
+def test_failed_external_job_replacement_cli_plan_only_and_execute(tmp_path: Path) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    base_command = [
+        sys.executable,
+        "-m",
+        "scripts.agy_gemini_coordinator",
+        "--queue-root",
+        str(queue_root),
+        "replace-failed-external-job",
+        str(run_dir),
+        "--job-queue-root",
+        str(queue_root),
+        "--lane",
+        "new",
+        "--run-id",
+        str(json.loads((run_dir / "brief.json").read_text())["run_id"]),
+        "--job-id",
+        str(request["job_id"]),
+        "--request-sha256",
+        str(request["request_sha256"]),
+        "--namespace",
+        str(request["namespace"]),
+        "--correlation-id",
+        correlation_id,
+        "--failure-category",
+        "CLI_NONZERO",
+        "--error-code",
+        "CLI_NONZERO",
+        "--authority-digest",
+        _replacement_authority_digest(),
+    ]
+    before = _file_snapshot(queue_root)
+
+    plan = subprocess.run(
+        [*base_command, "--plan-only"],
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert plan.returncode == 0, plan.stderr
+    assert json.loads(plan.stdout)["status"] == "plan_only"
+    assert _file_snapshot(queue_root) == before
+
+    execute = subprocess.run(
+        [*base_command, "--execute"],
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert execute.returncode == 0, execute.stderr
+    assert json.loads(execute.stdout)["status"] == "replacement_created"
+
+
 def test_terminalize_pending_cli_defaults_to_dry_run_without_mutation(
     tmp_path: Path,
 ) -> None:

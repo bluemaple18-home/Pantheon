@@ -31,7 +31,12 @@ from scripts.agy_gemini_outbox import (
     OUTBOX_MAX_TRANSPORT_RETRIES,
     SHA256_PATTERN,
     atomic_write_json,
+    build_external_replacement_request,
+    classify_external_failure,
+    failed_external_replacement_decision_path,
+    read_closed_json_artifact,
     run_pipeline_tick,
+    validate_external_failure_receipt,
     validate_external_request,
 )
 from scripts.agy_gemini_runner import process_once
@@ -1373,6 +1378,336 @@ def terminalize_pending_job(
         "status": "terminalized",
         "decision": state_receipt["decision"],
     }
+
+
+def _failed_external_replacement_lock_path(queue_root: Path, source_job_id: str) -> Path:
+    if JOB_ID_PATTERN.fullmatch(source_job_id) is None:
+        raise ValueError("failed external replacement source job id is invalid")
+    return queue_root
+
+
+@contextmanager
+def _failed_external_replacement_lock(queue_root: Path, source_job_id: str) -> Iterator[None]:
+    path = _failed_external_replacement_lock_path(queue_root.resolve(), source_job_id)
+    if not path.is_dir():
+        raise ValueError("failed external replacement queue root is unavailable")
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def _canonical_json_file_sha256(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _known_request_locations(queue_root: Path, job_id: str) -> list[tuple[str, Path]]:
+    return [
+        (name, path)
+        for name, path in (
+            ("outbox", queue_root / "outbox" / f"{job_id}.json"),
+            ("terminalizing", queue_root / "outbox" / f"{job_id}.json.terminalizing"),
+            ("processing", queue_root / "processing" / f"{job_id}.json"),
+            ("archive", queue_root / "archive" / f"{job_id}.json"),
+        )
+        if path.exists()
+    ]
+
+
+def _failed_replacement_staging_path(
+    queue_root: Path,
+    source_job_id: str,
+    replacement_job_id: str,
+) -> Path:
+    if JOB_ID_PATTERN.fullmatch(source_job_id) is None or JOB_ID_PATTERN.fullmatch(replacement_job_id) is None:
+        raise ValueError("failed external replacement staging identity is invalid")
+    return (
+        queue_root
+        / "failed-external-job-replacements"
+        / f"{source_job_id}.{replacement_job_id}.request-staged.json"
+    )
+
+
+def _failed_replacement_stable_identity(
+    decision: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        key: decision.get(key)
+        for key in (
+            "schema_version",
+            "status",
+            "action",
+            "run_id",
+            "lane",
+            "correlation_id",
+            "namespace",
+            "source_job_id",
+            "replacement_job_id",
+            "request_sha256",
+            "model",
+            "role",
+            "source_transport_attempt",
+            "authority_digest",
+            "replacement_lineage_id",
+            "request_file_sha256",
+            "from",
+            "to",
+        )
+    }
+
+
+def replace_failed_external_job(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    job_queue_root: Path | None = None,
+    lane: str,
+    expected_run_id: str,
+    source_job_id: str,
+    request_sha256: str,
+    namespace: str,
+    correlation_id: str,
+    failure_category: str,
+    error_code: str,
+    authority_digest: str,
+    execute: bool = False,
+    plan_only: bool = False,
+) -> dict[str, Any]:
+    """明確 authority 下，為 terminal failed external job 建立一次性 replacement。"""
+    if execute and plan_only:
+        raise ValueError("failed external replacement cannot both execute and plan-only")
+    if JOB_ID_PATTERN.fullmatch(source_job_id) is None:
+        raise ValueError("failed external replacement source job id is invalid")
+    if SHA256_PATTERN.fullmatch(request_sha256) is None:
+        raise ValueError("failed external replacement request hash is invalid")
+    if SHA256_PATTERN.fullmatch(authority_digest) is None:
+        raise ValueError("failed external replacement authority digest is invalid")
+    if lane not in CONTENT_LANES:
+        raise ValueError("failed external replacement lane is invalid")
+    if not namespace or namespace.strip() != namespace or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", namespace) is None:
+        raise ValueError("failed external replacement namespace is invalid")
+    if not correlation_id or correlation_id.strip() != correlation_id:
+        raise ValueError("failed external replacement correlation id is invalid")
+    if not failure_category or failure_category.strip() != failure_category:
+        raise ValueError("failed external replacement failure category is invalid")
+    if not error_code or error_code.strip() != error_code:
+        raise ValueError("failed external replacement error code is invalid")
+
+    state_root = queue_root.resolve()
+    job_root = (job_queue_root or state_root).resolve()
+    if job_root != state_root and (
+        job_root.parent != state_root / "lanes" or job_root.name != lane
+    ):
+        raise ValueError("failed external replacement job queue root does not match lane")
+    resolved_run_dir = run_dir.resolve()
+    brief = _brief(resolved_run_dir)
+    if brief.get("run_id") != expected_run_id:
+        raise ValueError("failed external replacement run id mismatch")
+
+    with _failed_external_replacement_lock(job_root, source_job_id):
+        state = read_run_state(resolved_run_dir, state_root)
+        if (
+            state.get("run_id") != expected_run_id
+            or state.get("run_dir") != str(resolved_run_dir)
+            or state.get("correlation_id") != correlation_id
+        ):
+            raise ValueError("failed external replacement state identity mismatch")
+        if state.get("status") != "active":
+            raise ValueError("failed external replacement requires active run")
+        if "result" in state:
+            raise ValueError("failed external replacement rejects existing success result")
+
+        source_archive_path = job_root / "archive" / f"{source_job_id}.json"
+        if (
+            not source_archive_path.is_file()
+            or source_archive_path.is_symlink()
+            or (job_root / "inbox" / f"{source_job_id}.json").exists()
+        ):
+            raise ValueError("failed external replacement source outcome evidence is invalid")
+        if _known_request_locations(job_root, source_job_id) != [("archive", source_archive_path)]:
+            raise ValueError("failed external replacement source archive identity is ambiguous")
+
+        source_request = read_closed_json_artifact(
+            source_archive_path,
+            max_bytes=512 * 1024,
+            label="failed external replacement source request",
+        )
+        validate_external_request(source_request)
+        if (
+            source_request.get("job_id") != source_job_id
+            or source_request.get("request_sha256") != request_sha256
+            or source_request.get("namespace") != namespace
+        ):
+            raise ValueError("failed external replacement request identity mismatch")
+        failure = validate_external_failure_receipt(job_root, source_request)
+        actual_failure_category = classify_external_failure(failure)
+        if actual_failure_category != failure_category or failure.get("error_code") != error_code:
+            raise ValueError("failed external replacement failure identity mismatch")
+
+        replacement_request = build_external_replacement_request(
+            source_request,
+            authority_digest=authority_digest,
+        )
+        replacement_job_id = str(replacement_request["job_id"])
+        replacement_lineage = replacement_request["replacement"]
+        replacement_request_sha256 = _canonical_json_file_sha256(replacement_request)
+        decision_path = failed_external_replacement_decision_path(job_root, source_job_id)
+        decision_relative = str(decision_path.relative_to(state_root))
+        state_receipt = {
+            "decision": decision_relative,
+            "source_job_id": source_job_id,
+            "replacement_job_id": replacement_job_id,
+            "request_sha256": request_sha256,
+            "namespace": namespace,
+            "lane": lane,
+            "correlation_id": correlation_id,
+            "authority_digest": authority_digest,
+            "replacement_lineage_id": replacement_lineage["lineage_id"],
+        }
+        stable_decision = {
+            "schema_version": 1,
+            "status": "replacement_created",
+            "action": "replace_failed_external_job",
+            "run_id": expected_run_id,
+            "lane": lane,
+            "correlation_id": correlation_id,
+            "namespace": namespace,
+            "source_job_id": source_job_id,
+            "replacement_job_id": replacement_job_id,
+            "request_sha256": request_sha256,
+            "model": source_request["model"],
+            "role": source_request["role"],
+            "source_transport_attempt": source_request.get("transport_attempt", 0),
+            "authority_digest": authority_digest,
+            "replacement_lineage_id": replacement_lineage["lineage_id"],
+            "request_file_sha256": replacement_request_sha256,
+            "from": "archive+failed",
+            "to": "outbox",
+        }
+        result = {
+            "status": "plan_only",
+            "action": "replace_failed_external_job",
+            "run_id": expected_run_id,
+            "lane": lane,
+            "correlation_id": correlation_id,
+            "namespace": namespace,
+            "source_job_id": source_job_id,
+            "replacement_job_id": replacement_job_id,
+            "request_sha256": request_sha256,
+            "model": source_request["model"],
+            "role": source_request["role"],
+            "source_transport_attempt": source_request.get("transport_attempt", 0),
+            "failure_category": actual_failure_category,
+            "error_code": failure.get("error_code"),
+            "authority_digest": authority_digest,
+            "replacement_lineage_id": replacement_lineage["lineage_id"],
+            "from": "archive+failed",
+            "to": "outbox",
+        }
+
+        outbox_path = job_root / "outbox" / f"{replacement_job_id}.json"
+        staging_path = _failed_replacement_staging_path(
+            job_root,
+            source_job_id,
+            replacement_job_id,
+        )
+
+        def validate_staged_request() -> None:
+            staged = read_closed_json_artifact(
+                staging_path,
+                max_bytes=512 * 1024,
+                label="failed external replacement staged request",
+            )
+            validate_external_request(staged)
+            if staged != replacement_request:
+                raise ValueError("failed external replacement staged request identity mismatch")
+
+        def publish_replacement() -> None:
+            locations = _known_request_locations(job_root, replacement_job_id)
+            if locations:
+                if locations != [("outbox", outbox_path)]:
+                    raise ValueError("failed external replacement request location is not publishable")
+                existing = read_closed_json_artifact(
+                    outbox_path,
+                    max_bytes=512 * 1024,
+                    label="failed external replacement published request",
+                )
+                validate_external_request(existing)
+                if existing != replacement_request:
+                    raise ValueError("failed external replacement published request identity mismatch")
+                return
+            validate_staged_request()
+            outbox_path.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(staging_path, outbox_path)
+
+        existing_decision: dict[str, Any] | None = None
+        if decision_path.exists():
+            existing_decision = json.loads(decision_path.read_text(encoding="utf-8"))
+            if (
+                type(existing_decision) is not dict
+                or _failed_replacement_stable_identity(existing_decision) != stable_decision
+            ):
+                raise ValueError("failed external replacement decision identity mismatch")
+            locations = _known_request_locations(job_root, replacement_job_id)
+            if len(locations) > 1:
+                raise ValueError("failed external replacement request location is ambiguous")
+            if state.get("last_job_id") == source_job_id and state.get("failed_external_job_replacement") is None:
+                if locations:
+                    raise ValueError("failed external replacement request published before state")
+                validate_staged_request()
+                state["status"] = "active"
+                state["last_job_id"] = replacement_job_id
+                state["failed_external_job_replacement"] = state_receipt
+                state.pop("error_type", None)
+                state.pop("error_code", None)
+                state.pop("failure_category", None)
+                state.pop("transport_attempts", None)
+                state.pop("result", None)
+                _write_state(state_root, state)
+                publish_replacement()
+                return {**result, "status": "replacement_created", "decision": decision_relative}
+            if state.get("last_job_id") != replacement_job_id or state.get("failed_external_job_replacement") != state_receipt:
+                raise ValueError("failed external replacement evidence is incomplete")
+            publish_replacement()
+            return {**result, "status": "already_replaced", "decision": decision_relative}
+
+        if state.get("last_job_id") != source_job_id:
+            raise ValueError("failed external replacement last job mismatch")
+        if _known_request_locations(job_root, replacement_job_id):
+            raise ValueError("failed external replacement request already exists without decision")
+        if (job_root / "inbox" / f"{replacement_job_id}.json").exists() or (
+            job_root / "failed" / f"{replacement_job_id}.json"
+        ).exists():
+            raise ValueError("failed external replacement already has provider outcome")
+        if not execute:
+            return result
+
+        decision: dict[str, Any] = {**stable_decision, "created_at": _now()}
+        atomic_write_json(staging_path, replacement_request)
+        validate_staged_request()
+        if hashlib.sha256(staging_path.read_bytes()).hexdigest() != replacement_request_sha256:
+            raise ValueError("failed external replacement request write drift")
+        atomic_write_json(decision_path, decision)
+        state["status"] = "active"
+        state["last_job_id"] = replacement_job_id
+        state["failed_external_job_replacement"] = state_receipt
+        state.pop("error_type", None)
+        state.pop("error_code", None)
+        state.pop("failure_category", None)
+        state.pop("transport_attempts", None)
+        state.pop("result", None)
+        _write_state(state_root, state)
+        publish_replacement()
+        return {**result, "status": "replacement_created", "decision": decision_relative}
 
 
 def _write_state(queue_root: Path, state: dict[str, Any]) -> None:
@@ -4274,6 +4609,20 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     terminalize.add_argument("--execute", action="store_true")
+    replacement = subparsers.add_parser("replace-failed-external-job")
+    replacement.add_argument("run_dir", type=Path)
+    replacement.add_argument("--job-queue-root", type=Path, required=True)
+    replacement.add_argument("--lane", choices=CONTENT_LANES, required=True)
+    replacement.add_argument("--run-id", required=True)
+    replacement.add_argument("--job-id", required=True)
+    replacement.add_argument("--request-sha256", required=True)
+    replacement.add_argument("--namespace", required=True)
+    replacement.add_argument("--correlation-id", required=True)
+    replacement.add_argument("--failure-category", required=True)
+    replacement.add_argument("--error-code", required=True)
+    replacement.add_argument("--authority-digest", required=True)
+    replacement.add_argument("--plan-only", action="store_true")
+    replacement.add_argument("--execute", action="store_true")
     campaign = subparsers.add_parser("dry-run-campaign")
     campaign.add_argument("--campaign-version", required=True)
     campaign.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
@@ -4307,6 +4656,27 @@ def main() -> int:
                 role=args.role,
                 transport_attempt=args.transport_attempt,
                 reason=args.reason,
+                execute=args.execute,
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "replace-failed-external-job":
+        try:
+            result = replace_failed_external_job(
+                args.run_dir,
+                queue_root,
+                job_queue_root=args.job_queue_root,
+                lane=args.lane,
+                expected_run_id=args.run_id,
+                source_job_id=args.job_id,
+                request_sha256=args.request_sha256,
+                namespace=args.namespace,
+                correlation_id=args.correlation_id,
+                failure_category=args.failure_category,
+                error_code=args.error_code,
+                authority_digest=args.authority_digest,
+                plan_only=args.plan_only,
                 execute=args.execute,
             )
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
