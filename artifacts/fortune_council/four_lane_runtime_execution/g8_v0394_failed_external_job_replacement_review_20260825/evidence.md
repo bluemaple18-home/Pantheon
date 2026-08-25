@@ -145,3 +145,56 @@ Residual risk:
 Validation gaps:
 
 - 我未本機重跑 459-test suite；測試執行採 candidate evidence，並已獨立執行 follow-up candidate `git diff --check`。
+
+---
+
+# Same-job replacement resume re-review candidate a6e2554840
+
+## Scope
+
+- Re-review 前 review receipt commit：`471e3853ae4f3960c1ce652deddd1ff2156dbf59`。
+- Base / parent：`b64582e7f213948acc36e19c19c620fe5f6ba669`。
+- Candidate：`a6e255484006aca9662cef4c96c4f828d59bff36`。
+- Candidate parent 已核對為 `b64582e7f213948acc36e19c19c620fe5f6ba669`，同一 V0393 candidate lineage。
+- Diff scope：V0393 Repair card/evidence、`scripts/agy_gemini_coordinator.py`、`tests/test_agy_gemini_coordinator.py`。
+- 已先嘗試 CodeGraph；此 worktree 未初始化：`CodeGraph not initialized`。
+- Repair evidence 以 `git show a6e255484006aca9662cef4c96c4f828d59bff36:<repo-relative-path>` 讀取。
+- 未修改 source/test/runtime，未執行 production、push、promotion、deploy、launchctl 或 archive action。
+
+## Commands
+
+- `git rev-parse a6e2554840` -> `a6e255484006aca9662cef4c96c4f828d59bff36`。
+- `git rev-parse a6e2554840^` -> `b64582e7f213948acc36e19c19c620fe5f6ba669`。
+- `git diff --name-status b64582e7f213948acc36e19c19c620fe5f6ba669..a6e255484006aca9662cef4c96c4f828d59bff36` -> V0393 card/evidence、coordinator、coordinator tests。
+- `git diff --stat b64582e7f213948acc36e19c19c620fe5f6ba669..a6e255484006aca9662cef4c96c4f828d59bff36` -> `4 files changed, 344 insertions(+), 2 deletions(-)`。
+- `git diff --check b64582e7f213948acc36e19c19c620fe5f6ba669..a6e255484006aca9662cef4c96c4f828d59bff36` -> passed with no output。
+- Targeted rerun in existing candidate worktree：`env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests/test_agy_gemini_coordinator.py -k failed_external_job_replacement_resume` -> `5 passed, 285 deselected in 0.09s`。
+- Candidate Repair evidence reports targeted coordinator `5 passed` for resume tests and full affected `464 passed in 448.40s (0:07:28)`。
+
+## Re-review Checks
+
+- Default replacement behavior：`replace_failed_external_job` only enters resume when `resume_replacement=True` and `local_preflight_reason` is supplied; the normal default remains non-resume and still requires active source state.
+- Closed local reason：accepted resume reason is limited to `NO_ANTIGRAVITY_LOW_MODEL_LABEL`; helper rejects wrong reason and rejects models already present in `pipeline.ANTIGRAVITY_MODEL_LABELS`。
+- Existing decision/state/identity gate：resume branch is only reachable after the formal decision already exists, stable decision identity matches, state `last_job_id` equals replacement job id, state receipt equals decision receipt, and decision location is exactly source archive for that replacement job。
+- Exact archive payload：candidate reads the archived replacement request via descriptor-bound closed JSON read and requires exact equality with the rebuilt replacement request before any mutation。
+- Failure evidence：resume requires replacement failure receipt `error_type == ValueError`, classified `INVALID_RECEIPT`, matching replacement job id and request hash. On execute it preserves the failed receipt in `failed-external-job-replacements/<source>.<replacement>.failed-preserved.json` before requeueing。
+- No production attempt marker：presence of `production-attempts/<replacement>.attempt` rejects resume as evidence mismatch, preserving zero mutation。
+- Same-job archive to outbox：execute moves the same replacement job from archive back to outbox with the same job id and does not allocate a second replacement job. Replay after outbox publish returns `already_replaced` with unchanged file snapshot。
+- Plan-only：plan-only returns resume proof fields and decision metadata without mutating archive/outbox/failed/preserved artifacts。
+- Crash consistency：crash after failure preservation but before archive publish can replay using the preserved failure; crash after state activation but before publish can replay the same formal decision; crash after publish falls into existing idempotent outbox path. I found no second replacement allocation path in these windows。
+- Not a generic retry：the gate requires formal replacement decision, exact replacement archive payload, invalid-receipt failure, closed Lite label proof, and absence of provider attempt marker. This does not reopen `CLI_NONZERO` or general failed jobs for retry。
+- Source evidence immutability：source archive and original source failure evidence are read-only in this diff; only replacement failed evidence is moved to the dedicated preserved artifact during execute resume。
+- Bloat review：source + test additions are narrowly tied to same-job invalid-receipt resume and fail-closed tests. I did not find an actionable removable generalization that would reduce risk without losing evidence coverage。
+
+## Verdict
+
+`GO`
+
+Findings:
+
+- 未發現 P0/P1/P2。
+- 未發現 production safety blocker。
+
+Residual risk:
+
+- Full affected 464-test suite 採 candidate Repair evidence，未在本 review worktree 重跑；本輪已本機重跑 focused resume targeted tests，並獨立執行 candidate diff check。

@@ -104,6 +104,43 @@ Non-blocking：
 
 - 未 checkout candidate，未修改 source/tests/runtime，未 merge/push/deploy/promotion/archive，未操作 production replacement。
 
+## SAME-JOB REPLACEMENT RESUME RE-REVIEW RESULT
+
+狀態：completed
+
+Follow-up candidate：`a6e255484006aca9662cef4c96c4f828d59bff36`
+
+Base / parent：`b64582e7f213948acc36e19c19c620fe5f6ba669`
+
+Verdict：`GO`
+
+審查證據：
+
+- `artifacts/fortune_council/four_lane_runtime_execution/g8_v0394_failed_external_job_replacement_review_20260825/evidence.md`
+
+Same-job resume checks：
+
+- `replace_failed_external_job` default path remains unchanged；resume 需要 `--resume-replacement` 與 closed `local_preflight_reason` 同時存在，缺一即 fail closed。
+- Resume 只在 existing formal decision、state receipt、replacement identity、archive location 與 rebuilt replacement request 全部 exact match 時啟用。
+- 本輪僅允許 V0391 pre-provider `ValueError` / `INVALID_RECEIPT` 且無 production attempt marker 的 Lite CLI label failure；wrong reason、marker present、success / wrong category、identity drift 均 fail closed。
+- Same replacement job id 從 archive requeue 到 outbox；不建立第二 replacement job，不改 source failed/archive evidence，replacement failure receipt 先保存到 dedicated preserved artifact。
+- Plan-only zero mutation、execute/replay idempotent、crash replay、closed Lite-no-CLI-label proof、same job archive→outbox 均由 diff review 與 targeted rerun 覆蓋。
+
+Findings：
+
+- 無 P0/P1/P2。
+- 無 production safety blocker。
+
+驗證：
+
+- `git diff --check b64582e7f213948acc36e19c19c620fe5f6ba669..a6e255484006aca9662cef4c96c4f828d59bff36`：passed with no output。
+- 本機 targeted rerun：`tests/test_agy_gemini_coordinator.py -k failed_external_job_replacement_resume` -> `5 passed, 285 deselected in 0.09s`。
+- Repair evidence candidate-only 讀取確認：完整受影響兩檔 `464 passed in 448.40s (0:07:28)`，payload validator PASS，無 production attempt marker。
+
+邊界：
+
+- 未修改 source/tests/runtime，未 merge/push/deploy/promotion/archive，未操作 production replacement。
+
 ## FOLLOW-UP RE-REVIEW RESULT
 
 狀態：completed
