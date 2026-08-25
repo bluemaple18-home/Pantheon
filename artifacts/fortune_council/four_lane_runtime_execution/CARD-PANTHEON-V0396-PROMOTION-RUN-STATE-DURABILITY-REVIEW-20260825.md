@@ -55,11 +55,12 @@ base_sha: 345d9c3184856718254615b58b92655743a8d64a
 
 ## RESULT
 
-狀態：REVIEW_NO_GO
+狀態：REVIEW_GO（cycle 2 targeted re-review）
 
-- Verdict：`REVIEW_NO_GO`
-- Candidate：`178f4504c9e4add4ecb5f35cfff9f92bd115383b`
-- Finding：P1，`scripts/agy_gemini_coordinator.py:1970` 的 `failed_external_job_replacement` 豁免會讓 dangling active registry 跳過 `_active_run_integrity_block()`；`cycle_once()` 隨後仍可先執行 `new_matrix_sweep` / `legacy_sweep`，重建新 identity。
+- Verdict：`REVIEW_GO`
+- Previous candidate：`178f4504c9e4add4ecb5f35cfff9f92bd115383b`
+- Targeted repair candidate：`8b3eb337fbe2a20a8f08c6772250392ba617f503`
+- Resolved finding：Cycle 1 P1，`failed_external_job_replacement` 的 active-run integrity 豁免已限縮到 `exact_run_ids` 明確指定同一 run；`exact_run_ids` 與 automatic sweeps 互斥，因此 dangling failed replacement registry 在 `new_matrix_sweep` / `legacy_sweep` path 會 fail closed，不會 seed 新 identity。
 - Evidence：`artifacts/fortune_council/four_lane_runtime_execution/g8_v0396_promotion_run_state_durability_review_20260825/review.md`
-- Verification：CodeGraph ready；已做 candidate/base object check、candidate diff/stat/name-only、`git diff --check`。未修改產品 source/tests，未操作 production、launchctl、真實 queue/state、publish、tag、push 或另開任務。
-- Validation gap：candidate tests 覆蓋 normal dangling sweep block 與 exact failed-replacement recovery，但未覆蓋 `failed_external_job_replacement + dangling registry + automatic sweeps`。
+- Verification：CodeGraph ready；已做 `178f4504...8b3eb337` targeted diff/stat/name-only、targeted `git diff --check`、candidate object check。採用 implementation evidence：focused 3 passed、affected coordinator+promotion 323 passed、`git diff --check` PASS、worktree clean。
+- Residual risk：未執行 production promotion 或新 canary；本輪只複審上一輪 P1。

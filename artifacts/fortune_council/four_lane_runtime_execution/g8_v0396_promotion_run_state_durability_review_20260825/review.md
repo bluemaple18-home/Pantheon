@@ -2,15 +2,54 @@
 
 ## Verdict
 
-`REVIEW_NO_GO`
+`REVIEW_GO`
 
 審查對象：
 
 - Base：`345d9c3184856718254615b58b92655743a8d64a`
-- Candidate：`178f4504c9e4add4ecb5f35cfff9f92bd115383b`
+- Cycle 1 candidate：`178f4504c9e4add4ecb5f35cfff9f92bd115383b`
+- Cycle 2 targeted repair candidate：`8b3eb337fbe2a20a8f08c6772250392ba617f503`
 - Activation：`act-v1:95e27f7f099ab1d6f7fa9ea36ff50ea1761e4a86bc00a58edd1f89cef48a7a91`
 
+## Cycle 2 Re-Review
+
+未發現仍存在的 P0/P1。
+
+原 P1 已關閉：
+
+- `scripts/agy_gemini_coordinator.py:1966-1985` 現在讓 `_active_run_integrity_block()` 接收 `exact_run_ids`，且只在 `exact_run_ids` 明確包含該 `run_id`、並且 state 有 `failed_external_job_replacement` dict 時，才跳過 actor `run_dir` / `brief.json` 檢查。
+- `scripts/agy_gemini_coordinator.py:4607-4626` 會把 `selected_run_ids` 傳入 integrity gate；因 `scripts/agy_gemini_coordinator.py:4608-4609` 已拒絕 `exact_run_ids` 與 `new_matrix_sweep` / `legacy_sweep` 同時使用，automatic sweep path 無法取得 failed replacement 豁免。
+- 新 regression `tests/test_agy_gemini_coordinator.py:3288-3338` 建立 failed replacement active state、刪除 `run_dir`、開啟 `new_matrix_sweep=True` 與 `legacy_sweep=True`，並斷言 summary 為 `blocked`、`new_matrix_sweep` / `legacy_sweep` 為 `None`、`sweep_calls == []`，且 queue snapshot 除 lock 外不變。
+- 合法 exact recovery 測試 `tests/test_agy_gemini_coordinator.py:3252-3285` 保留，仍證明 `exact_run_ids=("v0393-synthetic-run",)` 可在 actor `run_dir` 消失後消費 replacement result 並完成同一 run identity。
+
+Cycle 2 驗證：
+
+```text
+codegraph_status: ready, 582 files, 6993 nodes, 15620 edges
+codegraph_context: targeted failed_external_job_replacement / exact_run_ids / automatic sweep query
+git diff --stat 178f4504c9e4add4ecb5f35cfff9f92bd115383b..8b3eb337fbe2a20a8f08c6772250392ba617f503
+git diff --name-only 178f4504c9e4add4ecb5f35cfff9f92bd115383b..8b3eb337fbe2a20a8f08c6772250392ba617f503
+git diff --check 178f4504c9e4add4ecb5f35cfff9f92bd115383b..8b3eb337fbe2a20a8f08c6772250392ba617f503
+git cat-file -t 8b3eb337fbe2a20a8f08c6772250392ba617f503
+```
+
+結果：
+
+```text
+git diff --check: PASS
+targeted repair candidate object: commit
+```
+
+未重跑 candidate pytest：本 review thread 產品 source/tests 保持唯讀，且目前 worktree HEAD 是 review artifact commit，不 checkout repair candidate。採用 implementation evidence：focused 3 passed、affected coordinator+promotion 323 passed、`git diff --check` PASS、worktree clean。
+
+Cycle 2 剩餘風險：
+
+- 未執行 production promotion 或新 canary。
+- 本次只複審上一輪 P1，不重新審查 V0395 全 scope。
+
 ## Findings
+
+### Cycle 1 P1 - resolved by `8b3eb337fbe2a20a8f08c6772250392ba617f503`
 
 ### P1 - failed replacement active state 仍會跳過 dangling gate 並先執行 automatic sweeps
 
