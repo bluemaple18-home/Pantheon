@@ -636,16 +636,10 @@ def _validate_identity_envelope(value: object) -> dict[str, Any]:
     return expected
 
 
-def _identity_envelope_from_brief(
-    brief: dict[str, Any],
-    *,
-    expected_lane: str | None = None,
-) -> dict[str, Any]:
+def _identity_envelope_from_brief(brief: dict[str, Any]) -> dict[str, Any]:
     if brief.get("mode") == "translate_existing" and brief.get("lane") is None:
         raise ValueError("translate run lane is required for durable identity")
     mode, lane = _routing_from_brief(brief, set())
-    if expected_lane is not None:
-        mode, lane = _validate_mode_lane_pair(mode, expected_lane)
     return _build_identity_envelope(mode, lane, _identity_article_ids_from_brief(brief))
 
 
@@ -2286,10 +2280,7 @@ def _active_run_integrity_block(
             envelope_value = state.get("identity_envelope")
             if envelope_value is not None:
                 envelope = _validate_identity_envelope(envelope_value)
-                if _identity_envelope_from_brief(
-                    brief,
-                    expected_lane=str(envelope["lane"]),
-                ) != envelope:
+                if _identity_envelope_from_brief(brief) != envelope:
                     raise ValueError("active run registry identity is invalid")
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
             return {
@@ -2570,18 +2561,50 @@ def _read_run_brief_from_state(state: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
-def _identity_evidence_envelope(
+def _identity_replacement_evidence_envelope(
     queue_root: Path,
     state: dict[str, Any],
-    field: str,
 ) -> dict[str, Any] | None:
-    value = state.get(field)
+    value = state.get("identity_replacement_receipt")
     if value is None:
         return None
     if type(value) is not str or not value or Path(value).is_absolute():
         raise ValueError("legacy run identity evidence path is invalid")
     root = queue_root.resolve()
-    path = root / value
+    replacement_state = state.get("failed_external_job_replacement")
+    required_state_fields = {
+        "decision",
+        "source_job_id",
+        "replacement_job_id",
+        "request_sha256",
+        "namespace",
+        "lane",
+        "correlation_id",
+        "authority_digest",
+        "replacement_lineage_id",
+    }
+    if type(replacement_state) is not dict or set(replacement_state) != required_state_fields:
+        raise ValueError("legacy run identity replacement binding is invalid")
+    source_job_id = replacement_state.get("source_job_id")
+    replacement_job_id = replacement_state.get("replacement_job_id")
+    request_sha256 = replacement_state.get("request_sha256")
+    lane = replacement_state.get("lane")
+    if (
+        type(source_job_id) is not str
+        or JOB_ID_PATTERN.fullmatch(source_job_id) is None
+        or type(replacement_job_id) is not str
+        or JOB_ID_PATTERN.fullmatch(replacement_job_id) is None
+        or type(request_sha256) is not str
+        or SHA256_PATTERN.fullmatch(request_sha256) is None
+        or lane not in CONTENT_LANES
+        or state.get("last_job_id") != replacement_job_id
+        or state.get("correlation_id") != replacement_state.get("correlation_id")
+    ):
+        raise ValueError("legacy run identity replacement binding is invalid")
+    expected_receipt = Path("identity-replacement-receipts") / f"{source_job_id}.json"
+    if Path(value) != expected_receipt:
+        raise ValueError("legacy run identity evidence path is not canonical")
+    path = root / expected_receipt
     try:
         resolved = path.resolve(strict=True)
     except OSError as error:
@@ -2594,15 +2617,109 @@ def _identity_evidence_envelope(
     ):
         raise ValueError("legacy run identity evidence path is invalid")
     try:
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        evidence = read_closed_json_artifact(
+            path,
+            max_bytes=64 * 1024,
+            label="legacy run identity replacement receipt",
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
         raise ValueError("legacy run identity evidence is invalid") from error
+    if type(evidence) is not dict or set(evidence) != {
+        "schema_version",
+        "run_id",
+        "source_job_id",
+        "request_sha256",
+        "decision",
+        "identity_envelope",
+    }:
+        raise ValueError("legacy run identity evidence is invalid")
     if (
-        type(evidence) is not dict
-        or evidence.get("schema_version") != 1
+        evidence.get("schema_version") != 1
         or evidence.get("run_id") != state.get("run_id")
+        or evidence.get("source_job_id") != source_job_id
+        or evidence.get("request_sha256") != request_sha256
+        or evidence.get("decision") != replacement_state.get("decision")
     ):
         raise ValueError("legacy run identity evidence is invalid")
+
+    root_decision = Path("failed-external-job-replacements") / f"{source_job_id}.json"
+    lane_decision = Path("lanes") / str(lane) / root_decision
+    decision_relative = evidence.get("decision")
+    if type(decision_relative) is not str or Path(decision_relative) not in {root_decision, lane_decision}:
+        raise ValueError("legacy run identity decision path is not canonical")
+    decision_path = root / Path(decision_relative)
+    job_root = root if Path(decision_relative) == root_decision else _lane_queue_root(root, str(lane))
+    try:
+        decision = read_closed_json_artifact(
+            decision_path,
+            max_bytes=64 * 1024,
+            label="legacy run identity replacement decision",
+        )
+        source_locations = _known_request_locations(job_root, source_job_id)
+        source_archive = job_root / "archive" / f"{source_job_id}.json"
+        if source_locations != [("archive", source_archive)]:
+            raise ValueError("legacy run identity source request is ambiguous")
+        source_request = read_closed_json_artifact(
+            source_archive,
+            max_bytes=512 * 1024,
+            label="legacy run identity source request",
+        )
+        validate_external_request(source_request)
+        validate_external_failure_receipt(job_root, source_request)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+        raise ValueError("legacy run identity trace is invalid") from error
+    if (
+        source_request.get("job_id") != source_job_id
+        or source_request.get("request_sha256") != request_sha256
+        or source_request.get("namespace") != replacement_state.get("namespace")
+    ):
+        raise ValueError("legacy run identity source binding is invalid")
+
+    replacement_request = build_external_replacement_request(
+        source_request,
+        authority_digest=str(replacement_state.get("authority_digest")),
+    )
+    replacement_locations = _known_request_locations(job_root, replacement_job_id)
+    if len(replacement_locations) != 1:
+        raise ValueError("legacy run identity replacement request is ambiguous")
+    persisted_replacement = read_closed_json_artifact(
+        replacement_locations[0][1],
+        max_bytes=512 * 1024,
+        label="legacy run identity replacement request",
+    )
+    validate_external_request(persisted_replacement)
+    if persisted_replacement != replacement_request:
+        raise ValueError("legacy run identity replacement request mismatch")
+    lineage = replacement_request["replacement"]
+    expected_decision = {
+        "schema_version": 1,
+        "status": "replacement_created",
+        "action": "replace_failed_external_job",
+        "run_id": state.get("run_id"),
+        "lane": lane,
+        "correlation_id": state.get("correlation_id"),
+        "namespace": replacement_state.get("namespace"),
+        "source_job_id": source_job_id,
+        "replacement_job_id": replacement_job_id,
+        "request_sha256": request_sha256,
+        "model": source_request.get("model"),
+        "role": source_request.get("role"),
+        "source_transport_attempt": source_request.get("transport_attempt", 0),
+        "authority_digest": replacement_state.get("authority_digest"),
+        "replacement_lineage_id": lineage["lineage_id"],
+        "request_file_sha256": _canonical_json_file_sha256(replacement_request),
+        "from": "archive+failed",
+        "to": "outbox",
+    }
+    if (
+        type(decision) is not dict
+        or set(decision) != set(expected_decision) | {"created_at"}
+        or _failed_replacement_stable_identity(decision) != expected_decision
+        or type(decision.get("created_at")) is not str
+        or not decision["created_at"]
+        or replacement_state.get("replacement_lineage_id") != lineage["lineage_id"]
+    ):
+        raise ValueError("legacy run identity replacement decision mismatch")
     return _validate_identity_envelope(evidence.get("identity_envelope"))
 
 
@@ -2614,15 +2731,11 @@ def _identity_envelope_for_state(
     envelope_value = state.get("identity_envelope")
     if envelope_value is not None:
         return _validate_identity_envelope(envelope_value)
-    evidence = [
-        envelope
-        for field in ("identity_source_request", "identity_replacement_receipt")
-        if (envelope := _identity_evidence_envelope(queue_root, state, field)) is not None
-    ]
-    if not evidence:
+    if state.get("identity_source_request") is not None:
+        raise ValueError("legacy run identity source request cannot authorize backfill")
+    evidence = _identity_replacement_evidence_envelope(queue_root, state)
+    if evidence is None:
         raise ValueError("legacy run identity evidence is unavailable")
-    if any(envelope != evidence[0] for envelope in evidence[1:]):
-        raise ValueError("legacy run identity evidence conflicts")
     run_id = state.get("run_id")
     if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
         raise ValueError("legacy run identity evidence is invalid")
@@ -2631,12 +2744,12 @@ def _identity_envelope_for_state(
         if current != state:
             if type(current) is dict and current.get("identity_envelope") is not None:
                 current_envelope = _validate_identity_envelope(current["identity_envelope"])
-                if current_envelope == evidence[0]:
+                if current_envelope == evidence:
                     return current_envelope
             raise ValueError("legacy run identity registry changed during backfill")
-        state["identity_envelope"] = evidence[0]
+        state["identity_envelope"] = evidence
         atomic_write_json(state_path, state)
-    return evidence[0]
+    return evidence
 
 
 def _article_ids_from_brief(brief: dict[str, Any] | None) -> set[str]:

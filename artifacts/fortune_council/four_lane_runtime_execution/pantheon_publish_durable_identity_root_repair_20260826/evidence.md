@@ -47,3 +47,17 @@ Implementation 修改前執行四項 targeted regression，結果為 `4 failed`�
 
 - 未在 production queue 執行 legacy backfill、terminalization 或 promotion；歷史 registry 若沒有可驗 evidence，會維持 blocked，這是預期 fail-closed 行為。
 - 本 candidate 未操作 Gemini、publish、production/runtime、push 或 tag；最終 verdict 由獨立 Reviewer 只驗本卡 regression。
+
+## Reviewer Follow-up
+
+- Fixed base：`ae01a83d7996ce3abeb5c9b1e900d31bc9c9f838`。
+- CodeGraph：ready，583 files／7027 nodes／14165 edges；source decision 前查詢 identity backfill、active integrity 與兩個 seed implementation。
+- RED：`test_legacy_identity_rejects_arbitrary_queue_local_source_request` 與 translation lane 雙向參數案例在原候選共 `3 failed`；terminalize 後呼叫實際 `seed_new_matrix_runs`／`seed_legacy_rewrite_runs` 的 regression 為 `1 passed`，證明原 P2 為測試替身缺口。
+- Authority GREEN：任意 queue-local source JSON 一律拒絕。現行 source request strict schema 不含 identity envelope，不能作 backfill authority；只有 canonical `identity-replacement-receipts/<source-job-id>.json` 可進入驗證。
+- Trace GREEN：正向 replacement lifecycle 可 backfill；canonical path、request digest、run binding、schema 或 source request 唯一性任一破壞均 fail closed。驗證同時閉合 source archive、strict request hash、failure receipt、decision、replacement lineage 與 persisted replacement request。
+- Integrity GREEN：active registry envelope 與 brief 的 observed mode、lane、article IDs exact 比對，不再用 registry expected lane 覆寫 brief lane。
+- Seed GREEN：terminalize 後由實際兩個 seed implementation 執行 sweep；new seed 收到 durable registry exclusion，legacy seed 不建立相同 article run。
+- Targeted final：`13 passed, 298 deselected in 0.32s`。
+- Full final：`344 passed in 456.05s`。
+- CLI：coordinator root help 與 `replace-failed-external-job --help` 均 exit 0。
+- Static：`py_compile` 與 `git diff --check` 均 PASS。

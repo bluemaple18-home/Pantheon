@@ -3180,11 +3180,24 @@ def _failed_external_replacement_fixture(
     *,
     run_id: str = "v0393-synthetic-run",
     model: str = "gemini-3.5-flash",
+    article_ids: list[str] | None = None,
 ) -> tuple[Path, Path, dict[str, object], str]:
     run_dir = tmp_path / "runs" / run_id
     queue_root = tmp_path / "queue"
     correlation_id = "8ca37c8df03cbb06b4b65ac0912d485b"
-    _write_brief(run_dir, run_id)
+    if article_ids is None:
+        _write_brief(run_dir, run_id)
+    else:
+        run_dir.mkdir(parents=True)
+        coordinator.atomic_write_json(
+            run_dir / "brief.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "mode": "create",
+                "articles": [{"target": {"id": article_id}} for article_id in article_ids],
+            },
+        )
     state = register_run(run_dir, queue_root, correlation_id=correlation_id)
     request = create_external_request(
         queue_root,
@@ -5192,33 +5205,65 @@ def test_terminalized_identity_envelopes_block_new_and_legacy_reseeding(
             execute=True,
         )
 
-    sweep_calls: list[str] = []
+    excluded_new_ids: list[set[str]] = []
 
-    def observe_new_sweep(*_args, **_kwargs) -> dict[str, object]:
-        sweep_calls.append("new")
-        assert coordinator._registered_article_ids_by_mode(queue_root, "create") == {
-            "V2-MBTI-INTJ-WORK"
+    def prepare_new_runs(*_args, **kwargs) -> list[Path]:
+        excluded_new_ids.append(set(kwargs["exclude_ids"]))
+        return []
+
+    legacy_record = {
+        "id": "LEGACY-001",
+        "product": "tarot",
+        "articleCategory": "tarot",
+        "serial": "tarot-001",
+        "slug": "legacy-one",
+        "urlSlug": "legacy-one",
+        "primaryKeyword": "塔羅舊文一",
+        "title": "塔羅舊文一",
+        "description": "描述一",
+        "answer": "答案一",
+        "faq": [{"question": "問一", "answer": "答一"}],
+        "tags": ["塔羅"],
+        "path": "articles/tarot/tarot-001",
+    }
+    legacy_inventory = {
+        "LEGACY-001": {
+            "id": "LEGACY-001",
+            "record": legacy_record,
+            "canonicalPath": "/articles/tarot/tarot-001",
+            "currentBody": [{"heading": "現況", "paragraphs": ["舊文內容"]}],
+            "published": "2026-01-01",
+            "updated": "2026-01-01",
         }
-        return {"status": "idle", "created": 0, "created_run_ids": []}
-
-    def observe_legacy_sweep(*_args, **_kwargs) -> dict[str, object]:
-        sweep_calls.append("legacy")
-        assert coordinator._registered_article_ids_by_mode(
-            queue_root,
-            "rewrite_existing_body",
-        ) == {"LEGACY-001"}
-        return {"status": "idle", "created": 0, "created_run_ids": []}
-
-    monkeypatch.setattr(coordinator, "seed_new_matrix_runs", observe_new_sweep)
-    monkeypatch.setattr(coordinator, "seed_legacy_rewrite_runs", observe_legacy_sweep)
+    }
+    legacy_backlog = {
+        "clean_approve": 0,
+        "publish_ready": 0,
+        "retry_deferred": 0,
+        "retry_invalid": 0,
+        "retry_exhausted": 0,
+        "unattempted": 1,
+        "unattempted_articles": ["LEGACY-001"],
+    }
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", prepare_new_runs)
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: [legacy_record])
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: legacy_backlog,
+    )
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: legacy_inventory)
+    monkeypatch.setattr(coordinator, "_head_sha", lambda _repo: "a" * 40)
     before = _file_snapshot(queue_root)
 
     summary = cycle_once(
         queue_root,
         repo_root=repo_root,
         new_matrix_sweep=True,
+        new_matrix_run_root=tmp_path / "new-runs",
         legacy_sweep=True,
         legacy_state_root=tmp_path / "publisher-state",
+        legacy_run_root=tmp_path / "legacy-runs",
         tick=lambda *_args: pytest.fail("terminalized runs must not tick"),
         process=lambda _root: {"status": "idle"},
     )
@@ -5226,10 +5271,59 @@ def test_terminalized_identity_envelopes_block_new_and_legacy_reseeding(
     after = _file_snapshot(queue_root)
     before.pop("coordinator.lock", None)
     after.pop("coordinator.lock", None)
-    assert sweep_calls == ["new", "legacy"]
+    assert excluded_new_ids == [{"V2-MBTI-INTJ-WORK"}]
     assert summary["new_matrix_sweep"]["created_run_ids"] == []
     assert summary["legacy_sweep"]["created_run_ids"] == []
+    assert not list((tmp_path / "new-runs").glob("*/brief.json"))
+    assert not list((tmp_path / "legacy-runs").glob("*/brief.json"))
     assert after == before
+
+
+@pytest.mark.parametrize(
+    ("registry_lane", "brief_lane"),
+    [("i18n-new", "i18n-rewrite"), ("i18n-rewrite", "i18n-new")],
+)
+def test_active_translation_identity_rejects_observed_lane_drift(
+    tmp_path: Path,
+    registry_lane: str,
+    brief_lane: str,
+) -> None:
+    run_id = f"translation-lane-drift-{registry_lane}"
+    run_dir = tmp_path / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    coordinator.atomic_write_json(
+        run_dir / "brief.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "translate_existing",
+            "lane": brief_lane,
+            "articles": [{"source_article_id": "NEW-001", "locale": "ja"}],
+        },
+    )
+    state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir.resolve()),
+        "status": "active",
+        "identity_envelope": _expected_identity_envelope(
+            "translate_existing",
+            registry_lane,
+            ["NEW-001"],
+        ),
+    }
+
+    assert coordinator._active_run_integrity_block([state]) == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": run_id,
+        "active": 1,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
 
 
 def _durable_dangling_state(
@@ -5366,7 +5460,7 @@ def test_dangling_terminalization_rejects_concurrent_registry_drift(
     assert not list((queue_root / "dangling-active-terminalizations").glob("*.json"))
 
 
-def test_legacy_identity_evidence_conflict_fails_closed_without_backfill(
+def test_legacy_identity_source_authority_fails_closed_without_backfill(
     tmp_path: Path,
 ) -> None:
     queue_root = tmp_path / "queue"
@@ -5411,13 +5505,13 @@ def test_legacy_identity_evidence_conflict_fails_closed_without_backfill(
     )
     before = state_path.read_bytes()
 
-    with pytest.raises(ValueError, match="legacy run identity evidence conflicts"):
+    with pytest.raises(ValueError, match="legacy run identity source request cannot authorize backfill"):
         coordinator._registered_article_ids_by_mode(queue_root, "create")
 
     assert state_path.read_bytes() == before
 
 
-def test_legacy_identity_unique_source_request_backfills_exact_envelope(
+def test_legacy_identity_rejects_arbitrary_queue_local_source_request(
     tmp_path: Path,
 ) -> None:
     queue_root = tmp_path / "queue"
@@ -5444,10 +5538,74 @@ def test_legacy_identity_unique_source_request_backfills_exact_envelope(
         },
     )
 
+    before = state_path.read_bytes()
+
+    with pytest.raises(ValueError, match="legacy run identity source request cannot authorize backfill"):
+        coordinator._registered_article_ids_by_mode(queue_root, "create")
+
+    assert state_path.read_bytes() == before
+
+
+def test_legacy_identity_backfills_from_strict_replacement_lifecycle(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(
+        tmp_path,
+        article_ids=["V2-MBTI-INTJ-WORK"],
+    )
+    _replace_failed(run_dir, queue_root, request, correlation_id)
+    state_path = coordinator._state_path("v0393-synthetic-run", queue_root)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    expected = state.pop("identity_envelope")
+    coordinator.atomic_write_json(state_path, state)
+
     assert coordinator._registered_article_ids_by_mode(queue_root, "create") == {
         "V2-MBTI-INTJ-WORK"
     }
-    assert json.loads(state_path.read_text(encoding="utf-8"))["identity_envelope"] == envelope
+    assert json.loads(state_path.read_text(encoding="utf-8"))["identity_envelope"] == expected
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["canonical_path", "request_digest", "run_binding", "schema", "request_uniqueness"],
+)
+def test_legacy_identity_replacement_evidence_requires_closed_trace(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    _replace_failed(run_dir, queue_root, request, correlation_id)
+    state_path = coordinator._state_path("v0393-synthetic-run", queue_root)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.pop("identity_envelope")
+    receipt_path = queue_root / str(state["identity_replacement_receipt"])
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if case == "canonical_path":
+        copied_path = queue_root / "identity-evidence" / "copied-receipt.json"
+        coordinator.atomic_write_json(copied_path, receipt)
+        state["identity_replacement_receipt"] = str(copied_path.relative_to(queue_root))
+    elif case == "request_digest":
+        receipt["request_sha256"] = "0" * 64
+        coordinator.atomic_write_json(receipt_path, receipt)
+    elif case == "run_binding":
+        receipt["run_id"] = "other-run"
+        coordinator.atomic_write_json(receipt_path, receipt)
+    elif case == "schema":
+        receipt["schema_version"] = 2
+        coordinator.atomic_write_json(receipt_path, receipt)
+    else:
+        source_job_id = str(request["job_id"])
+        coordinator.atomic_write_json(
+            queue_root / "processing" / f"{source_job_id}.json",
+            request,
+        )
+    coordinator.atomic_write_json(state_path, state)
+    before = state_path.read_bytes()
+
+    with pytest.raises(ValueError, match="legacy run identity"):
+        coordinator._registered_article_ids_by_mode(queue_root, "create")
+
+    assert state_path.read_bytes() == before
 
 
 def test_legacy_identity_missing_evidence_fails_closed(tmp_path: Path) -> None:

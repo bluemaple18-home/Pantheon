@@ -65,10 +65,10 @@ supersedes:
 
 狀態：CANDIDATE_READY
 
-- Candidate：本卡 RESULT、專屬 evidence 與四個 allowlist source/test 檔案所在的單一 commit。
-- RED：四項根因 regression 在 implementation 前為 `4 failed`，分別命中 actor-local queue、缺 identity envelope、缺 dangling terminalization seam、legacy evidence conflict 未 fail closed。
-- GREEN：四項 targeted `4 passed`；完整 coordinator＋promotion `336 passed`。
+- Candidate：原候選 `ae01a83d7996ce3abeb5c9b1e900d31bc9c9f838` 的單一 successor commit；只修 Reviewer 指定的 legacy authority、translation lane drift 與 seed regression 實證。
+- Reviewer RED：新增 targeted 在原候選為 `3 failed, 1 passed`；三個失敗案例命中任意 queue-local source JSON 可冒充 authority，以及 `i18n-new`／`i18n-rewrite` 雙向漂移被 expected lane 遮蔽。實際 seed implementation regression 原候選即通過，確認 P2 是測試實證缺口。
+- GREEN：authority／lane drift／terminalize→actual seeds targeted `13 passed`；完整 coordinator＋promotion `344 passed`。
 - 其他 gate：兩個 CLI help、`py_compile`、`git diff --check` 全部通過。
-- Schema：registry 外層 `schema_version=1` 不變；新 run 新增 `identity_envelope.schema_version=1`。Legacy 只接受 queue 內可驗且唯一的 source request／replacement receipt backfill；缺失或衝突均 fail closed。
+- Schema：registry 外層與 identity envelope 均維持 `schema_version=1`。現行 strict source request schema 不承載 identity envelope，因此不得 backfill；legacy 只接受 canonical 且能閉合 registry、source archive/failure、decision 與唯一 replacement request 的 replacement receipt。缺證或衝突均 fail closed。
 - Evidence：`artifacts/fortune_council/four_lane_runtime_execution/pantheon_publish_durable_identity_root_repair_20260826/evidence.md`
 - Runtime：未執行 production mutation、Gemini、publish、push 或 tag。
