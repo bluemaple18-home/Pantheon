@@ -30,6 +30,14 @@
 3. 同一建立方法因相同 blocker 失敗三次後立即停止，不做第四次；改採不同且更安全的方法前先向使用者說明。
 4. 任務尚未成功建立時不得開始產文、不得回報平行任務已在執行。
 
+## 連續故障的回歸除錯停線規則
+
+1. 原本成功的流程出現第二個相關故障時，立即停止逐症狀修補、production mutation 與新增 Repair；控制面卡片或單點 gate 不得取代系統根因判定。
+2. 再次修改前必須以證據回答：最後成功版本為何、從哪個 commit 或機制開始失敗、哪個 durable invariant 被破壞、哪條 RED-capable 測試可以穩定抓到。
+3. 根因分析必須涵蓋資料 authoritative owner、跨版本生命週期與 promotion／replacement 邊界；不得只修當下錯誤訊息或缺失檔案。
+4. 四項證據未閉合前，不得 push、promotion、production canary 或建立下一代 Repair。閉合後只能建立一個 bounded Repair，並回原 Reviewer 驗證原 finding 與 regression。
+5. 發文鏈最終只以 Writer → Reviewer → publish → 公開網址 HTTP 200 且正文可見為完成；中間 gate、commit、promotion 或狀態文案均不得單獨宣稱完成。
+
 ## 主線驗收
 
 1. 每張卡完成後，主線先驗證輸出數量、唯一性、內容契約、禁詞、重複句與語法，再整合共享檔案。
