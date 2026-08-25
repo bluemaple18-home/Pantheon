@@ -1963,6 +1963,46 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
     )
 
 
+def _active_run_integrity_block(
+    states: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    for state in states:
+        if isinstance(state.get("failed_external_job_replacement"), dict):
+            continue
+        run_id = state.get("run_id")
+        run_dir_value = state.get("run_dir")
+        try:
+            if (
+                type(run_id) is not str
+                or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+                or type(run_dir_value) is not str
+            ):
+                raise ValueError("active run registry identity is invalid")
+            run_dir = Path(run_dir_value)
+            canonical_run_dir = run_dir.resolve(strict=True)
+            if (
+                not run_dir.is_absolute()
+                or run_dir.is_symlink()
+                or not run_dir.is_dir()
+                or canonical_run_dir != run_dir
+                or _brief(canonical_run_dir).get("run_id") != run_id
+            ):
+                raise ValueError("active run registry identity is invalid")
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+            return {
+                "status": "blocked",
+                "reason": "active run registry is dangling",
+                "run_id": run_id if type(run_id) is str else "unknown",
+                "active": len(states),
+                "complete": 0,
+                "failed": 0,
+                "runner": {"status": "idle"},
+                "new_matrix_sweep": None,
+                "legacy_sweep": None,
+            }
+    return None
+
+
 def _known_run_ids(queue_root: Path) -> frozenset[str]:
     run_ids: set[str] = set()
     runs_root = queue_root / "runs"
@@ -4570,6 +4610,10 @@ def cycle_once(
             return {"status": "busy", "active": 0, "complete": 0, "failed": 0, "runner": {"status": "idle"}}
 
         resolved_repo = (repo_root or Path.cwd()).resolve()
+        active_states = _active_states(root)
+        integrity_block = _active_run_integrity_block(active_states)
+        if integrity_block is not None:
+            return integrity_block
         new_matrix_summary: dict[str, Any] | None = None
         if new_matrix_sweep:
             new_matrix_summary = seed_new_matrix_runs(

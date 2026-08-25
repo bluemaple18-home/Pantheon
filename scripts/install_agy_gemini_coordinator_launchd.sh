@@ -23,7 +23,7 @@ REQUESTED_WRITER_MODEL="${AGY_WRITER_MODEL:-}"
 REQUESTED_REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"
 NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"
 RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"
-GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-${REPO_ROOT}/.work/gsc-copy}"
+REQUESTED_GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-gemini-coordinator.plist"
@@ -130,6 +130,7 @@ optional_manifest_field() {
 }
 ACTOR_ROOT="$(manifest_field actor_root)"
 QUEUE_ROOT="$(manifest_field queue_root)"
+GSC_COPY_ROOT="${QUEUE_ROOT}/gsc-copy"
 CONTENT_PUBLISHER_ROOT="$(manifest_field publisher_state_root)"
 LOG_DIR="$(manifest_field log_root)"
 RUNTIME_MANIFEST_DIGEST="$(manifest_field manifest_digest)"
@@ -213,6 +214,10 @@ for LEGACY_QUEUE_ROOT in "${AGY_GEMINI_QUEUE_ROOT:-}" "${PANTHEON_GEMINI_QUEUE_R
     exit 1
   fi
 done
+if [[ -n "${REQUESTED_GSC_COPY_ROOT}" && "${REQUESTED_GSC_COPY_ROOT}" != "${GSC_COPY_ROOT}" ]]; then
+  echo "GSC copy run root 必須由 runtime queue 擁有。" >&2
+  exit 1
+fi
 if [[ -n "${PANTHEON_CONTENT_PUBLISHER_ROOT:-}" \
   && "${PANTHEON_CONTENT_PUBLISHER_ROOT}" != "${CONTENT_PUBLISHER_ROOT}" ]]; then
   echo "runtime manifest publisher state root 與 legacy override 不一致。" >&2

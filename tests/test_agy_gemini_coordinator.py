@@ -1810,7 +1810,7 @@ def test_lane_migration_write_failure_is_not_silently_unroutable(
         coordinator._lane_for_state_or_none(state, set(), queue_root)
 
 
-def test_lane_mode_cycle_skips_unroutable_missing_brief_state_and_advances_others(
+def test_lane_mode_cycle_blocks_unroutable_missing_brief_state_before_advancing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1848,9 +1848,18 @@ def test_lane_mode_cycle_skips_unroutable_missing_brief_state_and_advances_other
         lane_mode=True,
     )
 
-    assert advanced == ["new-run"]
-    assert summary["active"] == 2
-    assert summary["lanes"]["new"]["active"] == 1
+    assert advanced == []
+    assert summary == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": "missing-brief-run",
+        "active": 2,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
     assert read_run_state(good_run_dir, queue_root)["status"] == "active"
     assert json.loads(
         coordinator._state_path("missing-brief-run", queue_root).read_text(encoding="utf-8")
@@ -4878,6 +4887,60 @@ def test_cycle_new_matrix_sweep_does_not_require_manual_register(tmp_path: Path,
     assert summary["runner"] == {"status": "idle"}
 
 
+def test_cycle_blocks_dangling_active_registry_before_automatic_sweeps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    repo_root.mkdir()
+    coordinator.atomic_write_json(
+        coordinator._state_path("dangling-active-run", queue_root),
+        {
+            "schema_version": 1,
+            "run_id": "dangling-active-run",
+            "run_dir": str(queue_root / "gsc-copy" / "dangling-active-run"),
+            "status": "active",
+        },
+    )
+    sweep_calls: list[str] = []
+
+    def observe_new_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("new")
+        return {"status": "idle", "created": 0, "created_run_ids": []}
+
+    def observe_legacy_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("legacy")
+        return {"status": "idle", "created": 0, "created_run_ids": []}
+
+    monkeypatch.setattr(coordinator, "seed_new_matrix_runs", observe_new_sweep)
+    monkeypatch.setattr(coordinator, "seed_legacy_rewrite_runs", observe_legacy_sweep)
+
+    summary = cycle_once(
+        queue_root,
+        repo_root=repo_root,
+        new_matrix_sweep=True,
+        legacy_sweep=True,
+        legacy_state_root=tmp_path / "publisher-state",
+        tick=lambda *_args: {"status": "complete"},
+        process=lambda _root: {"status": "idle"},
+    )
+
+    assert summary == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": "dangling-active-run",
+        "active": 1,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
+    assert sweep_calls == []
+    assert not (queue_root / "gsc-copy" / "dangling-active-run").exists()
+
+
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     installer = (repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh").read_text(encoding="utf-8")
@@ -5533,8 +5596,10 @@ def _prepare_publisher_only_activation_fixture(
         "if [ \"$1\" = \"print\" ]; then\n"
         "  label=${2##*/}\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' \"gui/$(id -u)/$label = {\"\n"
         "  printf '%s\\n' 'state = waiting'\n"
         f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
+        "  printf '%s\\n' '}'\n"
         "  exit 0\n"
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
@@ -5646,10 +5711,12 @@ def _write_launchctl_that_executes_publisher_during_settle(
         "        sys.exit(1)\n"
         "    if not (loaded / label).exists():\n"
         "        sys.exit(113)\n"
+        "    print(f'gui/{os.getuid()}/{label} = {{')\n"
         "    print('state = waiting')\n"
         "    print(f'path = {launch_agents / (label + \".plist\")}')\n"
         "    if label == 'com.pantheon.agy-content-publisher' and last_exit.exists():\n"
         "        print(f'last exit code = {last_exit.read_text()}')\n"
+        "    print('}')\n"
         "    append(lifecycle_log, f'print label={label} state=stable')\n"
         "    sys.exit(0)\n"
         "with mutation_log.open('a', encoding='utf-8') as stream:\n"
@@ -9701,7 +9768,6 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     fake_bin.mkdir()
     pool_file, _manifest_sha256 = _write_installer_pool(tmp_path)
     state_file = tmp_path / "round-robin-state.json"
-    gsc_copy_root = tmp_path / "existing-gsc-copy"
     publisher_root = tmp_path / "existing-content-publisher"
     cli_path = tmp_path / "agy"
     cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -9724,6 +9790,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
         tmp_path,
         publisher_root=publisher_root,
     )
+    gsc_copy_root = queue_root / "gsc-copy"
     manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
     env.pop("AGY_WRITER_MODEL", None)
@@ -9735,7 +9802,6 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
             "AGY_GEMINI_CLI_PATH": str(cli_path),
             "AGY_GEMINI_NEW_ONLY": "0",
             "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS": "600",
-            "PANTHEON_GSC_COPY_ROOT": str(gsc_copy_root),
             "PANTHEON_CONTENT_PUBLISHER_ROOT": str(publisher_root),
             "AGY_GEMINI_QUEUE_ROOT": str(queue_root),
             "PANTHEON_RUNTIME_MANIFEST_FILE": str(manifest_path),
@@ -9858,6 +9924,33 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
 
     assert summary["runner"] == {"status": "idle"}
     assert observed == [(queue_root.resolve(), shared_contract)]
+
+
+def test_installer_rejects_actor_local_gsc_copy_override_before_side_effects(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool_file, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool_file,
+        state=tmp_path / "state.json",
+    )
+    env["PANTHEON_GSC_COPY_ROOT"] = str(repo_root / ".work" / "gsc-copy")
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "GSC copy run root 必須由 runtime queue 擁有" in completed.stderr
+    assert not fake_home.exists()
+    assert not mutation_log.exists()
 
 
 def test_activation_preflight_uses_api_route_gate_without_running_agy_cli(

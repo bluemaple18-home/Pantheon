@@ -251,9 +251,18 @@ def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> N
 def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
     request, identities = _runtime_fixture(tmp_path)
     run_id = "apf-create-run-new-preserved"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    (run_dir / "draft.md").write_text("durable draft\n", encoding="utf-8")
     _write_json(
         request.queue_root / "runs" / "state.json",
-        {"schema_version": 1, "run_id": run_id, "status": "active"},
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
     )
     (request.queue_root / "outbox").mkdir()
     _write_json(
@@ -264,6 +273,7 @@ def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
     )
     before_queue = promotion.tree_digest(request.queue_root)
+    before_run = promotion.tree_digest(run_dir)
 
     plan = promotion.plan_promotion(request)
     applied = promotion.apply_promotion(
@@ -274,16 +284,124 @@ def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
     assert applied["status"] == "POSTCHECK_PASSED"
     assert plan["preserved_run_ids"] == [run_id]
     assert plan["postchecks"][3] == "queue_preserved"
+    assert plan["queue_identity_snapshot"]["preserved_runs"] == [
+        {
+            "path": "state.json",
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "run_tree_digest": before_run,
+            "status": "active",
+        }
+    ]
     assert promotion.tree_digest(request.queue_root) == before_queue
+    assert promotion.tree_digest(run_dir) == before_run
     assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
+
+
+def test_plan_rejects_dangling_preserved_run_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "dangling-active-run"
+    (request.queue_root / "gsc-copy").mkdir()
+    missing_run_dir = request.queue_root / "gsc-copy" / run_id
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(missing_run_dir),
+            "status": "active",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="run directory is missing"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_preserved_run_outside_durable_root_before_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "actor-local-active-run"
+    (request.queue_root / "gsc-copy").mkdir()
+    run_dir = tmp_path / "actor-local-gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="outside durable root"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_preserved_run_brief_identity_mismatch_before_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "registered-active-run"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        {"schema_version": 1, "run_id": "drifted-active-run"},
+    )
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="brief identity mismatch"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
 
 
 def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     run_id = "completed-reviewer-run"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
     _write_json(
         request.queue_root / "runs" / "completed.json",
-        {"schema_version": 1, "run_id": run_id, "status": "complete"},
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+        },
     )
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
@@ -298,17 +416,26 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
 def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> None:
     request, identities = _runtime_fixture(tmp_path)
     run_id = "failed-reviewer-run"
-    _write_json(
-        request.queue_root / "runs" / "failed.json",
-        {"schema_version": 1, "run_id": run_id, "status": "failed"},
-    )
     gsc_copy_run = request.queue_root / "gsc-copy" / run_id
     gsc_copy_run.mkdir(parents=True)
+    _write_json(
+        gsc_copy_run / "brief.json",
+        {"schema_version": 1, "run_id": run_id},
+    )
     _write_json(
         gsc_copy_run / "candidate.json",
         {"schema_version": 1, "run_id": run_id, "status": "needs-review"},
     )
     (gsc_copy_run / "review.md").write_text("review stays private\n", encoding="utf-8")
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(gsc_copy_run),
+            "status": "failed",
+        },
+    )
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
     )
@@ -325,13 +452,23 @@ def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> N
     assert first["status"] == "READY_TO_APPLY"
     assert first["preserved_run_ids"] == [run_id]
     assert first["queue_identity_snapshot"]["preserved_runs"] == [
-        {"path": "failed.json", "run_id": run_id, "status": "failed"}
+        {
+            "path": "failed.json",
+            "run_id": run_id,
+            "run_dir": str(gsc_copy_run),
+            "run_tree_digest": promotion.tree_digest(gsc_copy_run),
+            "status": "failed",
+        }
     ]
     assert {
         entry["path"]
         for entry in first["queue_identity_snapshot"]["gsc_copy"]
         if entry["type"] == "file"
-    } == {f"{run_id}/candidate.json", f"{run_id}/review.md"}
+    } == {
+        f"{run_id}/brief.json",
+        f"{run_id}/candidate.json",
+        f"{run_id}/review.md",
+    }
     assert applied["status"] == "POSTCHECK_PASSED"
     assert promotion.tree_digest(request.queue_root) == before_queue
     assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
@@ -339,6 +476,7 @@ def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> N
 
 def test_preserved_failed_run_requires_identity_snapshot(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
+    (request.queue_root / "gsc-copy").mkdir()
     _write_json(
         request.queue_root / "runs" / "failed.json",
         {"schema_version": 1, "status": "failed"},
@@ -353,9 +491,20 @@ def test_preserved_failed_run_requires_identity_snapshot(tmp_path: Path) -> None
 
 def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
+    run_dir = request.queue_root / "gsc-copy" / "unexpected-run"
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        {"schema_version": 1, "run_id": "unexpected-run"},
+    )
     _write_json(
         request.queue_root / "runs" / "state.json",
-        {"schema_version": 1, "run_id": "unexpected-run", "status": "active"},
+        {
+            "schema_version": 1,
+            "run_id": "unexpected-run",
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
     )
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": ("expected-run",)}
@@ -370,10 +519,18 @@ def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
 def test_preserved_run_contract_rejects_duplicate_identity(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     run_id = "preserved-run"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
     for name in ("one.json", "two.json"):
         _write_json(
             request.queue_root / "runs" / name,
-            {"schema_version": 1, "run_id": run_id, "status": "active"},
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "run_dir": str(run_dir),
+                "status": "active",
+            },
         )
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
@@ -413,13 +570,22 @@ def test_gsc_copy_invalid_json_fails_closed_before_runtime_mutation(
     request, _identities = _runtime_fixture(tmp_path)
     before = _snapshot(request)
     run_id = "failed-reviewer-run"
-    _write_json(
-        request.queue_root / "runs" / "failed.json",
-        {"schema_version": 1, "run_id": run_id, "status": "failed"},
-    )
     gsc_copy_run = request.queue_root / "gsc-copy" / run_id
     gsc_copy_run.mkdir(parents=True)
+    _write_json(
+        gsc_copy_run / "brief.json",
+        {"schema_version": 1, "run_id": run_id},
+    )
     (gsc_copy_run / "candidate.json").write_text("{invalid", encoding="utf-8")
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(gsc_copy_run),
+            "status": "failed",
+        },
+    )
     request = promotion.PromotionRequest(
         **{**request.__dict__, "preserved_run_ids": (run_id,)}
     )
@@ -438,15 +604,24 @@ def test_gsc_copy_plan_apply_drift_rolls_back_without_rewriting_existing_bytes(
     request, _identities = _runtime_fixture(tmp_path)
     before = _snapshot(request)
     run_id = "failed-reviewer-run"
-    _write_json(
-        request.queue_root / "runs" / "failed.json",
-        {"schema_version": 1, "run_id": run_id, "status": "failed"},
-    )
     gsc_copy_run = request.queue_root / "gsc-copy" / run_id
     gsc_copy_run.mkdir(parents=True)
     _write_json(
+        gsc_copy_run / "brief.json",
+        {"schema_version": 1, "run_id": run_id},
+    )
+    _write_json(
         gsc_copy_run / "candidate.json",
         {"schema_version": 1, "run_id": run_id, "status": "needs-review"},
+    )
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(gsc_copy_run),
+            "status": "failed",
+        },
     )
     original_candidate = (gsc_copy_run / "candidate.json").read_bytes()
     request = promotion.PromotionRequest(

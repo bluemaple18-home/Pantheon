@@ -281,6 +281,10 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
         return {"preserved_runs": [], "gsc_copy": []}
     if runs_root.is_symlink() or not runs_root.is_dir():
         raise PromotionError("preserved run registry is invalid")
+    durable_run_root = request.queue_root / "gsc-copy"
+    if durable_run_root.is_symlink() or not durable_run_root.is_dir():
+        raise PromotionError("preserved durable run root is invalid")
+    canonical_durable_run_root = durable_run_root.resolve(strict=True)
     observed: set[str] = set()
     preserved_runs: list[dict[str, str]] = []
     for path in runs_root.iterdir():
@@ -297,9 +301,39 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
             raise PromotionError("preserved run state is not preservable")
         if run_id in observed:
             raise PromotionError("preserved run registry contains duplicate identity")
+        run_dir_value = state.get("run_dir")
+        if type(run_dir_value) is not str:
+            raise PromotionError("preserved run directory is invalid")
+        run_dir = Path(run_dir_value)
+        if not run_dir.is_absolute():
+            raise PromotionError("preserved run directory is invalid")
+        try:
+            canonical_run_dir = run_dir.resolve(strict=True)
+        except OSError as error:
+            raise PromotionError("preserved run directory is missing") from error
+        if (
+            run_dir.is_symlink()
+            or not run_dir.is_dir()
+            or canonical_run_dir != run_dir
+            or canonical_run_dir == canonical_durable_run_root
+            or not canonical_run_dir.is_relative_to(canonical_durable_run_root)
+        ):
+            raise PromotionError("preserved run directory is outside durable root")
+        brief_path = canonical_run_dir / "brief.json"
+        if brief_path.is_symlink() or not brief_path.is_file():
+            raise PromotionError("preserved run brief is missing")
+        brief = _read_json_file(brief_path, "preserved run brief")
+        if brief.get("run_id") != run_id:
+            raise PromotionError("preserved run brief identity mismatch")
         observed.add(run_id)
         preserved_runs.append(
-            {"path": path.name, "run_id": run_id, "status": str(status)}
+            {
+                "path": path.name,
+                "run_id": run_id,
+                "run_dir": str(canonical_run_dir),
+                "run_tree_digest": tree_digest(canonical_run_dir),
+                "status": str(status),
+            }
         )
     if observed != set(request.preserved_run_ids):
         raise PromotionError("preserved run identity mismatch")

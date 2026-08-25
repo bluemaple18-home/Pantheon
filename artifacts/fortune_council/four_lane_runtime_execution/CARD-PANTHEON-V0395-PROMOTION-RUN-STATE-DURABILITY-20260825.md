@@ -70,4 +70,11 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 
 ## RESULT
 
-狀態：pending
+狀態：PASS（candidate，未執行 production promotion／publish）
+
+- `SC-001`：promotion plan 對 dangling preserved `run_dir` 在 mutation 前 fail closed；zero-mutation regression 通過。
+- `SC-002`：installer 將 new/rewrite run root 固定為 `<queue-root>/gsc-copy`，actor-local override 在 side effect 前拒絕。
+- `SC-003`：active run 經 synthetic promotion 保持相同 identity 與 run tree digest；coordinator 在 sweep 前對 dangling registry 回傳 blocked receipt，不建立 replacement identity。
+- `SC-004`：promotion `30 passed`、coordinator/installer `292 passed`、shell syntax 與 `git diff --check` 通過。
+- Evidence：`artifacts/fortune_council/four_lane_runtime_execution/g8_v0395_promotion_run_state_durability_20260825/evidence.md`。
+- 剩餘風險：尚未執行 production promotion 或新 canary；主線須依卡片另行做唯一一次正式驗收。
