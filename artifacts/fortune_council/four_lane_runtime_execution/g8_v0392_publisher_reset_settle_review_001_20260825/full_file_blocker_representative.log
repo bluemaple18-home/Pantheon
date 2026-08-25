@@ -1,0 +1,167 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/cf89/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 2 items
+
+tests/test_agy_gemini_coordinator.py FF                                  [100%]
+
+=================================== FAILURES ===================================
+_ test_aggregate_activation_rejects_before_mutation_with_failure_receipt[apf-004-private-red-apf-004-private-red-aggregate_preflight] _
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-542/test_aggregate_activation_reje0')
+external_correlation = 'apf-004-private-red'
+expected_correlation = 'apf-004-private-red'
+expected_phase = 'aggregate_preflight'
+
+    @pytest.mark.parametrize(
+        ("external_correlation", "expected_correlation", "expected_phase"),
+        [
+            ("apf-004-private-red", "apf-004-private-red", "aggregate_preflight"),
+            ("invalid correlation", None, "correlation_validation"),
+        ],
+    )
+    def test_aggregate_activation_rejects_before_mutation_with_failure_receipt(
+        tmp_path: Path,
+        external_correlation: str,
+        expected_correlation: str | None,
+        expected_phase: str,
+    ) -> None:
+        """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 aggregate caller。"""
+        repo_root = Path(__file__).resolve().parents[1]
+        pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+        env, fake_home, mutation_log = _installer_test_env(
+            tmp_path,
+            pool=pool,
+            state=tmp_path / "state.json",
+        )
+        env["PANTHEON_ACTIVATION_CORRELATION_ID"] = external_correlation
+        staged = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+                "--install",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert staged.returncode == 0, staged.stderr
+        manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+        stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+        _write_aggregate_stage_plist(
+            stage_dir / "com.pantheon.agy-content-publisher.plist",
+            label="com.pantheon.agy-content-publisher",
+            manifest=manifest,
+        )
+        _write_aggregate_stage_plist(
+            stage_dir / "com.pantheon.content-capacity-guard.plist",
+            label="com.pantheon.content-capacity-guard",
+            manifest=manifest,
+            manifest_digest="0" * 64,
+        )
+
+        activated = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+                "--activate",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert activated.returncode != 0
+        if expected_phase == "aggregate_preflight":
+>           assert "mismatch" in activated.stdout
+E           AssertionError: assert 'mismatch' in ''
+E            +  where '' = CompletedProcess(args=['/bin/bash', '/Users/mattkuo/.codex/worktrees/cf89/Pantheon/scripts/install_agy_gemini_coordina...)\nValueError: writer model is unavailable: gemini-3.5-flash\n正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。\n').stdout
+
+tests/test_agy_gemini_coordinator.py:5268: AssertionError
+_ test_aggregate_activation_rejects_before_mutation_with_failure_receipt[invalid correlation-None-correlation_validation] _
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-542/test_aggregate_activation_reje1')
+external_correlation = 'invalid correlation', expected_correlation = None
+expected_phase = 'correlation_validation'
+
+    @pytest.mark.parametrize(
+        ("external_correlation", "expected_correlation", "expected_phase"),
+        [
+            ("apf-004-private-red", "apf-004-private-red", "aggregate_preflight"),
+            ("invalid correlation", None, "correlation_validation"),
+        ],
+    )
+    def test_aggregate_activation_rejects_before_mutation_with_failure_receipt(
+        tmp_path: Path,
+        external_correlation: str,
+        expected_correlation: str | None,
+        expected_phase: str,
+    ) -> None:
+        """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 aggregate caller。"""
+        repo_root = Path(__file__).resolve().parents[1]
+        pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+        env, fake_home, mutation_log = _installer_test_env(
+            tmp_path,
+            pool=pool,
+            state=tmp_path / "state.json",
+        )
+        env["PANTHEON_ACTIVATION_CORRELATION_ID"] = external_correlation
+        staged = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+                "--install",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert staged.returncode == 0, staged.stderr
+        manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+        stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+        _write_aggregate_stage_plist(
+            stage_dir / "com.pantheon.agy-content-publisher.plist",
+            label="com.pantheon.agy-content-publisher",
+            manifest=manifest,
+        )
+        _write_aggregate_stage_plist(
+            stage_dir / "com.pantheon.content-capacity-guard.plist",
+            label="com.pantheon.content-capacity-guard",
+            manifest=manifest,
+            manifest_digest="0" * 64,
+        )
+
+        activated = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+                "--activate",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert activated.returncode != 0
+        if expected_phase == "aggregate_preflight":
+            assert "mismatch" in activated.stdout
+        else:
+>           assert "correlation id 格式無效" in activated.stderr
+E           assert 'correlation id 格式無效' in 'Traceback (most recent call last):\n  File "<string>", line 1, in <module>\n  File "/Users/mattkuo/.codex/worktrees/c...")\nValueError: writer model is unavailable: gemini-3.5-flash\n正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。\n'
+E            +  where 'Traceback (most recent call last):\n  File "<string>", line 1, in <module>\n  File "/Users/mattkuo/.codex/worktrees/c...")\nValueError: writer model is unavailable: gemini-3.5-flash\n正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。\n' = CompletedProcess(args=['/bin/bash', '/Users/mattkuo/.codex/worktrees/cf89/Pantheon/scripts/install_agy_gemini_coordina...)\nValueError: writer model is unavailable: gemini-3.5-flash\n正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。\n').stderr
+
+tests/test_agy_gemini_coordinator.py:5270: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agy_gemini_coordinator.py::test_aggregate_activation_rejects_before_mutation_with_failure_receipt[apf-004-private-red-apf-004-private-red-aggregate_preflight]
+FAILED tests/test_agy_gemini_coordinator.py::test_aggregate_activation_rejects_before_mutation_with_failure_receipt[invalid correlation-None-correlation_validation]
+============================== 2 failed in 5.03s ===============================
