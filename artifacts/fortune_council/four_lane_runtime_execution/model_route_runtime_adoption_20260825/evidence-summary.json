@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-MODEL-ROUTE-RUNTIME-ADOPTION-20260825",
+  "activation_token_seen": "act-v1:0a0b6134da4d10e047c401a54e1768539f60b7c7b266cb58e2a02680590599ba",
+  "verdict": "BLOCKED",
+  "blocker": {
+    "code": "TARGET_SOURCE_NOT_AUTHORIZED_ON_REMOTE_MAIN",
+    "summary": "The reviewed model-route fix is not an authorized production source target on origin/main, and no exact artifact-excluded runtime target SHA is available for the existing promotion CLI.",
+    "repro": [
+      "git rev-parse HEAD -> af63bf3b25817b5fbfc9fd5e0139b4c7289a5b60",
+      "git ls-remote --heads origin main -> 5872284828f9dd6f0a75adf407becaeadb50d61a",
+      "git show --name-only 67f62f233f957bfbcaf51d65e63d58f66e35c206 includes one review card artifact plus runtime source/test changes"
+    ]
+  },
+  "codegraph": {
+    "query": "runtime promotion model route actor manifest V0391 exact run",
+    "status": "READY",
+    "files_indexed": 582,
+    "nodes": 6924,
+    "edges": 15327,
+    "entry_points": [
+      "scripts/pantheon_content_runtime_promotion.py",
+      "scripts/pantheon_content_runtime_manifest.py",
+      "scripts/agy_seo_copy_pipeline.py"
+    ]
+  },
+  "source_and_main": {
+    "cwd": "/Users/mattkuo/.codex/worktrees/7e01/Pantheon",
+    "head": "af63bf3b25817b5fbfc9fd5e0139b4c7289a5b60",
+    "local_main": "af63bf3b25817b5fbfc9fd5e0139b4c7289a5b60",
+    "clean": true,
+    "remote_main": {
+      "sha": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+      "ref": "refs/heads/main",
+      "operation": "read_only",
+      "fetch_or_ref_write": false
+    },
+    "reviewed_model_route_candidate": "67f62f233f957bfbcaf51d65e63d58f66e35c206",
+    "review_go_result_commit_original": "3b0dfeb96ddd377e360d58fc6c4bb87404889839",
+    "review_go_mainline_commit": "2bb19c5668",
+    "available_target_problem": {
+      "remote_main_points_to_stale_runtime": true,
+      "candidate_commit_contains_card_artifact": true,
+      "current_head_contains_dispatch_and_review_artifacts": true,
+      "artifact_excluded_runtime_target_sha_available": false
+    }
+  },
+  "live_runtime": {
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "actor_head": "5872284828f9dd6f0a75adf407becaeadb50d61a",
+    "actor_clean": true,
+    "manifest_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "manifest_digest": "389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca",
+    "runtime_digest": "5554e075b0a6dcf97dd1cf431544c3456677b5d81174dcb8d660566dd82d5c92",
+    "identity": "gate2-actor:5872284828f9dd6f0a75adf407becaeadb50d61a:activation-only",
+    "generation": "g36-5872284828-zero-write-20260824",
+    "route_config_at_actor_head": {
+      "writer": [
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-2.5-flash"
+      ],
+      "reviewer": [
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite"
+      ]
+    },
+    "latest_promotion_transaction": {
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-final-5872284828-promotion-20260825/promotion-receipt.json",
+      "state": "COMMITTED",
+      "plan_digest": "1586b147cd680606859739fa68728c7eb40820d4cb4053ba298ebda2f681bb1b",
+      "target_actor_sha": "5872284828f9dd6f0a75adf407becaeadb50d61a"
+    }
+  },
+  "v0391_exact_run": {
+    "run_id": "v0391-publish-canary-20260825-01",
+    "run_state_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/7c2a03c622fcf01536d0574c.json",
+    "run_status": "active",
+    "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/.work/gsc-copy/v0391-publish-canary-20260825-01",
+    "last_job_id": "54f57c7de682e12f5c0f6250576cde08a4f4d06a",
+    "failed_writer_receipts": [
+      {
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/failed/620f6d3a43d31e9c16bf0e2990671f0189e784b9.json",
+        "completed_at": "2026-08-25T01:28:22+08:00",
+        "job_id": "620f6d3a43d31e9c16bf0e2990671f0189e784b9",
+        "error_type": "GeminiCliFailure",
+        "error_code": "CLI_NONZERO",
+        "failure_category": "CLI_NONZERO"
+      },
+      {
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/failed/54f57c7de682e12f5c0f6250576cde08a4f4d06a.json",
+        "completed_at": "2026-08-25T09:15:29+08:00",
+        "job_id": "54f57c7de682e12f5c0f6250576cde08a4f4d06a",
+        "error_type": "GeminiCliFailure",
+        "error_code": "CLI_NONZERO",
+        "failure_category": "CLI_NONZERO"
+      }
+    ],
+    "safe_state": "No run resume, third Writer attempt, Publisher, activation, promotion apply/finalize/rollback, push, or tag was executed by this task."
+  },
+  "prior_rule24_rule25_and_promotion_receipts": {
+    "v0388_capacity_receipt": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/capacity-receipt.json",
+      "status": "PASS",
+      "mode": "synthetic-non-production-capacity-proof",
+      "digest": "776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4"
+    },
+    "v0389_dsse_verify": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0389_fresh_rule24_dsse_sign_verify_20260825/verify-receipt.json",
+      "status": "PASS",
+      "authorization_granted": false,
+      "envelope_digest": "e9755a2204d64dce5a20c6dbe681cfb5a97adc960b2369eeed11e03f0efd49d2"
+    },
+    "v0390_formal_planner": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0390_fresh_promotion_replan_20260825/planner-blocked-receipt.json",
+      "execution_status": "executed_zero_write_blocked",
+      "error": "capacity stop-loss is not PASS",
+      "apply_invocation_count": 0
+    }
+  },
+  "required_before_exact_authorization": [
+    "Publish or otherwise authorize one exact runtime source target that contains the model-route source fix and excludes review/card artifacts from the promotion target.",
+    "Re-establish fresh remote-main equality for that exact target SHA.",
+    "Generate a fresh Rule 24 capacity receipt accepted by scripts.pantheon_content_runtime_promotion._validate_capacity_receipt, because V0390 proved the existing V0388 receipt is not accepted by the formal planner.",
+    "Bind a fresh Rule 25 / production-canary readiness receipt and human authorization to the exact target, plan digest, argv, rollback, and stop-loss.",
+    "Only after those inputs exist, run the existing promotion CLI in plan mode to produce exact apply/finalize argv."
+  ],
+  "this_task_counts": {
+    "production_mutation": 0,
+    "apply": 0,
+    "finalize": 0,
+    "rollback": 0,
+    "activation": 0,
+    "gemini_job": 0,
+    "run_resume": 0,
+    "publisher": 0,
+    "push": 0,
+    "tag": 0
+  }
+}
