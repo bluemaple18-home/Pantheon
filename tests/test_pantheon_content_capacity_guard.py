@@ -1794,6 +1794,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """REG-PANTHEON-CAPACITY-LOADED-INERT-NO-PID-001。"""
+    monkeypatch.setenv("PANTHEON_USER_HOME_DIR", str(tmp_path / "home"))
     identity = {"value": f"gate2-actor:{'a' * 40}:activation-only"}
 
     def exact_fixture(target: str) -> str:
@@ -2094,7 +2095,7 @@ def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists
         queue_root=queue,
         publisher_state_root=state,
         log_root=logs,
-        identity=f"gate2-actor:{'a' * 40}:normal",
+        identity=f"gate2-actor:{'a' * 40}:activation-only",
         runtime_digest="b" * 64,
         config_version="formal-runtime-v3-model-route-v1",
         generation="g2-scheduled-idle-test",
@@ -2147,6 +2148,7 @@ def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists
         "identity": manifest["identity"],
     }
 
+    assert guard._activation_only_service_labels(runtime_receipt) == frozenset()
     assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset(
         guard.SERVICE_LABELS
     )

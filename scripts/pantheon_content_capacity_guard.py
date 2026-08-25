@@ -142,8 +142,9 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
 def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozenset[str]:
     if runtime_receipt.get("status") != "PASS":
         return frozenset()
-    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(runtime_receipt.get("identity", ""))):
-        return frozenset(SERVICE_LABELS)
+    identity_is_activation_only = ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
+        str(runtime_receipt.get("identity", ""))
+    ) is not None
     try:
         home = Path(
             os.environ.get("PANTHEON_USER_HOME_DIR")
@@ -161,7 +162,9 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
                 or any(field in payload for field in ("StandardInPath", "StandardOutPath", "StandardErrorPath"))
             ):
                 return frozenset()
-    except (OSError, plistlib.InvalidFileException):
+    except OSError:
+        return frozenset(SERVICE_LABELS) if identity_is_activation_only else frozenset()
+    except plistlib.InvalidFileException:
         return frozenset()
     return frozenset(SERVICE_LABELS)
 
@@ -170,12 +173,7 @@ def _normal_scheduled_service_labels(
     runtime_receipt: dict[str, Any],
 ) -> frozenset[str]:
     """只信任 manifest-bound、owner/mode 正確的正式 interval job。"""
-    if (
-        runtime_receipt.get("status") != "PASS"
-        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
-            str(runtime_receipt.get("identity", ""))
-        )
-    ):
+    if runtime_receipt.get("status") != "PASS":
         return frozenset()
     try:
         manifest = formal_runtime.load_manifest(
