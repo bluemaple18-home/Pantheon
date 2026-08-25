@@ -95,3 +95,53 @@ Residual risk:
 Validation gaps:
 
 - 我未本機重跑 457-test suite；測試執行採 candidate evidence，並已獨立執行 candidate `git diff --check`。
+
+---
+
+# Follow-up re-review amended candidate b64582e7
+
+## Scope
+
+- Re-review 前 review receipt commit：`dd1f5f3c1cdc64602d901c273918824385fb7ed2`。
+- Base / parent：`998a797f3618a47a3d0493503e937a06b84e3da3`。
+- Follow-up amended candidate：`b64582e7f213948acc36e19c19c620fe5f6ba669`。
+- Lineage：candidate parent 仍為 V0393 base `998a797f3618a47a3d0493503e937a06b84e3da3`；相對前一版 candidate `f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d` 只改 V0393 Repair card/evidence、`scripts/agy_gemini_coordinator.py` 與 `tests/test_agy_gemini_coordinator.py`。
+- Follow-up re-review 前 worktree status：clean。
+- 已先嘗試 CodeGraph；此 worktree 未初始化：`CodeGraph not initialized`。
+- Candidate-only Repair evidence was read with `git show b64582e7f213948acc36e19c19c620fe5f6ba669:<repo-relative-path>`。
+- 未切換 checkout，未修改 source/test/runtime，未執行 production、push、promotion、deploy、launchctl 或 archive action。
+
+## Commands
+
+- `git rev-parse b64582e7f213948acc36e19c19c620fe5f6ba669^` -> `998a797f3618a47a3d0493503e937a06b84e3da3`。
+- `git diff --name-status f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d..b64582e7f213948acc36e19c19c620fe5f6ba669` -> V0393 card/evidence、coordinator、coordinator tests。
+- `git diff --check f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d..b64582e7f213948acc36e19c19c620fe5f6ba669` -> passed with no output。
+- Candidate Repair evidence reports targeted coordinator `19 passed`、targeted outbox `7 passed`、完整受影響兩檔 `459 passed in 444.22s (0:07:24)`，以及 `git diff --check` passed。
+
+## Follow-up Checks
+
+- Missing actor-local `brief.json`：resolved。`replace_failed_external_job` 現在使用 `run_dir.resolve(strict=False)`，只在 local `brief.json` 存在時驗證它；並透過 `_read_run_state_by_id(expected_run_id, state_root)` 讀 durable state，仍要求 `state.run_id`、`state.run_dir`、`state.correlation_id` 與 explicit CLI identity 相符。
+- No identity relaxation：run id format、run_dir string、correlation id、namespace、source job id、request hash、failure category/error code、authority digest、active status、last-job identity、source archive 與 failed receipt checks 都保留在 replacement path。
+- Durable recovery tick gating：`_advance` 只在 local brief 缺失且 `state.failed_external_job_replacement` 是 dict 時略過 local `brief.json`。`_recover_failed_external_job_replacement_result` 接著要求 formal receipt key set，並在 consume result 前驗證 source archive identity、state last replacement job 與 correlation。沒有 formal replacement receipt 的一般 run 仍走 normal `tick` path，local brief 缺失時 fail closed。
+- Replacement result consumption：recovery 會載入 archived source request，再呼叫 `consume_external_response(job_queue_root, source_request)`；該路徑要求 source job 的 formal replacement decision 與 exact replacement request/inbox identity 後才回傳 replacement result。
+- Exactly-once / crash replay：follow-up 未改前輪已審的 staging -> decision -> state -> publish sequence。Same-authority replay、different authority fail-closed 與 no executable orphan property 仍由 candidate evidence 覆蓋。
+- TOCTOU hardening：source archive 與 failed receipt descriptor-bound reads 相對 prior GO candidate 未回退。
+- `CLI_NONZERO`：仍不在 `RETRYABLE_EXTERNAL_FAILURE_CATEGORIES`；retry 仍限於 quota/rate-limit 與 bounded retryable categories。
+- Source evidence immutability：follow-up 只新增 durable-state recovery 與 result continuation；source archive request 與 failed receipt 仍只讀，不 rewrite、不 delete。
+
+## Follow-up Verdict
+
+`GO`
+
+Findings:
+
+- 未發現 P0/P1/P2。
+- 未發現 production safety blocker。
+
+Residual risk:
+
+- Recovery helper 將 durable state receipt 視為內部可信 state，並依賴 `consume_external_response` 驗證 formal on-disk decision 與 replacement result；我未發現這放寬已審過的 external identity boundary。
+
+Validation gaps:
+
+- 我未本機重跑 459-test suite；測試執行採 candidate evidence，並已獨立執行 follow-up candidate `git diff --check`。

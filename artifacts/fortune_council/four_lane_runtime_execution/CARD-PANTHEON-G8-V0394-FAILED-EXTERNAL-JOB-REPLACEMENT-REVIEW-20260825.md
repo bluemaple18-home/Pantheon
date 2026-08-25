@@ -4,7 +4,7 @@ status: completed
 role: Reviewer
 review_mode: full
 base_commit: 998a797f3618a47a3d0493503e937a06b84e3da3
-candidate_commit: f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d
+candidate_commit: b64582e7f213948acc36e19c19c620fe5f6ba669
 repair_thread: 01a037e9-0ce8-7990-90d0-d4d2cc674d1b
 model: gpt-5.5
 thinking: high
@@ -15,8 +15,8 @@ thinking: high
 ## 工作名稱 → 正在做什麼 → 現在狀態
 
 - 工作名稱：V0393 failed external job replacement 獨立審查。
-- 正在做什麼：唯讀 re-review amended candidate `f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d` 相對 base `998a797f3618a47a3d0493503e937a06b84e3da3` 的正確性、回歸、安全、測試與 production recovery 風險。
-- 現在狀態：completed；amended candidate re-review 結論為 `GO`，尚未整合、push、promotion 或執行 production replacement。
+- 正在做什麼：唯讀 follow-up re-review amended candidate `b64582e7f213948acc36e19c19c620fe5f6ba669` 相對 base `998a797f3618a47a3d0493503e937a06b84e3da3` 的正確性、回歸、安全、測試與 production recovery 風險。
+- 現在狀態：completed；follow-up amended candidate re-review 結論為 `GO`，尚未整合、push、promotion 或執行 production replacement。
 
 ## 唯一責任
 
@@ -99,6 +99,41 @@ Non-blocking：
 
 - `git diff --check 998a797f3618a47a3d0493503e937a06b84e3da3..a0c3ffe33e9dbbb80524fe75d0486063e02d67d7`：passed with no output。
 - Repair evidence candidate-only 讀取確認：`450 passed in 451.32s (0:07:31)`。
+
+邊界：
+
+- 未 checkout candidate，未修改 source/tests/runtime，未 merge/push/deploy/promotion/archive，未操作 production replacement。
+
+## FOLLOW-UP RE-REVIEW RESULT
+
+狀態：completed
+
+Follow-up amended candidate：`b64582e7f213948acc36e19c19c620fe5f6ba669`
+
+Parent/base：`998a797f3618a47a3d0493503e937a06b84e3da3`
+
+Verdict：`GO`
+
+審查證據：
+
+- `artifacts/fortune_council/four_lane_runtime_execution/g8_v0394_failed_external_job_replacement_review_20260825/evidence.md`
+
+Follow-up checks：
+
+- Missing actor-local `brief.json` blocker：resolved。formal replacement plan/execute 現在可在 local brief 缺失時使用 durable run registry，但仍要求 explicit run id、durable `run_dir` string、correlation id、namespace、job id、request hash、failure identity 與 authority digest 全部匹配。
+- Durable recovery tick gating：僅在 local brief 缺失且 state 具有 formal `failed_external_job_replacement` receipt 時走 recovery；一般 run 不會走此捷徑。
+- Replacement result consumption：仍經 source archive request、formal replacement decision、replacement request/inbox exact identity，才完成 exact-run continuation。
+- Exactly-once staging→decision→state→publish、crash replay、TOCTOU hardening、`CLI_NONZERO` 非一般 retry、source evidence immutable：未發現回歸。
+
+Findings：
+
+- 無 P0/P1/P2。
+- 無 production safety blocker。
+
+驗證：
+
+- `git diff --check f4c7ddd1c1cafd2f5520fd4b49bc21d048a7717d..b64582e7f213948acc36e19c19c620fe5f6ba669`：passed with no output。
+- Repair evidence candidate-only 讀取確認：targeted coordinator `19 passed`、targeted outbox `7 passed`、完整兩檔 `459 passed in 444.22s (0:07:24)`。
 
 邊界：
 
