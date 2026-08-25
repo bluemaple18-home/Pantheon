@@ -1,0 +1,81 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/3540/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 1 item
+
+tests/test_agy_gemini_coordinator.py F                                   [100%]
+
+=================================== FAILURES ===================================
+__________ test_publisher_terminal_reset_settles_after_transient_pid ___________
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-534/test_publisher_terminal_reset_0')
+
+    def test_publisher_terminal_reset_settles_after_transient_pid(
+        tmp_path: Path,
+    ) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        (
+            env,
+            fake_home,
+            mutation_log,
+            manifest,
+            _barrier,
+            loaded,
+            live_payloads,
+        ) = _prepare_publisher_only_activation_fixture(tmp_path)
+        launch_agents = fake_home / "Library" / "LaunchAgents"
+        stage_dir = launch_agents / ".pantheon-four-lane-stage"
+        publisher_label = "com.pantheon.agy-content-publisher"
+        publisher_live = launch_agents / f"{publisher_label}.plist"
+        _write_publisher_scheduled_live(
+            stage_dir / f"{publisher_label}.plist",
+            publisher_live,
+        )
+        (loaded / publisher_label).unlink()
+        child_log = tmp_path / "publisher-child.log"
+        print_count = tmp_path / "publisher-print-count"
+        launchctl = tmp_path / "bin" / "launchctl"
+        original = launchctl.read_text(encoding="utf-8")
+        path_line = f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
+        launchctl.write_text(
+            original.replace(
+                path_line,
+                path_line
+                + f"  if [ \"$label\" = \"{publisher_label}\" ]; then\n"
+                f"    count=$(cat '{print_count}' 2>/dev/null || printf 0)\n"
+                "    count=$((count + 1))\n"
+                f"    printf '%s' \"$count\" > '{print_count}'\n"
+                "    if [ \"$count\" -eq 1 ]; then\n"
+                "      printf '%s\\n' 'pid = 4242'\n"
+                "    fi\n"
+                "  fi\n",
+            ),
+            encoding="utf-8",
+        )
+        launchctl.chmod(0o700)
+
+        reset = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+                "--reset-publisher-activation-only",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+>       assert reset.returncode == 0, reset.stderr
+E       AssertionError: Publisher activation-only reset settled with a running Publisher.
+E
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/bin/bash', '/Users/mattkuo/.codex/worktrees/3540/Pantheon/scripts/install_agy_gemini_coordina...tivation-only'], returncode=1, stdout='', stderr='Publisher activation-only reset settled with a running Publisher.\n').returncode
+
+tests/test_agy_gemini_coordinator.py:6386: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agy_gemini_coordinator.py::test_publisher_terminal_reset_settles_after_transient_pid
+============================== 1 failed in 2.64s ===============================

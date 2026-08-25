@@ -6326,6 +6326,93 @@ def test_publisher_terminal_reset_settles_after_manifest_promotion(
             assert (launch_agents / f"{label}.plist").read_bytes() == payload
 
 
+def test_publisher_terminal_reset_settles_after_transient_pid(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    (
+        env,
+        fake_home,
+        mutation_log,
+        manifest,
+        _barrier,
+        loaded,
+        live_payloads,
+    ) = _prepare_publisher_only_activation_fixture(tmp_path)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    publisher_label = "com.pantheon.agy-content-publisher"
+    publisher_live = launch_agents / f"{publisher_label}.plist"
+    _write_publisher_scheduled_live(
+        stage_dir / f"{publisher_label}.plist",
+        publisher_live,
+    )
+    (loaded / publisher_label).unlink()
+    child_log = tmp_path / "publisher-child.log"
+    print_count = tmp_path / "publisher-print-count"
+    launchctl = tmp_path / "bin" / "launchctl"
+    original = launchctl.read_text(encoding="utf-8")
+    path_line = f"  printf '%s\\n' 'path = {launch_agents}/'$label'.plist'\n"
+    launchctl.write_text(
+        original.replace(
+            path_line,
+            path_line
+            + f"  if [ \"$label\" = \"{publisher_label}\" ]; then\n"
+            f"    count=$(cat '{print_count}' 2>/dev/null || printf 0)\n"
+            "    count=$((count + 1))\n"
+            f"    printf '%s' \"$count\" > '{print_count}'\n"
+            "    if [ \"$count\" -eq 1 ]; then\n"
+            "      printf '%s\\n' 'pid = 4242'\n"
+            "    fi\n"
+            "  fi\n",
+        ),
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    reset = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--reset-publisher-activation-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert reset.returncode == 0, reset.stderr
+    assert "Publisher activation-only reset 已完成" in reset.stdout
+    assert print_count.read_text(encoding="utf-8") == "2"
+    assert mutation_log.read_text(encoding="utf-8").splitlines() == [
+        f"bootstrap gui/{os.getuid()} {publisher_live}",
+    ]
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    receipt = runtime_manifest.plist_receipt(
+        publisher_live,
+        expected_activation_mode="activation-only",
+    )
+    assert receipt["label"] == publisher_label
+    assert receipt["manifest_digest"] == manifest["manifest_digest"]
+    reset_receipt = json.loads(
+        (stage_dir / "publisher-reset-receipt.json").read_text(encoding="utf-8")
+    )
+    assert reset_receipt["status"] == "PASS"
+    assert reset_receipt["correlation_id"] == "publisher-only-bounded"
+    assert all(
+        proof["pre_plist_sha256"] == proof["post_plist_sha256"]
+        for proof in reset_receipt["other_six"]
+    )
+    for label, payload in live_payloads.items():
+        if label != publisher_label:
+            assert (launch_agents / f"{label}.plist").read_bytes() == payload
+    assert not child_log.exists()
+
+
 @pytest.mark.parametrize(
     ("variant", "expected_error"),
     [

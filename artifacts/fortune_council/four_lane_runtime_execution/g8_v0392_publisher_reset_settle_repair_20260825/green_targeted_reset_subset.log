@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/3540/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 13 items
+
+tests/test_agy_gemini_coordinator.py .............                       [100%]
+
+============================= 13 passed in 33.80s ==============================

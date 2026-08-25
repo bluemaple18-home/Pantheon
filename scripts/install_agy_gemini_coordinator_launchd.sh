@@ -653,11 +653,6 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
   for ((RESET_SETTLE_ATTEMPT=1; RESET_SETTLE_ATTEMPT<=20; RESET_SETTLE_ATTEMPT++)); do
     if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
       > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity" 2>/dev/null; then
-      if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
-        "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
-        echo "Publisher activation-only reset settled with a running Publisher." >&2
-        false
-      fi
       PUBLISHER_POST_PATH_COUNT="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
         "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity" | wc -l | tr -d '[:space:]')"
       PUBLISHER_POST_PATH="$(sed -nE 's/^[[:space:]]*path = (\/[^[:space:]]+)[[:space:]]*$/\1/p' \
@@ -667,8 +662,16 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
         echo "Publisher activation-only reset settled with launchctl path drift." >&2
         false
       fi
-      RESET_PUBLISHER_SETTLED=1
-      break
+      if grep -Eq '^[[:space:]]*pid = [1-9][0-9]*[[:space:]]*$' \
+        "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.post_identity"; then
+        if (( RESET_SETTLE_ATTEMPT >= 20 )); then
+          echo "Publisher activation-only reset settled with a running Publisher." >&2
+          false
+        fi
+      else
+        RESET_PUBLISHER_SETTLED=1
+        break
+      fi
     fi
     if (( RESET_SETTLE_ATTEMPT < 20 )); then
       /bin/sleep 0.05
