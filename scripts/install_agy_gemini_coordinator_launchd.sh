@@ -255,9 +255,9 @@ fi
 if [[ "${ACTION}" == "--activate" || "${ACTION}" == "--activate-only" ]]; then
   if ! (
     cd "${REPO_ROOT}"
-    "${PYTHON_BIN}" -c 'import json, sys; from scripts.agy_seo_copy_pipeline import validate_antigravity_cli_capabilities; print(json.dumps(validate_antigravity_cli_capabilities([sys.argv[1]]), sort_keys=True))' "${AGY_CLI_PATH}"
+    "${PYTHON_BIN}" -c 'import json; from scripts.agy_seo_copy_pipeline import model_route_config_from_environment, validate_gemini_api_model_capabilities; print(json.dumps(validate_gemini_api_model_capabilities(model_route_config_from_environment()), sort_keys=True))'
   ); then
-    echo "正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。" >&2
+    echo "正式 Writer／Reviewer Gemini API route capability 驗證失敗；尚未 activation。" >&2
     exit 1
   fi
 fi

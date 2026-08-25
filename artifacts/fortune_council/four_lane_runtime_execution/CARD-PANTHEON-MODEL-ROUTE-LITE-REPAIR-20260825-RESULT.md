@@ -14,17 +14,19 @@ source_thread_id: 01a034b0-a14a-7562-bc18-a014d47bb3ad
 - Writer: `gemini-3.5-flash-lite`
 - Reviewer: `gemini-3.1-flash-lite`
 
-本修正不再把 `agy-1.1.3 models` inventory 當作兩個 Lite role 的能力權威；Antigravity CLI 未曝光 Lite 時會被分類為 CLI inventory / transport 不支援，而不是 Gemini API model 不存在。
+第 2 代 P1 修正已完成：本修正不再把 `agy-1.1.3 models` inventory 當作兩個 Lite role 的能力權威；Antigravity CLI 未曝光 Lite 時會被分類為 CLI inventory / transport 不支援，而不是 Gemini API model 不存在。API exact-Lite gate 已接入 `GeminiClient.from_environment()` 與 activation installer preflight。
 
 ## Source Decision
 
-CodeGraph 在 source decision 前已查詢既有 seam：
+前一代 candidate 的 source decision 已用 CodeGraph 查詢既有 seam：
 
 - `codegraph_status`: ready；582 indexed files, 6925 nodes, 15331 edges。
 - `codegraph_search(GeminiClient)`: 定位 `scripts/agy_seo_copy_pipeline.py:2603`。
 - `codegraph_search(GEMINI_ENDPOINT)` / `generativelanguage`: 定位既有 direct Gemini API `generateContent` endpoint。
 - `codegraph_search(credential)`: 定位 `scripts/agy_gemini_runner.py` 的 production credential pool seam。
 - `codegraph_search(OutboxGeminiClient)`: 定位 `scripts/agy_gemini_outbox.py` 的 queue/outbox route seam。
+
+第 2 代 P1 repair 開工時再次嘗試 CodeGraph，但工具在本輪回 `unsupported call` 且重新搜尋未載出 CodeGraph；因此只限域讀取 review 指定的允許檔案與精確行段。
 
 依主線已驗證的 Google 官方文件裁決：
 
@@ -52,6 +54,8 @@ CodeGraph 在 source decision 前已查詢既有 seam：
   - Writer `gemini-3.5-flash-lite`
   - Reviewer `gemini-3.1-flash-lite`
 - 將 `GeminiClient.from_environment()` 預設 transport 改為 direct Gemini API。
+- `GeminiClient.from_environment()` 的 API branch 會先呼叫 `validate_gemini_api_model_capabilities(route_config)`，再載入 API key。
+- Installer `--activate` / `--activate-only` preflight 改走 exact Lite API route gate，不再呼叫 `validate_antigravity_cli_capabilities()`、`agy models` 或 Lite smoke。
 - 保留 explicit legacy CLI transport，但當正式 Lite route 進入 CLI transport 時 fail closed，且不啟動 CLI process。
 - 新增 `validate_gemini_api_model_capabilities()`，將正式能力 gate 鎖定在官方 stable Lite API IDs。
 - 更新 CLI capability diagnostic：Antigravity inventory 未曝光 route 時回報 `Antigravity CLI inventory does not expose ... route`，不再誤報為 API model absence。
@@ -62,15 +66,20 @@ CodeGraph 在 source decision 前已查詢既有 seam：
 - `config/agy_gemini_model_routes.v1.json`
 - `scripts/agy_seo_copy_pipeline.py`
 - `tests/test_agy_seo_copy_pipeline.py`
+- `scripts/install_agy_gemini_coordinator_launchd.sh`
+- `tests/test_agy_gemini_coordinator.py`
 - `artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-MODEL-ROUTE-LITE-REPAIR-20260825-RESULT.md`
 
-未修改 installer、runtime manifest、LaunchAgents、production actor、queue/state、Publisher、promotion、activation、正式 job、tag 或 push path。
+未修改 runtime manifest、LaunchAgents plist templates、production actor、queue/state、Publisher、promotion、activation live state、正式 job、tag 或 push path。
 
 ## Verification
 
-- `.venv/bin/python -m pytest -q tests/test_agy_seo_copy_pipeline.py -k 'model_route_config or gemini_api_model_capabilities or antigravity_cli_capability or antigravity_cli_transport or environment_defaults_to_direct or cli_transport_exposes'`: PASS, 23 passed / 141 deselected。
+- `.venv/bin/python -m pytest -q tests/test_agy_seo_copy_pipeline.py`: PASS, 165 passed。
+- `.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'activation_preflight_uses_api_route_gate or installer_rejects_staged_model_route_drift or installer_injects_one_shared_allocator_contract'`: PASS, 6 passed / 260 deselected。
+- `.venv/bin/python -m pytest -q tests/test_agy_seo_copy_pipeline.py -k 'model_route_config or gemini_api_model_capabilities or antigravity_cli_capability or antigravity_cli_transport or environment_defaults_to_direct or cli_transport_exposes'`: PASS, 23 passed / 142 deselected。
 - `.venv/bin/python -m pytest -q tests/test_agy_gemini_outbox.py -k 'route or quota or model or transient or failure_category'`: PASS, 14 passed / 157 deselected。
 - `.venv/bin/python -m pytest -q tests/test_agy_gemini_v4_broker.py -k 'agy_profile or model_label'`: PASS, 6 passed / 36 deselected。
+- `bash -n scripts/install_agy_gemini_coordinator_launchd.sh`: PASS。
 - `git diff --check`: PASS。
 - `rg -n "\\[DBG-" scripts tests`: PASS, no matches。
 - `python3 -m json.tool config/agy_gemini_model_routes.v1.json`: PASS。

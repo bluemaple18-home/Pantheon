@@ -9121,6 +9121,59 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     assert observed == [(queue_root.resolve(), shared_contract)]
 
 
+def test_activation_preflight_uses_api_route_gate_without_running_agy_cli(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, _fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+    )
+    agy_marker = tmp_path / "agy-was-executed"
+    agy_path = Path(env["AGY_GEMINI_CLI_PATH"])
+    agy_path.write_text(
+        f"#!/bin/sh\nprintf '%s\n' executed > '{agy_marker}'\nexit 88\n",
+        encoding="utf-8",
+    )
+    agy_path.chmod(0o700)
+
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    mutation_log.unlink(missing_ok=True)
+
+    activated = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--activate-only",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert '"transport": "api"' in activated.stdout
+    assert 'gemini-3.5-flash-lite' in activated.stdout
+    assert 'gemini-3.1-flash-lite' in activated.stdout
+    assert "CLI capability" not in activated.stderr
+    assert not agy_marker.exists()
+
+
 @pytest.mark.parametrize("drift", ["bytes", "deleted", "symlink"])
 def test_installer_rejects_staged_model_route_drift_before_live_mutation(
     tmp_path: Path,

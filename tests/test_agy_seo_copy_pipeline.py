@@ -994,6 +994,39 @@ def test_environment_defaults_to_direct_gemini_api_with_lite_models(
     assert client.transport == client._http_transport
 
 
+def test_api_transport_validates_lite_routes_before_loading_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    route_path = tmp_path / "drifted-routes.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "routes": {
+                    "writer": ["gemini-3.5-flash"],
+                    "reviewer": ["gemini-3.1-flash-lite"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    key_loads: list[str] = []
+
+    def fail_key_load() -> str:
+        key_loads.append("called")
+        raise AssertionError("API key must not load before route gate")
+
+    monkeypatch.setenv("AGY_GEMINI_TRANSPORT", "api")
+    monkeypatch.setenv("AGY_GEMINI_MODEL_ROUTE_CONFIG", str(route_path))
+    monkeypatch.setattr(pipeline, "_load_api_key", fail_key_load)
+
+    with pytest.raises(ValueError, match="Gemini API writer route"):
+        GeminiClient.from_environment()
+
+    assert key_loads == []
+
+
 def test_antigravity_cli_transport_rejects_lite_routes_before_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1217,12 +1250,10 @@ def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: p
     monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/agy-1.1.3")
     monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
 
-    client = GeminiClient.from_environment()
-    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    with pytest.raises(ValueError, match="Antigravity CLI transport does not expose writer route"):
+        GeminiClient.from_environment()
 
-    assert client.generate_json("writer", "write", schema) == {"ok": True}
-    assert len(calls) == 1
-    assert calls[0][0] == "/opt/tools/agy-1.1.3"
+    assert calls == []
 
 
 def test_production_single_request_transport_disables_redirects() -> None:

@@ -2654,6 +2654,7 @@ class GeminiClient:
             client.transport = client._cli_transport
             return client
         if transport_name == "api":
+            validate_gemini_api_model_capabilities(route_config)
             return cls(
                 _load_api_key(),
                 writer_model=route_config.routes["writer"][0],
