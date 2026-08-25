@@ -55,4 +55,11 @@ base_sha: 345d9c3184856718254615b58b92655743a8d64a
 
 ## RESULT
 
-狀態：pending
+狀態：REVIEW_NO_GO
+
+- Verdict：`REVIEW_NO_GO`
+- Candidate：`178f4504c9e4add4ecb5f35cfff9f92bd115383b`
+- Finding：P1，`scripts/agy_gemini_coordinator.py:1970` 的 `failed_external_job_replacement` 豁免會讓 dangling active registry 跳過 `_active_run_integrity_block()`；`cycle_once()` 隨後仍可先執行 `new_matrix_sweep` / `legacy_sweep`，重建新 identity。
+- Evidence：`artifacts/fortune_council/four_lane_runtime_execution/g8_v0396_promotion_run_state_durability_review_20260825/review.md`
+- Verification：CodeGraph ready；已做 candidate/base object check、candidate diff/stat/name-only、`git diff --check`。未修改產品 source/tests，未操作 production、launchctl、真實 queue/state、publish、tag、push 或另開任務。
+- Validation gap：candidate tests 覆蓋 normal dangling sweep block 與 exact failed-replacement recovery，但未覆蓋 `failed_external_job_replacement + dangling registry + automatic sweeps`。
