@@ -3,7 +3,9 @@ id: CARD-PANTHEON-PUBLISH-DURABLE-IDENTITY-ROOT-REPAIR-20260826
 status: ready
 chain_id: PANTHEON-PUBLISH-DURABLE-IDENTITY-LIFECYCLE-20260826
 role: repair
-cycle: 1
+cycle: 2
+dispatch_retry: 1
+retry_reason: precreate task intro validation failed before thread creation
 thickness: strict
 risk: high
 model: gpt-5.5
