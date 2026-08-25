@@ -33,6 +33,7 @@ from scripts.agy_gemini_outbox import (
     atomic_write_json,
     build_external_replacement_request,
     classify_external_failure,
+    consume_external_response,
     failed_external_replacement_decision_path,
     read_closed_json_artifact,
     run_pipeline_tick,
@@ -820,6 +821,19 @@ def read_run_state(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _read_run_state_by_id(run_id: str, queue_root: Path) -> dict[str, Any]:
+    _validate_formal_runtime(queue_root)
+    if EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise ValueError("run id format is invalid")
+    path = _state_path(run_id, queue_root.resolve())
+    if not path.exists():
+        raise ValueError("run is not registered")
+    state = json.loads(path.read_text(encoding="utf-8"))
+    if type(state) is not dict or state.get("run_id") != run_id:
+        raise ValueError("registered run identity mismatch")
+    return state
+
+
 def coordinator_create_run_receipt_preflight(
     *,
     trusted_sandbox_root: Path,
@@ -1508,13 +1522,15 @@ def replace_failed_external_job(
         job_root.parent != state_root / "lanes" or job_root.name != lane
     ):
         raise ValueError("failed external replacement job queue root does not match lane")
-    resolved_run_dir = run_dir.resolve()
-    brief = _brief(resolved_run_dir)
-    if brief.get("run_id") != expected_run_id:
-        raise ValueError("failed external replacement run id mismatch")
+    resolved_run_dir = run_dir.resolve(strict=False)
+    brief_path = resolved_run_dir / "brief.json"
+    if brief_path.exists():
+        brief = _brief(resolved_run_dir)
+        if brief.get("run_id") != expected_run_id:
+            raise ValueError("failed external replacement run id mismatch")
 
     with _failed_external_replacement_lock(job_root, source_job_id):
-        state = read_run_state(resolved_run_dir, state_root)
+        state = _read_run_state_by_id(expected_run_id, state_root)
         if (
             state.get("run_id") != expected_run_id
             or state.get("run_dir") != str(resolved_run_dir)
@@ -1715,6 +1731,51 @@ def _write_state(queue_root: Path, state: dict[str, Any]) -> None:
     atomic_write_json(_state_path(str(state["run_id"]), queue_root), state)
 
 
+def _recover_failed_external_job_replacement_result(
+    state: Mapping[str, Any],
+    job_queue_root: Path,
+) -> dict[str, Any]:
+    receipt = state.get("failed_external_job_replacement")
+    if type(receipt) is not dict or set(receipt) != {
+        "decision",
+        "source_job_id",
+        "replacement_job_id",
+        "request_sha256",
+        "namespace",
+        "lane",
+        "correlation_id",
+        "authority_digest",
+        "replacement_lineage_id",
+    }:
+        raise ValueError("failed external replacement recovery receipt is invalid")
+    source_job_id = str(receipt["source_job_id"])
+    source_request = read_closed_json_artifact(
+        job_queue_root / "archive" / f"{source_job_id}.json",
+        max_bytes=512 * 1024,
+        label="failed external replacement recovery source request",
+    )
+    validate_external_request(source_request)
+    if (
+        source_request.get("job_id") != source_job_id
+        or source_request.get("request_sha256") != receipt["request_sha256"]
+        or source_request.get("namespace") != receipt["namespace"]
+        or state.get("last_job_id") != receipt["replacement_job_id"]
+        or state.get("correlation_id") != receipt["correlation_id"]
+    ):
+        raise ValueError("failed external replacement recovery identity mismatch")
+    external_result = consume_external_response(job_queue_root, source_request)
+    return {
+        "status": "complete",
+        "run_id": state["run_id"],
+        "recovered_failed_external_job": {
+            "decision": receipt["decision"],
+            "source_job_id": source_job_id,
+            "replacement_job_id": receipt["replacement_job_id"],
+        },
+        "external_result": external_result,
+    }
+
+
 def _advance(
     queue_root: Path,
     state: dict[str, Any],
@@ -1723,7 +1784,18 @@ def _advance(
     job_queue_root: Path | None = None,
 ) -> str:
     try:
-        result = tick(Path(str(state["run_dir"])), job_queue_root or queue_root)
+        run_path = Path(str(state["run_dir"]))
+        effective_job_root = job_queue_root or queue_root
+        if (
+            not (run_path / "brief.json").is_file()
+            and isinstance(state.get("failed_external_job_replacement"), dict)
+        ):
+            result = _recover_failed_external_job_replacement_result(
+                state,
+                effective_job_root,
+            )
+        else:
+            result = tick(run_path, effective_job_root)
     except ExternalJobPending as pending:
         state["status"] = "active"
         state["last_job_id"] = pending.job_id

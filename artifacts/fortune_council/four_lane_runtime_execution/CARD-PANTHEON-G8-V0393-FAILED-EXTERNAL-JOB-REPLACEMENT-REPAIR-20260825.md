@@ -81,16 +81,20 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 - 新增 coordinator/outbox tests 覆蓋 plan-only、execute、same-authority replay、第二 authority、identity drift、已有 success、非 active、last-job drift、缺 archive/failed receipt、source evidence preservation、replacement logical request identity。
 - V0394 修正 reviewer P1：replacement request 先寫 runner 不可見 staging，formal decision 與 registry state durable 後才 final atomic publish live outbox；same-authority replay 可補完 decision/state/final-publish crash partial，不產生 executable orphan。
 - V0394 收斂 P2：source archive 與 failed receipt JSON 讀取改為 descriptor-bound `O_NOFOLLOW` + `fstat` 驗證，補 path replacement drift tests。
+- Follow-up 修正 production-reproduced referential-integrity blocker：formal replacement plan/execute 以 durable run registry 的 expected `run_id` 作 authority；actor-local `brief.json` 存在時仍驗證，但 promotion 清掉 run_dir 時不再拒絕。
+- Follow-up 新增 exact-run continuation recovery：replacement result 存在後，`cycle_once(..., exact_run_ids=...)` 可在 missing actor-local run_dir 下，透過 source archive + formal decision + replacement inbox 完成該 run。
 
 驗證：
 
 - RED：`uv run pytest tests/test_agy_gemini_coordinator.py::test_failed_external_job_replacement_cli_entrypoint_exists -q`，實作前失敗於缺少 `replace-failed-external-job` CLI entrypoint。
 - V0394 RED：`uv run pytest tests/test_agy_gemini_coordinator.py::test_failed_external_job_replacement_runner_claim_race_leaves_no_executable_orphan -q`，修復前留下 `processing/<replacement>.json` orphan。
+- Follow-up RED：`uv run pytest tests/test_agy_gemini_coordinator.py::test_failed_external_job_replacement_plan_only_uses_durable_registry_when_run_dir_missing -q`，修復前失敗於 `run directory must contain brief.json`。
 - GREEN targeted coordinator：`11 passed in 0.43s`。
 - GREEN targeted outbox：`6 passed in 0.13s`。
 - V0394 targeted coordinator：`8 passed in 0.28s`。
 - V0394 replacement targeted：coordinator `17 passed, 266 deselected in 0.23s`；outbox `7 passed, 167 deselected in 0.04s`。
-- 完整受影響測試：`uv run pytest tests/test_agy_gemini_outbox.py tests/test_agy_gemini_coordinator.py -q`，`457 passed in 432.06s (0:07:12)`。
+- Follow-up replacement targeted：coordinator `19 passed, 266 deselected in 0.25s`；outbox `7 passed, 167 deselected in 0.04s`。
+- 完整受影響測試：`uv run pytest tests/test_agy_gemini_outbox.py tests/test_agy_gemini_coordinator.py -q`，`459 passed in 444.22s (0:07:24)`。
 - `git diff --check`：passed。
 
 證據：

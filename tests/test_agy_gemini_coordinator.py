@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -3069,10 +3070,14 @@ def _replace_failed(
     authority_digest: str | None = None,
     **overrides: object,
 ) -> dict[str, object]:
+    brief_path = run_dir / "brief.json"
+    expected_run_id = (
+        json.loads(brief_path.read_text())["run_id"] if brief_path.exists() else run_dir.name
+    )
     args: dict[str, object] = {
         "job_queue_root": queue_root,
         "lane": "new",
-        "expected_run_id": json.loads((run_dir / "brief.json").read_text())["run_id"],
+        "expected_run_id": expected_run_id,
         "source_job_id": request["job_id"],
         "request_sha256": request["request_sha256"],
         "namespace": request["namespace"],
@@ -3105,6 +3110,28 @@ def test_failed_external_job_replacement_plan_only_is_side_effect_free(tmp_path:
     assert result["request_sha256"] == request["request_sha256"]
     assert result["failure_category"] == "CLI_NONZERO"
     assert result["authority_digest"] == _replacement_authority_digest()
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_plan_only_uses_durable_registry_when_run_dir_missing(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    before = _file_snapshot(queue_root)
+    shutil.rmtree(run_dir)
+
+    result = _replace_failed(
+        run_dir,
+        queue_root,
+        request,
+        correlation_id,
+        execute=False,
+        plan_only=True,
+    )
+
+    assert result["status"] == "plan_only"
+    assert result["run_id"] == "v0393-synthetic-run"
+    assert result["source_job_id"] == request["job_id"]
     assert _file_snapshot(queue_root) == before
 
 
@@ -3159,6 +3186,42 @@ def test_failed_external_job_replacement_execute_is_exactly_once_and_consumable(
         },
     )
     assert consume_external_response(queue_root, request) == {"ok": True}
+
+
+def test_failed_external_job_replacement_result_continues_exact_run_without_actor_run_dir(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    result = _replace_failed(run_dir, queue_root, request, correlation_id)
+    replacement_job_id = str(result["replacement_job_id"])
+    coordinator.atomic_write_json(
+        queue_root / "inbox" / f"{replacement_job_id}.json",
+        {
+            "schema_version": 1,
+            "job_id": replacement_job_id,
+            "request_sha256": request["request_sha256"],
+            "model": request["model"],
+            "completed_at": "2026-08-25T12:05:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+    shutil.rmtree(run_dir)
+
+    summary = coordinator.cycle_once(
+        queue_root,
+        exact_run_ids=("v0393-synthetic-run",),
+    )
+
+    state = coordinator._read_run_state_by_id("v0393-synthetic-run", queue_root)
+    assert summary["complete"] == 1
+    assert summary["failed"] == 0
+    assert state["status"] == "complete"
+    assert state["result"]["recovered_failed_external_job"] == {
+        "source_job_id": request["job_id"],
+        "replacement_job_id": replacement_job_id,
+        "decision": f"failed-external-job-replacements/{request['job_id']}.json",
+    }
+    assert state["result"]["external_result"] == {"ok": True}
 
 
 @pytest.mark.parametrize(
