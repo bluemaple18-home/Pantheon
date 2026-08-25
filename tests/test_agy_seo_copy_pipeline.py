@@ -85,15 +85,8 @@ def test_model_route_config_is_versioned_ordered_and_canonical() -> None:
 
     assert route.schema_version == 1
     assert route.routes == {
-        "writer": (
-            "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-2.5-flash",
-        ),
-        "reviewer": (
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash-lite",
-        ),
+        "writer": ("gemini-3.5-flash",),
+        "reviewer": ("gemini-3.1-pro",),
     }
     assert route.digest == pipeline.load_model_route_config(
         pipeline.MODEL_ROUTE_CONFIG_PATH
@@ -1015,8 +1008,87 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
         assert "--resume" not in args
         assert "--continue" not in args
         assert "--conversation" not in args
-    assert calls[0]["args"][2] == "Gemini 3.5 Flash-Lite (Low)"
-    assert calls[1]["args"][2] == "Gemini 3.1 Flash-Lite (Low)"
+    assert calls[0]["args"][2] == "Gemini 3.5 Flash (Low)"
+    assert calls[1]["args"][2] == "Gemini 3.1 Pro (Low)"
+
+
+def test_antigravity_cli_capability_preflight_checks_both_models() -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        calls.append(args)
+        if args[-1] == "models":
+            return pipeline.subprocess.CompletedProcess(
+                args,
+                0,
+                "gemini-3.5-flash-low\tGemini 3.5 Flash (Low)\n"
+                "gemini-3.1-pro-low\tGemini 3.1 Pro (Low)\n",
+                "",
+            )
+        return pipeline.subprocess.CompletedProcess(args, 0, "{}\n", "")
+
+    receipt = pipeline.validate_antigravity_cli_capabilities(
+        ["/opt/tools/agy-1.1.3"],
+        runner=fake_run,
+    )
+
+    assert receipt == {
+        "status": "PASS",
+        "writer_model": "gemini-3.5-flash",
+        "reviewer_model": "gemini-3.1-pro",
+    }
+    assert calls[0] == ["/opt/tools/agy-1.1.3", "models"]
+    assert [call[2] for call in calls[1:]] == [
+        "Gemini 3.5 Flash (Low)",
+        "Gemini 3.1 Pro (Low)",
+    ]
+
+
+def test_antigravity_cli_capability_preflight_rejects_missing_model() -> None:
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        return pipeline.subprocess.CompletedProcess(
+            args,
+            0,
+            "gemini-3.5-flash-low\tGemini 3.5 Flash (Low)\n",
+            "",
+        )
+
+    with pytest.raises(ValueError, match="reviewer model is unavailable"):
+        pipeline.validate_antigravity_cli_capabilities(
+            ["/opt/tools/agy-1.1.3"],
+            runner=fake_run,
+        )
+
+
+def test_antigravity_cli_capability_preflight_reports_closed_smoke_diagnostic() -> None:
+    private_detail = "/Users/example/private GEMINI_API_KEY=must-not-persist"
+
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        if args[-1] == "models":
+            return pipeline.subprocess.CompletedProcess(
+                args,
+                0,
+                "gemini-3.5-flash-low\tGemini 3.5 Flash (Low)\n"
+                "gemini-3.1-pro-low\tGemini 3.1 Pro (Low)\n",
+                "",
+            )
+        return pipeline.subprocess.CompletedProcess(
+            args,
+            1,
+            "",
+            "Error: Eligibility check failed: UNAVAILABLE (code 503): " + private_detail,
+        )
+
+    with pytest.raises(ValueError) as raised:
+        pipeline.validate_antigravity_cli_capabilities(
+            ["/opt/tools/agy-1.1.3"],
+            runner=fake_run,
+        )
+
+    assert "category=ELIGIBILITY_UNAVAILABLE" in str(raised.value)
+    assert "http_status=503" in str(raised.value)
+    assert "stderr_sha256=" in str(raised.value)
+    assert private_detail not in str(raised.value)
 
 
 def test_content_cli_transport_is_independent_from_v4_broker_flag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4606,7 +4678,7 @@ def test_operation_receipt_records_selected_fallback_model(tmp_path: Path) -> No
 
         def active_model(self, role: str) -> str:
             assert role == "writer"
-            return pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
+            return "gemini-selected-fallback"
 
     receipt_path = tmp_path / "writer-operation.json"
 
@@ -4619,7 +4691,7 @@ def test_operation_receipt_records_selected_fallback_model(tmp_path: Path) -> No
     )
 
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    assert receipt["model"] == pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
+    assert receipt["model"] == "gemini-selected-fallback"
 
 
 def test_operation_receipt_persists_closed_cli_code_without_exception_text(

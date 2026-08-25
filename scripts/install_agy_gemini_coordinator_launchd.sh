@@ -252,6 +252,15 @@ if launchctl print "gui/${USER_ID}/com.pantheon.agy-gemini-runner" >/dev/null 2>
   echo "偵測到舊版 standalone runner；請先停止 com.pantheon.agy-gemini-runner，避免兩個服務競爭 queue。" >&2
   exit 1
 fi
+if [[ "${ACTION}" == "--activate" || "${ACTION}" == "--activate-only" ]]; then
+  if ! (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -c 'import json, sys; from scripts.agy_seo_copy_pipeline import validate_antigravity_cli_capabilities; print(json.dumps(validate_antigravity_cli_capabilities([sys.argv[1]]), sort_keys=True))' "${AGY_CLI_PATH}"
+  ); then
+    echo "正式 Writer／Reviewer CLI capability 驗證失敗；尚未 activation。" >&2
+    exit 1
+  fi
+fi
 
 TEMP_PLIST="$(mktemp "${TMPDIR:-/tmp}/pantheon-gemini-coordinator.XXXXXX")"
 cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"

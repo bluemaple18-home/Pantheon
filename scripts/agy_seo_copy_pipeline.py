@@ -120,17 +120,108 @@ NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
 )
 
 
-def _antigravity_model_label(model: str) -> str:
-    parts = model.removeprefix("gemini-").split("-")
-    name = "-".join(part.capitalize() for part in parts[1:])
-    return f"Gemini {parts[0]} {name} (Low)"
-
-
 ANTIGRAVITY_MODEL_LABELS = {
-    model: _antigravity_model_label(model)
-    for route in MODEL_ROUTE_CONFIG.routes.values()
-    for model in route
+    "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
+    "gemini-3.1-pro": "Gemini 3.1 Pro (Low)",
 }
+
+
+def _closed_antigravity_cli_diagnostic(stderr: str) -> str:
+    category = "UNCLASSIFIED"
+    if "Eligibility check failed" in stderr and "UNAVAILABLE" in stderr:
+        category = "ELIGIBILITY_UNAVAILABLE"
+    elif "model" in stderr.lower() and "not found" in stderr.lower():
+        category = "MODEL_UNAVAILABLE"
+    elif "authentication" in stderr.lower() or "not logged in" in stderr.lower():
+        category = "AUTH"
+    status = re.search(r"\bcode[ =:]+([1-5][0-9]{2})\b", stderr)
+    fields = [f"category={category}"]
+    if status is not None:
+        fields.append(f"http_status={status.group(1)}")
+    fields.append(f"stderr_sha256={hashlib.sha256(stderr.encode('utf-8')).hexdigest()}")
+    return ", ".join(fields)
+
+
+def validate_antigravity_cli_capabilities(
+    command: list[str],
+    *,
+    runner: Callable[..., Any] = subprocess.run,
+) -> dict[str, str]:
+    """正式啟動前確認 Writer／Reviewer 模型存在且可各自完成最小呼叫。"""
+    if not command or not command[0]:
+        raise ValueError("Antigravity CLI command is required")
+    timeout = float(os.environ.get("AGY_GEMINI_CAPABILITY_TIMEOUT", "120"))
+    try:
+        available = runner(
+            [*command, "models"],
+            cwd=Path(tempfile.gettempdir()),
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+        raise ValueError("Antigravity CLI model capability is unavailable") from error
+    if available.returncode != 0:
+        raise ValueError(
+            "Antigravity CLI model capability failed "
+            f"(exit={available.returncode}, "
+            f"{_closed_antigravity_cli_diagnostic(available.stderr)})"
+        )
+    available_labels = {
+        fields[1]
+        for line in available.stdout.splitlines()
+        if len(fields := line.split("\t", 1)) == 2
+    }
+    required = {
+        "writer": MODEL_ROUTE_CONFIG.routes["writer"][0],
+        "reviewer": MODEL_ROUTE_CONFIG.routes["reviewer"][0],
+    }
+    for role, model in required.items():
+        label = ANTIGRAVITY_MODEL_LABELS.get(model)
+        if label is None or label not in available_labels:
+            raise ValueError(f"{role} model is unavailable: {model}")
+    for role, model in required.items():
+        label = ANTIGRAVITY_MODEL_LABELS[model]
+        try:
+            smoke = runner(
+                [
+                    *command,
+                    "--model",
+                    label,
+                    "--mode",
+                    "plan",
+                    "--sandbox",
+                    "--print-timeout",
+                    f"{int(timeout)}s",
+                    "--print",
+                    "只輸出一個空 JSON object。",
+                ],
+                cwd=Path(tempfile.gettempdir()),
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+            raise ValueError(f"{role} model smoke is unavailable") from error
+        if smoke.returncode != 0:
+            raise ValueError(
+                f"{role} model smoke failed "
+                f"(exit={smoke.returncode}, "
+                f"{_closed_antigravity_cli_diagnostic(smoke.stderr)})"
+            )
+        try:
+            response = json.loads(smoke.stdout)
+        except (json.JSONDecodeError, TypeError) as error:
+            raise ValueError(f"{role} model smoke response is invalid") from error
+        if response != {}:
+            raise ValueError(f"{role} model smoke response is invalid")
+    return {
+        "status": "PASS",
+        "writer_model": required["writer"],
+        "reviewer_model": required["reviewer"],
+    }
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
 MATRIX_PLAN = Path("artifacts/fortune_council/content_seo_execution/evidence/scale_clusters/cluster_plan.md")

@@ -90,6 +90,28 @@ def _deep_failure_json(marker: str, depth: int = 20_000) -> str:
     return payload
 
 
+def _synthetic_route_config(
+    tmp_path: Path,
+    *,
+    writer: tuple[str, ...] = ("gemini-writer-primary", "gemini-writer-fallback"),
+    reviewer: tuple[str, ...] = ("gemini-reviewer-primary", "gemini-reviewer-fallback"),
+) -> pipeline.ModelRouteConfig:
+    path = tmp_path / "synthetic-model-routes.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "routes": {
+                    "writer": list(writer),
+                    "reviewer": list(reviewer),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return pipeline.load_model_route_config(path)
+
+
 def _write_production_pool(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     credentials: dict[str, str] = {}
     slots: list[dict[str, str]] = []
@@ -1501,7 +1523,7 @@ def test_all_slots_quota_blocked_preserves_primary_and_allows_fallback_model(
     queue_root = tmp_path / "queue"
     state = tmp_path / "round-robin-state.json"
     primary = pipeline.DEFAULT_WRITER_MODEL
-    fallback = pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
+    fallback = "gemini-test-fallback"
     quota_body = json.dumps(
         {
             "error": {
@@ -4150,7 +4172,6 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
 @pytest.mark.parametrize(
     ("error_type", "error_code", "broker_diagnostic", "expected_category"),
     [
-        ("GeminiCliFailure", "CLI_NONZERO", None, "CLI_NONZERO"),
         ("GeminiApiFailure", "API_TRANSPORT_ERROR", None, "NETWORK"),
         ("JSONDecodeError", None, None, "MALFORMED_PAYLOAD"),
         (
@@ -4222,6 +4243,7 @@ def test_transport_failure_retry_allowlist_preserves_logical_request_identity(
         ("GeminiApiFailure", "API_AUTH", "AUTH"),
         ("GeminiApiFailure", "API_MODEL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
         ("GeminiCliFailure", "CLI_NOT_FOUND", "CLI_UNAVAILABLE"),
+        ("GeminiCliFailure", "CLI_NONZERO", "CLI_NONZERO"),
     ],
 )
 def test_transport_failure_terminal_categories_do_not_enqueue_retry(
@@ -4272,13 +4294,18 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
 ) -> None:
     namespace = "quota-aware-routing"
     prompt = "公開 quota-aware routing"
-    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
+    route = _synthetic_route_config(tmp_path)
+    client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        route_config=route,
+    )
     for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
         request = outbox.create_external_request(
             tmp_path,
             namespace=namespace,
             role="writer",
-            model=pipeline.DEFAULT_WRITER_MODEL,
+            model=route.routes["writer"][0],
             prompt=prompt,
             response_schema=SCHEMA,
             transport_attempt=attempt,
@@ -4296,7 +4323,7 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
         tmp_path,
         namespace=namespace,
         role="writer",
-        model=pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
+        model=route.routes["writer"][1],
         prompt=prompt,
         response_schema=SCHEMA,
     )
@@ -4314,8 +4341,8 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
 
     assert client.generate_json("writer", prompt, SCHEMA) == {"ok": True}
     assert client._active_models == {
-        "writer": pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
-        "reviewer": pipeline.DEFAULT_REVIEWER_MODEL,
+        "writer": route.routes["writer"][1],
+        "reviewer": route.routes["reviewer"][0],
     }
     routing = json.loads(
         (
@@ -4326,12 +4353,12 @@ def test_quota_exhaustion_uses_three_primary_attempts_then_distinct_fallback(
     )
     assert routing == {
         "schema_version": 1,
-        "model_route_config_path": str(pipeline.MODEL_ROUTE_CONFIG_PATH),
-        "model_route_config_digest": pipeline.MODEL_ROUTE_CONFIG_DIGEST,
+        "model_route_config_path": str(route.path),
+        "model_route_config_digest": route.digest,
         "namespace": namespace,
         "role": "writer",
-        "primary_model": pipeline.DEFAULT_WRITER_MODEL,
-        "selected_model": pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1],
+        "primary_model": route.routes["writer"][0],
+        "selected_model": route.routes["writer"][1],
         "reason": "API_QUOTA",
         "exhausted_slot_ids": list(allocator.PRODUCTION_SLOT_IDS),
     }
@@ -4342,8 +4369,16 @@ def test_ordered_route_skips_fully_quota_blocked_middle_model(
 ) -> None:
     namespace = "ordered-route-skips-middle"
     prompt = "公開 ordered route"
-    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
-    writer_route = pipeline.MODEL_ROUTE_CONFIG.routes["writer"]
+    route = _synthetic_route_config(
+        tmp_path,
+        writer=("gemini-writer-primary", "gemini-writer-middle", "gemini-writer-last"),
+    )
+    client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        route_config=route,
+    )
+    writer_route = route.routes["writer"]
     for model in writer_route[:2]:
         for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
             request = outbox.create_external_request(
@@ -4424,11 +4459,13 @@ def test_same_day_route_state_skips_blocked_primary_across_operations_and_restar
 ) -> None:
     clock_value = 1_786_910_400.0
     namespace = "durable-same-day-route"
-    writer_route = pipeline.MODEL_ROUTE_CONFIG.routes["writer"]
+    route = _synthetic_route_config(tmp_path)
+    writer_route = route.routes["writer"]
     first_prompt = "公開 first operation"
     client = outbox.OutboxGeminiClient(
         tmp_path,
         namespace=namespace,
+        route_config=route,
         clock=lambda: clock_value,
     )
     for attempt, slot_id in enumerate(allocator.PRODUCTION_SLOT_IDS):
@@ -4477,6 +4514,7 @@ def test_same_day_route_state_skips_blocked_primary_across_operations_and_restar
             outbox.OutboxGeminiClient(
                 tmp_path,
                 namespace=namespace,
+                route_config=route,
                 clock=lambda: clock_value + 60,
             ),
             "公開 restarted operation",
@@ -4516,6 +4554,7 @@ def test_same_day_route_state_skips_blocked_primary_across_operations_and_restar
     reset_client = outbox.OutboxGeminiClient(
         tmp_path,
         namespace=namespace,
+        route_config=route,
         clock=lambda: clock_value + 86_400,
     )
     reset_prompt = "公開 daily reset operation"
@@ -4635,15 +4674,24 @@ def test_reviewer_fails_closed_when_only_fallback_matches_active_writer(
 ) -> None:
     namespace = "independent-reviewer-route"
     prompt = "公開 independent reviewer route"
-    client = outbox.OutboxGeminiClient(tmp_path, namespace=namespace)
-    client._active_models["writer"] = pipeline.MODEL_ROUTE_CONFIG.routes["writer"][1]
+    route = _synthetic_route_config(
+        tmp_path,
+        writer=("gemini-writer-primary", "gemini-shared-fallback"),
+        reviewer=("gemini-reviewer-primary", "gemini-shared-fallback"),
+    )
+    client = outbox.OutboxGeminiClient(
+        tmp_path,
+        namespace=namespace,
+        route_config=route,
+    )
+    client._active_models["writer"] = route.routes["writer"][1]
     last_request: dict[str, object] | None = None
     for attempt in range(3):
         request = outbox.create_external_request(
             tmp_path,
             namespace=namespace,
             role="reviewer",
-            model=pipeline.DEFAULT_REVIEWER_MODEL,
+            model=route.routes["reviewer"][0],
             prompt=prompt,
             response_schema=SCHEMA,
             transport_attempt=attempt,
@@ -4664,7 +4712,7 @@ def test_reviewer_fails_closed_when_only_fallback_matches_active_writer(
     assert last_request is not None
     assert raised.value.job_id == last_request["job_id"]
     assert all(
-        json.loads(path.read_text())["model"] == pipeline.DEFAULT_REVIEWER_MODEL
+        json.loads(path.read_text())["model"] == route.routes["reviewer"][0]
         for path in (tmp_path / "outbox").glob("*.json")
     )
 
