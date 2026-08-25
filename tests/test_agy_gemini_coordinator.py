@@ -3285,6 +3285,59 @@ def test_failed_external_job_replacement_result_continues_exact_run_without_acto
     assert state["result"]["external_result"] == {"ok": True}
 
 
+def test_failed_external_job_replacement_dangling_run_blocks_automatic_sweeps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(tmp_path)
+    result = _replace_failed(run_dir, queue_root, request, correlation_id)
+    replacement_job_id = str(result["replacement_job_id"])
+    before = _file_snapshot(queue_root)
+    shutil.rmtree(run_dir)
+    sweep_calls: list[str] = []
+
+    def observe_new_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("new")
+        return {"status": "seeded", "created": 1, "created_run_ids": ["new-seeded-run"]}
+
+    def observe_legacy_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("legacy")
+        return {"status": "seeded", "created": 1, "created_run_ids": ["legacy-seeded-run"]}
+
+    monkeypatch.setattr(coordinator, "seed_new_matrix_runs", observe_new_sweep)
+    monkeypatch.setattr(coordinator, "seed_legacy_rewrite_runs", observe_legacy_sweep)
+
+    summary = coordinator.cycle_once(
+        queue_root,
+        repo_root=tmp_path,
+        new_matrix_sweep=True,
+        legacy_sweep=True,
+        legacy_state_root=tmp_path / "publisher-state",
+        tick=lambda *_args: pytest.fail("dangling replacement must block before tick"),
+        process=lambda _root: pytest.fail("dangling replacement must not run provider"),
+    )
+
+    state = coordinator._read_run_state_by_id("v0393-synthetic-run", queue_root)
+    assert summary == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": "v0393-synthetic-run",
+        "active": 1,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
+    assert sweep_calls == []
+    assert state["status"] == "active"
+    assert state["last_job_id"] == replacement_job_id
+    after = _file_snapshot(queue_root)
+    before.pop("coordinator.lock", None)
+    after.pop("coordinator.lock", None)
+    assert after == before
+
+
 def test_failed_external_job_replacement_resume_plan_and_execute_same_job(
     tmp_path: Path,
 ) -> None:

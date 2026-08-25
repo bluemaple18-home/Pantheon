@@ -1965,18 +1965,25 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
 
 def _active_run_integrity_block(
     states: list[dict[str, Any]],
+    *,
+    exact_run_ids: frozenset[str] | None = None,
 ) -> dict[str, Any] | None:
     for state in states:
-        if isinstance(state.get("failed_external_job_replacement"), dict):
-            continue
         run_id = state.get("run_id")
         run_dir_value = state.get("run_dir")
         try:
             if (
                 type(run_id) is not str
                 or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
-                or type(run_dir_value) is not str
             ):
+                raise ValueError("active run registry identity is invalid")
+            if (
+                exact_run_ids is not None
+                and run_id in exact_run_ids
+                and isinstance(state.get("failed_external_job_replacement"), dict)
+            ):
+                continue
+            if type(run_dir_value) is not str:
                 raise ValueError("active run registry identity is invalid")
             run_dir = Path(run_dir_value)
             canonical_run_dir = run_dir.resolve(strict=True)
@@ -4611,7 +4618,10 @@ def cycle_once(
 
         resolved_repo = (repo_root or Path.cwd()).resolve()
         active_states = _active_states(root)
-        integrity_block = _active_run_integrity_block(active_states)
+        integrity_block = _active_run_integrity_block(
+            active_states,
+            exact_run_ids=selected_run_ids,
+        )
         if integrity_block is not None:
             return integrity_block
         new_matrix_summary: dict[str, Any] | None = None
