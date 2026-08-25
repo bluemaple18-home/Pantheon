@@ -159,7 +159,6 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
                 payload.get("Label") != label
                 or separator < 0
                 or arguments[:separator].count("--activation-only") != 1
-                or any(field in payload for field in ("StandardInPath", "StandardOutPath", "StandardErrorPath"))
             ):
                 return frozenset()
     except OSError:

@@ -2247,6 +2247,33 @@ def test_normal_scheduled_service_labels_requires_manifest_bound_interval_plists
         guard.SERVICE_LABELS
     )
 
+    for label, payload in payloads.items():
+        payload["ProgramArguments"] = [
+            sys.executable,
+            "-m",
+            "scripts.pantheon_content_runtime_manifest",
+            "barrier-exec",
+            "--activation-only",
+            "--",
+            sys.executable,
+        ]
+        payload["StandardOutPath"] = str(logs / f"{label}.stdout.log")
+        payload["StandardErrorPath"] = str(logs / f"{label}.stderr.log")
+        target = launch_agents / f"{label}.plist"
+        target.write_bytes(plistlib.dumps(payload))
+        target.chmod(0o600)
+    assert guard._activation_only_service_labels(runtime_receipt) == frozenset(
+        guard.SERVICE_LABELS
+    )
+
+    for label, payload in payloads.items():
+        payload["ProgramArguments"] = []
+        payload.pop("StandardOutPath")
+        payload.pop("StandardErrorPath")
+        target = launch_agents / f"{label}.plist"
+        target.write_bytes(plistlib.dumps(payload))
+        target.chmod(0o600)
+
     runtime_receipt["config_version"] = "unexpected-runtime"
     assert guard._normal_scheduled_service_labels(runtime_receipt) == frozenset()
     runtime_receipt["config_version"] = manifest["config_version"]
