@@ -67,6 +67,27 @@ ValueError: run directory must contain brief.json
 
 This proved the formal replacement seam still depended on actor-local `run_dir/brief.json`, even though promotion only preserves durable queue/state and may atomically replace actor-local `.work`.
 
+### Follow-up INVALID_RECEIPT root cause
+
+Production receipt commit: `0382ba7c90`.
+
+Read-only evidence established this was not replacement payload schema drift:
+
+```text
+actor validator PASS b50e5ab655e19388e9858c4a850ac2f37c9d8f3c 620f6d3a43d31e9c16bf0e2990671f0189e784b9d747380dcb21ce55beb7cb3c 54f57c7de682e12f5c0f6250576cde08a4f4d06a 679e510ca2a2e880e7d42cb86a882121761a9bd9594f886265f1ad45ecc68dbd
+main validator PASS b50e5ab655e19388e9858c4a850ac2f37c9d8f3c 620f6d3a43d31e9c16bf0e2990671f0189e784b9d747380dcb21ce55beb7cb3c 54f57c7de682e12f5c0f6250576cde08a4f4d06a 679e510ca2a2e880e7d42cb86a882121761a9bd9594f886265f1ad45ecc68dbd
+```
+
+Read-only shell environment probe:
+
+```text
+pool_file_env False
+state_env False
+ValueError no Antigravity Low model label for gemini-3.5-flash-lite
+```
+
+The root cause is wrong invocation surface / missing formal production env. A direct shell `python -m scripts.agy_gemini_runner ... process-once` without `AGY_GEMINI_CREDENTIAL_POOL_FILE` bypasses production Gemini API admission and falls back to `_cli_generate_json`. That path forces `client._cli_transport`, and `_cli_transport` checks `ANTIGRAVITY_MODEL_LABELS.get(model)` before starting any CLI/provider subprocess. The Lite model has no Antigravity Low label, so it deterministically raises `ValueError("no Antigravity Low model label for gemini-3.5-flash-lite")` before any provider attempt marker can exist. This matches the V0391 failed receipt shape: `ValueError / INVALID_RECEIPT`, no matching production-attempt marker.
+
 ## GREEN
 
 Targeted coordinator tests:
@@ -157,6 +178,18 @@ Result:
 7 passed, 167 deselected in 0.04s
 ```
 
+Follow-up INVALID_RECEIPT targeted tests:
+
+```bash
+.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k "failed_external_job_replacement_resume"
+```
+
+Result:
+
+```text
+5 passed, 285 deselected in 0.09s
+```
+
 Full affected files after follow-up repair:
 
 ```bash
@@ -167,6 +200,18 @@ Result:
 
 ```text
 459 passed in 444.22s (0:07:24)
+```
+
+Full affected files after INVALID_RECEIPT follow-up:
+
+```bash
+.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_outbox.py
+```
+
+Result:
+
+```text
+464 passed in 448.40s (0:07:28)
 ```
 
 Diff whitespace check:
@@ -187,6 +232,8 @@ python -m scripts.agy_gemini_coordinator --queue-root <state-root> replace-faile
 
 Machine-readable plan-only status is `plan_only`; execute status is `replacement_created`; same-authority replay status is `already_replaced`; rejection status from CLI is `rejected`.
 
+For the INVALID_RECEIPT follow-up, the same formal entrypoint accepts `--resume-replacement --local-preflight-reason NO_ANTIGRAVITY_LOW_MODEL_LABEL` only after the original decision/state/replacement identity has already been validated. Plan-only status remains `plan_only`; execute status is `replacement_requeued`; replay after the same replacement is back in outbox is the existing `already_replaced`.
+
 ## Contract evidence
 
 - `CLI_NONZERO` remains terminal in the transport retry path; existing terminal taxonomy test still covers `GeminiCliFailure / CLI_NONZERO`.
@@ -198,5 +245,7 @@ Machine-readable plan-only status is `plan_only`; execute status is `replacement
 - Source archive and failed receipt JSON reads now use descriptor-bound `O_NOFOLLOW` + `fstat` validation; tests cover archive path replacement after location check and failed receipt path replacement drift.
 - Follow-up repair makes formal replacement plan/execute read active run identity from durable registry by expected `run_id`; local `brief.json` is still verified when present, but is no longer required when promotion has removed actor-local `.work`.
 - Follow-up continuation path lets `cycle_once(..., exact_run_ids=...)` complete a run with formal replacement state and missing actor-local run_dir by consuming the archived source request through the formal replacement decision/result. This proves recovery is not limited to enqueue.
+- INVALID_RECEIPT follow-up does not create a second replacement/job id. It extends the existing `replace-failed-external-job` decision replay branch with an explicit resume flag; default behavior remains unchanged. It only resumes the same archived replacement when the failed receipt is `ValueError / INVALID_RECEIPT`, no production attempt marker exists, the archived payload equals the rebuilt replacement request, and the closed local preflight reason proves the Lite model cannot use CLI fallback.
+- Execute preserves the replacement failed receipt under `failed-external-job-replacements/<source>.<replacement>.failed-preserved.json` and atomically moves the same archived replacement payload back to live outbox.
 - Source archive request and source failed receipt are preserved; no source failed evidence is deleted or rewritten.
 - Identity drift, second authority, existing success result, non-active run, last-job drift, missing archive, and missing failed receipt are all rejected with zero mutation in tests.

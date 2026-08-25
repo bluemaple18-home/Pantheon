@@ -83,6 +83,8 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 - V0394 收斂 P2：source archive 與 failed receipt JSON 讀取改為 descriptor-bound `O_NOFOLLOW` + `fstat` 驗證，補 path replacement drift tests。
 - Follow-up 修正 production-reproduced referential-integrity blocker：formal replacement plan/execute 以 durable run registry 的 expected `run_id` 作 authority；actor-local `brief.json` 存在時仍驗證，但 promotion 清掉 run_dir 時不再拒絕。
 - Follow-up 新增 exact-run continuation recovery：replacement result 存在後，`cycle_once(..., exact_run_ids=...)` 可在 missing actor-local run_dir 下，透過 source archive + formal decision + replacement inbox 完成該 run。
+- Follow-up 修正 replacement runner `INVALID_RECEIPT`：root cause 是錯誤 invocation surface／未載入 formal production env；直接 shell runner 缺 `AGY_GEMINI_CREDENTIAL_POOL_FILE` 時落入 CLI fallback，而 Lite model 沒有 Antigravity Low label，於 provider/CLI subprocess 前 deterministic `ValueError`。
+- Follow-up 在既有 `replace-failed-external-job` existing-decision 分支加入顯式 `--resume-replacement --local-preflight-reason NO_ANTIGRAVITY_LOW_MODEL_LABEL`；只允許同一 archived replacement job 在 `ValueError/INVALID_RECEIPT`、無 production attempt marker、closed local preflight proof 下保存 failed evidence 並原子移回 outbox，不建立第二 replacement/job。
 
 驗證：
 
@@ -95,6 +97,10 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 - V0394 replacement targeted：coordinator `17 passed, 266 deselected in 0.23s`；outbox `7 passed, 167 deselected in 0.04s`。
 - Follow-up replacement targeted：coordinator `19 passed, 266 deselected in 0.25s`；outbox `7 passed, 167 deselected in 0.04s`。
 - 完整受影響測試：`uv run pytest tests/test_agy_gemini_outbox.py tests/test_agy_gemini_coordinator.py -q`，`459 passed in 444.22s (0:07:24)`。
+- Follow-up INVALID_RECEIPT root-cause read-only evidence：actor/main `validate_external_request` 均 PASS archived `b50e5ab655e19388e9858c4a850ac2f37c9d8f3c` payload；shell env 缺 `AGY_GEMINI_CREDENTIAL_POOL_FILE/STATE_FILE`；`_cli_generate_json` 對 `gemini-3.5-flash-lite` 直接 `ValueError no Antigravity Low model label ...`。
+- Follow-up INVALID_RECEIPT targeted：`.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k "failed_external_job_replacement_resume"`，`5 passed, 285 deselected in 0.09s`。
+- Follow-up INVALID_RECEIPT 完整受影響測試：`.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_outbox.py`，`464 passed in 448.40s (0:07:28)`。
+- 最終 diff：`scripts/agy_gemini_coordinator.py`、`tests/test_agy_gemini_coordinator.py`、本卡 RESULT、`g8_v0393_failed_external_job_replacement_20260825/evidence.md`。
 - `git diff --check`：passed。
 
 證據：

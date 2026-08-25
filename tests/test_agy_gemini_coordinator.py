@@ -3023,6 +3023,7 @@ def _failed_external_replacement_fixture(
     tmp_path: Path,
     *,
     run_id: str = "v0393-synthetic-run",
+    model: str = "gemini-3.5-flash",
 ) -> tuple[Path, Path, dict[str, object], str]:
     run_dir = tmp_path / "runs" / run_id
     queue_root = tmp_path / "queue"
@@ -3033,7 +3034,7 @@ def _failed_external_replacement_fixture(
         queue_root,
         namespace="v0393-fixture",
         role="writer",
-        model="gemini-3.5-flash",
+        model=model,
         prompt="公開 synthetic failed replacement fixture",
         response_schema={
             "type": "object",
@@ -3090,6 +3091,57 @@ def _replace_failed(
     }
     args.update(overrides)
     return coordinator.replace_failed_external_job(run_dir, queue_root, **args)
+
+
+def _failed_external_replacement_invalid_receipt_fixture(
+    tmp_path: Path,
+    *,
+    model: str = "gemini-3.5-flash-lite",
+) -> tuple[Path, Path, dict[str, object], str, str]:
+    run_dir, queue_root, request, correlation_id = _failed_external_replacement_fixture(
+        tmp_path,
+        model=model,
+    )
+    result = _replace_failed(run_dir, queue_root, request, correlation_id)
+    replacement_job_id = str(result["replacement_job_id"])
+    os.replace(
+        queue_root / "outbox" / f"{replacement_job_id}.json",
+        queue_root / "archive" / f"{replacement_job_id}.json",
+    )
+    coordinator.atomic_write_json(
+        queue_root / "failed" / f"{replacement_job_id}.json",
+        {
+            "schema_version": 1,
+            "job_id": replacement_job_id,
+            "request_sha256": request["request_sha256"],
+            "error_type": "ValueError",
+            "failure_category": "INVALID_RECEIPT",
+            "completed_at": "2026-08-25T17:34:28+08:00",
+        },
+    )
+    state = read_run_state(run_dir, queue_root)
+    state["status"] = "failed"
+    state["error_type"] = "ValueError"
+    coordinator._write_state(queue_root, state)
+    return run_dir, queue_root, request, correlation_id, replacement_job_id
+
+
+def _resume_replacement(
+    run_dir: Path,
+    queue_root: Path,
+    request: dict[str, object],
+    correlation_id: str,
+    **overrides: object,
+) -> dict[str, object]:
+    return _replace_failed(
+        run_dir,
+        queue_root,
+        request,
+        correlation_id,
+        resume_replacement=True,
+        local_preflight_reason="NO_ANTIGRAVITY_LOW_MODEL_LABEL",
+        **overrides,
+    )
 
 
 def test_failed_external_job_replacement_plan_only_is_side_effect_free(tmp_path: Path) -> None:
@@ -3222,6 +3274,125 @@ def test_failed_external_job_replacement_result_continues_exact_run_without_acto
         "decision": f"failed-external-job-replacements/{request['job_id']}.json",
     }
     assert state["result"]["external_result"] == {"ok": True}
+
+
+def test_failed_external_job_replacement_resume_plan_and_execute_same_job(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id, replacement_job_id = (
+        _failed_external_replacement_invalid_receipt_fixture(tmp_path)
+    )
+    before = _file_snapshot(queue_root)
+
+    plan = _resume_replacement(
+        run_dir,
+        queue_root,
+        request,
+        correlation_id,
+        execute=False,
+        plan_only=True,
+    )
+    after_plan = _file_snapshot(queue_root)
+    execute = _resume_replacement(run_dir, queue_root, request, correlation_id)
+
+    assert plan["status"] == "plan_only"
+    assert plan["replacement_job_id"] == replacement_job_id
+    assert plan["local_preflight_message"] == (
+        "no Antigravity Low model label for gemini-3.5-flash-lite"
+    )
+    assert after_plan == before
+    assert _file_snapshot(queue_root) != before
+    assert execute["status"] == "replacement_requeued"
+    assert execute["replacement_job_id"] == replacement_job_id
+    assert (queue_root / "outbox" / f"{replacement_job_id}.json").is_file()
+    assert not (queue_root / "failed" / f"{replacement_job_id}.json").exists()
+    assert (
+        queue_root
+        / "failed-external-job-replacements"
+        / f"{request['job_id']}.{replacement_job_id}.failed-preserved.json"
+    ).is_file()
+
+
+def test_failed_external_job_replacement_resume_rejects_attempt_marker(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id, replacement_job_id = (
+        _failed_external_replacement_invalid_receipt_fixture(tmp_path)
+    )
+    coordinator.atomic_write_json(
+        queue_root / "production-attempts" / f"{replacement_job_id}.attempt",
+        {
+            "schema_version": 1,
+            "job_id": replacement_job_id,
+            "request_sha256": request["request_sha256"],
+            "attempt_status": "started",
+        },
+    )
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match="resume evidence mismatch"):
+        _resume_replacement(run_dir, queue_root, request, correlation_id)
+
+    assert _file_snapshot(queue_root) == before
+
+
+@pytest.mark.parametrize(
+    ("fixture_model", "mutate", "match"),
+    [
+        (
+            "gemini-3.5-flash-lite",
+            lambda queue_root, request, replacement_job_id: coordinator.atomic_write_json(
+                queue_root / "failed" / f"{replacement_job_id}.json",
+                _failure_receipt(
+                    {
+                        "job_id": replacement_job_id,
+                        "request_sha256": request["request_sha256"],
+                    },
+                    error_type="GeminiApiFailure",
+                    error_code="API_TRANSPORT_ERROR",
+                ),
+            ),
+            "resume evidence mismatch",
+        ),
+        (
+            "gemini-3.5-flash",
+            lambda _queue_root, _request, _replacement_job_id: None,
+            "preflight proof is invalid",
+        ),
+    ],
+)
+def test_failed_external_job_replacement_resume_rejects_wrong_failure_or_reason(
+    tmp_path: Path,
+    fixture_model: str,
+    mutate,
+    match: str,
+) -> None:
+    run_dir, queue_root, request, correlation_id, replacement_job_id = (
+        _failed_external_replacement_invalid_receipt_fixture(tmp_path, model=fixture_model)
+    )
+    mutate(queue_root, request, replacement_job_id)
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match=match):
+        _resume_replacement(run_dir, queue_root, request, correlation_id)
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_resume_replay_outbox_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, correlation_id, replacement_job_id = (
+        _failed_external_replacement_invalid_receipt_fixture(tmp_path)
+    )
+    first = _resume_replacement(run_dir, queue_root, request, correlation_id)
+    after_first = _file_snapshot(queue_root)
+    replay = _resume_replacement(run_dir, queue_root, request, correlation_id)
+
+    assert first["status"] == "replacement_requeued"
+    assert replay["status"] == "already_replaced"
+    assert replay["replacement_job_id"] == replacement_job_id
+    assert _file_snapshot(queue_root) == after_first
 
 
 @pytest.mark.parametrize(

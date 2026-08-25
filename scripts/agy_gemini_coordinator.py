@@ -55,6 +55,9 @@ ROUTING_SCHEMA_VERSION = 1
 OPERATOR_TERMINALIZATION_REASONS = frozenset({
     "UNSUPPORTED_MODEL_CANARY_ABORT",
 })
+FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS = frozenset({
+    "NO_ANTIGRAVITY_LOW_MODEL_LABEL",
+})
 JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
@@ -1479,6 +1482,34 @@ def _failed_replacement_stable_identity(
     }
 
 
+def _failed_replacement_resume_artifact_path(
+    queue_root: Path,
+    source_job_id: str,
+    replacement_job_id: str,
+) -> Path:
+    if JOB_ID_PATTERN.fullmatch(source_job_id) is None or JOB_ID_PATTERN.fullmatch(replacement_job_id) is None:
+        raise ValueError("failed external replacement resume identity is invalid")
+    return (
+        queue_root
+        / "failed-external-job-replacements"
+        / f"{source_job_id}.{replacement_job_id}.failed-preserved.json"
+    )
+
+
+def _closed_failed_replacement_resume_preflight(
+    replacement_request: Mapping[str, Any],
+    *,
+    local_preflight_reason: str,
+) -> str:
+    reason = local_preflight_reason
+    if reason not in FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS:
+        raise ValueError("failed external replacement resume preflight reason is invalid")
+    model = replacement_request.get("model")
+    if reason != "NO_ANTIGRAVITY_LOW_MODEL_LABEL" or type(model) is not str or model in pipeline.ANTIGRAVITY_MODEL_LABELS:
+        raise ValueError("failed external replacement resume preflight proof is invalid")
+    return f"no Antigravity Low model label for {model}"
+
+
 def replace_failed_external_job(
     run_dir: Path,
     queue_root: Path,
@@ -1493,6 +1524,8 @@ def replace_failed_external_job(
     failure_category: str,
     error_code: str,
     authority_digest: str,
+    resume_replacement: bool = False,
+    local_preflight_reason: str | None = None,
     execute: bool = False,
     plan_only: bool = False,
 ) -> dict[str, Any]:
@@ -1515,6 +1548,8 @@ def replace_failed_external_job(
         raise ValueError("failed external replacement failure category is invalid")
     if not error_code or error_code.strip() != error_code:
         raise ValueError("failed external replacement error code is invalid")
+    if resume_replacement != (local_preflight_reason is not None):
+        raise ValueError("failed external replacement resume requires closed local reason")
 
     state_root = queue_root.resolve()
     job_root = (job_queue_root or state_root).resolve()
@@ -1537,7 +1572,9 @@ def replace_failed_external_job(
             or state.get("correlation_id") != correlation_id
         ):
             raise ValueError("failed external replacement state identity mismatch")
-        if state.get("status") != "active":
+        if state.get("status") != "active" and not (
+            resume_replacement and state.get("status") == "failed"
+        ):
             raise ValueError("failed external replacement requires active run")
         if "result" in state:
             raise ValueError("failed external replacement rejects existing success result")
@@ -1693,6 +1730,78 @@ def replace_failed_external_job(
                 return {**result, "status": "replacement_created", "decision": decision_relative}
             if state.get("last_job_id") != replacement_job_id or state.get("failed_external_job_replacement") != state_receipt:
                 raise ValueError("failed external replacement evidence is incomplete")
+            if resume_replacement and locations == [("archive", job_root / "archive" / f"{replacement_job_id}.json")]:
+                archived_replacement = read_closed_json_artifact(
+                    job_root / "archive" / f"{replacement_job_id}.json",
+                    max_bytes=512 * 1024,
+                    label="failed external replacement archived request",
+                )
+                validate_external_request(archived_replacement)
+                if archived_replacement != replacement_request:
+                    raise ValueError("failed external replacement resume request identity mismatch")
+                failed_path = job_root / "failed" / f"{replacement_job_id}.json"
+                preserved_failure = _failed_replacement_resume_artifact_path(
+                    job_root,
+                    source_job_id,
+                    replacement_job_id,
+                )
+                replacement_failure = (
+                    validate_external_failure_receipt(job_root, replacement_request)
+                    if failed_path.exists()
+                    else read_closed_json_artifact(
+                        preserved_failure,
+                        max_bytes=64 * 1024,
+                        label="failed external replacement preserved failure",
+                    )
+                )
+                if (
+                    replacement_failure.get("error_type") != "ValueError"
+                    or classify_external_failure(replacement_failure) != "INVALID_RECEIPT"
+                    or replacement_failure.get("job_id") != replacement_job_id
+                    or replacement_failure.get("request_sha256") != request_sha256
+                    or (job_root / "production-attempts" / f"{replacement_job_id}.attempt").exists()
+                ):
+                    raise ValueError("failed external replacement resume evidence mismatch")
+                local_preflight = _closed_failed_replacement_resume_preflight(
+                    replacement_request,
+                    local_preflight_reason=str(local_preflight_reason),
+                )
+                resume_result = {
+                    **result,
+                    "status": "plan_only",
+                    "resume_replacement": True,
+                    "failure_category": "INVALID_RECEIPT",
+                    "local_preflight_reason": local_preflight_reason,
+                    "local_preflight_message": local_preflight,
+                }
+                if not execute:
+                    return {**resume_result, "decision": decision_relative}
+                if failed_path.exists() and preserved_failure.exists():
+                    preserved = read_closed_json_artifact(
+                        preserved_failure,
+                        max_bytes=64 * 1024,
+                        label="failed external replacement preserved failure",
+                    )
+                    if preserved != replacement_failure:
+                        raise ValueError("failed external replacement preserved failure mismatch")
+                    failed_path.unlink()
+                elif failed_path.exists():
+                    preserved_failure.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(failed_path, preserved_failure)
+                state["status"] = "active"
+                state.pop("error_type", None)
+                state.pop("error_code", None)
+                state.pop("failure_category", None)
+                state.pop("transport_attempts", None)
+                state.pop("result", None)
+                _write_state(state_root, state)
+                os.replace(job_root / "archive" / f"{replacement_job_id}.json", outbox_path)
+                return {
+                    **resume_result,
+                    "status": "replacement_requeued",
+                    "decision": decision_relative,
+                    "preserved_failure": str(preserved_failure.relative_to(state_root)),
+                }
             publish_replacement()
             return {**result, "status": "already_replaced", "decision": decision_relative}
 
@@ -4693,6 +4802,11 @@ def parse_args() -> argparse.Namespace:
     replacement.add_argument("--failure-category", required=True)
     replacement.add_argument("--error-code", required=True)
     replacement.add_argument("--authority-digest", required=True)
+    replacement.add_argument("--resume-replacement", action="store_true")
+    replacement.add_argument(
+        "--local-preflight-reason",
+        choices=sorted(FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS),
+    )
     replacement.add_argument("--plan-only", action="store_true")
     replacement.add_argument("--execute", action="store_true")
     campaign = subparsers.add_parser("dry-run-campaign")
@@ -4748,6 +4862,8 @@ def main() -> int:
                 failure_category=args.failure_category,
                 error_code=args.error_code,
                 authority_digest=args.authority_digest,
+                resume_replacement=args.resume_replacement,
+                local_preflight_reason=args.local_preflight_reason,
                 plan_only=args.plan_only,
                 execute=args.execute,
             )
