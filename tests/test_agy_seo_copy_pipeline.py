@@ -85,14 +85,20 @@ def test_model_route_config_is_versioned_ordered_and_canonical() -> None:
 
     assert route.schema_version == 1
     assert route.routes == {
-        "writer": ("gemini-3.5-flash",),
-        "reviewer": ("gemini-3.1-pro",),
+        "writer": ("gemini-3.5-flash-lite",),
+        "reviewer": ("gemini-3.1-flash-lite",),
     }
     assert route.digest == pipeline.load_model_route_config(
         pipeline.MODEL_ROUTE_CONFIG_PATH
     ).digest
     assert pipeline.DEFAULT_WRITER_MODEL == route.routes["writer"][0]
     assert pipeline.DEFAULT_REVIEWER_MODEL == route.routes["reviewer"][0]
+    assert pipeline.validate_gemini_api_model_capabilities(route) == {
+        "status": "PASS",
+        "transport": "api",
+        "writer_model": "gemini-3.5-flash-lite",
+        "reviewer_model": "gemini-3.1-flash-lite",
+    }
 
 
 def test_model_route_config_digest_is_format_independent(tmp_path: Path) -> None:
@@ -976,7 +982,35 @@ def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
     assert len(schema["properties"]["source_fact_id"]["enum"]) == 17
 
 
-def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_environment_defaults_to_direct_gemini_api_with_lite_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pipeline, "_load_api_key", lambda: "redacted")
+
+    client = GeminiClient.from_environment()
+
+    assert client.writer_model == "gemini-3.5-flash-lite"
+    assert client.reviewer_model == "gemini-3.1-flash-lite"
+    assert client.transport == client._http_transport
+
+
+def test_antigravity_cli_transport_rejects_lite_routes_before_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("CLI must not run for Lite routes")
+
+    monkeypatch.setenv("AGY_GEMINI_TRANSPORT", "cli")
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/agy-1.1.3")
+    monkeypatch.setattr(pipeline.subprocess, "run", fail_run)
+
+    with pytest.raises(ValueError, match="Antigravity CLI transport does not expose writer route"):
+        GeminiClient.from_environment()
+
+
+def test_antigravity_cli_transport_uses_explicit_legacy_low_models_and_fresh_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[dict[str, object]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> object:
@@ -989,9 +1023,13 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
             stderr="",
         )
 
-    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/agy-1.1.3")
     monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
-    client = GeminiClient.from_environment()
+    client = GeminiClient(
+        writer_model="gemini-3.5-flash",
+        reviewer_model="gemini-3.1-pro",
+    )
+    client.transport = client._cli_transport
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/agy-1.1.3")
     schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
 
     assert client.generate_json("writer", "write", schema) == {"ok": True}
@@ -1012,8 +1050,41 @@ def test_antigravity_cli_transport_uses_low_models_and_fresh_processes(monkeypat
     assert calls[1]["args"][2] == "Gemini 3.1 Pro (Low)"
 
 
-def test_antigravity_cli_capability_preflight_checks_both_models() -> None:
+def test_antigravity_cli_capability_preflight_rejects_lite_inventory_as_unsupported() -> None:
+    def fake_run(args: list[str], **_kwargs: object) -> object:
+        return pipeline.subprocess.CompletedProcess(
+            args,
+            0,
+            "gemini-3.5-flash-low\tGemini 3.5 Flash (Low)\n"
+            "gemini-3.1-pro-low\tGemini 3.1 Pro (Low)\n",
+            "",
+        )
+
+    with pytest.raises(ValueError, match="CLI inventory does not expose writer route"):
+        pipeline.validate_antigravity_cli_capabilities(
+            ["/opt/tools/agy-1.1.3"],
+            runner=fake_run,
+        )
+
+
+def test_antigravity_cli_capability_preflight_checks_explicit_legacy_models(
+    tmp_path: Path,
+) -> None:
     calls: list[list[str]] = []
+    route_path = tmp_path / "legacy-routes.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "routes": {
+                    "writer": ["gemini-3.5-flash"],
+                    "reviewer": ["gemini-3.1-pro"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    route = pipeline.load_model_route_config(route_path)
 
     def fake_run(args: list[str], **_kwargs: object) -> object:
         calls.append(args)
@@ -1030,6 +1101,7 @@ def test_antigravity_cli_capability_preflight_checks_both_models() -> None:
     receipt = pipeline.validate_antigravity_cli_capabilities(
         ["/opt/tools/agy-1.1.3"],
         runner=fake_run,
+        route_config=route,
     )
 
     assert receipt == {
@@ -1044,7 +1116,24 @@ def test_antigravity_cli_capability_preflight_checks_both_models() -> None:
     ]
 
 
-def test_antigravity_cli_capability_preflight_rejects_missing_model() -> None:
+def test_antigravity_cli_capability_preflight_rejects_missing_legacy_model(
+    tmp_path: Path,
+) -> None:
+    route_path = tmp_path / "legacy-routes.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "routes": {
+                    "writer": ["gemini-3.5-flash"],
+                    "reviewer": ["gemini-3.1-pro"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    route = pipeline.load_model_route_config(route_path)
+
     def fake_run(args: list[str], **_kwargs: object) -> object:
         return pipeline.subprocess.CompletedProcess(
             args,
@@ -1053,15 +1142,32 @@ def test_antigravity_cli_capability_preflight_rejects_missing_model() -> None:
             "",
         )
 
-    with pytest.raises(ValueError, match="reviewer model is unavailable"):
+    with pytest.raises(ValueError, match="CLI inventory does not expose reviewer route"):
         pipeline.validate_antigravity_cli_capabilities(
             ["/opt/tools/agy-1.1.3"],
             runner=fake_run,
+            route_config=route,
         )
 
 
-def test_antigravity_cli_capability_preflight_reports_closed_smoke_diagnostic() -> None:
+def test_antigravity_cli_capability_preflight_reports_closed_smoke_diagnostic(
+    tmp_path: Path,
+) -> None:
     private_detail = "/Users/example/private GEMINI_API_KEY=must-not-persist"
+    route_path = tmp_path / "legacy-routes.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "routes": {
+                    "writer": ["gemini-3.5-flash"],
+                    "reviewer": ["gemini-3.1-pro"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    route = pipeline.load_model_route_config(route_path)
 
     def fake_run(args: list[str], **_kwargs: object) -> object:
         if args[-1] == "models":
@@ -1083,6 +1189,7 @@ def test_antigravity_cli_capability_preflight_reports_closed_smoke_diagnostic() 
         pipeline.validate_antigravity_cli_capabilities(
             ["/opt/tools/agy-1.1.3"],
             runner=fake_run,
+            route_config=route,
         )
 
     assert "category=ELIGIBILITY_UNAVAILABLE" in str(raised.value)
@@ -1307,9 +1414,13 @@ def test_cli_transport_exposes_only_closed_failure_code(
             "",
         )
 
-    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/gemini")
     monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
-    client = GeminiClient.from_environment()
+    client = GeminiClient(
+        writer_model="gemini-3.5-flash",
+        reviewer_model="gemini-3.1-pro",
+    )
+    client.transport = client._cli_transport
+    monkeypatch.setenv("AGY_GEMINI_CLI", "/opt/tools/gemini")
 
     with pytest.raises(RuntimeError) as raised:
         client.generate_json("writer", private_detail, {"type": "object"})

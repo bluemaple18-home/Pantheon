@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "routes": {
-    "writer": ["gemini-3.5-flash"],
-    "reviewer": ["gemini-3.1-pro"]
+    "writer": ["gemini-3.5-flash-lite"],
+    "reviewer": ["gemini-3.1-flash-lite"]
   }
 }

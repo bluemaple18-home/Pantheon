@@ -124,6 +124,10 @@ ANTIGRAVITY_MODEL_LABELS = {
     "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
     "gemini-3.1-pro": "Gemini 3.1 Pro (Low)",
 }
+OFFICIAL_LITE_API_MODEL_ROUTES = {
+    "writer": "gemini-3.5-flash-lite",
+    "reviewer": "gemini-3.1-flash-lite",
+}
 
 
 def _closed_antigravity_cli_diagnostic(stderr: str) -> str:
@@ -146,6 +150,7 @@ def validate_antigravity_cli_capabilities(
     command: list[str],
     *,
     runner: Callable[..., Any] = subprocess.run,
+    route_config: ModelRouteConfig | None = None,
 ) -> dict[str, str]:
     """正式啟動前確認 Writer／Reviewer 模型存在且可各自完成最小呼叫。"""
     if not command or not command[0]:
@@ -173,14 +178,15 @@ def validate_antigravity_cli_capabilities(
         for line in available.stdout.splitlines()
         if len(fields := line.split("\t", 1)) == 2
     }
+    config = route_config or MODEL_ROUTE_CONFIG
     required = {
-        "writer": MODEL_ROUTE_CONFIG.routes["writer"][0],
-        "reviewer": MODEL_ROUTE_CONFIG.routes["reviewer"][0],
+        "writer": config.routes["writer"][0],
+        "reviewer": config.routes["reviewer"][0],
     }
     for role, model in required.items():
         label = ANTIGRAVITY_MODEL_LABELS.get(model)
         if label is None or label not in available_labels:
-            raise ValueError(f"{role} model is unavailable: {model}")
+            raise ValueError(f"Antigravity CLI inventory does not expose {role} route: {model}")
     for role, model in required.items():
         label = ANTIGRAVITY_MODEL_LABELS[model]
         try:
@@ -221,6 +227,22 @@ def validate_antigravity_cli_capabilities(
         "status": "PASS",
         "writer_model": required["writer"],
         "reviewer_model": required["reviewer"],
+    }
+
+
+def validate_gemini_api_model_capabilities(
+    route_config: ModelRouteConfig | None = None,
+) -> dict[str, str]:
+    """確認正式 direct Gemini API route 使用官方 stable Lite model ID。"""
+    config = route_config or MODEL_ROUTE_CONFIG
+    for role, expected in OFFICIAL_LITE_API_MODEL_ROUTES.items():
+        if config.routes[role] != (expected,):
+            raise ValueError(f"Gemini API {role} route must use official stable Lite model ID")
+    return {
+        "status": "PASS",
+        "transport": "api",
+        "writer_model": OFFICIAL_LITE_API_MODEL_ROUTES["writer"],
+        "reviewer_model": OFFICIAL_LITE_API_MODEL_ROUTES["reviewer"],
     }
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
@@ -2619,8 +2641,12 @@ class GeminiClient:
     @classmethod
     def from_environment(cls) -> "GeminiClient":
         route_config = model_route_config_from_environment()
-        transport_name = os.environ.get("AGY_GEMINI_TRANSPORT", "cli").strip().lower()
+        transport_name = os.environ.get("AGY_GEMINI_TRANSPORT", "api").strip().lower()
         if transport_name == "cli":
+            for role in ("writer", "reviewer"):
+                model = route_config.routes[role][0]
+                if model not in ANTIGRAVITY_MODEL_LABELS:
+                    raise ValueError(f"Antigravity CLI transport does not expose {role} route: {model}")
             client = cls(
                 writer_model=route_config.routes["writer"][0],
                 reviewer_model=route_config.routes["reviewer"][0],
