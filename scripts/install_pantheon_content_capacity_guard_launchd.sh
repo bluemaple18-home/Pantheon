@@ -33,8 +33,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" ]]; then
-  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install]" >&2
+if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
+  && "${ACTION}" != "--install-recovery-stage" ]]; then
+  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -157,18 +158,23 @@ run_capacity_preflight() {
     printf '%s\n' "${PREFLIGHT_OUTPUT}"
     return 0
   fi
+  TRANSITION_ARGS=(
+    -m scripts.pantheon_content_capacity_guard
+    --preflight-receipt "${PREFLIGHT_RECEIPT}"
+    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --expected-digest "${RUNTIME_MANIFEST_DIGEST}"
+    --barrier "${ACTIVATION_BARRIER}"
+    --launch-agents-dir "${LAUNCH_AGENTS_DIR}"
+    --capacity-plist "${TEMP_PLIST}"
+    --publisher-reset-receipt "${PUBLISHER_RESET_RECEIPT}"
+    --expected-reset-correlation-id "${EXPECTED_RESET_CORRELATION_ID}"
+  )
+  if [[ "${ACTION}" == "--install-recovery-stage" ]]; then
+    TRANSITION_ARGS+=(--recovery-from-normal-stopped)
+  fi
   if (
     cd "${REPO_ROOT}"
-    "${PYTHON_BIN}" -m scripts.pantheon_content_capacity_guard \
-      --preflight-receipt "${PREFLIGHT_RECEIPT}" \
-      --manifest "${RUNTIME_MANIFEST_FILE}" \
-      --expected-digest "${RUNTIME_MANIFEST_DIGEST}" \
-      --barrier "${ACTIVATION_BARRIER}" \
-      --launch-agents-dir "${LAUNCH_AGENTS_DIR}" \
-      --capacity-plist "${TEMP_PLIST}" \
-      --publisher-reset-receipt "${PUBLISHER_RESET_RECEIPT}" \
-      --expected-reset-correlation-id "${EXPECTED_RESET_CORRELATION_ID}" \
-      preactivation-transition
+    "${PYTHON_BIN}" "${TRANSITION_ARGS[@]}" preactivation-transition
   ); then
     return 0
   fi

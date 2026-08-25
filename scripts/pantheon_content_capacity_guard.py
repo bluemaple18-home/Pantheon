@@ -1030,6 +1030,7 @@ def validate_preactivation_transition(
     capacity_plist: Path,
     publisher_reset_receipt: Path | None = None,
     expected_reset_correlation_id: str | None = None,
+    recovery_from_normal_stopped: bool = False,
     runner: Runner = _run,
 ) -> dict[str, Any]:
     try:
@@ -1107,7 +1108,9 @@ def validate_preactivation_transition(
         plist_path = launch_agents / f"{label}.plist"
         live_receipt = formal_runtime.plist_receipt(
             plist_path,
-            expected_activation_mode="activation-only",
+            expected_activation_mode=(
+                "normal" if recovery_from_normal_stopped else "activation-only"
+            ),
         )
         with plist_path.open("rb") as stream:
             live_payload = plistlib.load(stream)
@@ -1157,7 +1160,20 @@ def validate_preactivation_transition(
         target = f"{domain}/{label}"
         result = runner(["launchctl", "print", target])
         if result.returncode != 0:
+            if (
+                recovery_from_normal_stopped
+                and label != CAPACITY_GUARD_LABEL
+                and result.returncode == 113
+            ):
+                live_receipts[label] = live_receipt
+                live_plist_sha256[label] = _file_sha256(plist_path)
+                loaded.append({"label": label, "topology": "normal-absent"})
+                continue
             raise formal_runtime.RuntimeManifestError("preactivation service is absent")
+        if recovery_from_normal_stopped and label != CAPACITY_GUARD_LABEL:
+            raise formal_runtime.RuntimeManifestError(
+                "preactivation recovery business service is loaded"
+            )
         if re.search(r"^\s*pid = [1-9][0-9]*\s*$", result.stdout, re.MULTILINE):
             raise formal_runtime.RuntimeManifestError("preactivation service has pid")
         identity = _launchctl_top_level_identity(result.stdout, expected_target=target)
@@ -1165,16 +1181,29 @@ def validate_preactivation_transition(
             identity is None
             or identity["paths"] != [str(plist_path)]
             or identity["states"] not in (["not running"], ["waiting"])
-            or identity["last_exit_codes"] not in ([], [0], [78])
+            or identity["last_exit_codes"] not in (
+                ([], [0]) if recovery_from_normal_stopped else ([], [0], [78])
+            )
         ):
             raise formal_runtime.RuntimeManifestError("preactivation service mismatch")
         live_receipts[label] = live_receipt
         live_identities[label] = identity
         live_plist_sha256[label] = _file_sha256(plist_path)
-        loaded.append({"label": label, "topology": "activation-only-loaded-no-pid"})
+        loaded.append(
+            {
+                "label": label,
+                "topology": (
+                    "normal-loaded-no-pid"
+                    if recovery_from_normal_stopped
+                    else "activation-only-loaded-no-pid"
+                ),
+            }
+        )
     if live_aggregate is None:
         raise formal_runtime.RuntimeManifestError("preactivation live aggregate mismatch")
-    if any(identity["last_exit_codes"] == [78] for identity in live_identities.values()):
+    if not recovery_from_normal_stopped and any(
+        identity["last_exit_codes"] == [78] for identity in live_identities.values()
+    ):
         _validate_publisher_reset_provenance(
             receipt_path=publisher_reset_receipt,
             expected_correlation_id=expected_reset_correlation_id,
@@ -1193,6 +1222,7 @@ def validate_preactivation_transition(
         "manifest_digest": manifest["manifest_digest"],
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],
+        "recovery_from_normal_stopped": recovery_from_normal_stopped,
         "loaded_labels": loaded,
     }
 
@@ -1413,6 +1443,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--capacity-plist", type=Path)
     parser.add_argument("--publisher-reset-receipt", type=Path)
     parser.add_argument("--expected-reset-correlation-id")
+    parser.add_argument("--recovery-from-normal-stopped", action="store_true")
     parser.add_argument("--reset-proof-dir", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
     parser.add_argument(
@@ -1474,6 +1505,7 @@ def main() -> int:
                 capacity_plist=args.capacity_plist,
                 publisher_reset_receipt=args.publisher_reset_receipt,
                 expected_reset_correlation_id=args.expected_reset_correlation_id,
+                recovery_from_normal_stopped=args.recovery_from_normal_stopped,
             )
         except formal_runtime.RuntimeManifestError as error:
             print(

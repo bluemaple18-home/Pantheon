@@ -772,6 +772,7 @@ def _write_capacity_transition_launchctl(
     unknown_service: bool = False,
     include_pid: bool = False,
     last_exit_code: int | None = 0,
+    absent_labels: tuple[str, ...] = (),
 ) -> None:
     observed_launch_agents = observed_launch_agents or launch_agents
     root_line = (
@@ -785,10 +786,18 @@ def _write_capacity_transition_launchctl(
         if last_exit_code is not None
         else ""
     )
+    absent_case = ""
+    if absent_labels:
+        absent_case = (
+            "  case \"$label\" in\n"
+            f"    {'|'.join(absent_labels)}) exit 113 ;;\n"
+            "  esac\n"
+        )
     path.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"print\" ]; then\n"
         "  label=${2##*/}\n"
+        f"{absent_case}"
         f"  plist='{launch_agents}/'$label'.plist'\n"
         f"  observed_plist='{observed_launch_agents}/'$label'.plist'\n"
         "  [ -f \"$plist\" ] || exit 113\n"
@@ -805,6 +814,16 @@ def _write_capacity_transition_launchctl(
         encoding="utf-8",
     )
     path.chmod(0o700)
+
+
+def _make_live_plists_normal(launch_agents: Path) -> None:
+    for label in runtime_manifest.SERVICE_LABELS:
+        path = launch_agents / f"{label}.plist"
+        with path.open("rb") as stream:
+            payload = plistlib.load(stream)
+        payload["ProgramArguments"].remove("--activation-only")
+        with path.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
 
 
 def _capacity_transition_installer_env(
@@ -1054,6 +1073,81 @@ def test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists(
     )
     assert staged_capacity.is_file()
     assert not mutation_log.exists()
+
+
+def test_capacity_installer_recovery_stages_after_guard_stopped_normal_services(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    business_labels = guard.SERVICE_LABELS
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=business_labels,
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert '"recovery_from_normal_stopped": true' in completed.stdout
+    assert (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    ).is_file()
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_recovery_rejects_loaded_business_service(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    business_labels = guard.SERVICE_LABELS[1:]
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=business_labels,
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert '"status": "NO-GO"' in completed.stdout
+    assert not (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    ).exists()
 
 
 def test_capacity_installer_accepts_g6_old_live_model_route_identity(
