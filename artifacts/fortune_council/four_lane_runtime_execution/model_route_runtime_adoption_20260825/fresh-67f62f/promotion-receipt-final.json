@@ -1,0 +1,40 @@
+{
+  "authorization_digest": "89b1530a9e87fe46b0da427f495f7b8fa2aa4d2aafc48e51a579482cd64e1194",
+  "capacity_receipt_digest": "bd32afe2e1ee0bbf46582f86a9c01b1359d779e110c2581b4db2655f3f6a6f52",
+  "correlation_id": "model-route-runtime-adoption-67f62f-20260825",
+  "created_at": "2026-08-25T03:32:42+00:00",
+  "history": [
+    {
+      "sampled_at": "2026-08-25T03:32:42+00:00",
+      "state": "PREPARED"
+    },
+    {
+      "sampled_at": "2026-08-25T03:32:45+00:00",
+      "state": "ACTOR_PROMOTED"
+    },
+    {
+      "sampled_at": "2026-08-25T03:32:45+00:00",
+      "state": "MANIFEST_WRITTEN"
+    },
+    {
+      "sampled_at": "2026-08-25T03:32:45+00:00",
+      "state": "STAGE_INSTALLED"
+    },
+    {
+      "sampled_at": "2026-08-25T03:32:45+00:00",
+      "state": "POSTCHECK_PASSED"
+    },
+    {
+      "sampled_at": "2026-08-25T03:33:01+00:00",
+      "state": "COMMITTED"
+    }
+  ],
+  "plan_digest": "68c11bb9ae29f2786decd07fbfab6d1bc3bc61e04b65311ecad617e48234958b",
+  "regression_id": "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001",
+  "rollback_bundle_finalized": true,
+  "schema_version": 1,
+  "state": "COMMITTED",
+  "target_actor_sha": "67f62f233f957bfbcaf51d65e63d58f66e35c206",
+  "target_manifest_digest": "71d3e1dbb4541ba1534033e7780b88f643d5abd8883129d9ad86f48409dedf4a",
+  "updated_at": "2026-08-25T03:33:01+00:00"
+}

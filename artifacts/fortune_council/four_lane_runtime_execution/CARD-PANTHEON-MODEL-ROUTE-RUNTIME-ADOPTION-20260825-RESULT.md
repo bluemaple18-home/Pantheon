@@ -1,45 +1,67 @@
 # CARD-PANTHEON-MODEL-ROUTE-RUNTIME-ADOPTION-20260825 Result
 
-Verdict: `BLOCKED`
+Final outcome: `ADOPTION_COMMITTED`
 
-Blocker: `TARGET_SOURCE_NOT_AUTHORIZED_ON_REMOTE_MAIN`
+Preflight verdict: `READY_FOR_EXACT_AUTHORIZATION`
 
-## 單一阻斷
+Execution outcome: `ADOPTION_COMMITTED`
 
-目前沒有可交給正式 promotion CLI 的唯一 production source target。Fresh read-only remote 查詢顯示 `origin/main` 仍是 `5872284828f9dd6f0a75adf407becaeadb50d61a`，也就是 live actor 目前的 stale runtime SHA；本 worktree `HEAD/main` 是 `af63bf3b25817b5fbfc9fd5e0139b4c7289a5b60`，包含本卡與後續 dispatch artifacts；被 Review GO 的模型路由 candidate `67f62f233f957bfbcaf51d65e63d58f66e35c206` 也包含一張 review card artifact。
+Transaction state: `COMMITTED`
 
-因此，本卡不能宣稱 `READY_FOR_EXACT_AUTHORIZATION`：尚未有一個 remote-main 對齊、排除 review/card artifacts、且已授權作為 runtime actor target 的 exact SHA。既有 promotion CLI 以整個 Git source SHA promotion actor；本卡沒有授權建立新 commit、push、fetch、apply、finalize、rollback 或直接重試 V0391。
+## Summary
+
+Exact target `67f62f233f957bfbcaf51d65e63d58f66e35c206` was adopted into the live production runtime through the existing `scripts.pantheon_content_runtime_promotion` path only.
+
+No V0391 activation, Publisher run, Gemini job, run resume, push, tag, manual actor/config/manifest/stage edit, or replacement workflow was executed by this task. V0391 activation/publish remains outside this card and must return to the original V0391 thread.
+
+## Fresh Gates
+
+- Fresh remote equality: `origin/main = 67f62f233f957bfbcaf51d65e63d58f66e35c206`; read-only `git ls-remote`, no push.
+- Fresh planner-accepted Rule24 promotion capacity receipt: `PASS`, `mode=bounded-synthetic-dry-run`, two cycles, RSS/swap telemetry available, stop-loss `STOPPED`, reclamation `2097152 -> 1048576`, `production_mutation=false`; digest `bd32afe2e1ee0bbf46582f86a9c01b1359d779e110c2581b4db2655f3f6a6f52`.
+- Fresh Rule25 readiness package: `READY`; official gate `READY`; missing-step negative fixture `BLOCKED`; `canary_created=false`, `production_mutation=false`, `publish=false`, `tag=false`, `push=false`.
+- Zero-write promotion plan: `READY_TO_APPLY`; plan digest `68c11bb9ae29f2786decd07fbfab6d1bc3bc61e04b65311ecad617e48234958b`; target manifest digest `71d3e1dbb4541ba1534033e7780b88f643d5abd8883129d9ad86f48409dedf4a`.
+
+## Promotion Transaction
+
+- Transaction root: `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/model-route-runtime-adoption-67f62f-20260825`.
+- Authorization digest: `89b1530a9e87fe46b0da427f495f7b8fa2aa4d2aafc48e51a579482cd64e1194`.
+- Apply result: `POSTCHECK_PASSED`.
+- Finalize result: `COMMITTED`.
+- Final receipt state: `COMMITTED`, `rollback_bundle_finalized=true`.
+- Ordered states recorded: `PREPARED -> ACTOR_PROMOTED -> MANIFEST_WRITTEN -> STAGE_INSTALLED -> POSTCHECK_PASSED -> COMMITTED`.
+
+## Live Runtime Postcheck
+
+- Live actor HEAD: `67f62f233f957bfbcaf51d65e63d58f66e35c206`; actor worktree clean.
+- Live manifest digest: `71d3e1dbb4541ba1534033e7780b88f643d5abd8883129d9ad86f48409dedf4a`.
+- Live runtime digest: `36d93ddfda937d0405caa9b2db154304957da5badc6d371b73ce6a13ab0d7586`.
+- Live generation: `g37-67f62f233f-model-route-20260825`.
+- Live identity: `gate2-actor:67f62f233f957bfbcaf51d65e63d58f66e35c206:activation-only`.
+- Private stage readiness: seven service acknowledgements exist; activation barrier exists.
+- Live route config now uses writer `gemini-3.5-flash` and reviewer `gemini-3.1-pro`.
+
+## V0391 / Queue Preservation
+
+- Queue snapshot digest remained `b88e5ed6b25c8c2e1f10b9ac8b3a7042f718e765e36d8e12cf9007d9d692b088`.
+- Preserved run count: `141`.
+- V0391 run registry remained `active`.
+- V0391 `last_job_id` remained `54f57c7de682e12f5c0f6250576cde08a4f4d06a`.
+- V0391 `run_dir` remained `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/.work/gsc-copy/v0391-publish-canary-20260825-01`.
 
 ## Evidence
 
-- CodeGraph bounded query：`runtime promotion model route actor manifest V0391 exact run`，入口收斂到 `scripts/pantheon_content_runtime_promotion.py`、`scripts/pantheon_content_runtime_manifest.py`、`scripts/agy_seo_copy_pipeline.py`；CodeGraph ready：582 files、6924 nodes、15327 edges。
-- 本 worktree：`/Users/mattkuo/.codex/worktrees/7e01/Pantheon`；`HEAD = af63bf3b25817b5fbfc9fd5e0139b4c7289a5b60`；clean。
-- Fresh remote main：`git ls-remote --heads origin main` 回 `5872284828f9dd6f0a75adf407becaeadb50d61a refs/heads/main`；唯讀查詢，未 fetch、未 push。
-- Live actor：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor`，`HEAD = 5872284828f9dd6f0a75adf407becaeadb50d61a`，clean。
-- Live manifest：digest `389cd799384af4628b9fc371d620b5e87bed52125f27d6612119158af568bfca`，generation `g36-5872284828-zero-write-20260824`，identity `gate2-actor:5872284828f9dd6f0a75adf407becaeadb50d61a:activation-only`。
-- Live actor route config still uses stale routes: writer `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-2.5-flash`; reviewer `gemini-3.1-flash-lite`, `gemini-2.5-flash-lite`.
-- Latest live promotion transaction read-only receipt: `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-final-5872284828-promotion-20260825/promotion-receipt.json` is `COMMITTED`, plan digest `1586b147cd680606859739fa68728c7eb40820d4cb4053ba298ebda2f681bb1b`, target actor `5872284828f9dd6f0a75adf407becaeadb50d61a`.
-- V0391 run state: `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/7c2a03c622fcf01536d0574c.json` remains `active`, `last_job_id = 54f57c7de682e12f5c0f6250576cde08a4f4d06a`。
-- Two failed Writer receipts:
-  - `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/failed/620f6d3a43d31e9c16bf0e2990671f0189e784b9.json`：`GeminiCliFailure / CLI_NONZERO` at `2026-08-25T01:28:22+08:00`。
-  - `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/failed/54f57c7de682e12f5c0f6250576cde08a4f4d06a.json`：`GeminiCliFailure / CLI_NONZERO` at `2026-08-25T09:15:29+08:00`。
-- Prior Rule 24/25/promotion receipts are insufficient for a new model-route runtime adoption:
-  - V0388 capacity receipt status is `PASS`, but mode is `synthetic-non-production-capacity-proof` and digest `776ae80fd611bb85b3693a1629176dc9d137c81b51d16fda62e6c3d200391ad4`。
-  - V0389 DSSE verify status is `PASS`, but `authorization_granted = false`。
-  - V0390 formal planner already proved the V0388 receipt is not accepted by `scripts.pantheon_content_runtime_promotion`: `capacity stop-loss is not PASS`; apply count was `0`。
+- Machine summary: `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/evidence-summary.json`.
+- Fresh evidence root: `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f`.
+- Plan stdout: `fresh-67f62f/promotion-plan.stdout.json`.
+- Apply stdout: `fresh-67f62f/promotion-apply.stdout.json`.
+- Finalize stdout: `fresh-67f62f/promotion-finalize.stdout.json`.
+- Final promotion receipt copy: `fresh-67f62f/promotion-receipt-final.json`.
+- Post runtime manifest copy: `fresh-67f62f/runtime-manifest-post.json`.
+- Rule25 readiness summary: `fresh-67f62f/rule25-readiness/readiness-summary.json`.
 
-Machine evidence: `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/evidence-summary.json`
+## Counts
 
-## Missing Exact Input / Authorization
-
-1. A single exact runtime source target SHA containing the model-route fix, excluding review/card artifacts from the promotion target.
-2. Fresh remote-main equality for that exact target SHA.
-3. Fresh Rule 24 capacity evidence accepted by the formal planner contract.
-4. Fresh Rule 25 / production-canary readiness receipt bound to the exact target, plan digest, argv, rollback, stop-loss, and human authorization.
-5. A new zero-write formal `scripts.pantheon_content_runtime_promotion plan` result for that target before any apply/finalize argv can exist.
-
-## Current Safe State
-
-No production mutation was executed by this task. Counts: apply `0`, finalize `0`, rollback `0`, activation `0`, Gemini job `0`, V0391 run resume `0`, Publisher `0`, push `0`, tag `0`.
-
-V0391 remains paused in the same safe state: run registry `active`, two terminal failed Writer receipts preserved, no third Writer attempt created by this task.
+- production runtime promotion transaction: `1`.
+- apply / postcheck / finalize: `1 / 1 / 1`.
+- rollback: `0`.
+- activation / Gemini job / run resume / Publisher / push / tag: `0 / 0 / 0 / 0 / 0 / 0`.

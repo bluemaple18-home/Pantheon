@@ -1,0 +1,27 @@
+{
+  "actor_head": "67f62f233f957bfbcaf51d65e63d58f66e35c206",
+  "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "config_version": "formal-runtime-v3-model-route-v1",
+  "generation": "g37-67f62f233f-model-route-20260825",
+  "identity": "gate2-actor:67f62f233f957bfbcaf51d65e63d58f66e35c206:activation-only",
+  "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+  "manifest_digest": "71d3e1dbb4541ba1534033e7780b88f643d5abd8883129d9ad86f48409dedf4a",
+  "owner_uid": 501,
+  "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+  "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+  "runtime_digest": "36d93ddfda937d0405caa9b2db154304957da5badc6d371b73ce6a13ab0d7586",
+  "runtime_identity_digest": "9f14ac3eed03650f8389b5c67b746d8c6533f518342801466174f8538e64f8e8",
+  "schema_version": 2,
+  "service_labels": [
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.agy-gemini-coordinator",
+    "com.pantheon.agy-gemini-new",
+    "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new",
+    "com.pantheon.agy-gemini-i18n-rewrite",
+    "com.pantheon.content-capacity-guard"
+  ],
+  "uv_executable": "/Users/mattkuo/.local/bin/uv"
+}
