@@ -33,6 +33,7 @@ SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 PRESERVABLE_RUN_STATUSES = {"active", "complete", "failed"}
+RUN_IDENTITY_SCHEMA_VERSION = 1
 
 
 class PromotionError(RuntimeError):
@@ -241,6 +242,84 @@ def _validate_request_shape(request: PromotionRequest) -> None:
         raise PromotionError("preserved run ids are invalid")
 
 
+def _validated_run_identity_envelope(
+    value: object,
+    brief: dict[str, Any],
+) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != {
+        "schema_version",
+        "mode",
+        "lane",
+        "article_ids",
+        "digest",
+    }:
+        raise PromotionError("preserved run identity envelope is missing or invalid")
+    if value.get("schema_version") != RUN_IDENTITY_SCHEMA_VERSION:
+        raise PromotionError("preserved run identity envelope is missing or invalid")
+    mode = value.get("mode")
+    lane = value.get("lane")
+    valid_lanes = {
+        "create": {"new"},
+        "rewrite_existing_body": {"rewrite"},
+        "translate_existing": {"i18n-new", "i18n-rewrite"},
+    }
+    if type(mode) is not str or type(lane) is not str or lane not in valid_lanes.get(mode, set()):
+        raise PromotionError("preserved run identity envelope is missing or invalid")
+    article_ids = value.get("article_ids")
+    if (
+        not isinstance(article_ids, list)
+        or any(type(article_id) is not str or not article_id or article_id.strip() != article_id for article_id in article_ids)
+        or article_ids != sorted(set(article_ids))
+    ):
+        raise PromotionError("preserved run identity envelope is missing or invalid")
+    identity = {
+        "schema_version": RUN_IDENTITY_SCHEMA_VERSION,
+        "mode": mode,
+        "lane": lane,
+        "article_ids": article_ids,
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if value.get("digest") != digest:
+        raise PromotionError("preserved run identity envelope digest mismatch")
+    if brief.get("mode") != mode:
+        raise PromotionError("preserved run brief identity mismatch")
+    observed_ids: list[str] = []
+    articles = brief.get("articles")
+    if not isinstance(articles, list):
+        raise PromotionError("preserved run brief identity mismatch")
+    for article in articles:
+        if not isinstance(article, dict):
+            raise PromotionError("preserved run brief identity mismatch")
+        value_id: object = None
+        if mode == "create":
+            target = article.get("target")
+            value_id = target.get("id") if isinstance(target, dict) else article.get("id")
+        elif mode == "rewrite_existing_body":
+            value_id = article.get("article_id")
+        elif mode == "translate_existing":
+            value_id = article.get("source_article_id")
+        if type(value_id) is not str or not value_id or value_id.strip() != value_id:
+            raise PromotionError("preserved run brief identity mismatch")
+        observed_ids.append(value_id)
+    if sorted(observed_ids) != article_ids or len(observed_ids) != len(set(observed_ids)):
+        raise PromotionError("preserved run brief identity mismatch")
+    brief_lane = brief.get("lane")
+    expected_brief_lane = {
+        "create": "new",
+        "rewrite_existing_body": "rewrite",
+    }.get(mode, brief_lane)
+    if expected_brief_lane != lane:
+        raise PromotionError("preserved run brief identity mismatch")
+    return {**identity, "digest": digest}
+
+
 def _gsc_copy_identity_snapshot(queue_root: Path) -> list[dict[str, Any]]:
     root = queue_root / "gsc-copy"
     if not root.exists():
@@ -325,6 +404,7 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
         brief = _read_json_file(brief_path, "preserved run brief")
         if brief.get("run_id") != run_id:
             raise PromotionError("preserved run brief identity mismatch")
+        _validated_run_identity_envelope(state.get("identity_envelope"), brief)
         observed.add(run_id)
         preserved_runs.append(
             {
@@ -443,6 +523,10 @@ def _validate_path_boundaries(request: PromotionRequest) -> None:
         raise PromotionError("transaction_root must be absolute")
     transaction_parent = request.transaction_root.parent.resolve(strict=True)
     transaction = transaction_parent / request.transaction_root.name
+    actor_root = roots[1]
+    queue_root = roots[2]
+    if queue_root == actor_root or queue_root.is_relative_to(actor_root):
+        raise PromotionError("queue root is actor-local and cannot survive promotion")
     for root in roots:
         if transaction == root or transaction.is_relative_to(root):
             raise PromotionError("transaction root overlaps managed runtime roots")

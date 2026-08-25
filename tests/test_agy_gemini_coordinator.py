@@ -1188,6 +1188,28 @@ def _write_brief(run_dir: Path, run_id: str = "private-run-001") -> None:
     )
 
 
+def _expected_identity_envelope(
+    mode: str,
+    lane: str,
+    article_ids: list[str],
+) -> dict[str, object]:
+    identity = {
+        "schema_version": 1,
+        "mode": mode,
+        "lane": lane,
+        "article_ids": sorted(article_ids),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**identity, "digest": digest}
+
+
 def test_register_run_is_idempotent_and_keeps_private_path_local(tmp_path: Path) -> None:
     run_dir = tmp_path / "private-runs" / "run-001"
     queue_root = tmp_path / "queue"
@@ -1200,6 +1222,75 @@ def test_register_run_is_idempotent_and_keeps_private_path_local(tmp_path: Path)
     assert first["status"] == "active"
     assert first["run_dir"] == str(run_dir.resolve())
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
+
+
+def test_register_and_exact_activation_persist_immutable_identity_envelope(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    expected = _expected_identity_envelope(
+        "create",
+        "new",
+        ["V2-MBTI-INTJ-WORK", "V2-MBTI-ENFP-LOVE"],
+    )
+
+    run_dir = tmp_path / "private-runs" / "registered-envelope"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": run_dir.name,
+                "mode": "create",
+                "articles": [
+                    {"target": {"id": "V2-MBTI-INTJ-WORK"}},
+                    {"target": {"id": "V2-MBTI-ENFP-LOVE"}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registered = register_run(run_dir, queue_root)
+
+    exact_run_id = "exact-envelope"
+    exact_run_dir = tmp_path / "private-runs" / exact_run_id
+    staging_run_dir = (
+        tmp_path / "private-runs" / ".exact-run-staging" / "owned-token" / exact_run_id
+    )
+    staging_run_dir.mkdir(parents=True)
+    (staging_run_dir / "brief.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": exact_run_id,
+                "mode": "create",
+                "articles": [
+                    {"target": {"id": "V2-MBTI-ENFP-LOVE"}},
+                    {"target": {"id": "V2-MBTI-INTJ-WORK"}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    coordinator._reserve_run_identity(
+        exact_run_id,
+        exact_run_dir,
+        queue_root,
+        "exact-correlation",
+        "owned-token",
+    )
+    activated = coordinator._activate_run_reservation(
+        exact_run_id,
+        staging_run_dir,
+        exact_run_dir,
+        queue_root,
+        "exact-correlation",
+        "owned-token",
+    )
+
+    assert registered["identity_envelope"] == expected
+    assert activated["identity_envelope"] == expected
 
 
 @pytest.mark.parametrize(
@@ -1349,7 +1440,12 @@ def test_register_run_accepts_private_rewrite_brief_above_eight_kb(tmp_path: Pat
             {
                 "run_id": "rewrite-above-eight-kb",
                 "mode": "rewrite_existing_body",
-                "articles": [{"current_body": "字" * 3000}],
+                    "articles": [
+                        {
+                            "article_id": "LEGACY-LARGE-BRIEF",
+                            "current_body": "字" * 3000,
+                        }
+                    ],
             },
             ensure_ascii=False,
         ),
@@ -1528,10 +1624,12 @@ def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch
         },
         "i18n-new-run": {
             "mode": "translate_existing",
+            "lane": "i18n-new",
             "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
         },
         "i18n-rewrite-run": {
             "mode": "translate_existing",
+            "lane": "i18n-rewrite",
             "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}],
         },
     }
@@ -1586,6 +1684,7 @@ def test_lane_mode_continues_oldest_registered_run_until_terminal(
                     "schema_version": 1,
                     "run_id": run_id,
                     "mode": "translate_existing",
+                    "lane": "i18n-new",
                     "articles": [{"source_article_id": f"V2-NEW-{index + 1:03d}", "locale": "en"}],
                 }
             ),
@@ -1631,10 +1730,12 @@ def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
         },
         "i18n-new-run": {
             "mode": "translate_existing",
+            "lane": "i18n-new",
             "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
         },
         "i18n-rewrite-run": {
             "mode": "translate_existing",
+            "lane": "i18n-rewrite",
             "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}],
         },
     }
@@ -2471,7 +2572,7 @@ def test_campaign_dry_run_workset_is_stable_and_side_effect_free(tmp_path: Path,
     for run_dir, run_id, brief in (
         (new_run, "new-run", {"mode": "create", "articles": [{"target": {"id": "NEW-002"}}]}),
         (rewrite_run, "rewrite-run", {"mode": "rewrite_existing_body", "articles": [{"article_id": "LEGACY-002"}]}),
-        (translation_run, "translation-run", {"mode": "translate_existing", "articles": [{"source_article_id": "NEW-001", "locale": "en"}]}),
+        (translation_run, "translation-run", {"mode": "translate_existing", "lane": "i18n-new", "articles": [{"source_article_id": "NEW-001", "locale": "en"}]}),
     ):
         run_dir.mkdir()
         (run_dir / "brief.json").write_text(
@@ -2480,7 +2581,28 @@ def test_campaign_dry_run_workset_is_stable_and_side_effect_free(tmp_path: Path,
         )
         state_path = queue_root / "runs" / f"{run_id}.json"
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps({"run_id": run_id, "run_dir": str(run_dir), "status": "active"}), encoding="utf-8")
+        lane = str(brief.get("lane") or ("new" if brief["mode"] == "create" else "rewrite"))
+        article = brief["articles"][0]
+        article_id = (
+            article["target"]["id"]
+            if brief["mode"] == "create"
+            else article.get("article_id", article.get("source_article_id"))
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "run_dir": str(run_dir),
+                    "status": "active",
+                    "identity_envelope": _expected_identity_envelope(
+                        str(brief["mode"]),
+                        lane,
+                        [str(article_id)],
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
 
     before = {str(path.relative_to(tmp_path)): path.read_bytes() for path in sorted(tmp_path.rglob("*")) if path.is_file()}
     first = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="apf-001-v1")
@@ -2547,7 +2669,25 @@ def test_campaign_dry_run_dedupes_rewrite_and_translation_by_campaign_version(tm
         )
         state_path = queue_root / "runs" / f"{run_id}.json"
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps({"run_id": run_id, "run_dir": str(run_dir), "status": "completed"}), encoding="utf-8")
+        mode = str(brief["mode"])
+        lane = "rewrite" if mode == "rewrite_existing_body" else "i18n-rewrite"
+        article = brief["articles"][0]
+        article_id = article.get("article_id", article.get("source_article_id"))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "run_dir": str(run_dir),
+                    "status": "completed",
+                    "identity_envelope": _expected_identity_envelope(
+                        mode,
+                        lane,
+                        [str(article_id)],
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
 
     register_campaign_run(
         "old-rewrite",
@@ -2555,7 +2695,7 @@ def test_campaign_dry_run_dedupes_rewrite_and_translation_by_campaign_version(tm
     )
     register_campaign_run(
         "old-translation",
-        {"mode": "translate_existing", "campaign_version": "rewrite-v0", "articles": [{"source_article_id": "LEGACY-001", "locale": "en"}]},
+        {"mode": "translate_existing", "lane": "i18n-rewrite", "campaign_version": "rewrite-v0", "articles": [{"source_article_id": "LEGACY-001", "locale": "en"}]},
     )
 
     first = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version=" rewrite-v1 ", locales=("en", "ja"))
@@ -2568,7 +2708,7 @@ def test_campaign_dry_run_dedupes_rewrite_and_translation_by_campaign_version(tm
     )
     register_campaign_run(
         "same-translation",
-        {"mode": "translate_existing", "campaign_version": "rewrite-v1", "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}]},
+        {"mode": "translate_existing", "lane": "i18n-rewrite", "campaign_version": "rewrite-v1", "articles": [{"source_article_id": "LEGACY-001", "locale": "ja"}]},
     )
     same_campaign = build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="rewrite-v1", locales=("en", "ja"))
     assert same_campaign["items"] == []
@@ -2640,7 +2780,7 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
-def test_seed_legacy_rewrite_runs_preserves_orphan_state_and_uses_retry_lineage(
+def test_seed_legacy_rewrite_runs_preserves_orphan_identity_without_reseeding(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -2685,6 +2825,11 @@ def test_seed_legacy_rewrite_runs_preserves_orphan_state_and_uses_retry_lineage(
                 "run_id": base_run_id,
                 "run_dir": str(tmp_path / "removed-worktree" / base_run_id),
                 "status": "active",
+                "identity_envelope": _expected_identity_envelope(
+                    "rewrite_existing_body",
+                    "rewrite",
+                    ["LEGACY-001"],
+                ),
             }
         ),
         encoding="utf-8",
@@ -2707,14 +2852,11 @@ def test_seed_legacy_rewrite_runs_preserves_orphan_state_and_uses_retry_lineage(
         source_commit="a" * 40,
     )
 
-    retry_run_id = f"{base_run_id}-retry-01"
-    assert summary["status"] == "seeded"
-    assert summary["created_run_ids"] == [retry_run_id]
+    assert summary["status"] == "idle"
+    assert summary["created_run_ids"] == []
     assert orphan_state_path.read_bytes() == orphan_state_before
     assert preserved_marker.read_text(encoding="utf-8") == "failed historical seed"
-    retry_brief = json.loads((run_root / retry_run_id / "brief.json").read_text(encoding="utf-8"))
-    assert retry_brief["run_id"] == retry_run_id
-    assert read_run_state(run_root / retry_run_id, queue_root)["run_id"] == retry_run_id
+    assert not (run_root / f"{base_run_id}-retry-01").exists()
 
 
 def test_next_legacy_rewrite_run_id_skips_existing_retry_directory(tmp_path: Path) -> None:
@@ -2802,6 +2944,11 @@ def test_seed_legacy_rewrite_runs_advances_past_exhausted_clean_approvals(
             "run_id": run_id,
             "run_dir": str(run_dir),
             "status": "complete",
+            "identity_envelope": _expected_identity_envelope(
+                "rewrite_existing_body",
+                "rewrite",
+                [article_id],
+            ),
         }
         candidate = {
             "schema_version": 1,
@@ -3230,9 +3377,20 @@ def test_failed_external_job_replacement_execute_is_exactly_once_and_consumable(
     assert source_archive.read_bytes() == source_archive_bytes
     assert source_failed.read_bytes() == source_failed_bytes
     state = read_run_state(run_dir, queue_root)
+    decision = json.loads(
+        (
+            queue_root
+            / "identity-replacement-receipts"
+            / f"{request['job_id']}.json"
+        ).read_text(encoding="utf-8")
+    )
     assert state["status"] == "active"
     assert state["last_job_id"] == replacement_job_id
     assert state["failed_external_job_replacement"]["source_job_id"] == request["job_id"]
+    assert state["identity_replacement_receipt"] == (
+        f"identity-replacement-receipts/{request['job_id']}.json"
+    )
+    assert decision["identity_envelope"] == state["identity_envelope"]
     assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
 
     coordinator.atomic_write_json(
@@ -4314,6 +4472,7 @@ def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(t
         "create-active": {"mode": "create", "articles": []},
         "translate-active": {
             "mode": "translate_existing",
+            "lane": "i18n-new",
             "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
         },
         "rewrite-active": {
@@ -4992,6 +5151,320 @@ def test_cycle_blocks_dangling_active_registry_before_automatic_sweeps(
     }
     assert sweep_calls == []
     assert not (queue_root / "gsc-copy" / "dangling-active-run").exists()
+
+
+def test_terminalized_identity_envelopes_block_new_and_legacy_reseeding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    identities = {
+        "dangling-create": _expected_identity_envelope(
+            "create",
+            "new",
+            ["V2-MBTI-INTJ-WORK"],
+        ),
+        "dangling-rewrite": _expected_identity_envelope(
+            "rewrite_existing_body",
+            "rewrite",
+            ["LEGACY-001"],
+        ),
+    }
+    for run_id, envelope in identities.items():
+        run_dir = queue_root / "gsc-copy" / run_id
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir.resolve(strict=False)),
+            "status": "active",
+            "correlation_id": f"{run_id}-correlation",
+            "identity_envelope": envelope,
+        }
+        coordinator.atomic_write_json(coordinator._state_path(run_id, queue_root), state)
+        coordinator.terminalize_dangling_active_run(
+            queue_root,
+            expected_run_id=run_id,
+            expected_registry_digest=coordinator._canonical_json_file_sha256(state),
+            expected_run_dir=run_dir,
+            reason="UNRECOVERABLE_RUN_DIR_MISSING",
+            execute=True,
+        )
+
+    sweep_calls: list[str] = []
+
+    def observe_new_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("new")
+        assert coordinator._registered_article_ids_by_mode(queue_root, "create") == {
+            "V2-MBTI-INTJ-WORK"
+        }
+        return {"status": "idle", "created": 0, "created_run_ids": []}
+
+    def observe_legacy_sweep(*_args, **_kwargs) -> dict[str, object]:
+        sweep_calls.append("legacy")
+        assert coordinator._registered_article_ids_by_mode(
+            queue_root,
+            "rewrite_existing_body",
+        ) == {"LEGACY-001"}
+        return {"status": "idle", "created": 0, "created_run_ids": []}
+
+    monkeypatch.setattr(coordinator, "seed_new_matrix_runs", observe_new_sweep)
+    monkeypatch.setattr(coordinator, "seed_legacy_rewrite_runs", observe_legacy_sweep)
+    before = _file_snapshot(queue_root)
+
+    summary = cycle_once(
+        queue_root,
+        repo_root=repo_root,
+        new_matrix_sweep=True,
+        legacy_sweep=True,
+        legacy_state_root=tmp_path / "publisher-state",
+        tick=lambda *_args: pytest.fail("terminalized runs must not tick"),
+        process=lambda _root: {"status": "idle"},
+    )
+
+    after = _file_snapshot(queue_root)
+    before.pop("coordinator.lock", None)
+    after.pop("coordinator.lock", None)
+    assert sweep_calls == ["new", "legacy"]
+    assert summary["new_matrix_sweep"]["created_run_ids"] == []
+    assert summary["legacy_sweep"]["created_run_ids"] == []
+    assert after == before
+
+
+def _durable_dangling_state(
+    tmp_path: Path,
+    run_id: str,
+) -> tuple[Path, Path, Path, dict[str, object]]:
+    queue_root = tmp_path / "queue"
+    run_dir = queue_root / "gsc-copy" / run_id
+    state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir.resolve(strict=False)),
+        "status": "active",
+        "correlation_id": f"{run_id}-correlation",
+        "identity_envelope": _expected_identity_envelope(
+            "create",
+            "new",
+            ["V2-MBTI-INTJ-WORK"],
+        ),
+    }
+    state_path = coordinator._state_path(run_id, queue_root)
+    coordinator.atomic_write_json(state_path, state)
+    return queue_root, run_dir, state_path, state
+
+
+def test_dangling_terminalization_receipt_is_verifiable_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    queue_root, run_dir, state_path, state = _durable_dangling_state(
+        tmp_path,
+        "dangling-idempotent",
+    )
+    before_digest = coordinator._canonical_json_file_sha256(state)
+
+    first = coordinator.terminalize_dangling_active_run(
+        queue_root,
+        expected_run_id="dangling-idempotent",
+        expected_registry_digest=before_digest,
+        expected_run_dir=run_dir,
+        reason="UNRECOVERABLE_RUN_DIR_MISSING",
+        execute=True,
+    )
+    after_first = _file_snapshot(queue_root)
+    second = coordinator.terminalize_dangling_active_run(
+        queue_root,
+        expected_run_id="dangling-idempotent",
+        expected_registry_digest=before_digest,
+        expected_run_dir=run_dir,
+        reason="UNRECOVERABLE_RUN_DIR_MISSING",
+        execute=True,
+    )
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    receipt = json.loads(
+        (
+            queue_root
+            / "dangling-active-terminalizations"
+            / "dangling-idempotent.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert first["status"] == "terminalized"
+    assert second["status"] == "already_terminalized"
+    assert receipt["before_digest"] == before_digest
+    assert receipt["after_digest"] == coordinator._canonical_json_file_sha256(persisted)
+    assert receipt["before"]["identity_envelope"] == state["identity_envelope"]
+    assert receipt["after"]["identity_envelope"] == state["identity_envelope"]
+    assert _file_snapshot(queue_root) == after_first
+
+
+@pytest.mark.parametrize("case", ["digest", "existing", "non-active"])
+def test_dangling_terminalization_negatives_have_zero_mutation(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    queue_root, run_dir, state_path, state = _durable_dangling_state(
+        tmp_path,
+        f"dangling-{case}",
+    )
+    expected_digest = coordinator._canonical_json_file_sha256(state)
+    expected_error = "registry digest mismatch"
+    if case == "existing":
+        run_dir.mkdir(parents=True)
+        expected_error = "run directory is not missing"
+    elif case == "non-active":
+        state["status"] = "failed"
+        coordinator.atomic_write_json(state_path, state)
+        expected_digest = coordinator._canonical_json_file_sha256(state)
+        expected_error = "requires active run"
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match=expected_error):
+        coordinator.terminalize_dangling_active_run(
+            queue_root,
+            expected_run_id=f"dangling-{case}",
+            expected_registry_digest=("0" * 64 if case == "digest" else expected_digest),
+            expected_run_dir=run_dir,
+            reason="UNRECOVERABLE_RUN_DIR_MISSING",
+            execute=True,
+        )
+
+    assert _file_snapshot(queue_root) == before
+
+
+def test_dangling_terminalization_rejects_concurrent_registry_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root, run_dir, state_path, state = _durable_dangling_state(
+        tmp_path,
+        "dangling-concurrent-drift",
+    )
+    before_digest = coordinator._canonical_json_file_sha256(state)
+    original_atomic_write = coordinator.atomic_write_json
+
+    def drift_before_receipt(path: Path, payload: object) -> None:
+        if path.parent.name == "dangling-active-terminalizations":
+            drifted = json.loads(state_path.read_text(encoding="utf-8"))
+            drifted["last_job_id"] = "9" * 40
+            original_atomic_write(state_path, drifted)
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", drift_before_receipt)
+    with pytest.raises(ValueError, match="registry changed during terminalization"):
+        coordinator.terminalize_dangling_active_run(
+            queue_root,
+            expected_run_id="dangling-concurrent-drift",
+            expected_registry_digest=before_digest,
+            expected_run_dir=run_dir,
+            reason="UNRECOVERABLE_RUN_DIR_MISSING",
+            execute=True,
+        )
+
+    assert json.loads(state_path.read_text(encoding="utf-8"))["last_job_id"] == "9" * 40
+    assert not list((queue_root / "dangling-active-terminalizations").glob("*.json"))
+
+
+def test_legacy_identity_evidence_conflict_fails_closed_without_backfill(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-conflicting-evidence"
+    source_path = queue_root / "identity-evidence" / "source-request.json"
+    replacement_path = queue_root / "identity-evidence" / "replacement-receipt.json"
+    coordinator.atomic_write_json(
+        source_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "identity_envelope": _expected_identity_envelope(
+                "create",
+                "new",
+                ["V2-MBTI-INTJ-WORK"],
+            ),
+        },
+    )
+    coordinator.atomic_write_json(
+        replacement_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "identity_envelope": _expected_identity_envelope(
+                "create",
+                "new",
+                ["V2-MBTI-ENFP-LOVE"],
+            ),
+        },
+    )
+    state_path = coordinator._state_path(run_id, queue_root)
+    coordinator.atomic_write_json(
+        state_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(queue_root / "gsc-copy" / run_id),
+            "status": "failed",
+            "identity_source_request": str(source_path.relative_to(queue_root)),
+            "identity_replacement_receipt": str(replacement_path.relative_to(queue_root)),
+        },
+    )
+    before = state_path.read_bytes()
+
+    with pytest.raises(ValueError, match="legacy run identity evidence conflicts"):
+        coordinator._registered_article_ids_by_mode(queue_root, "create")
+
+    assert state_path.read_bytes() == before
+
+
+def test_legacy_identity_unique_source_request_backfills_exact_envelope(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-unique-evidence"
+    envelope = _expected_identity_envelope("create", "new", ["V2-MBTI-INTJ-WORK"])
+    source_path = queue_root / "identity-evidence" / "source-request.json"
+    coordinator.atomic_write_json(
+        source_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "identity_envelope": envelope,
+        },
+    )
+    state_path = coordinator._state_path(run_id, queue_root)
+    coordinator.atomic_write_json(
+        state_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(queue_root / "gsc-copy" / run_id),
+            "status": "failed",
+            "identity_source_request": str(source_path.relative_to(queue_root)),
+        },
+    )
+
+    assert coordinator._registered_article_ids_by_mode(queue_root, "create") == {
+        "V2-MBTI-INTJ-WORK"
+    }
+    assert json.loads(state_path.read_text(encoding="utf-8"))["identity_envelope"] == envelope
+
+
+def test_legacy_identity_missing_evidence_fails_closed(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-missing-evidence"
+    coordinator.atomic_write_json(
+        coordinator._state_path(run_id, queue_root),
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(queue_root / "gsc-copy" / run_id),
+            "status": "failed",
+        },
+    )
+
+    with pytest.raises(ValueError, match="legacy run identity evidence is unavailable"):
+        coordinator._registered_article_ids_by_mode(queue_root, "create")
 
 
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:

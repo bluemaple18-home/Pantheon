@@ -63,4 +63,12 @@ supersedes:
 
 ## RESULT
 
-狀態：pending
+狀態：CANDIDATE_READY
+
+- Candidate：本卡 RESULT、專屬 evidence 與四個 allowlist source/test 檔案所在的單一 commit。
+- RED：四項根因 regression 在 implementation 前為 `4 failed`，分別命中 actor-local queue、缺 identity envelope、缺 dangling terminalization seam、legacy evidence conflict 未 fail closed。
+- GREEN：四項 targeted `4 passed`；完整 coordinator＋promotion `336 passed`。
+- 其他 gate：兩個 CLI help、`py_compile`、`git diff --check` 全部通過。
+- Schema：registry 外層 `schema_version=1` 不變；新 run 新增 `identity_envelope.schema_version=1`。Legacy 只接受 queue 內可驗且唯一的 source request／replacement receipt backfill；缺失或衝突均 fail closed。
+- Evidence：`artifacts/fortune_council/four_lane_runtime_execution/pantheon_publish_durable_identity_root_repair_20260826/evidence.md`
+- Runtime：未執行 production mutation、Gemini、publish、push 或 tag。

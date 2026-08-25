@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -38,6 +39,38 @@ def _write_json(path: Path, payload: dict[str, Any]) -> str:
     encoded = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
     path.write_bytes(encoded)
     return promotion.file_sha256(path)
+
+
+def _identity_envelope(
+    article_ids: list[str] | None = None,
+    *,
+    mode: str = "create",
+    lane: str = "new",
+) -> dict[str, object]:
+    identity = {
+        "schema_version": 1,
+        "mode": mode,
+        "lane": lane,
+        "article_ids": sorted(article_ids or []),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**identity, "digest": digest}
+
+
+def _preserved_brief(run_id: str) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "create",
+        "articles": [],
+    }
 
 
 def _write_capacity_receipt(path: Path, *, status: str = "PASS") -> str:
@@ -253,7 +286,7 @@ def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
     run_id = "apf-create-run-new-preserved"
     run_dir = request.queue_root / "gsc-copy" / run_id
     run_dir.mkdir(parents=True)
-    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
     (run_dir / "draft.md").write_text("durable draft\n", encoding="utf-8")
     _write_json(
         request.queue_root / "runs" / "state.json",
@@ -262,6 +295,7 @@ def test_apply_preserves_exact_active_run_queue(tmp_path: Path) -> None:
             "run_id": run_id,
             "run_dir": str(run_dir),
             "status": "active",
+            "identity_envelope": _identity_envelope(),
         },
     )
     (request.queue_root / "outbox").mkdir()
@@ -334,7 +368,7 @@ def test_plan_rejects_preserved_run_outside_durable_root_before_mutation(
     (request.queue_root / "gsc-copy").mkdir()
     run_dir = tmp_path / "actor-local-gsc-copy" / run_id
     run_dir.mkdir(parents=True)
-    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
     _write_json(
         request.queue_root / "runs" / "state.json",
         {
@@ -350,6 +384,70 @@ def test_plan_rejects_preserved_run_outside_durable_root_before_mutation(
     before = _snapshot(request)
 
     with pytest.raises(promotion.PromotionError, match="outside durable root"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_actor_local_queue_root_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    actor_local_queue = request.actor_root / ".work" / "formal-queue"
+    (request.actor_root / ".git" / "info" / "exclude").write_text(
+        ".work/\n",
+        encoding="utf-8",
+    )
+    actor_local_queue.parent.mkdir(parents=True)
+    request.queue_root.replace(actor_local_queue)
+    run_id = "actor-local-active-run"
+    run_dir = actor_local_queue / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "create",
+            "articles": [{"target": {"id": "V2-MBTI-INTJ-WORK"}}],
+        },
+    )
+    _write_json(
+        actor_local_queue / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
+    )
+    current = json.loads(request.manifest_path.read_text(encoding="utf-8"))
+    manifest = runtime.build_manifest(
+        actor_root=request.actor_root,
+        queue_root=actor_local_queue,
+        publisher_state_root=request.publisher_state_root,
+        log_root=request.log_root,
+        identity=str(current["identity"]),
+        runtime_digest=str(current["runtime_digest"]),
+        config_version=str(current["config_version"]),
+        generation=str(current["generation"]),
+        actor_head=str(current["actor_head"]),
+        python_executable=Path(str(current["python_executable"])),
+        uv_executable=request.target_uv_executable,
+    )
+    runtime.write_manifest(request.manifest_path, manifest)
+    request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "queue_root": actor_local_queue,
+            "expected_current_manifest_digest": manifest["manifest_digest"],
+            "preserved_run_ids": (run_id,),
+        }
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="actor-local"):
         promotion.plan_promotion(request)
 
     assert not request.transaction_root.exists()
@@ -388,12 +486,79 @@ def test_plan_rejects_preserved_run_brief_identity_mismatch_before_mutation(
     assert _snapshot(request) == before
 
 
+def test_plan_rejects_preserved_article_envelope_drift_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "registered-article-drift"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "create",
+            "articles": [{"target": {"id": "V2-MBTI-ENFP-LOVE"}}],
+        },
+    )
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+            "identity_envelope": _identity_envelope(["V2-MBTI-INTJ-WORK"]),
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="brief identity mismatch"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_missing_identity_envelope_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-missing-envelope"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
+    _write_json(
+        request.queue_root / "runs" / "state.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="identity envelope"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     run_id = "completed-reviewer-run"
     run_dir = request.queue_root / "gsc-copy" / run_id
     run_dir.mkdir(parents=True)
-    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
     _write_json(
         request.queue_root / "runs" / "completed.json",
         {
@@ -401,6 +566,7 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
             "run_id": run_id,
             "run_dir": str(run_dir),
             "status": "complete",
+            "identity_envelope": _identity_envelope(),
         },
     )
     request = promotion.PromotionRequest(
@@ -420,7 +586,7 @@ def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> N
     gsc_copy_run.mkdir(parents=True)
     _write_json(
         gsc_copy_run / "brief.json",
-        {"schema_version": 1, "run_id": run_id},
+        _preserved_brief(run_id),
     )
     _write_json(
         gsc_copy_run / "candidate.json",
@@ -434,6 +600,7 @@ def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> N
             "run_id": run_id,
             "run_dir": str(gsc_copy_run),
             "status": "failed",
+            "identity_envelope": _identity_envelope(),
         },
     )
     request = promotion.PromotionRequest(
@@ -495,7 +662,7 @@ def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
     run_dir.mkdir(parents=True)
     _write_json(
         run_dir / "brief.json",
-        {"schema_version": 1, "run_id": "unexpected-run"},
+        _preserved_brief("unexpected-run"),
     )
     _write_json(
         request.queue_root / "runs" / "state.json",
@@ -504,6 +671,7 @@ def test_preserved_run_contract_rejects_unexpected_run(tmp_path: Path) -> None:
             "run_id": "unexpected-run",
             "run_dir": str(run_dir),
             "status": "active",
+            "identity_envelope": _identity_envelope(),
         },
     )
     request = promotion.PromotionRequest(
@@ -521,7 +689,7 @@ def test_preserved_run_contract_rejects_duplicate_identity(tmp_path: Path) -> No
     run_id = "preserved-run"
     run_dir = request.queue_root / "gsc-copy" / run_id
     run_dir.mkdir(parents=True)
-    _write_json(run_dir / "brief.json", {"schema_version": 1, "run_id": run_id})
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
     for name in ("one.json", "two.json"):
         _write_json(
             request.queue_root / "runs" / name,
@@ -530,6 +698,7 @@ def test_preserved_run_contract_rejects_duplicate_identity(tmp_path: Path) -> No
                 "run_id": run_id,
                 "run_dir": str(run_dir),
                 "status": "active",
+                "identity_envelope": _identity_envelope(),
             },
         )
     request = promotion.PromotionRequest(
@@ -574,7 +743,7 @@ def test_gsc_copy_invalid_json_fails_closed_before_runtime_mutation(
     gsc_copy_run.mkdir(parents=True)
     _write_json(
         gsc_copy_run / "brief.json",
-        {"schema_version": 1, "run_id": run_id},
+        _preserved_brief(run_id),
     )
     (gsc_copy_run / "candidate.json").write_text("{invalid", encoding="utf-8")
     _write_json(
@@ -584,6 +753,7 @@ def test_gsc_copy_invalid_json_fails_closed_before_runtime_mutation(
             "run_id": run_id,
             "run_dir": str(gsc_copy_run),
             "status": "failed",
+            "identity_envelope": _identity_envelope(),
         },
     )
     request = promotion.PromotionRequest(
@@ -608,7 +778,7 @@ def test_gsc_copy_plan_apply_drift_rolls_back_without_rewriting_existing_bytes(
     gsc_copy_run.mkdir(parents=True)
     _write_json(
         gsc_copy_run / "brief.json",
-        {"schema_version": 1, "run_id": run_id},
+        _preserved_brief(run_id),
     )
     _write_json(
         gsc_copy_run / "candidate.json",
@@ -621,6 +791,7 @@ def test_gsc_copy_plan_apply_drift_rolls_back_without_rewriting_existing_bytes(
             "run_id": run_id,
             "run_dir": str(gsc_copy_run),
             "status": "failed",
+            "identity_envelope": _identity_envelope(),
         },
     )
     original_candidate = (gsc_copy_run / "candidate.json").read_bytes()

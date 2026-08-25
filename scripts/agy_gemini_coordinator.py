@@ -52,8 +52,12 @@ DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE = 1
 MAX_LEGACY_REWRITE_LINEAGE_RETRIES = 100
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 ROUTING_SCHEMA_VERSION = 1
+RUN_IDENTITY_SCHEMA_VERSION = 1
 OPERATOR_TERMINALIZATION_REASONS = frozenset({
     "UNSUPPORTED_MODEL_CANARY_ABORT",
+})
+DANGLING_ACTIVE_TERMINALIZATION_REASONS = frozenset({
+    "UNRECOVERABLE_RUN_DIR_MISSING",
 })
 FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS = frozenset({
     "NO_ANTIGRAVITY_LOW_MODEL_LABEL",
@@ -560,6 +564,91 @@ def _routing_from_brief(
     return _validate_mode_lane_pair(mode, lane)
 
 
+def _identity_article_ids_from_brief(brief: dict[str, Any]) -> list[str]:
+    mode = brief.get("mode")
+    articles = brief.get("articles")
+    if not isinstance(articles, list):
+        raise ValueError("run identity articles are invalid")
+    article_ids: list[str] = []
+    for article in articles:
+        if not isinstance(article, dict):
+            raise ValueError("run identity article is invalid")
+        value: object = None
+        if mode == "create":
+            target = article.get("target")
+            value = target.get("id") if isinstance(target, dict) else article.get("id")
+        elif mode == "rewrite_existing_body":
+            value = article.get("article_id")
+        elif mode == "translate_existing":
+            value = article.get("source_article_id")
+        if type(value) is not str or not value or value.strip() != value:
+            raise ValueError("run identity article id is invalid")
+        article_ids.append(value)
+    if len(article_ids) != len(set(article_ids)):
+        raise ValueError("run identity article ids must be unique")
+    return sorted(article_ids)
+
+
+def _build_identity_envelope(
+    mode: str,
+    lane: str,
+    article_ids: Iterable[str],
+) -> dict[str, Any]:
+    _validate_mode_lane_pair(mode, lane)
+    normalized_ids = sorted(article_ids)
+    identity = {
+        "schema_version": RUN_IDENTITY_SCHEMA_VERSION,
+        "mode": mode,
+        "lane": lane,
+        "article_ids": normalized_ids,
+    }
+    encoded = json.dumps(
+        identity,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return {**identity, "digest": hashlib.sha256(encoded).hexdigest()}
+
+
+def _validate_identity_envelope(value: object) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != {
+        "schema_version",
+        "mode",
+        "lane",
+        "article_ids",
+        "digest",
+    }:
+        raise ValueError("run identity envelope fields are invalid")
+    if value.get("schema_version") != RUN_IDENTITY_SCHEMA_VERSION:
+        raise ValueError("run identity envelope schema is invalid")
+    mode, lane = _validate_mode_lane_pair(value.get("mode"), value.get("lane"))
+    article_ids = value.get("article_ids")
+    if (
+        not isinstance(article_ids, list)
+        or any(type(article_id) is not str or not article_id or article_id.strip() != article_id for article_id in article_ids)
+        or article_ids != sorted(set(article_ids))
+    ):
+        raise ValueError("run identity envelope article ids are invalid")
+    expected = _build_identity_envelope(mode, lane, article_ids)
+    if value != expected:
+        raise ValueError("run identity envelope digest mismatch")
+    return expected
+
+
+def _identity_envelope_from_brief(
+    brief: dict[str, Any],
+    *,
+    expected_lane: str | None = None,
+) -> dict[str, Any]:
+    if brief.get("mode") == "translate_existing" and brief.get("lane") is None:
+        raise ValueError("translate run lane is required for durable identity")
+    mode, lane = _routing_from_brief(brief, set())
+    if expected_lane is not None:
+        mode, lane = _validate_mode_lane_pair(mode, expected_lane)
+    return _build_identity_envelope(mode, lane, _identity_article_ids_from_brief(brief))
+
+
 def _state_path(run_id: str, queue_root: Path) -> Path:
     opaque_id = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     return queue_root / "runs" / f"{opaque_id}.json"
@@ -718,6 +807,7 @@ def _activate_run_reservation(
             brief = _brief(staging_run_dir)
             if brief.get("run_id") != run_id or staging_run_dir.name != run_id:
                 raise ValueError("exact run identity closure failed")
+            identity_envelope = _identity_envelope_from_brief(brief)
             if run_dir.exists():
                 raise ValueError("exact run identity is already in use")
             staging_identity = staging_run_dir.stat()
@@ -733,6 +823,7 @@ def _activate_run_reservation(
                 "correlation_id": correlation_id,
                 "registered_at": now,
                 "updated_at": now,
+                "identity_envelope": identity_envelope,
             }
             transition_path.unlink()
             _write_json_exclusive(state_path, state)
@@ -787,11 +878,14 @@ def register_run(
     _validate_formal_runtime(queue_root)
     resolved = run_dir.resolve()
     brief = _brief(resolved)
+    identity_envelope = _identity_envelope_from_brief(brief)
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("run_dir") != str(resolved) or state.get("run_id") != brief["run_id"]:
             raise ValueError("registered run identity collision")
+        if _validate_identity_envelope(state.get("identity_envelope")) != identity_envelope:
+            raise ValueError("registered run identity envelope mismatch")
         return state
     now = _now()
     effective_correlation_id = correlation_id or secrets.token_hex(16)
@@ -805,12 +899,13 @@ def register_run(
         "correlation_id": effective_correlation_id,
         "registered_at": now,
         "updated_at": now,
+        "identity_envelope": identity_envelope,
     }
-    if brief.get("mode") != "translate_existing" or brief.get("lane") is not None:
-        mode, lane = _routing_from_brief(brief, set())
-        state["routing_schema_version"] = ROUTING_SCHEMA_VERSION
-        state["mode"] = mode
-        state["lane"] = lane
+    mode = str(identity_envelope["mode"])
+    lane = str(identity_envelope["lane"])
+    state["routing_schema_version"] = ROUTING_SCHEMA_VERSION
+    state["mode"] = mode
+    state["lane"] = lane
     atomic_write_json(path, state)
     return state
 
@@ -1427,6 +1522,172 @@ def _canonical_json_file_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _dangling_active_terminalization_path(queue_root: Path, run_id: str) -> Path:
+    if EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise ValueError("dangling active terminalization run id is invalid")
+    return queue_root / "dangling-active-terminalizations" / f"{run_id}.json"
+
+
+@contextmanager
+def _dangling_active_terminalization_lock(queue_root: Path) -> Iterator[None]:
+    if not queue_root.is_dir():
+        raise ValueError("dangling active terminalization queue root is unavailable")
+    descriptor = os.open(queue_root, os.O_RDONLY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def _canonical_missing_run_dir(path: Path) -> Path:
+    if not path.is_absolute():
+        raise ValueError("dangling active run directory must be absolute")
+    canonical = path.resolve(strict=False)
+    if path != canonical:
+        raise ValueError("dangling active run directory must be canonical")
+    if path.exists() or path.is_symlink():
+        raise ValueError("dangling active run directory is not missing")
+    return canonical
+
+
+def terminalize_dangling_active_run(
+    queue_root: Path,
+    *,
+    expected_run_id: str,
+    expected_registry_digest: str,
+    expected_run_dir: Path,
+    reason: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    """以 CAS 將實體遺失的 active registry 轉成 terminal failed。"""
+    if EXACT_RUN_ID_PATTERN.fullmatch(expected_run_id) is None:
+        raise ValueError("dangling active terminalization run id is invalid")
+    if SHA256_PATTERN.fullmatch(expected_registry_digest) is None:
+        raise ValueError("dangling active terminalization registry digest is invalid")
+    if reason not in DANGLING_ACTIVE_TERMINALIZATION_REASONS:
+        raise ValueError("dangling active terminalization reason is invalid")
+
+    root = queue_root.resolve()
+    run_dir = _canonical_missing_run_dir(expected_run_dir)
+    state_path = _state_path(expected_run_id, root)
+    receipt_path = _dangling_active_terminalization_path(root, expected_run_id)
+    receipt_relative = str(receipt_path.relative_to(root))
+    result = {
+        "status": "dry_run",
+        "action": "terminalize_dangling_active",
+        "run_id": expected_run_id,
+        "run_dir": str(run_dir),
+        "reason": reason,
+        "receipt": receipt_relative,
+    }
+
+    with _dangling_active_terminalization_lock(root):
+        if receipt_path.exists():
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if (
+                type(receipt) is not dict
+                or receipt.get("schema_version") != 1
+                or receipt.get("status") != "terminalized"
+                or receipt.get("action") != "terminalize_dangling_active"
+                or receipt.get("run_id") != expected_run_id
+                or receipt.get("run_dir") != str(run_dir)
+                or receipt.get("reason") != reason
+                or receipt.get("before_digest") != expected_registry_digest
+                or SHA256_PATTERN.fullmatch(str(receipt.get("after_digest") or "")) is None
+            ):
+                raise ValueError("dangling active terminalization receipt identity mismatch")
+            state = _read_run_state_by_id(expected_run_id, root)
+            if (
+                state.get("status") == "failed"
+                and state.get("run_id") == expected_run_id
+                and state.get("run_dir") == str(run_dir)
+                and state.get("error_type") == "DanglingActiveRunTerminalized"
+                and state.get("dangling_active_terminalization") == {
+                    "receipt": receipt_relative,
+                    "reason": reason,
+                    "before_digest": expected_registry_digest,
+                }
+                and _canonical_json_file_sha256(state) == receipt["after_digest"]
+                and receipt.get("after") == state
+            ):
+                return {
+                    **result,
+                    "status": "already_terminalized",
+                    "before_digest": expected_registry_digest,
+                    "after_digest": receipt["after_digest"],
+                }
+            raise ValueError("dangling active terminalization evidence is incomplete")
+
+        if state_path.is_symlink() or not state_path.is_file():
+            raise ValueError("dangling active terminalization registry is missing")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if type(state) is not dict:
+            raise ValueError("dangling active terminalization registry is invalid")
+        before_digest = _canonical_json_file_sha256(state)
+        if before_digest != expected_registry_digest:
+            raise ValueError("dangling active terminalization registry digest mismatch")
+        if state.get("status") != "active":
+            raise ValueError("dangling active terminalization requires active run")
+        if state.get("run_id") != expected_run_id or state.get("run_dir") != str(run_dir):
+            raise ValueError("dangling active terminalization identity mismatch")
+        _validate_identity_envelope(state.get("identity_envelope"))
+        if run_dir.exists() or run_dir.is_symlink():
+            raise ValueError("dangling active run directory is not missing")
+        if not execute:
+            return {**result, "before_digest": before_digest}
+
+        terminalized_at = _now()
+        after_state = dict(state)
+        after_state["status"] = "failed"
+        after_state["error_type"] = "DanglingActiveRunTerminalized"
+        after_state["dangling_active_terminalization"] = {
+            "receipt": receipt_relative,
+            "reason": reason,
+            "before_digest": before_digest,
+        }
+        after_state["terminalized_at"] = terminalized_at
+        after_state.pop("error_code", None)
+        after_state.pop("failure_category", None)
+        after_state.pop("transport_attempts", None)
+        after_state.pop("result", None)
+        _write_state(root, after_state)
+        persisted = _read_run_state_by_id(expected_run_id, root)
+        after_digest = _canonical_json_file_sha256(persisted)
+        if persisted != after_state or after_digest != _canonical_json_file_sha256(after_state):
+            raise ValueError("dangling active registry changed during terminalization")
+
+        receipt = {
+            "schema_version": 1,
+            "status": "terminalized",
+            "action": "terminalize_dangling_active",
+            "run_id": expected_run_id,
+            "run_dir": str(run_dir),
+            "reason": reason,
+            "before_digest": before_digest,
+            "after_digest": after_digest,
+            "before": state,
+            "after": persisted,
+            "terminalized_at": terminalized_at,
+        }
+        atomic_write_json(receipt_path, receipt)
+        try:
+            final_state = _read_run_state_by_id(expected_run_id, root)
+        except Exception:
+            receipt_path.unlink(missing_ok=True)
+            raise
+        if final_state != persisted or _canonical_json_file_sha256(final_state) != after_digest:
+            receipt_path.unlink(missing_ok=True)
+            raise ValueError("dangling active registry changed during terminalization")
+        return {
+            **result,
+            "status": "terminalized",
+            "before_digest": before_digest,
+            "after_digest": after_digest,
+        }
+
+
 def _known_request_locations(queue_root: Path, job_id: str) -> list[tuple[str, Path]]:
     return [
         (name, path)
@@ -1578,6 +1839,7 @@ def replace_failed_external_job(
             raise ValueError("failed external replacement requires active run")
         if "result" in state:
             raise ValueError("failed external replacement rejects existing success result")
+        identity_envelope = _validate_identity_envelope(state.get("identity_envelope"))
 
         source_archive_path = job_root / "archive" / f"{source_job_id}.json"
         if (
@@ -1615,6 +1877,18 @@ def replace_failed_external_job(
         replacement_request_sha256 = _canonical_json_file_sha256(replacement_request)
         decision_path = failed_external_replacement_decision_path(job_root, source_job_id)
         decision_relative = str(decision_path.relative_to(state_root))
+        identity_receipt_path = (
+            state_root / "identity-replacement-receipts" / f"{source_job_id}.json"
+        )
+        identity_receipt_relative = str(identity_receipt_path.relative_to(state_root))
+        identity_receipt = {
+            "schema_version": 1,
+            "run_id": expected_run_id,
+            "source_job_id": source_job_id,
+            "request_sha256": request_sha256,
+            "decision": decision_relative,
+            "identity_envelope": identity_envelope,
+        }
         state_receipt = {
             "decision": decision_relative,
             "source_job_id": source_job_id,
@@ -1684,6 +1958,14 @@ def replace_failed_external_job(
             if staged != replacement_request:
                 raise ValueError("failed external replacement staged request identity mismatch")
 
+        def persist_identity_receipt() -> None:
+            if identity_receipt_path.exists():
+                existing = json.loads(identity_receipt_path.read_text(encoding="utf-8"))
+                if existing != identity_receipt:
+                    raise ValueError("failed external replacement identity receipt mismatch")
+                return
+            atomic_write_json(identity_receipt_path, identity_receipt)
+
         def publish_replacement() -> None:
             locations = _known_request_locations(job_root, replacement_job_id)
             if locations:
@@ -1717,9 +1999,11 @@ def replace_failed_external_job(
                 if locations:
                     raise ValueError("failed external replacement request published before state")
                 validate_staged_request()
+                persist_identity_receipt()
                 state["status"] = "active"
                 state["last_job_id"] = replacement_job_id
                 state["failed_external_job_replacement"] = state_receipt
+                state["identity_replacement_receipt"] = identity_receipt_relative
                 state.pop("error_type", None)
                 state.pop("error_code", None)
                 state.pop("failure_category", None)
@@ -1822,9 +2106,11 @@ def replace_failed_external_job(
         if hashlib.sha256(staging_path.read_bytes()).hexdigest() != replacement_request_sha256:
             raise ValueError("failed external replacement request write drift")
         atomic_write_json(decision_path, decision)
+        persist_identity_receipt()
         state["status"] = "active"
         state["last_job_id"] = replacement_job_id
         state["failed_external_job_replacement"] = state_receipt
+        state["identity_replacement_receipt"] = identity_receipt_relative
         state.pop("error_type", None)
         state.pop("error_code", None)
         state.pop("failure_category", None)
@@ -1992,9 +2278,19 @@ def _active_run_integrity_block(
                 or run_dir.is_symlink()
                 or not run_dir.is_dir()
                 or canonical_run_dir != run_dir
-                or _brief(canonical_run_dir).get("run_id") != run_id
             ):
                 raise ValueError("active run registry identity is invalid")
+            brief = _brief(canonical_run_dir)
+            if brief.get("run_id") != run_id:
+                raise ValueError("active run registry identity is invalid")
+            envelope_value = state.get("identity_envelope")
+            if envelope_value is not None:
+                envelope = _validate_identity_envelope(envelope_value)
+                if _identity_envelope_from_brief(
+                    brief,
+                    expected_lane=str(envelope["lane"]),
+                ) != envelope:
+                    raise ValueError("active run registry identity is invalid")
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
             return {
                 "status": "blocked",
@@ -2274,6 +2570,75 @@ def _read_run_brief_from_state(state: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
+def _identity_evidence_envelope(
+    queue_root: Path,
+    state: dict[str, Any],
+    field: str,
+) -> dict[str, Any] | None:
+    value = state.get(field)
+    if value is None:
+        return None
+    if type(value) is not str or not value or Path(value).is_absolute():
+        raise ValueError("legacy run identity evidence path is invalid")
+    root = queue_root.resolve()
+    path = root / value
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("legacy run identity evidence is missing") from error
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or resolved == root
+        or not resolved.is_relative_to(root)
+    ):
+        raise ValueError("legacy run identity evidence path is invalid")
+    try:
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("legacy run identity evidence is invalid") from error
+    if (
+        type(evidence) is not dict
+        or evidence.get("schema_version") != 1
+        or evidence.get("run_id") != state.get("run_id")
+    ):
+        raise ValueError("legacy run identity evidence is invalid")
+    return _validate_identity_envelope(evidence.get("identity_envelope"))
+
+
+def _identity_envelope_for_state(
+    queue_root: Path,
+    state_path: Path,
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    envelope_value = state.get("identity_envelope")
+    if envelope_value is not None:
+        return _validate_identity_envelope(envelope_value)
+    evidence = [
+        envelope
+        for field in ("identity_source_request", "identity_replacement_receipt")
+        if (envelope := _identity_evidence_envelope(queue_root, state, field)) is not None
+    ]
+    if not evidence:
+        raise ValueError("legacy run identity evidence is unavailable")
+    if any(envelope != evidence[0] for envelope in evidence[1:]):
+        raise ValueError("legacy run identity evidence conflicts")
+    run_id = state.get("run_id")
+    if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise ValueError("legacy run identity evidence is invalid")
+    with _run_identity_lock(run_id, queue_root):
+        current = json.loads(state_path.read_text(encoding="utf-8"))
+        if current != state:
+            if type(current) is dict and current.get("identity_envelope") is not None:
+                current_envelope = _validate_identity_envelope(current["identity_envelope"])
+                if current_envelope == evidence[0]:
+                    return current_envelope
+            raise ValueError("legacy run identity registry changed during backfill")
+        state["identity_envelope"] = evidence[0]
+        atomic_write_json(state_path, state)
+    return evidence[0]
+
+
 def _article_ids_from_brief(brief: dict[str, Any] | None) -> set[str]:
     if not isinstance(brief, dict) or brief.get("mode") != "rewrite_existing_body":
         return set()
@@ -2307,13 +2672,15 @@ def _registered_article_ids_by_mode(queue_root: Path, mode: str) -> set[str]:
     for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise ValueError("run registry is invalid") from error
+        if type(state) is not dict:
+            raise ValueError("run registry is invalid")
+        if state.get("status") == "reserved":
             continue
-        brief = _read_run_brief_from_state(state)
-        if mode == "create":
-            article_ids.update(_create_article_ids_from_brief(brief))
-        elif mode == "rewrite_existing_body":
-            article_ids.update(_article_ids_from_brief(brief))
+        envelope = _identity_envelope_for_state(queue_root, path, state)
+        if envelope["mode"] == mode:
+            article_ids.update(envelope["article_ids"])
     return article_ids
 
 
@@ -2322,12 +2689,12 @@ def _active_count_by_mode(queue_root: Path, mode: str) -> int:
     for path in sorted((queue_root / "runs").glob("*.json")) if (queue_root / "runs").exists() else []:
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise ValueError("run registry is invalid") from error
         if state.get("status") != "active":
             continue
-        brief = _read_run_brief_from_state(state)
-        if isinstance(brief, dict) and brief.get("mode") == mode:
+        envelope = _identity_envelope_for_state(queue_root, path, state)
+        if envelope["mode"] == mode:
             count += 1
     return count
 
@@ -4844,6 +5211,16 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     terminalize.add_argument("--execute", action="store_true")
+    dangling = subparsers.add_parser("terminalize-dangling-active")
+    dangling.add_argument("--run-id", required=True)
+    dangling.add_argument("--expected-registry-digest", required=True)
+    dangling.add_argument("--expected-run-dir", type=Path, required=True)
+    dangling.add_argument(
+        "--reason",
+        choices=sorted(DANGLING_ACTIVE_TERMINALIZATION_REASONS),
+        required=True,
+    )
+    dangling.add_argument("--execute", action="store_true")
     replacement = subparsers.add_parser("replace-failed-external-job")
     replacement.add_argument("run_dir", type=Path)
     replacement.add_argument("--job-queue-root", type=Path, required=True)
@@ -4895,6 +5272,19 @@ def main() -> int:
                 model=args.model,
                 role=args.role,
                 transport_attempt=args.transport_attempt,
+                reason=args.reason,
+                execute=args.execute,
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "terminalize-dangling-active":
+        try:
+            result = terminalize_dangling_active_run(
+                queue_root,
+                expected_run_id=args.run_id,
+                expected_registry_digest=args.expected_registry_digest,
+                expected_run_dir=args.expected_run_dir,
                 reason=args.reason,
                 execute=args.execute,
             )
