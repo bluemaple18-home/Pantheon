@@ -84,6 +84,20 @@ SHA 與 runtime digest；任一漂移都 fail closed。
 
 ## 3. 改版前檢查
 
+### 回歸除錯閘門
+
+若原本可成功發文或部署的流程連續出現兩個以上相關故障，立即停止逐症狀修補、追加 Repair 與 production promotion。修改前必須先完成：
+
+- 找出最後一次成功發文的版本與執行條件。
+- 比對成功版本至目前版本的回歸區間。
+- 確認 run registry、run state、actor、queue 與 promotion replacement boundary 的所有權及生命週期。
+- 建立能重現同一故障的 red-capable 測試。
+- 將修復收斂成單一 bounded Repair；未證明共同根因前不得新增下一張 Repair。
+
+涉及 runtime promotion 時，registry 存在不能單獨證明 active run 已保存。promotion 前後必須驗證 registry 指向的實體 `run_dir` 存在、identity 一致且內容未漂移；dangling `run_dir` 必須 fail closed，禁止以自動建立新 run 取代原 identity。
+
+發文鏈的最終完成條件固定為 Writer、Reviewer、publish 均成功，且公開網址實際可讀。內部 receipt、queue success、commit、push 或 promotion 均不得單獨宣告完成。
+
 每次部署前先確認變更類型。
 
 | 類型 | 必查檔案 |
