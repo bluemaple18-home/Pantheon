@@ -282,20 +282,18 @@ def _file_sha256(path: Path) -> str:
 def _snapshot_launchctl_identity(output: str, *, expected_path: Path) -> dict[str, Any]:
     if re.search(r"^\s*pid = [1-9][0-9]*\s*$", output, re.MULTILINE):
         raise formal_runtime.RuntimeManifestError("publisher reset proof has pid")
-    states = re.findall(r"^\s*state = ([^\r\n]+)\s*$", output, re.MULTILINE)
-    paths = re.findall(r"^\s*path = ([^\r\n]+)\s*$", output, re.MULTILINE)
-    last_exit_codes = [
-        int(value)
-        for value in re.findall(
-            r"^\s*last exit code = (-?[0-9]+)\s*$", output, re.MULTILINE
-        )
-    ]
+    target = f"gui/{os.getuid()}/{expected_path.stem}"
+    identity = _launchctl_top_level_identity(output, expected_target=target)
+    if identity is None:
+        raise formal_runtime.RuntimeManifestError("publisher reset identity mismatch")
+    states = identity["states"]
+    paths = identity["paths"]
     if paths != [str(expected_path)] or states not in (["not running"], ["waiting"]):
         raise formal_runtime.RuntimeManifestError("publisher reset identity mismatch")
     return {
         "states": states,
         "paths": paths,
-        "last_exit_codes": last_exit_codes,
+        "last_exit_codes": identity["last_exit_codes"],
     }
 
 

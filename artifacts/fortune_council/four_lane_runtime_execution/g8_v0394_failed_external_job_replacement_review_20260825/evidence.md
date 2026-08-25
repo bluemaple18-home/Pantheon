@@ -198,3 +198,50 @@ Findings:
 Residual risk:
 
 - Full affected 464-test suite 採 candidate Repair evidence，未在本 review worktree 重跑；本輪已本機重跑 focused resume targeted tests，並獨立執行 candidate diff check。
+
+---
+
+# Publisher reset launchctl identity parser re-review candidate 6b93ea6484
+
+## Scope
+
+- Re-review 前 review receipt commit：`14f8995173bb7cf735786f8d39737dd92d5800da`。
+- Candidate：`6b93ea6484d6a3b0baf13a0efbb0fced0bc81719`。
+- Base / parent：`a6e255484006aca9662cef4c96c4f828d59bff36`。
+- Diff scope：V0393 Repair card/evidence、`scripts/pantheon_content_capacity_guard.py`、`tests/test_pantheon_content_capacity_guard.py`。
+- Product behavior review scope：`scripts/pantheon_content_capacity_guard.py::_snapshot_launchctl_identity` and the new nested state fixture. V0393 card/evidence were checked only for fidelity to source/test behavior。
+- 已先嘗試 CodeGraph；此 worktree 未初始化：`CodeGraph not initialized`。
+- 未修改 source/test/runtime，未執行 production、queue/state、launchctl、publish、push 或 promotion。
+
+## Commands
+
+- `git rev-parse HEAD` -> `14f8995173bb7cf735786f8d39737dd92d5800da`。
+- `git status --short` -> clean before review。
+- `git rev-parse 6b93ea6484d6a3b0baf13a0efbb0fced0bc81719^` -> `a6e255484006aca9662cef4c96c4f828d59bff36`。
+- `git diff --name-status 6b93ea6484d6a3b0baf13a0efbb0fced0bc81719^..6b93ea6484d6a3b0baf13a0efbb0fced0bc81719` -> V0393 card/evidence、capacity guard source、capacity guard tests。
+- `git diff --check 6b93ea6484d6a3b0baf13a0efbb0fced0bc81719^..6b93ea6484d6a3b0baf13a0efbb0fced0bc81719` -> passed with no output。
+- Candidate worktree `/Users/mattkuo/.codex/worktrees/32ca/Pantheon` HEAD -> `6b93ea6484d6a3b0baf13a0efbb0fced0bc81719` and clean before targeted tests。
+- Targeted rerun：`env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity` -> `1 passed in 0.02s`。
+- Full affected file：`env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests/test_pantheon_content_capacity_guard.py` -> `60 passed in 26.47s`。
+
+## Re-review Checks
+
+- Top-level parser reuse：`_snapshot_launchctl_identity()` now builds expected target `gui/{os.getuid()}/{expected_path.stem}` and delegates to `_launchctl_top_level_identity()`。The parser only records `state/path/last exit code` at depth 1, so nested `resource coalition.state = active` does not affect the root service identity。
+- Required PASS case：candidate test covers canonical top-level path, top-level `state = not running`, and nested `state = active`; `_snapshot_launchctl_identity()` returns `states=["not running"]`, exact path, and empty exit codes。
+- Global pid fail-closed：the pre-parser regex still rejects any positive `pid` line anywhere in the launchctl output before top-level parsing。
+- Root identity fail-closed：existing tests still cover duplicate top-level state, top-level running, missing state, unbalanced root, wrong root, prefix/suffix spoof, leading/trailing root whitespace, other label, multiple roots, garbage prefix, and garbage suffix。
+- Path/state fail-closed：`_snapshot_launchctl_identity()` still requires `paths == [str(expected_path)]` and `states` exactly `["not running"]` or `["waiting"]`; duplicate or wrong top-level path/state cannot pass。
+- Expected target：target uses `gui/<uid>/<plist stem>` and then separately verifies exact top-level plist path. I found no label/path bypass introduced by deriving the label from the already expected plist path。
+- Docs fidelity：V0393 card/evidence accurately describe a false negative from whole-output regex and the repair as depth-aware root service parsing. I did not use those docs as product behavior evidence。
+
+## Verdict
+
+`GO`
+
+P0/P1 Findings:
+
+- None。
+
+Residual risk:
+
+- None blocking in the requested scope。

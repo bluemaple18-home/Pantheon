@@ -249,3 +249,61 @@ For the INVALID_RECEIPT follow-up, the same formal entrypoint accepts `--resume-
 - Execute preserves the replacement failed receipt under `failed-external-job-replacements/<source>.<replacement>.failed-preserved.json` and atomically moves the same archived replacement payload back to live outbox.
 - Source archive request and source failed receipt are preserved; no source failed evidence is deleted or rewritten.
 - Identity drift, second authority, existing success result, non-active run, last-job drift, missing archive, and missing failed receipt are all rejected with zero mutation in tests.
+
+## Follow-up Publisher Reset Receipt Parser
+
+Root cause:
+
+- `scripts/pantheon_content_capacity_guard.py::_snapshot_launchctl_identity()` used whole-output regex for `state/path/last exit code`.
+- `launchctl print` can include nested object fields such as `resource coalition { state = active }`.
+- A valid reset proof with top-level `state = not running`, canonical top-level `path`, and no pid was therefore rejected as `publisher reset identity mismatch` when nested `state = active` appeared.
+
+Repair:
+
+- `_snapshot_launchctl_identity()` now reuses the existing `_launchctl_top_level_identity()` depth-aware parser with expected root target `gui/<uid>/<label>`.
+- The reset proof still fails closed for pid, malformed root/braces, path drift, duplicate top-level path/state, and top-level state outside `not running` / `waiting`.
+- No activation/reset schema, launchctl command, production runtime, queue/state, Publisher, provider, publish, push, or promotion path was changed.
+
+RED:
+
+```bash
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity
+```
+
+Result before source fix:
+
+```text
+1 failed: publisher reset identity mismatch
+```
+
+GREEN targeted:
+
+```bash
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity
+```
+
+Result:
+
+```text
+1 passed in 0.03s
+```
+
+Full affected file:
+
+```bash
+.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py
+```
+
+Result:
+
+```text
+60 passed in 27.11s
+```
+
+Diff whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.

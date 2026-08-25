@@ -85,6 +85,7 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 - Follow-up 新增 exact-run continuation recovery：replacement result 存在後，`cycle_once(..., exact_run_ids=...)` 可在 missing actor-local run_dir 下，透過 source archive + formal decision + replacement inbox 完成該 run。
 - Follow-up 修正 replacement runner `INVALID_RECEIPT`：root cause 是錯誤 invocation surface／未載入 formal production env；直接 shell runner 缺 `AGY_GEMINI_CREDENTIAL_POOL_FILE` 時落入 CLI fallback，而 Lite model 沒有 Antigravity Low label，於 provider/CLI subprocess 前 deterministic `ValueError`。
 - Follow-up 在既有 `replace-failed-external-job` existing-decision 分支加入顯式 `--resume-replacement --local-preflight-reason NO_ANTIGRAVITY_LOW_MODEL_LABEL`；只允許同一 archived replacement job 在 `ValueError/INVALID_RECEIPT`、無 production attempt marker、closed local preflight proof 下保存 failed evidence 並原子移回 outbox，不建立第二 replacement/job。
+- Follow-up 修正 Publisher reset receipt false negative：`_snapshot_launchctl_identity()` 改用既有 depth-aware top-level launchctl parser，只接受 root service object 的 `state/path/last exit code`，避免 nested `state=active` 讓 canonical `not running` reset proof 被誤判 mismatch。
 
 驗證：
 
@@ -100,7 +101,10 @@ traces_to: [SC-001, SC-002, SC-003, SC-004]
 - Follow-up INVALID_RECEIPT root-cause read-only evidence：actor/main `validate_external_request` 均 PASS archived `b50e5ab655e19388e9858c4a850ac2f37c9d8f3c` payload；shell env 缺 `AGY_GEMINI_CREDENTIAL_POOL_FILE/STATE_FILE`；`_cli_generate_json` 對 `gemini-3.5-flash-lite` 直接 `ValueError no Antigravity Low model label ...`。
 - Follow-up INVALID_RECEIPT targeted：`.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k "failed_external_job_replacement_resume"`，`5 passed, 285 deselected in 0.09s`。
 - Follow-up INVALID_RECEIPT 完整受影響測試：`.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py tests/test_agy_gemini_outbox.py`，`464 passed in 448.40s (0:07:28)`。
-- 最終 diff：`scripts/agy_gemini_coordinator.py`、`tests/test_agy_gemini_coordinator.py`、本卡 RESULT、`g8_v0393_failed_external_job_replacement_20260825/evidence.md`。
+- Follow-up Publisher reset RED：`.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity`，修復前失敗於 nested `state = active` 被全文 regex 收進 snapshot。
+- Follow-up Publisher reset targeted GREEN：`.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity`，`1 passed in 0.03s`。
+- Follow-up Publisher reset 完整受影響測試：`.venv/bin/python -m pytest tests/test_pantheon_content_capacity_guard.py`，`60 passed in 27.11s`。
+- 最終 diff：`scripts/pantheon_content_capacity_guard.py`、`tests/test_pantheon_content_capacity_guard.py`、本卡 RESULT、`g8_v0393_failed_external_job_replacement_20260825/evidence.md`。
 - `git diff --check`：passed。
 
 證據：

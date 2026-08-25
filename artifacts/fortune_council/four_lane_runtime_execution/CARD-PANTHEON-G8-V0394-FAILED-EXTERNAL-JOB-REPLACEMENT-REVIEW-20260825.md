@@ -141,6 +141,43 @@ Findings：
 
 - 未修改 source/tests/runtime，未 merge/push/deploy/promotion/archive，未操作 production replacement。
 
+## PUBLISHER RESET LAUNCHCTL IDENTITY PARSER RE-REVIEW RESULT
+
+狀態：completed
+
+Candidate：`6b93ea6484d6a3b0baf13a0efbb0fced0bc81719`
+
+Base / parent：`a6e255484006aca9662cef4c96c4f828d59bff36`
+
+Verdict：`GO`
+
+審查證據：
+
+- `artifacts/fortune_council/four_lane_runtime_execution/g8_v0394_failed_external_job_replacement_review_20260825/evidence.md`
+
+Review checks：
+
+- `_snapshot_launchctl_identity()` now reuses `_launchctl_top_level_identity()` with target `gui/<uid>/<plist stem>` and only accepts fields parsed from the root service object.
+- Valid reset proof with top-level `state = not running`, canonical top-level `path`, and nested `resource coalition.state = active` passes.
+- Positive `pid` remains global fail-closed before parser delegation.
+- Wrong/duplicate top-level path/state, top-level `running`, malformed or unbalanced root, root spoof, multiple roots, and suffix/prefix garbage remain rejected by the existing parser tests.
+- Expected target derives from the canonical expected plist path stem and still requires exact root target plus exact top-level path, so this does not introduce label/path bypass.
+- V0393 card/evidence additions are faithful to the source/test behavior; docs were not treated as product behavior.
+
+Findings：
+
+- 無 P0/P1。
+
+驗證：
+
+- `git diff --check 6b93ea6484d6a3b0baf13a0efbb0fced0bc81719^..6b93ea6484d6a3b0baf13a0efbb0fced0bc81719`：passed with no output。
+- Targeted rerun：`tests/test_pantheon_content_capacity_guard.py::test_publisher_reset_snapshot_uses_top_level_launchctl_identity` -> `1 passed in 0.02s`。
+- Full affected file：`tests/test_pantheon_content_capacity_guard.py` -> `60 passed in 26.47s`。
+
+邊界：
+
+- 未修改 source/tests/runtime，未執行 production、queue/state、launchctl、publish、push 或 promotion。
+
 ## FOLLOW-UP RE-REVIEW RESULT
 
 狀態：completed

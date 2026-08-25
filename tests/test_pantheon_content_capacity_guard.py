@@ -36,6 +36,33 @@ ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """<target> = {
 """
 
 
+def test_publisher_reset_snapshot_uses_top_level_launchctl_identity(tmp_path: Path) -> None:
+    expected_path = (
+        tmp_path
+        / "Library"
+        / "LaunchAgents"
+        / "com.pantheon.agy-content-publisher.plist"
+    )
+    target = f"gui/{os.getuid()}/{expected_path.stem}"
+    output = f"""{target} = {{
+\tpath = {expected_path}
+\tstate = not running
+
+\tresource coalition = {{
+\t\tstate = active
+\t}}
+}}
+"""
+
+    identity = guard._snapshot_launchctl_identity(output, expected_path=expected_path)
+
+    assert identity == {
+        "states": ["not running"],
+        "paths": [str(expected_path)],
+        "last_exit_codes": [],
+    }
+
+
 def _completed(returncode: int = 0, stdout: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess([], returncode, stdout, "")
 
