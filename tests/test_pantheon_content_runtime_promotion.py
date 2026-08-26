@@ -64,13 +64,51 @@ def _identity_envelope(
     return {**identity, "digest": digest}
 
 
-def _preserved_brief(run_id: str) -> dict[str, object]:
-    return {
+def _preserved_brief(
+    run_id: str,
+    *,
+    mode: str = "create",
+    lane: str | None = None,
+    article_ids: list[str] | None = None,
+) -> dict[str, object]:
+    articles: list[dict[str, object]] = []
+    for article_id in article_ids or []:
+        if mode == "create":
+            articles.append({"target": {"id": article_id}})
+        elif mode == "rewrite_existing_body":
+            articles.append({"article_id": article_id})
+        elif mode == "translate_existing":
+            articles.append({"source_article_id": article_id})
+    brief: dict[str, object] = {
         "schema_version": 1,
         "run_id": run_id,
-        "mode": "create",
-        "articles": [],
+        "mode": mode,
+        "articles": articles,
     }
+    if lane is not None:
+        brief["lane"] = lane
+    return brief
+
+
+def _write_preserved_state(
+    request: promotion.PromotionRequest,
+    name: str,
+    *,
+    run_id: str,
+    run_dir: Path,
+    status: str,
+    identity_envelope: dict[str, object],
+) -> None:
+    _write_json(
+        request.queue_root / "runs" / name,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": status,
+            "identity_envelope": identity_envelope,
+        },
+    )
 
 
 def _write_capacity_receipt(path: Path, *, status: str = "PASS") -> str:
@@ -577,6 +615,160 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
 
     assert plan["status"] == "READY_TO_APPLY"
     assert plan["preserved_run_ids"] == [run_id]
+
+
+def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+
+    translation_id = "a-durable-translation-run"
+    translation_dir = request.queue_root / "translation-runs" / translation_id
+    translation_dir.mkdir(parents=True)
+    _write_json(
+        translation_dir / "brief.json",
+        _preserved_brief(
+            translation_id,
+            mode="translate_existing",
+            lane="i18n-new",
+            article_ids=["V2-SOURCE-001"],
+        ),
+    )
+    _write_preserved_state(
+        request,
+        "a-translation.json",
+        run_id=translation_id,
+        run_dir=translation_dir,
+        status="complete",
+        identity_envelope=_identity_envelope(
+            ["V2-SOURCE-001"],
+            mode="translate_existing",
+            lane="i18n-new",
+        ),
+    )
+
+    tombstone_id = "b-terminal-failed-tombstone"
+    missing_tombstone_dir = tmp_path / "retired-runtime" / "gsc-copy" / tombstone_id
+    _write_preserved_state(
+        request,
+        "b-tombstone.json",
+        run_id=tombstone_id,
+        run_dir=missing_tombstone_dir,
+        status="failed",
+        identity_envelope=_identity_envelope(["FAILED-001"]),
+    )
+
+    superseded_id = "c-superseded-create"
+    superseded_dir = request.queue_root.parent / "gsc-copy" / superseded_id
+    superseded_dir.mkdir(parents=True)
+    _write_json(
+        superseded_dir / "brief.json",
+        _preserved_brief(superseded_id, article_ids=["SUPERSEDED-001"]),
+    )
+    _write_preserved_state(
+        request,
+        "c-superseded.json",
+        run_id=superseded_id,
+        run_dir=superseded_dir,
+        status="complete",
+        identity_envelope=_identity_envelope(["SUPERSEDED-001"]),
+    )
+
+    published_id = "d-published-create"
+    published_dir = request.queue_root / "gsc-copy" / published_id
+    published_dir.mkdir(parents=True)
+    _write_json(
+        published_dir / "brief.json",
+        _preserved_brief(published_id, article_ids=["PUBLISHED-001"]),
+    )
+    _write_preserved_state(
+        request,
+        "d-published.json",
+        run_id=published_id,
+        run_dir=published_dir,
+        status="complete",
+        identity_envelope=_identity_envelope(["PUBLISHED-001"]),
+    )
+
+    released_id = "e-released-rewrite"
+    released_dir = request.queue_root.parent / "gsc-copy" / released_id
+    released_dir.mkdir(parents=True)
+    _write_json(
+        released_dir / "brief.json",
+        _preserved_brief(
+            released_id,
+            mode="rewrite_existing_body",
+            lane="rewrite",
+            article_ids=["ASTRO-BASE-01"],
+        ),
+    )
+    _write_preserved_state(
+        request,
+        "e-released.json",
+        run_id=released_id,
+        run_dir=released_dir,
+        status="complete",
+        identity_envelope=_identity_envelope(
+            ["ASTRO-BASE-01"],
+            mode="rewrite_existing_body",
+            lane="rewrite",
+        ),
+    )
+    _write_json(
+        request.publisher_state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [
+                {
+                    "run_id": published_id,
+                    "article_ids": ["PUBLISHED-001"],
+                    "published_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
+            "rewrite_released_runs": [
+                {
+                    "run_id": released_id,
+                    "article_ids": ["ASTRO-BASE-01"],
+                    "published_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
+            "translation_published_runs": [],
+            "quarantined_runs": [],
+            "translation_deferred_runs": [],
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "preserved_run_ids": tuple(
+                sorted(
+                    [
+                        translation_id,
+                        tombstone_id,
+                        superseded_id,
+                        published_id,
+                        released_id,
+                    ]
+                )
+            ),
+        }
+    )
+    before = _snapshot(request)
+
+    plan = promotion.plan_promotion(request)
+
+    classification = plan["queue_identity_snapshot"]["preservation_classification"]
+    assert classification[translation_id]["lifecycle"] == "durable_translation"
+    assert classification[translation_id]["durable_root"] == str(request.queue_root / "translation-runs")
+    assert classification[tombstone_id]["lifecycle"] == "terminal_failed_tombstone"
+    assert classification[tombstone_id]["run_dir_exists"] is False
+    assert classification[superseded_id]["lifecycle"] == "superseded_create"
+    assert classification[superseded_id]["mode"] == "create"
+    assert classification[published_id]["lifecycle"] == "published"
+    assert classification[released_id]["lifecycle"] == "released"
+    assert all(item["operational_selection"] is False for item in classification.values())
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
 
 
 def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> None:

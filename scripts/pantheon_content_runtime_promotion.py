@@ -242,10 +242,7 @@ def _validate_request_shape(request: PromotionRequest) -> None:
         raise PromotionError("preserved run ids are invalid")
 
 
-def _validated_run_identity_envelope(
-    value: object,
-    brief: dict[str, Any],
-) -> dict[str, Any]:
+def _validated_run_identity_envelope_value(value: object) -> dict[str, Any]:
     if type(value) is not dict or set(value) != {
         "schema_version",
         "mode",
@@ -288,6 +285,16 @@ def _validated_run_identity_envelope(
     ).hexdigest()
     if value.get("digest") != digest:
         raise PromotionError("preserved run identity envelope digest mismatch")
+    return {**identity, "digest": digest}
+
+
+def _validate_run_identity_matches_brief(
+    identity: dict[str, Any],
+    brief: dict[str, Any],
+) -> None:
+    mode = identity["mode"]
+    lane = identity["lane"]
+    article_ids = identity["article_ids"]
     if brief.get("mode") != mode:
         raise PromotionError("preserved run brief identity mismatch")
     observed_ids: list[str] = []
@@ -317,7 +324,120 @@ def _validated_run_identity_envelope(
     }.get(mode, brief_lane)
     if expected_brief_lane != lane:
         raise PromotionError("preserved run brief identity mismatch")
-    return {**identity, "digest": digest}
+
+
+def _validated_run_identity_envelope(
+    value: object,
+    brief: dict[str, Any],
+) -> dict[str, Any]:
+    identity = _validated_run_identity_envelope_value(value)
+    _validate_run_identity_matches_brief(identity, brief)
+    return identity
+
+
+def _publisher_ledger_lifecycle(
+    request: PromotionRequest,
+    run_id: str,
+    identity: dict[str, Any],
+) -> str | None:
+    ledger_path = request.publisher_state_root / "ledger.json"
+    if not ledger_path.exists():
+        return None
+    if ledger_path.is_symlink() or not ledger_path.is_file():
+        raise PromotionError("publisher ledger is invalid")
+    ledger = _read_json_file(ledger_path, "publisher ledger")
+    if ledger.get("schema_version") != SCHEMA_VERSION:
+        raise PromotionError("publisher ledger is invalid")
+    ledger_keys = {
+        "published_runs": ("create", "published"),
+        "rewrite_released_runs": ("rewrite_existing_body", "released"),
+        "translation_published_runs": ("translate_existing", "published_translation"),
+    }
+    for key, (expected_mode, lifecycle) in ledger_keys.items():
+        entries = ledger.get(key, [])
+        if not isinstance(entries, list):
+            raise PromotionError("publisher ledger is invalid")
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise PromotionError("publisher ledger is invalid")
+            if entry.get("run_id") != run_id:
+                continue
+            if identity["mode"] != expected_mode:
+                raise PromotionError("publisher ledger identity mismatch")
+            article_ids = entry.get("article_ids")
+            if isinstance(article_ids, list) and sorted(article_ids) != identity["article_ids"]:
+                raise PromotionError("publisher ledger identity mismatch")
+            return lifecycle
+    return None
+
+
+def _candidate_durable_roots(
+    request: PromotionRequest,
+    identity: dict[str, Any],
+) -> list[Path]:
+    if identity["mode"] == "translate_existing":
+        roots = [request.queue_root / "translation-runs"]
+    else:
+        roots = [request.queue_root / "gsc-copy", request.queue_root.parent / "gsc-copy"]
+    deduped: list[Path] = []
+    for root in roots:
+        if root not in deduped:
+            deduped.append(root)
+    return deduped
+
+
+def _canonical_durable_root_for_run(
+    request: PromotionRequest,
+    identity: dict[str, Any],
+    canonical_run_dir: Path,
+) -> Path:
+    for root in _candidate_durable_roots(request, identity):
+        if not root.exists():
+            continue
+        if root.is_symlink() or not root.is_dir():
+            raise PromotionError("preserved durable run root is invalid")
+        canonical_root = root.resolve(strict=True)
+        if canonical_run_dir != canonical_root and canonical_run_dir.is_relative_to(canonical_root):
+            return canonical_root
+    raise PromotionError("preserved run directory is outside durable root")
+
+
+def _preserved_lifecycle(
+    *,
+    request: PromotionRequest,
+    run_id: str,
+    status: str,
+    identity: dict[str, Any],
+    canonical_run_dir: Path | None,
+) -> dict[str, Any]:
+    ledger_lifecycle = _publisher_ledger_lifecycle(request, run_id, identity)
+    if canonical_run_dir is None:
+        lifecycle = "terminal_failed_tombstone"
+        durable_root: Path | None = None
+    else:
+        durable_root = _canonical_durable_root_for_run(request, identity, canonical_run_dir)
+        if ledger_lifecycle is not None:
+            lifecycle = ledger_lifecycle
+        elif identity["mode"] == "translate_existing":
+            lifecycle = "durable_translation"
+        elif status == "failed":
+            lifecycle = "terminal_failed_artifact"
+        elif identity["mode"] == "create" and status == "complete":
+            lifecycle = "superseded_create"
+        elif identity["mode"] == "rewrite_existing_body" and status == "complete":
+            lifecycle = "rewrite_candidate"
+        else:
+            lifecycle = f"{status}_preserved"
+    return {
+        "mode": identity["mode"],
+        "lane": identity["lane"],
+        "article_ids": list(identity["article_ids"]),
+        "status": status,
+        "lifecycle": lifecycle,
+        "run_dir_exists": canonical_run_dir is not None,
+        "durable_root": str(durable_root) if durable_root is not None else None,
+        "operational_selection": lifecycle == "rewrite_candidate",
+    }
 
 
 def _gsc_copy_identity_snapshot(queue_root: Path) -> list[dict[str, Any]]:
@@ -360,12 +480,9 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
         return {"preserved_runs": [], "gsc_copy": []}
     if runs_root.is_symlink() or not runs_root.is_dir():
         raise PromotionError("preserved run registry is invalid")
-    durable_run_root = request.queue_root / "gsc-copy"
-    if durable_run_root.is_symlink() or not durable_run_root.is_dir():
-        raise PromotionError("preserved durable run root is invalid")
-    canonical_durable_run_root = durable_run_root.resolve(strict=True)
     observed: set[str] = set()
     preserved_runs: list[dict[str, str]] = []
+    preservation_classification: dict[str, dict[str, Any]] = {}
     for path in runs_root.iterdir():
         if path.is_symlink() or not path.is_file() or path.suffix != ".json":
             raise PromotionError("preserved run registry contains unexpected residue")
@@ -389,31 +506,45 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
         try:
             canonical_run_dir = run_dir.resolve(strict=True)
         except OSError as error:
-            raise PromotionError("preserved run directory is missing") from error
-        if (
-            run_dir.is_symlink()
-            or not run_dir.is_dir()
-            or canonical_run_dir != run_dir
-            or canonical_run_dir == canonical_durable_run_root
-            or not canonical_run_dir.is_relative_to(canonical_durable_run_root)
-        ):
-            raise PromotionError("preserved run directory is outside durable root")
-        brief_path = canonical_run_dir / "brief.json"
-        if brief_path.is_symlink() or not brief_path.is_file():
-            raise PromotionError("preserved run brief is missing")
-        brief = _read_json_file(brief_path, "preserved run brief")
-        if brief.get("run_id") != run_id:
-            raise PromotionError("preserved run brief identity mismatch")
-        _validated_run_identity_envelope(state.get("identity_envelope"), brief)
+            if status != "failed":
+                raise PromotionError("preserved run directory is missing") from error
+            canonical_run_dir = None
+            identity = _validated_run_identity_envelope_value(state.get("identity_envelope"))
+        else:
+            if run_dir.is_symlink() or not run_dir.is_dir() or canonical_run_dir != run_dir:
+                raise PromotionError("preserved run directory is outside durable root")
+            brief_path = canonical_run_dir / "brief.json"
+            if brief_path.is_symlink() or not brief_path.is_file():
+                raise PromotionError("preserved run brief is missing")
+            brief = _read_json_file(brief_path, "preserved run brief")
+            if brief.get("run_id") != run_id:
+                raise PromotionError("preserved run brief identity mismatch")
+            brief_mode = brief.get("mode")
+            if type(brief_mode) is not str:
+                raise PromotionError("preserved run brief identity mismatch")
+            _canonical_durable_root_for_run(request, {"mode": brief_mode}, canonical_run_dir)
+            identity = _validated_run_identity_envelope(state.get("identity_envelope"), brief)
+            _canonical_durable_root_for_run(request, identity, canonical_run_dir)
         observed.add(run_id)
         preserved_runs.append(
             {
                 "path": path.name,
                 "run_id": run_id,
-                "run_dir": str(canonical_run_dir),
-                "run_tree_digest": tree_digest(canonical_run_dir),
+                "run_dir": str(canonical_run_dir) if canonical_run_dir is not None else str(run_dir),
+                "run_tree_digest": (
+                    tree_digest(canonical_run_dir)
+                    if canonical_run_dir is not None
+                    else hashlib.sha256(b"missing").hexdigest()
+                ),
                 "status": str(status),
             }
+        )
+        preservation_classification[run_id] = _preserved_lifecycle(
+            request=request,
+            run_id=run_id,
+            status=str(status),
+            identity=identity,
+            canonical_run_dir=canonical_run_dir,
         )
     if observed != set(request.preserved_run_ids):
         raise PromotionError("preserved run identity mismatch")
@@ -422,6 +553,7 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
             preserved_runs,
             key=lambda entry: (entry["run_id"], entry["path"]),
         ),
+        "preservation_classification": dict(sorted(preservation_classification.items())),
         "gsc_copy": _gsc_copy_identity_snapshot(request.queue_root),
     }
 
