@@ -46,6 +46,38 @@ risk: high
 ## Promotion blocker
 
 - 正式 promotion plan：`NO-GO / preserved run directory is outside durable root`；未執行 apply、push 或 runtime mutation。
-- 148 個 registry state 中只有 2 個已位於 `queue/gsc-copy`；另有 120 個歷史 state 指向 runtime sibling `gsc-copy`、18 個 translation state 指向 `queue/translation-runs`、8 個 failed state 指向 actor-local `.work/gsc-copy`。
-- 既有 promotion contract 明確拒絕所有不在 `queue/gsc-copy` 的 run_dir；repo 沒有可用的正式 rehome/migration seam。直接換 actor 會讓 8 個 actor-local run_dir 失聯，禁止繞過。
-- 下一步需要獨立授權：新增單一 bounded、CAS、可 rollback 的 production registry/run-dir rehome seam，先逐項 byte/digest 驗證，再把 146 個 legacy run 移入 durable root；完成後才能重跑 promotion plan、fast-forward push 與 A/B。
+- 既有 promotion contract 把所有 preserved run_dir 限制在 `queue/gsc-copy`，但 production registry 同時包含正式 translation root、舊 runtime durable root 與已失聯的 actor-local 歷史路徑；這是保存契約分類不足，不得直接解讀為「146 個 run 全部搬家」。
+- 148 個 registry state 的唯讀分類：
+  - `queue/gsc-copy`：2 個，維持原位。
+  - `queue/translation-runs`：18 個（6 active、2 complete、10 failed），本來就在 durable queue；禁止為滿足錯誤 allowlist 而搬到 `gsc-copy`。
+  - runtime sibling `gsc-copy`：120 個（31 complete、89 failed），先保留原位並依 lifecycle 分類；禁止整批 rehome。
+  - actor-local `.work/gsc-copy`：8 個且全為 failed，實體目錄已不存在；不得建立假目錄或偽造 artifact lineage。
+
+## 歷史 complete 決策
+
+- 120 個舊 runtime state 中的 31 個 complete 必須拆開處理，不得統稱為待搬資料：
+  - 2 個 create run 已記錄於 publisher ledger，且文章 ID 已存在於目前網站；只保留歷史證據。
+  - 26 個 create run 未發布：候選稿全數 clean APPROVE、沒有跨稿完全重複段落，但 ID 與 slug 均不存在於目前網站，也未登記於 content backlog／prior-art registry；其正式 mode 是 `create`，禁止改標為 `rewrite_existing_body`。
+  - 3 個真正的 `rewrite_existing_body` run：`ASTRO-BASE-01`、`ASTRO-BASE-03` 已 released；`ASTRO-BASE-02` clean APPROVE 但尚未 released，是唯一可繼續舊文驗收的歷史 complete。
+- 26 個未發布 create run 的處置是「退出 operational publish queue，保留冷封存與 immutable identity」：
+  - 不發布、不重驗新文、不轉成舊文重寫。
+  - 保留 run identity、題目、primary keyword、candidate/review digest 與原始 artifact，避免失去稽核證據或被 seeder 當成從未生成而重做。
+  - 後續若要把某個題目併入既有文章，必須另有明確 canonical article ID，重新以 rewrite brief 建立 lineage；不得沿用原 create run 冒充 rewrite。
+
+## 最小 preservation contract
+
+1. active／complete：必須保留可解析的 immutable identity 與實際 artifact；合法 durable root 依 lane 明確判定，不以單一 `queue/gsc-copy` allowlist 代替 lifecycle 驗證。
+2. terminal failed：registry identity 是 authoritative tombstone；若 run_dir 已不存在，不得為通過 promotion 製造或搬移假 artifact。缺 identity envelope 的歷史項目必須 fail closed，另以可驗證的既有 brief／evidence 補證，不能猜測。
+3. released／published：以 publisher ledger 加公開內容證據判定，只保留歷史，不重新排入 publish。
+4. superseded create：保留冷封存與 identity，但排除 operational selection；不得刪除後讓相同 topic 被重新 seed。
+5. translation：保留 `queue/translation-runs` 的 lane 邊界；本卡不重驗翻譯內容，也不改 translation run 狀態。
+
+## 下一個 RED gate
+
+- 先新增 promotion regression，證明下列情境在任何 runtime mutation 前可被區分：
+  1. durable translation run 不因位於 `queue/translation-runs` 被誤判為 actor-local。
+  2. terminal failed tombstone 不要求建立不存在的 run_dir，但缺少可驗 identity 時仍 fail closed。
+  3. create candidate 不得靠改 mode 或改路徑冒充 rewrite。
+  4. published／released 與 superseded create 不會重新進入 operational publish selection。
+- RED 證據閉合前，不修改 production registry、不移動 run_dir、不執行 promotion apply、push 或 A/B 重驗。
+- 本修復沿用同一張卡，不建立第四張卡；完成 preservation contract 的最小 code repair 與受影響 gate 後，才允許重新產生 read-only promotion plan。
