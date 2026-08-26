@@ -1,145 +1,132 @@
-# Evidence：Pantheon 舊文原網址自動化驗收 A
+# Evidence: Automation Acceptance A Legacy Rewrite
 
-## Dispatch
+status: `DELIVERED_CANDIDATE`
+recorded_at_utc: `2026-08-26T12:15:46Z`
 
-- formal thread ID：`01a03c25-41fd-7342-88f0-3b2aa1eeb56c`
-- cwd：`/Users/mattkuo/.codex/worktrees/da94/Pantheon`
-- source SHA：`6ccbde3a6fb036db3a548db075ec2c93ec771f66`
-- worktree：detached/獨立 worktree；bootstrap 時 clean
-- activation token：`act-v1:eebaa1bf3994a16ecf51c0c5ed5f86c8acb3495d262c28d7c5b92ed195408191`
+## Scope
 
-## CodeGraph
+- dispatch_key: `v2:a-legacy-rewrite-e5c0743f-20260826`
+- activation_token: `act-v2:a-legacy-rewrite-e5c0743f-20260826`
+- source_sha: `823ca8712e57ff4387dd2c447daf6fe329e6db9d`
+- formal_thread_id: `01a03c25-41fd-7342-88f0-3b2aa1eeb56c`
+- projectId: `local-0020d4379451d545eb08362962f1def0`
+- old blocked candidate preserved: `943a2ab15df01986c34d25b9ccb20854ad430578`
 
-`codegraph_status`：
+## Preflight Evidence
 
-- files indexed：`583`
-- total nodes：`7034`
-- total edges：`15792`
-- database size：`18.36 MB`
+- worktree clean before mutation gates and before result write.
+- detached HEAD: `823ca8712e57ff4387dd2c447daf6fe329e6db9d`
+- CodeGraph: `READY`, files `583`, nodes `7034`, edges `15792`, backend `native better-sqlite3`。
+- Runtime manifest matched actor `e5c0743fe1e0c99a66f2c0e3355591f2a353a322` and generation `g48-e5c0743f-gsc-json-shape-20260826`。
+- Rule 24 capacity preflight returned `PASS` after reading runtime telemetry with manifest-bound environment.
+- Rule 25 readiness gate returned `READY` for `exec-apf-004-readiness`。
+- Deployment preflight returned `status=ready`, `operation=deployment-preflight`, `mode=read-only`, `dry_run=true`, `mutation_permitted=false`, `push_mode=push`。
+- Seven services checked via `launchctl print gui/501/<label>`: all returned code `113`, treated as stopped/unloaded.
 
-第一次 source decision query 命中：
+## Selector Evidence
 
-- `scripts/agy_content_publisher.py:3912` `publish_ready_rewrite_runs`
-- `scripts/agy_content_publisher.py:3011` `summarize_legacy_rewrite_backlog`
-- `scripts/agy_content_publisher.py:2927` `collect_ready_rewrite_runs`
-- `scripts/agy_gemini_coordinator.py:5031` `seed_legacy_rewrite_runs`
+Official selector dry-run:
 
-## Runtime Manifest
+- ready_count: `1`
+- run_id: `legacy-auto-sweep-v1-astrology-0002-astro-base-02`
+- article_id: `ASTRO-BASE-02`
+- mode: `rewrite_existing_body`
+- status: `complete`
+- review_clean_approve: `true`
+- findings_count: `0`
+- candidate_body_hash: `8f242bfd8838b7c2aa7eb24f0352bda32e2f0d43b8f08f0f7cd69b4f67d26c40`
+- correlation_id: `ea7f99a12ce1b3d3bd9f5f11ab9aab12`
+- identity_digest: `e2527737e984c94c04ac11ca3b413acb548898b89c22b249785339fd956e4e09`
+- canonical: `https://www.mysticpantheon.com/articles/astrology/astrology-0002`
 
-`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json`：
+Pre-public baseline:
 
-- actor_head：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`
-- generation：`g47-6477ab81-activation-only-20260826`
-- identity：`gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only`
-- runtime_digest：`a4dfa5e25f2e6b0f291fdf8e5e9163b70b243ea3836a1d47631e02697d1ee063`
-- runtime_identity_digest：`9cfeb7d9d3b30b5759b547fca1f003d4f5a7cc1fef42297601a86b2eaa5800ce`
-- queue_root：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue`
-- publisher_state_root：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state`
+- prerender HTML sha256: `560556a22b5ae9c12f630488a97aadb8756a81f91a3b45812faf67389cc7ee4b`
+- canonical occurrences: `5`
+- registry record_count: `131`
+- registry `ASTRO-BASE-02` occurrences: `2`
+- registry `astrology-0002` occurrences: `1`
+- ledger target run occurrences before publish: `0`
+- state transaction dirs before publish: `0`
 
-## Service State
+## Publication Evidence
 
-逐一查詢七個 label 均回 `Could not find service ... in domain for user gui: 501`：
+Official exact-run publication completed once:
 
-- `com.pantheon.agy-content-publisher`
-- `com.pantheon.agy-gemini-coordinator`
-- `com.pantheon.agy-gemini-new`
-- `com.pantheon.agy-gemini-rewrite`
-- `com.pantheon.agy-gemini-i18n-new`
-- `com.pantheon.agy-gemini-i18n-rewrite`
-- `com.pantheon.content-capacity-guard`
+- status: `PUBLISHED_REWRITE`
+- base_sha: `823ca8712e57ff4387dd2c447daf6fe329e6db9d`
+- commit_sha: `47d7b804f4dbda6491f48141535fc869000421aa`
+- version: `0.3.372`
+- run_ids: `["legacy-auto-sweep-v1-astrology-0002-astro-base-02"]`
+- article_ids: `["ASTRO-BASE-02"]`
+- pushed: `true`
+- policy_version: `pantheon-article-publication-v2.0.0`
+- validator_result: `PASS`
+- failure_codes: `[]`
+- focused tests: `3 passed, 2 warnings`
+- full release gate: `427 passed, 2 warnings`
+- release gate JSON: `{"version":"0.3.372","article_release":true,"status":"PASS"}`
 
-判定：七服務保持 STOPPED / not loaded。
+Remote refs:
 
-## Readiness And Capacity
+- `refs/heads/main` -> `47d7b804f4dbda6491f48141535fc869000421aa`
+- `refs/tags/v0.3.372` annotated tag object -> `ff207a7d807e7c71dd2122ab58531ab8817ebce3`
+- `refs/tags/v0.3.372^{}` -> `47d7b804f4dbda6491f48141535fc869000421aa`
 
-- `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/official-gate-ready.json`
-  - status：`READY`
-  - returncode：`0`
-- `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/official-gate-blocked.json`
-  - status：`BLOCKED`
-  - failure：missing `push`
-- `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/package/production-canary-capability-receipt.json`
-  - steps：`create`, `run`, `select`, `publish`, `transaction`, `tag`, `push`
-  - each step has positive `PASS` and negative `BLOCKED` evidence
-- `artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/capacity/capacity-receipt.json`
-  - status：`PASS`
-  - stop_loss_negative_result：`BLOCKED`
-  - production_mutation：`false`
+## Public Evidence
 
-## Queue And Candidate
+HTTP read of canonical URL:
 
-Runtime queue summary from `queue/runs`：
+- status line: `HTTP/2 200`
+- bytes: `23980`
+- sha256: `a004cdf5f580efb1548367dad962a2fb235dd42336d2b916a1bd162f2bc6f312`
+- canonical URL occurrences: `5`
+- new body phrases all present:
+  - `上升星座是什麼，常用來看外在呈現與第一印象`
+  - `上升星座不是外貌或性格的單一答案`
+  - `上升星座不能替你判斷合不合`
+  - `如何觀察自己的上升星座運作`
+  - `回歸現實相處的真實體驗`
 
-- `complete + rewrite_existing_body`：`3`
-- rewrite rows：
-  - `legacy-auto-sweep-v1-astrology-0001-astro-base-01`：complete，已在 ledger `rewrite_released_runs`
-  - `legacy-auto-sweep-v1-astrology-0002-astro-base-02`：complete，未在 ledger `rewrite_released_runs`
-  - `legacy-auto-sweep-v1-astrology-0003-astro-base-03`：complete，已在 ledger `rewrite_released_runs`
+Browser-visible read:
 
-Selected candidate：
+- browser URL: `https://www.mysticpantheon.com/articles/astrology/astrology-0002`
+- canonical link: `https://www.mysticpantheon.com/articles/astrology/astrology-0002`
+- H1: `上升星座是什麼？它和太陽星座差在哪`
+- body chars: `2342`
+- all five new body phrases present
+- console warning/error logs: `[]`
+- screenshot artifact: `/private/tmp/pantheon-automation-acceptance-a-browser.png`
 
-- run_id：`legacy-auto-sweep-v1-astrology-0002-astro-base-02`
-- article_id：`ASTRO-BASE-02`
-- canonical：`https://www.mysticpantheon.com/articles/astrology/astrology-0002`
-- source file：`app/web/static/article-meta.js`
-- current body sha256：`0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449`
-- reviewer verdict：`APPROVE`
-- reviewer hard_failure：`false`
-- reviewer findings：`[]`
+## Post-Publication Accounting
 
-Baseline hashes before attempted dry-run:
+- actor worktree HEAD remained `e5c0743fe1e0c99a66f2c0e3355591f2a353a322`; `origin/main` moved to candidate `47d7b804f4dbda6491f48141535fc869000421aa` via official flow.
+- actor worktree status: clean.
+- transaction directories after publication: `0`
+- ledger sha256: `0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9`
+- ledger exact run_id occurrences: `1`
+- ledger exact article_id occurrences: `1`
+- ledger entry:
+  - section: `rewrite_released_runs`
+  - run_id: `legacy-auto-sweep-v1-astrology-0002-astro-base-02`
+  - article_ids: `["ASTRO-BASE-02"]`
+  - commit_sha: `47d7b804f4dbda6491f48141535fc869000421aa`
+  - published_at: `2026-08-26T20:08:36+08:00`
+  - version: `0.3.372`
+  - translation_seed_status: `seeded`
+- target run absent from `published_runs`、`translation_published_runs`、`translation_deferred_runs`、`quarantined_runs`、`superseded_runs`。
+- commit HTML sha256: `028a9c276e036398cafce8a5349fc6ae7497329ea69192ae8f9be8a767d80e37`
+- commit HTML canonical occurrences: `5`
+- registry `ASTRO-BASE-02` occurrences: `2`
+- registry `astrology-0002` occurrences: `1`
+- sitemap canonical occurrences: `1`
+- rewrite file sha256: `5c3e0ed9b6b27441fd4c5b7ec516ac1606226f2adc0d4e811090b4c4f3662525`
+- rewrite file `ASTRO-BASE-02` occurrences: `1`
+- rewrite file canonical occurrences: `1`
 
-- ledger：`224d78887b4a1062702e3b920377eda8ff2abb8264b1ec48861254afe6fddabe`
-- article prerender HTML：`97216e5578803f3a2fe1d03b82f33be04ec3fdac3e768002c9d434a19d2d6a31`
-- article registry：`964cf505b5f305c0a44ca80efe7847b6e2df6fb242dbcc89c1b7991fa1d4e42e`
+## Final Safety
 
-## Official Entrypoint Results
-
-Deployment preflight command used official module entry:
-
-`python3.12 -m scripts.agy_content_publisher --repo-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --rewrite-release --exact-run-id legacy-auto-sweep-v1-astrology-0002-astro-base-02 --max-runs 1 --dry-run --push --deployment-preflight ...`
-
-Result:
-
-- status：`ready`
-- operation：`deployment-preflight`
-- mode：`read-only`
-- actor / queue / state：`matched`
-- runtime_sha：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`
-- runtime_digest：`a4dfa5e25f2e6b0f291fdf8e5e9163b70b243ea3836a1d47631e02697d1ee063`
-- push_mode：`push`
-- exact_run_ids：`["legacy-auto-sweep-v1-astrology-0002-astro-base-02"]`
-
-Exact rewrite selector dry-run command used the same official module entry without `--deployment-preflight`.
-
-Result:
-
-```text
-PublishBlocked: local HEAD differs from origin/main: 6477ab815e8a != 0257bd5213ee
-```
-
-Remote confirmation:
-
-```text
-0257bd5213eed0d0df10661a54f6215901a54997 refs/heads/main
-```
-
-Actor local confirmation:
-
-```text
-6477ab815e8aecca7d1e8e1588e6e5eba0fab001
-878db727f4c1348d36a672cb96393db17bfc4cef
-fix: migrate legacy active runtime state
-```
-
-## Terminal Accounting
-
-- publication transaction：`0`
-- tag：`0`
-- push：`0`
-- public update：`0`
-- new rewrite evidence directories after attempt：none; existing only `rewrite-0.3.367`, `rewrite-0.3.368`
-- runtime actor status：clean
-- current task worktree before result/evidence write：clean
-
-No browser/public URL validation was run because publication never occurred.
+- 七服務終態仍 stopped/unloaded。
+- 沒有建立 replacement thread、B/C/第四卡、Reviewer 或 Repair。
+- 沒有 source edit。
+- 沒有手動 tag/push/deploy；遠端 refs 的變化來自官方 publication flow。

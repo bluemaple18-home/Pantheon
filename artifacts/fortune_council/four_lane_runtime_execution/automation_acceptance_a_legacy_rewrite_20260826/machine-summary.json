@@ -1,45 +1,98 @@
 {
-  "activation_token": "act-v1:eebaa1bf3994a16ecf51c0c5ed5f86c8acb3495d262c28d7c5b92ed195408191",
-  "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
-  "article_id": "ASTRO-BASE-02",
-  "blocked_reason": "REMOTE_MAIN_BEHIND_RUNTIME_ACTOR",
-  "canonical_url": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+  "status": "DELIVERED_CANDIDATE",
   "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-A-LEGACY-REWRITE-20260826",
+  "dispatch_key": "v2:a-legacy-rewrite-e5c0743f-20260826",
+  "activation_token": "act-v2:a-legacy-rewrite-e5c0743f-20260826",
+  "recorded_at_utc": "2026-08-26T12:15:46Z",
+  "formal_thread_id": "01a03c25-41fd-7342-88f0-3b2aa1eeb56c",
+  "project_id": "local-0020d4379451d545eb08362962f1def0",
+  "cwd": "/Users/mattkuo/.codex/worktrees/da94/Pantheon",
+  "source_sha": "823ca8712e57ff4387dd2c447daf6fe329e6db9d",
+  "old_candidate_commit_traceable": "943a2ab15df01986c34d25b9ccb20854ad430578",
   "codegraph": {
-    "edges": 15792,
+    "status": "READY",
     "files": 583,
     "nodes": 7034,
-    "status": "READY"
+    "edges": 15792
   },
-  "dispatch_key": "v1:83918062e381307bfe86c2cfa2c992518a567f6e93e7184f0d0f14bd92cafcef",
-  "dry_run_error": "PublishBlocked: local HEAD differs from origin/main: 6477ab815e8a != 0257bd5213ee",
-  "generation": "g47-6477ab81-activation-only-20260826",
-  "ledger_sha256": "224d78887b4a1062702e3b920377eda8ff2abb8264b1ec48861254afe6fddabe",
-  "partial_mutation": false,
+  "runtime": {
+    "actor": "e5c0743fe1e0c99a66f2c0e3355591f2a353a322",
+    "generation": "g48-e5c0743f-gsc-json-shape-20260826",
+    "manifest_digest": "9344898970dfa335dc5e238d3c7acc2baf634de52fc60206b441292f66261f2f",
+    "promotion_transaction": "v0404-gsc-json-shape-e5c0743f-20260826",
+    "promotion_state": "COMMITTED"
+  },
+  "pre_mutation_gates": {
+    "rule24_capacity": "PASS",
+    "rule25_readiness": "READY",
+    "deployment_preflight": "ready",
+    "deployment_preflight_mutation_permitted": false,
+    "seven_services_stopped": true
+  },
+  "selector": {
+    "ready_count": 1,
+    "run_id": "legacy-auto-sweep-v1-astrology-0002-astro-base-02",
+    "article_id": "ASTRO-BASE-02",
+    "mode": "rewrite_existing_body",
+    "canonical": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+    "review_clean_approve": true,
+    "findings_count": 0,
+    "candidate_body_hash": "8f242bfd8838b7c2aa7eb24f0352bda32e2f0d43b8f08f0f7cd69b4f67d26c40",
+    "correlation_id": "ea7f99a12ce1b3d3bd9f5f11ab9aab12",
+    "identity_digest": "e2527737e984c94c04ac11ca3b413acb548898b89c22b249785339fd956e4e09"
+  },
   "publication": {
-    "public_url_checked": false,
-    "published": false,
-    "push": false,
-    "tag": false,
-    "transaction": false
+    "official_exact_run_invocations": 1,
+    "status": "PUBLISHED_REWRITE",
+    "base_sha": "823ca8712e57ff4387dd2c447daf6fe329e6db9d",
+    "commit_sha": "47d7b804f4dbda6491f48141535fc869000421aa",
+    "version": "0.3.372",
+    "tag": "v0.3.372",
+    "pushed": true,
+    "validator_result": "PASS",
+    "failure_codes": [],
+    "focused_tests": "3 passed",
+    "full_release_gate": "427 passed",
+    "remote_main": "47d7b804f4dbda6491f48141535fc869000421aa",
+    "remote_tag_deref": "47d7b804f4dbda6491f48141535fc869000421aa"
   },
-  "remote_main": "0257bd5213eed0d0df10661a54f6215901a54997",
-  "result": "BLOCKED",
-  "run_id": "legacy-auto-sweep-v1-astrology-0002-astro-base-02",
-  "selected_candidate": {
-    "current_body_sha256": "0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449",
-    "reviewer_findings": [],
-    "reviewer_hard_failure": false,
-    "reviewer_verdict": "APPROVE"
+  "public_verification": {
+    "url": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+    "http_status": "HTTP/2 200",
+    "http_bytes": 23980,
+    "http_sha256": "a004cdf5f580efb1548367dad962a2fb235dd42336d2b916a1bd162f2bc6f312",
+    "http_canonical_occurrences": 5,
+    "browser_url": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+    "browser_canonical": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+    "browser_body_chars": 2342,
+    "browser_console_warning_error_count": 0,
+    "browser_screenshot": "/private/tmp/pantheon-automation-acceptance-a-browser.png",
+    "phrase_hits": {
+      "上升星座是什麼，常用來看外在呈現與第一印象": true,
+      "上升星座不是外貌或性格的單一答案": true,
+      "上升星座不能替你判斷合不合": true,
+      "如何觀察自己的上升星座運作": true,
+      "回歸現實相處的真實體驗": true
+    }
   },
-  "services": {
-    "com.pantheon.agy-content-publisher": "STOPPED_NOT_FOUND",
-    "com.pantheon.agy-gemini-coordinator": "STOPPED_NOT_FOUND",
-    "com.pantheon.agy-gemini-i18n-new": "STOPPED_NOT_FOUND",
-    "com.pantheon.agy-gemini-i18n-rewrite": "STOPPED_NOT_FOUND",
-    "com.pantheon.agy-gemini-new": "STOPPED_NOT_FOUND",
-    "com.pantheon.agy-gemini-rewrite": "STOPPED_NOT_FOUND",
-    "com.pantheon.content-capacity-guard": "STOPPED_NOT_FOUND"
+  "uniqueness": {
+    "state_transaction_dirs_after": 0,
+    "ledger_exact_run_id_occurrences": 1,
+    "ledger_exact_article_id_occurrences": 1,
+    "target_run_only_in_rewrite_released_runs": true,
+    "commit_html_canonical_occurrences": 5,
+    "registry_article_id_occurrences": 2,
+    "registry_slug_occurrences": 1,
+    "sitemap_canonical_occurrences": 1,
+    "rewrite_file_article_id_occurrences": 1,
+    "rewrite_file_canonical_occurrences": 1
   },
-  "timestamp_utc": "2026-08-26T03:48:53Z"
+  "final_safety": {
+    "seven_services_stopped": true,
+    "actor_worktree_clean": true,
+    "source_edit": false,
+    "replacement_thread_created": false,
+    "manual_tag_push_deploy": false,
+    "second_transaction": false
+  }
 }
