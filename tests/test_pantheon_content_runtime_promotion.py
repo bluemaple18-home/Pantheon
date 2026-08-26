@@ -666,6 +666,90 @@ def test_plan_rejects_missing_identity_envelope_before_runtime_mutation(
     assert _snapshot(request) == before
 
 
+def test_plan_reconstructs_failed_legacy_identity_from_queue_owned_brief(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-failed-translation-run"
+    run_dir = request.queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(
+            run_id,
+            mode="translate_existing",
+            lane="i18n-new",
+            article_ids=["SOURCE-ARTICLE-001"],
+        ),
+    )
+    _write_json(
+        request.queue_root / "runs" / "failed-legacy.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "failed",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+    before = _snapshot(request)
+
+    plan = promotion.plan_promotion(request)
+
+    classification = plan["queue_identity_snapshot"]["preservation_classification"]
+    assert plan["status"] == "READY_TO_APPLY"
+    assert classification[run_id]["mode"] == "translate_existing"
+    assert classification[run_id]["lane"] == "i18n-new"
+    assert classification[run_id]["article_ids"] == ["SOURCE-ARTICLE-001"]
+    assert classification[run_id]["identity_source"] == "terminal_brief_reconstruction"
+    assert classification[run_id]["durable_root"] == str(
+        request.queue_root / "translation-runs"
+    )
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_keeps_active_legacy_missing_envelope_failed_closed(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-active-translation-run"
+    run_dir = request.queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(
+            run_id,
+            mode="translate_existing",
+            lane="i18n-new",
+            article_ids=["SOURCE-ARTICLE-001"],
+        ),
+    )
+    _write_json(
+        request.queue_root / "runs" / "active-legacy.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="identity envelope"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     run_id = "completed-reviewer-run"
