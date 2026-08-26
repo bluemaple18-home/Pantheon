@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import nullcontext
 import fcntl
 import json
 import os
@@ -4077,6 +4078,11 @@ def test_main_new_only_passes_translation_seed_gate(
         ),
     )
     monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+    monkeypatch.setattr(
+        publisher,
+        "_isolated_transaction_worktree",
+        lambda _actor, _state: nullcontext(tmp_path),
+    )
 
     assert publisher.main() == 0
     assert captured["seed_translations"] is False
@@ -5148,6 +5154,50 @@ def test_isolated_transaction_blocks_stale_actor_runtime(
 
     with pytest.raises(publisher.PublishBlocked, match="runtime digest differs"):
         publisher._assert_transaction_runtime_matches(actor, transaction)
+
+
+def test_main_runs_dry_run_in_latest_origin_transaction_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    transaction = tmp_path / "transaction"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    actor.mkdir()
+    transaction.mkdir()
+    observed_roots: list[Path] = []
+
+    def fake_publish(repo_root: Path, *_args: object, **_kwargs: object) -> dict[str, object]:
+        observed_roots.append(repo_root)
+        return {"schema_version": publisher.SCHEMA_VERSION, "status": "idle", "published": 0}
+
+    monkeypatch.setattr(
+        publisher,
+        "_isolated_transaction_worktree",
+        lambda _actor, _state: nullcontext(transaction),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "parse_args",
+        lambda: publisher.argparse.Namespace(
+            repo_root=actor,
+            queue_root=queue_root,
+            state_root=state_root,
+            max_runs=1,
+            dry_run=True,
+            rewrite_release=False,
+            include_rewrites=False,
+            legacy_report=False,
+            push=False,
+            skip_tests=True,
+            skip_release_gate=True,
+        ),
+    )
+    monkeypatch.setattr(publisher, "publish_ready_runs", fake_publish)
+
+    assert publisher.main() == 0
+    assert observed_roots == [transaction]
 
 
 def test_main_runs_real_publish_in_isolated_worktree(

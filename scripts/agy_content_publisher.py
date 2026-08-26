@@ -4513,51 +4513,30 @@ def main() -> int:
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0
-    if args.dry_run:
+    if not args.dry_run:
+        _validate_formal_runtime(repo_root, queue_root, state_root)
+    with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
         if fresh_ja_run_id is not None:
             result = publish_exact_fresh_ja_translation_run(
-                repo_root,
+                transaction_root,
                 queue_root,
                 state_root,
                 fresh_ja_run_id,
-                dry_run=True,
+                dry_run=args.dry_run,
                 push=args.push,
             )
         else:
             result = publisher_fn(
-                repo_root,
+                transaction_root,
                 queue_root,
                 state_root,
                 max_runs=args.max_runs,
-                dry_run=True,
+                dry_run=args.dry_run,
                 push=args.push,
                 run_tests=not args.skip_tests,
                 release_gate=not args.skip_release_gate,
                 **selector_kwargs,
             )
-    else:
-        _validate_formal_runtime(repo_root, queue_root, state_root)
-        with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
-            if fresh_ja_run_id is not None:
-                result = publish_exact_fresh_ja_translation_run(
-                    transaction_root,
-                    queue_root,
-                    state_root,
-                    fresh_ja_run_id,
-                    push=args.push,
-                )
-            else:
-                result = publisher_fn(
-                    transaction_root,
-                    queue_root,
-                    state_root,
-                    max_runs=args.max_runs,
-                    dry_run=False,
-                    push=args.push,
-                    run_tests=not args.skip_tests,
-                    release_gate=not args.skip_release_gate,
-                    **selector_kwargs,
-                )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {*SUCCESS_STATUSES, "ok"} else 1
 

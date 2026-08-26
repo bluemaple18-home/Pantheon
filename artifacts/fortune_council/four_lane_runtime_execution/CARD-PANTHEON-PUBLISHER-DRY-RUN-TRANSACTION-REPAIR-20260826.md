@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-PUBLISHER-DRY-RUN-TRANSACTION-REPAIR-20260826
-status: active
+status: verified
 thickness: strict
 risk: high
 ---
@@ -34,3 +34,11 @@ risk: high
 - code 回退：revert 本修復 commit。
 - 遠端保護：push 前以 `--force-with-lease` 也禁止；只允許 ordinary fast-forward，GitHub main 必須仍為已驗證 SHA。
 - 七個服務全程保持停止。
+
+## 驗證結果
+
+- RED：`test_main_runs_dry_run_in_latest_origin_transaction_worktree` 在修復前收到 actor root，`1 failed`。
+- GREEN：同一 regression 加既有 real-publish／new-only routing 測試，`3 passed`。
+- Publisher 全檔：`134 passed`。
+- 受影響 release gate：`357 passed`；兩個既有 warning，無新增 failure。
+- 遠端 `0257bd5213…` 已先無衝突合併進本機 main；備援分支 `codex/backup-pre-remote-convergence-20260826` 保留修復前 SHA。
