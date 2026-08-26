@@ -6,7 +6,7 @@ import {
   listArticleRecords,
   listArticleSectionRecords,
   listTagManagementRecords,
-} from "./article-registry.js?v=agy-v0391-publish-canary-20260826-02";
+} from "./article-registry.js?v=agy-rewrite-20260826-01";
 
 const dom = {
   boundary: document.querySelector("[data-policy-boundary]"),
