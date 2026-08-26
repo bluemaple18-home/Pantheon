@@ -1,6 +1,12 @@
 ---
 id: CARD-PANTHEON-PUBLISHER-DRY-RUN-TRANSACTION-REPAIR-20260826
-status: blocked
+chain_id: PANTHEON-PUBLISHER-PRESERVATION-CONTRACT-20260826
+role: repair
+cycle: 1
+model: gpt-5.5
+reasoning: high
+model_reason: 規格固定的 strict/core-bounded lifecycle 與 promotion contract 修復
+status: ready
 thickness: strict
 risk: high
 ---
@@ -9,10 +15,9 @@ risk: high
 
 ## 目標與邊界
 
-- 修正正式 Publisher CLI 的 dry-run routing：與實際 publish 一樣，從最新 `origin/main` 建立隔離 transaction worktree，再執行指定 lane 的 dry-run。
-- 保留 immutable runtime actor；禁止把 actor `6477ab815e…` 回推覆蓋遠端 `0257bd5213…`。
-- 只修改 `scripts/agy_content_publisher.py`、`tests/test_agy_content_publisher.py` 與本卡證據；不碰 production queue/state/registry、公開內容與七個 launchd 服務。
-- 遠端 write 只能是包含既有遠端 main 的 fast-forward；任何 SHA drift 或 non-fast-forward 立即停止。
+- 修正 preservation contract 與 promotion classification，使 durable translation、terminal failed tombstone、create candidate、published/released 與 superseded create 在任何 runtime mutation 前可被正確區分。
+- 只允許修改 `scripts/pantheon_content_runtime_promotion.py`、`tests/test_pantheon_content_runtime_promotion.py`、`scripts/agy_content_publisher.py`、`tests/test_agy_content_publisher.py`；必要時才可修改 `scripts/agy_gemini_coordinator.py`、`tests/test_agy_gemini_coordinator.py`，以及本卡既有證據。
+- 明確禁止 production registry/run-dir mutation、資料搬遷、publish、push、deploy、service start，以及建立新卡；不得修改 translation 或 active run 狀態。
 
 ## 根因證據
 
@@ -25,14 +30,14 @@ risk: high
 
 1. 新增 regression：actor 留在父 commit、remote 只新增 content commit，CLI dry-run 必須把 transaction root 傳給 publisher function，而不是 actor root。
 2. 先只跑該測試，確認現況 RED 且失敗原因是 publisher 收到 actor root。
-3. 最小修改 `main()` dry-run 分支，沿用 `_isolated_transaction_worktree`。
-4. 重跑 regression、相關 Publisher 測試、`git diff --check`。
-5. 遠端與 actor runtime paths 無 drift、遠端即時 SHA 未變才允許 fast-forward push；再回原 A、B 正式 task 依序重驗。
+3. 以最小 code repair 落實 preservation contract 與 fail-closed promotion classification。
+4. 重跑 regression、受影響 Publisher／Coordinator 測試與 `git diff --check`。
+5. 只產生唯讀 promotion plan；不得執行 apply、資料搬遷、publish、push、deploy 或服務啟動。
 
 ## 回退
 
-- code 回退：revert 本修復 commit。
-- 遠端保護：push 前以 `--force-with-lease` 也禁止；只允許 ordinary fast-forward，GitHub main 必須仍為已驗證 SHA。
+- code 回退：由主線依候選修復 commit 進行可追溯回退。
+- 狀態保護：本卡不授權任何 production registry/run-dir mutation、資料搬遷、publish、push、deploy 或服務啟動。
 - 七個服務全程保持停止。
 
 ## 驗證結果
