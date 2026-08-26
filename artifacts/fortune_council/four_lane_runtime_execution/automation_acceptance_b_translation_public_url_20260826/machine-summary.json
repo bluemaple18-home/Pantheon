@@ -1,18 +1,16 @@
 {
   "activation_token": "act-v1:8e9e60c28a44e0b5fe1813b7b3c83438d6fb4ca066b8832c37d4e8532f3786d3",
   "actor_head": "204a8bd8b86b37f411048983730ce1efb9fa2734",
-  "actor_origin_main": "204a8bd8b86b37f411048983730ce1efb9fa2734",
-  "actor_status_clean": true,
-  "blocker": "EXACT_TRANSLATION_RUN_NOT_READY_IN_FORMAL_QUEUE",
+  "blocker": "FRESH_JA_REVIEWER_REJECTED_AFTER_THREE_ATTEMPTS",
   "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826",
   "codegraph": {
     "degraded_reason": "CodeGraph tool reported not initialized for the current formal worktree before source decision.",
     "readiness": "UNAVAILABLE",
     "status_error": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/2cf0/Pantheon"
   },
-  "continuation_head": "204a8bd8b86b37f411048983730ce1efb9fa2734",
   "delivery": "DELIVERED_ACCEPTANCE_B_CONTINUATION",
   "dispatch_key": "v1:9bef6288f7b2b5684fc4563765b80db2ef33b3bf992dd2261ba8544f6a6f3c5c",
+  "evidence_base_head": "48a3e56e97213f7e5b47aa59c55a2ec7b72ab765",
   "formal_thread": "01a03c34-fd96-7021-9423-29879c9b5b47",
   "ledger": {
     "target_deferred": [],
@@ -26,8 +24,19 @@
     "runtime_digest": "3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0",
     "runtime_identity_digest": "d19ba363be2f7eef559bab01ed093a8182ae6bd832fa6956573590ab593da18c"
   },
+  "model_route": {
+    "digest": "1ed24743202ff953bf32d07d570602e61c77194df45889cabc93b13495945e0e",
+    "reviewer": "gemini-3.1-flash-lite",
+    "writer": "gemini-3.5-flash-lite"
+  },
   "mutation_accounting": {
+    "authorized_queue_mutation": {
+      "fresh_ja_prepare_registration": 1,
+      "model_attempts": 3,
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74"
+    },
     "browser_validation": 0,
+    "deploy": 0,
     "http_validation": 0,
     "ledger_target_transaction_count": 0,
     "publication_commit": null,
@@ -35,7 +44,6 @@
     "public_content_update": 0,
     "public_locale_url": null,
     "push": 0,
-    "queue_run_mutation": 0,
     "services_mutation": 0,
     "translation_publication_transaction": 0
   },
@@ -43,46 +51,37 @@
     "deployment_preflight": {
       "actor": "matched",
       "authority_mode": "manifest",
-      "exact_run_ids": [
-        "auto-i18n-en-614aa4dc3542ab2c5637"
-      ],
-      "max_runs": 1,
       "mode": "read-only",
       "mutation_permitted": false,
       "push_mode": "push",
       "runtime_sha": "204a8bd8b86b37f411048983730ce1efb9fa2734",
       "status": "ready"
     },
-    "exact_dry_run": {
-      "base_sha": "204a8bd8b86b37f411048983730ce1efb9fa2734",
-      "create_status": "idle",
-      "overall_status": "ok",
-      "rewrite_status": "idle",
-      "translation_status": "idle_rejects_only",
-      "translated": 0
+    "fresh_ja_prepare": {
+      "locale": "ja",
+      "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74"
+    },
+    "publisher_exact_dry_run_after_reject": {
+      "error": "PublishBlocked: exact fresh JA run is not complete",
+      "status": "blocked"
+    },
+    "writer_reviewer": {
+      "approved": 0,
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "total": 1
     }
   },
-  "queue": {
-    "current_translation_run_ids": [
-      "auto-i18n-en-aa637e1bf05d3ad21429",
-      "auto-i18n-ja-278fce6e38a85de996dd",
-      "auto-i18n-ja-3a39827aeb778de1957f",
-      "auto-i18n-ja-4a9da72316d5d368eeb5",
-      "auto-i18n-ko-85d513b289d89dd9bf75",
-      "auto-i18n-ko-bb1bc3865ed466bac17a",
-      "auto-i18n-ko-bc1ce017b4ac2657a133"
-    ],
-    "target_run_files_present": false
-  },
   "result_status": "BLOCKED",
-  "retry_record": {
-    "attempts": 1,
-    "candidate_preserved": true,
-    "eligibility": "deferred",
-    "error_type": "CalledProcessError",
-    "max_attempts": 3,
-    "recovery_count": 0,
-    "run_id": "auto-i18n-en-614aa4dc3542ab2c5637"
+  "selected_target": {
+    "expected_public_ja_path": "/ja/articles/tarot/tarot-1884",
+    "locale": "ja",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "source_article_id": "V2-TAROT-DEATH-MONEY",
+    "source_path": "/articles/tarot/tarot-1884",
+    "source_run_id": "v0391-publish-canary-20260826-02",
+    "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+    "translation_article_id": "V2-TAROT-DEATH-MONEY:ja"
   },
   "services": {
     "com.pantheon.agy-content-publisher": "STOPPED_OR_NOT_LOADED",
@@ -93,11 +92,51 @@
     "com.pantheon.agy-gemini-rewrite": "STOPPED_OR_NOT_LOADED",
     "com.pantheon.content-capacity-guard": "STOPPED_OR_NOT_LOADED"
   },
-  "target": {
-    "expected_article_id": "ASTRO-BASE-01:en",
-    "locale": "en",
-    "run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
-    "source_article_id": "ASTRO-BASE-01"
+  "supervisor_readonly_confirmation": {
+    "no_agy_content_publisher_process": true,
+    "no_agy_gemini_process": true,
+    "no_publication_transaction": true,
+    "no_target_run_process": true
   },
-  "terminal_state": "BLOCKED_NO_PUBLICATION"
+  "terminalization": {
+    "manual_state_edit": false,
+    "official_terminalize_dangling_active_applicable": false,
+    "official_terminalize_pending_applicable": false,
+    "safe_cycle_attempted": false,
+    "safe_cycle_rejected_by_escalation_review": true,
+    "terminal_state_basis": "three official model attempts with three Reviewer REJECT verdicts; no fourth attempt authorized",
+    "translation_queue_registry_status": "active"
+  },
+  "three_attempts": [
+    {
+      "attempt": "01",
+      "candidate_sha256": "80fcd9eb48c7a156030ad48196be3ea938465edfa19ce483389491f6bf01ea83",
+      "deterministic_findings": 0,
+      "finding_codes": [
+        "SOURCE_SYNTAX_TRANSFER",
+        "NON_NATIVE_SEARCH_INTENT"
+      ],
+      "verdict": "REJECT"
+    },
+    {
+      "attempt": "02",
+      "candidate_sha256": "e1ced4721cfd90d50c03324d6fffe40cd7f7446fbe2345a98e971ea1bc2ab40d",
+      "deterministic_findings": 0,
+      "finding_codes": [
+        "AI_TEMPLATE_STYLE",
+        "NON_NATIVE_SEARCH_INTENT"
+      ],
+      "verdict": "REJECT"
+    },
+    {
+      "attempt": "03",
+      "candidate_sha256": "4d99ffed53c3a4c8ec3b6176fd6ea2d32f002dcf01cf81049c5033631c1e3e2c",
+      "deterministic_findings": 0,
+      "finding_codes": [
+        "COVERAGE_MISSING",
+        "NON_NATIVE_SEARCH_INTENT"
+      ],
+      "verdict": "REJECT"
+    }
+  ]
 }
