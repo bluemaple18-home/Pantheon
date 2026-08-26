@@ -33,6 +33,8 @@ remote_mutation: forbidden
 - `scripts/agy_content_publisher.py`
 - `tests/test_agy_multilingual_pipeline.py`
 - `tests/test_agy_content_publisher.py`
+- `scripts/agy_gemini_coordinator.py`
+- `tests/test_agy_gemini_coordinator.py`
 
 ## 禁止範圍
 
@@ -45,8 +47,9 @@ remote_mutation: forbidden
 1. 先補一個會對現有 publisher-seeded active translation state 轉 RED 的 regression test，再做最小修復。
 2. new publication seed 為 `translate_existing / i18n-new`；legacy rewrite seed 為 `translate_existing / i18n-rewrite`。
 3. state envelope digest 可重算且與 brief 一致；既有 idempotent enqueue 不覆寫、不漂移 identity。
-4. promotion object-only contracts、invalid JSON fail-closed、GSC array bytes-preserved contract 不得放寬。
-5. 跑受影響測試、promotion focused tests、AST／語法檢查、`git diff --check`，並確認 production mutation `0`。
+4. `enqueue_article_translations` 不得以 optional lane 建立無 envelope active state；所有 production caller，包括 campaign replay，必須使用其既有 authoritative lane 明示傳入。
+5. promotion object-only contracts、invalid JSON fail-closed、GSC array bytes-preserved contract 不得放寬。
+6. 跑受影響測試、promotion focused tests、AST／語法檢查、`git diff --check`，並確認 production mutation `0`。
 
 ## 交付
 
