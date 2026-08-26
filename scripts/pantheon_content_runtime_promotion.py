@@ -227,6 +227,38 @@ def _canonical_file_parent(path: Path, label: str) -> Path:
     return canonical
 
 
+def _canonical_queue_child_file(queue_root: Path, path: Path, label: str) -> Path:
+    canonical_queue_root = _canonical_existing_dir(queue_root, "queue_root")
+    if not path.is_absolute():
+        raise PromotionError(f"{label} must be absolute")
+    try:
+        relative = path.relative_to(canonical_queue_root)
+    except ValueError as error:
+        raise PromotionError(f"{label} is invalid") from error
+    if relative.parts == () or ".." in relative.parts:
+        raise PromotionError(f"{label} is invalid")
+    current = canonical_queue_root
+    for part in relative.parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise PromotionError(f"{label} is invalid")
+        try:
+            resolved = current.resolve(strict=True)
+        except OSError as error:
+            raise PromotionError(f"{label} is missing") from error
+        if resolved != current or not resolved.is_dir():
+            raise PromotionError(f"{label} is invalid")
+    if path.is_symlink():
+        raise PromotionError(f"{label} is invalid")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise PromotionError(f"{label} is missing") from error
+    if resolved != path or not resolved.is_file():
+        raise PromotionError(f"{label} is invalid")
+    return path
+
+
 def _validate_request_shape(request: PromotionRequest) -> None:
     for field in (
         "source_sha",
@@ -499,10 +531,11 @@ def _terminalized_dangling_active_identity(
     ):
         raise PromotionError("terminalization receipt identity mismatch")
     receipt_path = request.queue_root / expected_receipt
-    if not receipt_path.exists():
-        raise PromotionError("terminalization receipt is missing")
-    if receipt_path.is_symlink() or not receipt_path.is_file():
-        raise PromotionError("terminalization receipt is invalid")
+    receipt_path = _canonical_queue_child_file(
+        request.queue_root,
+        receipt_path,
+        "terminalization receipt",
+    )
     receipt = _read_json_file(receipt_path, "terminalization receipt")
     before = receipt.get("before")
     after = receipt.get("after")

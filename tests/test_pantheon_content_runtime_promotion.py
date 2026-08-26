@@ -972,6 +972,48 @@ def test_plan_rejects_symlinked_terminalization_receipt_before_runtime_mutation(
     assert _snapshot(request) == before
 
 
+def test_plan_rejects_symlinked_terminalization_receipt_parent_before_runtime_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-terminalized-dangling-active"
+    missing_run_dir = tmp_path / "retired-runtime" / "gsc-copy" / run_id
+    _state_path, receipt_path = _write_dangling_active_terminalization(
+        request,
+        run_id=run_id,
+        run_dir=missing_run_dir,
+    )
+    receipt_payload = receipt_path.read_text(encoding="utf-8")
+    receipt_dir = receipt_path.parent
+    receipt_path.unlink()
+    receipt_dir.rmdir()
+    external_dir = tmp_path / "external-terminalizations"
+    external_dir.mkdir()
+    (external_dir / f"{run_id}.json").write_text(receipt_payload, encoding="utf-8")
+    receipt_dir.symlink_to(external_dir, target_is_directory=True)
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+    receipt_reads: list[Path] = []
+    original_read_json_file = promotion._read_json_file
+
+    def tracking_read_json_file(path: Path, label: str) -> dict[str, Any]:
+        if path == receipt_path:
+            receipt_reads.append(path)
+        return original_read_json_file(path, label)
+
+    monkeypatch.setattr(promotion, "_read_json_file", tracking_read_json_file)
+
+    with pytest.raises(promotion.PromotionError, match="terminalization receipt is invalid"):
+        promotion.plan_promotion(request)
+
+    assert receipt_reads == []
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_plan_rejects_unpublished_complete_candidate_without_identity_envelope(
     tmp_path: Path,
 ) -> None:
