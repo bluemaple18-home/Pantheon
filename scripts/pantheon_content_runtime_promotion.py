@@ -82,6 +82,19 @@ def _json_digest(payload: dict[str, Any]) -> str:
     ).hexdigest()
 
 
+def _canonical_json_sha256(payload: object) -> str:
+    encoded = (
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def file_sha256(path: Path) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -459,6 +472,76 @@ def _validated_ledger_history_identity(
     }
 
 
+def _terminalized_dangling_active_identity(
+    request: PromotionRequest,
+    run_id: str,
+    run_dir: Path,
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    if run_dir.resolve(strict=False) != run_dir or run_dir.exists() or run_dir.is_symlink():
+        raise PromotionError("preserved run directory is invalid")
+    binding = state.get("dangling_active_terminalization")
+    if type(binding) is not dict or set(binding) != {
+        "receipt",
+        "reason",
+        "before_digest",
+    }:
+        raise PromotionError("terminalization receipt is missing")
+    receipt_relative = binding.get("receipt")
+    reason = binding.get("reason")
+    before_digest = binding.get("before_digest")
+    expected_receipt = f"dangling-active-terminalizations/{run_id}.json"
+    if (
+        receipt_relative != expected_receipt
+        or reason != "UNRECOVERABLE_RUN_DIR_MISSING"
+        or type(before_digest) is not str
+        or SHA256_PATTERN.fullmatch(before_digest) is None
+    ):
+        raise PromotionError("terminalization receipt identity mismatch")
+    receipt_path = request.queue_root / expected_receipt
+    if not receipt_path.exists():
+        raise PromotionError("terminalization receipt is missing")
+    if receipt_path.is_symlink() or not receipt_path.is_file():
+        raise PromotionError("terminalization receipt is invalid")
+    receipt = _read_json_file(receipt_path, "terminalization receipt")
+    before = receipt.get("before")
+    after = receipt.get("after")
+    if type(before) is not dict or type(after) is not dict:
+        raise PromotionError("terminalization receipt identity mismatch")
+    if (
+        receipt.get("schema_version") != SCHEMA_VERSION
+        or receipt.get("status") != "terminalized"
+        or receipt.get("action") != "terminalize_dangling_active"
+        or receipt.get("run_id") != run_id
+        or receipt.get("run_dir") != str(run_dir)
+        or receipt.get("reason") != reason
+        or receipt.get("before_digest") != before_digest
+        or receipt.get("after_digest") != _canonical_json_sha256(state)
+        or receipt.get("after_digest") != _canonical_json_sha256(after)
+        or _canonical_json_sha256(before) != before_digest
+        or before.get("status") != "active"
+        or before.get("run_id") != run_id
+        or before.get("run_dir") != str(run_dir)
+        or after != state
+        or state.get("status") != "failed"
+        or state.get("run_id") != run_id
+        or state.get("run_dir") != str(run_dir)
+        or state.get("error_type") != "DanglingActiveRunTerminalized"
+        or state.get("dangling_active_terminalization")
+        != {
+            "receipt": expected_receipt,
+            "reason": reason,
+            "before_digest": before_digest,
+        }
+    ):
+        raise PromotionError("terminalization receipt identity mismatch")
+    return {
+        "mode": "terminal_abandoned",
+        "lane": "terminal-abandoned",
+        "article_ids": [],
+    }
+
+
 def _candidate_durable_roots(
     request: PromotionRequest,
     identity: dict[str, Any],
@@ -502,7 +585,11 @@ def _preserved_lifecycle(
     if ledger_lifecycle is not None and status != "complete":
         raise PromotionError("publisher ledger lifecycle conflict")
     if canonical_run_dir is None:
-        lifecycle = "terminal_failed_tombstone"
+        lifecycle = (
+            "terminal_abandoned"
+            if identity["mode"] == "terminal_abandoned"
+            else "terminal_failed_tombstone"
+        )
         durable_root: Path | None = None
     else:
         durable_root = _canonical_durable_root_for_run(request, identity, canonical_run_dir)
@@ -599,7 +686,17 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
             if status != "failed":
                 raise PromotionError("preserved run directory is missing") from error
             canonical_run_dir = None
-            identity = _validated_run_identity_envelope_value(state.get("identity_envelope"))
+            if state.get("identity_envelope") is None:
+                identity = _terminalized_dangling_active_identity(
+                    request,
+                    run_id,
+                    run_dir,
+                    state,
+                )
+            else:
+                identity = _validated_run_identity_envelope_value(
+                    state.get("identity_envelope")
+                )
         else:
             if run_dir.is_symlink() or not run_dir.is_dir() or canonical_run_dir != run_dir:
                 raise PromotionError("preserved run directory is outside durable root")

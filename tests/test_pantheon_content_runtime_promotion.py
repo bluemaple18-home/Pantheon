@@ -111,6 +111,81 @@ def _write_preserved_state(
     )
 
 
+def _canonical_json_sha256(payload: object) -> str:
+    encoded = (
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _terminalization_receipt_path(
+    request: promotion.PromotionRequest,
+    run_id: str,
+) -> Path:
+    return request.queue_root / "dangling-active-terminalizations" / f"{run_id}.json"
+
+
+def _write_dangling_active_terminalization(
+    request: promotion.PromotionRequest,
+    *,
+    run_id: str,
+    run_dir: Path,
+    receipt_patch: dict[str, object] | None = None,
+    state_patch: dict[str, object] | None = None,
+    write_receipt: bool = True,
+) -> tuple[Path, Path]:
+    receipt_relative = f"dangling-active-terminalizations/{run_id}.json"
+    before_state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "active",
+    }
+    before_digest = _canonical_json_sha256(before_state)
+    after_state = {
+        **before_state,
+        "status": "failed",
+        "error_type": "DanglingActiveRunTerminalized",
+        "dangling_active_terminalization": {
+            "receipt": receipt_relative,
+            "reason": "UNRECOVERABLE_RUN_DIR_MISSING",
+            "before_digest": before_digest,
+        },
+        "terminalized_at": "2026-08-26T00:00:00+00:00",
+    }
+    if state_patch:
+        after_state.update(state_patch)
+    after_digest = _canonical_json_sha256(after_state)
+    receipt = {
+        "schema_version": 1,
+        "status": "terminalized",
+        "action": "terminalize_dangling_active",
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "reason": "UNRECOVERABLE_RUN_DIR_MISSING",
+        "before_digest": before_digest,
+        "after_digest": after_digest,
+        "before": before_state,
+        "after": after_state,
+        "terminalized_at": "2026-08-26T00:00:00+00:00",
+    }
+    if receipt_patch:
+        receipt.update(receipt_patch)
+    state_path = request.queue_root / "runs" / f"{run_id}.json"
+    _write_json(state_path, after_state)
+    receipt_path = _terminalization_receipt_path(request, run_id)
+    if write_receipt:
+        receipt_path.parent.mkdir(parents=True)
+        _write_json(receipt_path, receipt)
+    return state_path, receipt_path
+
+
 def _write_capacity_receipt(path: Path, *, status: str = "PASS") -> str:
     payload = {
         "schema_version": 1,
@@ -690,6 +765,28 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
         },
     )
 
+    translation_id = "legacy-translation-history"
+    translation_dir = request.queue_root / "translation-runs" / translation_id
+    translation_dir.mkdir(parents=True)
+    _write_json(
+        translation_dir / "brief.json",
+        _preserved_brief(
+            translation_id,
+            mode="translate_existing",
+            lane="i18n-new",
+            article_ids=["TRANSLATED-SOURCE-001"],
+        ),
+    )
+    _write_json(
+        request.queue_root / "runs" / "e-translation.json",
+        {
+            "schema_version": 1,
+            "run_id": translation_id,
+            "run_dir": str(translation_dir),
+            "status": "complete",
+        },
+    )
+
     _write_json(
         request.publisher_state_root / "ledger.json",
         {
@@ -715,7 +812,13 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
                     "recorded_at": "2026-08-26T00:00:00+00:00",
                 }
             ],
-            "translation_published_runs": [],
+            "translation_published_runs": [
+                {
+                    "run_id": translation_id,
+                    "article_ids": ["TRANSLATED-SOURCE-001"],
+                    "published_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
             "quarantined_runs": [],
             "translation_deferred_runs": [],
         },
@@ -724,7 +827,15 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
         **{
             **request.__dict__,
             "preserved_run_ids": tuple(
-                sorted([active_id, published_id, released_id, superseded_id])
+                sorted(
+                    [
+                        active_id,
+                        published_id,
+                        released_id,
+                        superseded_id,
+                        translation_id,
+                    ]
+                )
             ),
         }
     )
@@ -738,9 +849,156 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
     assert classification[published_id]["lifecycle"] == "published"
     assert classification[superseded_id]["lifecycle"] == "superseded_create"
     assert classification[released_id]["lifecycle"] == "released"
+    assert classification[translation_id]["lifecycle"] == "published_translation"
     assert promotion.tree_digest(request.queue_root) == before_queue
     assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
     assert not request.transaction_root.exists()
+
+
+def test_plan_allows_terminalized_dangling_active_history_without_execution_schema(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-terminalized-dangling-active"
+    missing_run_dir = tmp_path / "retired-runtime" / "gsc-copy" / run_id
+    _state_path, receipt_path = _write_dangling_active_terminalization(
+        request,
+        run_id=run_id,
+        run_dir=missing_run_dir,
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+    before_receipt = promotion.file_sha256(receipt_path)
+
+    plan = promotion.plan_promotion(request)
+
+    classification = plan["queue_identity_snapshot"]["preservation_classification"]
+    assert plan["status"] == "READY_TO_APPLY"
+    assert classification[run_id]["lifecycle"] == "terminal_abandoned"
+    assert classification[run_id]["mode"] == "terminal_abandoned"
+    assert classification[run_id]["run_dir_exists"] is False
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert promotion.file_sha256(receipt_path) == before_receipt
+    assert not request.transaction_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("fixture_patch", "message"),
+    [
+        ({"write_receipt": False}, "terminalization receipt is missing"),
+        (
+            {"receipt_patch": {"run_id": "other-terminalized-run"}},
+            "terminalization receipt identity mismatch",
+        ),
+        (
+            {"receipt_patch": {"run_dir": "/tmp/other-missing-run"}},
+            "terminalization receipt identity mismatch",
+        ),
+        (
+            {"receipt_patch": {"before_digest": "b" * 64}},
+            "terminalization receipt identity mismatch",
+        ),
+        (
+            {"receipt_patch": {"after_digest": "c" * 64}},
+            "terminalization receipt identity mismatch",
+        ),
+        (
+            {
+                "state_patch": {
+                    "dangling_active_terminalization": {
+                        "receipt": "../escape.json",
+                        "reason": "UNRECOVERABLE_RUN_DIR_MISSING",
+                        "before_digest": "d" * 64,
+                    }
+                }
+            },
+            "terminalization receipt identity mismatch",
+        ),
+    ],
+)
+def test_plan_rejects_invalid_terminalization_receipt_before_runtime_mutation(
+    tmp_path: Path,
+    fixture_patch: dict[str, object],
+    message: str,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-terminalized-dangling-active"
+    missing_run_dir = tmp_path / "retired-runtime" / "gsc-copy" / run_id
+    _write_dangling_active_terminalization(
+        request,
+        run_id=run_id,
+        run_dir=missing_run_dir,
+        **fixture_patch,
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match=message):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_symlinked_terminalization_receipt_before_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-terminalized-dangling-active"
+    missing_run_dir = tmp_path / "retired-runtime" / "gsc-copy" / run_id
+    _state_path, receipt_path = _write_dangling_active_terminalization(
+        request,
+        run_id=run_id,
+        run_dir=missing_run_dir,
+    )
+    receipt_payload = receipt_path.read_text(encoding="utf-8")
+    receipt_path.unlink()
+    target = tmp_path / "receipt-target.json"
+    target.write_text(receipt_payload, encoding="utf-8")
+    receipt_path.symlink_to(target)
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="terminalization receipt is invalid"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+def test_plan_rejects_unpublished_complete_candidate_without_identity_envelope(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "complete-unpublished-candidate"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id))
+    _write_json(
+        request.queue_root / "runs" / "candidate.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "complete",
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="identity envelope"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
 
 
 def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(

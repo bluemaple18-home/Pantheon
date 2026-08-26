@@ -6,6 +6,8 @@
   "status": "DELIVERED_CANDIDATE",
   "candidate_sha": null,
   "candidate_sha_authority": "final_response_after_last_amend",
+  "candidate_iteration": 2,
+  "supersedes_candidate_sha": "2c1c6a4850c508ffab26108f7fd9181c05ea2269",
   "production_mutation_count": 0,
   "codegraph_readiness": "CONTEXT_DEGRADED",
   "changed_files": [
@@ -34,6 +36,44 @@
       "command": "uv run pytest tests/test_pantheon_runtime_activation.py -q",
       "exit_code": 0,
       "result": "6 passed in 0.15s"
+    },
+    {
+      "command": ".venv/bin/python -m py_compile scripts/pantheon_content_runtime_promotion.py tests/test_pantheon_content_runtime_promotion.py",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "follow_up_red": {
+    "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py::test_plan_allows_terminalized_dangling_active_history_without_execution_schema -q",
+    "exit_code": 1,
+    "result": "FAILED as expected before terminal-abandoned GREEN",
+    "failure_signal": "PromotionError: preserved run identity envelope is missing or invalid"
+  },
+  "follow_up_green": [
+    {
+      "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py::test_plan_allows_terminalized_dangling_active_history_without_execution_schema -q",
+      "exit_code": 0,
+      "result": "1 passed in 0.33s"
+    },
+    {
+      "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py::test_plan_allows_ledger_terminal_history_without_execution_schema tests/test_pantheon_content_runtime_promotion.py::test_plan_rejects_invalid_terminalization_receipt_before_runtime_mutation tests/test_pantheon_content_runtime_promotion.py::test_plan_rejects_symlinked_terminalization_receipt_before_runtime_mutation tests/test_pantheon_content_runtime_promotion.py::test_plan_rejects_unpublished_complete_candidate_without_identity_envelope -q",
+      "exit_code": 0,
+      "result": "9 passed in 2.20s"
+    },
+    {
+      "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py -q",
+      "exit_code": 0,
+      "result": "47 passed in 13.90s"
+    },
+    {
+      "command": "uv run pytest tests/test_pantheon_runtime_activation.py -q",
+      "exit_code": 0,
+      "result": "6 passed in 0.04s"
     },
     {
       "command": ".venv/bin/python -m py_compile scripts/pantheon_content_runtime_promotion.py tests/test_pantheon_content_runtime_promotion.py",
