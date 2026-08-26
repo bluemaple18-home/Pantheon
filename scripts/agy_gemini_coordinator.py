@@ -3591,6 +3591,7 @@ def replay_campaign_editorial_workset_through_translation(
                 source_run_id=str(item["run_id"]),
                 article_id=str(item["article_id"]),
                 locales=[locale],
+                lane=str(plan["lane"]),
                 source_loader=source_loader,
             )
             if [record["run_id"] for record in records] != [plan["brief"]["run_id"]]:

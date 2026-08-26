@@ -416,7 +416,7 @@ def enqueue_article_translations(
     source_run_id: str,
     article_id: str,
     locales: list[str] | None = None,
-    lane: str | None = None,
+    lane: str,
     source_loader: SourceLoader = load_source_article,
 ) -> list[dict[str, str]]:
     """為已發布新文或成功改寫舊文建立英、日、韓三個互不阻塞的翻譯 run。"""
@@ -429,11 +429,7 @@ def enqueue_article_translations(
         or any(locale not in SUPPORTED_LOCALES for locale in selected_locales)
     ):
         raise ValueError("translation locales must be non-empty, unique, and supported")
-    identity_envelope = (
-        translation_identity_envelope(article_id, lane)
-        if lane is not None
-        else None
-    )
+    identity_envelope = translation_identity_envelope(article_id, lane)
     queue_root = queue_root.resolve()
     records: list[dict[str, str]] = []
     for locale in selected_locales:
@@ -452,7 +448,7 @@ def enqueue_article_translations(
             current_source = source_loader(repo_root, article_id)
             if existing_brief["articles"][0]["source_sha256"] != source_sha256(current_source):
                 raise ValueError("registered translation run source drift")
-            if identity_envelope is not None and (
+            if (
                 state.get("lane") != lane
                 or state.get("identity_envelope") != identity_envelope
             ):
@@ -474,14 +470,8 @@ def enqueue_article_translations(
                     "run_id": run_id,
                     "run_dir": str(resolved_run_dir),
                     "status": "active",
-                    **(
-                        {
-                            "lane": lane,
-                            "identity_envelope": identity_envelope,
-                        }
-                        if identity_envelope is not None
-                        else {}
-                    ),
+                    "lane": lane,
+                    "identity_envelope": identity_envelope,
                     "registered_at": now,
                     "updated_at": now,
                 },

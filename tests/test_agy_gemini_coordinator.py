@@ -409,12 +409,42 @@ def _tree_bytes(root: Path) -> dict[str, bytes]:
 
 def test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
     client = _CampaignTranslationClient(briefs)
     queue_root = tmp_path / "translation-queue"
     state_root = tmp_path / "publisher-state"
     original_loader = coordinator.multilingual.load_source_article
+    original_enqueue = coordinator.multilingual.enqueue_article_translations
+    enqueue_lanes: list[str] = []
+
+    def tracking_enqueue_article_translations(
+        repo_root: Path,
+        queue: Path,
+        *,
+        source_run_id: str,
+        article_id: str,
+        locales: list[str] | None = None,
+        lane: str,
+        source_loader=coordinator.multilingual.load_source_article,
+    ) -> list[dict[str, str]]:
+        enqueue_lanes.append(lane)
+        return original_enqueue(
+            repo_root,
+            queue,
+            source_run_id=source_run_id,
+            article_id=article_id,
+            locales=locales,
+            lane=lane,
+            source_loader=source_loader,
+        )
+
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "enqueue_article_translations",
+        tracking_enqueue_article_translations,
+    )
 
     first = coordinator.replay_campaign_editorial_workset_through_translation(
         Path(__file__).resolve().parents[1],
@@ -446,6 +476,7 @@ def test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain(
         "i18n-new",
         "i18n-rewrite",
     }
+    assert enqueue_lanes == ["i18n-new", "i18n-rewrite", "i18n-new", "i18n-rewrite"]
     assert len({item["translation_run_id"] for item in first["translation_runs"]}) == 2
     assert all(
         item["translation_article_id"]
