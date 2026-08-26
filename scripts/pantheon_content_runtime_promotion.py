@@ -336,6 +336,7 @@ def _validated_run_identity_envelope_value(value: object) -> dict[str, Any]:
 def _validate_run_identity_matches_brief(
     identity: dict[str, Any],
     brief: dict[str, Any],
+    state_lane: object = None,
 ) -> None:
     mode = identity["mode"]
     lane = identity["lane"]
@@ -367,6 +368,8 @@ def _validate_run_identity_matches_brief(
         "create": "new",
         "rewrite_existing_body": "rewrite",
     }.get(mode, brief_lane)
+    if mode == "translate_existing" and type(brief_lane) is not str:
+        expected_brief_lane = state_lane
     if expected_brief_lane != lane:
         raise PromotionError("preserved run brief identity mismatch")
 
@@ -374,9 +377,10 @@ def _validate_run_identity_matches_brief(
 def _validated_run_identity_envelope(
     value: object,
     brief: dict[str, Any],
+    state_lane: object = None,
 ) -> dict[str, Any]:
     identity = _validated_run_identity_envelope_value(value)
-    _validate_run_identity_matches_brief(identity, brief)
+    _validate_run_identity_matches_brief(identity, brief, state_lane)
     return identity
 
 
@@ -833,6 +837,7 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
                 identity = _validated_run_identity_envelope(
                     state.get("identity_envelope"),
                     brief,
+                    state.get("lane"),
                 )
                 identity_source = "current_identity_envelope"
             _canonical_durable_root_for_run(request, identity, canonical_run_dir)

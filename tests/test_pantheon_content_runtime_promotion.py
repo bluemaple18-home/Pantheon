@@ -750,6 +750,98 @@ def test_plan_keeps_active_legacy_missing_envelope_failed_closed(
     assert _snapshot(request) == before
 
 
+def test_plan_accepts_legacy_translation_brief_missing_lane_with_matching_state_lane(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "auto-i18n-ja-4a9da72316d5d368eeb5"
+    run_dir = request.queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(
+            run_id,
+            mode="translate_existing",
+            article_ids=["ASTRO-BASE-01"],
+        ),
+    )
+    _write_json(
+        request.queue_root / "runs" / "legacy-translation.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "failed",
+            "lane": "i18n-rewrite",
+            "identity_envelope": _identity_envelope(
+                ["ASTRO-BASE-01"],
+                mode="translate_existing",
+                lane="i18n-rewrite",
+            ),
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+    before = _snapshot(request)
+
+    plan = promotion.plan_promotion(request)
+
+    classification = plan["queue_identity_snapshot"]["preservation_classification"]
+    assert plan["status"] == "READY_TO_APPLY"
+    assert classification[run_id]["mode"] == "translate_existing"
+    assert classification[run_id]["lane"] == "i18n-rewrite"
+    assert classification[run_id]["article_ids"] == ["ASTRO-BASE-01"]
+    assert classification[run_id]["identity_source"] == "current_identity_envelope"
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+@pytest.mark.parametrize("state_lane", [None, "i18n-new"])
+def test_plan_rejects_legacy_translation_brief_missing_lane_without_matching_state_lane(
+    tmp_path: Path,
+    state_lane: str | None,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "auto-i18n-ja-4a9da72316d5d368eeb5"
+    run_dir = request.queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(
+            run_id,
+            mode="translate_existing",
+            article_ids=["ASTRO-BASE-01"],
+        ),
+    )
+    state: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "failed",
+        "identity_envelope": _identity_envelope(
+            ["ASTRO-BASE-01"],
+            mode="translate_existing",
+            lane="i18n-rewrite",
+        ),
+    }
+    if state_lane is not None:
+        state["lane"] = state_lane
+    _write_json(request.queue_root / "runs" / "legacy-translation.json", state)
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="brief identity mismatch"):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     run_id = "completed-reviewer-run"
