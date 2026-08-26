@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-PROMOTION-HISTORY-AUTHORITY-BOUNDARY-20260826",
+  "dispatch_key": "v1:1023ab414bd0482cc2107645cbd42f4fff0cf2f60a7840dcdf87f5f979ff69d0",
+  "activation_token": "act-v1:6d2686aa4261a3dc0b9d0b9506e25c9c71073a4a1c1d863ba3934d1fea2b1c76",
+  "status": "DELIVERED_CANDIDATE",
+  "candidate_sha": null,
+  "candidate_sha_authority": "final_response_after_last_amend",
+  "production_mutation_count": 0,
+  "codegraph_readiness": "CONTEXT_DEGRADED",
+  "changed_files": [
+    "scripts/pantheon_content_runtime_promotion.py",
+    "tests/test_pantheon_content_runtime_promotion.py",
+    "artifacts/fortune_council/four_lane_runtime_execution/evidence/promotion_history_authority_boundary/receipt.json"
+  ],
+  "red": {
+    "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py::test_plan_allows_ledger_terminal_history_without_execution_schema -q",
+    "exit_code": 1,
+    "result": "FAILED as expected before GREEN",
+    "failure_signal": "PromotionError: preserved run identity envelope is missing or invalid"
+  },
+  "green": [
+    {
+      "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py::test_plan_allows_ledger_terminal_history_without_execution_schema -q",
+      "exit_code": 0,
+      "result": "1 passed in 0.34s"
+    },
+    {
+      "command": "uv run pytest tests/test_pantheon_content_runtime_promotion.py -q",
+      "exit_code": 0,
+      "result": "38 passed in 12.51s"
+    },
+    {
+      "command": "uv run pytest tests/test_pantheon_runtime_activation.py -q",
+      "exit_code": 0,
+      "result": "6 passed in 0.15s"
+    },
+    {
+      "command": ".venv/bin/python -m py_compile scripts/pantheon_content_runtime_promotion.py tests/test_pantheon_content_runtime_promotion.py",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "affected_runtime_gate_basis": "Only scripts/pantheon_content_runtime_promotion.py and its focused tests changed; tests/test_pantheon_runtime_activation.py was run as adjacent runtime activation coverage. No service start, production apply, publish, push, deploy, or restart was executed."
+}

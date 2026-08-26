@@ -335,11 +335,25 @@ def _validated_run_identity_envelope(
     return identity
 
 
-def _publisher_ledger_lifecycle(
+def _validated_ledger_article_ids(value: object) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or any(
+            type(article_id) is not str
+            or not article_id
+            or article_id.strip() != article_id
+            for article_id in value
+        )
+        or value != sorted(set(value))
+    ):
+        raise PromotionError("publisher ledger identity mismatch")
+    return value
+
+
+def _publisher_ledger_evidence(
     request: PromotionRequest,
     run_id: str,
-    identity: dict[str, Any],
-) -> str | None:
+) -> dict[str, Any] | None:
     ledger_path = request.publisher_state_root / "ledger.json"
     if not ledger_path.exists():
         return None
@@ -349,13 +363,17 @@ def _publisher_ledger_lifecycle(
     if ledger.get("schema_version") != SCHEMA_VERSION:
         raise PromotionError("publisher ledger is invalid")
     ledger_keys = {
-        "published_runs": ("create", "published"),
-        "rewrite_released_runs": ("rewrite_existing_body", "released"),
-        "translation_published_runs": ("translate_existing", "published_translation"),
-        "superseded_runs": ("create", "superseded_create"),
+        "published_runs": ("create", "new", "published"),
+        "rewrite_released_runs": ("rewrite_existing_body", "rewrite", "released"),
+        "translation_published_runs": (
+            "translate_existing",
+            None,
+            "published_translation",
+        ),
+        "superseded_runs": ("create", "new", "superseded_create"),
     }
-    matched: list[str] = []
-    for key, (expected_mode, lifecycle) in ledger_keys.items():
+    matched: list[dict[str, Any]] = []
+    for key, (expected_mode, expected_lane, lifecycle) in ledger_keys.items():
         entries = ledger.get(key, [])
         if not isinstance(entries, list):
             raise PromotionError("publisher ledger is invalid")
@@ -366,22 +384,16 @@ def _publisher_ledger_lifecycle(
             if entry.get("run_id") != run_id:
                 continue
             seen += 1
-            if identity["mode"] != expected_mode:
-                raise PromotionError("publisher ledger identity mismatch")
-            article_ids = entry.get("article_ids")
-            if (
-                not isinstance(article_ids, list)
-                or any(
-                    type(article_id) is not str
-                    or not article_id
-                    or article_id.strip() != article_id
-                    for article_id in article_ids
-                )
-                or article_ids != sorted(set(article_ids))
-                or article_ids != identity["article_ids"]
-            ):
-                raise PromotionError("publisher ledger identity mismatch")
-            matched.append(lifecycle)
+            matched.append(
+                {
+                    "mode": expected_mode,
+                    "lane": expected_lane,
+                    "article_ids": _validated_ledger_article_ids(
+                        entry.get("article_ids")
+                    ),
+                    "lifecycle": lifecycle,
+                }
+            )
         if seen > 1:
             raise PromotionError("publisher ledger identity mismatch")
     if len(matched) > 1:
@@ -389,6 +401,62 @@ def _publisher_ledger_lifecycle(
     if matched:
         return matched[0]
     return None
+
+
+def _publisher_ledger_lifecycle(
+    request: PromotionRequest,
+    run_id: str,
+    identity: dict[str, Any],
+) -> str | None:
+    evidence = _publisher_ledger_evidence(request, run_id)
+    if evidence is None:
+        return None
+    if (
+        identity["mode"] != evidence["mode"]
+        or identity["article_ids"] != evidence["article_ids"]
+    ):
+        raise PromotionError("publisher ledger identity mismatch")
+    return str(evidence["lifecycle"])
+
+
+def _validated_ledger_history_identity(
+    run_id: str,
+    brief: dict[str, Any],
+    ledger_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    if brief.get("run_id") != run_id or brief.get("mode") != ledger_evidence["mode"]:
+        raise PromotionError("publisher ledger identity mismatch")
+    articles = brief.get("articles")
+    if not isinstance(articles, list):
+        raise PromotionError("publisher ledger identity mismatch")
+    observed_ids: list[str] = []
+    for article in articles:
+        if not isinstance(article, dict):
+            raise PromotionError("publisher ledger identity mismatch")
+        value_id: object = None
+        if ledger_evidence["mode"] == "create":
+            target = article.get("target")
+            value_id = target.get("id") if isinstance(target, dict) else article.get("id")
+        elif ledger_evidence["mode"] == "rewrite_existing_body":
+            value_id = article.get("article_id")
+        elif ledger_evidence["mode"] == "translate_existing":
+            value_id = article.get("source_article_id")
+        if type(value_id) is not str or not value_id or value_id.strip() != value_id:
+            raise PromotionError("publisher ledger identity mismatch")
+        observed_ids.append(value_id)
+    if (
+        sorted(observed_ids) != ledger_evidence["article_ids"]
+        or len(observed_ids) != len(set(observed_ids))
+    ):
+        raise PromotionError("publisher ledger identity mismatch")
+    lane = brief.get("lane")
+    if type(lane) is not str:
+        lane = ledger_evidence["lane"]
+    return {
+        "mode": ledger_evidence["mode"],
+        "lane": lane,
+        "article_ids": list(ledger_evidence["article_ids"]),
+    }
 
 
 def _candidate_durable_roots(
@@ -431,6 +499,8 @@ def _preserved_lifecycle(
     canonical_run_dir: Path | None,
 ) -> dict[str, Any]:
     ledger_lifecycle = _publisher_ledger_lifecycle(request, run_id, identity)
+    if ledger_lifecycle is not None and status != "complete":
+        raise PromotionError("publisher ledger lifecycle conflict")
     if canonical_run_dir is None:
         lifecycle = "terminal_failed_tombstone"
         durable_root: Path | None = None
@@ -543,7 +613,18 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
             if type(brief_mode) is not str:
                 raise PromotionError("preserved run brief identity mismatch")
             _canonical_durable_root_for_run(request, {"mode": brief_mode}, canonical_run_dir)
-            identity = _validated_run_identity_envelope(state.get("identity_envelope"), brief)
+            ledger_evidence = _publisher_ledger_evidence(request, run_id)
+            if status == "complete" and ledger_evidence is not None:
+                identity = _validated_ledger_history_identity(
+                    run_id,
+                    brief,
+                    ledger_evidence,
+                )
+            else:
+                identity = _validated_run_identity_envelope(
+                    state.get("identity_envelope"),
+                    brief,
+                )
             _canonical_durable_root_for_run(request, identity, canonical_run_dir)
         observed.add(run_id)
         preserved_runs.append(

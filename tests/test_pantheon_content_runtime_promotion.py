@@ -617,6 +617,132 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     assert plan["preserved_run_ids"] == [run_id]
 
 
+def test_plan_allows_ledger_terminal_history_without_execution_schema(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+
+    active_id = "active-operational-run"
+    active_dir = request.queue_root / "gsc-copy" / active_id
+    active_dir.mkdir(parents=True)
+    _write_json(active_dir / "brief.json", _preserved_brief(active_id))
+    _write_preserved_state(
+        request,
+        "a-active.json",
+        run_id=active_id,
+        run_dir=active_dir,
+        status="active",
+        identity_envelope=_identity_envelope(),
+    )
+
+    published_id = "legacy-published-history"
+    published_dir = request.queue_root / "gsc-copy" / published_id
+    published_dir.mkdir(parents=True)
+    _write_json(
+        published_dir / "brief.json",
+        _preserved_brief(published_id, article_ids=["PUBLISHED-HISTORY-001"]),
+    )
+    _write_json(
+        request.queue_root / "runs" / "b-published.json",
+        {
+            "schema_version": 1,
+            "run_id": published_id,
+            "run_dir": str(published_dir),
+            "status": "complete",
+        },
+    )
+
+    superseded_id = "legacy-superseded-history"
+    superseded_dir = request.queue_root.parent / "gsc-copy" / superseded_id
+    superseded_dir.mkdir(parents=True)
+    _write_json(
+        superseded_dir / "brief.json",
+        _preserved_brief(superseded_id, article_ids=["SUPERSEDED-HISTORY-001"]),
+    )
+    _write_json(
+        request.queue_root / "runs" / "c-superseded.json",
+        {
+            "schema_version": 1,
+            "run_id": superseded_id,
+            "run_dir": str(superseded_dir),
+            "status": "complete",
+        },
+    )
+
+    released_id = "legacy-released-history"
+    released_dir = request.queue_root.parent / "gsc-copy" / released_id
+    released_dir.mkdir(parents=True)
+    _write_json(
+        released_dir / "brief.json",
+        _preserved_brief(
+            released_id,
+            mode="rewrite_existing_body",
+            article_ids=["RELEASED-HISTORY-001"],
+        ),
+    )
+    _write_json(
+        request.queue_root / "runs" / "d-released.json",
+        {
+            "schema_version": 1,
+            "run_id": released_id,
+            "run_dir": str(released_dir),
+            "status": "complete",
+        },
+    )
+
+    _write_json(
+        request.publisher_state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [
+                {
+                    "run_id": published_id,
+                    "article_ids": ["PUBLISHED-HISTORY-001"],
+                    "published_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
+            "rewrite_released_runs": [
+                {
+                    "run_id": released_id,
+                    "article_ids": ["RELEASED-HISTORY-001"],
+                    "published_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
+            "superseded_runs": [
+                {
+                    "run_id": superseded_id,
+                    "article_ids": ["SUPERSEDED-HISTORY-001"],
+                    "recorded_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
+            "translation_published_runs": [],
+            "quarantined_runs": [],
+            "translation_deferred_runs": [],
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "preserved_run_ids": tuple(
+                sorted([active_id, published_id, released_id, superseded_id])
+            ),
+        }
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+    before_ledger = promotion.file_sha256(request.publisher_state_root / "ledger.json")
+
+    plan = promotion.plan_promotion(request)
+
+    classification = plan["queue_identity_snapshot"]["preservation_classification"]
+    assert plan["status"] == "READY_TO_APPLY"
+    assert classification[published_id]["lifecycle"] == "published"
+    assert classification[superseded_id]["lifecycle"] == "superseded_create"
+    assert classification[released_id]["lifecycle"] == "released"
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
+    assert not request.transaction_root.exists()
+
+
 def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(
     tmp_path: Path,
 ) -> None:
