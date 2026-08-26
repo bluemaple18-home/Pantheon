@@ -5608,11 +5608,14 @@ def test_legacy_identity_replacement_evidence_requires_closed_trace(
     assert state_path.read_bytes() == before
 
 
-def test_legacy_identity_missing_evidence_fails_closed(tmp_path: Path) -> None:
+def test_terminal_legacy_identity_missing_evidence_does_not_block_registry(
+    tmp_path: Path,
+) -> None:
     queue_root = tmp_path / "queue"
     run_id = "legacy-missing-evidence"
+    state_path = coordinator._state_path(run_id, queue_root)
     coordinator.atomic_write_json(
-        coordinator._state_path(run_id, queue_root),
+        state_path,
         {
             "schema_version": 1,
             "run_id": run_id,
@@ -5620,9 +5623,57 @@ def test_legacy_identity_missing_evidence_fails_closed(tmp_path: Path) -> None:
             "status": "failed",
         },
     )
+    before = state_path.read_bytes()
+
+    assert coordinator._registered_article_ids_by_mode(queue_root, "create") == set()
+    assert state_path.read_bytes() == before
+
+
+def test_active_legacy_identity_missing_evidence_still_fails_closed(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-active-missing-evidence"
+    coordinator.atomic_write_json(
+        coordinator._state_path(run_id, queue_root),
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(queue_root / "gsc-copy" / run_id),
+            "status": "active",
+        },
+    )
 
     with pytest.raises(ValueError, match="legacy run identity evidence is unavailable"):
         coordinator._registered_article_ids_by_mode(queue_root, "create")
+
+
+def test_legacy_identity_backfills_from_canonical_durable_brief(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-durable-brief"
+    run_dir = (tmp_path / "gsc-copy" / run_id).resolve()
+    run_dir.mkdir(parents=True)
+    brief = {
+        "run_id": run_id,
+        "mode": "create",
+        "lane": "new",
+        "articles": [{"target": {"id": "V2-TAROT-DEATH-WORK"}}],
+    }
+    coordinator.atomic_write_json(run_dir / "brief.json", brief)
+    state_path = coordinator._state_path(run_id, queue_root)
+    coordinator.atomic_write_json(
+        state_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "failed",
+        },
+    )
+
+    assert coordinator._registered_article_ids_by_mode(queue_root, "create") == {
+        "V2-TAROT-DEATH-WORK"
+    }
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["identity_envelope"] == coordinator._identity_envelope_from_brief(brief)
 
 
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:

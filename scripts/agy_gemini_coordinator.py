@@ -2727,16 +2727,49 @@ def _identity_envelope_for_state(
     queue_root: Path,
     state_path: Path,
     state: dict[str, Any],
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     envelope_value = state.get("identity_envelope")
     if envelope_value is not None:
         return _validate_identity_envelope(envelope_value)
+
+    evidence: dict[str, Any] | None = None
+    run_id = state.get("run_id")
+    run_dir_value = state.get("run_dir")
+    if (
+        type(run_id) is str
+        and EXACT_RUN_ID_PATTERN.fullmatch(run_id) is not None
+        and type(run_dir_value) is str
+    ):
+        run_dir = Path(run_dir_value)
+        try:
+            canonical_run_dir = run_dir.resolve(strict=True)
+            if (
+                run_dir.is_absolute()
+                and not run_dir.is_symlink()
+                and run_dir.is_dir()
+                and canonical_run_dir == run_dir
+            ):
+                brief = _brief(canonical_run_dir)
+                if brief.get("run_id") == run_id:
+                    evidence = _identity_envelope_from_brief(brief)
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+            evidence = None
+
+    brief_evidence = evidence
     if state.get("identity_source_request") is not None:
         raise ValueError("legacy run identity source request cannot authorize backfill")
-    evidence = _identity_replacement_evidence_envelope(queue_root, state)
+    replacement_evidence = _identity_replacement_evidence_envelope(queue_root, state)
+    if (
+        brief_evidence is not None
+        and replacement_evidence is not None
+        and brief_evidence != replacement_evidence
+    ):
+        raise ValueError("legacy run identity evidence mismatch")
+    evidence = replacement_evidence or brief_evidence
     if evidence is None:
+        if state.get("status") in {"failed", "complete"}:
+            return None
         raise ValueError("legacy run identity evidence is unavailable")
-    run_id = state.get("run_id")
     if type(run_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None:
         raise ValueError("legacy run identity evidence is invalid")
     with _run_identity_lock(run_id, queue_root):
@@ -2792,6 +2825,8 @@ def _registered_article_ids_by_mode(queue_root: Path, mode: str) -> set[str]:
         if state.get("status") == "reserved":
             continue
         envelope = _identity_envelope_for_state(queue_root, path, state)
+        if envelope is None:
+            continue
         if envelope["mode"] == mode:
             article_ids.update(envelope["article_ids"])
     return article_ids
@@ -2807,6 +2842,8 @@ def _active_count_by_mode(queue_root: Path, mode: str) -> int:
         if state.get("status") != "active":
             continue
         envelope = _identity_envelope_for_state(queue_root, path, state)
+        if envelope is None:
+            raise ValueError("active run identity evidence is unavailable")
         if envelope["mode"] == mode:
             count += 1
     return count
