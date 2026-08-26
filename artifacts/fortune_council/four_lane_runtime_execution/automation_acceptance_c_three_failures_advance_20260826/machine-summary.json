@@ -1,0 +1,431 @@
+{
+  "activation_token": "act-v1:ce43d63a03a74ad9b06a9c23b1b164fd46123071efc316b6ce17b2d71ad58da0",
+  "advance": {
+    "after_next_state": {
+      "correlation_id": "acceptance-c-n",
+      "identity_envelope": {
+        "article_ids": [
+          "ACCEPTANCE-C-N"
+        ],
+        "digest": "cd880a8a25c52fce53fd293e7a79d9909bf40f8bf176e261f155cf18572aa90b",
+        "lane": "new",
+        "mode": "create",
+        "schema_version": 1
+      },
+      "lane": "new",
+      "last_job_id": "39f454e962cbfb495de30ca80a90fb6dfb085c7d",
+      "mode": "create",
+      "registered_at": "2026-08-26T12:22:59+08:00",
+      "routing_schema_version": 1,
+      "run_dir": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/runs/acceptance-c-next-identity-20260826",
+      "run_id": "acceptance-c-next-identity-20260826",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-26T12:23:00+08:00"
+    },
+    "before_next_state": {
+      "correlation_id": "acceptance-c-n",
+      "identity_envelope": {
+        "article_ids": [
+          "ACCEPTANCE-C-N"
+        ],
+        "digest": "cd880a8a25c52fce53fd293e7a79d9909bf40f8bf176e261f155cf18572aa90b",
+        "lane": "new",
+        "mode": "create",
+        "schema_version": 1
+      },
+      "lane": "new",
+      "mode": "create",
+      "registered_at": "2026-08-26T12:22:59+08:00",
+      "routing_schema_version": 1,
+      "run_dir": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/runs/acceptance-c-next-identity-20260826",
+      "run_id": "acceptance-c-next-identity-20260826",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-26T12:22:59+08:00"
+    },
+    "entered_execution": true,
+    "identity_different": true,
+    "next_request": {
+      "job_id": "39f454e962cbfb495de30ca80a90fb6dfb085c7d",
+      "namespace": "6d194508cfb673f8ca67d70e",
+      "request_sha256": "39f454e962cbfb495de30ca80a90fb6dfb085c7d5c900fc0431e65605114c834",
+      "transport_attempt": 0
+    },
+    "summary": {
+      "active": 1,
+      "complete": 0,
+      "failed": 0,
+      "legacy_sweep": null,
+      "new_matrix_sweep": null,
+      "runner": {
+        "status": "idle"
+      },
+      "status": "ok"
+    }
+  },
+  "attempts": [
+    {
+      "error_code": "API_TIMEOUT",
+      "error_type": "GeminiApiFailure",
+      "failure_category": "NETWORK",
+      "job_id": "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e",
+      "new_archived_jobs": [
+        "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e"
+      ],
+      "ordinal": 1,
+      "request_sha256": "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e060e41d1c8b8f1eb7cce5726",
+      "state_status": "active",
+      "summary": {
+        "active": 1,
+        "complete": 0,
+        "failed": 1,
+        "legacy_sweep": null,
+        "new_matrix_sweep": null,
+        "runner": {
+          "error_code": "API_TIMEOUT",
+          "error_type": "GeminiApiFailure",
+          "job_id": "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e",
+          "status": "failed"
+        },
+        "status": "failed"
+      },
+      "transport_attempt": 0
+    },
+    {
+      "error_code": "API_TIMEOUT",
+      "error_type": "GeminiApiFailure",
+      "failure_category": "NETWORK",
+      "job_id": "acc29a8cf54c92c80b60eb534ea7de7339a79940",
+      "new_archived_jobs": [
+        "acc29a8cf54c92c80b60eb534ea7de7339a79940"
+      ],
+      "ordinal": 2,
+      "request_sha256": "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e060e41d1c8b8f1eb7cce5726",
+      "state_status": "active",
+      "summary": {
+        "active": 1,
+        "complete": 0,
+        "failed": 1,
+        "legacy_sweep": null,
+        "new_matrix_sweep": null,
+        "runner": {
+          "error_code": "API_TIMEOUT",
+          "error_type": "GeminiApiFailure",
+          "job_id": "acc29a8cf54c92c80b60eb534ea7de7339a79940",
+          "status": "failed"
+        },
+        "status": "failed"
+      },
+      "transport_attempt": 1
+    },
+    {
+      "error_code": "API_TIMEOUT",
+      "error_type": "GeminiApiFailure",
+      "failure_category": "NETWORK",
+      "job_id": "c688bdb2e515bc97925fc3b7d4a748bc900d9712",
+      "new_archived_jobs": [
+        "c688bdb2e515bc97925fc3b7d4a748bc900d9712"
+      ],
+      "ordinal": 3,
+      "request_sha256": "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e060e41d1c8b8f1eb7cce5726",
+      "state_status": "active",
+      "summary": {
+        "active": 1,
+        "complete": 0,
+        "failed": 1,
+        "legacy_sweep": null,
+        "new_matrix_sweep": null,
+        "runner": {
+          "error_code": "API_TIMEOUT",
+          "error_type": "GeminiApiFailure",
+          "job_id": "c688bdb2e515bc97925fc3b7d4a748bc900d9712",
+          "status": "failed"
+        },
+        "status": "failed"
+      },
+      "transport_attempt": 2
+    }
+  ],
+  "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-C-THREE-FAILURES-ADVANCE-20260826",
+  "cleanup": {
+    "removed": true,
+    "tmp_root": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj"
+  },
+  "cwd": "/Users/mattkuo/.codex/worktrees/9d60/Pantheon",
+  "dispatch_key": "v1:2a5865ab4eb192d645f4127ef8dbcd4d42ead56923c6677bccc94f48c3a35b85",
+  "final_clean": false,
+  "formal_runtime": {
+    "activation_status": "PASS",
+    "actor": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+    "generation": "g47-6477ab81-activation-only-20260826",
+    "manifest_digest": "257de8aff09b295bd133ab3935b5dae11fdaf9a54ad446bd080dcad42f376c7c",
+    "runtime_identity_digest": "eb4ad85d360fd7621d9db8e2d1038701314b859c678e0ce2168fae1140bdb838",
+    "runtime_tick_status": "PASS",
+    "task_log_root": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/logs",
+    "task_queue_root": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/queue",
+    "task_state_root": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/state"
+  },
+  "fourth_probe": {
+    "not_selected": true,
+    "summary": {
+      "active": 0,
+      "complete": 0,
+      "failed": 0,
+      "legacy_sweep": null,
+      "new_matrix_sweep": null,
+      "runner": {
+        "status": "idle"
+      },
+      "status": "ok"
+    }
+  },
+  "head": "cd9bd2f54b47433b176efb31a79f9a2bd6d38c6c",
+  "initial_clean": false,
+  "production_after": {
+    "queue": {
+      "digest": "831ee0b7fbbf9c939aad53904150157f060815c07c3482967bd8d5ca43bad4b9",
+      "exists": true,
+      "file_count": 1869,
+      "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+      "total_bytes": 6266219
+    },
+    "state": {
+      "digest": "bf901c009448d0db4ae58c3030bdb0cff9f2f2542621c3a166689ab5d84a8a0c",
+      "exists": true,
+      "file_count": 7903,
+      "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+      "total_bytes": 136166770
+    }
+  },
+  "production_before": {
+    "queue": {
+      "digest": "831ee0b7fbbf9c939aad53904150157f060815c07c3482967bd8d5ca43bad4b9",
+      "exists": true,
+      "file_count": 1869,
+      "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+      "total_bytes": 6266219
+    },
+    "state": {
+      "digest": "bf901c009448d0db4ae58c3030bdb0cff9f2f2542621c3a166689ab5d84a8a0c",
+      "exists": true,
+      "file_count": 7903,
+      "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+      "total_bytes": 136166770
+    }
+  },
+  "production_unchanged": true,
+  "queue_snapshot_before_cleanup": {
+    "archive": [
+      "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e.json",
+      "acc29a8cf54c92c80b60eb534ea7de7339a79940.json",
+      "c688bdb2e515bc97925fc3b7d4a748bc900d9712.json"
+    ],
+    "failed": [
+      "5056cbf11bffd93b1cf81179bf9c64ecd0c55b4e.json",
+      "acc29a8cf54c92c80b60eb534ea7de7339a79940.json",
+      "c688bdb2e515bc97925fc3b7d4a748bc900d9712.json"
+    ],
+    "outbox": [
+      "39f454e962cbfb495de30ca80a90fb6dfb085c7d.json"
+    ],
+    "runs": [
+      "04fdd2154eac9acb5e5f2d6b.json",
+      "6d194508cfb673f8ca67d70e.json"
+    ]
+  },
+  "registered": {
+    "fail": {
+      "correlation_id": "acceptance-c-f",
+      "identity_envelope": {
+        "article_ids": [
+          "ACCEPTANCE-C-F"
+        ],
+        "digest": "157424cfb8930ad839669a86b0e84147d8927d565f20558b5af296c65adfe605",
+        "lane": "new",
+        "mode": "create",
+        "schema_version": 1
+      },
+      "lane": "new",
+      "mode": "create",
+      "registered_at": "2026-08-26T12:22:59+08:00",
+      "routing_schema_version": 1,
+      "run_dir": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/runs/acceptance-c-fail-three-20260826",
+      "run_id": "acceptance-c-fail-three-20260826",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-26T12:22:59+08:00"
+    },
+    "identities_different": true,
+    "next": {
+      "correlation_id": "acceptance-c-n",
+      "identity_envelope": {
+        "article_ids": [
+          "ACCEPTANCE-C-N"
+        ],
+        "digest": "cd880a8a25c52fce53fd293e7a79d9909bf40f8bf176e261f155cf18572aa90b",
+        "lane": "new",
+        "mode": "create",
+        "schema_version": 1
+      },
+      "lane": "new",
+      "mode": "create",
+      "registered_at": "2026-08-26T12:22:59+08:00",
+      "routing_schema_version": 1,
+      "run_dir": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/runs/acceptance-c-next-identity-20260826",
+      "run_id": "acceptance-c-next-identity-20260826",
+      "schema_version": 1,
+      "status": "active",
+      "updated_at": "2026-08-26T12:22:59+08:00"
+    }
+  },
+  "service_state_after": {
+    "services": {
+      "com.pantheon.agy-content-publisher": {
+        "output_sha256": "9d709117069a94e47a32915146946b715665ac200484eda58af2d7c72aaf87e1",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-content-publisher"
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "output_sha256": "7f21d6319ece2a79df3debd73ab9d143eefabcd88d8b420d9e9bc76cdae737f6",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-coordinator"
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "output_sha256": "f892fcde01066c8a26f8bab67311d595d301708fd2b8dcec9774ba4f5324bdac",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-i18n-new"
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "output_sha256": "492757f47e293d2ba7cd0c9d39e7b9f866261ed8e24eef3c5cd1bafa70a6ef76",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-i18n-rewrite"
+      },
+      "com.pantheon.agy-gemini-new": {
+        "output_sha256": "6b84751f37c2029e37fd7e62728905c905a9e1f0bc42f39e788bfab3049ed41a",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-new"
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "output_sha256": "0b28ea95af6da00bee4a591b09e41f8e227d9f9d96405fc639e522514740c7b0",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-rewrite"
+      },
+      "com.pantheon.content-capacity-guard": {
+        "output_sha256": "b36cd9465a3f5ac1200bd1e579b3aa84588b2e9bbeb3ae99cebf9a4a3c707b1e",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.content-capacity-guard"
+      }
+    },
+    "status": "STOPPED"
+  },
+  "service_state_before": {
+    "services": {
+      "com.pantheon.agy-content-publisher": {
+        "output_sha256": "9d709117069a94e47a32915146946b715665ac200484eda58af2d7c72aaf87e1",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-content-publisher"
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "output_sha256": "7f21d6319ece2a79df3debd73ab9d143eefabcd88d8b420d9e9bc76cdae737f6",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-coordinator"
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "output_sha256": "f892fcde01066c8a26f8bab67311d595d301708fd2b8dcec9774ba4f5324bdac",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-i18n-new"
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "output_sha256": "492757f47e293d2ba7cd0c9d39e7b9f866261ed8e24eef3c5cd1bafa70a6ef76",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-i18n-rewrite"
+      },
+      "com.pantheon.agy-gemini-new": {
+        "output_sha256": "6b84751f37c2029e37fd7e62728905c905a9e1f0bc42f39e788bfab3049ed41a",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-new"
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "output_sha256": "0b28ea95af6da00bee4a591b09e41f8e227d9f9d96405fc639e522514740c7b0",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.agy-gemini-rewrite"
+      },
+      "com.pantheon.content-capacity-guard": {
+        "output_sha256": "b36cd9465a3f5ac1200bd1e579b3aa84588b2e9bbeb3ae99cebf9a4a3c707b1e",
+        "returncode": 113,
+        "state": "STOPPED",
+        "target": "gui/501/com.pantheon.content-capacity-guard"
+      }
+    },
+    "status": "STOPPED"
+  },
+  "source_sha": "cd9bd2f54b47433b176efb31a79f9a2bd6d38c6c",
+  "status": "DELIVERED_CANDIDATE",
+  "terminal": {
+    "attempts_exactly_three": true,
+    "error_code": "API_TIMEOUT",
+    "failure_category": "NETWORK",
+    "state": {
+      "correlation_id": "acceptance-c-f",
+      "error_code": "API_TIMEOUT",
+      "error_type": "GeminiApiFailure",
+      "failure_category": "NETWORK",
+      "identity_envelope": {
+        "article_ids": [
+          "ACCEPTANCE-C-F"
+        ],
+        "digest": "157424cfb8930ad839669a86b0e84147d8927d565f20558b5af296c65adfe605",
+        "lane": "new",
+        "mode": "create",
+        "schema_version": 1
+      },
+      "lane": "new",
+      "last_job_id": "c688bdb2e515bc97925fc3b7d4a748bc900d9712",
+      "mode": "create",
+      "registered_at": "2026-08-26T12:22:59+08:00",
+      "routing_schema_version": 1,
+      "run_dir": "/private/tmp/pantheon-automation-acceptance-c-hvr4fjcj/runs/acceptance-c-fail-three-20260826",
+      "run_id": "acceptance-c-fail-three-20260826",
+      "schema_version": 1,
+      "status": "failed",
+      "transport_attempts": 3,
+      "updated_at": "2026-08-26T12:23:00+08:00"
+    },
+    "summary": {
+      "active": 0,
+      "complete": 0,
+      "failed": 1,
+      "legacy_sweep": null,
+      "new_matrix_sweep": null,
+      "runner": {
+        "status": "idle"
+      },
+      "status": "failed"
+    },
+    "terminal_manual_status": true
+  },
+  "zero_external_api": {
+    "credential_pool_file": null,
+    "fake_generate_json_calls": 3,
+    "git_push_invoked": false,
+    "public_url_invoked": false,
+    "publisher_invoked": false,
+    "tag_invoked": false,
+    "v4_broker": null,
+    "writer_reviewer_api_invoked": false
+  }
+}
