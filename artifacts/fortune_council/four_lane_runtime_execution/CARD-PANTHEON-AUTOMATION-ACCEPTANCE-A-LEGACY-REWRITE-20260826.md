@@ -30,8 +30,9 @@ remote_mutation: only_existing_official_single_article_publish_flow_authorized
 
 - 接手：`handoff_20260826_pantheon_automation_acceptance_dispatch.md`。
 - Source commit：建立正式 thread 時，以包含本卡且可由 `git show` 讀取的 main commit 為準。
-- Runtime actor：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`。
-- Runtime generation：`g47-6477ab81-activation-only-20260826`。
+- Runtime actor：`e5c0743fe1e0c99a66f2c0e3355591f2a353a322`。
+- Runtime generation：`g48-e5c0743f-gsc-json-shape-20260826`。
+- `origin/main`、正式 actor 與 manifest 已由 transaction `v0404-gsc-json-shape-e5c0743f-20260826` 對齊；先前 `REMOTE_MAIN_BEHIND_RUNTIME_ACTOR` blocker 已解除，仍須重新通過本卡全部 pre-mutation gates。
 - 新文完整 canary 已通過，本卡禁止重驗或修改新文鏈。
 - `auto-new-v1-20260826-001-01` 已存在；本卡禁止 seed、resume 或改動該 identity。
 - 七個 launchd 服務在接手時均為 `STOPPED`；本卡不得 bootstrap、kickstart、enable 或啟用常駐排程。

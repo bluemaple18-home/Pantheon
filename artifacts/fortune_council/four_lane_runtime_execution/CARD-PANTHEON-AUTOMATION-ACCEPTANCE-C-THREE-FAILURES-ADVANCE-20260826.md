@@ -29,10 +29,10 @@ remote_mutation: forbidden
 ## 來源與固定事實
 
 - 接手：`handoff_20260826_pantheon_automation_acceptance_dispatch.md`。
-- 前一卡 A：`NO-GO / REMOTE_MAIN_BEHIND_RUNTIME_ACTOR`；前一卡 B：同一 `NO-GO`。兩者 blocker 不授權本卡修復、push、promotion、publication 或修改 clean-origin gate。
+- 前一卡 A/B 的 `REMOTE_MAIN_BEHIND_RUNTIME_ACTOR` blocker 已由 mainline promotion transaction 解除；本卡既有隔離 candidate 可由主線在 A/B 重新驗收後判定，禁止藉此修復、push、promotion、publication 或修改 clean-origin gate。
 - Source commit：建立正式 thread 時，以包含本卡且可由 `git show` 讀取的 main commit 為準。
-- Runtime actor：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`。
-- Runtime generation：`g47-6477ab81-activation-only-20260826`。
+- Runtime actor：`e5c0743fe1e0c99a66f2c0e3355591f2a353a322`。
+- Runtime generation：`g48-e5c0743f-gsc-json-shape-20260826`。
 - 本卡只驗 retry/terminal/advance contract，不進 Publisher、不驗公開網址，不重驗新文。
 - `auto-new-v1-20260826-001-01` 已存在；本卡禁止 seed、resume 或改動該 identity。
 - 七個 launchd 服務在接手時均為 `STOPPED`；本卡不得 bootstrap、kickstart、enable 或啟用常駐排程。

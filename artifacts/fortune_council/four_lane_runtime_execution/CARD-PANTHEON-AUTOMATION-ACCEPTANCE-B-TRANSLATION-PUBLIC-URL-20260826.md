@@ -29,11 +29,11 @@ remote_mutation: only_existing_official_single_translation_publish_flow_authoriz
 ## 來源與固定事實
 
 - 接手：`handoff_20260826_pantheon_automation_acceptance_dispatch.md`。
-- 前一卡：`CARD-PANTHEON-AUTOMATION-ACCEPTANCE-A-LEGACY-REWRITE-20260826`；主線已收證並判定 `NO-GO / REMOTE_MAIN_BEHIND_RUNTIME_ACTOR`。
-- A 的 blocker 不授權本卡修復、push、promotion 或修改 clean-origin gate；若同一正式 gate 擋下本卡，保留本卡獨立 evidence 並 `BLOCKED`。
+- 前一卡：`CARD-PANTHEON-AUTOMATION-ACCEPTANCE-A-LEGACY-REWRITE-20260826`；先前 `REMOTE_MAIN_BEHIND_RUNTIME_ACTOR` blocker 已由 mainline promotion transaction 解除，卡 B 仍須在卡 A 重新驗收後依序執行。
+- 本卡不得自行修復、push、promotion 或修改 clean-origin gate；任何正式 gate 再次擋下時，保留本卡獨立 evidence 並 `BLOCKED`。
 - Source commit：建立正式 thread 時，以包含本卡且可由 `git show` 讀取的 main commit 為準。
-- Runtime actor：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`。
-- Runtime generation：`g47-6477ab81-activation-only-20260826`。
+- Runtime actor：`e5c0743fe1e0c99a66f2c0e3355591f2a353a322`。
+- Runtime generation：`g48-e5c0743f-gsc-json-shape-20260826`。
 - 新文完整 canary 已通過，本卡禁止重驗或修改新文鏈。
 - `auto-new-v1-20260826-001-01` 已存在；本卡禁止 seed、resume 或改動該 identity。
 - 七個 launchd 服務在接手時均為 `STOPPED`；本卡不得 bootstrap、kickstart、enable 或啟用常駐排程。
