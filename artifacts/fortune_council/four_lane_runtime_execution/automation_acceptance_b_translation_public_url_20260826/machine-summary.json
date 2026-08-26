@@ -1,61 +1,89 @@
 {
   "activation_token": "act-v1:8e9e60c28a44e0b5fe1813b7b3c83438d6fb4ca066b8832c37d4e8532f3786d3",
-  "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
-  "actor_origin_main": "0257bd5213eed0d0df10661a54f6215901a54997",
+  "actor_head": "204a8bd8b86b37f411048983730ce1efb9fa2734",
+  "actor_origin_main": "204a8bd8b86b37f411048983730ce1efb9fa2734",
   "actor_status_clean": true,
-  "blocker": "REMOTE_MAIN_BEHIND_RUNTIME_ACTOR",
+  "blocker": "EXACT_TRANSLATION_RUN_NOT_READY_IN_FORMAL_QUEUE",
   "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826",
-  "candidate": {
-    "article_id": "ASTRO-BASE-01:en",
-    "brief_sha256": "9ad7ff12a79d706d90afd6ab6ff1d1858fd1116a793007b8dc3135ff18e2bac9",
-    "candidate_sha256": "96a84fdb310d0c07fc906e28dbcdfdb6f0bf7fe1dd7328774f4295aafe1d7912",
-    "locale": "en",
-    "mode": "translate_existing",
-    "review_sha256": "511a526fb26a98c96238fc011ac1241a8372db587c7c1b959740ed10510511df",
-    "reviewer_findings": [],
-    "reviewer_verdict": "APPROVE",
-    "run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
-    "source_article_id": "ASTRO-BASE-01",
-    "source_path": "/articles/astrology/astrology-0001",
-    "source_sha256": "a375e9c17d2857881f23ebd8d2c9581caf698a59e6121e314b11892a4f464bb7"
-  },
   "codegraph": {
-    "database_size": "18.36 MB",
-    "files_indexed": 583,
-    "first_query": "codegraph_files pattern *translation*",
-    "first_query_result": "No files found matching the criteria.",
-    "readiness": "PASS",
-    "total_edges": 15792,
-    "total_nodes": 7034
+    "degraded_reason": "CodeGraph tool reported not initialized for the current formal worktree before source decision.",
+    "readiness": "UNAVAILABLE",
+    "status_error": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/2cf0/Pantheon"
   },
+  "continuation_head": "204a8bd8b86b37f411048983730ce1efb9fa2734",
+  "delivery": "DELIVERED_ACCEPTANCE_B_CONTINUATION",
   "dispatch_key": "v1:9bef6288f7b2b5684fc4563765b80db2ef33b3bf992dd2261ba8544f6a6f3c5c",
-  "ledger_sha256": "224d78887b4a1062702e3b920377eda8ff2abb8264b1ec48861254afe6fddabe",
+  "formal_thread": "01a03c34-fd96-7021-9423-29879c9b5b47",
+  "ledger": {
+    "target_deferred": [],
+    "target_published": [],
+    "translation_deferred_runs": 8,
+    "translation_published_runs": 1
+  },
   "manifest": {
-    "generation": "g47-6477ab81-activation-only-20260826",
-    "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
-    "runtime_digest": "a4dfa5e25f2e6b0f291fdf8e5e9163b70b243ea3836a1d47631e02697d1ee063",
-    "runtime_identity_digest": "9cfeb7d9d3b30b5759b547fca1f003d4f5a7cc1fef42297601a86b2eaa5800ce"
+    "generation": "g49-204a8bd8-main-promotion-20260826",
+    "manifest_digest": "18d91a2246d5d4311b57471f116d649760003437dc482a0e1675cddf9fde0bb7",
+    "runtime_digest": "3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0",
+    "runtime_identity_digest": "d19ba363be2f7eef559bab01ed093a8182ae6bd832fa6956573590ab593da18c"
   },
   "mutation_accounting": {
     "browser_validation": 0,
     "http_validation": 0,
+    "ledger_target_transaction_count": 0,
+    "publication_commit": null,
+    "publication_tag": null,
     "public_content_update": 0,
-    "public_locale_url_created": false,
+    "public_locale_url": null,
     "push": 0,
-    "tag": 0,
+    "queue_run_mutation": 0,
+    "services_mutation": 0,
     "translation_publication_transaction": 0
   },
   "official_entrypoint": {
-    "deployment_preflight_status": "ready",
-    "deployment_preflight_exact_run_ids": [
-      "auto-i18n-en-614aa4dc3542ab2c5637"
-    ],
-    "exact_dry_run_status": "BLOCKED",
-    "exact_dry_run_error": "PublishBlocked: local HEAD differs from origin/main: 6477ab815e8a != 0257bd5213ee"
+    "deployment_preflight": {
+      "actor": "matched",
+      "authority_mode": "manifest",
+      "exact_run_ids": [
+        "auto-i18n-en-614aa4dc3542ab2c5637"
+      ],
+      "max_runs": 1,
+      "mode": "read-only",
+      "mutation_permitted": false,
+      "push_mode": "push",
+      "runtime_sha": "204a8bd8b86b37f411048983730ce1efb9fa2734",
+      "status": "ready"
+    },
+    "exact_dry_run": {
+      "base_sha": "204a8bd8b86b37f411048983730ce1efb9fa2734",
+      "create_status": "idle",
+      "overall_status": "ok",
+      "rewrite_status": "idle",
+      "translation_status": "idle_rejects_only",
+      "translated": 0
+    }
   },
-  "remote_main": "0257bd5213eed0d0df10661a54f6215901a54997",
+  "queue": {
+    "current_translation_run_ids": [
+      "auto-i18n-en-aa637e1bf05d3ad21429",
+      "auto-i18n-ja-278fce6e38a85de996dd",
+      "auto-i18n-ja-3a39827aeb778de1957f",
+      "auto-i18n-ja-4a9da72316d5d368eeb5",
+      "auto-i18n-ko-85d513b289d89dd9bf75",
+      "auto-i18n-ko-bb1bc3865ed466bac17a",
+      "auto-i18n-ko-bc1ce017b4ac2657a133"
+    ],
+    "target_run_files_present": false
+  },
   "result_status": "BLOCKED",
-  "rule21_digest": "def530bb99caf5f40973305af0066378b92cede21ef5845714ac55b9814c7dd0",
+  "retry_record": {
+    "attempts": 1,
+    "candidate_preserved": true,
+    "eligibility": "deferred",
+    "error_type": "CalledProcessError",
+    "max_attempts": 3,
+    "recovery_count": 0,
+    "run_id": "auto-i18n-en-614aa4dc3542ab2c5637"
+  },
   "services": {
     "com.pantheon.agy-content-publisher": "STOPPED_OR_NOT_LOADED",
     "com.pantheon.agy-gemini-coordinator": "STOPPED_OR_NOT_LOADED",
@@ -65,6 +93,11 @@
     "com.pantheon.agy-gemini-rewrite": "STOPPED_OR_NOT_LOADED",
     "com.pantheon.content-capacity-guard": "STOPPED_OR_NOT_LOADED"
   },
-  "source_sha": "36c0966a68bc647a2354678a085cf412bc9b705a",
-  "terminal_state": "BLOCKED / NO_PUBLICATION"
+  "target": {
+    "expected_article_id": "ASTRO-BASE-01:en",
+    "locale": "en",
+    "run_id": "auto-i18n-en-614aa4dc3542ab2c5637",
+    "source_article_id": "ASTRO-BASE-01"
+  },
+  "terminal_state": "BLOCKED_NO_PUBLICATION"
 }

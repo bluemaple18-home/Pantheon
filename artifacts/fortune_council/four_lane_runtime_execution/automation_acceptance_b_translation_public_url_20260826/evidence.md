@@ -6,57 +6,57 @@
 - dispatch_key：`v1:9bef6288f7b2b5684fc4563765b80db2ef33b3bf992dd2261ba8544f6a6f3c5c`
 - activation_token：`act-v1:8e9e60c28a44e0b5fe1813b7b3c83438d6fb4ca066b8832c37d4e8532f3786d3`
 - cwd：`/Users/mattkuo/.codex/worktrees/2cf0/Pantheon`
-- source SHA / HEAD：`36c0966a68bc647a2354678a085cf412bc9b705a`
-- worktree：detached/獨立 worktree；activation 前後 clean
+- continuation HEAD：`204a8bd8b86b37f411048983730ce1efb9fa2734`
+- worktree：detached，clean
 
 ## Card And Rule
 
 - 實體卡：`artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826.md`
-- Rule 21 digest：`def530bb99caf5f40973305af0066378b92cede21ef5845714ac55b9814c7dd0`
-- digest matches dispatch：yes
+- 本次續跑不建立 replacement、不重跑 A、不重跑 Writer/Reviewer、不開 C/第四卡。
 
 ## CodeGraph
 
-`codegraph_status`：
+本次 source decision 前執行 CodeGraph：
 
-- files indexed：`583`
-- total nodes：`7034`
-- total edges：`15792`
-- database size：`18.36 MB`
+```text
+CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/2cf0/Pantheon
+```
 
-第一次 source decision 前的 task-semantic CodeGraph query：
-
-- `codegraph_files(pattern="*translation*")`：no files found
-- `codegraph_files(format="flat", maxDepth=3)`：index 可用但結果過寬，顯示 publisher/runtime files 需降級定位
-- degraded reason：CodeGraph readiness PASS，但 translation filename query 無命中，file index 無法精準定位 formal translation/publisher path；後續限域 `rg` 僅用於 `scripts/agy_content_publisher.py`、runtime manifest、handoff 與本卡相關 artifact。
+degraded reason：控制面聲明已在 source SHA 準備索引，但本 formal worktree 的 CodeGraph tool 回 `not initialized`；後續僅限域查詢 `scripts/agy_content_publisher.py`、runtime manifest、queue/state 與本卡 evidence。
 
 定位到的正式入口：
 
+- `scripts.agy_content_publisher:deployment_preflight`
 - `scripts.agy_content_publisher:publish_ready_translation_runs`
 - `scripts.agy_content_publisher:collect_ready_translation_runs`
-- `scripts.agy_content_publisher:deployment_preflight`
 - CLI：`python -m scripts.agy_content_publisher`
 
 ## Runtime Manifest
 
 `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json`：
 
-- actor_head：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`
-- generation：`g47-6477ab81-activation-only-20260826`
-- identity：`gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only`
-- manifest_digest：`c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53`
-- runtime_digest：`a4dfa5e25f2e6b0f291fdf8e5e9163b70b243ea3836a1d47631e02697d1ee063`
-- runtime_identity_digest：`9cfeb7d9d3b30b5759b547fca1f003d4f5a7cc1fef42297601a86b2eaa5800ce`
+- actor_head：`204a8bd8b86b37f411048983730ce1efb9fa2734`
+- generation：`g49-204a8bd8-main-promotion-20260826`
+- identity：`gate2-actor:204a8bd8b86b37f411048983730ce1efb9fa2734:activation-only`
+- manifest_digest：`18d91a2246d5d4311b57471f116d649760003437dc482a0e1675cddf9fde0bb7`
+- runtime_digest：`3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0`
+- runtime_identity_digest：`d19ba363be2f7eef559bab01ed093a8182ae6bd832fa6956573590ab593da18c`
 - actor_root：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor`
 - queue_root：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue`
 - publisher_state_root：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state`
-- activation barrier：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g47-6477ab81-activation-only-20260826.barrier`
+- activation barrier：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g49-204a8bd8-main-promotion-20260826.barrier`
+
+Actor/origin：
+
+```text
+actor HEAD      204a8bd8b86b37f411048983730ce1efb9fa2734
+actor origin    204a8bd8b86b37f411048983730ce1efb9fa2734
+actor status    clean
+```
 
 ## Service State
 
-`launchctl list | rg 'com\.pantheon\.'` returned no rows before terminal write.
-
-Interpretation：七個 Pantheon launchd labels are STOPPED / not loaded:
+Terminal service checks returned `Could not find service ... in domain for port` for all seven labels:
 
 - `com.pantheon.agy-content-publisher`
 - `com.pantheon.agy-gemini-coordinator`
@@ -66,113 +66,86 @@ Interpretation：七個 Pantheon launchd labels are STOPPED / not loaded:
 - `com.pantheon.agy-gemini-i18n-rewrite`
 - `com.pantheon.content-capacity-guard`
 
-## Readiness And Capacity
+Interpretation：seven Pantheon launchd labels are `STOPPED_OR_NOT_LOADED`; no service was started.
 
-卡 B 沿用已存在的 production-canary readiness/capacity receipts；本卡沒有重新做 capacity exercise。
+## Candidate And Queue State
 
-- capability receipt：`artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/capability/positive-receipt.json`
-  - steps：`create`, `run`, `select`, `publish`, `transaction`, `tag`, `push`
-  - every step has positive `PASS` and negative `BLOCKED` evidence
-- capacity receipt：`artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/capacity/capacity-receipt.json`
-  - status：`PASS`
-  - production_mutation：`false`
-  - stop_loss_negative_result：`BLOCKED`
-
-## Translation Candidate Baseline
-
-Official exact run selected for the single-locale path:
+Authorized exact run:
 
 - run_id：`auto-i18n-en-614aa4dc3542ab2c5637`
-- mode：`translate_existing`
 - source_article_id：`ASTRO-BASE-01`
-- source path：`/articles/astrology/astrology-0001`
 - target locale：`en`
-- translation article_id：`ASTRO-BASE-01:en`
-- source_sha256：`a375e9c17d2857881f23ebd8d2c9581caf698a59e6121e314b11892a4f464bb7`
-- reviewer verdict：`APPROVE`
-- reviewer findings：`[]`
-- retry record：`attempts=1`, `max_attempts=3`, `candidate_preserved=true`, previous error was release test failure
+- expected article_id：`ASTRO-BASE-01:en`
 
-Baseline hashes after blocked dry-run:
+Current formal `queue/translation-runs` contains only:
 
-- ledger：`224d78887b4a1062702e3b920377eda8ff2abb8264b1ec48861254afe6fddabe`
-- retry record：`2c50f1a7a9142bc4bedf7d7b8ea6c1217464eea7613b37b4771246217cf06602`
-- brief：`9ad7ff12a79d706d90afd6ab6ff1d1858fd1116a793007b8dc3135ff18e2bac9`
-- candidate：`96a84fdb310d0c07fc906e28dbcdfdb6f0bf7fe1dd7328774f4295aafe1d7912`
-- review：`511a526fb26a98c96238fc011ac1241a8372db587c7c1b959740ed10510511df`
+```text
+auto-i18n-en-aa637e1bf05d3ad21429
+auto-i18n-ja-278fce6e38a85de996dd
+auto-i18n-ja-3a39827aeb778de1957f
+auto-i18n-ja-4a9da72316d5d368eeb5
+auto-i18n-ko-85d513b289d89dd9bf75
+auto-i18n-ko-bb1bc3865ed466bac17a
+auto-i18n-ko-bc1ce017b4ac2657a133
+```
 
-Existing translation evidence directories:
+Target queue files:
 
-- `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.369`
-- `/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.370`（既有空目錄，mtime `Aug 21 11:59:20 2026`）
+```text
+rg --files queue | rg auto-i18n-en-614aa4dc3542ab2c5637
+no matches
+```
+
+Retry record:
+
+```json
+{"schema_version":1,"phase":"translation","run_id":"auto-i18n-en-614aa4dc3542ab2c5637","attempts":1,"max_attempts":3,"error_type":"CalledProcessError","eligibility":"deferred","candidate_preserved":true,"recovery_count":0,"last_recovery_id":null,"next_eligible_at":"2026-08-21T12:16:10+08:00","evidence":"/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-08240d2029/failure.json"}
+```
+
+Ledger:
+
+```json
+{"published_count":1,"deferred_count":8,"target_published":[],"target_deferred":[]}
+```
 
 ## Official Entrypoint Results
 
-Remote confirmation with network enabled:
+Deployment preflight with manifest authority:
 
-```text
-0257bd5213eed0d0df10661a54f6215901a54997	refs/heads/main
+```json
+{"schema_version":1,"status":"ready","operation":"deployment-preflight","mode":"read-only","dry_run":true,"mutation_permitted":false,"actor":"matched","queue":"matched","state":"matched","runtime_sha":"204a8bd8b86b37f411048983730ce1efb9fa2734","runtime_manifest_schema_version":1,"runtime_digest":"3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0","push_mode":"push","authority_mode":"manifest","manifest_digest":"18d91a2246d5d4311b57471f116d649760003437dc482a0e1675cddf9fde0bb7","exact_run_ids":["auto-i18n-en-614aa4dc3542ab2c5637"],"max_runs":1}
 ```
 
-Actor confirmation:
+Exact dry-run command:
 
 ```text
-6477ab815e8aecca7d1e8e1588e6e5eba0fab001
+python3.12 -m scripts.agy_content_publisher --repo-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --max-runs 1 --exact-run-id auto-i18n-en-614aa4dc3542ab2c5637 --dry-run --push --include-rewrites
 ```
 
-Actor local `origin/main` after fetch:
+Exact dry-run result summary:
 
-```text
-0257bd5213eed0d0df10661a54f6215901a54997
+```json
+{"schema_version":1,"status":"ok","create":{"status":"idle","published":0},"rewrite":{"status":"idle","rewritten":0},"translation":{"status":"idle_rejects_only","translated":0,"base_sha":"204a8bd8b86b37f411048983730ce1efb9fa2734"}}
 ```
 
-Deployment preflight command used the official module entry with manifest authority, exact run and push mode:
-
-```text
-python3.12 -m scripts.agy_content_publisher --repo-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --max-runs 1 --exact-run-id auto-i18n-en-614aa4dc3542ab2c5637 --dry-run --push --deployment-preflight --manifest-authorized-deployment-preflight ...
-```
-
-Result:
-
-- status：`ready`
-- operation：`deployment-preflight`
-- mode：`read-only`
-- actor / queue / state：`matched`
-- runtime_sha：`6477ab815e8aecca7d1e8e1588e6e5eba0fab001`
-- runtime_digest：`a4dfa5e25f2e6b0f291fdf8e5e9163b70b243ea3836a1d47631e02697d1ee063`
-- push_mode：`push`
-- exact_run_ids：`["auto-i18n-en-614aa4dc3542ab2c5637"]`
-- max_runs：`1`
-
-Exact translation selector dry-run command used the same official module entry without `--deployment-preflight`, so it had to pass the real clean-origin gate before selecting/mutating:
-
-```text
-python3.12 -m scripts.agy_content_publisher --repo-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor --queue-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue --state-root /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state --max-runs 1 --exact-run-id auto-i18n-en-614aa4dc3542ab2c5637 --dry-run --push
-```
-
-Result:
-
-```text
-PublishBlocked: local HEAD differs from origin/main: 6477ab815e8a != 0257bd5213ee
-```
+Interpretation：official dry-run was not ready for the authorized translation publication. It did not select `auto-i18n-en-614aa4dc3542ab2c5637` as publishable.
 
 ## Terminal Accounting
 
 - translation publication transaction：`0`
-- tag：`0`
+- publication commit：none
+- publication tag：none
 - push：`0`
-- public locale URL：not created / not validated
-- browser validation：not run because publication never occurred
+- public locale URL：none
 - HTTP validation：not run because publication never occurred
-- public content update：`0`
-- ledger new translation transaction：`0`
-- runtime actor worktree dirty state：none
-- seven services terminal state：STOPPED / not loaded
+- browser validation：not run because publication never occurred
+- ledger target transaction count：`0`
+- queue/run terminal state：`not ready / absent from formal translation-runs`
+- runtime actor worktree dirty state：clean
+- evidence-only commit push：not pushed
 
 ## Blocker
 
-root_cause：`REMOTE_MAIN_BEHIND_RUNTIME_ACTOR`
+root_cause：`EXACT_TRANSLATION_RUN_NOT_READY_IN_FORMAL_QUEUE`
 
-同 blocker 嘗試次數：`1` for card B（card A had already observed the same formal gate, but this card collected independent official-entry evidence）。
-
-Interpretation：正式 publisher requires local actor HEAD to equal `origin/main` before any exact-run publish path can proceed. The active runtime actor is `6477ab815e8aecca7d1e8e1588e6e5eba0fab001`, while the official remote `refs/heads/main` is still `0257bd5213eed0d0df10661a54f6215901a54997`. The card forbids manual push, alternate deploy, clean-origin gate edits, or Card A blocker repair, so the safe terminal state is `BLOCKED`.
+The blocker is single and mutation-preventing: the authorized exact run no longer exists as a ready translation run under the formal queue, and the official translation publisher dry-run reports `idle_rejects_only` with `translated=0`. The card forbids recovering queue state, rerunning Writer/Reviewer, touching other queue items, or using any alternate publication path.
