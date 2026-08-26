@@ -5393,6 +5393,32 @@ def test_dangling_terminalization_receipt_is_verifiable_and_idempotent(
     assert _file_snapshot(queue_root) == after_first
 
 
+def test_dangling_terminalization_accepts_legacy_state_without_identity(
+    tmp_path: Path,
+) -> None:
+    queue_root, run_dir, state_path, state = _durable_dangling_state(
+        tmp_path,
+        "dangling-legacy-no-identity",
+    )
+    state.pop("identity_envelope")
+    coordinator.atomic_write_json(state_path, state)
+    before_digest = coordinator._canonical_json_file_sha256(state)
+
+    result = coordinator.terminalize_dangling_active_run(
+        queue_root,
+        expected_run_id="dangling-legacy-no-identity",
+        expected_registry_digest=before_digest,
+        expected_run_dir=run_dir,
+        reason="UNRECOVERABLE_RUN_DIR_MISSING",
+        execute=True,
+    )
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert result["status"] == "terminalized"
+    assert persisted["status"] == "failed"
+    assert "identity_envelope" not in persisted
+
+
 @pytest.mark.parametrize("case", ["digest", "existing", "non-active"])
 def test_dangling_terminalization_negatives_have_zero_mutation(
     tmp_path: Path,
@@ -5674,6 +5700,37 @@ def test_legacy_identity_backfills_from_canonical_durable_brief(tmp_path: Path) 
     }
     persisted = json.loads(state_path.read_text(encoding="utf-8"))
     assert persisted["identity_envelope"] == coordinator._identity_envelope_from_brief(brief)
+
+
+def test_legacy_translation_identity_backfills_lane_from_registry(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_id = "legacy-translation-lane"
+    run_dir = (tmp_path / "translation-runs" / run_id).resolve()
+    run_dir.mkdir(parents=True)
+    brief = {
+        "run_id": run_id,
+        "mode": "translate_existing",
+        "articles": [{"source_article_id": "ASTRO-BASE-03", "locale": "ja"}],
+    }
+    coordinator.atomic_write_json(run_dir / "brief.json", brief)
+    state_path = coordinator._state_path(run_id, queue_root)
+    coordinator.atomic_write_json(
+        state_path,
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": "active",
+            "lane": "i18n-rewrite",
+        },
+    )
+
+    assert coordinator._registered_article_ids_by_mode(
+        queue_root,
+        "translate_existing",
+    ) == {"ASTRO-BASE-03"}
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["identity_envelope"]["lane"] == "i18n-rewrite"
 
 
 def test_launchd_template_runs_coordinator_and_installer_is_valid_shell(tmp_path: Path) -> None:

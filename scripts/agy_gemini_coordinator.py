@@ -1626,7 +1626,8 @@ def terminalize_dangling_active_run(
             raise ValueError("dangling active terminalization requires active run")
         if state.get("run_id") != expected_run_id or state.get("run_dir") != str(run_dir):
             raise ValueError("dangling active terminalization identity mismatch")
-        _validate_identity_envelope(state.get("identity_envelope"))
+        if state.get("identity_envelope") is not None:
+            _validate_identity_envelope(state["identity_envelope"])
         if run_dir.exists() or run_dir.is_symlink():
             raise ValueError("dangling active run directory is not missing")
         if not execute:
@@ -2751,7 +2752,10 @@ def _identity_envelope_for_state(
             ):
                 brief = _brief(canonical_run_dir)
                 if brief.get("run_id") == run_id:
-                    evidence = _identity_envelope_from_brief(brief)
+                    identity_brief = brief
+                    if brief.get("mode") == "translate_existing" and brief.get("lane") is None:
+                        identity_brief = {**brief, "lane": state.get("lane")}
+                    evidence = _identity_envelope_from_brief(identity_brief)
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
             evidence = None
 
