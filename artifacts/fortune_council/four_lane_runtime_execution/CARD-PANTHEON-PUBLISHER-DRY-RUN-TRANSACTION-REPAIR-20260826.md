@@ -2,7 +2,7 @@
 id: CARD-PANTHEON-PUBLISHER-DRY-RUN-TRANSACTION-REPAIR-20260826
 chain_id: PANTHEON-PUBLISHER-PRESERVATION-CONTRACT-20260826
 role: repair
-cycle: 1
+cycle: 2
 model: gpt-5.5
 reasoning: high
 model_reason: 規格固定的 strict/core-bounded lifecycle 與 promotion contract 修復
