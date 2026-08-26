@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-i18n-0-3-369";
+} from "./article-registry.js?v=agy-v0391-publish-canary-20260826-02";
 import {
   ARTICLE_LOCALE_CONFIG,
   ARTICLE_UI_MESSAGES,
@@ -668,7 +668,10 @@ import { AGY_AGY_REWRITE_20260817_01_REWRITE_BODY_OVERRIDES } from "./article-re
 
 import { AGY_AGY_REWRITE_20260818_01_REWRITE_BODY_OVERRIDES } from "./article-rewrite-agy-rewrite-20260818-01.js?v=agy-rewrite-20260818-01";
 
+import { AGY_V0391_PUBLISH_CANARY_20260826_02_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-v0391-publish-canary-20260826-02.js?v=agy-v0391-publish-canary-20260826-02";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_V0391_PUBLISH_CANARY_20260826_02_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260817_064_01_ARTICLE_BODY_LIBRARY,
   ...AGY_APF_CREATE_RUN_NEW_7D0E46D9EC617526F77F8213_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260806_113_01_ARTICLE_BODY_LIBRARY,
