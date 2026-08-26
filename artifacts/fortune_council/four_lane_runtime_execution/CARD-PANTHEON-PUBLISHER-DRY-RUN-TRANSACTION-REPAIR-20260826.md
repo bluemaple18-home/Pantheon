@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-PUBLISHER-DRY-RUN-TRANSACTION-REPAIR-20260826
-status: verified
+status: blocked
 thickness: strict
 risk: high
 ---
@@ -42,3 +42,10 @@ risk: high
 - Publisher 全檔：`134 passed`。
 - 受影響 release gate：`357 passed`；兩個既有 warning，無新增 failure。
 - 遠端 `0257bd5213…` 已先無衝突合併進本機 main；備援分支 `codex/backup-pre-remote-convergence-20260826` 保留修復前 SHA。
+
+## Promotion blocker
+
+- 正式 promotion plan：`NO-GO / preserved run directory is outside durable root`；未執行 apply、push 或 runtime mutation。
+- 148 個 registry state 中只有 2 個已位於 `queue/gsc-copy`；另有 120 個歷史 state 指向 runtime sibling `gsc-copy`、18 個 translation state 指向 `queue/translation-runs`、8 個 failed state 指向 actor-local `.work/gsc-copy`。
+- 既有 promotion contract 明確拒絕所有不在 `queue/gsc-copy` 的 run_dir；repo 沒有可用的正式 rehome/migration seam。直接換 actor 會讓 8 個 actor-local run_dir 失聯，禁止繞過。
+- 下一步需要獨立授權：新增單一 bounded、CAS、可 rollback 的 production registry/run-dir rehome seam，先逐項 byte/digest 驗證，再把 146 個 legacy run 移入 durable root；完成後才能重跑 promotion plan、fast-forward push 與 A/B。
