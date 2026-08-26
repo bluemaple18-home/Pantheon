@@ -1,0 +1,45 @@
+{
+  "activation_token": "act-v1:eebaa1bf3994a16ecf51c0c5ed5f86c8acb3495d262c28d7c5b92ed195408191",
+  "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+  "article_id": "ASTRO-BASE-02",
+  "blocked_reason": "REMOTE_MAIN_BEHIND_RUNTIME_ACTOR",
+  "canonical_url": "https://www.mysticpantheon.com/articles/astrology/astrology-0002",
+  "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-A-LEGACY-REWRITE-20260826",
+  "codegraph": {
+    "edges": 15792,
+    "files": 583,
+    "nodes": 7034,
+    "status": "READY"
+  },
+  "dispatch_key": "v1:83918062e381307bfe86c2cfa2c992518a567f6e93e7184f0d0f14bd92cafcef",
+  "dry_run_error": "PublishBlocked: local HEAD differs from origin/main: 6477ab815e8a != 0257bd5213ee",
+  "generation": "g47-6477ab81-activation-only-20260826",
+  "ledger_sha256": "224d78887b4a1062702e3b920377eda8ff2abb8264b1ec48861254afe6fddabe",
+  "partial_mutation": false,
+  "publication": {
+    "public_url_checked": false,
+    "published": false,
+    "push": false,
+    "tag": false,
+    "transaction": false
+  },
+  "remote_main": "0257bd5213eed0d0df10661a54f6215901a54997",
+  "result": "BLOCKED",
+  "run_id": "legacy-auto-sweep-v1-astrology-0002-astro-base-02",
+  "selected_candidate": {
+    "current_body_sha256": "0ae9b937f269a272102c1e94644e3cd613db609fd3cfb013c74a99f15b280449",
+    "reviewer_findings": [],
+    "reviewer_hard_failure": false,
+    "reviewer_verdict": "APPROVE"
+  },
+  "services": {
+    "com.pantheon.agy-content-publisher": "STOPPED_NOT_FOUND",
+    "com.pantheon.agy-gemini-coordinator": "STOPPED_NOT_FOUND",
+    "com.pantheon.agy-gemini-i18n-new": "STOPPED_NOT_FOUND",
+    "com.pantheon.agy-gemini-i18n-rewrite": "STOPPED_NOT_FOUND",
+    "com.pantheon.agy-gemini-new": "STOPPED_NOT_FOUND",
+    "com.pantheon.agy-gemini-rewrite": "STOPPED_NOT_FOUND",
+    "com.pantheon.content-capacity-guard": "STOPPED_NOT_FOUND"
+  },
+  "timestamp_utc": "2026-08-26T03:48:53Z"
+}
