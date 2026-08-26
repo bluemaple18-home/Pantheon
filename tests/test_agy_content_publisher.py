@@ -547,6 +547,82 @@ def test_collect_ready_runs_without_exact_selector_keeps_existing_selection(tmp_
     ]
 
 
+def test_collect_ready_runs_excludes_only_authoritative_superseded_create(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    superseded_run = tmp_path / "runs" / "superseded-create"
+    pending_run = tmp_path / "runs" / "pending-create"
+    _write_run(queue_root, superseded_run, make_publishable_article("SUPERSEDED-001"))
+    _write_run(queue_root, pending_run, make_publishable_article("PENDING-001"))
+    ledger = publisher._load_ledger(state_root)
+    ledger["superseded_runs"] = [
+        {
+            "run_id": superseded_run.name,
+            "article_ids": ["SUPERSEDED-001"],
+            "recorded_at": "2026-08-26T00:00:00+00:00",
+        }
+    ]
+    _write_json(publisher._ledger_path(state_root), ledger)
+
+    ready = publisher.collect_ready_runs(queue_root, state_root, limit=10)
+
+    assert [state["run_id"] for state, _candidate, _review in ready] == [
+        pending_run.name
+    ]
+
+
+@pytest.mark.parametrize(
+    ("superseded_entry", "message"),
+    [
+        (
+            {"run_id": "target-run", "article_ids": "TARGET-001"},
+            "superseded ledger identity mismatch",
+        ),
+        (
+            {"run_id": "target-run", "article_ids": ["OTHER-001"]},
+            "superseded ledger identity mismatch",
+        ),
+        (
+            {"run_id": "target-run", "article_ids": ["TARGET-001", "TARGET-001"]},
+            "superseded ledger identity mismatch",
+        ),
+    ],
+)
+def test_collect_ready_runs_superseded_owner_fails_closed_on_identity_drift(
+    tmp_path: Path,
+    superseded_entry: dict[str, object],
+    message: str,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    target_run = tmp_path / "runs" / "target-run"
+    _write_run(queue_root, target_run, make_publishable_article("TARGET-001"))
+    ledger = publisher._load_ledger(state_root)
+    ledger["superseded_runs"] = [superseded_entry]
+    _write_json(publisher._ledger_path(state_root), ledger)
+
+    with pytest.raises(publisher.PublishBlocked, match=message):
+        publisher.collect_ready_runs(queue_root, state_root, limit=10)
+
+
+def test_collect_ready_runs_superseded_conflict_with_published_fails_closed(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    target_run = tmp_path / "runs" / "target-run"
+    _write_run(queue_root, target_run, make_publishable_article("TARGET-001"))
+    ledger = publisher._load_ledger(state_root)
+    ledger["published_runs"] = [{"run_id": target_run.name, "article_ids": ["TARGET-001"]}]
+    ledger["superseded_runs"] = [{"run_id": target_run.name, "article_ids": ["TARGET-001"]}]
+    _write_json(publisher._ledger_path(state_root), ledger)
+
+    with pytest.raises(publisher.PublishBlocked, match="ledger lifecycle conflict"):
+        publisher.collect_ready_runs(queue_root, state_root, limit=10)
+
+
 def _write_exact_fresh_ja_translation_run(
     queue_root: Path,
     run_dir: Path,
@@ -4672,6 +4748,7 @@ def test_recovery_retry_uses_collector_selected_run_and_leaves_third_publishable
             "published_runs": [
                 {
                     "run_id": "run-published",
+                    "article_ids": ["AUTO-001"],
                     "version": "0.3.58",
                     "commit_sha": base_sha,
                     "published_at": "2026-07-24T00:00:00+08:00",

@@ -732,6 +732,13 @@ def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(
                     "published_at": "2026-08-26T00:00:00+00:00",
                 }
             ],
+            "superseded_runs": [
+                {
+                    "run_id": superseded_id,
+                    "article_ids": ["SUPERSEDED-001"],
+                    "recorded_at": "2026-08-26T00:00:00+00:00",
+                }
+            ],
             "translation_published_runs": [],
             "quarantined_runs": [],
             "translation_deferred_runs": [],
@@ -767,6 +774,70 @@ def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(
     assert classification[published_id]["lifecycle"] == "published"
     assert classification[released_id]["lifecycle"] == "released"
     assert all(item["operational_selection"] is False for item in classification.values())
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+@pytest.mark.parametrize(
+    ("ledger_patch", "message"),
+    [
+        (
+            {"published_runs": [{"run_id": "published-create", "article_ids": "PUBLISHED-001"}]},
+            "publisher ledger identity mismatch",
+        ),
+        (
+            {
+                "published_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001"]}],
+                "superseded_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001"]}],
+            },
+            "publisher ledger lifecycle conflict",
+        ),
+        (
+            {"superseded_runs": [{"run_id": "published-create", "article_ids": ["OTHER-001"]}]},
+            "publisher ledger identity mismatch",
+        ),
+    ],
+)
+def test_plan_rejects_invalid_lifecycle_ledger_before_runtime_mutation(
+    tmp_path: Path,
+    ledger_patch: dict[str, object],
+    message: str,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "published-create"
+    run_dir = request.queue_root / "gsc-copy" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(run_id, article_ids=["PUBLISHED-001"]),
+    )
+    _write_preserved_state(
+        request,
+        "published.json",
+        run_id=run_id,
+        run_dir=run_dir,
+        status="complete",
+        identity_envelope=_identity_envelope(["PUBLISHED-001"]),
+    )
+    ledger = {
+        "schema_version": 1,
+        "published_runs": [],
+        "rewrite_released_runs": [],
+        "translation_published_runs": [],
+        "superseded_runs": [],
+        "quarantined_runs": [],
+        "translation_deferred_runs": [],
+    }
+    ledger.update(ledger_patch)
+    _write_json(request.publisher_state_root / "ledger.json", ledger)
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match=message):
+        promotion.plan_promotion(request)
+
     assert not request.transaction_root.exists()
     assert _snapshot(request) == before
 

@@ -352,22 +352,42 @@ def _publisher_ledger_lifecycle(
         "published_runs": ("create", "published"),
         "rewrite_released_runs": ("rewrite_existing_body", "released"),
         "translation_published_runs": ("translate_existing", "published_translation"),
+        "superseded_runs": ("create", "superseded_create"),
     }
+    matched: list[str] = []
     for key, (expected_mode, lifecycle) in ledger_keys.items():
         entries = ledger.get(key, [])
         if not isinstance(entries, list):
             raise PromotionError("publisher ledger is invalid")
+        seen = 0
         for entry in entries:
             if not isinstance(entry, dict):
                 raise PromotionError("publisher ledger is invalid")
             if entry.get("run_id") != run_id:
                 continue
+            seen += 1
             if identity["mode"] != expected_mode:
                 raise PromotionError("publisher ledger identity mismatch")
             article_ids = entry.get("article_ids")
-            if isinstance(article_ids, list) and sorted(article_ids) != identity["article_ids"]:
+            if (
+                not isinstance(article_ids, list)
+                or any(
+                    type(article_id) is not str
+                    or not article_id
+                    or article_id.strip() != article_id
+                    for article_id in article_ids
+                )
+                or article_ids != sorted(set(article_ids))
+                or article_ids != identity["article_ids"]
+            ):
                 raise PromotionError("publisher ledger identity mismatch")
-            return lifecycle
+            matched.append(lifecycle)
+        if seen > 1:
+            raise PromotionError("publisher ledger identity mismatch")
+    if len(matched) > 1:
+        raise PromotionError("publisher ledger lifecycle conflict")
+    if matched:
+        return matched[0]
     return None
 
 
@@ -423,7 +443,7 @@ def _preserved_lifecycle(
         elif status == "failed":
             lifecycle = "terminal_failed_artifact"
         elif identity["mode"] == "create" and status == "complete":
-            lifecycle = "superseded_create"
+            lifecycle = "create_candidate"
         elif identity["mode"] == "rewrite_existing_body" and status == "complete":
             lifecycle = "rewrite_candidate"
         else:

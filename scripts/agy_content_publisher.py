@@ -2507,6 +2507,7 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
             "published_runs": [],
             "quarantined_runs": [],
             "rewrite_released_runs": [],
+            "superseded_runs": [],
             "translation_published_runs": [],
             "translation_deferred_runs": [],
         }
@@ -2516,9 +2517,59 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
     ledger.setdefault("published_runs", [])
     ledger.setdefault("quarantined_runs", [])
     ledger.setdefault("rewrite_released_runs", [])
+    ledger.setdefault("superseded_runs", [])
     ledger.setdefault("translation_published_runs", [])
     ledger.setdefault("translation_deferred_runs", [])
     return ledger
+
+
+def _ledger_article_ids(entry: object, label: str) -> list[str]:
+    if not isinstance(entry, dict):
+        raise PublishBlocked(f"{label} ledger identity mismatch")
+    article_ids = entry.get("article_ids")
+    if (
+        not isinstance(article_ids, list)
+        or any(
+            type(article_id) is not str
+            or not article_id
+            or article_id.strip() != article_id
+            for article_id in article_ids
+        )
+        or article_ids != sorted(set(article_ids))
+    ):
+        raise PublishBlocked(f"{label} ledger identity mismatch")
+    return list(article_ids)
+
+
+def _ledger_run_lifecycle(
+    ledger: dict[str, Any],
+    *,
+    run_id: str,
+    article_ids: list[str],
+) -> str | None:
+    matched: list[tuple[str, str]] = []
+    for key, lifecycle in (
+        ("published_runs", "published"),
+        ("superseded_runs", "superseded"),
+    ):
+        entries = ledger.get(key)
+        if not isinstance(entries, list):
+            raise PublishBlocked("publisher ledger schema is invalid")
+        seen = 0
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise PublishBlocked("publisher ledger schema is invalid")
+            if entry.get("run_id") != run_id:
+                continue
+            seen += 1
+            if _ledger_article_ids(entry, lifecycle) != article_ids:
+                raise PublishBlocked(f"{lifecycle} ledger identity mismatch")
+            matched.append((key, lifecycle))
+        if seen > 1:
+            raise PublishBlocked(f"{lifecycle} ledger identity mismatch")
+    if len(matched) > 1:
+        raise PublishBlocked("publisher ledger lifecycle conflict")
+    return matched[0][1] if matched else None
 
 
 def _record_translation_deferred(state_root: Path, run_id: str, reason: str) -> None:
@@ -2652,7 +2703,6 @@ def collect_ready_runs(
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
-    published = {str(item.get("run_id")) for item in ledger["published_runs"]}
     quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     reference_articles = (
@@ -2669,14 +2719,16 @@ def collect_ready_runs(
             _record_invalid_candidate_policy_rejection(state_root, "create", state_path)
             continue
         run_id = str(state["run_id"])
-        if run_id in published or run_id in quarantined:
-            continue
-        if not _retry_eligible(state_root, "create", run_id):
-            continue
         if candidate.get("mode") == "translate_existing":
             continue
         if candidate.get("mode") != "create":
             _record_quarantine(state_root, state, "publisher only supports create mode")
+            continue
+        article_ids = sorted(str(article["id"]) for article in candidate["articles"])
+        lifecycle = _ledger_run_lifecycle(ledger, run_id=run_id, article_ids=article_ids)
+        if lifecycle in {"published", "superseded"} or run_id in quarantined:
+            continue
+        if not _retry_eligible(state_root, "create", run_id):
             continue
         if not _review_is_clean_approve(review):
             _record_quarantine(state_root, state, "reviewer did not cleanly approve every article")
