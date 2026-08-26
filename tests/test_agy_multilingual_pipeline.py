@@ -2333,6 +2333,57 @@ def test_enqueue_article_translations_can_register_only_one_specified_ja_run(
     assert [article["locale"] for article in brief["articles"]] == ["ja"]
 
 
+def test_enqueue_article_translations_writes_active_identity_envelope(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+
+    records = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        locales=["ja"],
+        lane="i18n-new",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+
+    state_path = next((queue_root / "runs").glob("*.json"))
+    state = json.loads(state_path.read_text())
+    state_bytes = state_path.read_bytes()
+    second = multilingual.enqueue_article_translations(
+        tmp_path,
+        queue_root,
+        source_run_id="source-run-001",
+        article_id="TEST-001",
+        locales=["ja"],
+        lane="i18n-new",
+        source_loader=lambda _repo, _article_id: source_article(),
+    )
+    envelope = state["identity_envelope"]
+    expected_identity = {
+        "schema_version": 1,
+        "mode": "translate_existing",
+        "lane": "i18n-new",
+        "article_ids": ["TEST-001"],
+    }
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            expected_identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert records[0]["locale"] == "ja"
+    assert state["run_id"] == records[0]["run_id"]
+    assert state["status"] == "active"
+    assert state["lane"] == "i18n-new"
+    assert envelope == {**expected_identity, "digest": expected_digest}
+    assert second == records
+    assert state_path.read_bytes() == state_bytes
+
+
 def test_legacy_rewrite_source_is_seeded_once_and_terminal_locale_stays_ineligible(
     tmp_path: Path,
 ) -> None:

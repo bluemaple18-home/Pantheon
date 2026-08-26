@@ -878,7 +878,7 @@ def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
     _write_json(ledger_path, ledger)
     ledger_before = ledger_path.read_bytes()
     unlisted_queue_marker = queue_root / "unlisted-translation-run.json"
-    seed_calls: list[tuple[str, str]] = []
+    seed_calls: list[tuple[str, str, str]] = []
 
     def seed_unlisted_translation(
         _repo_root: Path,
@@ -886,8 +886,9 @@ def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
         *,
         source_run_id: str,
         article_id: str,
+        lane: str,
     ) -> list[dict[str, str]]:
-        seed_calls.append((source_run_id, article_id))
+        seed_calls.append((source_run_id, article_id, lane))
         _write_json(unlisted_queue_marker, {"run_id": "unlisted-translation-run"})
         return [
             {
@@ -1964,11 +1965,11 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
-    seeded: list[tuple[str, str]] = []
+    seeded: list[tuple[str, str, str]] = []
     monkeypatch.setattr(
         publisher.multilingual,
         "enqueue_article_translations",
-        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        lambda _repo, _queue, *, source_run_id, article_id, lane: seeded.append((source_run_id, article_id, lane))
         or [{"run_id": f"{article_id}-en", "locale": "en", "run_dir": "/tmp/en"}],
     )
     git_calls: list[list[str]] = []
@@ -1996,7 +1997,7 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     assert f'<time datetime="{expected_updated}" data-articles-updated>{expected_updated}</time>' in hub
     assert ["push", "origin", "HEAD:main", "v0.3.1"] not in git_calls
     assert "## [0.3.1]" in (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert seeded == [("run-approved", "AUTO-001")]
+    assert seeded == [("run-approved", "AUTO-001", "i18n-new")]
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["published_runs"][0]["translation_seed_status"] == "seeded"
     assert ledger["published_runs"][0]["translation_run_ids"] == ["AUTO-001-en"]
@@ -2564,11 +2565,11 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         lambda _repo, command, **_kwargs: prerender_commands.append(command),
     )
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
-    seeded: list[tuple[str, str]] = []
+    seeded: list[tuple[str, str, str]] = []
     monkeypatch.setattr(
         publisher.multilingual,
         "enqueue_article_translations",
-        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        lambda _repo, _queue, *, source_run_id, article_id, lane: seeded.append((source_run_id, article_id, lane))
         or [
             {"run_id": f"{article_id}-{locale}", "locale": locale, "run_dir": f"/tmp/{locale}"}
             for locale in ("en", "ja", "ko")
@@ -2612,7 +2613,7 @@ def test_publish_ready_rewrite_runs_applies_body_override_without_push(tmp_path:
         "LEGACY-001-ja",
         "LEGACY-001-ko",
     ]
-    assert seeded == [("rewrite-approved", "LEGACY-001")]
+    assert seeded == [("rewrite-approved", "LEGACY-001", "i18n-rewrite")]
     assert result["seeded_translation_runs"] == [
         "LEGACY-001-en",
         "LEGACY-001-ja",
@@ -2648,11 +2649,11 @@ def test_seed_pending_translations_backfills_recovered_rewrite_release(
             "translation_deferred_runs": [],
         },
     )
-    seeded: list[tuple[str, str]] = []
+    seeded: list[tuple[str, str, str]] = []
     monkeypatch.setattr(
         publisher.multilingual,
         "enqueue_article_translations",
-        lambda _repo, _queue, *, source_run_id, article_id: seeded.append((source_run_id, article_id))
+        lambda _repo, _queue, *, source_run_id, article_id, lane: seeded.append((source_run_id, article_id, lane))
         or [
             {"run_id": f"{article_id}-{locale}", "locale": locale, "run_dir": f"/tmp/{locale}"}
             for locale in ("en", "ja", "ko")
@@ -2661,7 +2662,7 @@ def test_seed_pending_translations_backfills_recovered_rewrite_release(
 
     run_ids = publisher._seed_pending_translations(tmp_path, queue_root, state_root)
 
-    assert seeded == [("rewrite-recovered", "LEGACY-RECOVERED")]
+    assert seeded == [("rewrite-recovered", "LEGACY-RECOVERED", "i18n-rewrite")]
     assert run_ids == [
         "LEGACY-RECOVERED-en",
         "LEGACY-RECOVERED-ja",

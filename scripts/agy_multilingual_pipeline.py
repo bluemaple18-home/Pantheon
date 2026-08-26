@@ -19,6 +19,7 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 SCHEMA_VERSION = 1
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
+TRANSLATION_IDENTITY_LANES = {"i18n-new", "i18n-rewrite"}
 TRANSLATION_REPLACEMENT_REASONS = frozenset({
     "LOCALE_PLAN_VALIDATION",
     "NETWORK",
@@ -78,6 +79,18 @@ def _canonical_json(payload: object) -> str:
 
 def _json_sha256(payload: object) -> str:
     return hashlib.sha256(compact_json_bytes(payload)).hexdigest()
+
+
+def translation_identity_envelope(article_id: str, lane: str) -> dict[str, object]:
+    if not article_id.strip() or lane not in TRANSLATION_IDENTITY_LANES:
+        raise ValueError("translation identity envelope is invalid")
+    identity = {
+        "schema_version": SCHEMA_VERSION,
+        "mode": "translate_existing",
+        "lane": lane,
+        "article_ids": [article_id],
+    }
+    return {**identity, "digest": _json_sha256(identity)}
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:
@@ -403,6 +416,7 @@ def enqueue_article_translations(
     source_run_id: str,
     article_id: str,
     locales: list[str] | None = None,
+    lane: str | None = None,
     source_loader: SourceLoader = load_source_article,
 ) -> list[dict[str, str]]:
     """為已發布新文或成功改寫舊文建立英、日、韓三個互不阻塞的翻譯 run。"""
@@ -415,6 +429,11 @@ def enqueue_article_translations(
         or any(locale not in SUPPORTED_LOCALES for locale in selected_locales)
     ):
         raise ValueError("translation locales must be non-empty, unique, and supported")
+    identity_envelope = (
+        translation_identity_envelope(article_id, lane)
+        if lane is not None
+        else None
+    )
     queue_root = queue_root.resolve()
     records: list[dict[str, str]] = []
     for locale in selected_locales:
@@ -433,6 +452,11 @@ def enqueue_article_translations(
             current_source = source_loader(repo_root, article_id)
             if existing_brief["articles"][0]["source_sha256"] != source_sha256(current_source):
                 raise ValueError("registered translation run source drift")
+            if identity_envelope is not None and (
+                state.get("lane") != lane
+                or state.get("identity_envelope") != identity_envelope
+            ):
+                raise ValueError("registered translation run identity envelope drift")
         else:
             prepare_translation_run(
                 repo_root,
@@ -450,6 +474,14 @@ def enqueue_article_translations(
                     "run_id": run_id,
                     "run_dir": str(resolved_run_dir),
                     "status": "active",
+                    **(
+                        {
+                            "lane": lane,
+                            "identity_envelope": identity_envelope,
+                        }
+                        if identity_envelope is not None
+                        else {}
+                    ),
                     "registered_at": now,
                     "updated_at": now,
                 },

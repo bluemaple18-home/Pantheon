@@ -2936,6 +2936,7 @@ def prepare_exact_fresh_ja_translation_run(
         source_run_id=source_run_id,
         article_id=article_id,
         locales=["ja"],
+        lane="i18n-new",
     )
     if len(records) != 1 or records[0].get("locale") != "ja":
         raise PublishBlocked("exact fresh JA queue registration was not singular")
@@ -3373,7 +3374,11 @@ def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Pa
         if item.get("translation_seed_status") != "pending":
             item["translation_seed_status"] = "pending"
             changed = True
-    for item in [*ledger["published_runs"], *ledger["rewrite_released_runs"]]:
+    seeded_items = [
+        *((item, "i18n-new") for item in ledger["published_runs"]),
+        *((item, "i18n-rewrite") for item in ledger["rewrite_released_runs"]),
+    ]
+    for item, lane in seeded_items:
         if item.get("translation_seed_status") != "pending":
             continue
         translation_runs: list[dict[str, str]] = []
@@ -3384,6 +3389,7 @@ def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Pa
                     queue_root,
                     source_run_id=str(item["run_id"]),
                     article_id=str(article_id),
+                    lane=lane,
                 )
             )
         item["translation_seed_status"] = "seeded"
