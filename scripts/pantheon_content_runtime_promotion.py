@@ -144,6 +144,15 @@ def _read_json_file(path: Path, label: str) -> dict[str, Any]:
     return payload
 
 
+def _read_json_value_file(path: Path, label: str) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise PromotionError(f"{label} is missing") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise PromotionError(f"{label} is invalid") from error
+
+
 def _git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -743,7 +752,7 @@ def _gsc_copy_identity_snapshot(queue_root: Path) -> list[dict[str, Any]]:
         if not path.is_file():
             raise PromotionError("gsc-copy snapshot contains unexpected residue")
         if path.suffix == ".json":
-            _read_json_file(path, "gsc-copy JSON")
+            _read_json_value_file(path, "gsc-copy JSON")
         snapshot.append(
             {
                 "path": relative,

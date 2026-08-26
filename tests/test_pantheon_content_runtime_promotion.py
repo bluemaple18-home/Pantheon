@@ -1506,6 +1506,54 @@ def test_plan_preserves_exact_failed_run_and_gsc_copy_queue(tmp_path: Path) -> N
     assert _git(request.actor_root, "rev-parse", "HEAD") == identities["new_sha"]
 
 
+def test_plan_accepts_gsc_copy_json_array_without_rewriting_bytes(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "failed-reviewer-run"
+    gsc_copy_run = request.queue_root / "gsc-copy" / run_id
+    review_dir = gsc_copy_run / "editorial-review"
+    review_dir.mkdir(parents=True)
+    _write_json(
+        gsc_copy_run / "brief.json",
+        _preserved_brief(run_id),
+    )
+    findings_path = review_dir / "deterministic-findings.json"
+    findings_path.write_text("[]\n", encoding="utf-8")
+    _write_json(
+        request.queue_root / "runs" / "failed.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(gsc_copy_run),
+            "status": "failed",
+            "identity_envelope": _identity_envelope(),
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+    before = _snapshot(request)
+    before_findings = findings_path.read_bytes()
+
+    plan = promotion.plan_promotion(request)
+
+    assert plan["status"] == "READY_TO_APPLY"
+    assert {
+        entry["path"]
+        for entry in plan["queue_identity_snapshot"]["gsc_copy"]
+        if entry["type"] == "file"
+    } == {
+        f"{run_id}/brief.json",
+        f"{run_id}/editorial-review/deterministic-findings.json",
+    }
+    assert findings_path.read_bytes() == before_findings
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_preserved_failed_run_requires_identity_snapshot(tmp_path: Path) -> None:
     request, _identities = _runtime_fixture(tmp_path)
     (request.queue_root / "gsc-copy").mkdir()
