@@ -13,6 +13,7 @@ import re
 import subprocess
 import tempfile
 from typing import Any, Callable
+import unicodedata
 
 from scripts import agy_seo_copy_pipeline as pipeline
 
@@ -85,7 +86,8 @@ JA_BOUNDARY_SOURCE_CATEGORY_PATTERNS = {
         r"不代表.*承諾|不作.*預測承諾|不直接等於|無法.*確定|"
         r"請勿將其視為明牌|未來的走向仍取決於個人的具體行動|"
         r"不能承諾復合、成功或最終結果|不用來替你拿確定答案|"
-        r"不能替你預測必然結果|不能保證結果|不能預先承諾結果|^不能$)"
+        r"不能替你拿確定答案|不能替你預測必然結果|不能保證結果|"
+        r"不能預先承諾結果|^不能$)"
     ),
     "contextual_or_general_interpretation": re.compile(
         r"(通用理解|一般理解|文化(?:與|和)?符號|文化反思|"
@@ -383,12 +385,18 @@ def _ja_boundary_not_a_boundary_reason(text: str) -> str | None:
     return None
 
 
+def _ja_exact_normalized_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text)
+    return re.sub(r"[\s、，,。！？!?；;：「」『』（）()\[\]]+", "", normalized)
+
+
 def _ja_constraint_id(
     source_version_digest: str,
     category: str,
     constraint_key: str,
+    equivalence_key: str,
 ) -> str:
-    value = f"{source_version_digest}\0{category}\0{constraint_key}"
+    value = f"{source_version_digest}\0{category}\0{constraint_key}\0{equivalence_key}"
     return f"constraint-{hashlib.sha256(value.encode('utf-8')).hexdigest()[:12]}"
 
 
@@ -409,11 +417,9 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
     preserved_constraint_ids: set[str] = set()
 
     for field_path, text in _source_text_fields(source):
-        ordinal = 0
-        for source_text in _ja_source_candidate_clauses(text):
+        for ordinal, source_text in enumerate(_ja_source_candidate_clauses(text), start=1):
             if not JA_BOUNDARY_SOURCE_HEURISTIC_RE.search(source_text):
                 continue
-            ordinal += 1
             source_span_id = _ja_source_span_id(
                 source_version_digest,
                 field_path,
@@ -452,11 +458,13 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
 
             constraint_ids = []
             for category in categories:
-                constraint_key = JA_BOUNDARY_CONSTRAINT_KEYS[category]
+                equivalence_key = _ja_exact_normalized_text(source_text)
+                constraint_key = f"{JA_BOUNDARY_CONSTRAINT_KEYS[category]}:{equivalence_key}"
                 constraint_id = _ja_constraint_id(
                     source_version_digest,
                     category,
                     constraint_key,
+                    equivalence_key,
                 )
                 constraint_ids.append(constraint_id)
                 constraint = constraints_by_id.setdefault(
@@ -464,6 +472,7 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
                     {
                         "constraint_id": constraint_id,
                         "constraint_key": constraint_key,
+                        "equivalence_key": equivalence_key,
                         "category": category,
                         "category_label": JA_BOUNDARY_CATEGORY_LABELS[category],
                         "source_span_ids": [],
@@ -504,15 +513,47 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _ja_source_fact_projection(text: str, dispositions: list[dict[str, Any]]) -> str:
-    value = text
-    for disposition in dispositions:
-        if disposition["disposition"] in {"PRESERVED", "MERGED_DUPLICATE"}:
-            value = value.replace(str(disposition["source_text"]), "")
-    value = re.sub(r"[，,、]\s*([。！？!?])", r"\1", value)
-    value = re.sub(r"^[，,、。！？!?\s]+", "", value)
-    value = re.sub(r"[，,、\s]+$", "", value)
-    value = re.sub(r"。{2,}", "。", value)
-    return value.strip()
+    protected_texts = {
+        str(disposition["source_text"])
+        for disposition in dispositions
+        if disposition["disposition"] in {"PRESERVED", "MERGED_DUPLICATE"}
+        and _ja_source_clause_is_pure_protected(str(disposition["source_text"]))
+    }
+    projected_sentences = []
+    for sentence in re.findall(r"[^。！？!?]+[。！？!?]?", text):
+        suffix = sentence[-1] if re.search(r"[。！？!?]$", sentence) else ""
+        body = sentence[:-1] if suffix else sentence
+        clauses = [
+            clause.strip()
+            for clause in re.split(r"[，,；;]", body)
+            if clause.strip()
+        ]
+        kept = [
+            clause
+            for clause in clauses
+            if clause.strip(" \t\r\n。！？!?") not in protected_texts
+        ]
+        if not kept:
+            continue
+        if kept[0].startswith(("旨在", "這點", "未來的走向")):
+            projected_sentences.append(sentence.strip())
+        else:
+            projected_sentences.append("，".join(kept) + suffix)
+    return "".join(projected_sentences).strip()
+
+
+def _ja_source_clause_is_pure_protected(text: str) -> bool:
+    if re.search(r"(而是|提醒我們檢視|映照|藉由|旨在|學習接受|提供了一種|具體問題)", text):
+        return False
+    return bool(
+        re.search(
+            r"(通用理解|一般理解|不能替|不代表|不作|不構成|"
+            r"財務建議|投資或法律建議|專業財務指導|請讀者|請勿|"
+            r"未來的走向仍取決於|任何預測工具|這點在解讀|"
+            r"經濟決策仍須依賴|不能承諾|不用來替你拿確定答案)",
+            text,
+        )
+    )
 
 
 def _ja_boundary_contracts_for_brief(brief: dict[str, Any]) -> dict[str, Any]:
@@ -538,16 +579,29 @@ def _ja_boundary_contracts_for_brief(brief: dict[str, Any]) -> dict[str, Any]:
 
 def _ja_repeated_boundary_locations(article: dict[str, Any]) -> list[str]:
     body = _ja_body_text(article)
-    repeated_cores = [
-        r"一般的な理解にとどまり",
-        r"個人の結論を代弁するものでは",
-        r"文化的な(?:内省|反省|読み物)",
-        r"専門的な財務指導でもありません",
-        r"投資や法律に関する助言を構成するものでは",
-    ]
-    if any(len(re.findall(core, body)) >= 3 for core in repeated_cores):
+    if _ja_repeated_boundary_span_evidence(body):
         return ["body"]
     return []
+
+
+def _ja_repeated_boundary_span_evidence(text: str) -> list[str]:
+    spans: dict[str, int] = {}
+    for sentence in re.findall(r"[^。！？!?]+[。！？!?]?", text):
+        if not _ja_boundary_target_categories(sentence):
+            continue
+        normalized = _ja_exact_normalized_text(sentence)
+        if len(normalized) >= 24:
+            spans[normalized] = spans.get(normalized, 0) + 1
+        window_size = 24
+        if len(normalized) >= window_size:
+            for index in range(len(normalized) - window_size + 1):
+                window = normalized[index:index + window_size]
+                spans[window] = spans.get(window, 0) + 1
+    return [
+        span
+        for span, count in spans.items()
+        if count >= 3
+    ]
 
 
 def _ja_boundary_findings(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -541,7 +542,7 @@ def test_ja_source_constraints_preserve_spans_and_merge_equivalent_duplicates() 
         constraint
         for constraint in constraints
         if constraint["category"] == "contextual_or_general_interpretation"
-        and constraint["constraint_key"] == "general_interpretation_only"
+        and constraint["equivalence_key"] == "內容只提供通用理解"
     ]
     assert len(general) == 1
     assert len(general[0]["source_span_ids"]) >= 8
@@ -560,9 +561,131 @@ def test_ja_source_constraints_preserve_spans_and_merge_equivalent_duplicates() 
         rebuild_by_slot={"article-01": False},
     )
     source_package_text = prompt.split("source fact package:\n", 1)[1].split("\n", 1)[0]
+    source_package = json.loads(source_package_text)
+    fact_texts = [
+        str(fact["text"])
+        for article in source_package["articles"]
+        for fact in article["facts"]
+    ]
     assert "protected_constraints" in source_package_text
     assert "boundary_candidate_dispositions" in source_package_text
-    assert "內容只提供通用理解，不能替個人下結論" not in source_package_text
+    assert not any(
+        text.strip() == "內容只提供通用理解，不能替個人下結論"
+        for text in fact_texts
+    )
+
+
+def test_ja_boundary_constraints_do_not_merge_different_claims_in_same_category() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["description"] = (
+        "內容只提供通用理解，不能替個人下結論。"
+        "內容只提供通用理解，不能替個人下結論。"
+        "不能保證結果。不能替你拿確定答案。"
+    )
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+
+    article = multilingual._source_fact_package(brief)["articles"][0]
+    constraints = article["protected_constraints"]
+    by_key = {
+        (constraint["category"], constraint["equivalence_key"]): constraint
+        for constraint in constraints
+    }
+
+    assert ("contextual_or_general_interpretation", "內容只提供通用理解") in by_key
+    assert ("contextual_or_general_interpretation", "不能替個人下結論") in by_key
+    assert by_key[
+        ("contextual_or_general_interpretation", "內容只提供通用理解")
+    ]["constraint_id"] != by_key[
+        ("contextual_or_general_interpretation", "不能替個人下結論")
+    ]["constraint_id"]
+    assert len(by_key[("contextual_or_general_interpretation", "內容只提供通用理解")]["source_span_ids"]) == 2
+    assert any(
+        item["disposition"] == "MERGED_DUPLICATE"
+        and item["source_text"] == "內容只提供通用理解"
+        for item in article["protected_source"]["boundary_candidate_dispositions"]
+    )
+    assert ("outcome_not_determined", "不能保證結果") in by_key
+    assert ("outcome_not_determined", "不能替你拿確定答案") in by_key
+    assert by_key[
+        ("outcome_not_determined", "不能保證結果")
+    ]["constraint_id"] != by_key[
+        ("outcome_not_determined", "不能替你拿確定答案")
+    ]["constraint_id"]
+
+
+def test_ja_source_span_id_uses_stable_clause_ordinal_not_classifier_hit_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = source_article()
+    source["description"] = "不能保證結果。不能替個人下結論。"
+    item = {
+        "translation_id": "TEST-001:ja",
+        "locale": "ja",
+        "source_article_id": "TEST-001",
+        "source_path": source["canonical_path"],
+        "source_sha256": multilingual.source_sha256(source),
+        "source": source,
+    }
+
+    original = multilingual._ja_protected_constraint_view(item)
+    original_span_id = next(
+        disposition["source_span_id"]
+        for disposition in original["protected_source"]["boundary_candidate_dispositions"]
+        if disposition["source_text"] == "不能替個人下結論"
+    )
+
+    monkeypatch.setattr(
+        multilingual,
+        "JA_BOUNDARY_SOURCE_HEURISTIC_RE",
+        re.compile("不能替個人下結論"),
+    )
+    filtered = multilingual._ja_protected_constraint_view(item)
+    filtered_span_id = next(
+        disposition["source_span_id"]
+        for disposition in filtered["protected_source"]["boundary_candidate_dispositions"]
+        if disposition["source_text"] == "不能替個人下結論"
+    )
+
+    assert filtered_span_id == original_span_id
+
+
+def test_ja_source_fact_projection_selects_clauses_without_broken_fragments() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+
+    facts = multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    fact_text = "\n".join(str(fact["text"]) for fact in facts)
+
+    for fragment in ["，。", "，，", "。，。"]:
+        assert fragment not in fact_text
+    assert not any(
+        sentence.strip().startswith(("旨在", "這點"))
+        for sentence in re.split(r"[。！？!?]", fact_text)
+    )
+    assert "然而。" not in fact_text
+    assert "塔羅死神在金錢中代表改變與結束舊模式" in fact_text
+    assert "提醒我們檢視現狀" in fact_text
+    assert "藉由符號的反思" in fact_text
+    assert "我們在此探討的皆屬文化反思範疇，旨在豐富個人的心智層面與看待金錢的角度" in fact_text
+
+
+def test_ja_boundary_repetition_detects_exact_normalized_paraphrase_span() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+    repeated = (
+        "これは一般的な象徴解釈として整理するもので、個人の結果を断定しません。"
+        "専門的な財務助言に代わるものではありません。"
+    )
+    for section in candidate["articles"][0]["bodySections"][:3]:
+        section["paragraphs"][0] = f"{section['paragraphs'][0]}{repeated}"
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert any(
+        item["code"] == "BOUNDARY_BOILERPLATE_REPEATED"
+        and item["repeated_locations"] == ["body"]
+        for item in findings
+    )
 
 
 def test_ja_unknown_boundary_candidate_fails_closed() -> None:

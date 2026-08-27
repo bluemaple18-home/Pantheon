@@ -56,6 +56,18 @@ Observed before implementation:
 - result: `4 failed, 3 passed, 185 deselected`
 - failures proved no `protected_source` traceability view existed and unknown/ordinary candidates had no disposition
 
+Review-blocked P1 RED command:
+
+```bash
+<pantheon-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -k 'source_span_id or source_fact_projection or same_category or paraphrase_span'
+```
+
+Observed before P1 repair:
+
+- selected: 4
+- result: `4 failed, 192 deselected`
+- failures proved same-category source claims were coarsely merged, source span IDs drifted with classifier hit order, Writer facts contained broken fragments, and paraphrased repeated boilerplate was missed
+
 ## GREEN
 
 Protected source and JA boundary SC command:
@@ -66,8 +78,19 @@ Protected source and JA boundary SC command:
 
 Result:
 
-- selected: 7
-- result: `7 passed, 185 deselected`
+- selected: 11
+- result: `11 passed, 185 deselected`
+
+Review-blocked P1 command:
+
+```bash
+<pantheon-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -k 'source_span_id or source_fact_projection or same_category or paraphrase_span'
+```
+
+Result:
+
+- selected: 4
+- result: `4 passed, 192 deselected`
 
 Full multilingual regression:
 
@@ -77,8 +100,8 @@ Full multilingual regression:
 
 Result:
 
-- selected: 192
-- result: `192 passed`
+- selected: 196
+- result: `196 passed`
 
 Coordinator translation regression:
 
@@ -112,15 +135,17 @@ Fixed brief source package after repair:
 
 - facts: 22
 - protected constraints:
-  - `outcome_not_determined` / `outcome_not_determined`: 21 source spans
-  - `contextual_or_general_interpretation` / `general_interpretation_only`: 31 source spans
-  - `professional_advice_non_substitution` / `professional_advice_non_substitution`: 3 source spans
+  - total exact-equivalence constraints: 20
+  - `outcome_not_determined`: 8 constraints
+  - `contextual_or_general_interpretation`: 9 constraints
+  - `professional_advice_non_substitution`: 3 constraints
 - dispositions:
-  - `PRESERVED`: 1
-  - `MERGED_DUPLICATE`: 39
+  - `PRESERVED`: 18
+  - `MERGED_DUPLICATE`: 22
   - `NOT_A_BOUNDARY`: 2
   - `UNRESOLVED`: 0
-- repeated source fact text `內容只提供通用理解，不能替個人下結論`: absent from Writer fact projection
+- broken projection fragments `，。`, `，，`, `。，。`, `然而。`, `也。`, `但。`: absent from Writer fact projection
+- standalone repeated source fact text `內容只提供通用理解，不能替個人下結論`: absent from Writer fact projection
 
 Deterministic fixture findings:
 

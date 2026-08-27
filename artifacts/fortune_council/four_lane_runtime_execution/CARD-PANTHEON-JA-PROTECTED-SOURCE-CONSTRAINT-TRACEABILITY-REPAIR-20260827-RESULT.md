@@ -14,6 +14,8 @@ This candidate does not cherry-pick or continue the superseded no-go commits `96
 
 The repair keeps original source candidate spans immutable and traceable while letting deterministic disposition decide whether each heuristic boundary candidate becomes a protected constraint, a merged duplicate, a deterministic false positive, or a fail-closed unresolved candidate.
 
+Review-blocked follow-up repaired three P1 issues: exact-equivalence constraint IDs, stable source clause ordinals independent of classifier hit order, and non-destructive Writer fact projection plus generic repeated target span detection.
+
 ## Behavior
 
 - candidate 2 maps to `BOUNDARY_BOILERPLATE_REPEATED` with `repeated_locations=["body"]`
@@ -21,6 +23,10 @@ The repair keeps original source candidate spans immutable and traceable while l
 - corrected test-only fixture has no boundary omission, repetition, or unresolved finding
 - unknown medical safety candidate is preserved as source span, marked `UNRESOLVED`, and fails closed as `UNRESOLVED_BOUNDARY_CANDIDATE`
 - ordinary negation false positive is preserved as source span, marked `NOT_A_BOUNDARY`, and receives deterministic `reason_code`
+- same-category source spans are not merged unless their exact-normalized source text matches
+- `source_span_id` uses original field clause ordinal, not heuristic hit order
+- Writer fact projection selects original clauses and does not substring-delete source text
+- repeated boilerplate detection uses exact-normalized repeated target span evidence rather than candidate-specific phrase lists
 - plan, Writer, deterministic validation, and Reviewer prompt share the same protected constraint view
 - raw `source_text` is used for provenance and claim trace; boundary spans no longer become independent repeated safety requirements in Writer facts
 
@@ -32,8 +38,10 @@ See `artifacts/fortune_council/four_lane_runtime_execution/ja_protected_source_c
 
 - RED candidate 2/3 command: `2 failed, 3 passed, 187 deselected`
 - RED full SC command: `4 failed, 3 passed, 185 deselected`
-- GREEN protected source/boundary SC command: `7 passed, 185 deselected`
-- full multilingual tests: `192 passed`
+- REVIEW_BLOCKED P1 RED command: `4 failed, 192 deselected`
+- GREEN protected source/boundary SC command: `11 passed, 185 deselected`
+- REVIEW_BLOCKED P1 GREEN command: `4 passed, 192 deselected`
+- full multilingual tests: `196 passed`
 - coordinator translation regression: `24 passed, 291 deselected`
 - fixture JSON and manifest digests: `json fixtures ok 7`, `manifest digests ok 6`
 - absolute path scan on fixture/card artifacts: no hits
