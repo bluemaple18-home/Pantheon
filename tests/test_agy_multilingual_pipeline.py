@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -197,6 +198,59 @@ def load_ja_boundary_fixture(name: str) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_ja_plan_authority_fixture(name: str) -> dict[str, object]:
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / "agy_multilingual_pipeline"
+        / "ja_plan_authority"
+        / name
+    )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def ja_plan_authority_fixture_sha256(name: str) -> str:
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / "agy_multilingual_pipeline"
+        / "ja_plan_authority"
+        / name
+    )
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def source_fact_coverage_stats(
+    brief: dict[str, object],
+    external: dict[str, object],
+) -> dict[str, object]:
+    facts = multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    expected = [str(fact["fact_id"]) for fact in facts]
+    returned = [
+        str(mapping["source_fact_id"])
+        for mapping in external["articles"][0]["coverage_mapping"]
+    ]
+    counts = Counter(returned)
+    stale = [fact_id for fact_id in returned if fact_id not in expected]
+    missing = [fact_id for fact_id in expected if fact_id not in counts]
+    duplicates = [fact_id for fact_id, count in counts.items() if count > 1]
+    return {
+        "current_facts": len(expected),
+        "returned_coverage_items": len(returned),
+        "stale_legacy_ids": len(stale),
+        "missing_current_ids": len(missing),
+        "duplicates": len(duplicates),
+        "coverage": (
+            "PASS"
+            if not stale and not missing and not duplicates
+            and len(returned) == len(expected)
+            else "FAIL"
+        ),
+        "stale_ids": stale,
+        "missing_ids": missing,
+    }
+
+
 def non_tarot_translation_brief(locale: str = "ko") -> dict[str, object]:
     source = {
         "article_id": "FORTUNE-0039",
@@ -364,6 +418,31 @@ def external_locale_plan(
             }
         ]
     }
+
+
+def external_locale_plan_with_source_refs(
+    brief: dict[str, object],
+    *,
+    rebuild_outline: bool = False,
+    outline: list[str] | None = None,
+    coverage_shift: int = 0,
+) -> dict[str, object]:
+    external = external_locale_plan(
+        brief,
+        rebuild_outline=rebuild_outline,
+        outline=outline,
+        coverage_shift=coverage_shift,
+    )
+    refs = multilingual._request_local_source_ref_maps(
+        brief,
+        {"articles": [{"slot": "article-01"}]},
+    )["article-01"]
+    fact_to_ref = {fact_id: ref for ref, fact_id in refs.items()}
+    item = external["articles"][0]
+    item.pop("source_sha256")
+    for mapping in item["coverage_mapping"]:
+        mapping["source_ref"] = fact_to_ref[str(mapping.pop("source_fact_id"))]
+    return external
 
 
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])
@@ -667,6 +746,227 @@ def test_ja_source_fact_projection_selects_clauses_without_broken_fragments() ->
     assert "提醒我們檢視現狀" in fact_text
     assert "藉由符號的反思" in fact_text
     assert "我們在此探討的皆屬文化反思範疇，旨在豐富個人的心智層面與看待金錢的角度" in fact_text
+
+
+def test_ja_plan_authority_red_fixture_reproduces_cross_version_id_drift() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    external = load_ja_plan_authority_fixture("generation_04_external_plan.json")
+
+    assert ja_plan_authority_fixture_sha256("brief.json") == (
+        "93e09f8f637c396e35ccc28707c66734b08eb7f1c0c4cbdcb246df5b11ac8844"
+    )
+    assert ja_plan_authority_fixture_sha256("attempt_03_locale_plan.json") == (
+        "c7c0eb857d3b87e3aa254aa1af07552205859a5f61e889ee42c4f56501771810"
+    )
+    assert ja_plan_authority_fixture_sha256("generation_04_external_plan.json") == (
+        "063cceea4195133ab0382bf25586cb10b3240020b8a0546238830c460b943322"
+    )
+    assert source_fact_coverage_stats(brief, external) == {
+        "current_facts": 22,
+        "returned_coverage_items": 22,
+        "stale_legacy_ids": 3,
+        "missing_current_ids": 3,
+        "duplicates": 0,
+        "coverage": "FAIL",
+        "stale_ids": [
+            "fact-f969c002621b",
+            "fact-9b6132bd3c5d",
+            "fact-e9e00b456bd1",
+        ],
+        "missing_ids": [
+            "fact-23f5088ba3c2",
+            "fact-ed7ec3e401ba",
+            "fact-f729514cc45f",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="article fields are strict|source ref coverage"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=4,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+        )
+
+
+def test_ja_continuation_prompt_invalidates_legacy_ids_without_reusing_assignments() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    prompt = multilingual._plan_prompt(
+        brief,
+        generation=4,
+        prior_plan=prior,
+        findings=[],
+        rebuild_by_slot={"article-01": True},
+    )
+    legacy_authority = json.loads(
+        prompt.split("legacy mapping authority:\n", 1)[1].split("\n", 1)[0]
+    )
+    source_package = json.loads(
+        prompt.split("source fact package:\n", 1)[1].split("\n", 1)[0]
+    )
+    prior_prompt_view = json.loads(
+        prompt.split("prior plan:\n", 1)[1].split("\n", 1)[0]
+    )
+
+    assert legacy_authority["article-01"]["legacy_mapping_status"] == "INVALIDATED"
+    assert legacy_authority["article-01"]["legacy_id_counts"]["returned"] == 22
+    assert legacy_authority["article-01"]["legacy_id_counts"]["stale"] > 0
+    assert legacy_authority["article-01"]["legacy_id_counts"]["missing"] > 0
+    assert legacy_authority["article-01"]["legacy_id_counts"]["duplicates"] == 0
+    assert len(source_package["articles"][0]["facts"]) == 22
+    assert [
+        fact["source_ref"]
+        for fact in source_package["articles"][0]["facts"]
+    ] == [f"source_ref_{index + 1:02d}" for index in range(22)]
+    assert "coverage_mapping" not in json.dumps(prior_prompt_view, ensure_ascii=False)
+    assert "coverage_note" not in json.dumps(prior_prompt_view, ensure_ascii=False)
+    for forbidden in [
+        "fact-f969c002621b",
+        "fact-9b6132bd3c5d",
+        "fact-e9e00b456bd1",
+        "source_fact_id",
+        "constraint_id",
+        "source_span_id",
+        "source_sha256",
+        "source_version_digest",
+    ]:
+        assert forbidden not in prompt
+
+
+def test_ja_continuation_schema_uses_request_local_refs_not_fact_ids() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    schema = multilingual._external_locale_plan_schema(brief, prior_plan=prior)
+    item_schema = schema["properties"]["articles"]["items"]
+    coverage = item_schema["properties"]["coverage_mapping"]
+
+    assert "source_sha256" not in item_schema["properties"]
+    assert "source_sha256" not in item_schema["required"]
+    assert "source_fact_id" not in coverage["items"]["properties"]
+    assert coverage["items"]["properties"]["source_ref"]["enum"] == [
+        f"source_ref_{index + 1:02d}" for index in range(22)
+    ]
+
+
+def test_ja_continuation_current_ref_response_hydrates_to_current_ids() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=4,
+        rebuild_by_slot={"article-01": True},
+        prior_plan=prior,
+    )
+
+    expected = [
+        str(fact["fact_id"])
+        for fact in multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    ]
+    returned = [
+        mapping["source_fact_id"]
+        for mapping in plan["articles"][0]["coverage_mapping"]
+    ]
+    assert returned == expected
+    assert "source_ref" not in json.dumps(plan, ensure_ascii=False)
+    assert plan["articles"][0]["source_sha256"] == brief["articles"][0]["source_sha256"]
+
+
+@pytest.mark.parametrize("mutation", ["unknown", "missing", "duplicate"])
+def test_ja_continuation_source_refs_fail_closed(mutation: str) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    mappings = external["articles"][0]["coverage_mapping"]
+    if mutation == "unknown":
+        mappings[0]["source_ref"] = "source_ref_99"
+    elif mutation == "missing":
+        mappings.pop()
+    else:
+        mappings[-1]["source_ref"] = mappings[0]["source_ref"]
+
+    with pytest.raises(ValueError, match="source ref coverage|coverage differs"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=4,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+        )
+
+
+def test_ja_same_domain_continuation_keeps_ref_topology_without_invalidation() -> None:
+    brief = non_tarot_translation_brief("ja")
+    prior = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    prompt = multilingual._plan_prompt(
+        brief,
+        generation=2,
+        prior_plan=prior,
+        findings=[],
+        rebuild_by_slot={"article-01": True},
+    )
+    legacy_authority = json.loads(
+        prompt.split("legacy mapping authority:\n", 1)[1].split("\n", 1)[0]
+    )
+    constraints = json.loads(
+        prompt.split("rebuild topology constraints:\n", 1)[1].split("\n", 1)[0]
+    )
+
+    assert legacy_authority["article-01"]["legacy_mapping_status"] == (
+        "RETAINED_SAME_DOMAIN"
+    )
+    assert legacy_authority["article-01"]["legacy_id_counts"] == {
+        "returned": len(multilingual._source_fact_package(brief)["articles"][0]["facts"]),
+        "stale": 0,
+        "missing": 0,
+        "duplicates": 0,
+    }
+    assert constraints["articles"][0]["legacy_mapping_status"] == "RETAINED_SAME_DOMAIN"
+    assert len(constraints["articles"][0]["prior_ref_to_h2_slot"]) == len(
+        multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    )
+    assert "source_fact_id" not in prompt
+
+
+def test_ja_article_prompt_uses_provider_safe_refs_after_local_hydration() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external,
+        generation=4,
+        rebuild_by_slot={"article-01": True},
+        prior_plan=prior,
+    )
+
+    prompt = multilingual._article_prompt(brief, plan, [])
+    article_input = json.loads(
+        prompt.split("article input:\n", 1)[1].split("\n", 1)[0]
+    )
+    serialized = json.dumps(article_input, ensure_ascii=False)
+
+    assert "source_ref_01" in serialized
+    for forbidden in [
+        "source_fact_id",
+        "fact_id",
+        "constraint_id",
+        "source_span_id",
+        "source_sha256",
+        "source_version_digest",
+    ]:
+        assert forbidden not in serialized
 
 
 def test_ja_boundary_repetition_detects_exact_normalized_paraphrase_span() -> None:
@@ -1630,7 +1930,7 @@ def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejecti
         generation=1,
         rebuild_by_slot={"article-01": False},
     )
-    synonym_only = external_locale_plan(
+    synonym_only = external_locale_plan_with_source_refs(
         brief,
         rebuild_outline=True,
         outline=[
@@ -1680,7 +1980,7 @@ def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejecti
     assert contract == {
         "required_when": "rebuild_outline=true",
         "topology_definition": (
-            "依 source_fact_id 順序排列的 coverage_mapping.planned_h2_slot 序列"
+            "依 source_ref 順序排列的 coverage_mapping.planned_h2_slot 序列"
         ),
         "prior_comparison": (
             "將 prior plan coverage_mapping.planned_h2 對回 prior "
@@ -1690,7 +1990,7 @@ def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejecti
             "至少一個有意義 fact 的 planned_h2_slot 必須與 prior plan 不同"
         ),
         "must_preserve": [
-            "全部 source_fact_id",
+            "全部 source_ref",
             "safety_boundary",
             "locale plan JSON schema",
         ],
@@ -1726,7 +2026,11 @@ def test_replacement_third_generation_gets_explicit_prior_topology_contract(
             if "native_search_intent" in json.dumps(schema):
                 plan_count += 1
                 if plan_count < 3:
-                    payload = external_locale_plan(brief)
+                    payload = (
+                        external_locale_plan(brief)
+                        if plan_count == 1
+                        else external_locale_plan_with_source_refs(brief)
+                    )
                 else:
                     constraints = json.loads(
                         prompt.split("rebuild topology constraints:\n", 1)[1].split(
@@ -1739,9 +2043,14 @@ def test_replacement_third_generation_gets_explicit_prior_topology_contract(
                     expected_prior = external_locale_plan(brief)["articles"][0][
                         "coverage_mapping"
                     ]
-                    assert article_contract["prior_fact_to_h2_slot"] == [
+                    refs = multilingual._request_local_source_ref_maps(
+                        brief,
+                        {"articles": [{"slot": "article-01"}]},
+                    )["article-01"]
+                    fact_to_ref = {fact_id: ref for ref, fact_id in refs.items()}
+                    assert article_contract["prior_ref_to_h2_slot"] == [
                         {
-                            "source_fact_id": mapping["source_fact_id"],
+                            "source_ref": fact_to_ref[mapping["source_fact_id"]],
                             "planned_h2_slot": mapping["planned_h2_slot"],
                         }
                         for mapping in expected_prior
@@ -1749,7 +2058,7 @@ def test_replacement_third_generation_gets_explicit_prior_topology_contract(
                     assert article_contract[
                         "forbidden_prior_topology_signature"
                     ] == [mapping["planned_h2_slot"] for mapping in expected_prior]
-                    payload = external_locale_plan(
+                    payload = external_locale_plan_with_source_refs(
                         brief,
                         rebuild_outline=True,
                         coverage_shift=1,

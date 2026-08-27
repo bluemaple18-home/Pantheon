@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "fixture_set": "ja_plan_authority",
+  "source": "production-shaped local immutable bytes copied for offline tests",
+  "files": [
+    {
+      "path": "brief.json",
+      "role": "production brief",
+      "sha256": "93e09f8f637c396e35ccc28707c66734b08eb7f1c0c4cbdcb246df5b11ac8844"
+    },
+    {
+      "path": "attempt_03_locale_plan.json",
+      "role": "historical topology input",
+      "sha256": "c7c0eb857d3b87e3aa254aa1af07552205859a5f61e889ee42c4f56501771810"
+    },
+    {
+      "path": "generation_04_external_plan.json",
+      "role": "saved provider response for RED",
+      "sha256": "063cceea4195133ab0382bf25586cb10b3240020b8a0546238830c460b943322"
+    },
+    {
+      "path": "fixed_current_ref_external_plan.json",
+      "role": "test-only GREEN current-ref response",
+      "sha256": "196de2cf7aaaec5ea47a8eaca78138783a73abdfd3fecf817e78bb785fbf22c2"
+    }
+  ]
+}

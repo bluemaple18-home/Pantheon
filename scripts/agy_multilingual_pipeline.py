@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+import copy
 from datetime import datetime
 import hashlib
 import json
@@ -1133,6 +1135,209 @@ def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
     return {"articles": articles}
 
 
+def _uses_request_local_source_refs(
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+) -> bool:
+    """JA continuation planning 不讓 provider-facing payload 承載 durable ids。"""
+    return (
+        prior_plan is not None
+        and bool(brief.get("articles"))
+        and all(str(item.get("locale")) == "ja" for item in brief["articles"])
+    )
+
+
+def _request_local_source_ref_maps(
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+) -> dict[str, dict[str, str]]:
+    if not _uses_request_local_source_refs(brief, prior_plan):
+        return {}
+    maps: dict[str, dict[str, str]] = {}
+    for article in _source_fact_package(brief)["articles"]:
+        maps[str(article["slot"])] = {
+            f"source_ref_{index + 1:02d}": str(fact["fact_id"])
+            for index, fact in enumerate(article["facts"])
+        }
+    return maps
+
+
+def _stable_legacy_source_provenance(mappings: object) -> bool:
+    if not isinstance(mappings, list) or not mappings:
+        return False
+    return all(
+        isinstance(mapping, dict)
+        and isinstance(mapping.get("source_span_id"), str)
+        and isinstance(mapping.get("source_digest"), str)
+        for mapping in mappings
+    )
+
+
+def _legacy_plan_authority(
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+) -> dict[str, dict[str, Any]]:
+    if not source_ref_maps:
+        return {}
+    prior_by_slot = {
+        str(item.get("slot")): item
+        for item in (prior_plan or {}).get("articles", [])
+        if isinstance(item, dict)
+    }
+    authority: dict[str, dict[str, Any]] = {}
+    fact_articles = _source_fact_package(brief)["articles"]
+    for article in fact_articles:
+        slot = str(article["slot"])
+        prior = prior_by_slot.get(slot, {})
+        mappings = prior.get("coverage_mapping", [])
+        legacy_ids = [
+            str(mapping.get("source_fact_id"))
+            for mapping in mappings
+            if isinstance(mapping, dict) and mapping.get("source_fact_id") is not None
+        ]
+        current_ids = [str(fact["fact_id"]) for fact in article["facts"]]
+        counts = Counter(legacy_ids)
+        duplicate_count = sum(1 for count in counts.values() if count > 1)
+        stale_count = sum(1 for fact_id in counts if fact_id not in current_ids)
+        missing_count = sum(1 for fact_id in current_ids if fact_id not in counts)
+        has_stable_provenance = _stable_legacy_source_provenance(mappings)
+        invalidated = (
+            (duplicate_count > 0 or stale_count > 0 or missing_count > 0)
+            and not has_stable_provenance
+        )
+        outline = prior.get("ordered_h2_outline", [])
+        section_hints = (
+            [
+                {
+                    "h2_slot": f"h2-{index + 1}",
+                    "title": str(heading),
+                }
+                for index, heading in enumerate(outline)
+            ]
+            if isinstance(outline, list)
+            else []
+        )
+        payload: dict[str, Any] = {
+            "slot": slot,
+            "legacy_mapping_status": (
+                "INVALIDATED"
+                if invalidated
+                else (
+                    "RETAINED_SAME_DOMAIN"
+                    if not stale_count and not missing_count and not duplicate_count
+                    else "UNUSABLE_WITH_STABLE_PROVENANCE"
+                )
+            ),
+            "legacy_id_counts": {
+                "returned": len(legacy_ids),
+                "stale": stale_count,
+                "missing": missing_count,
+                "duplicates": duplicate_count,
+            },
+            "stable_source_provenance": has_stable_provenance,
+            "non_authoritative_hints": {
+                "article_angle": str(prior.get("article_angle", "")),
+                "sections": section_hints,
+            },
+        }
+        if payload["legacy_mapping_status"] == "RETAINED_SAME_DOMAIN":
+            fact_to_ref = {fact_id: ref for ref, fact_id in source_ref_maps[slot].items()}
+            heading_slots = (
+                {
+                    str(heading): f"h2-{index + 1}"
+                    for index, heading in enumerate(outline)
+                }
+                if isinstance(outline, list)
+                else {}
+            )
+            payload["prior_ref_to_h2_slot"] = [
+                {
+                    "source_ref": fact_to_ref[str(mapping["source_fact_id"])],
+                    "planned_h2_slot": heading_slots[str(mapping["planned_h2"])],
+                }
+                for mapping in mappings
+                if isinstance(mapping, dict)
+                and str(mapping.get("source_fact_id")) in fact_to_ref
+                and str(mapping.get("planned_h2")) in heading_slots
+            ]
+        authority[slot] = payload
+    return authority
+
+
+def _strip_provider_identity(value: Any) -> Any:
+    identity_keys = {
+        "fact_id",
+        "source_fact_id",
+        "constraint_id",
+        "constraint_ids",
+        "source_span_id",
+        "source_span_ids",
+        "source_digest",
+        "source_sha256",
+        "source_version_digest",
+        "digest",
+    }
+    if isinstance(value, dict):
+        return {
+            str(key): _strip_provider_identity(item)
+            for key, item in value.items()
+            if key not in identity_keys
+        }
+    if isinstance(value, list):
+        return [_strip_provider_identity(item) for item in value]
+    return value
+
+
+def _source_fact_package_for_prompt(
+    brief: dict[str, Any],
+    source_ref_maps: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    package = copy.deepcopy(_source_fact_package(brief))
+    if not source_ref_maps:
+        return package
+    for article in package["articles"]:
+        slot = str(article["slot"])
+        refs = source_ref_maps.get(slot)
+        if not refs:
+            continue
+        fact_to_ref = {fact_id: ref for ref, fact_id in refs.items()}
+        article["facts"] = [
+            {
+                "source_ref": fact_to_ref[str(fact["fact_id"])],
+                "text": fact["text"],
+                "safety_boundary": fact["safety_boundary"],
+            }
+            for fact in article["facts"]
+        ]
+        sanitized = _strip_provider_identity(article)
+        article.clear()
+        article.update(sanitized)
+    return package
+
+
+def _locale_plan_for_prompt(
+    plan_item: dict[str, Any],
+    source_ref_map: dict[str, str] | None,
+) -> dict[str, Any]:
+    item = copy.deepcopy(plan_item)
+    if not source_ref_map:
+        return item
+    fact_to_ref = {fact_id: ref for ref, fact_id in source_ref_map.items()}
+    item.pop("source_sha256", None)
+    item["coverage_mapping"] = [
+        {
+            "source_ref": fact_to_ref[str(mapping["source_fact_id"])],
+            "planned_h2": mapping["planned_h2"],
+            "coverage_note": mapping["coverage_note"],
+            "safety_boundary": mapping["safety_boundary"],
+        }
+        for mapping in item.get("coverage_mapping", [])
+        if str(mapping.get("source_fact_id")) in fact_to_ref
+    ]
+    return item
+
+
 def _source_structure_to_avoid(brief: dict[str, Any]) -> dict[str, Any]:
     return {
         "articles": [
@@ -1153,10 +1358,20 @@ def _source_structure_to_avoid(brief: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
+def _external_locale_plan_schema(
+    brief: dict[str, Any],
+    *,
+    prior_plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     validate_translation_brief(brief)
     fact_articles = _source_fact_package(brief)["articles"]
     fact_counts = [len(item["facts"]) for item in fact_articles]
+    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    source_refs = [
+        ref
+        for article in fact_articles
+        for ref in source_ref_maps.get(str(article["slot"]), {})
+    ]
     source_fact_ids = list(
         dict.fromkeys(
             str(fact["fact_id"])
@@ -1165,11 +1380,15 @@ def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
         )
     )
     target_count = len(brief["articles"])
+    coverage_identity_field = "source_ref" if source_ref_maps else "source_fact_id"
     coverage = {
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "source_fact_id": {"type": "string", "enum": source_fact_ids},
+            coverage_identity_field: {
+                "type": "string",
+                "enum": source_refs if source_ref_maps else source_fact_ids,
+            },
             "planned_h2_slot": {
                 "type": "string",
                 "enum": ["h2-1", "h2-2", "h2-3", "h2-4"],
@@ -1178,79 +1397,83 @@ def _external_locale_plan_schema(brief: dict[str, Any]) -> dict[str, Any]:
             "safety_boundary": {"type": "boolean"},
         },
         "required": [
-            "source_fact_id",
+            coverage_identity_field,
             "planned_h2_slot",
             "coverage_note",
             "safety_boundary",
         ],
     }
+    item_properties = {
+        "slot": {
+            "type": "string",
+            "enum": [
+                f"article-{index + 1:02d}"
+                for index in range(target_count)
+            ],
+        },
+        "locale": {
+            "type": "string",
+            "enum": list(
+                dict.fromkeys(
+                    str(target["locale"])
+                    for target in brief["articles"]
+                )
+            ),
+        },
+        "native_search_intent": {"type": "string"},
+        "native_query_phrasings": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+        },
+        "article_angle": {"type": "string"},
+        "ordered_h2_outline": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 4,
+            "maxItems": 4,
+        },
+        "coverage_mapping": {
+            "type": "array",
+            "items": coverage,
+            "minItems": min(fact_counts),
+            "maxItems": max(fact_counts),
+        },
+        "source_structure_not_copied": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+        },
+        "rebuild_outline": {"type": "boolean"},
+    }
+    if not source_ref_maps:
+        item_properties["source_sha256"] = {
+            "type": "string",
+            "enum": list(
+                dict.fromkeys(
+                    str(target["source_sha256"])
+                    for target in brief["articles"]
+                )
+            ),
+        }
+    item_required = [
+        "slot",
+        "locale",
+        "native_search_intent",
+        "native_query_phrasings",
+        "article_angle",
+        "ordered_h2_outline",
+        "coverage_mapping",
+        "source_structure_not_copied",
+        "rebuild_outline",
+    ]
+    if not source_ref_maps:
+        item_required.insert(2, "source_sha256")
     item = {
         "type": "object",
         "additionalProperties": False,
-        "properties": {
-            "slot": {
-                "type": "string",
-                "enum": [
-                    f"article-{index + 1:02d}"
-                    for index in range(target_count)
-                ],
-            },
-            "locale": {
-                "type": "string",
-                "enum": list(
-                    dict.fromkeys(
-                        str(target["locale"])
-                        for target in brief["articles"]
-                    )
-                ),
-            },
-            "source_sha256": {
-                "type": "string",
-                "enum": list(
-                    dict.fromkeys(
-                        str(target["source_sha256"])
-                        for target in brief["articles"]
-                    )
-                ),
-            },
-            "native_search_intent": {"type": "string"},
-            "native_query_phrasings": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-            },
-            "article_angle": {"type": "string"},
-            "ordered_h2_outline": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 4,
-                "maxItems": 4,
-            },
-            "coverage_mapping": {
-                "type": "array",
-                "items": coverage,
-                "minItems": min(fact_counts),
-                "maxItems": max(fact_counts),
-            },
-            "source_structure_not_copied": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-            },
-            "rebuild_outline": {"type": "boolean"},
-        },
-        "required": [
-            "slot",
-            "locale",
-            "source_sha256",
-            "native_search_intent",
-            "native_query_phrasings",
-            "article_angle",
-            "ordered_h2_outline",
-            "coverage_mapping",
-            "source_structure_not_copied",
-            "rebuild_outline",
-        ],
+        "properties": item_properties,
+        "required": item_required,
     }
     return {
         "type": "object",
@@ -1537,6 +1760,7 @@ def _canonicalize_external_coverage_mappings(
     mappings: object,
     *,
     slot: str,
+    source_ref_map: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """驗證 fact 集合與安全旗標後，依 deterministic fact 順序正規化。"""
     if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
@@ -1546,8 +1770,9 @@ def _canonicalize_external_coverage_mappings(
         for fact in expected_facts
     }
     mapped_by_id: dict[str, dict[str, Any]] = {}
+    identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
     required = {
-        "source_fact_id",
+        identity_field,
         "planned_h2_slot",
         "coverage_note",
         "safety_boundary",
@@ -1557,15 +1782,26 @@ def _canonicalize_external_coverage_mappings(
             raise ValueError(
                 f"external locale plan coverage fields are strict for {slot}"
             )
-        fact_id = str(mapping["source_fact_id"])
+        if source_ref_map is not None:
+            source_ref = str(mapping["source_ref"])
+            if source_ref not in source_ref_map:
+                raise ValueError(f"external locale plan source ref coverage differs for {slot}")
+            fact_id = source_ref_map[source_ref]
+        else:
+            fact_id = str(mapping["source_fact_id"])
         if fact_id not in expected_by_id or fact_id in mapped_by_id:
-            raise ValueError(f"external locale plan source fact coverage differs for {slot}")
+            reason = "source ref" if source_ref_map is not None else "source fact"
+            raise ValueError(f"external locale plan {reason} coverage differs for {slot}")
         if (
             mapping["safety_boundary"]
             is not expected_by_id[fact_id]["safety_boundary"]
         ):
             raise ValueError(f"locale plan safety coverage differs for {slot}")
-        mapped_by_id[fact_id] = dict(mapping)
+        hydrated = dict(mapping)
+        if source_ref_map is not None:
+            hydrated.pop("source_ref")
+            hydrated["source_fact_id"] = fact_id
+        mapped_by_id[fact_id] = hydrated
     return [
         mapped_by_id[str(fact["fact_id"])]
         for fact in expected_facts
@@ -1600,16 +1836,39 @@ def _hydrate_locale_plan(
     if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
         raise ValueError("external locale plan slots differ from brief")
     fact_articles = _source_fact_package(brief)["articles"]
+    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
     articles = []
     for index, slot in enumerate(expected_slots):
         external_item = by_slot[slot]
+        external_required = {
+            "slot",
+            "locale",
+            "native_search_intent",
+            "native_query_phrasings",
+            "article_angle",
+            "ordered_h2_outline",
+            "coverage_mapping",
+            "source_structure_not_copied",
+            "rebuild_outline",
+        }
+        if slot not in source_ref_maps:
+            external_required.add("source_sha256")
+        if not isinstance(external_item, dict) or set(external_item) != external_required:
+            raise ValueError(f"external locale plan article fields are strict for {slot}")
         external_mappings = _canonicalize_external_coverage_mappings(
             fact_articles[index]["facts"],
             external_item.get("coverage_mapping"),
             slot=slot,
+            source_ref_map=source_ref_maps.get(slot),
+        )
+        item_source_sha256 = (
+            brief["articles"][index]["source_sha256"]
+            if slot in source_ref_maps
+            else external_item.get("source_sha256")
         )
         item = {
             **external_item,
+            "source_sha256": item_source_sha256,
             "source_structure_not_copied": [
                 section["heading"]
                 for section in brief["articles"][index]["source"]["bodySections"]
@@ -1659,8 +1918,13 @@ def _rebuild_topology_constraints(
     brief: dict[str, Any],
     prior_plan: dict[str, Any] | None,
     rebuild_by_slot: dict[str, bool],
+    *,
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
+    legacy_authority: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """把前代 fact-to-H2 topology 轉成模型可直接比較的 slot 契約。"""
+    source_ref_maps = source_ref_maps or {}
+    legacy_authority = legacy_authority or {}
     prior_by_slot = {
         str(item.get("slot")): item
         for item in (prior_plan or {}).get("articles", [])
@@ -1679,27 +1943,45 @@ def _rebuild_topology_constraints(
             if isinstance(outline, list)
             else {}
         )
-        prior_fact_to_h2_slot = [
-            {
-                "source_fact_id": str(mapping["source_fact_id"]),
-                "planned_h2_slot": heading_slots[str(mapping["planned_h2"])],
-            }
-            for mapping in prior.get("coverage_mapping", [])
-            if isinstance(mapping, dict)
-            and "source_fact_id" in mapping
-            and str(mapping.get("planned_h2")) in heading_slots
-        ]
-        articles.append(
-            {
-                "slot": slot,
-                "rebuild_required": rebuild_by_slot.get(slot, False),
-                "prior_fact_to_h2_slot": prior_fact_to_h2_slot,
-                "forbidden_prior_topology_signature": [
-                    item["planned_h2_slot"]
-                    for item in prior_fact_to_h2_slot
-                ],
-            }
-        )
+        if slot in source_ref_maps:
+            retained = legacy_authority.get(slot, {}).get("prior_ref_to_h2_slot", [])
+            articles.append(
+                {
+                    "slot": slot,
+                    "rebuild_required": rebuild_by_slot.get(slot, False),
+                    "legacy_mapping_status": legacy_authority.get(slot, {}).get(
+                        "legacy_mapping_status",
+                        "UNAVAILABLE",
+                    ),
+                    "prior_ref_to_h2_slot": retained,
+                    "forbidden_prior_topology_signature": [
+                        item["planned_h2_slot"]
+                        for item in retained
+                    ],
+                }
+            )
+        else:
+            prior_fact_to_h2_slot = [
+                {
+                    "source_fact_id": str(mapping["source_fact_id"]),
+                    "planned_h2_slot": heading_slots[str(mapping["planned_h2"])],
+                }
+                for mapping in prior.get("coverage_mapping", [])
+                if isinstance(mapping, dict)
+                and "source_fact_id" in mapping
+                and str(mapping.get("planned_h2")) in heading_slots
+            ]
+            articles.append(
+                {
+                    "slot": slot,
+                    "rebuild_required": rebuild_by_slot.get(slot, False),
+                    "prior_fact_to_h2_slot": prior_fact_to_h2_slot,
+                    "forbidden_prior_topology_signature": [
+                        item["planned_h2_slot"]
+                        for item in prior_fact_to_h2_slot
+                    ],
+                }
+            )
     return {"articles": articles}
 
 
@@ -1711,23 +1993,29 @@ def _plan_prompt(
     findings: list[dict[str, str]],
     rebuild_by_slot: dict[str, bool],
 ) -> str:
+    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    legacy_authority = _legacy_plan_authority(brief, prior_plan, source_ref_maps)
+    source_identity = "source_ref" if source_ref_maps else "source_fact_id"
     return "\n".join(
         [
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
-            "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
+            f"coverage_mapping 必須逐一覆蓋 source fact，並使用 {source_identity} 保留標記為 safety_boundary 的限制。",
             "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。",
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
             "rebuild_outline 由 pipeline 指定，不得自行改值。為 true 時，禁止沿用 prior plan 的 heading order、section topology 或同義詞替換版。",
             "rebuild topology constraints 中 rebuild_required=true 時，輸出的 planned_h2_slot 序列不得等於 forbidden_prior_topology_signature。",
+            "JA continuation 使用本次 request-local source_ref；provider 不得輸出或抄寫任何本機 identity、span 或 hash 欄位。",
+            "legacy mapping authority:",
+            _canonical_json(legacy_authority),
             "rebuild contract:",
             _canonical_json(
                 {
                     "required_when": "rebuild_outline=true",
                     "topology_definition": (
-                        "依 source_fact_id 順序排列的 "
+                        f"依 {source_identity} 順序排列的 "
                         "coverage_mapping.planned_h2_slot 序列"
                     ),
                     "prior_comparison": (
@@ -1739,7 +2027,7 @@ def _plan_prompt(
                         "必須與 prior plan 不同"
                     ),
                     "must_preserve": [
-                        "全部 source_fact_id",
+                        f"全部 {source_identity}",
                         "safety_boundary",
                         "locale plan JSON schema",
                     ],
@@ -1756,6 +2044,8 @@ def _plan_prompt(
                     brief,
                     prior_plan,
                     rebuild_by_slot,
+                    source_ref_maps=source_ref_maps,
+                    legacy_authority=legacy_authority,
                 )
             ),
             "generation:",
@@ -1763,11 +2053,15 @@ def _plan_prompt(
             "locale contracts:",
             _canonical_json(LOCALE_EDITORIAL_CONTRACTS),
             "source fact package:",
-            _canonical_json(_source_fact_package(brief)),
+            _canonical_json(_source_fact_package_for_prompt(brief, source_ref_maps)),
             "source structure to avoid:",
             _canonical_json(_source_structure_to_avoid(brief)),
             "prior plan:",
-            _canonical_json(prior_plan),
+            _canonical_json(
+                {"articles": list(legacy_authority.values())}
+                if source_ref_maps
+                else prior_plan
+            ),
             "findings:",
             _canonical_json(findings),
             "rebuild authority:",
@@ -1785,15 +2079,24 @@ def _article_prompt(
         validate_locale_plan(brief, plan)
     except (TypeError, ValueError) as error:
         raise ValueError(f"locale plan is required and must be valid: {error}") from error
+    source_ref_maps = (
+        _request_local_source_ref_maps(brief, plan)
+        if all(str(item.get("locale")) == "ja" for item in brief["articles"])
+        else {}
+    )
+    fact_package_for_prompt = _source_fact_package_for_prompt(brief, source_ref_maps)
     public_input = {
         "articles": [
             {
                 **fact_package,
                 "editorial_contract": LOCALE_EDITORIAL_CONTRACTS[target["locale"]],
-                "locale_plan": plan["articles"][index],
+                "locale_plan": _locale_plan_for_prompt(
+                    plan["articles"][index],
+                    source_ref_maps.get(str(fact_package["slot"])),
+                ),
             }
             for index, (target, fact_package) in enumerate(
-                zip(brief["articles"], _source_fact_package(brief)["articles"])
+                zip(brief["articles"], fact_package_for_prompt["articles"])
             )
         ]
     }
@@ -2190,6 +2493,7 @@ def _run_locale_generation(
     prior_plan: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     rebuild_by_slot = _rebuild_authority(brief, history)
+    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
     external_plan = _load_or_generate_external(
         client,
         "writer",
@@ -2200,7 +2504,7 @@ def _run_locale_generation(
             findings=findings,
             rebuild_by_slot=rebuild_by_slot,
         ),
-        _external_locale_plan_schema(brief),
+        _external_locale_plan_schema(brief, prior_plan=prior_plan),
         generation_dir / "plan-operation.json",
         generation_dir / "external-plan.json",
     )
@@ -2216,6 +2520,23 @@ def _run_locale_generation(
         raise LocalePlanValidationError(
             f"deterministic locale plan failure: {error}"
         ) from error
+    if source_ref_maps:
+        _atomic_write_json(
+            generation_dir / "source-ref-map.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "articles": [
+                    {
+                        "slot": slot,
+                        "refs": [
+                            {"source_ref": ref, "source_fact_id": fact_id}
+                            for ref, fact_id in refs.items()
+                        ],
+                    }
+                    for slot, refs in source_ref_maps.items()
+                ],
+            },
+        )
     _atomic_write_json(generation_dir / "locale-plan.json", plan)
     external_candidate = _load_or_generate_external(
         client,
