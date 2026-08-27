@@ -209,6 +209,62 @@ def load_ja_plan_authority_fixture(name: str) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def without_provider_safety_boundary(payload: dict[str, object]) -> dict[str, object]:
+    fresh = json.loads(json.dumps(payload, ensure_ascii=False))
+    for article in fresh.get("articles", []):
+        for mapping in article.get("coverage_mapping", []):
+            mapping.pop("safety_boundary", None)
+    return fresh
+
+
+def fresh_ja_plan_authority_fixture(name: str) -> dict[str, object]:
+    return without_provider_safety_boundary(load_ja_plan_authority_fixture(name))
+
+
+def legacy_provider_safety_receipt(
+    brief: dict[str, object],
+    prior: dict[str, object] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+    *,
+    schema_sha256: str | None = None,
+) -> dict[str, object]:
+    digest = schema_sha256 or next(
+        iter(
+            multilingual._legacy_provider_safety_schema_sha256s(
+                brief,
+                prior,
+                source_ref_maps,
+            )
+        )
+    )
+    return {
+        "role": "writer",
+        "model": "writer-test",
+        "status": "success",
+        "schema_sha256": digest,
+        "prompt_sha256": "a" * 64,
+    }
+
+
+def write_legacy_provider_safety_receipt(
+    generation_dir: Path,
+    brief: dict[str, object],
+    prior: dict[str, object] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+    *,
+    schema_sha256: str | None = None,
+) -> None:
+    multilingual.pipeline.write_json(
+        generation_dir / "plan-operation.json",
+        legacy_provider_safety_receipt(
+            brief,
+            prior,
+            source_ref_maps,
+            schema_sha256=schema_sha256,
+        ),
+    )
+
+
 def ja_plan_authority_fixture_sha256(name: str) -> str:
     path = (
         Path(__file__).parent
@@ -406,7 +462,6 @@ def external_locale_plan(
                             f"h2-{((index + coverage_shift) % len(headings)) + 1}"
                         ),
                         "coverage_note": localized["coverage_note"],
-                        "safety_boundary": fact["safety_boundary"],
                     }
                     for index, fact in enumerate(target["facts"])
                 ],
@@ -839,13 +894,23 @@ def test_ja_continuation_prompt_invalidates_legacy_ids_without_reusing_assignmen
 def test_ja_continuation_schema_uses_request_local_refs_not_fact_ids() -> None:
     brief = load_ja_plan_authority_fixture("brief.json")
     prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    prompt = multilingual._plan_prompt(
+        brief,
+        generation=4,
+        prior_plan=prior,
+        findings=[],
+        rebuild_by_slot={"article-01": True},
+    )
     schema = multilingual._external_locale_plan_schema(brief, prior_plan=prior)
     item_schema = schema["properties"]["articles"]["items"]
     coverage = item_schema["properties"]["coverage_mapping"]
 
+    assert "safety_boundary" not in prompt
     assert "source_sha256" not in item_schema["properties"]
     assert "source_sha256" not in item_schema["required"]
     assert "source_fact_id" not in coverage["items"]["properties"]
+    assert "safety_boundary" not in coverage["items"]["properties"]
+    assert "safety_boundary" not in coverage["items"]["required"]
     assert coverage["items"]["properties"]["source_ref"]["enum"] == [
         f"source_ref_{index + 1:02d}" for index in range(22)
     ]
@@ -854,7 +919,7 @@ def test_ja_continuation_schema_uses_request_local_refs_not_fact_ids() -> None:
 def test_ja_continuation_current_ref_response_hydrates_to_current_ids() -> None:
     brief = load_ja_plan_authority_fixture("brief.json")
     prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
-    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    external = fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
 
     plan = multilingual._hydrate_locale_plan(
         brief,
@@ -872,16 +937,39 @@ def test_ja_continuation_current_ref_response_hydrates_to_current_ids() -> None:
         mapping["source_fact_id"]
         for mapping in plan["articles"][0]["coverage_mapping"]
     ]
+    returned_safety = [
+        mapping["safety_boundary"]
+        for mapping in plan["articles"][0]["coverage_mapping"]
+    ]
     assert returned == expected
+    assert returned_safety == [
+        fact["safety_boundary"]
+        for fact in multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    ]
     assert "source_ref" not in json.dumps(plan, ensure_ascii=False)
     assert plan["articles"][0]["source_sha256"] == brief["articles"][0]["source_sha256"]
+
+
+def test_ja_continuation_fresh_response_rejects_provider_safety() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+
+    with pytest.raises(ValueError, match="coverage fields are strict"):
+        multilingual._hydrate_locale_plan(
+            brief,
+            external,
+            generation=4,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+        )
 
 
 @pytest.mark.parametrize("mutation", ["unknown", "missing", "duplicate"])
 def test_ja_continuation_source_refs_fail_closed(mutation: str) -> None:
     brief = load_ja_plan_authority_fixture("brief.json")
     prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
-    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    external = fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
     mappings = external["articles"][0]["coverage_mapping"]
     if mutation == "unknown":
         mappings[0]["source_ref"] = "source_ref_99"
@@ -942,7 +1030,7 @@ def test_ja_same_domain_continuation_keeps_ref_topology_without_invalidation() -
 def test_ja_article_prompt_uses_provider_safe_refs_after_local_hydration() -> None:
     brief = load_ja_plan_authority_fixture("brief.json")
     prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
-    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    external = fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
     plan = multilingual._hydrate_locale_plan(
         brief,
         external,
@@ -1027,7 +1115,7 @@ def test_ja_resume_rejects_persisted_external_plan_without_source_ref_map(
     generation_dir = tmp_path / "generations" / "04"
     multilingual.pipeline.write_json(
         generation_dir / "external-plan.json",
-        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+        fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
     )
 
     class FailIfCalled:
@@ -1072,7 +1160,7 @@ def test_ja_resume_rejects_stale_persisted_source_ref_map_after_extractor_change
     )
     multilingual.pipeline.write_json(
         generation_dir / "external-plan.json",
-        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+        fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
     )
     mutated = json.loads(json.dumps(brief))
     source = mutated["articles"][0]["source"]
@@ -1123,6 +1211,12 @@ def test_ja_planning_result_records_contract_failure_before_article(
         generation_dir / "external-plan.json",
         load_ja_plan_authority_fixture("generation_04_external_plan.json"),
     )
+    write_legacy_provider_safety_receipt(
+        generation_dir,
+        brief,
+        prior,
+        source_ref_maps,
+    )
 
     class FailIfCalled:
         def generate_json(self, *_args: object) -> dict[str, object]:
@@ -1165,7 +1259,7 @@ def test_ja_planning_result_passes_only_after_local_hydration(tmp_path: Path) ->
     )
     multilingual.pipeline.write_json(
         generation_dir / "external-plan.json",
-        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+        fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
     )
 
     class PendingArticleClient:
@@ -1201,6 +1295,273 @@ def test_ja_planning_result_passes_only_after_local_hydration(tmp_path: Path) ->
     assert "reviewer_provider_calls" not in result
     assert (generation_dir / "locale-plan.json").is_file()
     assert (generation_dir / "article-operation.json").is_file()
+
+
+def test_ja_legacy_provider_safety_read_requires_receipt(tmp_path: Path) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("legacy persisted plan must fail before provider")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="legacy external locale plan safety requires planning receipt",
+    ):
+        multilingual._run_locale_generation(
+            brief,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    result = json.loads(
+        (generation_dir / "planning-result.json").read_text(encoding="utf-8")
+    )
+    assert result["terminal_reason"] == (
+        "legacy external locale plan safety requires planning receipt"
+    )
+    assert not (generation_dir / "article-operation.json").exists()
+
+
+def test_ja_legacy_provider_safety_read_rejects_schema_receipt_drift(
+    tmp_path: Path,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+    write_legacy_provider_safety_receipt(
+        generation_dir,
+        brief,
+        prior,
+        source_ref_maps,
+        schema_sha256="0" * 64,
+    )
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("legacy schema drift must fail before provider")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="legacy external locale plan safety receipt schema drift",
+    ):
+        multilingual._run_locale_generation(
+            brief,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    assert not (generation_dir / "article-operation.json").exists()
+
+
+def test_ja_legacy_provider_safety_read_ignores_only_safety_assertion(
+    tmp_path: Path,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    for mapping in external["articles"][0]["coverage_mapping"]:
+        mapping["safety_boundary"] = True
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(generation_dir / "external-plan.json", external)
+    write_legacy_provider_safety_receipt(
+        generation_dir,
+        brief,
+        prior,
+        source_ref_maps,
+    )
+    legacy_bytes = {
+        name: (generation_dir / name).read_bytes()
+        for name in [
+            "external-plan.json",
+            "source-ref-map.json",
+            "plan-operation.json",
+        ]
+    }
+    calls: Counter[str] = Counter()
+
+    class PendingArticleClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            schema: dict[str, object],
+        ) -> dict[str, object]:
+            if "native_search_intent" in json.dumps(schema):
+                raise AssertionError("legacy plan read must not call provider")
+            calls[role] += 1
+            raise RuntimeError("stop after planning success")
+
+    with pytest.raises(RuntimeError, match="planning success"):
+        multilingual._run_locale_generation(
+            brief,
+            PendingArticleClient(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    locale_plan = json.loads(
+        (generation_dir / "locale-plan.json").read_text(encoding="utf-8")
+    )
+    expected_safety = [
+        fact["safety_boundary"]
+        for fact in multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    ]
+    assert [
+        mapping["safety_boundary"]
+        for mapping in locale_plan["articles"][0]["coverage_mapping"]
+    ] == expected_safety
+    assert calls == Counter({"writer": 1})
+    assert legacy_bytes == {
+        name: (generation_dir / name).read_bytes()
+        for name in legacy_bytes
+    }
+
+
+@pytest.mark.parametrize("mutation", ["unknown", "missing", "duplicate"])
+def test_ja_legacy_provider_safety_read_ref_drift_fails_closed(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    external = load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    mappings = external["articles"][0]["coverage_mapping"]
+    if mutation == "unknown":
+        mappings[0]["source_ref"] = "source_ref_99"
+    elif mutation == "missing":
+        mappings.pop()
+    else:
+        mappings[-1]["source_ref"] = mappings[0]["source_ref"]
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(generation_dir / "external-plan.json", external)
+    write_legacy_provider_safety_receipt(
+        generation_dir,
+        brief,
+        prior,
+        source_ref_maps,
+    )
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("legacy ref drift must fail before article")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="source ref coverage|coverage differs",
+    ):
+        multilingual._run_locale_generation(
+            brief,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    assert not (generation_dir / "article-operation.json").exists()
+
+
+def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
+    run_dir = Path(
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/"
+        "translation-runs/auto-i18n-ja-1414b75a404721e95e74"
+    )
+    if not run_dir.is_dir():
+        pytest.skip("exact production gen05 fixture is not mounted")
+    generation_dir = run_dir / "generations" / "05"
+    legacy_paths = [
+        generation_dir / "external-plan.json",
+        generation_dir / "source-ref-map.json",
+        generation_dir / "plan-operation.json",
+    ]
+    for path in [
+        run_dir / "brief.json",
+        run_dir / "attempts/03/locale-plan.json",
+        *legacy_paths,
+    ]:
+        assert path.is_file()
+    state_path = run_dir / "continuation/state.json"
+    before_bytes = {path: path.read_bytes() for path in legacy_paths}
+    before_state = state_path.read_bytes() if state_path.is_file() else None
+
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    prior = json.loads(
+        (run_dir / "attempts/03/locale-plan.json").read_text(encoding="utf-8")
+    )
+    source_ref_maps = multilingual._source_ref_maps_from_artifact(
+        json.loads((generation_dir / "source-ref-map.json").read_text(encoding="utf-8")),
+        generation=5,
+    )
+    multilingual._validate_source_ref_maps_against_current_package(brief, source_ref_maps)
+    multilingual._validate_legacy_provider_safety_receipt(
+        generation_dir / "plan-operation.json",
+        brief,
+        prior,
+        source_ref_maps,
+    )
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        json.loads((generation_dir / "external-plan.json").read_text(encoding="utf-8")),
+        generation=5,
+        rebuild_by_slot={"article-01": False},
+        prior_plan=None,
+        source_ref_maps=source_ref_maps,
+        allow_provider_safety_boundary=True,
+    )
+    coverage = plan["articles"][0]["coverage_mapping"]
+
+    assert len(coverage) == 22
+    assert {mapping["safety_boundary"] for mapping in coverage} == {False}
+    assert not (run_dir / "generations/06").exists()
+    assert before_bytes == {path: path.read_bytes() for path in legacy_paths}
+    if before_state is not None:
+        assert state_path.read_bytes() == before_state
 
 
 def test_ja_boundary_repetition_detects_exact_normalized_paraphrase_span() -> None:
@@ -1929,14 +2290,14 @@ def test_locale_plan_canonicalizes_complete_coverage_mapping_order_drift() -> No
     ]
 
 
-def test_locale_plan_rejects_safety_drift_before_order_canonicalization() -> None:
+def test_locale_plan_rejects_fresh_provider_safety_assertion() -> None:
     brief = non_tarot_translation_brief()
     external = external_locale_plan(brief)
     mappings = external["articles"][0]["coverage_mapping"]
     mappings.reverse()
-    mappings[0]["safety_boundary"] = not mappings[0]["safety_boundary"]
+    mappings[0]["safety_boundary"] = True
 
-    with pytest.raises(ValueError, match="safety coverage"):
+    with pytest.raises(ValueError, match="coverage fields are strict"):
         multilingual._hydrate_locale_plan(
             brief,
             external,
@@ -1988,6 +2349,8 @@ def test_external_locale_plan_schema_locks_current_brief_coverage() -> None:
     assert coverage_schema["items"]["properties"]["source_fact_id"]["enum"] == [
         fact["fact_id"] for fact in facts
     ]
+    assert "safety_boundary" not in coverage_schema["items"]["properties"]
+    assert "safety_boundary" not in coverage_schema["items"]["required"]
     assert coverage_schema["items"]["properties"]["planned_h2_slot"]["enum"] == [
         "h2-1",
         "h2-2",
@@ -2225,7 +2588,7 @@ def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejecti
         ),
         "must_preserve": [
             "全部 source_ref",
-            "safety_boundary",
+            "local safety authority",
             "locale plan JSON schema",
         ],
         "insufficient_changes": [
@@ -2573,7 +2936,7 @@ def _write_ja_partial_generation_04_lineage(
     source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
     root_plan = multilingual._hydrate_locale_plan(
         brief,
-        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+        fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
         generation=3,
         rebuild_by_slot={"article-01": False},
         prior_plan=prior,
