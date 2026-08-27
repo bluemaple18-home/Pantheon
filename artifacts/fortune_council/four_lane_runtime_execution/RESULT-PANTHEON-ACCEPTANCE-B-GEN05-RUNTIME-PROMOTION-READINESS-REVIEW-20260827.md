@@ -1,89 +1,77 @@
 ---
 id: RESULT-PANTHEON-ACCEPTANCE-B-GEN05-RUNTIME-PROMOTION-READINESS-REVIEW-20260827
 title: 審查｜第五代執行環境升版就緒度
-reviewed_candidate: 2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d
-reviewed_parent: 28f36604fdfe399e06b559f37873ec06aec28d10
-source_head: d0b2bbe05950291e04490b915bc35e1557ac3196
-verdict: REVIEW_NO_GO
+reviewed_candidate: f453eb84a86533a4e0d7c5eecbc81abbdaadc924
+reviewed_parent: d9a53ed3a209cadaf814bf3af6b295c8cacee50e
+repair_2_card_commit: d9a53ed3a209cadaf814bf3af6b295c8cacee50e
+original_review_commit: 125b1e87c2e32ec683b5636523dbcffc642ccafc
+verdict: GEN05_RUNTIME_PROMOTION_READINESS_REVIEW_GO
 production_mutation: false
 ---
 
-# Pantheon Acceptance B：gen05 runtime promotion readiness Review
+# Pantheon Acceptance B：gen05 runtime promotion readiness Targeted Re-review
 
 ## 裁決
 
-`REVIEW_NO_GO`
+`GEN05_RUNTIME_PROMOTION_READINESS_REVIEW_GO`
 
-候選 `2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d` 不能升為 promotion apply 授權決策。主要阻塞是正式 promotion plan 不能從 committed artifact 與現 reviewer worktree 重現：候選 argv 與 plan artifact 綁定不存在的 source worktree 與不存在的 raw capacity receipt path，且 `readiness-decision.json` 把 raw capacity digest 當 promotion authority，但 repo 內實際保存的是 portable-redacted bytes。
+只重驗原 review 的 P1-001、P1-002、P1-003 與 Repair-2 regression。三個原 P1 均已閉合，且未發現 Repair regression。此 re-review 沒有新增 P2/P3 finding，沒有執行 promotion apply/finalize、provider、production gen05、publish、transaction、tag、push、deploy、launchctl 或 service mutation。
 
-## P1 Findings
+## P1 Closure
 
 ### P1-001：正式 promotion plan 無法以候選 exact argv 重現
 
-- Evidence：
-  - `exact-plan-argv-798.json` 指向 `/Users/mattkuo/.codex/worktrees/1480/Pantheon` 作為 `--source-repo`，並指向 `/Users/mattkuo/.codex/worktrees/dfd6/.../planner-capacity-receipt-28f366-host.json` 作為 `--capacity-receipt`。
-  - reviewer 環境中兩個路徑皆不存在。
-  - 實際重跑候選 exact argv，正式入口回：`{"error": "source_repo is missing", "status": "NO-GO"}`，returncode `1`。
-- Impact：
-  - 任務卡要求 deterministic promotion plan validator 必須重跑並確認 target、actor/manifest/stage、plan digest、target manifest/generation 可重算。
-  - 候選 GO 依賴的 `READY_TO_APPLY` 無法由正式入口在 reviewer worktree 重新產生，因此不能授權 promotion apply。
-- Minimal repair frontier：
-  - 重新產生可提交、可重算的 exact plan input，source repo 不得綁定消失的產生者 worktree。
-  - committed capacity receipt path 與 digest 必須能直接通過 promotion planner 的 `_validate_capacity_receipt`。
+Status: CLOSED
 
-### P1-002：Rule24 capacity authority 的 digest/bytes 契約不一致
+- Repair-2 exact plan argv replay 在候選樹回 `0`。
+- Replay stdout `status=READY_TO_APPLY`。
+- Replay stdout `plan_digest=eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4`，與 committed `promotion-plan-798-repair2.json`、`readiness-decision.json` 一致。
+- `plan_digest` 由 `plan_authority` 計算，獨立重算 authority digest 也是 `eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4`。
+- `plan_authority` 不含 `source_repo`、`capacity_receipt_path`、`actor_root`、`manifest_path`、`private_stage_root`、`transaction_root`、`queue_root`、`publisher_state_root`、`log_root` 或 `backup_set` locator paths。
 
-- Evidence：
-  - `readiness-decision.json` 宣告 `capacity_receipt_digest=6def7497...`，同時宣告 committed portable receipt SHA256 是 `28ffddce...`。
-  - `planner-capacity-rule24-summary.json` 也明確區分 raw digest `6def7497...` 與 portable SHA `28ffddce...`。
-  - 實際 `shasum -a 256 planner-capacity-receipt-28f366-host.json` 為 `28ffddce4c33bf0e38e34a53b7fb978d6123a08e5efc20c45ad3e0fa28d273b3`，不是 promotion plan 要求的 `6def7497...`。
-  - `planner-capacity-receipt-28f366-host.json` 本體含 two cycles、RSS/swap、reclamation、stop-loss，但沒有可供 promotion planner 直接驗證的 raw bytes authority，也沒有 target `79884d8b...` binding。
-- Impact：
-  - Rule24 PASS 不能同時作為 repo-portable evidence 與 promotion planner capacity receipt authority。
-  - 若以 committed bytes 重跑 planner 會 digest mismatch；若以 raw digest 重跑則依賴未提交、現已不存在的外部 worktree path。
-- Minimal repair frontier：
-  - 產生 fresh Rule24 host receipt，將正式 planner 要驗證的 exact bytes 提交進候選 evidence，並讓 readiness decision、plan argv、plan artifact 使用同一份 digest。
-  - capacity receipt 需明確綁定 `79884d8bff7256aa9d1adcb7133162d7ac30b86d`、execution identity/correlation 與 authority boundary。
+### P1-002：Rule24 capacity authority digest/bytes 契約不一致
+
+Status: CLOSED
+
+- committed capacity bytes SHA256：`4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`。
+- planner `capacity_receipt_digest`：`4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`。
+- `plan_authority.capacity_receipt_digest`：`4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`。
+- `readiness-decision.json capacity_receipt_digest`：`4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`。
+- `repair2-regression-receipt.json` 記錄 committed SHA、planner digest 與 decision authority 一致。
 
 ### P1-003：evidence-index 無法完整驗證 committed evidence set
 
-- Evidence：
-  - `evidence-index.json` 列出 125 個 evidence files。
-  - reviewer 重算：JSON files `106` 全部可讀，但 evidence-index 有 2 個 missing paths：
-    - `rule25-readiness/capability/sandbox/.git/agy-content-publisher.lifecycle.lock`
-    - `rule25-readiness/capability/sandbox/.git/agy-content-publisher.transaction.lock`
-  - `git ls-tree` 與工作樹實際檔案數都只有 124 個 evidence files；`.git/...` lock files 未被提交。
-- Impact：
-  - 候選的 evidence index 不能完整證明自身 artifact bytes。
-  - 這會削弱 Rule25 package/official receipt 的 byte-level reproducibility；在高風險 promotion readiness gate 中屬阻塞。
-- Minimal repair frontier：
-  - 移除不可提交 `.git` lock path from evidence-index，或改以可提交 sandbox path 表示 lock evidence。
-  - 重算 evidence-index，要求 all indexed files exist、byte length 與 SHA256 全部一致。
+Status: CLOSED
 
-## 通過核對
+- 獨立重算 `evidence-index.json`：indexed files `134`。
+- missing：`0`。
+- digest_mismatch：`0`。
+- `.git/` path：`0`。
 
-- cwd：`/Users/mattkuo/.codex/worktrees/2eee/Pantheon`
-- worktree：獨立 detached worktree；HEAD `d0b2bbe05950291e04490b915bc35e1557ac3196`；起始工作區 clean。
-- candidate parent：`2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d` parent 為 `28f36604fdfe399e06b559f37873ec06aec28d10`。
-- candidate diff allowlist：`28f36604... → 2b9343bc...` 為 125 個新增檔；範圍是一個 RESULT 與專屬 evidence directory。
-- target：candidate decision 指向 `79884d8bff7256aa9d1adcb7133162d7ac30b86d`。
-- protected tripwire：`protected_changed_keys=[]`、`production_mutation_count=0`、`transaction_root_created=false`。
-- continuation：`next_generation=5`、gen04 abandoned/non-resumable、gen05 `source-ref-map` exists、gen06 does not exist。
-- Rule25 summary：`status=READY`、七段 create/run/select/publish/transaction/tag/push present、official ready `READY`、missing-push fixture `BLOCKED`、`canary_created=false`、`production_mutation=false`。
+## Repair Regression
+
+Status: CLOSED
+
+- `plan_authority` 完整綁定 source SHA、current actor SHA、current manifest digest、current stage digest、target identity/runtime digest/config/generation/manifest digest、capacity bytes authority、authorization digest、correlation、preserved run IDs、queue identity snapshot 與 queue snapshot digest。
+- 兩個不同絕對 checkout/receipt path 的 replay recorded `plan_authority_equal=true`、`plan_digest_equal=true`、`capacity_receipt_digest_equal=true`、`target_manifest_digest_equal=true`。
+- `apply_promotion` 仍先重新計算 `_plan_payload(request)`，因此會重新驗證 locator path、source repo HEAD/origin/clean state、actor/manifest/stage、capacity receipt canonical path/digest 與 queue snapshot，再比對 expected plan digest。
+- Added regression tests cover:
+  - locator path relocation 不改變 `plan_authority` / `plan_digest`。
+  - stable authority change 會改變 `plan_digest`。
+  - digest 穩定時 apply 仍會因 wrong source locator fail closed。
+  - noncanonical capacity receipt path fail closed before runtime mutation。
 
 ## 驗證
 
-- CodeGraph：`codegraph_context` attempted；此 worktree 未初始化 CodeGraph，依卡片降級為限域檔案查核。
-- `git status --porcelain=v1`：clean before review output。
-- `git show --format='%H%n%P' --no-patch 2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d`：parent confirmed `28f36604fdfe399e06b559f37873ec06aec28d10`。
-- `git diff --name-status --no-renames 28f36604fdfe399e06b559f37873ec06aec28d10 2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d`：125 added files, no modified/deleted files.
-- Exact plan argv replay：returncode `1`, stdout `{"error": "source_repo is missing", "status": "NO-GO"}`。
-- SHA256 checks：committed `planner-capacity-receipt-28f366-host.json` = `28ffddce4c33bf0e38e34a53b7fb978d6123a08e5efc20c45ad3e0fa28d273b3`; plan requires `6def7497a06f4d453934ea5cb6f8fffb518e21cc654b0bbf878212796a3913b5`。
-- JSON parse check：106 candidate JSON files parsed successfully。
-- Evidence index check：125 indexed files, 2 missing, 0 digest mismatches among existing files。
-- `uv run pytest tests/test_pantheon_content_runtime_promotion.py tests/test_pantheon_rule24_signed_capacity_evidence.py tests/test_prepare_pantheon_canary_actor.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py`：102 passed。
-- `git diff --check`：passed。
+- CodeGraph：attempted；此 worktree 未初始化 CodeGraph，依規則降級為限域查核。
+- `git show --format='%H%n%P' --no-patch d9a53ed3a209cadaf814bf3af6b295c8cacee50e`：parent confirmed `2b9343bc5011f82e5a9d2a81cf1d03a61d80c97d`。
+- `git show --format='%H%n%P' --no-patch f453eb84a86533a4e0d7c5eecbc81abbdaadc924`：parent confirmed `d9a53ed3a209cadaf814bf3af6b295c8cacee50e`。
+- `git diff --name-status --no-renames d9a53ed3a209cadaf814bf3af6b295c8cacee50e f453eb84a86533a4e0d7c5eecbc81abbdaadc924`：17 changed files in Repair-2 candidate.
+- Candidate exact plan argv replay from task-owned `/private/tmp` extraction：returncode `0`, `READY_TO_APPLY`, digest matches committed plan and decision.
+- Candidate evidence index recompute from task-owned `/private/tmp` extraction：missing `0`, digest mismatch `0`, `.git/` paths `0`。
+- `uv run pytest tests/test_pantheon_content_runtime_promotion.py tests/test_pantheon_rule24_signed_capacity_evidence.py tests/test_prepare_pantheon_canary_actor.py tests/test_pantheon_writer_vnext_runtime_activation_capacity.py` in candidate extraction：106 passed。
+- `git diff --check d9a53ed3a209cadaf814bf3af6b295c8cacee50e f453eb84a86533a4e0d7c5eecbc81abbdaadc924`：passed。
 
 ## Residual Risk
 
-未重裁 gen04/gen05 RCA、topology Repair 或 Acceptance B 內容品質，符合任務卡禁止擴大範圍。Reviewer 沒有執行 promotion apply/finalize、provider、production gen05、publish、transaction、tag、push、deploy、launchctl 或 service mutation。
+本 re-review 僅裁決原三個 P1 與 Repair-2 regression；未重裁 gen04/gen05 RCA、topology Repair、Acceptance B 內容品質或 production promotion。Promotion apply/finalize 與任何 production mutation 仍需另行授權。
