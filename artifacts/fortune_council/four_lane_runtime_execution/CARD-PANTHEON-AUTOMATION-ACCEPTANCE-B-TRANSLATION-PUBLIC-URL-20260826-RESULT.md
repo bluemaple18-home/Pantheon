@@ -1,116 +1,69 @@
 # Pantheon 翻譯公開網址自動化驗收 Result
 
 status: `BLOCKED`
-delivery: `DELIVERED_ACCEPTANCE_B_CONTINUATION`
+delivery: `DELIVERED_ACCEPTANCE_B_POST_REPAIR`
 card_id: `CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826`
-dispatch_key: `v1:9bef6288f7b2b5684fc4563765b80db2ef33b3bf992dd2261ba8544f6a6f3c5c`
-activation_token: `act-v1:8e9e60c28a44e0b5fe1813b7b3c83438d6fb4ca066b8832c37d4e8532f3786d3`
 
 ## 結論
 
-本卡依同一張卡 B 續行，改回第 3-7 步原始契約後，使用既有正式 selector 鎖定唯一 fresh JA 候選：
+post-Repair g50 權威收斂後，本卡沿用同一正式 thread，鎖定唯一 fresh JA 目標：
 
 - source run：`v0391-publish-canary-20260826-02`
 - source article：`V2-TAROT-DEATH-MONEY`
 - source path：`/articles/tarot/tarot-1884`
 - source hash：`1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23`
-- target locale：`ja`
-- deterministic run_id：`auto-i18n-ja-1414b75a404721e95e74`
+- locale：`ja`
 - translation article_id：`V2-TAROT-DEATH-MONEY:ja`
+- run_id：`auto-i18n-ja-1414b75a404721e95e74`
 
-正式 deployment-preflight 回 `ready`，官方 prepare 成功註冊單一 JA run。Writer/Reviewer 依正式 model route 執行三輪，三份 deterministic findings 都是 `[]`，但三份 Reviewer verdict 均為 `REJECT`。依卡片「同一 item 的審核／修復合計最多三次；第三次仍失敗就 terminal/manual」停損。
+唯讀 preflight 通過：local worktree、origin/main、runtime actor 均為 `f186692a0d210c0cd2bf5b1ad8590d9acfc281bf`；runtime generation 為 `g50-f186692a-ja-boundary-contract-20260827`；deployment-preflight 回 `ready`；現有 pre-Repair attempts 正好 `3`，且 `generations` 原本為 `0`。
 
-因此未進入 Publisher transaction，未產生 publication commit、tag、push、deploy 或公開 JA URL。
-
-## Fresh Preflight 摘要
-
-- cwd：`/Users/mattkuo/.codex/worktrees/2cf0/Pantheon`
-- formal thread：`01a03c34-fd96-7021-9423-29879c9b5b47`
-- evidence base HEAD：`48a3e56e97213f7e5b47aa59c55a2ec7b72ab765`
-- actor HEAD：`204a8bd8b86b37f411048983730ce1efb9fa2734`
-- runtime generation：`g49-204a8bd8-main-promotion-20260826`
-- manifest digest：`18d91a2246d5d4311b57471f116d649760003437dc482a0e1675cddf9fde0bb7`
-- runtime digest：`3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0`
-- model route：Writer `gemini-3.5-flash-lite`、Reviewer `gemini-3.1-flash-lite`
-- model route digest：`1ed24743202ff953bf32d07d570602e61c77194df45889cabc93b13495945e0e`
-- capacity：`47287216` KiB available，約 `45.1` GiB
-- seven services：全部 `STOPPED_OR_NOT_LOADED`
-- CodeGraph：current worktree 查詢回 `not initialized`；已依卡片限域降級到 actor/scripts、runtime queue/state 與本卡 evidence
-
-## Official Entrypoint Results
-
-Deployment preflight with manifest authority：
-
-```json
-{"schema_version":1,"status":"ready","operation":"deployment-preflight","mode":"read-only","dry_run":true,"mutation_permitted":false,"actor":"matched","queue":"matched","state":"matched","runtime_sha":"204a8bd8b86b37f411048983730ce1efb9fa2734","runtime_manifest_schema_version":1,"runtime_digest":"3528c6128abdeb76f7b2545be04795709466148a0edb15ed857a23de86cda3e0","push_mode":"push","authority_mode":"manifest","manifest_digest":"18d91a2246d5d4311b57471f116d649760003437dc482a0e1675cddf9fde0bb7"}
-```
-
-Official fresh-JA prepare result：
-
-```json
-{"run_id":"auto-i18n-ja-1414b75a404721e95e74","locale":"ja","run_dir":"/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74"}
-```
-
-Writer/Reviewer result：
-
-```json
-{"run_id":"auto-i18n-ja-1414b75a404721e95e74","approved":0,"total":1}
-```
-
-Publisher exact dry-run fail-closed：
+唯一一次 post-Repair generation 啟動後，Writer plan provider 成功一次，但 f186 protected source constraint traceability contract 在 deterministic hydration 階段 fail-closed：
 
 ```text
-PublishBlocked: exact fresh JA run is not complete
+LocalePlanValidationError: deterministic locale plan failure: external locale plan source fact coverage differs for article-01
 ```
 
-Interpretation：三輪 Reviewer 未 clean approve，queue registry 未成為 publishable complete run；Publisher exact selector fail-closed，不得進入 publication mutation。
+因此沒有產生新的 article candidate，沒有 Reviewer 判定，沒有 publication transaction、tag、push、deploy 或公開 JA URL。
 
-## Three Attempt Review Summary
+## Evidence 摘要
 
-| attempt | deterministic findings | reviewer verdict | main finding codes |
-| --- | ---: | --- | --- |
-| `01` | `0` | `REJECT` | `SOURCE_SYNTAX_TRANSFER`, `NON_NATIVE_SEARCH_INTENT` |
-| `02` | `0` | `REJECT` | `AI_TEMPLATE_STYLE`, `NON_NATIVE_SEARCH_INTENT` |
-| `03` | `0` | `REJECT` | `COVERAGE_MISSING`, `NON_NATIVE_SEARCH_INTENT` |
-
-Attempt `03` final review message includes missing mandatory disclaimer and non-native Japanese search-intent phrasing. This is the single terminal blocker.
-
-## Terminalization
-
-Official terminalization check：
-
-- `terminalize-pending` only supports a still-unclaimed outbox job with closed reason `UNSUPPORTED_MODEL_CANARY_ABORT`; this run has no matching pending outbox job.
-- `terminalize-dangling-active` only supports missing run_dir with closed reason `UNRECOVERABLE_RUN_DIR_MISSING`; this run_dir exists and contains attempts `01`、`02`、`03` plus root candidate/review.
-- A bounded coordinator `cycle --exact-run-id` was not executed because sandbox escalation review rejected it as potentially capable of invoking pipeline/model again, which would violate the explicit no-fourth-attempt instruction.
-
-No manual queue/state edit was performed. The run is terminal/manual by card-level stop-loss evidence, while formal queue registry remains `active`:
-
-```json
-{"run_id":"auto-i18n-ja-1414b75a404721e95e74","status":"active","lane":"i18n-new","run_dir":"/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74"}
-```
+- CodeGraph：`not initialized`，已按卡片限域降級。
+- capacity：`43095368` KiB available，約 `41.1` GiB。
+- model route：Writer `gemini-3.5-flash-lite`、Reviewer `gemini-3.1-flash-lite`。
+- g50 manifest digest：`9bb9ebae8a3fcb72a2cc24545bbc2a8c59e62f300b7d451d1530a2daf3c5de5e`。
+- g50 runtime digest：`ac80b2dee2a25b5d000ea7b738e1c375081ab1597b6aa0e873682bea95fd0d8d`。
+- source identity/hash：matched。
+- locale registry uniqueness：`matches=0` for source path/article/run.
+- ledger target transaction count：`0`。
+- generation files：only `generations/04/plan-operation.json` and `generations/04/external-plan.json` exist.
+- `plan-operation.json`：`status=success`、`role=writer`、`model=gemini-3.5-flash-lite`、`started_at=2026-08-27T10:24:58+08:00`、`finished_at=2026-08-27T10:25:06+08:00`。
+- continuation state：`semantic_budget=1`、`started_after_generation=3`、`completed_generations=[]`、`terminal_candidate_sha256=null`、`terminal_review_sha256=null`。
+- seven services：`STOPPED_OR_NOT_LOADED`；Mainline also confirmed no related runtime process remained.
 
 ## Production Mutation Accounting
 
-- authorized queue mutation：`1` fresh-JA prepare registration plus three authorized model attempts for the same run.
-- translation publication transaction：`0`
+- post-Repair Writer plan provider attempt：`1`
+- post-Repair article candidate：`0`
+- post-Repair Reviewer判定：`0`
+- automatic Writer repair：`0`
+- publication transaction：`0`
 - publication commit：none
 - publication tag：none
 - push：`0`
 - deploy：`0`
-- public locale URL：none
+- public JA URL：none
 - HTTP/browser validation：not run because publication never occurred
-- ledger target transaction count：`0`
-- ledger after run：`translation_published_runs=1`、`translation_deferred_runs=8`；target run appears in neither.
-- public content update：`0`
-- services mutation：`0`
+- manual queue/state edit：`0`
+- source code/policy changes：`0`
 
 ## Blocker
 
-root_cause: `FRESH_JA_REVIEWER_REJECTED_AFTER_THREE_ATTEMPTS`
+root_cause: `POST_REPAIR_PROTECTED_SOURCE_COVERAGE_FAIL_CLOSED`
 
-The only selected source/locale reached the card's review budget limit. Deterministic gates were clean, but the independent Reviewer rejected all three attempts, ending with `COVERAGE_MISSING` and `NON_NATIVE_SEARCH_INTENT`. The card forbids a fourth attempt, alternate publisher, manual queue/ledger repair, second source, second locale, publication transaction, tag, push, or deploy.
+The single allowed post-Repair candidate stopped before article generation because the protected source constraint traceability contract rejected the external locale plan coverage. Per contract, no retry, no fifth candidate, no manual override, and no publication mutation were performed.
 
-## Evidence
+## Evidence Files
 
 - `artifacts/fortune_council/four_lane_runtime_execution/automation_acceptance_b_translation_public_url_20260826/evidence.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/automation_acceptance_b_translation_public_url_20260826/machine-summary.json`
