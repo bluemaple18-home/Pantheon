@@ -969,6 +969,238 @@ def test_ja_article_prompt_uses_provider_safe_refs_after_local_hydration() -> No
         assert forbidden not in serialized
 
 
+def test_ja_source_ref_map_is_persisted_before_provider_plan_call(tmp_path: Path) -> None:
+    brief = non_tarot_translation_brief("ja")
+    prior = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    class PendingPlanClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise RuntimeError("provider pending after map persistence")
+
+    generation_dir = tmp_path / "generations" / "02"
+    with pytest.raises(RuntimeError, match="provider pending"):
+        multilingual._run_locale_generation(
+            brief,
+            PendingPlanClient(),
+            generation=2,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    persisted = json.loads(
+        (generation_dir / "source-ref-map.json").read_text(encoding="utf-8")
+    )
+    assert persisted["generation"] == 2
+    assert [
+        item["source_ref"]
+        for item in persisted["articles"][0]["refs"]
+    ] == [
+        f"source_ref_{index + 1:02d}"
+        for index, _fact in enumerate(
+            multilingual._source_fact_package(brief)["articles"][0]["facts"]
+        )
+    ]
+    assert not (generation_dir / "external-plan.json").exists()
+    assert not (generation_dir / "planning-result.json").exists()
+
+
+def test_ja_resume_rejects_persisted_external_plan_without_source_ref_map(
+    tmp_path: Path,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("persisted external plan must not call provider")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="source ref map missing",
+    ):
+        multilingual._run_locale_generation(
+            brief,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    result = json.loads(
+        (generation_dir / "planning-result.json").read_text(encoding="utf-8")
+    )
+    assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
+    assert result["terminal_stage"] == "PLANNING"
+    assert result["article_provider_calls"] == 0
+    assert result["reviewer_provider_calls"] == 0
+    assert not (generation_dir / "article-operation.json").exists()
+
+
+def test_ja_resume_rejects_stale_persisted_source_ref_map_after_extractor_change(
+    tmp_path: Path,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+    mutated = json.loads(json.dumps(brief))
+    source = mutated["articles"][0]["source"]
+    source["bodySections"][0]["paragraphs"][0] += " これは検証用の追加文です。"
+    mutated["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("stale map must fail before provider or article")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="source ref map current fact coverage differs",
+    ):
+        multilingual._run_locale_generation(
+            mutated,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    result = json.loads(
+        (generation_dir / "planning-result.json").read_text(encoding="utf-8")
+    )
+    assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
+    assert result["terminal_stage"] == "PLANNING"
+    assert result["article_provider_calls"] == 0
+    assert result["reviewer_provider_calls"] == 0
+    assert not (generation_dir / "article-operation.json").exists()
+
+
+def test_ja_planning_result_records_contract_failure_before_article(
+    tmp_path: Path,
+) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("generation_04_external_plan.json"),
+    )
+
+    class FailIfCalled:
+        def generate_json(self, *_args: object) -> dict[str, object]:
+            raise AssertionError("persisted external plan must fail in hydration")
+
+    with pytest.raises(multilingual.LocalePlanValidationError):
+        multilingual._run_locale_generation(
+            brief,
+            FailIfCalled(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    result = json.loads(
+        (generation_dir / "planning-result.json").read_text(encoding="utf-8")
+    )
+    assert result == {
+        "schema_version": 1,
+        "generation": 4,
+        "transport_status": "EXTERNAL_PLAN_AVAILABLE",
+        "planning_contract_status": "PLANNING_CONTRACT_FAILURE",
+        "terminal_stage": "PLANNING",
+        "terminal_reason": "external locale plan article fields are strict for article-01",
+        "article_provider_calls": 0,
+        "reviewer_provider_calls": 0,
+    }
+    assert not (generation_dir / "article-operation.json").exists()
+    assert not (generation_dir / "review-operation.json").exists()
+
+
+def test_ja_planning_result_passes_only_after_local_hydration(tmp_path: Path) -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    generation_dir = tmp_path / "generations" / "04"
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    multilingual.pipeline.write_json(
+        generation_dir / "source-ref-map.json",
+        multilingual._source_ref_map_artifact(source_ref_maps, generation=4),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+
+    class PendingArticleClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise RuntimeError("stop after planning success")
+
+    with pytest.raises(RuntimeError, match="planning success"):
+        multilingual._run_locale_generation(
+            brief,
+            PendingArticleClient(),
+            generation=4,
+            generation_dir=generation_dir,
+            findings=[],
+            history=[],
+            prior_plan=prior,
+        )
+
+    result = json.loads(
+        (generation_dir / "planning-result.json").read_text(encoding="utf-8")
+    )
+    assert result["planning_contract_status"] == "PASS"
+    assert result["terminal_stage"] is None
+    assert result["terminal_reason"] is None
+    assert (generation_dir / "locale-plan.json").is_file()
+    assert (generation_dir / "article-operation.json").is_file()
+
+
 def test_ja_boundary_repetition_detects_exact_normalized_paraphrase_span() -> None:
     brief = load_ja_boundary_fixture("brief.json")
     candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")

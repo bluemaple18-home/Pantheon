@@ -1162,6 +1162,116 @@ def _request_local_source_ref_maps(
     return maps
 
 
+def _source_ref_maps_from_artifact(
+    payload: object,
+    *,
+    generation: int,
+) -> dict[str, dict[str, str]]:
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"schema_version", "generation", "articles"}
+        or payload.get("schema_version") != SCHEMA_VERSION
+        or payload.get("generation") != generation
+        or not isinstance(payload.get("articles"), list)
+    ):
+        raise ValueError("source ref map identity is invalid")
+    maps: dict[str, dict[str, str]] = {}
+    for article in payload["articles"]:
+        if (
+            not isinstance(article, dict)
+            or set(article) != {"slot", "refs"}
+            or not isinstance(article.get("slot"), str)
+            or not isinstance(article.get("refs"), list)
+        ):
+            raise ValueError("source ref map article fields are strict")
+        refs: dict[str, str] = {}
+        for item in article["refs"]:
+            if (
+                not isinstance(item, dict)
+                or set(item) != {"source_ref", "source_fact_id"}
+                or not isinstance(item.get("source_ref"), str)
+                or not isinstance(item.get("source_fact_id"), str)
+                or not re.fullmatch(r"source_ref_\d{2}", item["source_ref"])
+            ):
+                raise ValueError("source ref map refs are strict")
+            if item["source_ref"] in refs:
+                raise ValueError("source ref map duplicate refs")
+            refs[item["source_ref"]] = item["source_fact_id"]
+        if article["slot"] in maps:
+            raise ValueError("source ref map duplicate article slots")
+        maps[article["slot"]] = refs
+    return maps
+
+
+def _source_ref_map_artifact(
+    maps: dict[str, dict[str, str]],
+    *,
+    generation: int,
+) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generation": generation,
+        "articles": [
+            {
+                "slot": slot,
+                "refs": [
+                    {"source_ref": ref, "source_fact_id": fact_id}
+                    for ref, fact_id in refs.items()
+                ],
+            }
+            for slot, refs in maps.items()
+        ],
+    }
+
+
+def _validate_source_ref_maps_against_current_package(
+    brief: dict[str, Any],
+    maps: dict[str, dict[str, str]],
+) -> None:
+    fact_articles = _source_fact_package(brief)["articles"]
+    expected_slots = [str(article["slot"]) for article in fact_articles]
+    if set(maps) != set(expected_slots):
+        raise ValueError("source ref map slots differ from current source package")
+    for article in fact_articles:
+        slot = str(article["slot"])
+        expected_refs = [
+            f"source_ref_{index + 1:02d}"
+            for index, _fact in enumerate(article["facts"])
+        ]
+        current_fact_ids = [str(fact["fact_id"]) for fact in article["facts"]]
+        refs = maps[slot]
+        if list(refs) != expected_refs:
+            raise ValueError("source ref map refs differ from current source package")
+        persisted_fact_ids = list(refs.values())
+        if persisted_fact_ids != current_fact_ids:
+            raise ValueError("source ref map current fact coverage differs")
+
+
+def _load_or_create_source_ref_maps(
+    path: Path,
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    *,
+    generation: int,
+    external_plan_path: Path,
+) -> dict[str, dict[str, str]]:
+    if not _uses_request_local_source_refs(brief, prior_plan):
+        return {}
+    if path.is_file():
+        maps = _source_ref_maps_from_artifact(
+            json.loads(path.read_text(encoding="utf-8")),
+            generation=generation,
+        )
+        _validate_source_ref_maps_against_current_package(brief, maps)
+        return maps
+    if external_plan_path.is_file():
+        raise ValueError("source ref map missing for persisted external locale plan")
+    maps = _request_local_source_ref_maps(brief, prior_plan)
+    _validate_source_ref_maps_against_current_package(brief, maps)
+    _atomic_write_json(path, _source_ref_map_artifact(maps, generation=generation))
+    return maps
+
+
 def _stable_legacy_source_provenance(mappings: object) -> bool:
     if not isinstance(mappings, list) or not mappings:
         return False
@@ -1362,11 +1472,13 @@ def _external_locale_plan_schema(
     brief: dict[str, Any],
     *,
     prior_plan: dict[str, Any] | None = None,
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     validate_translation_brief(brief)
     fact_articles = _source_fact_package(brief)["articles"]
     fact_counts = [len(item["facts"]) for item in fact_articles]
-    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    if source_ref_maps is None:
+        source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
     source_refs = [
         ref
         for article in fact_articles
@@ -1815,6 +1927,7 @@ def _hydrate_locale_plan(
     generation: int,
     rebuild_by_slot: dict[str, bool],
     prior_plan: dict[str, Any] | None = None,
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise ValueError("external locale plan fields are strict")
@@ -1836,7 +1949,10 @@ def _hydrate_locale_plan(
     if set(by_slot) != set(expected_slots) or len(by_slot) != len(external["articles"]):
         raise ValueError("external locale plan slots differ from brief")
     fact_articles = _source_fact_package(brief)["articles"]
-    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    if source_ref_maps is None:
+        source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    if source_ref_maps:
+        _validate_source_ref_maps_against_current_package(brief, source_ref_maps)
     articles = []
     for index, slot in enumerate(expected_slots):
         external_item = by_slot[slot]
@@ -1992,8 +2108,10 @@ def _plan_prompt(
     prior_plan: dict[str, Any] | None,
     findings: list[dict[str, str]],
     rebuild_by_slot: dict[str, bool],
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
 ) -> str:
-    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    if source_ref_maps is None:
+        source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
     legacy_authority = _legacy_plan_authority(brief, prior_plan, source_ref_maps)
     source_identity = "source_ref" if source_ref_maps else "source_fact_id"
     return "\n".join(
@@ -2074,16 +2192,18 @@ def _article_prompt(
     brief: dict[str, Any],
     plan: dict[str, Any] | None,
     findings: list[dict[str, str]],
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
 ) -> str:
     try:
         validate_locale_plan(brief, plan)
     except (TypeError, ValueError) as error:
         raise ValueError(f"locale plan is required and must be valid: {error}") from error
-    source_ref_maps = (
-        _request_local_source_ref_maps(brief, plan)
-        if all(str(item.get("locale")) == "ja" for item in brief["articles"])
-        else {}
-    )
+    if source_ref_maps is None:
+        source_ref_maps = (
+            _request_local_source_ref_maps(brief, plan)
+            if all(str(item.get("locale")) == "ja" for item in brief["articles"])
+            else {}
+        )
     fact_package_for_prompt = _source_fact_package_for_prompt(brief, source_ref_maps)
     public_input = {
         "articles": [
@@ -2286,6 +2406,28 @@ def _load_or_generate_external(
     payload = pipeline._generate_with_receipt(client, role, prompt, schema, receipt_path)
     pipeline.write_json(output_path, payload)
     return payload
+
+
+def _write_locale_planning_result(
+    path: Path,
+    *,
+    generation: int,
+    transport_status: str,
+    planning_contract_status: str,
+    terminal_stage: str | None,
+    terminal_reason: str | None,
+) -> None:
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "generation": generation,
+        "transport_status": transport_status,
+        "planning_contract_status": planning_contract_status,
+        "terminal_stage": terminal_stage,
+        "terminal_reason": terminal_reason,
+        "article_provider_calls": 0,
+        "reviewer_provider_calls": 0,
+    }
+    _atomic_write_json(path, payload)
 
 
 def _review_findings(review: dict[str, Any]) -> list[dict[str, str]]:
@@ -2493,7 +2635,33 @@ def _run_locale_generation(
     prior_plan: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     rebuild_by_slot = _rebuild_authority(brief, history)
-    source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
+    source_ref_path = generation_dir / "source-ref-map.json"
+    external_plan_path = generation_dir / "external-plan.json"
+    planning_result_path = generation_dir / "planning-result.json"
+    try:
+        source_ref_maps = _load_or_create_source_ref_maps(
+            source_ref_path,
+            brief,
+            prior_plan,
+            generation=generation,
+            external_plan_path=external_plan_path,
+        )
+    except ValueError as error:
+        _write_locale_planning_result(
+            planning_result_path,
+            generation=generation,
+            transport_status=(
+                "EXTERNAL_PLAN_AVAILABLE"
+                if external_plan_path.is_file()
+                else "NOT_STARTED"
+            ),
+            planning_contract_status="PLANNING_CONTRACT_FAILURE",
+            terminal_stage="PLANNING",
+            terminal_reason=str(error),
+        )
+        raise LocalePlanValidationError(
+            f"deterministic locale plan failure: {error}"
+        ) from error
     external_plan = _load_or_generate_external(
         client,
         "writer",
@@ -2503,10 +2671,15 @@ def _run_locale_generation(
             prior_plan=prior_plan,
             findings=findings,
             rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
         ),
-        _external_locale_plan_schema(brief, prior_plan=prior_plan),
+        _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        ),
         generation_dir / "plan-operation.json",
-        generation_dir / "external-plan.json",
+        external_plan_path,
     )
     try:
         plan = _hydrate_locale_plan(
@@ -2515,33 +2688,40 @@ def _run_locale_generation(
             generation=generation,
             rebuild_by_slot=rebuild_by_slot,
             prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
         )
     except ValueError as error:
+        _write_locale_planning_result(
+            planning_result_path,
+            generation=generation,
+            transport_status="EXTERNAL_PLAN_AVAILABLE",
+            planning_contract_status="PLANNING_CONTRACT_FAILURE",
+            terminal_stage="PLANNING",
+            terminal_reason=str(error),
+        )
         raise LocalePlanValidationError(
             f"deterministic locale plan failure: {error}"
         ) from error
     if source_ref_maps:
-        _atomic_write_json(
-            generation_dir / "source-ref-map.json",
-            {
-                "schema_version": SCHEMA_VERSION,
-                "articles": [
-                    {
-                        "slot": slot,
-                        "refs": [
-                            {"source_ref": ref, "source_fact_id": fact_id}
-                            for ref, fact_id in refs.items()
-                        ],
-                    }
-                    for slot, refs in source_ref_maps.items()
-                ],
-            },
-        )
+        _validate_source_ref_maps_against_current_package(brief, source_ref_maps)
+    _write_locale_planning_result(
+        planning_result_path,
+        generation=generation,
+        transport_status="EXTERNAL_PLAN_AVAILABLE",
+        planning_contract_status="PASS",
+        terminal_stage=None,
+        terminal_reason=None,
+    )
     _atomic_write_json(generation_dir / "locale-plan.json", plan)
     external_candidate = _load_or_generate_external(
         client,
         "writer",
-        _article_prompt(brief, plan, findings),
+        _article_prompt(
+            brief,
+            plan,
+            findings,
+            source_ref_maps=source_ref_maps,
+        ),
         _external_candidate_schema(),
         generation_dir / "article-operation.json",
         generation_dir / "external-candidate.json",

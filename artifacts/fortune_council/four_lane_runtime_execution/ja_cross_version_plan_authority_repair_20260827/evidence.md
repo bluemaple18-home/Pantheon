@@ -61,13 +61,20 @@ The RED check is fully offline: provider calls `0`, article calls `0`, Reviewer 
 - Same-domain prior plans with an exact current ID set are retained only as ref-based topology.
 - Provider-facing JA article input uses the sanitized source package and locale plan view, so it contains request-local refs rather than local identity fields.
 - Internal locale plans still keep current `source_fact_id` for existing local validation and downstream contracts.
+- Same-generation `source-ref-map.json` is durably written before provider plan calls or external response persistence.
+- Prompt, schema, and hydration use the same persisted source-ref map authority inside `_run_locale_generation`.
+- Persisted external plans without a source-ref map fail closed.
+- Persisted maps whose ref-to-current-ID coverage no longer matches the current source package fail closed before provider/article work.
+- `planning-result.json` distinguishes `transport_status` from `planning_contract_status`.
+- Hydration failure writes `PLANNING_CONTRACT_FAILURE`, `terminal_stage=PLANNING`, `article_provider_calls=0`, and `reviewer_provider_calls=0`.
+- Planning success writes `planning_contract_status=PASS` only after local hydration and hydrated current-ID coverage validation pass.
 
 ## Verification Commands
 
-- Focused RED/GREEN: `uv run pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain'`
-  - result: `8 passed`
+- Focused RED/GREEN/lifecycle/planning-result: `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain or source_ref_map or planning_result'`
+  - result: `13 passed`
 - Full multilingual pipeline regression: `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py`
-  - result: `206 passed`
+  - result: `211 passed`
 - Fixture JSON validation:
   - `brief.json`: passed
   - `attempt_03_locale_plan.json`: passed
@@ -75,6 +82,8 @@ The RED check is fully offline: provider calls `0`, article calls `0`, Reviewer 
   - `fixed_current_ref_external_plan.json`: passed
   - `manifest.json`: passed
 - Whitespace diff check: `git diff --check`
+  - result: passed
+- Base-to-candidate whitespace diff check: `git diff --check 6a20e8d0731fb86da627dbd510d1444f20b4b283`
   - result: passed
 - Changed-file allowlist:
   - result: passed
@@ -93,4 +102,3 @@ From existing operation artifacts for `auto-i18n-ja-1414b75a404721e95e74`:
 - terminal reason: source fact coverage mismatch before article generation
 
 This bounded repair performed no provider call, network call, service activation, production mutation, remote write, push, tag, deploy, publication transaction, replacement task, or Reviewer task creation.
-

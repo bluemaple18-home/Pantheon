@@ -14,6 +14,10 @@ JA continuation planning now treats the current source package as the request au
 
 Legacy prior item-level mapping is invalidated when its ID set differs from the current source package and lacks stable source-span provenance. Invalidated prior coverage mappings, old coverage notes, old fact IDs, source digests, constraint IDs, and source span IDs are not included in the new JA planning prompt. Same-domain JA continuation with an exactly matching current ID set keeps only ref-based topology and is not marked invalidated.
 
+Pre-review repair update: the request-local ref map is now durably written before plan provider execution or external response persistence. Prompt construction, schema construction, and external response hydration all consume that same persisted map in the generation seam. If a persisted `external-plan.json` exists without its same-generation `source-ref-map.json`, or if the persisted map no longer matches the current source package, planning fails closed instead of rebuilding refs from the current extractor.
+
+Planning transport and planning contract success are now separated in `planning-result.json`. Provider transport artifacts may exist before hydration, but planning status is only `PASS` after local hydration and hydrated current-ID coverage validation succeed. Hydration failures record `PLANNING_CONTRACT_FAILURE` with `terminal_stage=PLANNING` and article/Reviewer calls set to `0`.
+
 ## RED Evidence
 
 Fixture set: `tests/fixtures/agy_multilingual_pipeline/ja_plan_authority/`
@@ -46,6 +50,11 @@ GREEN coverage proves:
 - legacy mapping is `INVALIDATED` when stale/missing IDs exist without stable provenance;
 - invalidated old IDs and old item assignments are absent from the JA continuation prompt;
 - request-local refs are exactly `source_ref_01` through `source_ref_22`;
+- source-ref maps are persisted before provider plan calls;
+- prompt, schema, and hydration share the persisted map authority;
+- persisted external plans without maps fail closed;
+- stale persisted maps fail closed after extractor/source package drift;
+- planning-result records planning contract failure separately from transport availability;
 - hydration of legal refs produces current-ID coverage with stale `0`, missing `0`, duplicate `0`;
 - unknown, missing, and duplicate refs fail closed;
 - same-domain JA continuation is not falsely invalidated;
@@ -69,10 +78,11 @@ This repair run itself performed no provider, network, service, production, push
 
 ## Verification
 
-- `uv run pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain'`: `8 passed`
-- `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py`: `206 passed`
+- `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain or source_ref_map or planning_result'`: `13 passed`
+- `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py`: `211 passed`
 - `jq empty` on all `ja_plan_authority` fixture JSON files: passed
 - `git diff --check`: passed
+- `git diff --check 6a20e8d0731fb86da627dbd510d1444f20b4b283`: passed
 - changed-file allowlist: passed
 
 ## Changed Files
@@ -82,4 +92,3 @@ This repair run itself performed no provider, network, service, production, push
 - `tests/fixtures/agy_multilingual_pipeline/ja_plan_authority/`
 - `artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-JA-CROSS-VERSION-PLAN-AUTHORITY-REPAIR-20260827-RESULT.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/ja_cross_version_plan_authority_repair_20260827/evidence.md`
-
