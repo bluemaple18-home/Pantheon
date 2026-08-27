@@ -1416,7 +1416,6 @@ def _source_fact_package_for_prompt(
             {
                 "source_ref": fact_to_ref[str(fact["fact_id"])],
                 "text": fact["text"],
-                "safety_boundary": fact["safety_boundary"],
             }
             for fact in article["facts"]
         ]
@@ -1473,6 +1472,7 @@ def _external_locale_plan_schema(
     *,
     prior_plan: dict[str, Any] | None = None,
     source_ref_maps: dict[str, dict[str, str]] | None = None,
+    include_provider_safety_boundary: bool = False,
 ) -> dict[str, Any]:
     validate_translation_brief(brief)
     fact_articles = _source_fact_package(brief)["articles"]
@@ -1506,15 +1506,16 @@ def _external_locale_plan_schema(
                 "enum": ["h2-1", "h2-2", "h2-3", "h2-4"],
             },
             "coverage_note": {"type": "string"},
-            "safety_boundary": {"type": "boolean"},
         },
         "required": [
             coverage_identity_field,
             "planned_h2_slot",
             "coverage_note",
-            "safety_boundary",
         ],
     }
+    if include_provider_safety_boundary:
+        coverage["properties"]["safety_boundary"] = {"type": "boolean"}
+        coverage["required"].append("safety_boundary")
     item_properties = {
         "slot": {
             "type": "string",
@@ -1873,8 +1874,9 @@ def _canonicalize_external_coverage_mappings(
     *,
     slot: str,
     source_ref_map: dict[str, str] | None = None,
+    allow_provider_safety_boundary: bool = False,
 ) -> list[dict[str, Any]]:
-    """驗證 fact 集合與安全旗標後，依 deterministic fact 順序正規化。"""
+    """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
     if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
         raise ValueError(f"external locale plan coverage differs for {slot}")
     expected_by_id = {
@@ -1887,8 +1889,9 @@ def _canonicalize_external_coverage_mappings(
         identity_field,
         "planned_h2_slot",
         "coverage_note",
-        "safety_boundary",
     }
+    if allow_provider_safety_boundary:
+        required.add("safety_boundary")
     for mapping in mappings:
         if not isinstance(mapping, dict) or set(mapping) != required:
             raise ValueError(
@@ -1904,15 +1907,11 @@ def _canonicalize_external_coverage_mappings(
         if fact_id not in expected_by_id or fact_id in mapped_by_id:
             reason = "source ref" if source_ref_map is not None else "source fact"
             raise ValueError(f"external locale plan {reason} coverage differs for {slot}")
-        if (
-            mapping["safety_boundary"]
-            is not expected_by_id[fact_id]["safety_boundary"]
-        ):
-            raise ValueError(f"locale plan safety coverage differs for {slot}")
         hydrated = dict(mapping)
         if source_ref_map is not None:
             hydrated.pop("source_ref")
             hydrated["source_fact_id"] = fact_id
+        hydrated["safety_boundary"] = expected_by_id[fact_id]["safety_boundary"]
         mapped_by_id[fact_id] = hydrated
     return [
         mapped_by_id[str(fact["fact_id"])]
@@ -1928,6 +1927,7 @@ def _hydrate_locale_plan(
     rebuild_by_slot: dict[str, bool],
     prior_plan: dict[str, Any] | None = None,
     source_ref_maps: dict[str, dict[str, str]] | None = None,
+    allow_provider_safety_boundary: bool = False,
 ) -> dict[str, Any]:
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise ValueError("external locale plan fields are strict")
@@ -1976,6 +1976,7 @@ def _hydrate_locale_plan(
             external_item.get("coverage_mapping"),
             slot=slot,
             source_ref_map=source_ref_maps.get(slot),
+            allow_provider_safety_boundary=allow_provider_safety_boundary,
         )
         item_source_sha256 = (
             brief["articles"][index]["source_sha256"]
@@ -2118,7 +2119,8 @@ def _plan_prompt(
         [
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
-            f"coverage_mapping 必須逐一覆蓋 source fact，並使用 {source_identity} 保留標記為 safety_boundary 的限制。",
+            f"coverage_mapping 必須逐一覆蓋 source fact，且每筆只能輸出 {source_identity}、planned_h2_slot 與 coverage_note。",
+            "不得輸出 schema 未列欄位；限制保留由 pipeline 的本機 source fact authority 在 hydrate 時處理。",
             "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。",
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
@@ -2146,7 +2148,7 @@ def _plan_prompt(
                     ),
                     "must_preserve": [
                         f"全部 {source_identity}",
-                        "safety_boundary",
+                        "local safety authority",
                         "locale plan JSON schema",
                     ],
                     "insufficient_changes": [
@@ -2406,6 +2408,90 @@ def _load_or_generate_external(
     payload = pipeline._generate_with_receipt(client, role, prompt, schema, receipt_path)
     pipeline.write_json(output_path, payload)
     return payload
+
+
+def _external_locale_plan_contains_provider_safety(payload: dict[str, Any]) -> bool:
+    articles = payload.get("articles")
+    if not isinstance(articles, list):
+        return False
+    for article in articles:
+        if not isinstance(article, dict):
+            continue
+        mappings = article.get("coverage_mapping")
+        if not isinstance(mappings, list):
+            continue
+        if any(isinstance(mapping, dict) and "safety_boundary" in mapping for mapping in mappings):
+            return True
+    return False
+
+
+def _legacy_provider_safety_schema_sha256s(
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+) -> set[str]:
+    legacy_schema = _external_locale_plan_schema(
+        brief,
+        prior_plan=prior_plan,
+        source_ref_maps=source_ref_maps,
+        include_provider_safety_boundary=True,
+    )
+    return {_json_sha256(legacy_schema)}
+
+
+def _validate_legacy_provider_safety_receipt(
+    receipt_path: Path,
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+) -> None:
+    if not source_ref_maps:
+        raise ValueError("legacy external locale plan safety requires source ref map")
+    if not receipt_path.is_file():
+        raise ValueError("legacy external locale plan safety requires planning receipt")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    expected_digests = _legacy_provider_safety_schema_sha256s(
+        brief,
+        prior_plan,
+        source_ref_maps,
+    )
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("status") != "success"
+        or receipt.get("role") != "writer"
+        or receipt.get("schema_sha256") not in expected_digests
+    ):
+        raise ValueError("legacy external locale plan safety receipt schema drift")
+
+
+def _load_or_generate_external_locale_plan(
+    client: pipeline.GeminiClient,
+    prompt: str,
+    schema: dict[str, Any],
+    receipt_path: Path,
+    output_path: Path,
+    *,
+    brief: dict[str, Any],
+    prior_plan: dict[str, Any] | None,
+    source_ref_maps: dict[str, dict[str, str]],
+) -> tuple[dict[str, Any], bool]:
+    """讀取既有 plan 時，只有舊 schema receipt 可授權 provider safety 欄位。"""
+    if output_path.is_file():
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"{output_path.name} must contain a JSON object")
+        has_provider_safety = _external_locale_plan_contains_provider_safety(payload)
+        if has_provider_safety:
+            _validate_legacy_provider_safety_receipt(
+                receipt_path,
+                brief,
+                prior_plan,
+                source_ref_maps,
+            )
+        return payload, has_provider_safety
+    payload = pipeline._generate_with_receipt(client, "writer", prompt, schema, receipt_path)
+    pipeline.write_json(output_path, payload)
+    return payload, False
 
 
 def _write_locale_planning_result(
@@ -2895,26 +2981,32 @@ def _run_locale_generation(
         raise LocalePlanValidationError(
             f"deterministic locale plan failure: {error}"
         ) from error
-    external_plan = _load_or_generate_external(
-        client,
-        "writer",
-        _plan_prompt(
-            brief,
-            generation=generation,
-            prior_plan=prior_plan,
-            findings=findings,
-            rebuild_by_slot=rebuild_by_slot,
-            source_ref_maps=source_ref_maps,
-        ),
-        _external_locale_plan_schema(
-            brief,
-            prior_plan=prior_plan,
-            source_ref_maps=source_ref_maps,
-        ),
-        generation_dir / "plan-operation.json",
-        external_plan_path,
+    plan_prompt = _plan_prompt(
+        brief,
+        generation=generation,
+        prior_plan=prior_plan,
+        findings=findings,
+        rebuild_by_slot=rebuild_by_slot,
+        source_ref_maps=source_ref_maps,
+    )
+    plan_schema = _external_locale_plan_schema(
+        brief,
+        prior_plan=prior_plan,
+        source_ref_maps=source_ref_maps,
     )
     try:
+        external_plan, allow_provider_safety_boundary = (
+            _load_or_generate_external_locale_plan(
+                client,
+                plan_prompt,
+                plan_schema,
+                generation_dir / "plan-operation.json",
+                external_plan_path,
+                brief=brief,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+            )
+        )
         plan = _hydrate_locale_plan(
             brief,
             external_plan,
@@ -2922,6 +3014,7 @@ def _run_locale_generation(
             rebuild_by_slot=rebuild_by_slot,
             prior_plan=prior_plan,
             source_ref_maps=source_ref_maps,
+            allow_provider_safety_boundary=allow_provider_safety_boundary,
         )
     except ValueError as error:
         _write_locale_planning_result(
