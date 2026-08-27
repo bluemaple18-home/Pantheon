@@ -3,82 +3,41 @@
 ## Verdict
 PROMOTION_READINESS_GO
 
-This is a readiness verdict only. No promotion apply/finalize, production gen05, provider call, publish, tag, push, deploy, or service mutation was performed.
+這是 readiness verdict only。未執行 promotion apply/finalize、production gen05、provider call、publish、tag、push、deploy 或 service mutation。
 
-## Authoritative Target
-- Task HEAD / card base: `28f36604fdfe399e06b559f37873ec06aec28d10`
-- Authoritative parent candidate: `79884d8bff7256aa9d1adcb7133162d7ac30b86d`
-- Current runtime actor: `6766fff999de7af09efc227230e69efd25795108`
-- Current runtime manifest digest: `6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2`
-- Current runtime generation: `g53-6766fff9-gen05-safety-authority-20260827`
-- Last committed promotion state: `COMMITTED` for `6766fff999de7af09efc227230e69efd25795108`
+## Repair-2 Authority
 
-The initial `28f36604...` promotion-plan artifacts in this output directory are superseded and non-authoritative. They are retained as compact audit receipts only. The readiness decision uses the card root-question target `79884d8bff7256aa9d1adcb7133162d7ac30b86d`.
-
-## Promotion Plan
-- Plan artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798.json`
+- Authoritative plan artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798-repair2.json`
+- Exact plan argv artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/exact-plan-argv-798-repair2.json`
+- Portable replay receipt: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/portable-plan-replay-repair2.json`
 - Status: `READY_TO_APPLY`
-- Plan digest: `b6153ef13827f0082e0c94d8a7e8c59ce4a0d644e131ba00742139829e972a33`
+- Plan digest: `eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4`
 - Target manifest digest: `fa281756914bdec02f4a729f24bcc429f51ef9f48cfe515eae156f2b7ed52fc0`
 - Target generation: `g54-79884d8b-gen05-topology-guard-20260827`
 - Target identity: `gate2-actor:79884d8bff7256aa9d1adcb7133162d7ac30b86d:gen05-topology-guard-promotion-readiness`
-- Preserved queue run count: `136`
+- Capacity receipt digest: `4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`
 
-Plan tripwire passed with `production_mutation_count=0`, `protected_changed_keys=[]`, and `transaction_root_created=false`.
+`plan_digest` 現在由 `plan_authority` payload 計算；`source_repo` 與 `capacity_receipt_path` 保留為 runtime locator，仍由正式 planner 在 plan/apply/postcheck 重新驗證 canonical path、source SHA/origin/clean state 與 committed capacity bytes digest。
 
-## Rule24 Capacity
-- Receipt artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366-host.json`
-- Summary artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-rule24-summary.json`
-- Status: `PASS`
-- Plan capacity receipt digest: `6def7497a06f4d453934ea5cb6f8fffb518e21cc654b0bbf878212796a3913b5`
-- Portable receipt SHA256: `28ffddce4c33bf0e38e34a53b7fb978d6123a08e5efc20c45ad3e0fa28d273b3`
-- Mode: `bounded-synthetic-dry-run`
-- Cycles: `2`
-- Reclamation bytes: `2097152` -> `1048576`
-- Stop loss: `STOPPED` / triggered=`True`
-- Remaining loaded: `[]`
-- Cross-project deletions: `[]`
+## Regression Closure
 
-The sandbox capacity attempt could not read host swap telemetry, so the host receipt is the authoritative Rule24 PASS evidence. Task-owned temporary paths are represented with `<task-tmp>` in committed artifacts.
+- `P1-001`: 原候選 `exact-plan-argv-798.json` replay 為 RED：`NO-GO` / `source_repo is missing`；Repair-2 replay 為 `READY_TO_APPLY`，第二個不同 checkout/receipt 絕對路徑的 replay `plan_authority_equal=true`、`plan_digest_equal=true`。
+- `P1-002`: `planner-capacity-receipt-798-repair2.json` 的 committed SHA256、planner `capacity_receipt_digest` 與 readiness decision authority 均為 `4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17`；raw temp receipt digest `f0069b82271b27002c2dd133800d00570f43d713ac0b72e0ab9752edf8cccf13` 僅作 provenance。
+- `P1-003`: `evidence-index.json` 已從實際 regular files 重建，不索引 `.git/` metadata；validation 要求 missing=0、digest_mismatch=0。
 
-## Rule25 Capability Chain
-- Summary artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/readiness-summary.json`
-- Rule25 status: `READY`
-- Capability receipt status: `PASS`
-- Official gate status: `READY`
-- Official fail-closed fixture status: `BLOCKED`
-- Canary created: `False`
-- Production mutation: `False`
+## Rule24 / Rule25 / Continuation
 
-The create -> run -> select -> publish -> transaction -> tag -> push chain is READY, and the missing-push negative fixture fails closed as BLOCKED.
-
-## Gen05 Continuation Authority
-- Continuation summary artifact: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/continuation-authority.json`
-- Run: `auto-i18n-ja-1414b75a404721e95e74`
-- State: `active`
-- Next generation: `5`
-- Abandoned generations: `[4]`
-- Generation 04 lifecycle: `abandoned` / resumable=`False`
-- Generation 05 source ref map exists: `True`
-- Generation 06 exists: `False`
-
-Authority is consistent with continuing gen05: generation 04 is abandoned/non-resumable, state still points to next_generation 5, generation 05 has source-ref-map evidence, and no generation 06 exists.
+- Rule24 status: `PASS`；cycles: `2`；RSS/swap all available: `true/true`；reclamation `8192 -> 4096`；stop-loss `STOPPED`。
+- Rule25 summary remains `READY` with official ready `READY`, fail-closed fixture `BLOCKED`, `canary_created=false`, `production_mutation=false`.
+- Continuation remains `next_generation=5`, gen04 abandoned/non-resumable, gen05 source-ref-map exists, gen06 absent.
 
 ## Mutation Counters
-- promotion_apply: 0
-- promotion_finalize: 0
-- promotion_rollback: 0
-- provider_calls: 0
-- publish/tag/push/deploy: 0/0/0/0
-- service_mutation: 0
-- production_mutation: `0`
-- transaction_root_created: `False`
 
-## Evidence Index
-- `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/evidence-index.json`
-- `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/readiness-decision.json`
-- `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/source-runtime-authority.json`
-- `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/continuation-authority.json`
+- promotion_apply/finalize/rollback: `0/0/0`
+- provider/publish/tag/push/deploy/service mutation: `0/0/0/0/0/0`
+- production_mutation: `0`
+- transaction_root_created: `false`
 
 ## Residual Boundary
-This commit is a candidate readiness receipt only. Promotion application/finalization, production gen05 execution, provider activity, publish/tag/push/deploy, and service mutation remain outside authorization.
+
+Promotion application/finalization, production gen05 execution, provider activity, publish/tag/push/deploy, and service mutation remain outside authorization.

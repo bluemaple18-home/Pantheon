@@ -1,0 +1,20 @@
+{
+  "authorization_digest": "5b83dcb574a083cb30df1e1159aff29ef00531418f66b965e0ed5a9df5cdaab5",
+  "authorization_state": "NOT_GRANTED",
+  "capacity_receipt_digest": "4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17",
+  "card_id": "CARD-PANTHEON-ACCEPTANCE-B-GEN05-RUNTIME-PROMOTION-READINESS-20260827",
+  "correlation_id": "pantheon-acceptance-b-gen05-runtime-promotion-readiness-20260827",
+  "current_manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2",
+  "current_stage_digest": "748f1800174df4e16571264b85f7caf8181fe955bef9c286cf4ce37ae672a9aa",
+  "expected_current_actor_sha": "6766fff999de7af09efc227230e69efd25795108",
+  "planner_authority_model": "plan_digest_is_hash_of_plan_authority_payload; runtime locators remain revalidated outside cross-worktree authority",
+  "preserved_run_count": 136,
+  "promotion_mutation_authorized": false,
+  "repair_cycle": "repair-2",
+  "rule25_summary_digest": "c9a94d3646c06dc05f3e21bad5683817e38d3968fbb28b44b804918a729c7e05",
+  "schema_version": 1,
+  "target_generation": "g54-79884d8b-gen05-topology-guard-20260827",
+  "target_identity": "gate2-actor:79884d8bff7256aa9d1adcb7133162d7ac30b86d:gen05-topology-guard-promotion-readiness",
+  "target_runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+  "target_source_sha": "79884d8bff7256aa9d1adcb7133162d7ac30b86d"
+}

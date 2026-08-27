@@ -364,6 +364,121 @@ def test_plan_is_deterministic_and_zero_write(tmp_path: Path) -> None:
     assert _snapshot(request) == before
 
 
+def test_plan_authority_digest_ignores_runtime_locator_paths(tmp_path: Path) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+    alt_source = tmp_path / "alternate" / "source"
+    subprocess.run(
+        ["git", "clone", "-q", request.expected_origin, str(alt_source)],
+        check=True,
+    )
+    _git(alt_source, "checkout", "-q", "--detach", identities["new_sha"])
+    _git(alt_source, "remote", "set-url", "origin", request.expected_origin)
+    alt_capacity = tmp_path / "alternate" / "capacity" / "capacity-receipt.json"
+    alt_capacity.parent.mkdir(parents=True)
+    alt_capacity.write_bytes(request.capacity_receipt_path.read_bytes())
+    relocated = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "source_repo": alt_source,
+            "capacity_receipt_path": alt_capacity,
+            "transaction_root": tmp_path / "alternate" / "promotion-tx",
+        }
+    )
+
+    original = promotion.plan_promotion(request)
+    replayed = promotion.plan_promotion(relocated)
+
+    assert original["source_repo"] != replayed["source_repo"]
+    assert original["capacity_receipt_path"] != replayed["capacity_receipt_path"]
+    assert original["plan_authority"] == replayed["plan_authority"]
+    assert original["plan_digest"] == replayed["plan_digest"]
+    assert original["plan_digest"] == promotion._json_digest(original["plan_authority"])
+
+
+def test_plan_authority_digest_changes_when_stable_authority_changes(
+    tmp_path: Path,
+) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+    baseline = promotion.plan_promotion(request)
+    old_source = tmp_path / "old-source"
+    subprocess.run(
+        ["git", "clone", "-q", request.expected_origin, str(old_source)],
+        check=True,
+    )
+    _git(old_source, "checkout", "-q", "--detach", identities["old_sha"])
+    _git(old_source, "remote", "set-url", "origin", request.expected_origin)
+    old_source_request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "source_repo": old_source,
+            "source_sha": identities["old_sha"],
+            "target_identity": f"gate2-actor:{identities['old_sha']}:activation-only",
+            "target_generation": f"g2-{identities['old_sha'][:10]}",
+            "transaction_root": tmp_path / "old-source-tx",
+        }
+    )
+    old_source_plan = promotion.plan_promotion(old_source_request)
+    capacity_payload = json.loads(
+        request.capacity_receipt_path.read_text(encoding="utf-8")
+    )
+    capacity_payload["authority_probe"] = "changed"
+    changed_capacity = tmp_path / "changed-capacity-receipt.json"
+    changed_capacity_digest = _write_json(changed_capacity, capacity_payload)
+    capacity_request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "capacity_receipt_path": changed_capacity,
+            "capacity_receipt_digest": changed_capacity_digest,
+            "transaction_root": tmp_path / "capacity-authority-tx",
+        }
+    )
+    capacity_plan = promotion.plan_promotion(capacity_request)
+    stage_probe = request.private_stage_root / "authority-probe.txt"
+    stage_probe.write_text("stage authority changed\n", encoding="utf-8")
+    stage_request = promotion.PromotionRequest(
+        **{
+            **request.__dict__,
+            "expected_current_stage_digest": promotion.tree_digest(
+                request.private_stage_root
+            ),
+            "transaction_root": tmp_path / "stage-authority-tx",
+        }
+    )
+
+    assert old_source_plan["plan_digest"] != baseline["plan_digest"]
+    assert promotion.plan_promotion(stage_request)["plan_digest"] != baseline[
+        "plan_digest"
+    ]
+    assert capacity_plan["plan_digest"] != baseline["plan_digest"]
+
+
+def test_apply_revalidates_source_locator_when_plan_digest_is_stable(
+    tmp_path: Path,
+) -> None:
+    request, identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    plan = promotion.plan_promotion(request)
+    wrong_source = tmp_path / "wrong-source"
+    subprocess.run(
+        ["git", "clone", "-q", request.expected_origin, str(wrong_source)],
+        check=True,
+    )
+    _git(wrong_source, "checkout", "-q", "--detach", identities["old_sha"])
+    _git(wrong_source, "remote", "set-url", "origin", request.expected_origin)
+    wrong_locator = promotion.PromotionRequest(
+        **{**request.__dict__, "source_repo": wrong_source}
+    )
+
+    with pytest.raises(promotion.PromotionError, match="source SHA drift"):
+        promotion.apply_promotion(
+            wrong_locator,
+            expected_plan_digest=plan["plan_digest"],
+        )
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
 def test_apply_success_keeps_rollback_bundle_until_finalize(tmp_path: Path) -> None:
     request, identities = _runtime_fixture(tmp_path)
 
@@ -1810,6 +1925,7 @@ def test_gsc_copy_root_existence_drift_rolls_back(
     ("mutation", "message"),
     [
         ("missing", "capacity receipt is missing"),
+        ("noncanonical", "capacity receipt path must use canonical realpath"),
         ("failed", "capacity stop-loss is not PASS"),
         ("digest", "capacity receipt digest mismatch"),
     ],
@@ -1823,6 +1939,12 @@ def test_capacity_receipt_contract_fails_closed_before_runtime_mutation(
     before = _snapshot(request)
     if mutation == "missing":
         request.capacity_receipt_path.unlink()
+    elif mutation == "noncanonical":
+        link = tmp_path / "capacity-receipt-link.json"
+        link.symlink_to(request.capacity_receipt_path)
+        request = promotion.PromotionRequest(
+            **{**request.__dict__, "capacity_receipt_path": link}
+        )
     elif mutation == "failed":
         digest = _write_capacity_receipt(request.capacity_receipt_path, status="NO-GO")
         request = promotion.PromotionRequest(

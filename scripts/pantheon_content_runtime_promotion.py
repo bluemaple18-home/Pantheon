@@ -1025,6 +1025,63 @@ def _target_manifest(request: PromotionRequest) -> dict[str, Any]:
     )
 
 
+def _plan_authority_payload(
+    request: PromotionRequest,
+    *,
+    target_manifest: dict[str, Any],
+    queue_identity_snapshot: dict[str, Any],
+    queue_snapshot_digest: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "regression_id": REGRESSION_ID,
+        "status": "READY_TO_APPLY",
+        "source": {
+            "sha": request.source_sha,
+            "expected_origin": request.expected_origin,
+        },
+        "current_runtime": {
+            "actor_sha": request.expected_current_actor_sha,
+            "manifest_digest": request.expected_current_manifest_digest,
+            "stage_digest": request.expected_current_stage_digest,
+        },
+        "target_runtime": {
+            "identity": request.target_identity,
+            "runtime_digest": request.target_runtime_digest,
+            "config_version": request.target_config_version,
+            "generation": request.target_generation,
+            "manifest_digest": target_manifest["manifest_digest"],
+            "python_executable": str(request.target_python_executable),
+            "uv_executable": str(request.target_uv_executable),
+        },
+        "ordered_states": list(ORDERED_STATES),
+        "write_set_authority": [
+            {"stage": "ACTOR_PROMOTED", "type": "actor"},
+            {
+                "stage": "MANIFEST_WRITTEN",
+                "type": "manifest",
+                "digest": target_manifest["manifest_digest"],
+            },
+            {"stage": "STAGE_INSTALLED", "type": "readiness_acknowledgements"},
+            {"stage": "STAGE_INSTALLED", "type": "activation_barrier"},
+        ],
+        "rollback_order": ["STAGE_INSTALLED", "MANIFEST_WRITTEN", "ACTOR_PROMOTED"],
+        "postchecks": [
+            "actor_clean_head_origin",
+            "manifest_digest_actor_head_generation",
+            "private_stage_readiness_and_barrier",
+            "queue_preserved" if request.preserved_run_ids else "queue_empty",
+            "capacity_receipt_payload_stop_loss_pass",
+        ],
+        "authorization_digest": request.authorization_digest,
+        "capacity_receipt_digest": request.capacity_receipt_digest,
+        "correlation_id": request.correlation_id,
+        "preserved_run_ids": list(request.preserved_run_ids),
+        "queue_identity_snapshot": queue_identity_snapshot,
+        "queue_snapshot_digest": queue_snapshot_digest,
+    }
+
+
 def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
     _validate_request_shape(request)
     _validate_path_boundaries(request)
@@ -1076,6 +1133,20 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
         {"path": str(_stage_backup_path(request)), "source": str(request.private_stage_root)},
         {"path": str(_barrier_backup_path(request)), "source": str(barrier_path(request))},
     ]
+    postchecks = [
+        "actor_clean_head_origin",
+        "manifest_digest_actor_head_generation",
+        "private_stage_readiness_and_barrier",
+        "queue_preserved" if request.preserved_run_ids else "queue_empty",
+        "capacity_receipt_payload_stop_loss_pass",
+    ]
+    queue_snapshot_digest = _queue_snapshot_digest(request.queue_root)
+    plan_authority = _plan_authority_payload(
+        request,
+        target_manifest=target_manifest,
+        queue_identity_snapshot=queue_identity_snapshot,
+        queue_snapshot_digest=queue_snapshot_digest,
+    )
     plan: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "regression_id": REGRESSION_ID,
@@ -1092,22 +1163,17 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
         "write_set": write_set,
         "backup_set": backup_set,
         "rollback_order": ["STAGE_INSTALLED", "MANIFEST_WRITTEN", "ACTOR_PROMOTED"],
-        "postchecks": [
-            "actor_clean_head_origin",
-            "manifest_digest_actor_head_generation",
-            "private_stage_readiness_and_barrier",
-            "queue_preserved" if request.preserved_run_ids else "queue_empty",
-            "capacity_receipt_payload_stop_loss_pass",
-        ],
+        "postchecks": postchecks,
         "authorization_digest": request.authorization_digest,
         "capacity_receipt_path": str(request.capacity_receipt_path),
         "capacity_receipt_digest": request.capacity_receipt_digest,
         "correlation_id": request.correlation_id,
         "preserved_run_ids": list(request.preserved_run_ids),
         "queue_identity_snapshot": queue_identity_snapshot,
-        "queue_snapshot_digest": _queue_snapshot_digest(request.queue_root),
+        "queue_snapshot_digest": queue_snapshot_digest,
+        "plan_authority": plan_authority,
     }
-    plan["plan_digest"] = _json_digest(plan)
+    plan["plan_digest"] = _json_digest(plan_authority)
     return plan
 
 

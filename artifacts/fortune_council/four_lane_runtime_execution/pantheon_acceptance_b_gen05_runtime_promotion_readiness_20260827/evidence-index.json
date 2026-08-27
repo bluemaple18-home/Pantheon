@@ -2,6 +2,11 @@
   "card_id": "CARD-PANTHEON-ACCEPTANCE-B-GEN05-RUNTIME-PROMOTION-READINESS-20260827",
   "files": [
     {
+      "bytes": 1392,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/authorization-payload-798-repair2.json",
+      "sha256": "ac83f0162cf4607d9980ef459e93c21c5928aed7ba2bdd881a586809221d445b"
+    },
+    {
       "bytes": 1214,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/authorization-payload-798.json",
       "sha256": "0a7ecb11bd205061f39aee852d9e7ffe62c6b2aff3b89b2b26cf9a492dc06a8e"
@@ -15,6 +20,11 @@
       "bytes": 1247,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/continuation-authority.json",
       "sha256": "d7b704d7d6830f06e1494459afa72600644c1f42560834379cf07b3987961116"
+    },
+    {
+      "bytes": 10187,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/exact-plan-argv-798-repair2.json",
+      "sha256": "42a265ae907f05e5225134f1cc8d52384700e60d7a717317bd6b18bc346b1835"
     },
     {
       "bytes": 10188,
@@ -37,9 +47,24 @@
       "sha256": "d8c470eb8a7f6ce3fcf1acc8318d00582e8fa67cfeb723c18ed0bef3dc7b17c0"
     },
     {
+      "bytes": 3585,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-798-repair2.json",
+      "sha256": "4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17"
+    },
+    {
+      "bytes": 1301,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-rule24-summary-repair2.json",
+      "sha256": "da8b86a19b7a3f948000b049285249a37179656f8d69ce3c3eb837c2c7b099dd"
+    },
+    {
       "bytes": 763,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-rule24-summary.json",
       "sha256": "a74d9ec3221388f0def80be07385adfcc482d8dbe0886aac5a5ec5adcefa296c"
+    },
+    {
+      "bytes": 949,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/portable-plan-replay-repair2.json",
+      "sha256": "2521e9521bc29b17ad13746f42f855f539fcf607d57ba70a885506bae6b8c02b"
     },
     {
       "bytes": 10029,
@@ -50,6 +75,26 @@
       "bytes": 350,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-common-argv.json",
       "sha256": "db60526483fb5d34c336d6018d5ded0877168d4c964efa769e807e3fde3c5fe4"
+    },
+    {
+      "bytes": 253785,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798-repair2.json",
+      "sha256": "c67ac871436c125d420e9f81fe9e2e9266af5831219b724085d3bd074f697aa1"
+    },
+    {
+      "bytes": 2,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798-repair2.returncode.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798-repair2.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 253785,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798-repair2.stdout.json",
+      "sha256": "c67ac871436c125d420e9f81fe9e2e9266af5831219b724085d3bd074f697aa1"
     },
     {
       "bytes": 124627,
@@ -107,9 +152,19 @@
       "sha256": "db8114adb6ae83feebabbe0705af0b206c71b3bb00a68fedb565c80ee03e969b"
     },
     {
-      "bytes": 2112,
+      "bytes": 3174,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/readiness-decision.json",
-      "sha256": "1c24e069f25c54691806928d95037c28e7c3f99656eb7127205f051ba1975fb6"
+      "sha256": "c495116755cb4b24072526f86c7d847cd922d4655044bcbd20e63f9423fd3f81"
+    },
+    {
+      "bytes": 618,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/red-original-exact-plan-argv-repair2.json",
+      "sha256": "68d50e74b2357aefd165fb1d8abe27b983d1541b9d7df53bd47a3ce4634b562b"
+    },
+    {
+      "bytes": 3031,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/repair2-regression-receipt.json",
+      "sha256": "60c21f1467e14739b9fbf9b2f0cb4524e89083fb9f376876cad1bd4cee1ed7f5"
     },
     {
       "bytes": 542,
@@ -125,16 +180,6 @@
       "bytes": 5700,
       "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/positive-receipt.json",
       "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50"
-    },
-    {
-      "bytes": 0,
-      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/.git/agy-content-publisher.lifecycle.lock",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "bytes": 0,
-      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/.git/agy-content-publisher.transaction.lock",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "bytes": 566,
@@ -627,6 +672,7 @@
       "sha256": "05a793e1c54d79c02c9c137368861de1d91307beb8548d48c7c1157d0963ed8c"
     }
   ],
+  "repair_cycle": "repair-2",
   "root_verdict": "PROMOTION_READINESS_GO",
   "schema_version": 1
 }

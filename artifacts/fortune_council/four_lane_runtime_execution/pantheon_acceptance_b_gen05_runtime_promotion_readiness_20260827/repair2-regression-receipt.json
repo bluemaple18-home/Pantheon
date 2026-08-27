@@ -1,0 +1,67 @@
+{
+  "codegraph": {
+    "reason": "CodeGraph not initialized in this worktree",
+    "status": "UNAVAILABLE"
+  },
+  "finding_to_regression": {
+    "P1-001": "Original exact argv is RED; repair-2 exact argv is GREEN and second checkout/path replay keeps same plan_authority and plan_digest.",
+    "P1-002": "Planner reads committed planner-capacity-receipt-798-repair2.json bytes; SHA256 equals passed capacity_receipt_digest and readiness decision authority.",
+    "P1-003": "Evidence index regenerated from actual regular files, excluding .git metadata paths."
+  },
+  "green": {
+    "capacity_receipt_committed_sha256": "4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17",
+    "capacity_receipt_digest": "4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17",
+    "plan_authority_digest": "eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4",
+    "plan_digest": "eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4",
+    "plan_status": "READY_TO_APPLY",
+    "portable_replay": {
+      "comparisons": {
+        "capacity_receipt_digest_equal": true,
+        "plan_authority_equal": true,
+        "plan_digest_equal": true,
+        "target_manifest_digest_equal": true
+      },
+      "first_plan": "promotion-plan-798-repair2.json",
+      "schema_version": 1,
+      "second_replay": {
+        "capacity_receipt": "/private/tmp/pantheon-gen05-repair2/alternate-capacity/capacity-receipt.json",
+        "capacity_receipt_digest": "4cec46a73aa1dd6210e38e713959386f8292278d6815e3a28b731046346bff17",
+        "plan_digest": "eaa2723606f84db56abf32aa886a8d9f4a0a1fee6498e93c877ee06be0f41cd4",
+        "returncode": 0,
+        "source_repo": "/private/tmp/pantheon-gen05-repair2/source-b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "c647194b45d89c970f6588880e4d361949cfb77d011c2780506aa976a30bbe5f",
+        "target_manifest_digest": "fa281756914bdec02f4a729f24bcc429f51ef9f48cfe515eae156f2b7ed52fc0"
+      },
+      "status": "PASS"
+    }
+  },
+  "mutation_counters": {
+    "deploy": 0,
+    "production_mutation": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "provider_calls": 0,
+    "publish": 0,
+    "push": 0,
+    "service_mutation": 0,
+    "tag": 0,
+    "transaction_root_created": false
+  },
+  "red": {
+    "capacity_receipt_arg": "/Users/mattkuo/.codex/worktrees/dfd6/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366-host.json",
+    "case": "original-candidate-exact-argv-path-dependent",
+    "finding": "P1-001",
+    "returncode": 1,
+    "schema_version": 1,
+    "source_repo_arg": "/Users/mattkuo/.codex/worktrees/1480/Pantheon",
+    "status": "RED",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": {
+      "error": "source_repo is missing",
+      "status": "NO-GO"
+    }
+  },
+  "schema_version": 1,
+  "status": "PASS"
+}

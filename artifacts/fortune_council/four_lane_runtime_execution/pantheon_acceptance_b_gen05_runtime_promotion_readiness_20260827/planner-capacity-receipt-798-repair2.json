@@ -1,0 +1,112 @@
+{
+  "authority_binding": {
+    "schema_version": 1,
+    "source": "official scripts.pantheon_content_capacity_guard exercise output with portable path redaction",
+    "status": "BOUND",
+    "target_generation": "g54-79884d8b-gen05-topology-guard-20260827",
+    "target_identity": "gate2-actor:79884d8bff7256aa9d1adcb7133162d7ac30b86d:gen05-topology-guard-promotion-readiness",
+    "target_runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "target_source_sha": "79884d8bff7256aa9d1adcb7133162d7ac30b86d"
+  },
+  "cycles": [
+    {
+      "after_bytes": 4096,
+      "after_file_count": 1,
+      "before_bytes": 0,
+      "before_file_count": 0,
+      "cycle": 1,
+      "elapsed_seconds": 0.0020343749783933163,
+      "growth_bytes": 4096,
+      "host_free_after": 31303688192,
+      "host_free_before": 31303692288,
+      "rss_after": 23085056,
+      "rss_available": true,
+      "rss_before": 23019520,
+      "swap_after": 9539420160,
+      "swap_available": true,
+      "swap_before": 9539420160
+    },
+    {
+      "after_bytes": 8192,
+      "after_file_count": 2,
+      "before_bytes": 4096,
+      "before_file_count": 1,
+      "cycle": 2,
+      "elapsed_seconds": 0.0018095410196110606,
+      "growth_bytes": 4096,
+      "host_free_after": 31303684096,
+      "host_free_before": 31303688192,
+      "rss_after": 23085056,
+      "rss_available": true,
+      "rss_before": 23085056,
+      "swap_after": 9539420160,
+      "swap_available": true,
+      "swap_before": 9539420160
+    }
+  ],
+  "exercise_root": "<task-tmp>/capacity-exercise-a",
+  "mode": "bounded-synthetic-dry-run",
+  "portable_redaction": {
+    "raw_artifact_sha256_before_redaction": "f0069b82271b27002c2dd133800d00570f43d713ac0b72e0ab9752edf8cccf13",
+    "reason": "Task-owned synthetic temp root is represented portably in repository evidence.",
+    "redacted_prefix": "<task-tmp>",
+    "status": "APPLIED"
+  },
+  "production_mutation": false,
+  "reclamation": {
+    "allowlist": [
+      "<task-tmp>/capacity-exercise-a/cycle-1.bin"
+    ],
+    "bytes_after": 4096,
+    "bytes_before": 8192
+  },
+  "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss": {
+    "cross_project_deletions": [],
+    "outcomes": {
+      "com.pantheon.agy-content-publisher": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      }
+    },
+    "registered_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite"
+    ],
+    "remaining_loaded": [],
+    "status": "STOPPED",
+    "triggered": true
+  }
+}

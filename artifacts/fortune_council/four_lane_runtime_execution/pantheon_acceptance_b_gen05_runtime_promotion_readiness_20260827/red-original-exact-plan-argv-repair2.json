@@ -1,0 +1,14 @@
+{
+  "capacity_receipt_arg": "/Users/mattkuo/.codex/worktrees/dfd6/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366-host.json",
+  "case": "original-candidate-exact-argv-path-dependent",
+  "finding": "P1-001",
+  "returncode": 1,
+  "schema_version": 1,
+  "source_repo_arg": "/Users/mattkuo/.codex/worktrees/1480/Pantheon",
+  "status": "RED",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": {
+    "error": "source_repo is missing",
+    "status": "NO-GO"
+  }
+}
