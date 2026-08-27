@@ -53,6 +53,69 @@ REBUILD_FINDING_CODES = {
     "SOURCE_SYNTAX_TRANSFER",
     "NON_NATIVE_SEARCH_INTENT",
 }
+JA_BOUNDARY_REQUIRED_FIELDS = ("meta_description", "body")
+JA_BOUNDARY_CATEGORY_LABELS = {
+    "outcome_not_determined": "結果や個人の結末を断定しない",
+    "contextual_or_general_interpretation": "一般的な解釈であり個人の結論を代行しない",
+    "professional_advice_non_substitution": "財務、法律、投資などの専門助言に代わらない",
+}
+JA_BOUNDARY_TARGET_PATTERNS = {
+    "outcome_not_determined": re.compile(
+        r"(結果を(?:保証|断定)しない|結果を断定せず|結果を保証せず|結果を保証したり|"
+        r"結果を保証することはでき|結果を保証(?:するもの)?では|"
+        r"断定(?:でき|し)ない|直接(?:示す|意味する)ものでは|"
+        r"決めるわけでは|確定した答え|成功を約束|破産.*直接|"
+        r"個人の結果を断定し|個人の結論や結果を断定し)"
+    ),
+    "contextual_or_general_interpretation": re.compile(
+        r"(一般的な(?:理解|解釈|象徴解釈|文化的読み物)|文化的(?:な)?(?:内省|反省|読み物)|"
+        r"整理する(?:ための)?(?:補助|手がかり)|象徴解釈として|"
+        r"(?:個人の結論|個別の判断|本人に代わって判断)を?(?:代弁|代行)しない|"
+        r"本人に代わって判断したりするものでは|重要な決定を代行)"
+    ),
+    "professional_advice_non_substitution": re.compile(
+        r"(専門(?:的な)?(?:財務|法律|投資)?(?:助言|判断|指導)|専門家に確認|"
+        r"専門家の(?:助言|判断)|投資.*法律.*助言|財務.*専門|"
+        r"専門的な(?:財務|投資|法律).*(?:助言|代わるものでは))"
+    ),
+}
+JA_BOUNDARY_SOURCE_CATEGORY_PATTERNS = {
+    "outcome_not_determined": re.compile(
+        r"(不能.*(?:下結論|斷定)|不能替(?:個人|對方)?下結論|不保證|"
+        r"不代表.*承諾|不作.*預測承諾|不直接等於|無法.*確定|"
+        r"請勿將其視為明牌|未來的走向仍取決於個人的具體行動|"
+        r"不能承諾復合、成功或最終結果|不用來替你拿確定答案|"
+        r"不能替你預測必然結果|不能保證結果|不能預先承諾結果|^不能$)"
+    ),
+    "contextual_or_general_interpretation": re.compile(
+        r"(通用理解|一般理解|文化(?:與|和)?符號|文化反思|"
+        r"文化性反思|不能替個人下結論|自行衡量適用性|"
+        r"只用來輔助整理|文化與符號層面的反思|文化反思範疇|"
+        r"不能取代完整情境|不能替任何人做重大決定|通用觀察|"
+        r"通用描述.*個人|不能代替個人判斷)"
+    ),
+    "professional_advice_non_substitution": re.compile(
+        r"(不構成.*(?:投資|法律).*建議|不作.*財務建議|"
+        r"專業(?:財務)?(?:指導|建議)|投資或法律建議|"
+        r"經濟決策仍須依賴個人審慎評估)"
+    ),
+}
+JA_BOUNDARY_SOURCE_HEURISTIC_RE = re.compile(
+    r"(不能|不得|不會|無法|不保證|限制|避免|禁止|不代表|不構成|"
+    r"不作|請勿|自行衡量|通用理解|一般理解|文化反思|専門|助言|"
+    r"指導|保証|断定|代弁|代行|約束|明牌|確定|診斷|診断|"
+    r"停藥|停薬|醫療|医療)"
+)
+JA_BOUNDARY_NOT_A_BOUNDARY_REASONS = (
+    ("ordinary_content_contrast", re.compile(r"(不能只|不只是|不是.*而是|不是固定|而非|不該成為|不再)")),
+    ("ordinary_uncertainty_context", re.compile(r"不確定性")),
+    ("ordinary_process_limit", re.compile(r"(先整理事實.*限制與可行選項|避免只憑一時感受做決定|使用限制)")),
+)
+JA_BOUNDARY_CONSTRAINT_KEYS = {
+    "outcome_not_determined": "outcome_not_determined",
+    "contextual_or_general_interpretation": "general_interpretation_only",
+    "professional_advice_non_substitution": "professional_advice_non_substitution",
+}
 TRANSLATABLE_FIELDS = {"title", "description", "answer", "tags", "faq", "bodySections"}
 TRANSLATION_ARTICLE_FIELDS = {
     "article_id",
@@ -246,6 +309,343 @@ def _visible_text(article: dict[str, Any]) -> str:
     return "\n".join(values)
 
 
+def _ja_body_text(article: dict[str, Any]) -> str:
+    return "\n".join(
+        str(paragraph)
+        for section in article.get("bodySections", [])
+        if isinstance(section, dict)
+        for paragraph in section.get("paragraphs", [])
+    )
+
+
+def _ja_field_text(article: dict[str, Any], field: str) -> str:
+    if field == "meta_description":
+        return str(article.get("description") or "")
+    if field == "body":
+        return _ja_body_text(article)
+    raise ValueError(f"unknown JA boundary field: {field}")
+
+
+def _source_text_fields(source: dict[str, Any]) -> list[tuple[str, str]]:
+    fields = [
+        ("description", str(source["description"])),
+        ("answer", str(source["answer"])),
+    ]
+    fields.extend(
+        (f"faq[{index}].question", str(item["question"]))
+        for index, item in enumerate(source["faq"])
+    )
+    fields.extend(
+        (f"faq[{index}].answer", str(item["answer"]))
+        for index, item in enumerate(source["faq"])
+    )
+    fields.extend(
+        (
+            f"bodySections[{section_index}].paragraphs[{paragraph_index}]",
+            str(paragraph),
+        )
+        for section_index, section in enumerate(source["bodySections"])
+        for paragraph_index, paragraph in enumerate(section["paragraphs"])
+    )
+    return fields
+
+
+def _ja_source_candidate_clauses(text: str) -> list[str]:
+    clauses = []
+    for sentence in re.findall(r"[^。！？!?]+[。！？!?]?", text):
+        for clause in re.split(r"[，,；;]", sentence):
+            normalized = clause.strip(" \t\r\n。！？!?")
+            if normalized:
+                clauses.append(normalized)
+    return clauses
+
+
+def _ja_boundary_source_categories(text: str) -> list[str]:
+    return [
+        category
+        for category, pattern in JA_BOUNDARY_SOURCE_CATEGORY_PATTERNS.items()
+        if pattern.search(text)
+    ]
+
+
+def _ja_boundary_target_categories(text: str) -> set[str]:
+    return {
+        category
+        for category, pattern in JA_BOUNDARY_TARGET_PATTERNS.items()
+        if pattern.search(text)
+    }
+
+
+def _ja_boundary_not_a_boundary_reason(text: str) -> str | None:
+    for reason_code, pattern in JA_BOUNDARY_NOT_A_BOUNDARY_REASONS:
+        if pattern.search(text):
+            return reason_code
+    return None
+
+
+def _ja_constraint_id(
+    source_version_digest: str,
+    category: str,
+    constraint_key: str,
+) -> str:
+    value = f"{source_version_digest}\0{category}\0{constraint_key}"
+    return f"constraint-{hashlib.sha256(value.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _ja_source_span_id(
+    source_version_digest: str,
+    field_path: str,
+    ordinal: int,
+) -> str:
+    value = f"{source_version_digest}\0{field_path}\0{ordinal}"
+    return f"span-{hashlib.sha256(value.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
+    source_version_digest = str(item["source_sha256"])
+    source = item["source"]
+    dispositions = []
+    constraints_by_id: dict[str, dict[str, Any]] = {}
+    preserved_constraint_ids: set[str] = set()
+
+    for field_path, text in _source_text_fields(source):
+        ordinal = 0
+        for source_text in _ja_source_candidate_clauses(text):
+            if not JA_BOUNDARY_SOURCE_HEURISTIC_RE.search(source_text):
+                continue
+            ordinal += 1
+            source_span_id = _ja_source_span_id(
+                source_version_digest,
+                field_path,
+                ordinal,
+            )
+            base = {
+                "source_span_id": source_span_id,
+                "field_path": field_path,
+                "ordinal": ordinal,
+                "source_text": source_text,
+                "source_digest": hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
+                "provenance": "source",
+            }
+            categories = _ja_boundary_source_categories(source_text)
+            if not categories:
+                reason_code = _ja_boundary_not_a_boundary_reason(source_text)
+                if reason_code is not None:
+                    dispositions.append(
+                        {
+                            **base,
+                            "disposition": "NOT_A_BOUNDARY",
+                            "reason_code": reason_code,
+                            "constraint_ids": [],
+                        }
+                    )
+                else:
+                    dispositions.append(
+                        {
+                            **base,
+                            "disposition": "UNRESOLVED",
+                            "reason_code": "unknown_boundary_candidate",
+                            "constraint_ids": [],
+                        }
+                    )
+                continue
+
+            constraint_ids = []
+            for category in categories:
+                constraint_key = JA_BOUNDARY_CONSTRAINT_KEYS[category]
+                constraint_id = _ja_constraint_id(
+                    source_version_digest,
+                    category,
+                    constraint_key,
+                )
+                constraint_ids.append(constraint_id)
+                constraint = constraints_by_id.setdefault(
+                    constraint_id,
+                    {
+                        "constraint_id": constraint_id,
+                        "constraint_key": constraint_key,
+                        "category": category,
+                        "category_label": JA_BOUNDARY_CATEGORY_LABELS[category],
+                        "source_span_ids": [],
+                        "source_texts": [],
+                        "required_fields": list(JA_BOUNDARY_REQUIRED_FIELDS),
+                        "provenance": "source",
+                    },
+                )
+                if source_span_id not in constraint["source_span_ids"]:
+                    constraint["source_span_ids"].append(source_span_id)
+                    constraint["source_texts"].append(source_text)
+
+            disposition = (
+                "MERGED_DUPLICATE"
+                if any(constraint_id in preserved_constraint_ids for constraint_id in constraint_ids)
+                else "PRESERVED"
+            )
+            preserved_constraint_ids.update(constraint_ids)
+            dispositions.append(
+                {
+                    **base,
+                    "disposition": disposition,
+                    "categories": categories,
+                    "constraint_ids": constraint_ids,
+                }
+            )
+
+    return {
+        "protected_source": {
+            "source_version_digest": source_version_digest,
+            "boundary_candidate_dispositions": dispositions,
+        },
+        "protected_constraints": sorted(
+            constraints_by_id.values(),
+            key=lambda constraint: constraint["constraint_id"],
+        ),
+    }
+
+
+def _ja_source_fact_projection(text: str, dispositions: list[dict[str, Any]]) -> str:
+    value = text
+    for disposition in dispositions:
+        if disposition["disposition"] in {"PRESERVED", "MERGED_DUPLICATE"}:
+            value = value.replace(str(disposition["source_text"]), "")
+    value = re.sub(r"[，,、]\s*([。！？!?])", r"\1", value)
+    value = re.sub(r"^[，,、。！？!?\s]+", "", value)
+    value = re.sub(r"[，,、\s]+$", "", value)
+    value = re.sub(r"。{2,}", "。", value)
+    return value.strip()
+
+
+def _ja_boundary_contracts_for_brief(brief: dict[str, Any]) -> dict[str, Any]:
+    validate_translation_brief(brief)
+    articles = []
+    for index, item in enumerate(brief["articles"]):
+        if item["locale"] != "ja":
+            continue
+        view = _ja_protected_constraint_view(item)
+        articles.append(
+            {
+                "slot": f"article-{index + 1:02d}",
+                "article_id": item["translation_id"],
+                "locale": "ja",
+                "protected_constraints": view["protected_constraints"],
+                "boundary_candidate_dispositions": view["protected_source"][
+                    "boundary_candidate_dispositions"
+                ],
+            }
+        )
+    return {"articles": articles}
+
+
+def _ja_repeated_boundary_locations(article: dict[str, Any]) -> list[str]:
+    body = _ja_body_text(article)
+    repeated_cores = [
+        r"一般的な理解にとどまり",
+        r"個人の結論を代弁するものでは",
+        r"文化的な(?:内省|反省|読み物)",
+        r"専門的な財務指導でもありません",
+        r"投資や法律に関する助言を構成するものでは",
+    ]
+    if any(len(re.findall(core, body)) >= 3 for core in repeated_cores):
+        return ["body"]
+    return []
+
+
+def _ja_boundary_findings(
+    brief: dict[str, Any],
+    article: dict[str, Any],
+    source: dict[str, Any],
+) -> list[dict[str, Any]]:
+    contract = next(
+        (
+            item
+            for item in _ja_boundary_contracts_for_brief(brief)["articles"]
+            if item["article_id"] == article.get("article_id")
+        ),
+        None,
+    )
+    if contract is None:
+        return []
+
+    unresolved = [
+        item
+        for item in contract["boundary_candidate_dispositions"]
+        if item["disposition"] == "UNRESOLVED"
+    ]
+    if unresolved:
+        return [
+            {
+                "article_id": str(article["article_id"]),
+                "code": "UNRESOLVED_BOUNDARY_CANDIDATE",
+                "message": "JA protected source constraint has unresolved boundary candidates",
+                "source_span_ids": [item["source_span_id"] for item in unresolved],
+                "reason_codes": [item["reason_code"] for item in unresolved],
+            }
+        ]
+
+    repeated_locations = _ja_repeated_boundary_locations(article)
+    if repeated_locations:
+        return [
+            {
+                "article_id": str(article["article_id"]),
+                "code": "BOUNDARY_BOILERPLATE_REPEATED",
+                "message": (
+                    "JA protected boundary meaning is present but repeated as boilerplate "
+                    f"in {', '.join(repeated_locations)}"
+                ),
+                "repeated_locations": repeated_locations,
+            }
+        ]
+
+    required_categories = sorted(
+        {
+            constraint["category"]
+            for constraint in contract["protected_constraints"]
+        }
+    )
+    present_by_field = {
+        field: _ja_boundary_target_categories(_ja_field_text(article, field))
+        for field in JA_BOUNDARY_REQUIRED_FIELDS
+    }
+    present_categories = sorted(_ja_boundary_target_categories(_visible_text(article)))
+    missing_categories = [
+        category
+        for category in required_categories
+        if category not in present_categories
+    ]
+    missing_fields = [
+        field
+        for field in JA_BOUNDARY_REQUIRED_FIELDS
+        if any(category not in present_by_field[field] for category in required_categories)
+    ]
+    if not missing_categories and not missing_fields:
+        return []
+    return [
+        {
+            "article_id": str(article["article_id"]),
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": (
+                "JA protected boundary meaning is missing from "
+                f"{', '.join(missing_fields)}"
+            ),
+            "missing_fields": missing_fields,
+            "missing_categories": missing_categories,
+            "present_categories": present_categories,
+            "reasons": [
+                {
+                    "category": category,
+                    "reason": "omission",
+                    "missing_fields": [
+                        field
+                        for field, categories in present_by_field.items()
+                        if category not in categories
+                    ],
+                }
+                for category in missing_categories
+            ],
+        }
+    ]
+
+
 def _matches_target_language(locale: str, text: str) -> bool:
     if locale == "en":
         latin = len(re.findall(r"[A-Za-z]", text))
@@ -334,6 +734,8 @@ def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) 
             )
         if article["title"] == source_content["title"] or article["description"] == source_content["description"]:
             findings.append({"article_id": translation_id, "code": "untranslated_metadata", "message": "標題或描述仍與原文相同"})
+        if locale == "ja":
+            findings.extend(_ja_boundary_findings(brief, article, source_content))
     return findings
 
 
@@ -578,46 +980,84 @@ def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
     )
     for index, item in enumerate(brief["articles"]):
         source = item["source"]
-        texts = [
-            str(source["description"]),
-            str(source["answer"]),
-            *[
-                f"{faq['question']} {faq['answer']}"
-                for faq in source["faq"]
-            ],
-            *[
-                str(paragraph)
-                for section in source["bodySections"]
-                for paragraph in section["paragraphs"]
-            ],
-        ]
+        protected_view = (
+            _ja_protected_constraint_view(item)
+            if item["locale"] == "ja"
+            else None
+        )
+        dispositions_by_field: dict[str, list[dict[str, Any]]] = {}
+        if protected_view is not None:
+            for disposition in protected_view["protected_source"][
+                "boundary_candidate_dispositions"
+            ]:
+                dispositions_by_field.setdefault(
+                    str(disposition["field_path"]),
+                    [],
+                ).append(disposition)
+        if item["locale"] == "ja":
+            texts = [
+                (field_path, text)
+                for field_path, text in _source_text_fields(source)
+                if not field_path.endswith(".question")
+            ]
+        else:
+            texts = [
+                ("description", str(source["description"])),
+                ("answer", str(source["answer"])),
+                *[
+                    (f"faq[{index}]", f"{faq['question']} {faq['answer']}")
+                    for index, faq in enumerate(source["faq"])
+                ],
+                *[
+                    (
+                        f"bodySections[{section_index}].paragraphs[{paragraph_index}]",
+                        str(paragraph),
+                    )
+                    for section_index, section in enumerate(source["bodySections"])
+                    for paragraph_index, paragraph in enumerate(section["paragraphs"])
+                ],
+            ]
         facts = []
         seen: set[str] = set()
-        for text in texts:
+        for field_path, text in texts:
             normalized = text.strip()
+            if item["locale"] == "ja":
+                normalized = _ja_source_fact_projection(
+                    normalized,
+                    dispositions_by_field.get(field_path, []),
+                )
             if not normalized or normalized in seen:
                 continue
             seen.add(normalized)
+            unresolved = any(
+                disposition["disposition"] == "UNRESOLVED"
+                for disposition in dispositions_by_field.get(field_path, [])
+            )
             facts.append(
                 {
                     "fact_id": f"fact-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]}",
                     "text": normalized,
-                    "safety_boundary": bool(safety_pattern.search(normalized)),
+                    "safety_boundary": (
+                        unresolved
+                        if item["locale"] == "ja"
+                        else bool(safety_pattern.search(normalized))
+                    ),
                 }
             )
         facts.sort(key=lambda fact: fact["fact_id"])
-        articles.append(
-            {
-                "slot": f"article-{index + 1:02d}",
-                "locale": item["locale"],
-                "source_sha256": item["source_sha256"],
-                "topic_cues": {
-                    "title": source["title"],
-                    "tags": source["tags"],
-                },
-                "facts": facts,
-            }
-        )
+        article = {
+            "slot": f"article-{index + 1:02d}",
+            "locale": item["locale"],
+            "source_sha256": item["source_sha256"],
+            "topic_cues": {
+                "title": source["title"],
+                "tags": source["tags"],
+            },
+            "facts": facts,
+        }
+        if protected_view is not None:
+            article.update(protected_view)
+        articles.append(article)
     return {"articles": articles}
 
 
@@ -1204,6 +1644,7 @@ def _plan_prompt(
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
             "coverage_mapping 必須逐一覆蓋 source fact，並保留標記為 safety_boundary 的限制。",
+            "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。",
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
@@ -1294,6 +1735,7 @@ def _article_prompt(
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
             "不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。",
+            "JA protected_constraints 必須覆蓋其 required_fields；raw boundary source_text 只供 provenance trace，不得逐段複製成重複 boilerplate。",
             "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
             "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
             "article input:",
@@ -1439,10 +1881,13 @@ def _reviewer_prompt(
             "只要命中 LITERAL_TRANSLATION、SOURCE_SYNTAX_TRANSFER、MIRRORED_STRUCTURE、NON_NATIVE_SEARCH_INTENT 或 AI_TEMPLATE_STYLE 任一項，就必須 REJECT。",
             "不要因為意思大致正確就放行；文章必須讀起來像直接以該語言採訪、規劃並寫成的原生內容。",
             "deterministic findings 必須判 REJECT，不得忽略。",
+            "JA protected source constraints 與 deterministic findings 是 boundary authority；raw source_text 只供 trace，不是逐段複製要求。",
             "public brief:",
             json.dumps(_public_brief(brief), ensure_ascii=False),
             "public candidate:",
             json.dumps(public_candidate, ensure_ascii=False),
+            "protected source constraint view:",
+            json.dumps(_ja_boundary_contracts_for_brief(brief), ensure_ascii=False),
             "deterministic findings:",
             json.dumps(findings, ensure_ascii=False),
         ]

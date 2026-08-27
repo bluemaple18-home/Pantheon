@@ -185,6 +185,17 @@ def translation_candidate(locale: str = "en") -> dict[str, object]:
     }
 
 
+def load_ja_boundary_fixture(name: str) -> dict[str, object]:
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / "agy_multilingual_pipeline"
+        / "ja_boundary_contract"
+        / name
+    )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def non_tarot_translation_brief(locale: str = "ko") -> dict[str, object]:
     source = {
         "article_id": "FORTUNE-0039",
@@ -475,6 +486,149 @@ def test_translation_gate_rejects_too_few_localized_sections() -> None:
     findings = multilingual.translation_findings(brief, candidate["articles"])
 
     assert any(item["code"] == "localized_structure" for item in findings)
+
+
+def test_ja_boundary_candidate_02_is_repeated_boilerplate_only() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("candidate_02.json")
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert [item["code"] for item in findings] == ["BOUNDARY_BOILERPLATE_REPEATED"]
+    finding = findings[0]
+    assert finding["repeated_locations"] == ["body"]
+    assert "BOUNDARY_MEANING_MISSING" not in {item["code"] for item in findings}
+
+
+def test_ja_boundary_candidate_03_is_missing_meaning_with_structured_trace() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("candidate_03.json")
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    finding = next(item for item in findings if item["code"] == "BOUNDARY_MEANING_MISSING")
+    assert "meta_description" in finding["missing_fields"]
+    assert set(finding["missing_categories"]) == {
+        "contextual_or_general_interpretation",
+        "professional_advice_non_substitution",
+    }
+    assert finding["present_categories"] == ["outcome_not_determined"]
+    assert any(
+        reason["reason"] == "omission" and reason["category"] in finding["missing_categories"]
+        for reason in finding["reasons"]
+    )
+
+
+def test_ja_source_constraints_preserve_spans_and_merge_equivalent_duplicates() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    package = multilingual._source_fact_package(brief)
+    article = package["articles"][0]
+
+    candidates = article["protected_source"]["boundary_candidate_dispositions"]
+    constraints = article["protected_constraints"]
+
+    assert candidates
+    assert all(
+        set(item) >= {"source_span_id", "disposition", "source_text", "source_digest", "field_path", "provenance"}
+        for item in candidates
+    )
+    assert all(item["source_digest"] == hashlib.sha256(item["source_text"].encode("utf-8")).hexdigest() for item in candidates)
+    assert all(item["provenance"] == "source" for item in candidates)
+    assert all(item["disposition"] in {"PRESERVED", "MERGED_DUPLICATE", "NOT_A_BOUNDARY", "UNRESOLVED"} for item in candidates)
+    assert not any(item["disposition"] == "UNRESOLVED" for item in candidates)
+
+    general = [
+        constraint
+        for constraint in constraints
+        if constraint["category"] == "contextual_or_general_interpretation"
+        and constraint["constraint_key"] == "general_interpretation_only"
+    ]
+    assert len(general) == 1
+    assert len(general[0]["source_span_ids"]) >= 8
+    assert all(
+        item["disposition"] == "MERGED_DUPLICATE"
+        for item in candidates
+        if item.get("constraint_ids") == [general[0]["constraint_id"]]
+        and item["source_span_id"] != general[0]["source_span_ids"][0]
+    )
+
+    prompt = multilingual._plan_prompt(
+        brief,
+        generation=1,
+        prior_plan=None,
+        findings=[],
+        rebuild_by_slot={"article-01": False},
+    )
+    source_package_text = prompt.split("source fact package:\n", 1)[1].split("\n", 1)[0]
+    assert "protected_constraints" in source_package_text
+    assert "boundary_candidate_dispositions" in source_package_text
+    assert "內容只提供通用理解，不能替個人下結論" not in source_package_text
+
+
+def test_ja_unknown_boundary_candidate_fails_closed() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["description"] = "本內容不得用於醫療診斷，也不得自行停藥。"
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+
+    package = multilingual._source_fact_package(brief)
+    dispositions = package["articles"][0]["protected_source"]["boundary_candidate_dispositions"]
+
+    unresolved = [item for item in dispositions if "醫療診斷" in item["source_text"] or "自行停藥" in item["source_text"]]
+    assert unresolved
+    assert {item["disposition"] for item in unresolved} == {"UNRESOLVED"}
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+    assert any(item["code"] == "UNRESOLVED_BOUNDARY_CANDIDATE" for item in findings)
+
+
+def test_ja_ordinary_negation_gets_not_a_boundary_disposition() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["description"] = "この読み方は怖がらせるためではなく、状況を整理するための説明です。不能只看單一象徵，而要比較前後文。"
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+
+    package = multilingual._source_fact_package(brief)
+    dispositions = package["articles"][0]["protected_source"]["boundary_candidate_dispositions"]
+    ordinary = [item for item in dispositions if "不能只看單一象徵" in item["source_text"]]
+
+    assert ordinary
+    assert ordinary[0]["disposition"] == "NOT_A_BOUNDARY"
+    assert ordinary[0]["reason_code"] == "ordinary_content_contrast"
+    assert ordinary[0].get("constraint_ids", []) == []
+    assert not any(
+        "不能只看單一象徵" in source_text
+        for constraint in package["articles"][0]["protected_constraints"]
+        for source_text in constraint.get("source_texts", [])
+    )
+
+
+def test_ja_boundary_corrected_fixture_passes_required_constraints() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert not any(
+        item["code"]
+        in {
+            "BOUNDARY_MEANING_MISSING",
+            "BOUNDARY_BOILERPLATE_REPEATED",
+            "UNRESOLVED_BOUNDARY_CANDIDATE",
+        }
+        for item in findings
+    )
+
+
+@pytest.mark.parametrize("locale", ["en", "ko"])
+def test_protected_source_constraints_do_not_change_non_ja_fact_behavior(locale: str) -> None:
+    brief = translation_brief(locale)
+
+    article = multilingual._source_fact_package(brief)["articles"][0]
+
+    assert "protected_constraints" not in article
+    assert any(fact["safety_boundary"] for fact in article["facts"])
 
 
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])

@@ -1,0 +1,41 @@
+{
+  "card_id": "CARD-PANTHEON-JA-PROTECTED-SOURCE-CONSTRAINT-TRACEABILITY-REPAIR",
+  "fixtures": [
+    {
+      "file": "brief.json",
+      "provenance": "<production-runtime>/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/brief.json",
+      "sha256": "93e09f8f637c396e35ccc28707c66734b08eb7f1c0c4cbdcb246df5b11ac8844"
+    },
+    {
+      "file": "candidate_02.json",
+      "provenance": "<production-runtime>/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/02/candidate.json",
+      "sha256": "88e85070e057227836c78bf307e88d316a858bbbfaa850b2206fd7be3bd31e42"
+    },
+    {
+      "file": "candidate_03.json",
+      "provenance": "<production-runtime>/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/03/candidate.json",
+      "sha256": "2a57b6bcb7fe27eeee0c57ff10d18d773643139b8a24e392b0b215be72aabda8"
+    },
+    {
+      "file": "corrected_test_only_candidate.json",
+      "provenance": "test-only corrected fixture derived from candidate_03 identity; no provider call",
+      "sha256": "667dea0e2db5da7d0ec27ce357825345d583e0ba6bade53425bf6d09f43230e8"
+    },
+    {
+      "file": "review_02.json",
+      "provenance": "<production-runtime>/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/02/review.json",
+      "sha256": "01e57a6360929100cd309efe029a086db665b2949dfa0dacec8adb88b91e8087"
+    },
+    {
+      "file": "review_03.json",
+      "provenance": "<production-runtime>/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/03/review.json",
+      "sha256": "d4d4e7bb6820ff2608f4bf1016646b31dcd2d4bff7df21b5138ee879ed4db33d"
+    }
+  ],
+  "production_mutation": 0,
+  "provider_calls": 0,
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "source_article_id": "V2-TAROT-DEATH-MONEY",
+  "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+}
