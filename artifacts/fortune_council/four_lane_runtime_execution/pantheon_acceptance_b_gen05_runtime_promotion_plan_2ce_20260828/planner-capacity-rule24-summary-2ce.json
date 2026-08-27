@@ -1,0 +1,74 @@
+{
+  "authority_binding": {
+    "schema_version": 1,
+    "source": "official scripts.pantheon_content_capacity_guard exercise output with portable path redaction",
+    "status": "BOUND",
+    "target_generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+    "target_identity": "gate2-actor:2ce431ec41f5187531d88b52dfa91cef0373d8b5:gen05-runtime-promotion-plan-2ce",
+    "target_runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "target_source_sha": "2ce431ec41f5187531d88b52dfa91cef0373d8b5"
+  },
+  "committed_receipt_sha256": "a7e02bc880390b8f65f31150a5bfef36efc0073d8d684b37cf9bc8be486ee93f",
+  "cycle_count": 2,
+  "mode": "bounded-synthetic-dry-run",
+  "production_mutation": false,
+  "raw_receipt_digest_before_portable_redaction": "02793f702fce2a39d98982cf2a584cdfb381c4a8c07eeae79006fabb769e3be1",
+  "reclamation": {
+    "allowlist": [
+      "<task-tmp>/capacity-exercise-b/cycle-1.bin"
+    ],
+    "bytes_after": 4096,
+    "bytes_before": 8192
+  },
+  "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+  "rss_available_all": true,
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss": {
+    "cross_project_deletions": [],
+    "outcomes": {
+      "com.pantheon.agy-content-publisher": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      }
+    },
+    "registered_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite"
+    ],
+    "remaining_loaded": [],
+    "status": "STOPPED",
+    "triggered": true
+  },
+  "swap_available_all": true
+}

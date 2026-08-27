@@ -1,0 +1,35 @@
+{
+  "authority_assessment": "PASS",
+  "generation_04_lifecycle": {
+    "allocated": true,
+    "committed": false,
+    "decision": "terminalize",
+    "decision_artifact": "generations/04/partial-generation-decision.json",
+    "generation": 4,
+    "lifecycle_state": "abandoned",
+    "resumable": false,
+    "terminal_reason": "source ref map missing for persisted external locale plan",
+    "terminal_stage": "PLANNING"
+  },
+  "generation_05_evidence": {
+    "generation_06_exists": false,
+    "locale_plan_exists": false,
+    "planning_result_exists": true,
+    "source_ref_map_exists": true
+  },
+  "lifecycle_digest": "be91e46f5c31acbf6cc91ec2d85ca1b9e871730c1d01a633b77f139126f4427b",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "state_digest": "99f8202b572bd947678b948605c6876be41d7f63fef9228a39ee8341f63dc7cc",
+  "state_summary": {
+    "abandoned_generations": [
+      4
+    ],
+    "completed_generations": [],
+    "next_generation": 5,
+    "semantic_budget": 1,
+    "status": "active",
+    "terminal_candidate_sha256": null,
+    "terminal_review_sha256": null
+  }
+}

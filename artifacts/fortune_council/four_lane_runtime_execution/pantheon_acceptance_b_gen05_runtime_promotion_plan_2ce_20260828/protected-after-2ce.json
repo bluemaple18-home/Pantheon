@@ -1,0 +1,269 @@
+{
+  "actor": {
+    "clean": true,
+    "head": "6766fff999de7af09efc227230e69efd25795108",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor"
+  },
+  "label": "after-plan",
+  "machine": {
+    "hostname": "MattkuodeMac-mini.local",
+    "runtime_volume": {
+      "free_bytes": 28682424320,
+      "total_bytes": 245107195904,
+      "used_bytes": 216424771584
+    },
+    "uid": 501
+  },
+  "manifest": {
+    "actor_head": "6766fff999de7af09efc227230e69efd25795108",
+    "file_sha256": "a18eec4f1a06cac845920ee67ec529288a69cdf72fdea574dd911db9c2aa1ddb",
+    "generation": "g53-6766fff9-gen05-safety-authority-20260827",
+    "identity": "gate2-actor:6766fff999de7af09efc227230e69efd25795108:acceptance-b-gen05-safety-authority",
+    "manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "runtime_digest": "31fae9a5b0ab41093f6ccdcbda8a0636ded1582d1346b6b33b4c80ac4c100420"
+  },
+  "origin_main": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+  "private_stage": {
+    "path": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage",
+    "target_readiness_exists": false,
+    "tree_digest": "748f1800174df4e16571264b85f7caf8181fe955bef9c286cf4ce37ae672a9aa"
+  },
+  "queue": {
+    "identity_digest": "ba63e493e972f640d44e40b9b75d5cbef8b1b88d7fda851793d2559eb24ed739",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "preserved_run_count": 136,
+    "snapshot_digest": "d466eb1c7523ccbeb48f0d48d0f6dec143e3c87982d54327326190139b3ce498"
+  },
+  "sampled_at": "2026-08-27T18:21:29.550140+00:00",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "path": "/private/tmp/pantheon-acceptance-b-plan-2ce-source-a"
+  },
+  "state": {
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "target_barrier_exists": false,
+    "tree_digest": "e99ce8adc6b8588bc0eb9055f9550368d9ce38bad5a2b4f7a9ae514a370caa62"
+  },
+  "transactions": {
+    "all_existing_terminal": true,
+    "observations": [
+      {
+        "correlation_id": "automation-b-runtime-adoption-3add-20260827",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/automation-b-runtime-adoption-3add-20260827/promotion-receipt.json",
+        "state": "ROLLED_BACK",
+        "terminal": true
+      },
+      {
+        "correlation_id": "automation-b-runtime-adoption-3add-retry1-20260827",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/automation-b-runtime-adoption-3add-retry1-20260827/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "automation-b-runtime-adoption-6766-20260827",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/automation-b-runtime-adoption-6766-20260827/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "automation-b-runtime-adoption-e3a2-20260827",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/automation-b-runtime-adoption-e3a2-20260827/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "g8-final-5872284828-promotion-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-final-5872284828-promotion-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-HOST-CAPACITY-FINAL-CONTINUATION-20260821",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-host-capacity-final-continuation-20260821/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-MAIN-PUSH-RUNTIME-PROMOTION-STAGING-RETRY-2-20260820",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-main-push-runtime-promotion-staging-retry-2-20260820/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-PUBLISHER-CANARY-FINAL-SHIP-20260821-7B2",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-publisher-canary-final-ship-20260821-7b2/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-PUBLISHER-CANARY-FINAL-SHIP-20260821-A076",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-publisher-canary-final-ship-20260821-a076/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-C17-CANONICAL-PYTHON-EXECUTION-20260821-8278047ced",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-repaired-source-promotion-staging-cycle-17-20260821/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-C23-RUNTIME-PROMOTION-20260821-022959Z",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-runtime-promotion-cycle-23-20260821/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "PANTHEON-G8-RUNTIME-PROMOTION-STAGE-CONVERGENCE-CYCLE32",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-runtime-promotion-stage-convergence-cycle32-20260821/promotion-receipt.json",
+        "state": "ROLLED_BACK",
+        "terminal": true
+      },
+      {
+        "correlation_id": "G8-TRANSITION-CANARY-READY-CYCLE33-20260822",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/g8-transition-to-canary-ready-cycle33-20260822/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "model-route-lite-production-promotion-2dd9725f-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/model-route-lite-production-promotion-2dd9725f-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "model-route-runtime-adoption-67f62f-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/model-route-runtime-adoption-67f62f-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "publisher-only-g3-20260818",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g3-20260818/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "publisher-only-g4-20260818T095829Z",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g4-20260818T095829Z/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "publisher-only-g5-20260818T120411Z",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g5-20260818T120411Z/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "publisher-only-g5b-20260818T120632Z",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g5b-20260818T120632Z/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "PANTHEON-PUBLISHER-ONLY-BOUNDED-PRODUCTION-CANARY-20260818-G6",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/publisher-only-g6-20260818T123555Z/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "pantheon-production-runtime-convergence-rewrite-canary-20260818",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-20260818-rewrite-canary/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "pantheon-production-runtime-convergence-rewrite-canary-20260818",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-20260818-rewrite-canary-digest-convergence/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "publisher-scheduler-safe-activation-20260818",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/runtime-promotion-transaction-publisher-scheduler-safe-activation-20260818/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0395-replacement-runtime-promotion-799d770b-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0395-replacement-runtime-promotion-799d770b-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0396-durable-recovery-promotion-a419c9a6-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0396-durable-recovery-promotion-a419c9a6-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0397-replacement-resume-promotion-318d7e28-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0397-replacement-resume-promotion-318d7e28-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0398-publisher-reset-parser-promotion-00c46a8a-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0398-publisher-reset-parser-promotion-00c46a8a-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0399-capacity-mode-detection-promotion-6d789334-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0399-capacity-mode-detection-promotion-6d789334-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0400-stopped-normal-recovery-promotion-774e90ce-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0400-stopped-normal-recovery-promotion-774e90ce-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0401-activation-only-log-path-promotion-1143f453-20260825",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0401-activation-only-log-path-promotion-1143f453-20260825/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0402-legacy-identity-runtime-promotion-6477ab81-20260826",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0402-legacy-identity-runtime-promotion-6477ab81-20260826/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0403-activation-only-manifest-promotion-6477ab81-20260826",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0403-activation-only-manifest-promotion-6477ab81-20260826/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0404-gsc-json-shape-e5c0743f-20260826",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0404-gsc-json-shape-e5c0743f-20260826/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0406-main-204a8bd8-20260826",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0406-main-204a8bd8-20260826/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      },
+      {
+        "correlation_id": "v0407-ja-boundary-contract-f186692a-20260827",
+        "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/v0407-ja-boundary-contract-f186692a-20260827/promotion-receipt.json",
+        "state": "COMMITTED",
+        "terminal": true
+      }
+    ],
+    "target_absent": true,
+    "target_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828"
+  }
+}

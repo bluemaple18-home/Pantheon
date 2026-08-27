@@ -1,0 +1,121 @@
+{
+  "capacity": {
+    "committed_digest": "a7e02bc880390b8f65f31150a5bfef36efc0073d8d684b37cf9bc8be486ee93f",
+    "raw_digest": "02793f702fce2a39d98982cf2a584cdfb381c4a8c07eeae79006fabb769e3be1",
+    "status": "PASS",
+    "summary_digest": "8fc5926d66d650b3dbf4243fe5fc7e30439a471ceb64892d70ab8f736a791ebf"
+  },
+  "continuation": {
+    "lifecycle_digest": "be91e46f5c31acbf6cc91ec2d85ca1b9e871730c1d01a633b77f139126f4427b",
+    "state_digest": "99f8202b572bd947678b948605c6876be41d7f63fef9228a39ee8341f63dc7cc",
+    "status": "PASS"
+  },
+  "current_authority": {
+    "actor_sha": "6766fff999de7af09efc227230e69efd25795108",
+    "manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2",
+    "stage_digest": "748f1800174df4e16571264b85f7caf8181fe955bef9c286cf4ce37ae672a9aa"
+  },
+  "mutation_counters": {
+    "deploy": 0,
+    "production_mutation": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "promotion_rollback": 0,
+    "provider_calls": 0,
+    "publish": 0,
+    "push": 0,
+    "service_mutation": 0,
+    "tag": 0,
+    "transaction": 0,
+    "transaction_root_created": false
+  },
+  "origin_main": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+  "plan": {
+    "digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf",
+    "plan_authority_digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf",
+    "returncode": 0,
+    "rollback_boundary": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "status": "READY_TO_APPLY",
+    "target_manifest_digest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9",
+    "transaction_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828"
+  },
+  "product_target": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+  "protected_tripwire": {
+    "after_snapshot_digest": "981f01ff85153ec1492b8096e67dde519252699c06aa5c3ef346542941234387",
+    "before_snapshot_digest": "3dbb1ec820016e3a1349e3b6639dc5e27be27b75f2b204175c597cf48c991660",
+    "plan_digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf",
+    "plan_returncode": 0,
+    "plan_status": "READY_TO_APPLY",
+    "production_mutation_count": 0,
+    "protected_changed_keys": [],
+    "schema_version": 1,
+    "status": "PASS",
+    "target_manifest_digest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9",
+    "target_source_sha": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "transaction_root_created": false
+  },
+  "residual_risk": [
+    "本卡 GO 不是 promotion 授權；Owner 未另行明確同意前不得執行 apply/finalize/publish/tag/push/deploy/service mutation。",
+    "fresh Rule24 第一次在 sandbox 內因 swap telemetry Operation not permitted 得 NO-GO；已用同一正式入口在授權本機權限下重跑取得 PASS。",
+    "Rule25 使用已提交 readiness package 逐檔重讀驗證，未重新產生七段 package。"
+  ],
+  "rule25": {
+    "canary_created": false,
+    "capabilities": [
+      "create",
+      "publish",
+      "push",
+      "run",
+      "select",
+      "tag",
+      "transaction"
+    ],
+    "file_digests": {
+      "blocked_receipt": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/blocked-receipt.json",
+        "sha256": "a7ccf376c80a970337ba2f26f6edf83a9987603882bd561f70b4e6bfda7ddcc8"
+      },
+      "negative_matrix": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/negative-matrix.json",
+        "sha256": "4b350b5fee3139f6d3f6570b2a61bdc770c2232fbeddccb760e8fbafad88600c"
+      },
+      "official_gate_blocked": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-blocked.json",
+        "sha256": "8fc668ea21ba48534eea721b82f34d269415b0120b5d8cc2760467730a65ae0f"
+      },
+      "official_gate_ready": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-ready.json",
+        "sha256": "54bddb49fbcb1db477616b6596241fefd1f3de1fff33059ce472f22f38495bed"
+      },
+      "official_receipt": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/production-canary-capability-receipt.json",
+        "sha256": "1b36c9873a10c05f6976610d95bb222d265d826e9996532766ce6102fd0c77a6"
+      },
+      "positive_receipt": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/positive-receipt.json",
+        "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50"
+      },
+      "readiness_summary": {
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/readiness-summary.json",
+        "sha256": "c9a94d3646c06dc05f3e21bad5683817e38d3968fbb28b44b804918a729c7e05"
+      }
+    },
+    "official_blocked_fixture_status": "BLOCKED",
+    "official_gate_status": "READY",
+    "production_mutation": false,
+    "schema_version": 1,
+    "source": "committed rule25-readiness package from gen05 runtime promotion readiness; re-read exact bytes for this plan card",
+    "status": "READY"
+  },
+  "schema_version": 1,
+  "source_head": "86955aba2b8274c42c249eb6643d345c51ecba16",
+  "source_parent": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+  "target_generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+  "target_identity": "gate2-actor:2ce431ec41f5187531d88b52dfa91cef0373d8b5:gen05-runtime-promotion-plan-2ce",
+  "target_runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+  "verdict": "PROMOTION_PLAN_GO"
+}

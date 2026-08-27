@@ -1,0 +1,18 @@
+{
+  "authorization_digest": "357e0abc19f530d72d8ba9906f66d51c73104ac6631f28fc751b68ce79f812f9",
+  "authorization_state": "NOT_GRANTED",
+  "capacity_receipt_digest": "a7e02bc880390b8f65f31150a5bfef36efc0073d8d684b37cf9bc8be486ee93f",
+  "correlation_id": "pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828",
+  "current_manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2",
+  "current_stage_digest": "748f1800174df4e16571264b85f7caf8181fe955bef9c286cf4ce37ae672a9aa",
+  "expected_current_actor_sha": "6766fff999de7af09efc227230e69efd25795108",
+  "planner_authority_model": "plan_digest_is_hash_of_plan_authority_payload; runtime locators remain revalidated outside cross-worktree authority",
+  "preserved_run_count": 136,
+  "promotion_mutation_authorized": false,
+  "schema_version": 1,
+  "target_config_version": "formal-runtime-v3-model-route-v1",
+  "target_generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+  "target_identity": "gate2-actor:2ce431ec41f5187531d88b52dfa91cef0373d8b5:gen05-runtime-promotion-plan-2ce",
+  "target_runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+  "target_source_sha": "2ce431ec41f5187531d88b52dfa91cef0373d8b5"
+}

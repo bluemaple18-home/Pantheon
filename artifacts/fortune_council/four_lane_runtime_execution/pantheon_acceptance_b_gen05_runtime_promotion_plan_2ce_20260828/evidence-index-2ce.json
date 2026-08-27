@@ -1,0 +1,102 @@
+{
+  "artifacts": [
+    {
+      "bytes": 1243,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/authorization-payload-2ce.json",
+      "sha256": "551397366e580ac58d3e117dbeba7844e985a2ac9269c9b62e5e917fe211829d"
+    },
+    {
+      "bytes": 1101,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/continuation-authority-2ce.json",
+      "sha256": "f7d477bd42a5bc5caddb150b1846d74f056bbb160e6e8f681991b6f8f2755391"
+    },
+    {
+      "bytes": 10176,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/exact-plan-argv-2ce.json",
+      "sha256": "d0d230174b363e78819a2ae7f7090ad1ed6853ff89c4b931a4bcca5d6483173b"
+    },
+    {
+      "bytes": 2113,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/planner-capacity-receipt-2ce-raw-b.json",
+      "sha256": "02793f702fce2a39d98982cf2a584cdfb381c4a8c07eeae79006fabb769e3be1"
+    },
+    {
+      "bytes": 2091,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/planner-capacity-receipt-2ce-raw.json",
+      "sha256": "59d0bc1210e369b8f2ae848d4e69cdec02c5f74e1dd1402b4a424126cc6ff90a"
+    },
+    {
+      "bytes": 3586,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/planner-capacity-receipt-2ce.json",
+      "sha256": "a7e02bc880390b8f65f31150a5bfef36efc0073d8d684b37cf9bc8be486ee93f"
+    },
+    {
+      "bytes": 2552,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/planner-capacity-rule24-summary-2ce.json",
+      "sha256": "8fc5926d66d650b3dbf4243fe5fc7e30439a471ceb64892d70ab8f736a791ebf"
+    },
+    {
+      "bytes": 10017,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/promotion-common-argv-2ce.json",
+      "sha256": "2c2d80dda555714b3850deb99a9471e0804307b04ccc20e74379bc2af27f7069"
+    },
+    {
+      "bytes": 253770,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/promotion-plan-2ce.json",
+      "sha256": "3d454d22d595896262eb5c51de141567e2be75b487908cf3540fdf12e7848eab"
+    },
+    {
+      "bytes": 2,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/promotion-plan-2ce.returncode.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/promotion-plan-2ce.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 253770,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/promotion-plan-2ce.stdout.json",
+      "sha256": "3d454d22d595896262eb5c51de141567e2be75b487908cf3540fdf12e7848eab"
+    },
+    {
+      "bytes": 13127,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/protected-after-2ce.json",
+      "sha256": "42f02e64724cce32d8a7e1d7ae404036fca742d5b5f22dd068986790cc6ad09d"
+    },
+    {
+      "bytes": 13128,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/protected-before-2ce.json",
+      "sha256": "728b32172030d5675d7c357eb18f3ea9d2b73a5cad2bb9abf9e7749b180355dc"
+    },
+    {
+      "bytes": 647,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/protected-tripwire-2ce.json",
+      "sha256": "e2bf9f74d8a3ee717a717ae39d60963302c5f5d4a2ff968567964814e8a30f56"
+    },
+    {
+      "bytes": 6145,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/readiness-decision-2ce.json",
+      "sha256": "ff34c2ba6f21d21a0c6b42391a95c83173bcd410480c8c5b0bebb6f8b6a8509e"
+    },
+    {
+      "bytes": 2574,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/rule25-summary-2ce.json",
+      "sha256": "2ffd7f96e71527f9f5022f10624dc714b41a6da860b315d344d32808a16485c1"
+    },
+    {
+      "bytes": 758,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828/validation-receipt-2ce.json",
+      "sha256": "068e94a36f843d988e158c894e10626eec4368a82cdae1789790f26d99bf87d2"
+    }
+  ],
+  "digest_mismatch": [],
+  "file_count": 18,
+  "git_metadata_indexed": false,
+  "missing": [],
+  "root": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_plan_2ce_20260828",
+  "schema_version": 1,
+  "scope": "task-owned regular evidence files excluding self-describing checksum manifests",
+  "status": "PASS"
+}

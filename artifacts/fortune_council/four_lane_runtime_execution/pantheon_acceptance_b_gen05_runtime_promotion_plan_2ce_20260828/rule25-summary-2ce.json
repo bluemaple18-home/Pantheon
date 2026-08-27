@@ -1,0 +1,48 @@
+{
+  "canary_created": false,
+  "capabilities": [
+    "create",
+    "publish",
+    "push",
+    "run",
+    "select",
+    "tag",
+    "transaction"
+  ],
+  "file_digests": {
+    "blocked_receipt": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/blocked-receipt.json",
+      "sha256": "a7ccf376c80a970337ba2f26f6edf83a9987603882bd561f70b4e6bfda7ddcc8"
+    },
+    "negative_matrix": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/negative-matrix.json",
+      "sha256": "4b350b5fee3139f6d3f6570b2a61bdc770c2232fbeddccb760e8fbafad88600c"
+    },
+    "official_gate_blocked": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-blocked.json",
+      "sha256": "8fc668ea21ba48534eea721b82f34d269415b0120b5d8cc2760467730a65ae0f"
+    },
+    "official_gate_ready": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-ready.json",
+      "sha256": "54bddb49fbcb1db477616b6596241fefd1f3de1fff33059ce472f22f38495bed"
+    },
+    "official_receipt": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/production-canary-capability-receipt.json",
+      "sha256": "1b36c9873a10c05f6976610d95bb222d265d826e9996532766ce6102fd0c77a6"
+    },
+    "positive_receipt": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/positive-receipt.json",
+      "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50"
+    },
+    "readiness_summary": {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/readiness-summary.json",
+      "sha256": "c9a94d3646c06dc05f3e21bad5683817e38d3968fbb28b44b804918a729c7e05"
+    }
+  },
+  "official_blocked_fixture_status": "BLOCKED",
+  "official_gate_status": "READY",
+  "production_mutation": false,
+  "schema_version": 1,
+  "source": "committed rule25-readiness package from gen05 runtime promotion readiness; re-read exact bytes for this plan card",
+  "status": "READY"
+}
