@@ -1,6 +1,6 @@
 ---
 id: CARD-PANTHEON-JA-TRANSLATION-BOUNDARY-CONTRACT-REPAIR
-status: ready
+status: superseded_no_go
 chain_id: PANTHEON-AUTOMATION-ACCEPTANCE-20260826
 parent_card: CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826
 role: repair
@@ -13,9 +13,12 @@ model_reason: 規格已固定，涉及 JA translation safety boundary、Writer�
 execution_mode: repo_only_bounded_repair
 production_mutation: forbidden
 root_cause: TRANSLATION_BOUNDARY_CONTRACT_OSCILLATION
+superseded_by: CARD-PANTHEON-JA-PROTECTED-SOURCE-CONSTRAINT-TRACEABILITY-REPAIR
 ---
 
 # Pantheon JA Translation Boundary Contract Repair
+
+> 2026-08-27 主線 re-review：本卡三個 candidate 均未閉合 source authority normalization；最後版本仍可能靜默解除未識別的 JA safety candidate。依三次停損契約停止，改由 `CARD-PANTHEON-JA-PROTECTED-SOURCE-CONSTRAINT-TRACEABILITY-REPAIR` 以 source-span provenance 與明確 disposition 取代；本卡不得再續作。
 
 工作名稱：JA Translation Boundary Contract — Writer / Reviewer Alignment
 
