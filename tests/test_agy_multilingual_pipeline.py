@@ -1549,8 +1549,8 @@ def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
         brief,
         json.loads((generation_dir / "external-plan.json").read_text(encoding="utf-8")),
         generation=5,
-        rebuild_by_slot={"article-01": False},
-        prior_plan=None,
+        rebuild_by_slot={"article-01": True},
+        prior_plan=prior,
         source_ref_maps=source_ref_maps,
         allow_provider_safety_boundary=True,
     )
@@ -1558,6 +1558,9 @@ def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
 
     assert len(coverage) == 22
     assert {mapping["safety_boundary"] for mapping in coverage} == {False}
+    assert multilingual._outline_topology(plan["articles"][0]) != (
+        multilingual._outline_topology(prior["articles"][0])
+    )
     assert not (run_dir / "generations/06").exists()
     assert before_bytes == {path: path.read_bytes() for path in legacy_paths}
     if before_state is not None:
@@ -2516,6 +2519,36 @@ def test_outline_rebuild_rejects_synonym_headings_with_same_fact_topology() -> N
             rebuild_by_slot={"article-01": True},
             prior_plan=prior,
         )
+
+
+def test_outline_rebuild_allows_same_headings_with_changed_fact_topology() -> None:
+    brief = non_tarot_translation_brief()
+    prior = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+    rebuilt = external_locale_plan(
+        brief,
+        rebuild_outline=True,
+        coverage_shift=1,
+    )
+
+    current = multilingual._hydrate_locale_plan(
+        brief,
+        rebuilt,
+        generation=2,
+        rebuild_by_slot={"article-01": True},
+        prior_plan=prior,
+    )
+
+    assert current["articles"][0]["ordered_h2_outline"] == (
+        prior["articles"][0]["ordered_h2_outline"]
+    )
+    assert multilingual._outline_topology(current["articles"][0]) != (
+        multilingual._outline_topology(prior["articles"][0])
+    )
 
 
 def test_rebuild_prompt_defines_fact_to_slot_topology_after_synonym_only_rejection() -> None:

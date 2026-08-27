@@ -1856,14 +1856,8 @@ def validate_locale_plan(
         if (
             item["rebuild_outline"]
             and prior is not None
-            and (
-                _normalized_outline(item["ordered_h2_outline"])
-                == _normalized_outline(prior.get("ordered_h2_outline"))
-                or (
-                    _outline_topology(item)
-                    and _outline_topology(item) == _outline_topology(prior)
-                )
-            )
+            and _outline_topology(item)
+            and _outline_topology(item) == _outline_topology(prior)
         ):
             raise ValueError(f"locale plan rebuild reused prior outline topology for {slot}")
 
