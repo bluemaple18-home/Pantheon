@@ -68,6 +68,18 @@ Observed before P1 repair:
 - result: `4 failed, 192 deselected`
 - failures proved same-category source claims were coarsely merged, source span IDs drifted with classifier hit order, Writer facts contained broken fragments, and paraphrased repeated boilerplate was missed
 
+Re-review high-risk precedence RED command:
+
+```bash
+<pantheon-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -k 'high_risk_contrast or ordinary_negation or unknown_boundary'
+```
+
+Observed before high-risk precedence repair:
+
+- selected: 3
+- result: `1 failed, 2 passed, 194 deselected`
+- failure proved `這不是醫療診斷而是一般資訊。` was incorrectly downgraded to `NOT_A_BOUNDARY / ordinary_content_contrast`
+
 ## GREEN
 
 Protected source and JA boundary SC command:
@@ -92,6 +104,28 @@ Result:
 - selected: 4
 - result: `4 passed, 192 deselected`
 
+Re-review high-risk precedence command:
+
+```bash
+<pantheon-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -k 'high_risk_contrast or ordinary_negation or unknown_boundary'
+```
+
+Result:
+
+- selected: 3
+- result: `3 passed, 194 deselected`
+
+Protected source and JA boundary command after re-review:
+
+```bash
+<pantheon-venv-python> -m pytest tests/test_agy_multilingual_pipeline.py -k 'ja_boundary or protected_source or unknown_boundary or ordinary_negation or corrected_fixture or source_span_id or source_fact_projection or same_category or paraphrase_span or high_risk_contrast'
+```
+
+Result:
+
+- selected: 12
+- result: `12 passed, 185 deselected`
+
 Full multilingual regression:
 
 ```bash
@@ -100,8 +134,8 @@ Full multilingual regression:
 
 Result:
 
-- selected: 196
-- result: `196 passed`
+- selected: 197
+- result: `197 passed`
 
 Coordinator translation regression:
 

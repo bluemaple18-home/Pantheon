@@ -706,6 +706,25 @@ def test_ja_unknown_boundary_candidate_fails_closed() -> None:
     assert any(item["code"] == "UNRESOLVED_BOUNDARY_CANDIDATE" for item in findings)
 
 
+def test_ja_high_risk_contrast_candidate_fails_closed_before_not_a_boundary() -> None:
+    brief = translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["description"] = "這不是醫療診斷而是一般資訊。"
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["source_sha256"] = brief["articles"][0]["source_sha256"]
+
+    package = multilingual._source_fact_package(brief)
+    dispositions = package["articles"][0]["protected_source"]["boundary_candidate_dispositions"]
+    medical = [item for item in dispositions if "醫療診斷" in item["source_text"]]
+
+    assert medical
+    assert medical[0]["disposition"] == "UNRESOLVED"
+    assert medical[0]["reason_code"] == "high_risk_boundary_candidate"
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+    assert any(item["code"] == "UNRESOLVED_BOUNDARY_CANDIDATE" for item in findings)
+
+
 def test_ja_ordinary_negation_gets_not_a_boundary_disposition() -> None:
     brief = translation_brief("ja")
     source = brief["articles"][0]["source"]

@@ -113,6 +113,10 @@ JA_BOUNDARY_NOT_A_BOUNDARY_REASONS = (
     ("ordinary_uncertainty_context", re.compile(r"不確定性")),
     ("ordinary_process_limit", re.compile(r"(先整理事實.*限制與可行選項|避免只憑一時感受做決定|使用限制)")),
 )
+JA_BOUNDARY_HIGH_RISK_UNRESOLVED_RE = re.compile(
+    r"(醫療|医療|診斷|診断|停藥|停薬|專業(?:醫療|法律|投資|財務)?建議|"
+    r"専門(?:的な)?(?:医療|法律|投資|財務)?助言)"
+)
 JA_BOUNDARY_CONSTRAINT_KEYS = {
     "outcome_not_determined": "outcome_not_determined",
     "contextual_or_general_interpretation": "general_interpretation_only",
@@ -385,6 +389,10 @@ def _ja_boundary_not_a_boundary_reason(text: str) -> str | None:
     return None
 
 
+def _ja_boundary_high_risk_unresolved(text: str) -> bool:
+    return bool(JA_BOUNDARY_HIGH_RISK_UNRESOLVED_RE.search(text))
+
+
 def _ja_exact_normalized_text(text: str) -> str:
     normalized = unicodedata.normalize("NFKC", text)
     return re.sub(r"[\s、，,。！？!?；;：「」『』（）()\[\]]+", "", normalized)
@@ -435,6 +443,16 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
             }
             categories = _ja_boundary_source_categories(source_text)
             if not categories:
+                if _ja_boundary_high_risk_unresolved(source_text):
+                    dispositions.append(
+                        {
+                            **base,
+                            "disposition": "UNRESOLVED",
+                            "reason_code": "high_risk_boundary_candidate",
+                            "constraint_ids": [],
+                        }
+                    )
+                    continue
                 reason_code = _ja_boundary_not_a_boundary_reason(source_text)
                 if reason_code is not None:
                     dispositions.append(
