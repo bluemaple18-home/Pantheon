@@ -2428,6 +2428,234 @@ def _write_locale_planning_result(
     _atomic_write_json(path, payload)
 
 
+def _continuation_lifecycle_path(run_dir: Path) -> Path:
+    return run_dir / "continuation" / "generation-lifecycle.json"
+
+
+def _committed_planning_artifact_status(
+    generation_dir: Path,
+) -> tuple[list[str], list[str]]:
+    required = [
+        "external-plan.json",
+        "source-ref-map.json",
+        "planning-result.json",
+        "locale-plan.json",
+        "plan-operation.json",
+    ]
+    present = [
+        name
+        for name in required
+        if (generation_dir / name).is_file()
+    ]
+    missing = [
+        name
+        for name in required
+        if not (generation_dir / name).is_file()
+    ]
+    return present, missing
+
+
+def _partial_generation_decision_payload(
+    brief: dict[str, Any],
+    *,
+    generation: int,
+    generation_dir: Path,
+    reason: str,
+) -> dict[str, Any]:
+    present, missing = _committed_planning_artifact_status(generation_dir)
+    preserved = [
+        name
+        for name in ["external-plan.json", "plan-operation.json"]
+        if (generation_dir / name).is_file()
+    ]
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "contract": "continuation-partial-generation-terminalization",
+        "run_id": brief["run_id"],
+        "generation": generation,
+        "generation_name": f"{generation:02d}",
+        "allocated": True,
+        "committed": False,
+        "resumable": False,
+        "decision": "terminalize",
+        "lifecycle_state": "abandoned",
+        "terminal_stage": "PLANNING",
+        "terminal_reason": reason,
+        "source_package_sha256": _json_sha256(_source_fact_package(brief)),
+        "committed_planning_artifacts_present": present,
+        "committed_planning_artifacts_missing": missing,
+        "preserved_audit_artifacts": preserved,
+        "allowed_next_actions": [
+            "explicit_deterministic_replan_after_authority_update",
+            "explicit_next_generation_after_authority_update",
+        ],
+    }
+
+
+def _write_if_same_or_missing(path: Path, payload: dict[str, Any]) -> None:
+    if path.is_file():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if existing != payload:
+            raise ValueError(f"{path.name} differs from continuation lifecycle contract")
+        return
+    _atomic_write_json(path, payload)
+
+
+def _record_partial_generation_terminalization(
+    brief: dict[str, Any],
+    *,
+    generation: int,
+    generation_dir: Path,
+    reason: str,
+) -> None:
+    if generation_dir.parent.name != "generations":
+        return
+    run_dir = generation_dir.parent.parent
+    decision = _partial_generation_decision_payload(
+        brief,
+        generation=generation,
+        generation_dir=generation_dir,
+        reason=reason,
+    )
+    _write_if_same_or_missing(
+        generation_dir / "partial-generation-decision.json",
+        decision,
+    )
+    lifecycle_path = _continuation_lifecycle_path(run_dir)
+    lifecycle = {
+        "schema_version": SCHEMA_VERSION,
+        "contract": "continuation-generation-lifecycle",
+        "run_id": brief["run_id"],
+        "source_package_sha256": decision["source_package_sha256"],
+        "generations": {
+            f"{generation:02d}": {
+                "generation": generation,
+                "allocated": True,
+                "committed": False,
+                "resumable": False,
+                "decision": "terminalize",
+                "lifecycle_state": "abandoned",
+                "terminal_stage": "PLANNING",
+                "terminal_reason": reason,
+                "decision_artifact": (
+                    f"generations/{generation:02d}/partial-generation-decision.json"
+                ),
+            }
+        },
+    }
+    _write_if_same_or_missing(lifecycle_path, lifecycle)
+
+
+def _authority_transition_path(run_dir: Path, generation: int) -> Path:
+    return run_dir / "continuation" / f"authority-transition-{generation:02d}.json"
+
+
+def _validate_partial_generation_decision(
+    run_dir: Path,
+    brief: dict[str, Any],
+    *,
+    generation: int,
+) -> dict[str, Any] | None:
+    generation_dir = run_dir / "generations" / f"{generation:02d}"
+    decision_path = generation_dir / "partial-generation-decision.json"
+    if not decision_path.is_file():
+        return None
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    lifecycle_path = _continuation_lifecycle_path(run_dir)
+    lifecycle = (
+        json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        if lifecycle_path.is_file()
+        else None
+    )
+    expected_source_package = _json_sha256(_source_fact_package(brief))
+    present, missing = _committed_planning_artifact_status(generation_dir)
+    lifecycle_item = (
+        lifecycle.get("generations", {}).get(f"{generation:02d}")
+        if isinstance(lifecycle, dict)
+        else None
+    )
+    if (
+        not isinstance(decision, dict)
+        or decision.get("schema_version") != SCHEMA_VERSION
+        or decision.get("contract")
+        != "continuation-partial-generation-terminalization"
+        or decision.get("run_id") != brief["run_id"]
+        or decision.get("generation") != generation
+        or decision.get("generation_name") != f"{generation:02d}"
+        or decision.get("allocated") is not True
+        or decision.get("committed") is not False
+        or decision.get("resumable") is not False
+        or decision.get("decision") != "terminalize"
+        or decision.get("lifecycle_state") != "abandoned"
+        or decision.get("terminal_stage") != "PLANNING"
+        or decision.get("source_package_sha256") != expected_source_package
+        or decision.get("committed_planning_artifacts_present") != present
+        or decision.get("committed_planning_artifacts_missing") != missing
+        or "source-ref-map.json" not in missing
+        or not isinstance(lifecycle_item, dict)
+        or lifecycle_item.get("decision_artifact")
+        != f"generations/{generation:02d}/partial-generation-decision.json"
+        or lifecycle_item.get("committed") is not False
+        or lifecycle_item.get("resumable") is not False
+        or lifecycle_item.get("lifecycle_state") != "abandoned"
+    ):
+        raise ValueError("partial generation terminal decision is invalid")
+    return decision
+
+
+def _consume_partial_generation_terminalization(
+    run_dir: Path,
+    brief: dict[str, Any],
+    state: dict[str, Any],
+) -> bool:
+    if state.get("status") != "active":
+        return False
+    abandoned = list(state.get("abandoned_generations", []))
+    current_generation = int(state["next_generation"])
+    if abandoned and abandoned[-1] == current_generation - 1:
+        transition_path = _authority_transition_path(run_dir, abandoned[-1])
+        if transition_path.is_file():
+            json.loads(transition_path.read_text(encoding="utf-8"))
+        return False
+    decision = _validate_partial_generation_decision(
+        run_dir,
+        brief,
+        generation=current_generation,
+    )
+    if decision is None:
+        return False
+    if current_generation in state.get("completed_generations", []):
+        raise ValueError("partial generation decision conflicts with completed state")
+    updated = {
+        **state,
+        "abandoned_generations": [*abandoned, current_generation],
+        "next_generation": current_generation + 1,
+    }
+    transition = {
+        "schema_version": SCHEMA_VERSION,
+        "contract": "continuation-authority-transition",
+        "run_id": brief["run_id"],
+        "action": "advance_after_terminalized_partial",
+        "generation": current_generation,
+        "decision_artifact": (
+            f"generations/{current_generation:02d}/partial-generation-decision.json"
+        ),
+        "from_next_generation": current_generation,
+        "to_next_generation": current_generation + 1,
+        "completed_generations": updated["completed_generations"],
+        "abandoned_generations": updated["abandoned_generations"],
+        "state_before_sha256": _json_sha256(state),
+        "state_after_sha256": _json_sha256(updated),
+        "terminal_reason": decision["terminal_reason"],
+    }
+    _write_if_same_or_missing(
+        _authority_transition_path(run_dir, current_generation),
+        transition,
+    )
+    _atomic_write_json(run_dir / "continuation" / "state.json", updated)
+    return True
+
+
 def _review_findings(review: dict[str, Any]) -> list[dict[str, str]]:
     return [
         {
@@ -2645,6 +2873,7 @@ def _run_locale_generation(
             external_plan_path=external_plan_path,
         )
     except ValueError as error:
+        terminal_reason = str(error)
         _write_locale_planning_result(
             planning_result_path,
             generation=generation,
@@ -2655,7 +2884,13 @@ def _run_locale_generation(
             ),
             planning_contract_status="PLANNING_CONTRACT_FAILURE",
             terminal_stage="PLANNING",
-            terminal_reason=str(error),
+            terminal_reason=terminal_reason,
+        )
+        _record_partial_generation_terminalization(
+            brief,
+            generation=generation,
+            generation_dir=generation_dir,
+            reason=terminal_reason,
         )
         raise LocalePlanValidationError(
             f"deterministic locale plan failure: {error}"
@@ -2912,6 +3147,7 @@ def _load_or_create_continuation_state(
             "semantic_budget": max_repairs + 1,
             "next_generation": started_after + 1,
             "completed_generations": [],
+            "abandoned_generations": [],
             "status": "active",
         }
         _atomic_write_json(path, state)
@@ -2929,9 +3165,11 @@ def _load_or_create_continuation_state(
         "completed_generations",
         "status",
     }
+    state_keys = set(state) if isinstance(state, dict) else set()
+    abandoned_generations = state.get("abandoned_generations", [])
     if (
         not isinstance(state, dict)
-        or set(state) != required
+        or state_keys not in (required, {*required, "abandoned_generations"})
         or state.get("schema_version") != SCHEMA_VERSION
         or state.get("run_id") != brief["run_id"]
         or state.get("source_sha256")
@@ -2954,6 +3192,19 @@ def _load_or_create_continuation_state(
         or type(state.get("next_generation")) is bool
         or state["next_generation"] < state["started_after_generation"] + 1
         or not isinstance(state.get("completed_generations"), list)
+        or not isinstance(abandoned_generations, list)
+        or any(
+            type(generation) is not int or type(generation) is bool
+            for generation in [*state["completed_generations"], *abandoned_generations]
+        )
+        or sorted(set(state["completed_generations"])) != state["completed_generations"]
+        or sorted(set(abandoned_generations)) != abandoned_generations
+        or set(state["completed_generations"]) & set(abandoned_generations)
+        or any(
+            generation <= state["started_after_generation"]
+            or generation >= state["next_generation"]
+            for generation in [*state["completed_generations"], *abandoned_generations]
+        )
         or state.get("status") not in {"active", "complete"}
         or (
             state.get("status") == "active"
@@ -2985,27 +3236,37 @@ def _load_or_create_continuation_state(
         )
     ):
         raise ValueError("continuation state identity is invalid")
-    expected_completed = list(
+    occupied_generations = sorted(
+        [*state["completed_generations"], *abandoned_generations]
+    )
+    expected_occupied = list(
         range(
             state["started_after_generation"] + 1,
             state["next_generation"],
         )
     )
     if (
-        state["completed_generations"] != expected_completed
+        occupied_generations != expected_occupied
         or state["next_generation"]
-        > state["started_after_generation"] + state["semantic_budget"] + 1
+        > (
+            state["started_after_generation"]
+            + state["semantic_budget"]
+            + len(abandoned_generations)
+            + 1
+        )
     ):
         raise ValueError("continuation generation state is not contiguous")
     generation_dirs = _generation_directories(run_dir / "generations")
-    completed_names = [f"{generation:02d}" for generation in expected_completed]
-    allowed_names = [completed_names]
+    occupied_names = [f"{generation:02d}" for generation in expected_occupied]
+    allowed_names = [occupied_names]
     if state["status"] == "active":
         allowed_names.append(
-            [*completed_names, f"{state['next_generation']:02d}"]
+            [*occupied_names, f"{state['next_generation']:02d}"]
         )
     if [generation_dir.name for generation_dir in generation_dirs] not in allowed_names:
         raise ValueError("continuation generation directories differ from state")
+    if "abandoned_generations" not in state:
+        state = {**state, "abandoned_generations": []}
     return state
 
 
@@ -3042,6 +3303,12 @@ def continue_writer_reviewer(
     )
     if state["status"] == "complete":
         return root_candidate, root_review
+    if _consume_partial_generation_terminalization(run_dir, brief, state):
+        next_generation = int(state["next_generation"]) + 1
+        raise LocalePlanValidationError(
+            "partial generation terminalized; "
+            f"retry continuation from generation {next_generation:02d}"
+        )
 
     roots = [run_dir / "attempts", run_dir / "generations"]
     history = _finding_history(brief, [run_dir / "attempts"])
@@ -3057,6 +3324,7 @@ def continue_writer_reviewer(
     final_generation = (
         int(state["started_after_generation"])
         + int(state["semantic_budget"])
+        + len(state.get("abandoned_generations", []))
     )
     for generation in range(int(state["next_generation"]), final_generation + 1):
         candidate, review, prior_plan = _run_locale_generation(

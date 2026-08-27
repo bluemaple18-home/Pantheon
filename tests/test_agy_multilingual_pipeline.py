@@ -2534,6 +2534,446 @@ def _write_rejected_deferred_lineage(run_dir: Path) -> tuple[dict[str, object], 
     return candidate, review
 
 
+def _ja_external_candidate_from_outline(outline: list[str]) -> dict[str, object]:
+    return {
+        "articles": [
+            {
+                "slot": "article-01",
+                "title": "死神カードが金銭面で示す見直し",
+                "description": "死神は金銭の終わりではなく、古い使い方や前提を整理し直す合図として読めます。",
+                "answer": "支出、収入、リスクの前提を分け、変えるべき習慣を一つずつ確認します。",
+                "tags": ["タロット", "金銭", "見直し"],
+                "faq": [
+                    {
+                        "question": "死神は金銭運の悪化だけを意味しますか？",
+                        "answer": "いいえ。終わらせる支出や考え方を見直す文脈で扱います。",
+                    }
+                ],
+                "bodySections": [
+                    {
+                        "heading": heading,
+                        "paragraphs": [
+                            "金銭の判断を一つの象徴だけで断定せず、状況と選択肢を分けて確認します。"
+                        ],
+                    }
+                    for heading in outline
+                ],
+            }
+        ]
+    }
+
+
+def _write_ja_partial_generation_04_lineage(
+    run_dir: Path,
+    *,
+    max_repairs: int = 2,
+) -> tuple[dict[str, object], dict[str, object], dict[Path, bytes]]:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior)
+    root_plan = multilingual._hydrate_locale_plan(
+        brief,
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+        generation=3,
+        rebuild_by_slot={"article-01": False},
+        prior_plan=prior,
+        source_ref_maps=source_ref_maps,
+    )
+    candidate = multilingual._hydrate_candidate(
+        brief,
+        _ja_external_candidate_from_outline(
+            root_plan["articles"][0]["ordered_h2_outline"],
+        ),
+    )
+    review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": candidate["articles"][0]["article_id"],
+                "candidate_sha256": article_sha256(candidate["articles"][0]),
+                "verdict": "REJECT",
+                "hard_failure": False,
+                "findings": [
+                    {
+                        "code": "NON_NATIVE_SEARCH_INTENT",
+                        "message": "synthetic continuation trigger",
+                    }
+                ],
+            }
+        ],
+    }
+    multilingual.pipeline.write_json(run_dir / "brief.json", brief)
+    multilingual.pipeline.write_json(run_dir / "candidate.json", candidate)
+    multilingual.pipeline.write_json(run_dir / "review.json", review)
+    for attempt in range(1, 4):
+        attempt_dir = run_dir / "attempts" / f"{attempt:02d}"
+        multilingual.pipeline.write_json(
+            attempt_dir / "external-review.json",
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "REJECT",
+                        "findings": [
+                            {
+                                "code": "NON_NATIVE_SEARCH_INTENT",
+                                "message": f"attempt {attempt} still needs native intent",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+    multilingual.pipeline.write_json(run_dir / "attempts/03/locale-plan.json", prior)
+    state = multilingual._load_or_create_continuation_state(
+        run_dir,
+        brief,
+        review,
+        max_repairs=max_repairs,
+    )
+    assert state["status"] == "active"
+    assert state["started_after_generation"] == 3
+    assert state["semantic_budget"] == max_repairs + 1
+    assert state["next_generation"] == 4
+    assert state["completed_generations"] == []
+    assert state["abandoned_generations"] == []
+    generation_dir = run_dir / "generations" / "04"
+    multilingual.pipeline.write_json(
+        generation_dir / "external-plan.json",
+        load_ja_plan_authority_fixture("fixed_current_ref_external_plan.json"),
+    )
+    multilingual.pipeline.write_json(
+        generation_dir / "plan-operation.json",
+        {
+            "role": "writer",
+            "model": "writer-test",
+            "status": "success",
+            "prompt_sha256": "a" * 64,
+        },
+    )
+    protected_paths = [
+        run_dir / "brief.json",
+        run_dir / "candidate.json",
+        run_dir / "review.json",
+        run_dir / "continuation" / "state.json",
+        generation_dir / "external-plan.json",
+        generation_dir / "plan-operation.json",
+    ]
+    protected_bytes = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in protected_paths
+    }
+    return candidate, review, protected_bytes
+
+
+def test_ja_partial_generation_04_missing_source_ref_map_terminalizes_once(
+    tmp_path: Path,
+) -> None:
+    old_candidate, old_review, protected_bytes = _write_ja_partial_generation_04_lineage(
+        tmp_path,
+    )
+    calls: Counter[str] = Counter()
+
+    class FailIfCalled:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            calls[role] += 1
+            raise AssertionError("partial generation recovery must not call provider")
+
+    outcomes = []
+    inventories = []
+    for _replay in range(1):
+        with pytest.raises(
+            multilingual.LocalePlanValidationError,
+            match="source ref map missing",
+        ):
+            multilingual.continue_writer_reviewer(tmp_path, FailIfCalled(), max_repairs=2)
+        outcomes.append(
+            {
+                "state": json.loads(
+                    (tmp_path / "continuation/state.json").read_text(encoding="utf-8")
+                ),
+                "planning_result": json.loads(
+                    (tmp_path / "generations/04/planning-result.json").read_text(
+                        encoding="utf-8"
+                    )
+                ),
+                "lifecycle": json.loads(
+                    (tmp_path / "continuation/generation-lifecycle.json").read_text(
+                        encoding="utf-8"
+                    )
+                ),
+                "decision": json.loads(
+                    (tmp_path / "generations/04/partial-generation-decision.json").read_text(
+                        encoding="utf-8"
+                    )
+                ),
+            }
+        )
+        inventories.append(
+            sorted(
+                str(path.relative_to(tmp_path))
+                for path in (tmp_path / "generations").rglob("*")
+                if path.is_file()
+            )
+        )
+
+    assert calls == Counter()
+    assert sorted(path.name for path in (tmp_path / "generations").iterdir()) == ["04"]
+    assert not (tmp_path / "generations/05").exists()
+    assert not (tmp_path / "generations/04/source-ref-map.json").exists()
+    assert not (tmp_path / "generations/04/locale-plan.json").exists()
+    assert not (tmp_path / "generations/04/article-operation.json").exists()
+    assert not (tmp_path / "generations/04/review-operation.json").exists()
+    assert not (tmp_path / "generations/04/reviewer-operation.json").exists()
+    assert json.loads((tmp_path / "candidate.json").read_text()) == old_candidate
+    assert json.loads((tmp_path / "review.json").read_text()) == old_review
+    assert protected_bytes == {
+        path: (tmp_path / path).read_bytes()
+        for path in protected_bytes
+    }
+    assert outcomes[0]["state"]["status"] == "active"
+    assert outcomes[0]["state"]["next_generation"] == 4
+    assert outcomes[0]["state"]["completed_generations"] == []
+    assert outcomes[0]["planning_result"]["planning_contract_status"] == (
+        "PLANNING_CONTRACT_FAILURE"
+    )
+    assert outcomes[0]["lifecycle"]["generations"]["04"]["lifecycle_state"] == (
+        "abandoned"
+    )
+    assert outcomes[0]["lifecycle"]["generations"]["04"]["decision"] == "terminalize"
+    assert outcomes[0]["decision"]["committed"] is False
+    assert outcomes[0]["decision"]["resumable"] is False
+
+
+def test_ja_partial_generation_04_terminal_decision_advances_authority_once(
+    tmp_path: Path,
+) -> None:
+    _old_candidate, _old_review, protected_bytes = _write_ja_partial_generation_04_lineage(
+        tmp_path,
+    )
+
+    class FailIfCalled:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise AssertionError("terminal recovery must not call provider")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="source ref map missing",
+    ):
+        multilingual.continue_writer_reviewer(tmp_path, FailIfCalled(), max_repairs=2)
+
+    gen04_audit_bytes = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in [
+            tmp_path / "generations/04/external-plan.json",
+            tmp_path / "generations/04/plan-operation.json",
+            tmp_path / "generations/04/partial-generation-decision.json",
+            tmp_path / "generations/04/planning-result.json",
+        ]
+    }
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="retry continuation from generation 05",
+    ):
+        multilingual.continue_writer_reviewer(tmp_path, FailIfCalled(), max_repairs=2)
+    first_state = json.loads(
+        (tmp_path / "continuation/state.json").read_text(encoding="utf-8")
+    )
+    transition_receipt = json.loads(
+        (tmp_path / "continuation/authority-transition-04.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    transition_bytes = (
+        tmp_path / "continuation/authority-transition-04.json"
+    ).read_bytes()
+
+    second_transition = multilingual._consume_partial_generation_terminalization(
+        tmp_path,
+        json.loads((tmp_path / "brief.json").read_text(encoding="utf-8")),
+        json.loads((tmp_path / "continuation/state.json").read_text(encoding="utf-8")),
+    )
+    second_state = json.loads(
+        (tmp_path / "continuation/state.json").read_text(encoding="utf-8")
+    )
+
+    assert second_transition is False
+    assert first_state == second_state
+    assert first_state["status"] == "active"
+    assert first_state["completed_generations"] == []
+    assert first_state["abandoned_generations"] == [4]
+    assert first_state["next_generation"] == 5
+    assert transition_receipt["from_next_generation"] == 4
+    assert transition_receipt["to_next_generation"] == 5
+    assert transition_receipt["abandoned_generations"] == [4]
+    assert transition_receipt["action"] == "advance_after_terminalized_partial"
+    assert (
+        tmp_path / "continuation/authority-transition-04.json"
+    ).read_bytes() == transition_bytes
+    assert gen04_audit_bytes == {
+        path: (tmp_path / path).read_bytes()
+        for path in gen04_audit_bytes
+    }
+    protected_without_state = {
+        path: payload
+        for path, payload in protected_bytes.items()
+        if path != Path("continuation/state.json")
+    }
+    assert protected_without_state == {
+        path: (tmp_path / path).read_bytes()
+        for path in protected_without_state
+    }
+    assert not (tmp_path / "generations/05").exists()
+    assert not (tmp_path / "generations/04/source-ref-map.json").exists()
+    assert not (tmp_path / "generations/04/locale-plan.json").exists()
+    assert not (tmp_path / "generations/04/article-operation.json").exists()
+    assert not (tmp_path / "generations/04/reviewer-operation.json").exists()
+
+
+@pytest.mark.parametrize("snapshot_name", ["fresh-a", "fresh-b"])
+def test_ja_partial_generation_04_abandoned_allocation_preserves_semantic_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    snapshot_name: str,
+) -> None:
+    run_dir = tmp_path / snapshot_name
+    _old_candidate, _old_review, protected_bytes = _write_ja_partial_generation_04_lineage(
+        run_dir,
+        max_repairs=0,
+    )
+    provider_calls: Counter[str] = Counter()
+
+    class FailIfCalled:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            provider_calls[role] += 1
+            raise AssertionError("semantic budget fixture must not call provider")
+
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="source ref map missing",
+    ):
+        multilingual.continue_writer_reviewer(run_dir, FailIfCalled(), max_repairs=0)
+
+    pre_transition_state = json.loads(
+        (run_dir / "continuation/state.json").read_text(encoding="utf-8")
+    )
+    assert pre_transition_state["next_generation"] == 4
+    assert pre_transition_state["semantic_budget"] == 1
+    assert pre_transition_state["completed_generations"] == []
+    assert pre_transition_state["abandoned_generations"] == []
+    assert provider_calls == Counter()
+
+    gen04_audit_bytes = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in [
+            run_dir / "generations/04/external-plan.json",
+            run_dir / "generations/04/plan-operation.json",
+            run_dir / "generations/04/partial-generation-decision.json",
+            run_dir / "generations/04/planning-result.json",
+        ]
+    }
+    with pytest.raises(
+        multilingual.LocalePlanValidationError,
+        match="retry continuation from generation 05",
+    ):
+        multilingual.continue_writer_reviewer(run_dir, FailIfCalled(), max_repairs=0)
+
+    transition_path = run_dir / "continuation/authority-transition-04.json"
+    transition_hash = hashlib.sha256(transition_path.read_bytes()).hexdigest()
+    state_after_transition = json.loads(
+        (run_dir / "continuation/state.json").read_text(encoding="utf-8")
+    )
+    transition = json.loads(transition_path.read_text(encoding="utf-8"))
+    assert state_after_transition["next_generation"] == 5
+    assert state_after_transition["semantic_budget"] == 1
+    assert state_after_transition["completed_generations"] == []
+    assert state_after_transition["abandoned_generations"] == [4]
+    assert transition["from_next_generation"] == 4
+    assert transition["to_next_generation"] == 5
+    assert transition["abandoned_generations"] == [4]
+    assert provider_calls == Counter()
+
+    second_transition = multilingual._consume_partial_generation_terminalization(
+        run_dir,
+        json.loads((run_dir / "brief.json").read_text(encoding="utf-8")),
+        json.loads((run_dir / "continuation/state.json").read_text(encoding="utf-8")),
+    )
+    assert second_transition is False
+    assert hashlib.sha256(transition_path.read_bytes()).hexdigest() == transition_hash
+
+    targeted_generations: list[int] = []
+
+    def intercept_locale_generation(
+        _brief: dict[str, object],
+        _client: object,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        assert findings
+        assert history
+        assert prior_plan
+        targeted_generations.append(generation)
+        assert generation_dir == run_dir / "generations" / "05"
+        raise RuntimeError("intercepted deterministic gen05 semantic attempt")
+
+    monkeypatch.setattr(
+        multilingual,
+        "_run_locale_generation",
+        intercept_locale_generation,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="intercepted deterministic gen05 semantic attempt",
+    ):
+        multilingual.continue_writer_reviewer(run_dir, FailIfCalled(), max_repairs=0)
+
+    assert targeted_generations == [5]
+    assert provider_calls == Counter()
+    assert gen04_audit_bytes == {
+        path: (run_dir / path).read_bytes()
+        for path in gen04_audit_bytes
+    }
+    protected_without_state = {
+        path: payload
+        for path, payload in protected_bytes.items()
+        if path != Path("continuation/state.json")
+    }
+    assert protected_without_state == {
+        path: (run_dir / path).read_bytes()
+        for path in protected_without_state
+    }
+    assert not (run_dir / "generations/05").exists()
+
+
 def test_deferred_lineage_continuation_is_incremental_immutable_and_replayable(
     tmp_path: Path,
 ) -> None:
