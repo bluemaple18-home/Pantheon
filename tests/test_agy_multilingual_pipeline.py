@@ -1053,9 +1053,10 @@ def test_ja_resume_rejects_persisted_external_plan_without_source_ref_map(
     )
     assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
     assert result["terminal_stage"] == "PLANNING"
-    assert result["article_provider_calls"] == 0
-    assert result["reviewer_provider_calls"] == 0
     assert not (generation_dir / "article-operation.json").exists()
+    assert not (generation_dir / "review-operation.json").exists()
+    assert "article_provider_calls" not in result
+    assert "reviewer_provider_calls" not in result
 
 
 def test_ja_resume_rejects_stale_persisted_source_ref_map_after_extractor_change(
@@ -1101,9 +1102,10 @@ def test_ja_resume_rejects_stale_persisted_source_ref_map_after_extractor_change
     )
     assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
     assert result["terminal_stage"] == "PLANNING"
-    assert result["article_provider_calls"] == 0
-    assert result["reviewer_provider_calls"] == 0
     assert not (generation_dir / "article-operation.json").exists()
+    assert not (generation_dir / "review-operation.json").exists()
+    assert "article_provider_calls" not in result
+    assert "reviewer_provider_calls" not in result
 
 
 def test_ja_planning_result_records_contract_failure_before_article(
@@ -1147,8 +1149,6 @@ def test_ja_planning_result_records_contract_failure_before_article(
         "planning_contract_status": "PLANNING_CONTRACT_FAILURE",
         "terminal_stage": "PLANNING",
         "terminal_reason": "external locale plan article fields are strict for article-01",
-        "article_provider_calls": 0,
-        "reviewer_provider_calls": 0,
     }
     assert not (generation_dir / "article-operation.json").exists()
     assert not (generation_dir / "review-operation.json").exists()
@@ -1197,6 +1197,8 @@ def test_ja_planning_result_passes_only_after_local_hydration(tmp_path: Path) ->
     assert result["planning_contract_status"] == "PASS"
     assert result["terminal_stage"] is None
     assert result["terminal_reason"] is None
+    assert "article_provider_calls" not in result
+    assert "reviewer_provider_calls" not in result
     assert (generation_dir / "locale-plan.json").is_file()
     assert (generation_dir / "article-operation.json").is_file()
 

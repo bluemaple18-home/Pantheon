@@ -66,13 +66,15 @@ The RED check is fully offline: provider calls `0`, article calls `0`, Reviewer 
 - Persisted external plans without a source-ref map fail closed.
 - Persisted maps whose ref-to-current-ID coverage no longer matches the current source package fail closed before provider/article work.
 - `planning-result.json` distinguishes `transport_status` from `planning_contract_status`.
-- Hydration failure writes `PLANNING_CONTRACT_FAILURE`, `terminal_stage=PLANNING`, `article_provider_calls=0`, and `reviewer_provider_calls=0`.
+- Hydration failure writes `PLANNING_CONTRACT_FAILURE` and `terminal_stage=PLANNING`.
+- `planning-result.json` does not include article or Reviewer call-count fields.
+- Planning-failure downstream `0` evidence is derived from absent article/Reviewer operation artifacts.
 - Planning success writes `planning_contract_status=PASS` only after local hydration and hydrated current-ID coverage validation pass.
 
 ## Verification Commands
 
-- Focused RED/GREEN/lifecycle/planning-result: `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain or source_ref_map or planning_result'`
-  - result: `13 passed`
+- Focused source-ref-map/planning-result regression: `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'source_ref_map or planning_result'`
+  - result: `5 passed`
 - Full multilingual pipeline regression: `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py`
   - result: `211 passed`
 - Fixture JSON validation:

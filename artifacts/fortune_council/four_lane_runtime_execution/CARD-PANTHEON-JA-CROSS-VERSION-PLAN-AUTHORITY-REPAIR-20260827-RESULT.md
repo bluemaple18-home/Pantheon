@@ -16,7 +16,7 @@ Legacy prior item-level mapping is invalidated when its ID set differs from the 
 
 Pre-review repair update: the request-local ref map is now durably written before plan provider execution or external response persistence. Prompt construction, schema construction, and external response hydration all consume that same persisted map in the generation seam. If a persisted `external-plan.json` exists without its same-generation `source-ref-map.json`, or if the persisted map no longer matches the current source package, planning fails closed instead of rebuilding refs from the current extractor.
 
-Planning transport and planning contract success are now separated in `planning-result.json`. Provider transport artifacts may exist before hydration, but planning status is only `PASS` after local hydration and hydrated current-ID coverage validation succeed. Hydration failures record `PLANNING_CONTRACT_FAILURE` with `terminal_stage=PLANNING` and article/Reviewer calls set to `0`.
+Planning transport and planning contract success are now separated in `planning-result.json`. Provider transport artifacts may exist before hydration, but planning status is only `PASS` after local hydration and hydrated current-ID coverage validation succeed. Hydration failures record `PLANNING_CONTRACT_FAILURE` with `terminal_stage=PLANNING`; downstream call evidence is derived from operation artifact presence, not from planning-result counters.
 
 ## RED Evidence
 
@@ -55,6 +55,8 @@ GREEN coverage proves:
 - persisted external plans without maps fail closed;
 - stale persisted maps fail closed after extractor/source package drift;
 - planning-result records planning contract failure separately from transport availability;
+- planning-result does not claim article or Reviewer call counts;
+- downstream `0` evidence comes from absent article/Reviewer operation artifacts on planning failure;
 - hydration of legal refs produces current-ID coverage with stale `0`, missing `0`, duplicate `0`;
 - unknown, missing, and duplicate refs fail closed;
 - same-domain JA continuation is not falsely invalidated;
@@ -78,7 +80,7 @@ This repair run itself performed no provider, network, service, production, push
 
 ## Verification
 
-- `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'ja_plan_authority or ja_continuation or ja_same_domain or source_ref_map or planning_result'`: `13 passed`
+- `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py -k 'source_ref_map or planning_result'`: `5 passed`
 - `.venv/bin/pytest tests/test_agy_multilingual_pipeline.py`: `211 passed`
 - `jq empty` on all `ja_plan_authority` fixture JSON files: passed
 - `git diff --check`: passed

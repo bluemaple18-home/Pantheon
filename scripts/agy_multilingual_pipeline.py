@@ -2424,8 +2424,6 @@ def _write_locale_planning_result(
         "planning_contract_status": planning_contract_status,
         "terminal_stage": terminal_stage,
         "terminal_reason": terminal_reason,
-        "article_provider_calls": 0,
-        "reviewer_provider_calls": 0,
     }
     _atomic_write_json(path, payload)
 
