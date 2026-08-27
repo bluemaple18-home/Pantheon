@@ -1,0 +1,134 @@
+{
+  "candidate_worktree": "/Users/mattkuo/.codex/worktrees/1b7a/Pantheon",
+  "fixture_root": "/private/tmp/green-candidate-fixtures-ga98za66",
+  "snapshots": [
+    {
+      "snapshot": "fresh-a",
+      "run_dir": "/private/tmp/green-candidate-fixtures-ga98za66/fresh-a",
+      "symptoms": [
+        "LocalePlanValidationError: deterministic locale plan failure: source ref map missing for persisted external locale plan",
+        "LocalePlanValidationError: partial generation terminalized; retry continuation from generation 05",
+        "RuntimeError: intercepted deterministic gen05 semantic attempt"
+      ],
+      "state_after_transition": {
+        "abandoned_generations": [
+          4
+        ],
+        "completed_generations": [],
+        "next_generation": 5,
+        "operation_id": "739edd2d70e0e36f930376cc6c1ea0a79ddf4469146e213519c6de34b9cdda1c",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "semantic_budget": 1,
+        "source_sha256": [
+          "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+        ],
+        "started_after_generation": 3,
+        "starting_review_sha256": "2ebe531ddef442a2c338d54087af1d22b00810952210aae032afa264f42b9b5b",
+        "status": "active",
+        "terminal_candidate_sha256": null,
+        "terminal_review_sha256": null
+      },
+      "transition": {
+        "abandoned_generations": [
+          4
+        ],
+        "action": "advance_after_terminalized_partial",
+        "completed_generations": [],
+        "contract": "continuation-authority-transition",
+        "decision_artifact": "generations/04/partial-generation-decision.json",
+        "from_next_generation": 4,
+        "generation": 4,
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "state_after_sha256": "609703b2901c8f350bd425538c8783f51308d1c7b548dbd87e2cf5cbcad58707",
+        "state_before_sha256": "d71380976577e66671b9766635ab9ebbac330305a365f8e414e46b2723270efd",
+        "terminal_reason": "source ref map missing for persisted external locale plan",
+        "to_next_generation": 5
+      },
+      "transition_sha256": "22f8bbfb838684bc8153045ef1cf16f218d94fc721a9fe2992c9510324350d05",
+      "transition_replay_sha256": "22f8bbfb838684bc8153045ef1cf16f218d94fc721a9fe2992c9510324350d05",
+      "second_transition": false,
+      "targeted_generations": [
+        5
+      ],
+      "provider_calls": {},
+      "generation_dirs_after_terminalization": [
+        "04"
+      ],
+      "gen05_exists_after_terminalization": false,
+      "success_receipts": 0,
+      "gen04_audit_sha256": {
+        "generations/04/external-plan.json": "196de2cf7aaaec5ea47a8eaca78138783a73abdfd3fecf817e78bb785fbf22c2",
+        "generations/04/plan-operation.json": "8e0a3269fc1a857ab83ecff83f25a2242cf1ab83c5cfea2aeec0fc9757868b62",
+        "generations/04/partial-generation-decision.json": "6bc729647cd6eb3bfc883ada67f6a1a04f0f505879de675b5c58dc9ab4510f66",
+        "generations/04/planning-result.json": "7e027eae82a6f73f6c52eedfa3c84b6c656c2f032fb8ab893f9645c0101909e2"
+      },
+      "protected_non_state_stable": true
+    },
+    {
+      "snapshot": "fresh-b",
+      "run_dir": "/private/tmp/green-candidate-fixtures-ga98za66/fresh-b",
+      "symptoms": [
+        "LocalePlanValidationError: deterministic locale plan failure: source ref map missing for persisted external locale plan",
+        "LocalePlanValidationError: partial generation terminalized; retry continuation from generation 05",
+        "RuntimeError: intercepted deterministic gen05 semantic attempt"
+      ],
+      "state_after_transition": {
+        "abandoned_generations": [
+          4
+        ],
+        "completed_generations": [],
+        "next_generation": 5,
+        "operation_id": "739edd2d70e0e36f930376cc6c1ea0a79ddf4469146e213519c6de34b9cdda1c",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "semantic_budget": 1,
+        "source_sha256": [
+          "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+        ],
+        "started_after_generation": 3,
+        "starting_review_sha256": "2ebe531ddef442a2c338d54087af1d22b00810952210aae032afa264f42b9b5b",
+        "status": "active",
+        "terminal_candidate_sha256": null,
+        "terminal_review_sha256": null
+      },
+      "transition": {
+        "abandoned_generations": [
+          4
+        ],
+        "action": "advance_after_terminalized_partial",
+        "completed_generations": [],
+        "contract": "continuation-authority-transition",
+        "decision_artifact": "generations/04/partial-generation-decision.json",
+        "from_next_generation": 4,
+        "generation": 4,
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "state_after_sha256": "609703b2901c8f350bd425538c8783f51308d1c7b548dbd87e2cf5cbcad58707",
+        "state_before_sha256": "d71380976577e66671b9766635ab9ebbac330305a365f8e414e46b2723270efd",
+        "terminal_reason": "source ref map missing for persisted external locale plan",
+        "to_next_generation": 5
+      },
+      "transition_sha256": "22f8bbfb838684bc8153045ef1cf16f218d94fc721a9fe2992c9510324350d05",
+      "transition_replay_sha256": "22f8bbfb838684bc8153045ef1cf16f218d94fc721a9fe2992c9510324350d05",
+      "second_transition": false,
+      "targeted_generations": [
+        5
+      ],
+      "provider_calls": {},
+      "generation_dirs_after_terminalization": [
+        "04"
+      ],
+      "gen05_exists_after_terminalization": false,
+      "success_receipts": 0,
+      "gen04_audit_sha256": {
+        "generations/04/external-plan.json": "196de2cf7aaaec5ea47a8eaca78138783a73abdfd3fecf817e78bb785fbf22c2",
+        "generations/04/plan-operation.json": "8e0a3269fc1a857ab83ecff83f25a2242cf1ab83c5cfea2aeec0fc9757868b62",
+        "generations/04/partial-generation-decision.json": "6bc729647cd6eb3bfc883ada67f6a1a04f0f505879de675b5c58dc9ab4510f66",
+        "generations/04/planning-result.json": "7e027eae82a6f73f6c52eedfa3c84b6c656c2f032fb8ab893f9645c0101909e2"
+      },
+      "protected_non_state_stable": true
+    }
+  ]
+}
