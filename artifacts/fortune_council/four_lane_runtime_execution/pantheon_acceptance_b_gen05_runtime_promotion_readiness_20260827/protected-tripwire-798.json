@@ -1,0 +1,14 @@
+{
+  "after_snapshot_digest": "21c53b227dd2b16798d4f8547c8161a914114a722234671bf79432fc76f5683b",
+  "before_snapshot_digest": "2ba9ac421a01ee7e236d6d84410c6472b9d9fde6855782e20cf990e0df76eddc",
+  "plan_digest": "b6153ef13827f0082e0c94d8a7e8c59ce4a0d644e131ba00742139829e972a33",
+  "plan_returncode": 0,
+  "plan_status": "READY_TO_APPLY",
+  "production_mutation_count": 0,
+  "protected_changed_keys": [],
+  "schema_version": 1,
+  "status": "PASS",
+  "target_manifest_digest": "fa281756914bdec02f4a729f24bcc429f51ef9f48cfe515eae156f2b7ed52fc0",
+  "target_source_sha": "79884d8bff7256aa9d1adcb7133162d7ac30b86d",
+  "transaction_root_created": false
+}

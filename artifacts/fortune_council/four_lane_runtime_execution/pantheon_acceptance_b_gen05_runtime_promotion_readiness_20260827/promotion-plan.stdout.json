@@ -1,0 +1,7 @@
+{
+  "raw_artifact_sha256_before_compaction": "625f1245a3e1662052278f71643a8918f423a235ec383995f342c15f537be285",
+  "reason": "Initial bootstrap/card-base interpretation targeted 28f36604; authoritative card target is 79884d8b.",
+  "replacement_evidence": "promotion-plan-798.json",
+  "schema_version": 1,
+  "status": "SUPERSEDED_NON_AUTHORITATIVE"
+}

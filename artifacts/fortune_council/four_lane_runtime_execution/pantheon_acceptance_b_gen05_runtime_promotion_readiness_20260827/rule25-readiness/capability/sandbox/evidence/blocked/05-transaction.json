@@ -1,0 +1,15 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "transaction",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "9c1ba8333aeb1e1abcc5daca60dc7c377c10e43503b31058f5eb5800d6c76ef0",
+  "outcome": "BLOCKED",
+  "output_digest": "980f35debe7815b385905e9a6be02da6d7de895b81214e4fff8227ca7e6cdbbe",
+  "production_mutation": false,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher queue and state roots must not overlap"
+}

@@ -1,0 +1,632 @@
+{
+  "card_id": "CARD-PANTHEON-ACCEPTANCE-B-GEN05-RUNTIME-PROMOTION-READINESS-20260827",
+  "files": [
+    {
+      "bytes": 1214,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/authorization-payload-798.json",
+      "sha256": "0a7ecb11bd205061f39aee852d9e7ffe62c6b2aff3b89b2b26cf9a492dc06a8e"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/authorization-payload.json",
+      "sha256": "542ca86674dc162f370ccaf5567dafb82aecaf44dbbc89cc3686c3d139ad493c"
+    },
+    {
+      "bytes": 1247,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/continuation-authority.json",
+      "sha256": "d7b704d7d6830f06e1494459afa72600644c1f42560834379cf07b3987961116"
+    },
+    {
+      "bytes": 10188,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/exact-plan-argv-798.json",
+      "sha256": "29002179c6d6e1e42fb24d1717af4f010a62d03dc0dbb8129ccc182079864193"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/exact-plan-argv.json",
+      "sha256": "91bd96197af8e42d578e43fcbdb69901a746df1f2efbcdebf904f480cb0b84b0"
+    },
+    {
+      "bytes": 3064,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366-host.json",
+      "sha256": "28ffddce4c33bf0e38e34a53b7fb978d6123a08e5efc20c45ad3e0fa28d273b3"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366.json",
+      "sha256": "d8c470eb8a7f6ce3fcf1acc8318d00582e8fa67cfeb723c18ed0bef3dc7b17c0"
+    },
+    {
+      "bytes": 763,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-rule24-summary.json",
+      "sha256": "a74d9ec3221388f0def80be07385adfcc482d8dbe0886aac5a5ec5adcefa296c"
+    },
+    {
+      "bytes": 10029,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-common-argv-798.json",
+      "sha256": "cfd15d6d36a5bfbee4e228b342a6ee0e1f304b8a75e3a55c4c790037be8c6961"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-common-argv.json",
+      "sha256": "db60526483fb5d34c336d6018d5ded0877168d4c964efa769e807e3fde3c5fe4"
+    },
+    {
+      "bytes": 124627,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798.json",
+      "sha256": "4c523dca4423ce92842d7372bdf581ac8706ef31cb0105e76e97455dfa344034"
+    },
+    {
+      "bytes": 2,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798.returncode.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 100949,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan-798.stdout.json",
+      "sha256": "47dd21ff0c64c5b3532a4fc79f472d5be170cdbb7b7d48caf248562789cdb315"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan.json",
+      "sha256": "eadd53cf6d747f3ce9cadfd4cf976044e8256807e0f0cf1837b20ebef04352e2"
+    },
+    {
+      "bytes": 2,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan.returncode.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 350,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/promotion-plan.stdout.json",
+      "sha256": "06f2aca6dd54efa126d5242a4b1fddd4396d46b23209adea7e7dc6103e18cd8a"
+    },
+    {
+      "bytes": 1525,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/protected-after-798.json",
+      "sha256": "663b09e09610c5058dd219da3c94da5ffba69e5b97a241b82a9a9a8f5da328e3"
+    },
+    {
+      "bytes": 1526,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/protected-before-798.json",
+      "sha256": "f412382e2742460dfd8e1318b18b0d547d7ce627ff1a9afbc1c5f82f4f3c6d0b"
+    },
+    {
+      "bytes": 647,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/protected-tripwire-798.json",
+      "sha256": "db8114adb6ae83feebabbe0705af0b206c71b3bb00a68fedb565c80ee03e969b"
+    },
+    {
+      "bytes": 2112,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/readiness-decision.json",
+      "sha256": "1c24e069f25c54691806928d95037c28e7c3f99656eb7127205f051ba1975fb6"
+    },
+    {
+      "bytes": 542,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/blocked-receipt.json",
+      "sha256": "a7ccf376c80a970337ba2f26f6edf83a9987603882bd561f70b4e6bfda7ddcc8"
+    },
+    {
+      "bytes": 4260,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/negative-matrix.json",
+      "sha256": "4b350b5fee3139f6d3f6570b2a61bdc770c2232fbeddccb760e8fbafad88600c"
+    },
+    {
+      "bytes": 5700,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/positive-receipt.json",
+      "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/.git/agy-content-publisher.lifecycle.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/.git/agy-content-publisher.transaction.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 566,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/01-create.json",
+      "sha256": "e16636446b00fd736dda54ebbe846bfbd35f671f2cbdcb33319651ea4a332b0b"
+    },
+    {
+      "bytes": 572,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/02-run.json",
+      "sha256": "9996768575bb86aa172845fb96ec061efaaac9293f37f5796eebdff7520a7f23"
+    },
+    {
+      "bytes": 685,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/03-select.json",
+      "sha256": "c9644751bd50595ba9eb083e10861bff07410548e990dd20ffadddec40b0abbd"
+    },
+    {
+      "bytes": 695,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/04-publish.json",
+      "sha256": "24ccb8d912a8c44991b2c6379a44d329b78b778c694a83afbeaa1078830b1810"
+    },
+    {
+      "bytes": 707,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/05-transaction.json",
+      "sha256": "d78529c7f1f5711cc756f438fcc454d41d7a156fdd9c3665a5c8d174ecf599b3"
+    },
+    {
+      "bytes": 693,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/06-tag.json",
+      "sha256": "f91fc036b7ee6df75bb33fca292b5676cf1b5a0ff28d729db5686c37161928e8"
+    },
+    {
+      "bytes": 695,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/07-push.json",
+      "sha256": "eefa7a953300c2ed560b0e56c127c18fe6da4645ad5c7eea03a937b05b467d86"
+    },
+    {
+      "bytes": 695,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/71-probe-publisher-runtime-drift.json",
+      "sha256": "9f10aa682da73b4ce3ba8b3c8915ae238090b74958403ff6f201940a19787b71"
+    },
+    {
+      "bytes": 703,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/72-probe-publisher-caller-verdict.json",
+      "sha256": "54f1d9c0677d54e4e08cc95aa9701f69657268e8743cb37835c90f42f894c847"
+    },
+    {
+      "bytes": 707,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/73-probe-publisher-overlapping-roots.json",
+      "sha256": "f4b296f4298d509d1f76b41f722e74379885ded810e78a3fb38e6eb061b279c5"
+    },
+    {
+      "bytes": 693,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/74-probe-publisher-real-tag-mode.json",
+      "sha256": "1fcbfa1e90147a48e23f413d2cc1255f68a39c8b48e416c7aa95dc1534c9b994"
+    },
+    {
+      "bytes": 695,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/75-probe-publisher-real-push-mode.json",
+      "sha256": "09e481cf44f6248419919a16cc0e5b20381e0871f615155c239974601c054753"
+    },
+    {
+      "bytes": 685,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked/76-probe-publisher-empty-run-selection.json",
+      "sha256": "6c9ab6447331a542489a0c4b208b0f7feb306901a06fc0be60338f2d541148c0"
+    },
+    {
+      "bytes": 542,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/blocked-receipt.json",
+      "sha256": "a7ccf376c80a970337ba2f26f6edf83a9987603882bd561f70b4e6bfda7ddcc8"
+    },
+    {
+      "bytes": 4260,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/negative-matrix.json",
+      "sha256": "4b350b5fee3139f6d3f6570b2a61bdc770c2232fbeddccb760e8fbafad88600c"
+    },
+    {
+      "bytes": 492,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/official/coordinator/blocked-create.json",
+      "sha256": "4091b5bed593968f0b8f0ae4d6186a6094d9283007a25694be738dfc6b72c399"
+    },
+    {
+      "bytes": 501,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/official/coordinator/blocked-run.json",
+      "sha256": "052d67abc996f1a0b42b672871d55ba7972925931feef3673d7414fb8d872bfe"
+    },
+    {
+      "bytes": 516,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/official/coordinator/negative-matrix.json",
+      "sha256": "f20209a5bb6fa0f91b1a4029ffe4b2a06bbb62f1c1425ecf731b9d6852d96717"
+    },
+    {
+      "bytes": 709,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/official/coordinator/positive-create.json",
+      "sha256": "ed562f0532091f3512e2998fe1d4a0891a9fc03397ad0260d272c167a04614af"
+    },
+    {
+      "bytes": 792,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/official/coordinator/positive-run.json",
+      "sha256": "e9fb717c98e1f492b0973a3509422cefa71da04edc6eb0b586041675d2f85f62"
+    },
+    {
+      "bytes": 784,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/01-create.json",
+      "sha256": "bf9ef532cbaecc89da71656397bd6997d0a3a0c7a4d81f4cfa1de17c71e4afff"
+    },
+    {
+      "bytes": 864,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/02-run.json",
+      "sha256": "0c5399fec37ada0001cd3bf587ed5d0e1cd78398eb3af06d8fd710ca8f20db65"
+    },
+    {
+      "bytes": 987,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/03-select.json",
+      "sha256": "57610084ff17d10dd18257dd925ec59079f15f41d9635cba86afd5e22bdee391"
+    },
+    {
+      "bytes": 1352,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/04-publish.json",
+      "sha256": "a9de24816bde54739d38ead91f6f9affd3424c5775eb541b8042bcee3612639c"
+    },
+    {
+      "bytes": 1649,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/05-transaction.json",
+      "sha256": "793526be6f99acbd54b7c2b745ce717dce9f1770e744670b26eeff8cb57de733"
+    },
+    {
+      "bytes": 1491,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/06-tag.json",
+      "sha256": "368eef535576f8e0f530dd6fb8ba08a174813b87ea077e90827f6735e42820d8"
+    },
+    {
+      "bytes": 1601,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive/07-push.json",
+      "sha256": "e18797ca157ba0ba1d8dbee5112ec63bdf07d8204d507315f16599aea76344e0"
+    },
+    {
+      "bytes": 5700,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/positive-receipt.json",
+      "sha256": "b86114e9d01eb2f06fbb1a4d961b3690df40fd4db3b86d2880b912c3eec21c50"
+    },
+    {
+      "bytes": 1498,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/evidence/source-inventory.md",
+      "sha256": "4b60b8987a627224ce1e1874ff4d449c2fd04395cfff236147acf44303d1a382"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/publisher-state/publisher.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/queue/coordinator.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 820,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/queue/runs/85f3df3ca8bfda43e1734ca1.json",
+      "sha256": "eddb419234e54bf61351e285164f36a1b1110ad45fe33c8dee46ce3a38f26ac0"
+    },
+    {
+      "bytes": 224,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/sandbox/runs/ra-slice-002-synthetic-create-run/brief.json",
+      "sha256": "b73da6c7400f480830fea5918cfa0fece039300466bf80faea02b7ce87ab05ee"
+    },
+    {
+      "bytes": 1498,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capability/source-inventory.md",
+      "sha256": "4b60b8987a627224ce1e1874ff4d449c2fd04395cfff236147acf44303d1a382"
+    },
+    {
+      "bytes": 378,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/blocked-capacity.json",
+      "sha256": "b629e7bbb99ffcd95087693234c714f31dc9a0bac904d068d6e07c5a3bab3e55"
+    },
+    {
+      "bytes": 4648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/capacity-receipt.json",
+      "sha256": "f80b7fa08055ccfa218eec7f0f9493f868485805a9c43742c2ba726a76f208f8"
+    },
+    {
+      "bytes": 1633,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/cycle-1-measurements.json",
+      "sha256": "9b2e9f0dd97bb5fdff1e7b02a5479fab3680a38923fc0d11c8339d694fe49cce"
+    },
+    {
+      "bytes": 11013,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/cycle-1-runtime-receipt.json",
+      "sha256": "34c647b214dd6d43e9bdf79d5f7e25c7c61fc4d31f7156276da864ef7c988e54"
+    },
+    {
+      "bytes": 1631,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/cycle-2-measurements.json",
+      "sha256": "97a0ec89e44b0e82fc8950dd430df88bdaf6635326a056a202994f9f62f89d5b"
+    },
+    {
+      "bytes": 11013,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/cycle-2-runtime-receipt.json",
+      "sha256": "14562d3ed68a694146724d812e84ff30a4369293e58aee795d484bd6b16a7112"
+    },
+    {
+      "bytes": 6813,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-matrix.json",
+      "sha256": "5bf7ad03395abc9751b12a98051211fef68fd40b5b02cdfca37e3338ad635305"
+    },
+    {
+      "bytes": 364,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/caller-supplied-verdict/evidence/blocked-capacity.json",
+      "sha256": "150612289b56c6d83e0b524652a597bdc8b40961aa331b0337bfe6371953b336"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/cleanup-root-still-exists/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/cleanup-root-still-exists/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 652,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/cleanup-root-still-exists/evidence/blocked-capacity.json",
+      "sha256": "91526d98abae783dbf2870ed1387f36c1f3f3028cea1c0ca8de93a1a28e766f0"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/cleanup-root-still-exists/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 644,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/host-free-below-reserve/evidence/blocked-capacity.json",
+      "sha256": "af6497440868399016011ebeb37534a67108ed4eeef6ca07e9803bf0a4346fb2"
+    },
+    {
+      "bytes": 341,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/invalid-policy/evidence/blocked-capacity.json",
+      "sha256": "f6abb8c6e47be5e1d2ef184f96db6fa9130b33c0300a4fedc9f33c195d03ff5a"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-bytes-too-low/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-bytes-too-low/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 637,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-bytes-too-low/evidence/blocked-capacity.json",
+      "sha256": "89c6e8a7251dda55106d836e08e3e0e324bb76ee808d3eed1be093f0f945a546"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-bytes-too-low/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-file-count-too-low/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-file-count-too-low/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-file-count-too-low/capacity-sandbox/cycle-1/payload-1.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 652,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-file-count-too-low/evidence/blocked-capacity.json",
+      "sha256": "c618f0fa82f36863597b9cfc689b6618883f0b880bdea9d1cb7e8daeb4dd46aa"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/max-file-count-too-low/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 366,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/missing-required-measurement/evidence/blocked-capacity.json",
+      "sha256": "04d8aa5fb4a9d32436503ff29ec4e94f071d6a147376ce6a13a8eb8669784048"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/rss-growth-over-budget/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/rss-growth-over-budget/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 661,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/rss-growth-over-budget/evidence/blocked-capacity.json",
+      "sha256": "a7c6ac0300fae9b5f0ee9e238d9ab7168aeca2c7e531da8091f67cded8d128a8"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/rss-growth-over-budget/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/swap-growth-over-budget/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/swap-growth-over-budget/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 657,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/swap-growth-over-budget/evidence/blocked-capacity.json",
+      "sha256": "bae80ec621c7dfa0c09e635d6e97daf473d7880303b88fd1bf0a5416b1bb2fa0"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/swap-growth-over-budget/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 98,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/capacity-sandbox/cycle-1/.ra-slice-005-cycle-identity.json",
+      "sha256": "22dd3f048a2d647f7b8a857276879833074804765dc841f4421f6399ffaa9974"
+    },
+    {
+      "bytes": 16,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/capacity-sandbox/cycle-1/payload-0.txt",
+      "sha256": "9c5729595fb287cc2a2256280448bbe706c0a866f0372515c7483de2af4e6532"
+    },
+    {
+      "bytes": 1,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/capacity-sandbox/cycle-1/payload.txt",
+      "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    },
+    {
+      "bytes": 1,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/capacity-sandbox/unknown-write.txt",
+      "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    },
+    {
+      "bytes": 634,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/evidence/blocked-capacity.json",
+      "sha256": "34e050116a5fe3e0b21d7aefe6c6ff65cba50940c5d9c0d30336a53e26fc4b98"
+    },
+    {
+      "bytes": 648,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/negative-probes/unknown-write-path/evidence/cycle-1-runtime-receipt.json",
+      "sha256": "9700e4a8dd15a041afe81b22ffc6613be7ead65da24677d7f5245afa892f5357"
+    },
+    {
+      "bytes": 326,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-blocked.json",
+      "sha256": "8fc668ea21ba48534eea721b82f34d269415b0120b5d8cc2760467730a65ae0f"
+    },
+    {
+      "bytes": 110,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/official-gate-ready.json",
+      "sha256": "54bddb49fbcb1db477616b6596241fefd1f3de1fff33059ce472f22f38495bed"
+    },
+    {
+      "bytes": 7473,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/adversarial-thin-gate-receipt.json",
+      "sha256": "3bc5ffae44849721ede77641d8dd4cd3816ecf79df15a34cbd8828a10f318d15"
+    },
+    {
+      "bytes": 5022,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/capacity-proof-normalized.json",
+      "sha256": "70559f70a1bde17e83923b4b4ca8ffd4bbd05da63b45b0d99eeb63ec28e58204"
+    },
+    {
+      "bytes": 746,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/01-create.json",
+      "sha256": "23a09d28930d48ba8b7cfab1d276a62edc0a90362ab2d9b9be090ff976a1d63d"
+    },
+    {
+      "bytes": 749,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/02-run.json",
+      "sha256": "3d172c4ca6de6fadd30c612e7d008f5bcc67f1257a461d2ebf6c05f879ee5683"
+    },
+    {
+      "bytes": 865,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/03-select.json",
+      "sha256": "f2b4936cb247911b1a11d5be1d1c86d9df43af7e94b80d65d279b3a3bc820047"
+    },
+    {
+      "bytes": 876,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/04-publish.json",
+      "sha256": "a879081e2212b58a6a58a1e65e72ad8f74e53c8c8ca19ba027dae36414af26a9"
+    },
+    {
+      "bytes": 892,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/05-transaction.json",
+      "sha256": "61fd44398e0880205051b686b6f279d345248892c9f2ddfdc354ac50ab2abb9a"
+    },
+    {
+      "bytes": 870,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/06-tag.json",
+      "sha256": "0faa9437b142e9d7c798faefbdf4a09f5092d4ce49192b3d56314d86dadfae01"
+    },
+    {
+      "bytes": 873,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/blocked/07-push.json",
+      "sha256": "f708e5c98f7610a6bd72871de2e462314db91369c758bb6ba13de4988ce42aaf"
+    },
+    {
+      "bytes": 965,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/01-create.json",
+      "sha256": "c1cf7f6f2693d3171f069fac241bd0adcbb3954e5b323dff931351fe79b30aa8"
+    },
+    {
+      "bytes": 1042,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/02-run.json",
+      "sha256": "ed7eb9c55c3a34c2e0acac973af26b899fa342cb211cbf5c2e8084c7b31e5085"
+    },
+    {
+      "bytes": 1168,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/03-select.json",
+      "sha256": "203d680677e327bd740cd1de2feda515cb527e0071bc91c697a42b8d365bd7d5"
+    },
+    {
+      "bytes": 1534,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/04-publish.json",
+      "sha256": "d18421ccf1dd9312f57e3f96243f7b8fff38d45d482b01b9c452613f352997bf"
+    },
+    {
+      "bytes": 1835,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/05-transaction.json",
+      "sha256": "3014adf9c471b134bafa04d299c9993e8bf4110a8a36e8228d65e7724d06d12e"
+    },
+    {
+      "bytes": 1669,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/06-tag.json",
+      "sha256": "12fd6c6dee6445eeb84fcc116746ef67b6df278ebc842a2002f3c81d9c569bba"
+    },
+    {
+      "bytes": 1780,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/evidence/positive/07-push.json",
+      "sha256": "c343a3cdb1e1e6f5fdcd874532c54e7582396aee45e895db26e164558b451542"
+    },
+    {
+      "bytes": 6328,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/missing-step-receipt.json",
+      "sha256": "b360991cbef19ba14e3168df50cb2f0d06033ea366bf5d8db1fa502258d68347"
+    },
+    {
+      "bytes": 5069,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/negative-matrix.json",
+      "sha256": "8bf13b3ce32a33acbc0dbd7c7e8e13d17a4bde7d87ff5422f54a6a60961aea08"
+    },
+    {
+      "bytes": 1224,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/package-manifest.json",
+      "sha256": "e0a5fa223639526cededd76b4137cf994727ccd265e0677c8d894a626b2b004b"
+    },
+    {
+      "bytes": 7321,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/production-canary-capability-receipt.json",
+      "sha256": "1b36c9873a10c05f6976610d95bb222d265d826e9996532766ce6102fd0c77a6"
+    },
+    {
+      "bytes": 646,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/thin-gate-adversarial-red.json",
+      "sha256": "2ab9a7d5e5cfe65ee68306975c509ba8f5a4797691eee3b3fd04a611c64311bc"
+    },
+    {
+      "bytes": 1117,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/readiness-summary.json",
+      "sha256": "c9a94d3646c06dc05f3e21bad5683817e38d3968fbb28b44b804918a729c7e05"
+    },
+    {
+      "bytes": 1218,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/verification-receipt.md",
+      "sha256": "b1f6190d298bba465f4e8876450877b88dfde604afd740799cabb1d8f44e46ee"
+    },
+    {
+      "bytes": 1811,
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/source-runtime-authority.json",
+      "sha256": "05a793e1c54d79c02c9c137368861de1d91307beb8548d48c7c1157d0963ed8c"
+    }
+  ],
+  "root_verdict": "PROMOTION_READINESS_GO",
+  "schema_version": 1
+}

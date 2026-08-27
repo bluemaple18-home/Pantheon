@@ -1,0 +1,25 @@
+{
+  "cycle_count": 2,
+  "mode": "bounded-synthetic-dry-run",
+  "portable_receipt_sha256": "28ffddce4c33bf0e38e34a53b7fb978d6123a08e5efc20c45ad3e0fa28d273b3",
+  "production_mutation": false,
+  "raw_receipt_digest_before_portable_redaction": "6def7497a06f4d453934ea5cb6f8fffb518e21cc654b0bbf878212796a3913b5",
+  "reclamation": {
+    "allowlist": [
+      "<task-tmp>/planner-exercise-host/cycle-1.bin"
+    ],
+    "bytes_after": 1048576,
+    "bytes_before": 2097152
+  },
+  "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+  "rss_available_all": true,
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss": {
+    "cross_project_deletions": [],
+    "remaining_loaded": [],
+    "status": "STOPPED",
+    "triggered": true
+  },
+  "swap_available_all": true
+}

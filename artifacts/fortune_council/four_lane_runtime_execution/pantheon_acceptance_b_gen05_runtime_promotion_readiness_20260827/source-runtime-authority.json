@@ -1,0 +1,39 @@
+{
+  "activation_token_received": true,
+  "authoritative_promotion_target": {
+    "clean": true,
+    "head": "79884d8bff7256aa9d1adcb7133162d7ac30b86d",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git",
+    "source_repo_placeholder": "<clean-source-worktree>"
+  },
+  "card_id": "CARD-PANTHEON-ACCEPTANCE-B-GEN05-RUNTIME-PROMOTION-READINESS-20260827",
+  "current_manifest": {
+    "actor_head": "6766fff999de7af09efc227230e69efd25795108",
+    "generation": "g53-6766fff9-gen05-safety-authority-20260827",
+    "identity": "gate2-actor:6766fff999de7af09efc227230e69efd25795108:acceptance-b-gen05-safety-authority",
+    "manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2",
+    "runtime_digest": "31fae9a5b0ab41093f6ccdcbda8a0636ded1582d1346b6b33b4c80ac4c100420"
+  },
+  "current_runtime_actor": {
+    "clean": true,
+    "head": "6766fff999de7af09efc227230e69efd25795108",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git"
+  },
+  "dispatch_key": "v1:c6b212d63dc253d9860fd2fd391f49a1fba2b75a8ae7273f1c24d416f77980c1",
+  "expected_project_id": "local-0020d4379451d545eb08362962f1def0",
+  "formal_thread_id": "01a043c7-659f-7782-8553-67ee273f731e",
+  "last_committed_promotion_receipt": {
+    "plan_digest": "691cd58622f44b14d6714a0dffb13fbe257d2066475dcf2484531b89dcda78fb",
+    "rollback_finalized": null,
+    "state": "COMMITTED",
+    "target_actor_sha": "6766fff999de7af09efc227230e69efd25795108",
+    "target_manifest_digest": "6a6bc58e48d5c1d6bf7741b6446a3a58a625541b5e9c5dba67bdc7deacb08ce2"
+  },
+  "schema_version": 1,
+  "task_worktree": {
+    "clean_before_artifacts": false,
+    "head": "28f36604fdfe399e06b559f37873ec06aec28d10",
+    "main": "28f36604fdfe399e06b559f37873ec06aec28d10",
+    "origin_main": "79884d8bff7256aa9d1adcb7133162d7ac30b86d"
+  }
+}
