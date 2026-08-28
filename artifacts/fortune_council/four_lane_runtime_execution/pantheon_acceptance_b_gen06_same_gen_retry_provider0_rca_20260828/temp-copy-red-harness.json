@@ -1,0 +1,52 @@
+{
+  "after_state": {
+    "error_type": "LocalePlanValidationError",
+    "last_job_id": null,
+    "status": "failed"
+  },
+  "attempt_count_delta": 0,
+  "base": "/private/tmp/pantheon-gen06-samegen-provider0-red-20260828",
+  "cycle_summary": {
+    "active": 0,
+    "complete": 0,
+    "failed": 1,
+    "lanes": {
+      "i18n-new": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "i18n-rewrite": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "new": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "rewrite": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      }
+    },
+    "legacy_sweep": null,
+    "migrated_jobs": null,
+    "new_matrix_sweep": null,
+    "runner": {
+      "status": "idle"
+    },
+    "status": "failed"
+  },
+  "execute_status": "RETRY_READY",
+  "mutation_boundary": "temp copy only",
+  "outbox_count_delta": 0,
+  "plan_status": "READY_TO_EXECUTE",
+  "provider_called": false,
+  "quarantine_external_plan_sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+  "root_equals_quarantine": true,
+  "root_external_plan_sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+  "status": "RED"
+}

@@ -16,6 +16,8 @@ commit_push: 0
 
 此 seam 只接受 hash-bound same-generation `LocalePlanValidationError` planning cache residue；plan-only zero-write，execute 在 run identity lock 內重讀並驗證 registry、job attempt/inbox/archive、continuation state、gen06 planning artifact digests、gen07 absence、candidate/reviewer absence，接著 receipt-first 將 stale gen06 planning cache 移入 run-local quarantine，再以既有 resume semantics 將 registry 轉回 active。
 
+Provider0 RCA closure 已補：同一 execute path 現在也 receipt-first quarantine lane-level `archive` / `inbox` / `production-attempt` residue；下一次相同 deterministic request 不會吃舊 inbox，而會建立 fresh outbox job。
+
 沒有 production、provider、publish、commit、push。
 
 ## 變更檔案
@@ -29,9 +31,10 @@ commit_push: 0
 
 - source: +159 lines, within <=160 cap
 - tests: +169 lines, within <=200 reviewer closure cap
+- provider0 closure delta against 18b seam: source `+31/-11`, tests `+25/-11`; within additional `<=40` / `<=80` cap
 
 Why not less:
-- 需要同時鎖 registry、job attempt/archive/inbox、gen06 artifact digests、continuation active next_generation、gen07/candidate/reviewer absence、receipt-first quarantine、crash-window replay；少於這些會回到 manual deletion 或 generic retry。
+- 需要同時鎖 registry、job attempt/archive/inbox、gen06 artifact digests、continuation active next_generation、gen07/candidate/reviewer absence、receipt-first quarantine、crash-window replay；provider0 RCA 已證明只搬 generation-local cache 會重吃舊 inbox，少於這些會回到 manual deletion 或 generic retry。
 
 Why not more:
 - 沒有新增 registry/FSM/database，沒有 generic retry，沒有跨 generation transition，沒有 publisher/provider path 變更。
@@ -69,10 +72,25 @@ Other gates:
 ## Reviewer focus
 
 - Plan-only zero-write is covered.
-- Execute quarantines only four planning cache files: `external-plan.json`, `plan-operation.json`, `planning-result.json`, `source-ref-map.json`.
+- Execute quarantines four generation planning cache files: `external-plan.json`, `plan-operation.json`, `planning-result.json`, `source-ref-map.json`.
+- Execute also quarantines the exact lane-level transport residue for the same job: `archive/<job>.json`, `inbox/<job>.json`, `production-attempts/<job>.attempt`.
 - Quarantine receipt stores expected digests and is validated on replay.
 - Quarantine receipt stores narrow selector snapshot (`lane` / `mode` / `routing_schema_version`); active replay rejects drift.
-- Execute rechecks generation boundary inside the run identity lock; TOCTOU gen07/candidate drift fails closed and registry remains failed.
+- Execute rechecks generation and lane residue boundary inside the run identity lock; TOCTOU gen07/candidate/lane residue drift fails closed and registry remains failed.
 - Crash after quarantine but before registry resume replays to `RETRY_READY`.
-- Same gen06 is re-enqueued; gen07 is not created.
+- Same gen06 is re-enqueued through fresh outbox; stale inbox consumption is rejected; gen07 is not created.
 - Candidate/reviewer boundary remains untouched.
+
+## Provider0 RCA closure evidence
+
+- RCA result: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_provider0_rca_20260828/RESULT-PANTHEON-ACCEPTANCE-B-GEN06-SAME-GEN-RETRY-PROVIDER0-RCA-20260828.md`
+- RED harness: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_provider0_rca_20260828/temp-copy-red-harness.json`
+- Closure test: `tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_execute_enqueues_fresh_gen06` now asserts old lane `archive/inbox/production-attempt` paths are absent, the same deterministic job id enters fresh `outbox`, and `consume_external_response` raises `ExternalJobPending` instead of consuming stale inbox.
+- TOCTOU lane residue drift: `tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[lane_residue]`.
+
+Updated verification:
+
+- `python -m pytest tests/test_agy_gemini_coordinator.py -k same_generation_locale_plan_retry`: 15 passed
+- `python -m pytest tests/test_agy_gemini_coordinator.py -k 'same_generation_locale_plan_retry or resume_locale_plan_validation_failure or resume_other_failure'`: 17 passed
+- `python -m py_compile scripts/agy_gemini_coordinator.py tests/test_agy_gemini_coordinator.py`: PASS
+- `git diff --check`: PASS

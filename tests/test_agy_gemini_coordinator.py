@@ -1453,13 +1453,10 @@ def _sha(path: Path) -> str:
 
 def _write_same_gen_locale_plan_retry_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:
     run_id = "auto-i18n-ja-1414b75a404721e95e74"
-    job_id = "6894ba2772dca5fd9e44938951535d8e26d39467"
     run_dir, queue_root = tmp_path / "private-runs" / run_id, tmp_path / "queue"
     run_dir.mkdir(parents=True)
     (run_dir / "brief.json").write_text(json.dumps({"schema_version": 1, "run_id": run_id, "mode": "translate_existing", "lane": "i18n-new", "articles": [{"source_article_id": "V2-TAROT-DEATH-MONEY", "locale": "ja", "article_id": "V2-TAROT-DEATH-MONEY:ja"}]}, ensure_ascii=False), encoding="utf-8")
     state = register_run(run_dir, queue_root)
-    state.update({"status": "failed", "lane": "i18n-new", "last_job_id": job_id, "error_type": "LocalePlanValidationError"})
-    coordinator._write_state(queue_root, state)
     (run_dir / "continuation").mkdir()
     (run_dir / "continuation/state.json").write_text(json.dumps({"schema_version": 1, "run_id": run_id, "status": "active", "next_generation": 6}, ensure_ascii=False), encoding="utf-8")
     gen_dir = run_dir / "generations/06"
@@ -1475,18 +1472,23 @@ def _write_same_gen_locale_plan_retry_fixture(tmp_path: Path) -> tuple[Path, Pat
     artifacts["planning_result"].write_text(json.dumps({"schema_version": 1, "generation": 6, "transport_status": "EXTERNAL_PLAN_AVAILABLE", "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING"}, ensure_ascii=False), encoding="utf-8")
     artifacts["source_ref_map"].write_text(json.dumps({"schema_version": 1, "generation": 6, "articles": []}, ensure_ascii=False), encoding="utf-8")
     lane_root = queue_root / "lanes/i18n-new"
+    request_args = {"namespace": "same-gen-test", "role": "writer", "model": "gemini-test", "prompt": "retry prompt", "response_schema": {"type": "object"}}
+    request = create_external_request(lane_root, **request_args)
+    job_id = str(request["job_id"])
+    state.update({"status": "failed", "lane": "i18n-new", "last_job_id": job_id, "error_type": "LocalePlanValidationError"})
+    coordinator._write_state(queue_root, state)
     for child in ("production-attempts", "archive", "inbox"):
         (lane_root / child).mkdir(parents=True)
-    request_sha = "1" * 64
     attempt = lane_root / "production-attempts" / f"{job_id}.attempt"
     archive = lane_root / "archive" / f"{job_id}.json"
     inbox = lane_root / "inbox" / f"{job_id}.json"
-    attempt.write_text(json.dumps({"job_id": job_id, "attempt_status": "succeeded", "request_sha256": request_sha}, ensure_ascii=False), encoding="utf-8")
-    archive.write_text(json.dumps({"job_id": job_id, "request_sha256": request_sha, "role": "writer"}, ensure_ascii=False), encoding="utf-8")
-    inbox.write_text(json.dumps({"job_id": job_id, "request_sha256": request_sha}, ensure_ascii=False), encoding="utf-8")
+    attempt.write_text(json.dumps({"job_id": job_id, "attempt_status": "succeeded", "request_sha256": request["request_sha256"]}, ensure_ascii=False), encoding="utf-8")
+    (lane_root / "outbox" / f"{job_id}.json").replace(archive)
+    inbox.write_text(json.dumps({"schema_version": 1, "job_id": job_id, "request_sha256": request["request_sha256"], "model": request["model"], "completed_at": "2026-08-28T00:00:00+08:00", "result": {"stale": True}}, ensure_ascii=False), encoding="utf-8")
     return run_dir, queue_root, {
         "run_id": run_id, "job_id": job_id, "registry": coordinator._canonical_json_file_sha256(state),
         "attempt": _sha(attempt), "archive": _sha(archive), "inbox": _sha(inbox),
+        "request_args": request_args,
         **{key: _sha(path) for key, path in artifacts.items()},
     }
 
@@ -1527,6 +1529,14 @@ def test_same_generation_locale_plan_retry_execute_enqueues_fresh_gen06(tmp_path
     run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
 
     receipt = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    lane_root = queue_root / "lanes/i18n-new"
+    for child, suffix in (("archive", ".json"), ("inbox", ".json"), ("production-attempts", ".attempt")):
+        assert not (lane_root / child / f"{expected['job_id']}{suffix}").exists()
+    request = create_external_request(lane_root, **expected["request_args"])
+    assert request["job_id"] == expected["job_id"]
+    assert (lane_root / "outbox" / f"{expected['job_id']}.json").is_file()
+    with pytest.raises(ExternalJobPending):
+        consume_external_response(lane_root, request)
     calls = 0
 
     def tick(path: Path, _root: Path) -> dict[str, object]:
@@ -1548,7 +1558,7 @@ def test_same_generation_locale_plan_retry_execute_enqueues_fresh_gen06(tmp_path
     assert not (run_dir / "generations/06/candidate.json").exists()
 
 
-@pytest.mark.parametrize("drift", ["candidate", "gen07"])
+@pytest.mark.parametrize("drift", ["candidate", "gen07", "lane_residue"])
 def test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock(tmp_path: Path, drift: str) -> None:
     run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
     real_lock = coordinator._run_identity_lock
@@ -1556,9 +1566,13 @@ def test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_l
     @coordinator.contextmanager
     def drifting_lock(run_id: str, root: Path):
         with real_lock(run_id, root):
-            path = run_dir / ("generations/06/candidate.json" if drift == "candidate" else "generations/07")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("{}", encoding="utf-8") if drift == "candidate" else path.mkdir()
+            if drift == "lane_residue":
+                path = queue_root / "lanes/i18n-new/inbox" / f"{expected['job_id']}.json"
+                path.write_text("{}", encoding="utf-8")
+            else:
+                path = run_dir / ("generations/06/candidate.json" if drift == "candidate" else "generations/07")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}", encoding="utf-8") if drift == "candidate" else path.mkdir()
             yield
 
     with pytest.MonkeyPatch.context() as patch:

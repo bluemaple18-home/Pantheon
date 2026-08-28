@@ -5475,9 +5475,16 @@ SAME_GENERATION_PLAN_RETRY_FILES = {
     "planning_result": "planning-result.json",
     "source_ref_map": "source-ref-map.json",
 }
+SAME_GENERATION_PLAN_RETRY_LANE_FILES = {
+    "attempt": "lane-attempt.attempt",
+    "archive": "lane-archive.json",
+    "inbox": "lane-inbox.json",
+}
 
 
 def _file_sha256(path: Path) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("same-generation locale plan retry artifact is not a regular file")
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -5517,15 +5524,25 @@ def retry_same_generation_locale_plan(
             raise ValueError("same-generation locale plan retry cannot cross writer/reviewer boundary")
     validate_generation_boundary()
 
-    def validate_lane_job(registry: Mapping[str, Any]) -> None:
+    def validate_lane_job(registry: Mapping[str, Any]) -> tuple[str, Mapping[str, Path]]:
         lane = registry.get("lane")
         if lane not in CONTENT_LANES:
             raise ValueError("same-generation locale plan retry lane is invalid")
-        paths = {
-            "attempt": root / "lanes" / str(lane) / "production-attempts" / f"{expected_job_id}.attempt",
-            "archive": root / "lanes" / str(lane) / "archive" / f"{expected_job_id}.json",
-            "inbox": root / "lanes" / str(lane) / "inbox" / f"{expected_job_id}.json",
-        }
+        lane_root = root / "lanes" / str(lane)
+        source_paths = {"attempt": lane_root / "production-attempts" / f"{expected_job_id}.attempt", "archive": lane_root / "archive" / f"{expected_job_id}.json", "inbox": lane_root / "inbox" / f"{expected_job_id}.json"}
+        quarantine_paths = {key: quarantine / name for key, name in SAME_GENERATION_PLAN_RETRY_LANE_FILES.items()}
+        ambiguous = [lane_root / child / f"{expected_job_id}.json" for child in ("outbox", "processing", "failed")]
+        ambiguous.append(lane_root / "outbox" / f"{expected_job_id}.json.terminalizing")
+        if any(path.exists() for path in ambiguous):
+            raise ValueError("same-generation locale plan retry job location is ambiguous")
+        source_present = [path.exists() for path in source_paths.values()]
+        quarantine_present = [path.exists() for path in quarantine_paths.values()]
+        if all(source_present) and not any(quarantine_present):
+            paths, status = source_paths, "SOURCE"
+        elif not any(source_present) and all(quarantine_present):
+            paths, status = quarantine_paths, "QUARANTINED"
+        else:
+            raise ValueError("same-generation locale plan retry job artifact shape differs")
         if any(_file_sha256(path) != expected_digests[key] for key, path in paths.items()):
             raise ValueError("same-generation locale plan retry job artifact digest differs")
         attempt, archive, inbox = (json.loads(paths[key].read_text(encoding="utf-8")) for key in ("attempt", "archive", "inbox"))
@@ -5538,6 +5555,7 @@ def retry_same_generation_locale_plan(
             or archive.get("request_sha256") != inbox.get("request_sha256")
         ):
             raise ValueError("same-generation locale plan retry job identity differs")
+        return status, paths
 
     def validate_generation_cache() -> tuple[str, Mapping[str, Path]]:
         source_paths = {key: gen_dir / name for key, name in SAME_GENERATION_PLAN_RETRY_FILES.items()}
@@ -5568,7 +5586,7 @@ def retry_same_generation_locale_plan(
             raise ValueError("same-generation locale plan retry planning artifact identity differs")
         return status, paths
 
-    def validate_registry(registry: Mapping[str, Any], cache_status: str) -> str:
+    def validate_registry(registry: Mapping[str, Any], cache_status: str, job_status: str) -> str:
         if registry.get("run_id") != expected_run_id or registry.get("run_dir") != str(resolved_run_dir):
             raise ValueError("same-generation locale plan retry registry identity differs")
         continuation = json.loads((resolved_run_dir / "continuation" / "state.json").read_text(encoding="utf-8"))
@@ -5576,15 +5594,14 @@ def retry_same_generation_locale_plan(
             raise ValueError("same-generation locale plan retry continuation state differs")
         if registry.get("status") == "failed":
             if (
-                cache_status != "SOURCE" and cache_status != "QUARANTINED"
+                cache_status != job_status
                 or _canonical_json_file_sha256(registry) != expected_registry_digest
                 or registry.get("error_type") != "LocalePlanValidationError"
                 or registry.get("last_job_id") != expected_job_id
             ):
                 raise ValueError("same-generation locale plan retry registry state differs")
-            validate_lane_job(registry)
             return "READY_TO_EXECUTE" if cache_status == "SOURCE" else "READY_TO_RESUME"
-        if registry.get("status") == "active" and cache_status == "QUARANTINED" and json.loads(receipt_path.read_text(encoding="utf-8")).get("selector") == {key: registry.get(key) for key in ("lane", "mode", "routing_schema_version")} and not any(key in registry for key in ("last_job_id", "error_type", "error_code", "failure_category", "result")):
+        if registry.get("status") == "active" and cache_status == job_status == "QUARANTINED" and json.loads(receipt_path.read_text(encoding="utf-8")).get("selector") == {key: registry.get(key) for key in ("lane", "mode", "routing_schema_version")} and not any(key in registry for key in ("last_job_id", "error_type", "error_code", "failure_category", "result")):
             return "ALREADY_ACTIVE"
         raise ValueError("same-generation locale plan retry registry state differs")
 
@@ -5594,7 +5611,8 @@ def retry_same_generation_locale_plan(
         validate_generation_boundary()
         cache_status, cache_paths = validate_generation_cache()
         registry = read_run_state(resolved_run_dir, root)
-        status = validate_registry(registry, cache_status)
+        job_status, job_paths = validate_lane_job(registry)
+        status = validate_registry(registry, cache_status, job_status)
         receipt = {**receipt, "selector": {key: registry.get(key) for key in ("lane", "mode", "routing_schema_version")}}
         if status == "ALREADY_ACTIVE" or not execute:
             return {**receipt, "execute": execute, "status": status}
@@ -5603,6 +5621,8 @@ def retry_same_generation_locale_plan(
             atomic_write_json(receipt_path, {**receipt, "status": "PREPARED"})
             for key, path in cache_paths.items():
                 path.replace(quarantine / SAME_GENERATION_PLAN_RETRY_FILES[key])
+            for key, path in job_paths.items():
+                path.replace(quarantine / SAME_GENERATION_PLAN_RETRY_LANE_FILES[key])
             atomic_write_json(receipt_path, {**receipt, "status": "QUARANTINED"})
         registry["status"] = "active"
         registry.pop("last_job_id", None)
