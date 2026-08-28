@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager, nullcontext
 from collections import Counter
 import copy
 from datetime import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -2632,6 +2634,18 @@ def _authority_transition_path(run_dir: Path, generation: int) -> Path:
     return run_dir / "continuation" / f"authority-transition-{generation:02d}.json"
 
 
+@contextmanager
+def _continuation_run_lock(run_dir: Path) -> Any:
+    continuation_dir = run_dir / "continuation"
+    continuation_dir.mkdir(parents=True, exist_ok=True)
+    with (continuation_dir / "continuation.lock").open("a+b") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def _validate_partial_generation_decision(
     run_dir: Path,
     brief: dict[str, Any],
@@ -2736,6 +2750,210 @@ def _consume_partial_generation_terminalization(
     )
     _atomic_write_json(run_dir / "continuation" / "state.json", updated)
     return True
+
+
+def _require_sha256_digest(value: object, label: str) -> str:
+    digest = str(value)
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError(f"{label} is invalid")
+    return digest
+
+
+def _load_generation_authority_artifacts(
+    run_dir: Path,
+    brief: dict[str, Any],
+    generation: int,
+) -> dict[str, Any]:
+    directory = run_dir / "generations" / f"{generation:02d}"
+    names = {
+        "candidate": "candidate.json",
+        "review": "review.json",
+        "locale_plan": "locale-plan.json",
+        "source_ref_map": "source-ref-map.json",
+        "deterministic_findings": "deterministic-findings.json",
+    }
+    paths = {name: directory / filename for name, filename in names.items()}
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
+        raise ValueError(f"terminal {missing[0].replace('_', ' ')} artifact is missing")
+    artifacts = {name: json.loads(path.read_text(encoding="utf-8")) for name, path in paths.items()}
+    validate_translation_candidate(brief, artifacts["candidate"])
+    pipeline.validate_review(artifacts["review"], artifacts["candidate"]["articles"])
+    validate_locale_plan(brief, artifacts["locale_plan"])
+    _validate_source_ref_maps_against_current_package(
+        brief,
+        _source_ref_maps_from_artifact(artifacts["source_ref_map"], generation=generation),
+    )
+    if not isinstance(artifacts["deterministic_findings"], list):
+        raise ValueError("terminal deterministic findings artifact is invalid")
+    return artifacts
+
+
+def _review_finding_codes(review: dict[str, Any]) -> set[tuple[str, str]]:
+    return {
+        (str(article["article_id"]), str(finding["code"]))
+        for article in review["articles"]
+        for finding in article["findings"]
+    }
+
+
+def _validate_terminal_transition_receipt(
+    receipt: object,
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(receipt, dict):
+        raise ValueError("terminal authority transition identity differs")
+    required = {"schema_version": SCHEMA_VERSION, "contract": "continuation-authority-transition", "action": "authorize_next_generation_after_reviewer_reject", **expected}
+    if any(receipt.get(key) != value for key, value in required.items()):
+        raise ValueError("terminal authority transition identity differs")
+    for key in ("state_before_sha256", "state_after_sha256"):
+        _require_sha256_digest(receipt.get(key), key)
+    state_after = receipt.get("state_after")
+    if not isinstance(state_after, dict) or _json_sha256(state_after) != receipt["state_after_sha256"]:
+        raise ValueError("terminal authority transition identity differs")
+    return receipt
+
+
+def _authorize_next_generation_after_reviewer_reject_unlocked(
+    run_dir: Path,
+    *,
+    expected_run_id: str,
+    terminal_generation: int,
+    expected_source_sha256: str,
+    expected_locale_plan_sha256: str,
+    expected_source_ref_map_sha256: str,
+    expected_terminal_candidate_sha256: str,
+    expected_terminal_review_sha256: str,
+    authority_digest: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    """正式授權 terminal Reviewer REJECT 後建立下一代，不直接產生內容。"""
+    expected_source_sha256, expected_locale_plan_sha256, expected_source_ref_map_sha256, expected_terminal_candidate_sha256, expected_terminal_review_sha256, authority_digest = (
+        _require_sha256_digest(value, label)
+        for value, label in ((expected_source_sha256, "source hash"), (expected_locale_plan_sha256, "locale plan hash"), (expected_source_ref_map_sha256, "source ref map hash"), (expected_terminal_candidate_sha256, "terminal candidate hash"), (expected_terminal_review_sha256, "terminal review hash"), (authority_digest, "authority digest"))
+    )
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    validate_translation_brief(brief)
+    expected = dict(run_id=expected_run_id, terminal_generation=terminal_generation, from_status="complete", to_status="active", to_next_generation=terminal_generation + 1, source_sha256=expected_source_sha256, locale_plan_sha256=expected_locale_plan_sha256, source_ref_map_sha256=expected_source_ref_map_sha256, terminal_candidate_sha256=expected_terminal_candidate_sha256, terminal_review_sha256=expected_terminal_review_sha256, authority_digest=authority_digest)
+    transition_path = _authority_transition_path(run_dir, terminal_generation)
+    if transition_path.is_file():
+        transition = _validate_terminal_transition_receipt(
+            json.loads(transition_path.read_text(encoding="utf-8")),
+            expected,
+        )
+        state_path = run_dir / "continuation" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state_sha256 = _json_sha256(state)
+        if execute and state_sha256 == transition["state_before_sha256"]:
+            _atomic_write_json(state_path, transition["state_after"])
+            return {**transition, "status": "AUTHORIZED", "execute": True}
+        if state_sha256 == transition["state_after_sha256"]:
+            return {**transition, "status": "ALREADY_AUTHORIZED", "execute": execute}
+        raise ValueError("authorization already consumed/state progressed")
+    if expected_run_id != brief["run_id"] or terminal_generation < 1:
+        raise ValueError("terminal authority identity differs")
+    if len(brief["articles"]) != 1:
+        raise ValueError("terminal rejected next generation supports one article")
+    if str(brief["articles"][0]["source_sha256"]) != expected_source_sha256:
+        raise ValueError("source identity differs")
+    if (run_dir / "continuation" / "root-update.json").exists():
+        raise ValueError("root update residue is not supported")
+    next_dir = run_dir / "generations" / f"{expected['to_next_generation']:02d}"
+    if next_dir.exists():
+        raise ValueError("authorization already consumed/state progressed")
+    state_path = run_dir / "continuation" / "state.json"
+    if not state_path.is_file():
+        raise ValueError("continuation state is missing")
+    root_candidate, root_review = (
+        json.loads((run_dir / name).read_text(encoding="utf-8"))
+        for name in ("candidate.json", "review.json")
+    )
+    validate_translation_candidate(brief, root_candidate)
+    pipeline.validate_review(root_review, root_candidate["articles"])
+    state = _load_or_create_continuation_state(
+        run_dir,
+        brief,
+        root_review,
+        max_repairs=2,
+    )
+    if any((state.get("status") != "complete", state.get("next_generation") != expected["to_next_generation"], state.get("completed_generations") not in ([], [terminal_generation]), state.get("terminal_candidate_sha256") != expected_terminal_candidate_sha256, state.get("terminal_review_sha256") != expected_terminal_review_sha256, _json_sha256(root_candidate) != expected_terminal_candidate_sha256, _json_sha256(root_review) != expected_terminal_review_sha256)):
+        raise ValueError("terminal rejected state identity differs")
+    terminal = _load_generation_authority_artifacts(run_dir, brief, terminal_generation)
+    if any(
+        _json_sha256(terminal[artifact]) != expected[key]
+        for artifact, key in (
+            ("candidate", "terminal_candidate_sha256"),
+            ("review", "terminal_review_sha256"),
+            ("locale_plan", "locale_plan_sha256"),
+            ("source_ref_map", "source_ref_map_sha256"),
+        )
+    ):
+        raise ValueError("terminal generation artifact identity differs")
+    if (run_dir / "published.json").exists():
+        raise ValueError("published residue is not supported")
+    if not all(
+        item["verdict"] == "REJECT"
+        and item.get("hard_failure") is True
+        and item.get("findings")
+        for item in root_review["articles"]
+    ):
+        raise ValueError("terminal review must be rejected hard failure")
+    deterministic_codes = {
+        (str(item.get("article_id")), str(item.get("code")))
+        for item in terminal["deterministic_findings"]
+        if isinstance(item, dict)
+    }
+    if not deterministic_codes or not deterministic_codes <= _review_finding_codes(root_review):
+        raise ValueError("deterministic hard failure is invalid")
+    abandoned = list(state.get("abandoned_generations", []))
+    required_budget = int(state["next_generation"]) - int(state["started_after_generation"]) - len(abandoned)
+    updated_budget = max(int(state["semantic_budget"]), required_budget)
+    if updated_budget > 3:
+        raise ValueError("terminal rejected next generation exceeds semantic budget")
+    updated = {
+        **state,
+        "operation_id": _continuation_operation_id(brief, expected_terminal_review_sha256, state["started_after_generation"]),
+        "starting_review_sha256": expected_terminal_review_sha256,
+        "terminal_candidate_sha256": None,
+        "terminal_review_sha256": None,
+        "semantic_budget": updated_budget,
+        "status": "active",
+    }
+    transition = {**expected, "schema_version": SCHEMA_VERSION, "contract": "continuation-authority-transition", "action": "authorize_next_generation_after_reviewer_reject", "from_next_generation": state["next_generation"], "from_semantic_budget": state["semantic_budget"], "to_semantic_budget": updated["semantic_budget"], "from_operation_id": state["operation_id"], "to_operation_id": updated["operation_id"], "completed_generations": updated["completed_generations"], "abandoned_generations": updated["abandoned_generations"], "state_before_sha256": _json_sha256(state), "state_after_sha256": _json_sha256(updated), "state_after": updated}
+    if not execute:
+        return {**transition, "status": "READY_TO_EXECUTE", "execute": False}
+    _write_if_same_or_missing(transition_path, transition)
+    _atomic_write_json(run_dir / "continuation" / "state.json", updated)
+    return {**transition, "status": "AUTHORIZED", "execute": True}
+
+
+def authorize_next_generation_after_reviewer_reject(
+    run_dir: Path,
+    *,
+    expected_run_id: str,
+    terminal_generation: int,
+    expected_source_sha256: str,
+    expected_locale_plan_sha256: str,
+    expected_source_ref_map_sha256: str,
+    expected_terminal_candidate_sha256: str,
+    expected_terminal_review_sha256: str,
+    authority_digest: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    context = _continuation_run_lock(run_dir) if execute else nullcontext()
+    with context:
+        return _authorize_next_generation_after_reviewer_reject_unlocked(
+            run_dir,
+            expected_run_id=expected_run_id,
+            terminal_generation=terminal_generation,
+            expected_source_sha256=expected_source_sha256,
+            expected_locale_plan_sha256=expected_locale_plan_sha256,
+            expected_source_ref_map_sha256=expected_source_ref_map_sha256,
+            expected_terminal_candidate_sha256=expected_terminal_candidate_sha256,
+            expected_terminal_review_sha256=expected_terminal_review_sha256,
+            authority_digest=authority_digest,
+            execute=execute,
+        )
 
 
 def _review_findings(review: dict[str, Any]) -> list[dict[str, str]]:
@@ -3368,7 +3586,7 @@ def _validate_semantic_budget(max_repairs: int) -> None:
         raise ValueError("translation semantic repair budget must be between 0 and 2")
 
 
-def continue_writer_reviewer(
+def _continue_writer_reviewer_unlocked(
     run_dir: Path,
     client: pipeline.GeminiClient,
     *,
@@ -3441,6 +3659,20 @@ def continue_writer_reviewer(
             return candidate, review
         _atomic_write_json(run_dir / "continuation" / "state.json", state)
     raise RuntimeError("continuation semantic budget produced no result")
+
+
+def continue_writer_reviewer(
+    run_dir: Path,
+    client: pipeline.GeminiClient,
+    *,
+    max_repairs: int = 2,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    with _continuation_run_lock(run_dir):
+        return _continue_writer_reviewer_unlocked(
+            run_dir,
+            client,
+            max_repairs=max_repairs,
+        )
 
 
 def run_writer_reviewer(
@@ -3649,6 +3881,17 @@ def parse_args() -> argparse.Namespace:
     apply = subparsers.add_parser("apply")
     apply.add_argument("--run-dir", type=Path, required=True)
     apply.add_argument("--approver", required=True)
+    authorize = subparsers.add_parser("authorize-next-generation-after-reviewer-reject")
+    authorize.add_argument("--run-dir", type=Path, required=True)
+    authorize.add_argument("--expected-run-id", required=True)
+    authorize.add_argument("--terminal-generation", type=int, required=True)
+    authorize.add_argument("--expected-source-sha256", required=True)
+    authorize.add_argument("--expected-locale-plan-sha256", required=True)
+    authorize.add_argument("--expected-source-ref-map-sha256", required=True)
+    authorize.add_argument("--expected-terminal-candidate-sha256", required=True)
+    authorize.add_argument("--expected-terminal-review-sha256", required=True)
+    authorize.add_argument("--authority-digest", required=True)
+    authorize.add_argument("--execute", action="store_true")
     return parser.parse_args()
 
 
@@ -3692,9 +3935,35 @@ def main() -> int:
             )
         )
         return 0
-    changed = approve_and_apply_translation_run(repo_root, args.run_dir.resolve(), args.approver)
-    print(json.dumps({"changed": [str(path.relative_to(repo_root)) for path in changed]}, ensure_ascii=False))
-    return 0
+    if args.command == "authorize-next-generation-after-reviewer-reject":
+        receipt = authorize_next_generation_after_reviewer_reject(
+            args.run_dir.resolve(),
+            expected_run_id=args.expected_run_id,
+            terminal_generation=args.terminal_generation,
+            expected_source_sha256=args.expected_source_sha256,
+            expected_locale_plan_sha256=args.expected_locale_plan_sha256,
+            expected_source_ref_map_sha256=args.expected_source_ref_map_sha256,
+            expected_terminal_candidate_sha256=args.expected_terminal_candidate_sha256,
+            expected_terminal_review_sha256=args.expected_terminal_review_sha256,
+            authority_digest=args.authority_digest,
+            execute=args.execute,
+        )
+        print(json.dumps(receipt, ensure_ascii=False))
+        return 0
+    if args.command == "apply":
+        changed = approve_and_apply_translation_run(
+            repo_root,
+            args.run_dir.resolve(),
+            args.approver,
+        )
+        print(
+            json.dumps(
+                {"changed": [str(path.relative_to(repo_root)) for path in changed]},
+                ensure_ascii=False,
+            )
+        )
+        return 0
+    raise ValueError(f"unsupported command: {args.command}")
 
 
 if __name__ == "__main__":

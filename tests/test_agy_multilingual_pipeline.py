@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from collections import Counter
 from pathlib import Path
 
@@ -3161,6 +3162,399 @@ def _write_ja_partial_generation_04_lineage(
         for path in protected_paths
     }
     return candidate, review, protected_bytes
+
+
+def _write_terminal_rejected_ja_generation(run_dir: Path) -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, object]]:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("candidate_03.json")
+    review = load_ja_boundary_fixture("review_03.json")
+    review["articles"][0]["candidate_sha256"] = article_sha256(candidate["articles"][0])
+    review["articles"][0]["hard_failure"] = True
+    review["articles"][0]["findings"] = [{"code": "BOUNDARY_MEANING_MISSING", "message": "deterministic protected boundary missing"}]
+    for name, payload in {"brief.json": brief, "candidate.json": candidate, "review.json": review}.items():
+        multilingual.pipeline.write_json(run_dir / name, payload)
+    for attempt in range(1, 4):
+        multilingual.pipeline.write_json(
+            run_dir / "attempts" / f"{attempt:02d}" / "external-review.json",
+            {"articles": [{"slot": "article-01", "verdict": "REJECT", "findings": [{"code": "BOUNDARY_MEANING_MISSING", "message": f"attempt {attempt} misses boundary"}]}]},
+        )
+
+    state = multilingual._load_or_create_continuation_state(run_dir, brief, review, max_repairs=0)
+    prior_plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=3,
+        rebuild_by_slot={"article-01": False},
+    )
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, prior_plan)
+    terminal_plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan_with_source_refs(brief),
+        generation=5,
+        rebuild_by_slot={"article-01": False},
+        prior_plan=prior_plan,
+        source_ref_maps=source_ref_maps,
+    )
+    multilingual.pipeline.write_json(run_dir / "generations/04/partial-generation-decision.json", {"schema_version": 1, "contract": "fixture-abandoned-generation"})
+    gen05 = run_dir / "generations" / "05"
+    multilingual.pipeline.write_json(gen05 / "source-ref-map.json", multilingual._source_ref_map_artifact(source_ref_maps, generation=5))
+    multilingual.pipeline.write_json(gen05 / "locale-plan.json", terminal_plan)
+    deterministic_findings = [{"article_id": review["articles"][0]["article_id"], **finding} for finding in review["articles"][0]["findings"]]
+    multilingual.pipeline.write_json(gen05 / "deterministic-findings.json", deterministic_findings)
+    multilingual.pipeline.write_json(gen05 / "candidate.json", candidate)
+    multilingual.pipeline.write_json(gen05 / "review.json", review)
+
+    state.update({"status": "complete", "semantic_budget": 1, "next_generation": 6, "completed_generations": [5], "abandoned_generations": [4], "terminal_candidate_sha256": multilingual._json_sha256(candidate), "terminal_review_sha256": multilingual._json_sha256(review)})
+    multilingual.pipeline.write_json(run_dir / "continuation" / "state.json", state)
+    return brief, candidate, review, terminal_plan
+
+
+def _terminal_reject_authority_kwargs(brief: dict[str, object], candidate: dict[str, object], review: dict[str, object], plan: dict[str, object], run_dir: Path) -> dict[str, object]:
+    return {
+        "expected_run_id": brief["run_id"],
+        "terminal_generation": 5,
+        "expected_source_sha256": brief["articles"][0]["source_sha256"],
+        "expected_locale_plan_sha256": multilingual._json_sha256(plan),
+        "expected_source_ref_map_sha256": multilingual._json_sha256(json.loads((run_dir / "generations/05/source-ref-map.json").read_text(encoding="utf-8"))),
+        "expected_terminal_candidate_sha256": multilingual._json_sha256(candidate),
+        "expected_terminal_review_sha256": multilingual._json_sha256(review),
+        "authority_digest": "a" * 64,
+    }
+
+
+class _TerminalRejectFakeClient:
+    writer_model = "writer-test"
+    reviewer_model = "reviewer-test"
+
+    def generate_json(self, *_args: object) -> dict[str, object]:
+        raise AssertionError("fake generation seam must not call provider")
+
+
+def _write_fake_next_generation(
+    run_dir: Path,
+    brief: dict[str, object],
+    plan: dict[str, object],
+    generation: int,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+    review = {"schema_version": 1, "run_id": brief["run_id"], "articles": [{"article_id": candidate["articles"][0]["article_id"], "candidate_sha256": article_sha256(candidate["articles"][0]), "verdict": "APPROVE", "hard_failure": False, "findings": []}]}
+    next_plan = json.loads(json.dumps(plan))
+    next_plan["generation"] = generation
+    source_ref_maps = multilingual._request_local_source_ref_maps(brief, plan)
+    gen_dir = run_dir / "generations" / f"{generation:02d}"
+    multilingual.pipeline.write_json(gen_dir / "source-ref-map.json", multilingual._source_ref_map_artifact(source_ref_maps, generation=generation))
+    for name, payload in {"locale-plan.json": next_plan, "deterministic-findings.json": [], "candidate.json": candidate, "review.json": review}.items():
+        multilingual.pipeline.write_json(gen_dir / name, payload)
+    return candidate, review, next_plan
+
+
+def _patch_fake_next_generation(monkeypatch: pytest.MonkeyPatch, brief: dict[str, object], plan: dict[str, object], generated: list[int]) -> None:
+    def fake_run_locale_generation(
+        fixture_brief: dict[str, object],
+        _client: object,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        assert fixture_brief == brief
+        assert generation_dir.name == f"{generation:02d}"
+        assert findings and history
+        assert prior_plan == plan
+        generated.append(generation)
+        return _write_fake_next_generation(generation_dir.parents[1], brief, plan, generation)
+
+    monkeypatch.setattr(multilingual, "_run_locale_generation", fake_run_locale_generation)
+
+
+def test_terminal_reviewer_reject_authority_plan_is_read_only(
+    tmp_path: Path,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    protected = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+    receipt = multilingual.authorize_next_generation_after_reviewer_reject(
+        tmp_path,
+        **kwargs,
+    )
+
+    assert receipt["status"] == "READY_TO_EXECUTE"
+    assert receipt["execute"] is False
+    assert receipt["from_status"] == "complete"
+    assert receipt["to_status"] == "active"
+    assert receipt["from_next_generation"] == 6
+    assert receipt["to_next_generation"] == 6
+    assert receipt["from_semantic_budget"] == 1
+    assert receipt["to_semantic_budget"] == 2
+    assert not (tmp_path / "generations/06").exists()
+    assert not (tmp_path / "continuation/authority-transition-05.json").exists()
+    assert protected == {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+
+def test_terminal_reviewer_reject_authority_execute_creates_exactly_one_next_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    generated: list[int] = []
+    _patch_fake_next_generation(monkeypatch, brief, plan, generated)
+
+    receipt = multilingual.authorize_next_generation_after_reviewer_reject(
+        tmp_path,
+        execute=True,
+        **kwargs,
+    )
+    crash_window_replay = multilingual.authorize_next_generation_after_reviewer_reject(
+        tmp_path,
+        execute=True,
+        **kwargs,
+    )
+    candidate_after, review_after = multilingual.continue_writer_reviewer(
+        tmp_path,
+        _TerminalRejectFakeClient(),
+        max_repairs=1,
+    )
+    with pytest.raises(ValueError, match="authorization already consumed/state progressed"):
+        multilingual.authorize_next_generation_after_reviewer_reject(tmp_path, execute=True, **kwargs)
+
+    state = json.loads((tmp_path / "continuation/state.json").read_text())
+    transition = json.loads(
+        (tmp_path / "continuation/authority-transition-05.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert receipt["status"] == "AUTHORIZED"
+    assert crash_window_replay["status"] == "ALREADY_AUTHORIZED"
+    assert transition["action"] == "authorize_next_generation_after_reviewer_reject"
+    assert transition["from_status"] == "complete"
+    assert transition["to_status"] == "active"
+    assert transition["from_semantic_budget"] == 1
+    assert transition["to_semantic_budget"] == 2
+    assert state["status"] == "complete"
+    assert state["completed_generations"] == [5, 6]
+    assert state["abandoned_generations"] == [4]
+    assert state["next_generation"] == 7
+    assert generated == [6]
+    assert sorted(path.name for path in (tmp_path / "generations").iterdir()) == ["04", "05", "06"]
+    assert review_after["articles"][0]["verdict"] == "APPROVE"
+
+
+def test_terminal_reviewer_reject_authority_and_continuation_share_run_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    transition_written = threading.Event()
+    allow_state_write = threading.Event()
+    authorize_done = threading.Event()
+    continue_done = threading.Event()
+    failures: list[BaseException] = []
+    generated: list[int] = []
+    original_write_if_same_or_missing = multilingual._write_if_same_or_missing
+
+    def pausing_write_if_same_or_missing(path: Path, payload: dict[str, object]) -> None:
+        original_write_if_same_or_missing(path, payload)
+        if path.name == "authority-transition-05.json":
+            transition_written.set()
+            if not allow_state_write.wait(timeout=2):
+                raise AssertionError("test did not release authority state write")
+
+    monkeypatch.setattr(
+        multilingual,
+        "_write_if_same_or_missing",
+        pausing_write_if_same_or_missing,
+    )
+    _patch_fake_next_generation(monkeypatch, brief, plan, generated)
+
+    def authorize_thread() -> None:
+        try:
+            multilingual.authorize_next_generation_after_reviewer_reject(
+                tmp_path,
+                execute=True,
+                **kwargs,
+            )
+        except BaseException as error:
+            failures.append(error)
+        finally:
+            authorize_done.set()
+
+    def continue_thread() -> None:
+        try:
+            multilingual.continue_writer_reviewer(
+                tmp_path,
+                _TerminalRejectFakeClient(),
+                max_repairs=1,
+            )
+        except BaseException as error:
+            failures.append(error)
+        finally:
+            continue_done.set()
+
+    authority = threading.Thread(target=authorize_thread)
+    continuation = threading.Thread(target=continue_thread)
+    authority.start()
+    assert transition_written.wait(timeout=2)
+    continuation.start()
+    assert not continue_done.wait(timeout=0.1)
+    allow_state_write.set()
+    assert authorize_done.wait(timeout=2)
+    assert continue_done.wait(timeout=2)
+    authority.join(timeout=1)
+    continuation.join(timeout=1)
+
+    assert failures == []
+    assert generated == [6]
+    assert not (tmp_path / "generations/07").exists()
+
+
+def test_terminal_reviewer_reject_authority_crash_resume_from_transition_only(
+    tmp_path: Path,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    plan_receipt = multilingual.authorize_next_generation_after_reviewer_reject(
+        tmp_path,
+        **kwargs,
+    )
+    state_before = json.loads((tmp_path / "continuation/state.json").read_text())
+    transition = {
+        key: value
+        for key, value in plan_receipt.items()
+        if key not in {"status", "execute"}
+    }
+    multilingual.pipeline.write_json(
+        tmp_path / "continuation/authority-transition-05.json",
+        transition,
+    )
+
+    receipt = multilingual.authorize_next_generation_after_reviewer_reject(
+        tmp_path,
+        execute=True,
+        **kwargs,
+    )
+
+    state_after = json.loads((tmp_path / "continuation/state.json").read_text())
+    assert receipt["status"] == "AUTHORIZED"
+    assert state_before["status"] == "complete"
+    assert state_after == transition["state_after"]
+    assert state_after["status"] == "active"
+    assert not (tmp_path / "generations/06").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("state", "authorization already consumed/state progressed"),
+        ("receipt", "transition identity differs"),
+    ],
+)
+def test_terminal_reviewer_reject_authority_rejects_transition_residue_drift(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    receipt = multilingual.authorize_next_generation_after_reviewer_reject(tmp_path, execute=mutation == "state", **kwargs)
+    if mutation == "state":
+        drifted = json.loads((tmp_path / "continuation/state.json").read_text())
+        drifted["semantic_budget"] = 3
+        multilingual.pipeline.write_json(tmp_path / "continuation/state.json", drifted)
+    else:
+        transition = {key: value for key, value in receipt.items() if key not in {"status", "execute"}}
+        transition["state_after"] = {**transition["state_after"], "semantic_budget": 3}
+        multilingual.pipeline.write_json(tmp_path / "continuation/authority-transition-05.json", transition)
+    with pytest.raises(ValueError, match=message):
+        multilingual.authorize_next_generation_after_reviewer_reject(
+            tmp_path,
+            execute=True,
+            **kwargs,
+        )
+
+
+def test_terminal_reviewer_reject_authority_cli_defaults_to_plan_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    option_values = {"run-dir": tmp_path, "expected-run-id": kwargs["expected_run_id"], "terminal-generation": kwargs["terminal_generation"], "expected-source-sha256": kwargs["expected_source_sha256"], "expected-locale-plan-sha256": kwargs["expected_locale_plan_sha256"], "expected-source-ref-map-sha256": kwargs["expected_source_ref_map_sha256"], "expected-terminal-candidate-sha256": kwargs["expected_terminal_candidate_sha256"], "expected-terminal-review-sha256": kwargs["expected_terminal_review_sha256"], "authority-digest": kwargs["authority_digest"]}
+    argv = ["agy_multilingual_pipeline.py", "authorize-next-generation-after-reviewer-reject"]
+    for name, value in option_values.items():
+        argv.extend([f"--{name}", str(value)])
+    monkeypatch.setattr("sys.argv", argv)
+
+    exit_code = multilingual.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert output["status"] == "READY_TO_EXECUTE"
+    assert output["execute"] is False
+    assert not (tmp_path / "continuation/authority-transition-05.json").exists()
+    assert not (tmp_path / "generations/06").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("approved_review", "terminal review must be rejected"),
+        ("missing_review", "terminal review artifact is missing"),
+        ("candidate_hash", "terminal rejected state identity differs"),
+        ("existing_next_generation", "authorization already consumed/state progressed"),
+        ("file_byte_locale_hash", "terminal generation artifact identity differs"),
+        ("root_drift", "identity|terminal root review differs"),
+        ("authority_digest", "authority digest is invalid"),
+    ],
+)
+def test_terminal_reviewer_reject_authority_fail_closed(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    brief, candidate, review, plan = _write_terminal_rejected_ja_generation(tmp_path)
+    kwargs = _terminal_reject_authority_kwargs(brief, candidate, review, plan, tmp_path)
+    if mutation == "approved_review":
+        review["articles"][0]["verdict"] = "APPROVE"
+        review["articles"][0]["hard_failure"] = False
+        review["articles"][0]["findings"] = []
+        multilingual.pipeline.write_json(tmp_path / "review.json", review)
+        multilingual.pipeline.write_json(tmp_path / "generations/05/review.json", review)
+        state = json.loads((tmp_path / "continuation/state.json").read_text())
+        state["terminal_review_sha256"] = multilingual._json_sha256(review)
+        multilingual.pipeline.write_json(tmp_path / "continuation/state.json", state)
+        kwargs["expected_terminal_review_sha256"] = multilingual._json_sha256(review)
+    elif mutation == "missing_review":
+        (tmp_path / "generations/05/review.json").unlink()
+    elif mutation == "candidate_hash":
+        kwargs["expected_terminal_candidate_sha256"] = "b" * 64
+    elif mutation == "existing_next_generation":
+        multilingual.pipeline.write_json(
+            tmp_path / "generations/06/candidate.json",
+            {"unexpected": True},
+        )
+    elif mutation == "file_byte_locale_hash":
+        plan_path = tmp_path / "generations/05/locale-plan.json"
+        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        kwargs["expected_locale_plan_sha256"] = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+    elif mutation == "root_drift":
+        drifted = json.loads(json.dumps(review))
+        drifted["articles"][0]["findings"][0]["message"] = "root drift"
+        multilingual.pipeline.write_json(tmp_path / "review.json", drifted)
+    elif mutation == "authority_digest":
+        kwargs["authority_digest"] = "not-a-digest"
+
+    with pytest.raises(ValueError, match=message):
+        multilingual.authorize_next_generation_after_reviewer_reject(
+            tmp_path,
+            execute=True,
+            **kwargs,
+        )
 
 
 def test_ja_partial_generation_04_missing_source_ref_map_terminalizes_once(
