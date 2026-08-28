@@ -1,96 +1,94 @@
 {
-  "actor_head": "f186692a0d210c0cd2bf5b1ad8590d9acfc281bf",
-  "blocker": "POST_REPAIR_PROTECTED_SOURCE_COVERAGE_FAIL_CLOSED",
+  "acceptance_mapping": {
+    "browser_body": "not_run_publication_blocked",
+    "canonical_hreflang": "not_run_publication_blocked",
+    "http_200": "not_run_publication_blocked",
+    "ledger_transaction_count": 0,
+    "route_uniqueness": "no_publication_created",
+    "seven_services": "stopped_or_not_loaded"
+  },
+  "blocker": {
+    "official_reason": "active run registry is dangling",
+    "root_cause": "ACTIVE_RUN_REGISTRY_DANGLING",
+    "same_blocker_attempts_this_turn": 1
+  },
   "card_id": "CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826",
   "codegraph": {
-    "degraded_reason": "CodeGraph tool reported not initialized for the current formal worktree before source decision.",
-    "readiness": "UNAVAILABLE",
-    "status_error": "CodeGraph not initialized in /Users/mattkuo/.codex/worktrees/2cf0/Pantheon"
+    "degraded_reason": "CodeGraph not initialized in this worktree",
+    "status": "degraded_to_limited_rg"
   },
-  "delivery": "DELIVERED_ACCEPTANCE_B_POST_REPAIR",
-  "formal_thread": "01a03c34-fd96-7021-9423-29879c9b5b47",
+  "continuation": {
+    "abandoned_generations": [
+      4
+    ],
+    "completed_generations": [],
+    "next_generation": 5,
+    "semantic_budget": 1,
+    "status": "active"
+  },
+  "delivery": "DELIVERED_CANDIDATE",
+  "evidence_files": [
+    "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826-RESULT.md",
+    "artifacts/fortune_council/four_lane_runtime_execution/automation_acceptance_b_translation_public_url_20260826/evidence.md",
+    "artifacts/fortune_council/four_lane_runtime_execution/automation_acceptance_b_translation_public_url_20260826/machine-summary.json"
+  ],
+  "generation_files_after": [
+    "generations/04/external-plan.json",
+    "generations/04/partial-generation-decision.json",
+    "generations/04/plan-operation.json",
+    "generations/04/planning-result.json",
+    "generations/05/external-plan.json",
+    "generations/05/plan-operation.json",
+    "generations/05/planning-result.json",
+    "generations/05/source-ref-map.json"
+  ],
   "ledger": {
-    "target_deferred": [],
-    "target_published": [],
-    "translation_deferred_runs": 8,
-    "translation_published_runs": 1
-  },
-  "manifest": {
-    "generation": "g50-f186692a-ja-boundary-contract-20260827",
-    "manifest_digest": "9bb9ebae8a3fcb72a2cc24545bbc2a8c59e62f300b7d451d1530a2daf3c5de5e",
-    "runtime_digest": "ac80b2dee2a25b5d000ea7b738e1c375081ab1597b6aa0e873682bea95fd0d8d",
-    "runtime_identity_digest": "85fa7b023c1abc106066c83baef035f4541dadfa97de2a918f307afc34d7e1f7"
-  },
-  "model_route": {
-    "digest": "1ed24743202ff953bf32d07d570602e61c77194df45889cabc93b13495945e0e",
-    "reviewer": "gemini-3.1-flash-lite",
-    "writer": "gemini-3.5-flash-lite"
+    "target_in_translation_published_runs": false,
+    "target_transaction_count": 0
   },
   "mutation_accounting": {
-    "automatic_writer_repair": 0,
-    "browser_validation": 0,
+    "code_config_changes": 0,
     "deploy": 0,
-    "http_validation": 0,
-    "ledger_target_transaction_count": 0,
+    "gen04_to_gen05_transition": 0,
+    "gen05_planning_provider": 0,
+    "gen06_created": 0,
     "manual_queue_state_edit": 0,
-    "post_repair_article_candidate": 0,
-    "post_repair_reviewer_judgement": 0,
-    "post_repair_writer_plan_provider_attempt": 1,
-    "publication_commit": null,
-    "publication_tag": null,
-    "public_content_update": 0,
-    "public_locale_url": null,
+    "provider_calls": 0,
+    "publication_transaction": 0,
     "push": 0,
-    "source_code_policy_changes": 0,
-    "translation_publication_transaction": 0
+    "reviewer_calls": 0,
+    "tag": 0
   },
   "official_entrypoint": {
-    "deployment_preflight": {
-      "actor": "matched",
-      "authority_mode": "manifest",
-      "mode": "read-only",
-      "mutation_permitted": false,
-      "push_mode": "push",
-      "runtime_sha": "f186692a0d210c0cd2bf5b1ad8590d9acfc281bf",
-      "status": "ready"
-    },
-    "post_repair_generation": {
-      "error": "LocalePlanValidationError: deterministic locale plan failure: external locale plan source fact coverage differs for article-01",
-      "generated_files": [
-        "generations/04/external-plan.json",
-        "generations/04/plan-operation.json"
-      ],
-      "status": "blocked"
-    }
+    "returncode": 0,
+    "runner_status": "idle",
+    "status": "blocked",
+    "wrapper": "scripts.pantheon_content_runtime_manifest barrier-exec"
   },
-  "result_status": "BLOCKED",
-  "selected_target": {
-    "expected_public_ja_path": "/ja/articles/tarot/tarot-1884",
+  "queue_after": {
+    "i18n_new_inbox_count": 16,
+    "i18n_new_outbox_count": 0,
+    "i18n_new_processing_count": 0,
+    "target_registry_status": "active"
+  },
+  "runtime_authority": {
+    "actor": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+    "manifest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9",
+    "runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "stage": "51d0e46da1c495ecf1d717011199444e485754498887823bce1fb17abbac0e29"
+  },
+  "sampled_date": "2026-08-28",
+  "source": {
+    "article_id": "V2-TAROT-DEATH-MONEY",
+    "path": "/articles/tarot/tarot-1884",
+    "sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+  },
+  "source_worktree_head": "3bf38cf014781474bc0acd114dd50ad0d8ea99e1",
+  "status": "BLOCKED",
+  "target": {
+    "article_id": "V2-TAROT-DEATH-MONEY:ja",
     "locale": "ja",
-    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
-    "source_article_id": "V2-TAROT-DEATH-MONEY",
-    "source_path": "/articles/tarot/tarot-1884",
-    "source_run_id": "v0391-publish-canary-20260826-02",
-    "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
-    "translation_article_id": "V2-TAROT-DEATH-MONEY:ja"
-  },
-  "services": {
-    "com.pantheon.agy-content-publisher": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.agy-gemini-coordinator": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.agy-gemini-i18n-new": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.agy-gemini-i18n-rewrite": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.agy-gemini-new": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.agy-gemini-rewrite": "STOPPED_OR_NOT_LOADED",
-    "com.pantheon.content-capacity-guard": "STOPPED_OR_NOT_LOADED"
-  },
-  "supervisor_readonly_confirmation": {
-    "no_agy_content_publisher_process": true,
-    "no_agy_gemini_process": true,
-    "no_publication_transaction": true,
-    "no_target_run_process": true
-  },
-  "worktree": {
-    "aligned_head": "f186692a0d210c0cd2bf5b1ad8590d9acfc281bf",
-    "origin_main": "f186692a0d210c0cd2bf5b1ad8590d9acfc281bf"
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74"
   }
 }

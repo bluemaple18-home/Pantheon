@@ -1,67 +1,63 @@
 # Pantheon 翻譯公開網址自動化驗收 Result
 
 status: `BLOCKED`
-delivery: `DELIVERED_ACCEPTANCE_B_POST_REPAIR`
+delivery: `DELIVERED_CANDIDATE`
 card_id: `CARD-PANTHEON-AUTOMATION-ACCEPTANCE-B-TRANSLATION-PUBLIC-URL-20260826`
+run_id: `auto-i18n-ja-1414b75a404721e95e74`
 
 ## 結論
 
-post-Repair g50 權威收斂後，本卡沿用同一正式 thread，鎖定唯一 fresh JA 目標：
+本輪依 Owner 授權續跑 Fresh runtime authority：
 
-- source run：`v0391-publish-canary-20260826-02`
-- source article：`V2-TAROT-DEATH-MONEY`
-- source path：`/articles/tarot/tarot-1884`
-- source hash：`1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23`
-- locale：`ja`
-- translation article_id：`V2-TAROT-DEATH-MONEY:ja`
-- run_id：`auto-i18n-ja-1414b75a404721e95e74`
+- actor：`2ce431ec41f5187531d88b52dfa91cef0373d8b5`
+- manifest：`7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9`
+- stage：`51d0e46da1c495ecf1d717011199444e485754498887823bce1fb17abbac0e29`
+- runtime generation：`g55-2ce431ec-gen05-runtime-promotion-plan-20260828`
 
-唯讀 preflight 通過：local worktree、origin/main、runtime actor 均為 `f186692a0d210c0cd2bf5b1ad8590d9acfc281bf`；runtime generation 為 `g50-f186692a-ja-boundary-contract-20260827`；deployment-preflight 回 `ready`；現有 pre-Repair attempts 正好 `3`，且 `generations` 原本為 `0`。
-
-唯一一次 post-Repair generation 啟動後，Writer plan provider 成功一次，但 f186 protected source constraint traceability contract 在 deterministic hydration 階段 fail-closed：
+官方 `barrier-exec` exact-run coordinator one-shot 以同一目標 run 執行後 fail-closed：
 
 ```text
-LocalePlanValidationError: deterministic locale plan failure: external locale plan source fact coverage differs for article-01
+{"status":"blocked","reason":"active run registry is dangling","run_id":"auto-i18n-ja-1414b75a404721e95e74","active":5,"complete":0,"failed":0,"runner":{"status":"idle"}}
 ```
 
-因此沒有產生新的 article candidate，沒有 Reviewer 判定，沒有 publication transaction、tag、push、deploy 或公開 JA URL。
+因此本輪沒有 provider call、沒有 Reviewer 判定、沒有 publication transaction、tag、push、deploy 或公開 JA URL。依卡片「任一 fail-closed gate 失敗即停」，未執行 terminalize、修復、state 手改、gen06 或替代 publish。
 
 ## Evidence 摘要
 
-- CodeGraph：`not initialized`，已按卡片限域降級。
-- capacity：`43095368` KiB available，約 `41.1` GiB。
-- model route：Writer `gemini-3.5-flash-lite`、Reviewer `gemini-3.1-flash-lite`。
-- g50 manifest digest：`9bb9ebae8a3fcb72a2cc24545bbc2a8c59e62f300b7d451d1530a2daf3c5de5e`。
-- g50 runtime digest：`ac80b2dee2a25b5d000ea7b738e1c375081ab1597b6aa0e873682bea95fd0d8d`。
-- source identity/hash：matched。
-- locale registry uniqueness：`matches=0` for source path/article/run.
-- ledger target transaction count：`0`。
-- generation files：only `generations/04/plan-operation.json` and `generations/04/external-plan.json` exist.
-- `plan-operation.json`：`status=success`、`role=writer`、`model=gemini-3.5-flash-lite`、`started_at=2026-08-27T10:24:58+08:00`、`finished_at=2026-08-27T10:25:06+08:00`。
-- continuation state：`semantic_budget=1`、`started_after_generation=3`、`completed_generations=[]`、`terminal_candidate_sha256=null`、`terminal_review_sha256=null`。
-- seven services：`STOPPED_OR_NOT_LOADED`；Mainline also confirmed no related runtime process remained.
+- CodeGraph：此 worktree 未初始化，已記錄 degraded reason，後續採限域 `rg` / source read。
+- source SHA：`3bf38cf014781474bc0acd114dd50ad0d8ea99e1`。
+- source identity：`V2-TAROT-DEATH-MONEY`，source path `/articles/tarot/tarot-1884`，source hash `1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23`。
+- locale：`ja`；translation article_id：`V2-TAROT-DEATH-MONEY:ja`。
+- continuation：`active,next_generation=5,semantic_budget=1,abandoned=[4]`；4→5 transition 未重做。
+- gen05 planning artifacts：已存在，planning provider 本輪 `0`。
+- generation dirs：只有 `04` 與 `05`；沒有 `06`。
+- lane queue after run：i18n-new outbox `0`、processing `0`；runner `idle`。
+- ledger baseline：目標 run 尚未出現在 `translation_published_runs`；transaction count `0`。
+- seven services：`launchctl list` 未列出七個 Pantheon labels；未啟動常駐服務。
+- process list：本機 `pgrep` 受 host `sysmond service not found` 限制，無法作為殘留 process 證據；以 launchctl 與 lane queue 狀態補強。
 
 ## Production Mutation Accounting
 
-- post-Repair Writer plan provider attempt：`1`
-- post-Repair article candidate：`0`
-- post-Repair Reviewer判定：`0`
-- automatic Writer repair：`0`
+- gen04→gen05 transition：`0`
+- gen05 planning provider：`0`
+- Writer candidate provider：`0`
+- Reviewer provider：`0`
+- automatic repair：`0`
 - publication transaction：`0`
 - publication commit：none
 - publication tag：none
 - push：`0`
 - deploy：`0`
 - public JA URL：none
-- HTTP/browser validation：not run because publication never occurred
+- HTTP/browser validation：未執行，因 publication 未發生
 - manual queue/state edit：`0`
-- source code/policy changes：`0`
+- source code/config changes：`0`
 
 ## Blocker
 
-root_cause: `POST_REPAIR_PROTECTED_SOURCE_COVERAGE_FAIL_CLOSED`
+root_cause: `ACTIVE_RUN_REGISTRY_DANGLING`
 
-The single allowed post-Repair candidate stopped before article generation because the protected source constraint traceability contract rejected the external locale plan coverage. Per contract, no retry, no fifth candidate, no manual override, and no publication mutation were performed.
+官方 coordinator exact-run gate 在進入 provider 或 publisher 前阻擋，回報 active run registry dangling。這代表正式 runtime 無法在目前 registry/state 拓撲下安全判定同一 run 的可推進狀態；若忽略此 gate，會違反單一 source/locale/transaction 與 fail-closed contract。
 
 ## Evidence Files
 
