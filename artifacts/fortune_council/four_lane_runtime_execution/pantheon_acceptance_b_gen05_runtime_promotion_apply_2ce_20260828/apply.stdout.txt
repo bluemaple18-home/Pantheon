@@ -1,0 +1,1 @@
+{"plan_digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf", "rollback_bundle": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828/rollback-bundle", "status": "POSTCHECK_PASSED", "target_manifest_digest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9"}

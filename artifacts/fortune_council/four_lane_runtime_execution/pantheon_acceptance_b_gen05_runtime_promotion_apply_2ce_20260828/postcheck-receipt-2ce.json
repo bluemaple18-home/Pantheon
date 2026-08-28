@@ -1,0 +1,130 @@
+{
+  "acceptance_checks_passed": true,
+  "actor": {
+    "dirty": "",
+    "head": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "origin": "git@github.com:bluemaple18-home/Pantheon.git"
+  },
+  "authority": {
+    "capacity_digest": "a7e02bc880390b8f65f31150a5bfef36efc0073d8d684b37cf9bc8be486ee93f",
+    "expected_plan_digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf",
+    "target_manifest_digest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9"
+  },
+  "commands": {
+    "apply_returncode": 0,
+    "apply_status": "POSTCHECK_PASSED",
+    "finalize_returncode": 0,
+    "finalize_status": "COMMITTED",
+    "status_returncode": 0,
+    "status_stdout": {
+      "audit_receipt_exists": true,
+      "correlation_id": "pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828",
+      "plan_digest": "2ff333ae34c1fcda2af919aa70c1c6428a8817672b4c1fb996f9d35a5d0409cf",
+      "rollback_bundle_exists": false,
+      "rollback_required": false,
+      "state": "COMMITTED",
+      "status": "PASS"
+    }
+  },
+  "manifest": {
+    "actor_head": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "file_sha256": "9b7b9985fc71b754f345f998ef592331ad0650dc0df708efb8274bd61a0a06c3",
+    "generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+    "identity": "gate2-actor:2ce431ec41f5187531d88b52dfa91cef0373d8b5:gen05-runtime-promotion-plan-2ce",
+    "manifest_digest": "7dbedf4e8544675f6203c2d40f96afa561d961a2c7e5a445c8d1f821f0d369f9",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "mutation_counters": {
+    "deploy": 0,
+    "gen04_to_gen05_transition": 0,
+    "gen05_provider": 0,
+    "promotion_apply": 1,
+    "promotion_finalize": 1,
+    "promotion_rollback": 0,
+    "provider_calls": 0,
+    "publish": 0,
+    "push": 0,
+    "service_mutation": 0,
+    "tag": 0,
+    "transaction": 1,
+    "transaction_root_created": true
+  },
+  "origin_main": {
+    "contains_target": true,
+    "local_sha": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "remote_contains_target": true,
+    "remote_merge_base_with_target": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+    "remote_sha": "9a43d550aad4c2663abc2ea537ff4db31fd2db1f"
+  },
+  "private_stage": {
+    "barrier_error": null,
+    "barrier_exists": true,
+    "barrier_valid": true,
+    "generation": "g55-2ce431ec-gen05-runtime-promotion-plan-20260828",
+    "readiness_count": 7,
+    "target_readiness_exists": true,
+    "tree_digest": "51d0e46da1c495ecf1d717011199444e485754498887823bce1fb17abbac0e29"
+  },
+  "protected_bytes": {
+    "protected_changed_keys_after_plan": [],
+    "queue_identity_digest_after_finalize": "ba63e493e972f640d44e40b9b75d5cbef8b1b88d7fda851793d2559eb24ed739",
+    "queue_identity_digest_before_plan": "ba63e493e972f640d44e40b9b75d5cbef8b1b88d7fda851793d2559eb24ed739",
+    "queue_preserved_run_count": 136,
+    "queue_snapshot_digest_after_finalize": "d466eb1c7523ccbeb48f0d48d0f6dec143e3c87982d54327326190139b3ce498",
+    "queue_snapshot_digest_after_plan": "d466eb1c7523ccbeb48f0d48d0f6dec143e3c87982d54327326190139b3ce498",
+    "queue_snapshot_digest_before_plan": "d466eb1c7523ccbeb48f0d48d0f6dec143e3c87982d54327326190139b3ce498",
+    "state_tree_digest_after_finalize": "73fbf2c7a4596d5fa345b04605072e16656f8792c8c52500bd0e47f3c429281e",
+    "state_tree_digest_after_plan": "e99ce8adc6b8588bc0eb9055f9550368d9ce38bad5a2b4f7a9ae514a370caa62",
+    "state_tree_digest_before_plan": "e99ce8adc6b8588bc0eb9055f9550368d9ce38bad5a2b4f7a9ae514a370caa62",
+    "target_barrier_exists_after_finalize": true,
+    "target_barrier_exists_before_plan": false
+  },
+  "sampled_at": "2026-08-28T01:24:59+00:00",
+  "schema_version": 1,
+  "transaction": {
+    "history": [
+      {
+        "sampled_at": "2026-08-28T01:22:40+00:00",
+        "state": "PREPARED"
+      },
+      {
+        "sampled_at": "2026-08-28T01:22:43+00:00",
+        "state": "ACTOR_PROMOTED"
+      },
+      {
+        "sampled_at": "2026-08-28T01:22:43+00:00",
+        "state": "MANIFEST_WRITTEN"
+      },
+      {
+        "sampled_at": "2026-08-28T01:22:43+00:00",
+        "state": "STAGE_INSTALLED"
+      },
+      {
+        "sampled_at": "2026-08-28T01:22:44+00:00",
+        "state": "POSTCHECK_PASSED"
+      },
+      {
+        "sampled_at": "2026-08-28T01:23:07+00:00",
+        "state": "COMMITTED"
+      }
+    ],
+    "receipt_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828/promotion-receipt.json",
+    "rollback_bundle_exists": false,
+    "rollback_bundle_finalized": true,
+    "rollback_metadata": {
+      "rollback_bundle_exists": false,
+      "rollback_required": false
+    },
+    "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-acceptance-b-gen05-runtime-promotion-plan-2ce-20260828",
+    "state": "COMMITTED"
+  },
+  "verdict": "PROMOTION_COMMITTED",
+  "verification": {
+    "code_config_modified": false,
+    "git_diff_check": "PASS",
+    "remote_main_check": "PASS",
+    "workspace_changes_scope": "execution evidence only"
+  }
+}
