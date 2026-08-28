@@ -1,0 +1,6 @@
+{
+  "before_candidate_sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+  "repaired_candidate_sha256": "6a77700f41bbc4e3ee274e8b018f694bb7912ab57c4f56df687a944e3c2f3d5c",
+  "before_source": "production Gen06 candidate.json (read only)",
+  "repaired_path": "candidate-repaired.json"
+}

@@ -1,0 +1,1 @@
+{"status": "processed", "job_id": "e6c4542483f0b1100a19a5fb7af8c0597600462f", "credential_pool": {"pool_id": "pantheon-gemini-v1", "slot_id": "account-1", "manifest_sha256": "5faa2366836410757162531f086da7afc564b5f0f80b6a01cdca6933525a5318"}}

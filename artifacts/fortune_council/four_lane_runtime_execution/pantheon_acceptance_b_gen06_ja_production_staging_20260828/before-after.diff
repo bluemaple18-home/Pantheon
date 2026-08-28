@@ -1,0 +1,11 @@
+--- artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/before-snapshot.json	2026-08-28 23:37:46
++++ artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/after-snapshot.json	2026-08-28 23:37:46
+@@ -92,7 +92,7 @@
+       "stdout": ""
+     }
+   },
+-  "label": "before",
++  "label": "after",
+   "production_candidate": {
+     "article_count": 1,
+     "articles": [

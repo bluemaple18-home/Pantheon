@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "status": "RED_MISSING_FORMAL_STAGING_SEAM",
+  "command_exit_code": 1,
+  "inner_cli_exit_code": 2,
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "terminal_generation": 6,
+  "expected_cli_command": "stage-approved-edited-candidate",
+  "observed_cli_commands": [
+    "prepare",
+    "run",
+    "review",
+    "apply",
+    "authorize-next-generation-after-reviewer-reject"
+  ],
+  "observed_failure": "argument command: invalid choice: 'stage-approved-edited-candidate'",
+  "identity_checks": {
+    "approved_candidate_run_id_exact": true,
+    "approved_article_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+    "approved_review_binds_candidate": true,
+    "approved_review_is_clean": true,
+    "formal_verdict": "APPROVE_READY_FOR_STAGING",
+    "formal_findings_empty": true,
+    "formal_review_binds_candidate": true,
+    "production_root_candidate_sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+    "production_root_review_sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+    "production_review_terminal_reject": true,
+    "continuation_status": "complete",
+    "continuation_next_generation": 7,
+    "queue_state_status": "complete",
+    "gen07_absent": true
+  },
+  "before_after": {
+    "production_root_sha256": "db72afdfb1567bff8f45e3a910958bfa933d9de08d06423e8227bbca71a89eaa",
+    "run_dir_sha256": "05720e125c3c4eae7fd522a44028d110bfa607ca9b9bbc72705b389c1be3b16a",
+    "queue_state_sha256": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+    "publisher_ledger_sha256": "0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9",
+    "repo_public_content_sha256": "b6dad9ffc26bbe4ee47d21d49ecd2c101fb62cec25bd11569a13545ca4a2adb5",
+    "all_equal": true
+  },
+  "side_effect_counters": {
+    "provider_calls": 0,
+    "coordinator_calls": 0,
+    "publish_calls": 0,
+    "tag_calls": 0,
+    "push_calls": 0
+  },
+  "replay": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_approved_edit_staging_rca_20260828/red_harness_missing_approved_edit_stage.py"
+}

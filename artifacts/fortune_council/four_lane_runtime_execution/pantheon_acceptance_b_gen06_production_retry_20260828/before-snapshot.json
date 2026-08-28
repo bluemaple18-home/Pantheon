@@ -1,0 +1,325 @@
+{
+  "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "actor_status_porcelain": "",
+  "captured_at": "2026-08-28T14:37:45.176421+00:00",
+  "gen06": {
+    "exists": true,
+    "files": [
+      {
+        "bytes": 403,
+        "relative_path": "article-operation.json",
+        "sha256": "0e711e652cad20279f33da4f66a63ae690c040bb74e0aa19e25de2ca1aba04b1"
+      },
+      {
+        "bytes": 353,
+        "relative_path": "deterministic-findings.json",
+        "sha256": "dbac1ec54d8764cb53f785a69853668603d89c452f7643b6ee2b1932772a5adf"
+      },
+      {
+        "bytes": 8584,
+        "relative_path": "external-candidate.json",
+        "sha256": "3276d43b36eea8061c954c0d9d908f82723dc93a901d11791793b60899366f8a"
+      },
+      {
+        "bytes": 3610,
+        "relative_path": "external-plan.json",
+        "sha256": "ffceb6ddda2cf6c1c17453440e6c2cfdeb45c033c13115efc688e7326a04591a"
+      },
+      {
+        "bytes": 5534,
+        "relative_path": "locale-plan.json",
+        "sha256": "445cb7abbaff654fa91d6ed4ddc8ad3b44577aa252b1f182956a5be999b2a2f2"
+      },
+      {
+        "bytes": 403,
+        "relative_path": "plan-operation.json",
+        "sha256": "906b965bd037ef98282c6571cf3d82510edda73070909ad67114b5d2af94faa5"
+      },
+      {
+        "bytes": 3151,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/external-plan.json",
+        "sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27"
+      },
+      {
+        "bytes": 38975,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/lane-archive.json",
+        "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+      },
+      {
+        "bytes": 186,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/lane-attempt.attempt",
+        "sha256": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8"
+      },
+      {
+        "bytes": 3550,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/lane-inbox.json",
+        "sha256": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226"
+      },
+      {
+        "bytes": 403,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/plan-operation.json",
+        "sha256": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5"
+      },
+      {
+        "bytes": 259,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/planning-result.json",
+        "sha256": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5"
+      },
+      {
+        "bytes": 958,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/retry-receipt.json",
+        "sha256": "b1d1db26b8debc41b1688d1a3227d6019325eb1f565caa35c1f7e2bea694277f"
+      },
+      {
+        "bytes": 1576,
+        "relative_path": "planning-cache-quarantine/6894ba2772dca5fd9e44938951535d8e26d39467/source-ref-map.json",
+        "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+      },
+      {
+        "bytes": 160,
+        "relative_path": "planning-result.json",
+        "sha256": "4ac9fc2dbed401395990059a8c900e58d29d23bf5a27070c9950a4ea636e6819"
+      },
+      {
+        "bytes": 439,
+        "relative_path": "reviewer-operation.json",
+        "sha256": "1f33966892975d9da596b42ec1ef3b5178660b30160ca8aaa0c8c47dc81253e0"
+      },
+      {
+        "bytes": 1576,
+        "relative_path": "source-ref-map.json",
+        "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+      }
+    ],
+    "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06"
+  },
+  "gen07": {
+    "exists": false,
+    "files": [],
+    "root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/07"
+  },
+  "job_identity": {
+    "archive_request_sha256": null,
+    "attempt_request_sha256": null,
+    "inbox_request_sha256": null,
+    "outbox_prompt_sha256": "7fefbd39d226bd56411012a97ef722dac949330389b9adf486987bef451ed17c",
+    "outbox_request_sha256": "735ffd07d47e4b25d49f85f137d9dd238d8e9967aff43ff5b673834e15e82006",
+    "outbox_role": "reviewer",
+    "outbox_run_id": null,
+    "outbox_schema_sha256": "3895a88af266c8f9ebde177ade284b9feab2075dd2375c53ac09bccee0d07940"
+  },
+  "label": "before",
+  "lane_inventory": {
+    "archive": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.json",
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.json",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.json",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.json",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.json",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.json",
+      "1dd4579867356480bbd1c5c0f89ed0421dbd9e5b.json",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.json",
+      "2877084105222ff0af34a42d51371b81c41cc67a.json",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.json",
+      "36489700f2d317c715b68d4d35656007dc2c9321.json",
+      "386d575a16907716cf1d4d303fbae5dcc496f805.json",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.json",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.json",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.json",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.json",
+      "5f18032de8486a227b459087ff473579277e0460.json",
+      "61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.json",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.json",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.json",
+      "6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.json",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.json",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.json",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.json",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.json",
+      "8716b5377a56896be374635569bc2eddb121d1dc.json",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.json",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.json",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.json",
+      "9c41c58014d22329674cad98dc44a93daa070b95.json",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.json",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.json",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.json",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.json",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.json",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.json",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.json",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.json",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.json",
+      "f13ee1470556242210c77cd39d75a03e80278373.json",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.json",
+      "fc1995c988f1cca803324c35b2433c265a33e11b.json"
+    ],
+    "failed": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.json",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.json",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.json",
+      "1dd4579867356480bbd1c5c0f89ed0421dbd9e5b.json",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.json",
+      "2877084105222ff0af34a42d51371b81c41cc67a.json",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.json",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.json",
+      "5f18032de8486a227b459087ff473579277e0460.json",
+      "61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.json",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.json",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.json",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.json",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.json",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.json",
+      "8716b5377a56896be374635569bc2eddb121d1dc.json",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.json",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.json",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.json",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.json",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.json",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.json",
+      "fc1995c988f1cca803324c35b2433c265a33e11b.json"
+    ],
+    "inbox": [
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.json",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.json",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.json",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.json",
+      "36489700f2d317c715b68d4d35656007dc2c9321.json",
+      "386d575a16907716cf1d4d303fbae5dcc496f805.json",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.json",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.json",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.json",
+      "6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.json",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.json",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.json",
+      "9c41c58014d22329674cad98dc44a93daa070b95.json",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.json",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.json",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.json",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.json",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.json",
+      "f13ee1470556242210c77cd39d75a03e80278373.json"
+    ],
+    "outbox": [
+      "735ffd07d47e4b25d49f85f137d9dd238d8e9967.json"
+    ],
+    "processing": [],
+    "production-attempts": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.attempt",
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.attempt",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.attempt",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.attempt",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.attempt",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.attempt",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.attempt",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.attempt",
+      "36489700f2d317c715b68d4d35656007dc2c9321.attempt",
+      "386d575a16907716cf1d4d303fbae5dcc496f805.attempt",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.attempt",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.attempt",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.attempt",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.attempt",
+      "5f18032de8486a227b459087ff473579277e0460.attempt",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.attempt",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.attempt",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.attempt",
+      "6894ba2772dca5fd9e44938951535d8e26d39467.attempt",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.attempt",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.attempt",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.attempt",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.attempt",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.attempt",
+      "8716b5377a56896be374635569bc2eddb121d1dc.attempt",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.attempt",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.attempt",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.attempt",
+      "9c41c58014d22329674cad98dc44a93daa070b95.attempt",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.attempt",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.attempt",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.attempt",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.attempt",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.attempt",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.attempt",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.attempt",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.attempt",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.attempt",
+      "f13ee1470556242210c77cd39d75a03e80278373.attempt",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.attempt"
+    ]
+  },
+  "lane_job": {
+    "archive": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/archive/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json"
+    },
+    "failed": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/failed/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json"
+    },
+    "inbox": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/inbox/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json"
+    },
+    "outbox": {
+      "bytes": 50927,
+      "exists": true,
+      "is_dir": false,
+      "is_file": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/outbox/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json",
+      "sha256": "06bcd638889c1d743c58a7b6fe08b055d0dccf6f8d75f44f6dbbdc72256c4b2c"
+    },
+    "outbox_terminalizing": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/outbox/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json.terminalizing"
+    },
+    "processing": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/processing/735ffd07d47e4b25d49f85f137d9dd238d8e9967.json"
+    },
+    "production-attempts": {
+      "exists": false,
+      "is_dir": false,
+      "is_file": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/production-attempts/735ffd07d47e4b25d49f85f137d9dd238d8e9967.attempt"
+    }
+  },
+  "manifest": {
+    "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+    "generation": "g64-831c5360-gen06-final-retry-20260828",
+    "identity": "gate2-actor:831c536043d85a6cafe813c08a4f06921f0dd0e2:gen06-final-retry-831-20260828",
+    "manifest_digest": "0c62650249e24dba5754926ab416308f0fa1a6ad30aaa6856b497408ad3205f9",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+    "sha256": "f8e5e65d3758cc978d4414f9ee943d99a338c08670afcbfc87c32c36ada64dbf"
+  },
+  "registry": {
+    "error_type": null,
+    "file": {
+      "bytes": 1814,
+      "exists": true,
+      "is_dir": false,
+      "is_file": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/f46cda9eaa9ded446bf8e6c6.json",
+      "sha256": "444777c4d1a1d5cb18220a426c3b6a75cf0bf39306689ef4dd528ef39bded3f4"
+    },
+    "lane": "i18n-new",
+    "last_job_id": "735ffd07d47e4b25d49f85f137d9dd238d8e9967",
+    "result_status": null,
+    "status": "active"
+  },
+  "repo_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "repo_status_porcelain": "?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-RULE21-CREATED-UNBOUND-TITLE-MISMATCH-RECOVERY-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-UV-CACHE-EXTERNAL-VOLUME-PERMISSION-REPORT-20260820.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-PRODUCTION-COMPLETION-FF41-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-PRODUCTION-RETRY-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-SAME-GEN-RETRY-COMPLETION-18B-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-FOUR-LANE-STATE-CONVERGENCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-LAUNCHD-ACTIVATION-RECOVERY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-PRERENDER-READONLY-RCA-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-RECOVERY-REWRITE-ACCEPTANCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-REGISTRY-NODE-CANARY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-SAFE-ACTIVATION-REVIEW-20260818.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-RUNTIME-DIGEST-CORRECTION-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/HANDOFF-PANTHEON-ACCEPTANCE-B-GEN04-LIFECYCLE-RCA-20260827.md\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_bounded_completion_29c_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_final_retry_831_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_null_last_job_identity_rca_20260828/live-provenance-snapshot.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/apply-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/authorization-payload-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/final-state-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/finalize-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/gen06-seam-preflight-provider0.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/plan-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/preflight-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/preserved-run-ids-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion_exact_runner_995.py\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-after-apply-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-final-stop-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-pre-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/status-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_completion_ff41_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_f12_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_retry_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_completion_18b_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_provider0_rca_20260828/provenance-hash-chain.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/swap-telemetry-repeated-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/terminal-rejected-gen06-reproduction.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/terminal_rejected_gen06_harness.py\n?? artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/\n?? handoff_20260817_pantheon_writer_vnext_four_lane_recovery.md\n?? handoff_20260820_g8_current_readiness_uv_cache_blocker.md"
+}

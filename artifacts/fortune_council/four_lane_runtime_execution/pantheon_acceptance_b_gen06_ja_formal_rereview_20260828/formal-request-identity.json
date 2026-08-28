@@ -1,0 +1,15 @@
+{
+  "job_id": "e6c4542483f0b1100a19a5fb7af8c0597600462f",
+  "lane": "i18n-new",
+  "model": "gemini-3.1-flash-lite",
+  "namespace": "f46cda9eaa9ded446bf8e6c6",
+  "operation_level": "external_generation",
+  "prompt_sha256": "594967b75bd2859964deb7d8c610a3bae05d022205fdbf1454202867541cc9b5",
+  "request_file_sha256": "2fe42e13fd7495848716abf027366381ae59dc88f63a03dc9bb43a60e0b54b41",
+  "request_path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/queue/lanes/i18n-new/outbox/e6c4542483f0b1100a19a5fb7af8c0597600462f.json",
+  "request_sha256": "e6c4542483f0b1100a19a5fb7af8c0597600462f307dab5d5ade3ded8e1f9a10",
+  "role": "reviewer",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_sha256": "3895a88af266c8f9ebde177ade284b9feab2075dd2375c53ac09bccee0d07940",
+  "schema_version": 1
+}

@@ -1,0 +1,21 @@
+{
+  "exit_verdict": "APPROVE_READY_FOR_STAGING",
+  "findings": [],
+  "original_finding_codes": [
+    "NON_NATIVE_LANGUAGE_RESIDUE",
+    "BOUNDARY_MEANING_MISSING"
+  ],
+  "review": {
+    "articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "candidate_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+        "findings": [],
+        "verdict": "APPROVE"
+      }
+    ],
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "schema_version": 1
+}

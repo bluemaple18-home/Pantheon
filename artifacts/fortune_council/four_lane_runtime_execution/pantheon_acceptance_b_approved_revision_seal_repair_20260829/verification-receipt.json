@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "status": "RE_REVIEW_REQUESTED",
+  "root_verdict": "FORMAL_STAGING_SEAM_MISSING",
+  "source_numstat": {
+    "scripts/agy_multilingual_pipeline.py": {"insertions": 468, "deletions": 0},
+    "scripts/agy_content_publisher.py": {"insertions": 74, "deletions": 20},
+    "combined_insertions": 542,
+    "combined_net": 522
+  },
+  "validation": {
+    "focused_multilingual": "20 passed",
+    "focused_publisher": "7 passed",
+    "rca_red_to_green": "GREEN; returncode 0; production bytes unchanged",
+    "lifecycle_harness": "1 passed",
+    "affected_suites_without_stale_fixture_assertion": "407 passed, 1 deselected",
+    "full_affected_suites": "407 passed, 1 unrelated stale fixture assertion failed",
+    "py_compile": "PASS",
+    "git_diff_check": "PASS",
+    "debug_scan": "PASS; only intended CLI receipt print",
+    "dynamic_harness_usage": "recorded under evidence_dir/.work/dynamic-harness/usage.jsonl"
+  },
+  "known_unrelated_failure": {
+    "nodeid": "tests/test_agy_multilingual_pipeline.py::test_exact_production_gen05_legacy_safety_hydrates_read_only",
+    "reason": "legacy read-only fixture test still asserts generations/06 is absent, while the mounted production fixture legitimately contains terminal Gen06"
+  },
+  "side_effects": {
+    "production_mutation": 0,
+    "provider_calls": 0,
+    "coordinator_calls": 0,
+    "publish_calls": 0,
+    "tag_calls": 0,
+    "push_calls": 0,
+    "gen07_created": false,
+    "commit_created": false
+  }
+}

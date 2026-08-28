@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from contextlib import nullcontext
 import fcntl
+import hashlib
 import json
 import os
 import plistlib
@@ -16,6 +17,7 @@ from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
+from tests.test_agy_multilingual_pipeline import approved_stage_fixture
 
 
 def make_publication_policy(
@@ -1814,6 +1816,157 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["translation_deferred_runs"][0]["run_id"] == "translate-ja"
     assert ledger["quarantined_runs"] == []
+
+
+def _sealed_publisher_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, object], dict[str, object]]:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = publisher.multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = publisher.multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    brief = json.loads((fixture["run_dir"] / "brief.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "load_source_article",
+        lambda _repo, _article_id: brief["articles"][0]["source"],
+    )
+    monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda _brief, _articles: [])
+    return fixture, receipt
+
+
+def _sealed_publisher_roots(fixture: dict[str, object]) -> tuple[Path, Path, Path]:
+    queue_state_path = fixture["queue_state_path"]
+    publisher_ledger_path = fixture["publisher_ledger_path"]
+    return fixture["repo_root"], queue_state_path.parents[1], publisher_ledger_path.parent
+
+
+def _tree_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
+
+
+def test_collect_ready_translation_runs_selects_valid_approved_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, receipt = _sealed_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+
+    ready = publisher.collect_ready_translation_runs(
+        repo_root, queue_root, state_root, exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
+    )
+
+    assert len(ready) == 1
+    assert ready[0][2] == fixture["candidate"]
+    assert ready[0][0]["_approved_revision_stage"] == {
+        "receipt_sha256": hashlib.sha256(Path(receipt["receipt_path"]).read_bytes()).hexdigest()
+    }
+
+
+@pytest.mark.parametrize("damage", ["missing_current", "tampered_payload"])
+def test_collect_ready_translation_runs_rejects_missing_or_tampered_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    damage: str,
+) -> None:
+    fixture, receipt = _sealed_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    if damage == "missing_current":
+        Path(receipt["current_seal_path"]).unlink()
+    else:
+        payload_path = Path(receipt["payload_path"])
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        payload["candidate"]["run_id"] = "tampered"
+        _write_json(payload_path, payload)
+
+    assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert ledger["translation_deferred_runs"][0]["run_id"] == fixture["kwargs"]["expected_run_id"]
+
+
+@pytest.mark.parametrize("lifecycle", ["deferred", "published"])
+def test_collect_ready_translation_runs_does_not_bypass_ledger_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lifecycle: str,
+) -> None:
+    fixture, _receipt = _sealed_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    ledger_path = fixture["publisher_ledger_path"]
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    key = "translation_deferred_runs" if lifecycle == "deferred" else "translation_published_runs"
+    ledger[key].append({"run_id": fixture["kwargs"]["expected_run_id"]})
+    _write_json(ledger_path, ledger)
+
+    assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
+
+
+def test_approved_stage_publisher_dry_run_has_zero_runtime_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, _receipt = _sealed_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    (repo_root / ".git").mkdir()
+    (repo_root / ".git" / "agy-content-publisher.transaction.lock").touch()
+    (state_root / "publisher.lock").touch()
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: "b" * 40)
+    fake_git = lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else ""
+    before = _tree_bytes(tmp_path)
+
+    result = publisher.publish_ready_translation_runs(
+        repo_root, queue_root, state_root, dry_run=True, git=fake_git,
+        exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
+    )
+
+    assert result["status"] == "dry-run"
+    assert _tree_bytes(tmp_path) == before
+
+
+def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, receipt = _sealed_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    (repo_root / ".git").mkdir()
+    fixture_path = repo_root / "cache-fixture.txt"
+    fixture_path.write_text("stable\n", encoding="utf-8")
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: "b" * 40)
+    monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo: "0.3.999")
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
+    monkeypatch.setattr(publisher.pipeline, "_bump_article_cache_queries", lambda _repo, _token: [])
+    monkeypatch.setattr(publisher, "_sync_web_test_cache_token", lambda _repo, **_kwargs: fixture_path)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_prepend_translation_changelog", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(publisher, "_stage_commit_tag_push", lambda *_args, **_kwargs: "c" * 40)
+    monkeypatch.setattr(publisher.multilingual, "apply_approved_translations", lambda *_args: [])
+    fake_git = lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else ""
+    run_dir = fixture["run_dir"]
+    audit_paths = [run_dir / "candidate.json", run_dir / "review.json",
+                   run_dir / "generations/06/candidate.json", run_dir / "generations/06/review.json"]
+    audit_before = {path: path.read_bytes() for path in audit_paths}
+    stage_before = _tree_bytes(run_dir / "editorial-staging")
+
+    result = publisher.publish_ready_translation_runs(
+        repo_root, queue_root, state_root, run_tests=False, release_gate=False,
+        git=fake_git, exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
+    )
+
+    ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
+    assert result["status"] == "PUBLISHED_TRANSLATION"
+    assert ledger["translation_published_runs"][-1]["staging_receipt_sha256"] == hashlib.sha256(
+        Path(receipt["receipt_path"]).read_bytes()
+    ).hexdigest()
+    assert _tree_bytes(run_dir / "editorial-staging") == stage_before
+    assert {path: path.read_bytes() for path in audit_paths} == audit_before
 
 
 def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_evidence(

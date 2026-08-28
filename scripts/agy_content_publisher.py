@@ -1068,6 +1068,10 @@ def _bytes_sha256(value: bytes | None) -> str | None:
     return hashlib.sha256(value).hexdigest() if value is not None else None
 
 
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _atomic_write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -2799,9 +2803,24 @@ def collect_ready_translation_runs(
         except (OSError, json.JSONDecodeError, ValueError) as error:
             _record_translation_deferred(state_root, run_id, f"invalid translation result: {type(error).__name__}")
             continue
+        approved_stage: dict[str, Any] | None = None
         if not _review_is_clean_approve(review):
-            _record_translation_deferred(state_root, run_id, "translation reviewer did not cleanly approve")
-            continue
+            try:
+                approved_stage = multilingual.load_approved_edited_candidate_stage(run_dir)
+                seal = approved_stage["seal"]
+                if (
+                    _file_sha256(_ledger_path(state_root)) != seal["publisher_ledger_sha256"]
+                    or _file_sha256(state_path) != seal["queue_state_sha256"]
+                    or _file_sha256(run_dir / "candidate.json") != seal["root_candidate_sha256"]
+                    or _file_sha256(run_dir / "review.json") != seal["root_review_sha256"]
+                    or _file_sha256(run_dir / "continuation" / "state.json") != seal["continuation_state_sha256"]
+                ):
+                    raise ValueError("approved edited stage current locks differ")
+                candidate = approved_stage["candidate"]
+                review = approved_stage["review"]
+            except (OSError, json.JSONDecodeError, ValueError):
+                _record_translation_deferred(state_root, run_id, "translation reviewer did not cleanly approve")
+                continue
         findings = multilingual.translation_findings(brief, candidate["articles"])
         if findings:
             _record_translation_deferred(state_root, run_id, f"translation deterministic findings: {len(findings)}")
@@ -2818,6 +2837,13 @@ def collect_ready_translation_runs(
         if not source_current:
             _record_translation_deferred(state_root, run_id, "translation source drift")
             continue
+        if approved_stage is not None:
+            state = {
+                **state,
+                "_approved_revision_stage": {
+                    "receipt_sha256": approved_stage["receipt_sha256"],
+                },
+            }
         ready.append((state, brief, candidate, review))
         if len(ready) >= limit:
             break
@@ -4184,24 +4210,51 @@ def publish_ready_translation_runs(
 
         journal.begin()
         changed: list[str] = []
-        published: list[tuple[str, str, str]] = []
+        published: list[tuple[str, str, str, str | None]] = []
         for state, _brief, candidate, _review in ready:
             run_id = str(state["run_id"])
             locale = str(candidate["articles"][0]["locale"])
             article_id = str(candidate["articles"][0]["source_article_id"])
+            approved_stage = state.get("_approved_revision_stage")
             try:
-                paths = journal.capture(
-                    lambda: multilingual.approve_and_apply_translation_run(
-                        repo_root,
-                        Path(str(state["run_dir"])),
+                if isinstance(approved_stage, dict):
+                    decisions = {
+                        str(article["article_id"]): "APPROVE"
+                        for article in candidate["articles"]
+                    }
+                    approval = pipeline.build_approval(
+                        run_id,
+                        candidate["articles"],
+                        _review,
+                        decisions,
                         PUBLISHER_ID,
                     )
-                )
+                    def apply_staged_translation() -> list[Path]:
+                        return multilingual.apply_approved_translations(
+                            repo_root,
+                            run_id,
+                            _brief,
+                            candidate,
+                            _review,
+                            approval,
+                        )
+
+                    paths = journal.capture(apply_staged_translation)
+                    staging_receipt_sha256 = str(approved_stage["receipt_sha256"])
+                else:
+                    paths = journal.capture(
+                        lambda: multilingual.approve_and_apply_translation_run(
+                            repo_root,
+                            Path(str(state["run_dir"])),
+                            PUBLISHER_ID,
+                        )
+                    )
+                    staging_receipt_sha256 = None
             except ValueError as error:
                 _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
                 continue
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
-            published.append((run_id, locale, article_id))
+            published.append((run_id, locale, article_id, staging_receipt_sha256))
         if not published:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -4252,17 +4305,18 @@ def publish_ready_translation_runs(
             run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
-        for run_id, locale, article_id in published:
-            ledger["translation_published_runs"].append(
-                {
-                    "run_id": run_id,
-                    "locale": locale,
-                    "article_id": article_id,
-                    "version": version,
-                    "commit_sha": commit_sha,
-                    "published_at": _now(),
-                }
-            )
+        for run_id, locale, article_id, staging_receipt_sha256 in published:
+            entry = {
+                "run_id": run_id,
+                "locale": locale,
+                "article_id": article_id,
+                "version": version,
+                "commit_sha": commit_sha,
+                "published_at": _now(),
+            }
+            if staging_receipt_sha256 is not None:
+                entry["staging_receipt_sha256"] = staging_receipt_sha256
+            ledger["translation_published_runs"].append(entry)
         _write_json(_ledger_path(state_root), ledger)
         evidence = {
             "schema_version": SCHEMA_VERSION,

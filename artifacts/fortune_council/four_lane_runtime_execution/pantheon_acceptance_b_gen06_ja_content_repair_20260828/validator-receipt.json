@@ -1,0 +1,26 @@
+{
+  "candidate_json_parse": "pass",
+  "candidate_identity_check": "pass",
+  "translation_findings": [],
+  "ja_boundary_target_categories": {
+    "meta_description": [
+      "contextual_or_general_interpretation",
+      "outcome_not_determined",
+      "professional_advice_non_substitution"
+    ],
+    "body": [
+      "contextual_or_general_interpretation",
+      "outcome_not_determined",
+      "professional_advice_non_substitution"
+    ]
+  },
+  "targeted_test": {
+    "command": ".venv/bin/python -m pytest tests/test_agy_multilingual_pipeline.py -q -k ja_boundary",
+    "result": "8 passed, 234 deselected"
+  },
+  "full_module_test": {
+    "command": ".venv/bin/python -m pytest tests/test_agy_multilingual_pipeline.py -q",
+    "result": "241 passed, 1 failed",
+    "known_preexisting_failure": "test_exact_production_gen05_legacy_safety_hydrates_read_only asserts that production generations/06 does not exist; Gen06 is intentionally present before this repair and this worker did not mutate production."
+  }
+}

@@ -1,0 +1,10 @@
+[
+  ".venv/bin/python",
+  "-m",
+  "scripts.pantheon_content_capacity_guard",
+  "--exercise-root",
+  "/private/tmp/pantheon-gen06-production-retry-20260828-capacity",
+  "--receipt",
+  "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_retry_20260828/rule24-exercise-output.json",
+  "exercise"
+]

@@ -1,0 +1,31 @@
+{
+  "operation": "replace_content_strings_only",
+  "changed_paths": [
+    "articles[0].answer",
+    "articles[0].bodySections[0].paragraphs[0]",
+    "articles[0].bodySections[1].paragraphs[2]",
+    "articles[0].bodySections[2].paragraphs[0]",
+    "articles[0].bodySections[2].paragraphs[2]",
+    "articles[0].bodySections[3].paragraphs[0]",
+    "articles[0].description",
+    "articles[0].faq[1].answer",
+    "articles[0].faq[2].answer",
+    "articles[0].faq[3].answer",
+    "articles[0].faq[4].answer"
+  ],
+  "change_count": 11,
+  "unchanged_contract": {
+    "run_id": true,
+    "schema_version": true,
+    "mode": true,
+    "article_id": true,
+    "locale": true,
+    "source_article_id": true,
+    "source_path": true,
+    "source_sha256": true,
+    "title": true,
+    "tags": true,
+    "section_topology": true
+  },
+  "rationale": "Only the reviewer-reported residual language and its adjacent natural-Japanese boundary wording were replaced."
+}

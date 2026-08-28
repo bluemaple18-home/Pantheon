@@ -1,0 +1,14 @@
+{
+  "command": [
+    ".venv/bin/python",
+    "/Users/mattkuo/ai-core/scripts/production_canary_readiness_gate.py",
+    "--receipt",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/package/production-canary-capability-receipt.json"
+  ],
+  "finished_at": "2026-08-28T14:38:31.100571+00:00",
+  "name": "rule25-gate",
+  "returncode": 0,
+  "started_at": "2026-08-28T14:38:31.072034+00:00",
+  "stderr_bytes": 0,
+  "stdout_bytes": 83
+}

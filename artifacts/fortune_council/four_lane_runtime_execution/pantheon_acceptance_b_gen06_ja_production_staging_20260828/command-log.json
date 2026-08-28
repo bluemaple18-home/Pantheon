@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "commands": [
+    {
+      "label": "card-created",
+      "command": "apply_patch add CARD-PANTHEON-ACCEPTANCE-B-GEN06-JA-PRODUCTION-STAGING-20260828.md",
+      "returncode": 0
+    },
+    {
+      "label": "rule24-pre",
+      "command": ".venv/bin/python -m scripts.pantheon_content_capacity_guard --exercise-root /private/tmp/pantheon-gen06-ja-staging-capacity-20260828 --receipt artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/rule24-capacity-pre.json exercise",
+      "returncode": 0,
+      "stdout_artifact": "rule24-capacity-pre.json",
+      "stderr": ""
+    },
+    {
+      "label": "rule25-official-gate",
+      "command": ".venv/bin/python /Users/mattkuo/ai-core/scripts/production_canary_readiness_gate.py --receipt artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/package/production-canary-capability-receipt.json",
+      "returncode": 0,
+      "stdout_artifact": "rule25-official-gate.stdout.json",
+      "stderr": ""
+    },
+    {
+      "label": "before-snapshot",
+      "command": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/collect_staging_evidence.py before",
+      "returncode": 0,
+      "stdout_artifact": "before-snapshot.json",
+      "stderr": ""
+    },
+    {
+      "label": "after-snapshot",
+      "command": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/collect_staging_evidence.py after",
+      "returncode": 0,
+      "stdout_artifact": "after-snapshot.json",
+      "stderr": ""
+    },
+    {
+      "label": "before-after-diff",
+      "command": "diff -u before-snapshot.json after-snapshot.json",
+      "returncode": 1,
+      "stdout_artifact": "before-after.diff",
+      "stderr": "",
+      "interpretation": "expected non-zero diff because snapshot label changed only"
+    },
+    {
+      "label": "git-diff-check",
+      "command": "git diff --check",
+      "returncode": 0,
+      "stdout_artifact": "git-diff-check.stdout.txt",
+      "stderr": ""
+    },
+    {
+      "label": "rule24-after",
+      "command": ".venv/bin/python -m scripts.pantheon_content_capacity_guard --exercise-root /private/tmp/pantheon-gen06-ja-staging-capacity-after-20260828 --receipt artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/rule24-capacity-after.json exercise",
+      "returncode": 0,
+      "stdout_artifact": "rule24-capacity-after.json",
+      "stderr": ""
+    }
+  ]
+}

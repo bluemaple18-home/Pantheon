@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "PASS_RCA_EVIDENCE_COMPLETE",
+  "root_verdict": "FORMAL_STAGING_SEAM_MISSING",
+  "red_capable_command": {
+    "command": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_approved_edit_staging_rca_20260828/red_harness_missing_approved_edit_stage.py",
+    "observed_exit_code": 1,
+    "inner_cli_exit_code": 2,
+    "observed_status": "RED_MISSING_FORMAL_STAGING_SEAM",
+    "identity_checks_passed": 16,
+    "production_bytes_before_equal_after": true
+  },
+  "focused_tests": {
+    "command": ".venv/bin/python -m pytest -q <5 exact node ids>",
+    "result": "5 passed in 0.07s",
+    "covered_boundaries": [
+      "terminal reviewer reject plan-only authority",
+      "terminal reviewer reject CLI plan-only default",
+      "edited candidate independent review",
+      "approved translation direct apply",
+      "publisher reject deferred selection"
+    ]
+  },
+  "artifact_validation": {
+    "red_reproduction_json": "PASS",
+    "git_diff_check": "PASS",
+    "debug_marker_scan": "PASS_NONE",
+    "evidence_file_count_before_receipt": 6
+  },
+  "production_mutation_count": 0,
+  "provider_calls": 0,
+  "coordinator_calls": 0,
+  "publish_calls": 0,
+  "tag_calls": 0,
+  "push_calls": 0,
+  "gen07_created": false,
+  "source_or_test_files_modified": false
+}

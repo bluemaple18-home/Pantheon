@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "verdict": "BLOCKED",
+  "blocker": "BLOCKED_NO_FORMAL_STAGING_SEAM",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "production_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8",
+  "authorized_scope": "stage approved Gen06 JA repaired candidate only",
+  "forbidden_scope": [
+    "publish",
+    "tag",
+    "push",
+    "Cloudflare mutation",
+    "provider call",
+    "coordinator cycle",
+    "Gen07 creation",
+    "manual production JSON overwrite"
+  ],
+  "mutation_count": 0,
+  "formal_approval_binding": {
+    "status": "PASS",
+    "review_verdict": "APPROVE_READY_FOR_STAGING",
+    "findings": [],
+    "formal_job_id": "e6c4542483f0b1100a19a5fb7af8c0597600462f",
+    "approved_candidate_file_sha256": "6a77700f41bbc4e3ee274e8b018f694bb7912ab57c4f56df687a944e3c2f3d5c",
+    "approved_article_candidate_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+    "review_candidate_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c"
+  },
+  "preflight": {
+    "rule24_pre": "PASS",
+    "rule24_after": "PASS",
+    "rule25_official_gate": "READY",
+    "gen07_absent": true,
+    "production_candidate_sha256_before": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+    "production_review_verdict_before": "REJECT"
+  },
+  "no_mutation_verification": {
+    "run_dir_unchanged": true,
+    "gen06_unchanged": true,
+    "gen07_unchanged_absent": true,
+    "lane_i18n_new_unchanged": true,
+    "publisher_state_unchanged": true,
+    "private_stage_unchanged": true,
+    "repo_public_content_unchanged": true,
+    "before_after_diff_only_label": true,
+    "git_diff_check": "PASS"
+  },
+  "evaluated_entrypoints": [
+    {
+      "entrypoint": "scripts.agy_multilingual_pipeline approve_and_apply_translation_run/apply",
+      "decision": "rejected",
+      "reason": "directly applies approved translation into repo locale registry and writes approval.json; no staging receipt or expected-current production locks."
+    },
+    {
+      "entrypoint": "scripts.agy_content_publisher publish_ready_translation_runs",
+      "decision": "rejected",
+      "reason": "crosses release boundary: applies, bumps version, prerenders/feed, changelog, and commit/tag/push-capable release flow."
+    },
+    {
+      "entrypoint": "scripts.agy_gemini_coordinator replay_campaign_editorial_workset_through_translation",
+      "decision": "rejected",
+      "reason": "temporary campaign replay helper, not standalone approved edited candidate staging for an existing production run."
+    },
+    {
+      "entrypoint": "scripts.pantheon_content_runtime_promotion",
+      "decision": "rejected",
+      "reason": "actor/runtime manifest/private stage promotion, not candidate/review staging."
+    }
+  ],
+  "evidence": [
+    "before-snapshot.json",
+    "after-snapshot.json",
+    "before-after.diff",
+    "rule24-capacity-pre.json",
+    "rule24-capacity-after.json",
+    "rule25-official-gate.stdout.json",
+    "command-log.json"
+  ]
+}

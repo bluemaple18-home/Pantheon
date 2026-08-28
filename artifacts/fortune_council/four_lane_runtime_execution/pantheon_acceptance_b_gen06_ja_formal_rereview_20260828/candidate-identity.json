@@ -1,0 +1,32 @@
+{
+  "article_id": "V2-TAROT-DEATH-MONEY:ja",
+  "candidate_canonical_sha256": "cd0164f0bb252417415f4a80833e75e72eba386e2f1fac55eacc03b1c0a9e5d8",
+  "candidate_sha256": "6a77700f41bbc4e3ee274e8b018f694bb7912ab57c4f56df687a944e3c2f3d5c",
+  "deterministic_translation_findings": [],
+  "locale": "ja",
+  "mode_match": true,
+  "run_id_match": true,
+  "schema_version": 1,
+  "section_topology": [
+    {
+      "heading": "金銭における死神の意味と現状の見直し",
+      "paragraph_count": 2
+    },
+    {
+      "heading": "構造的な変化とリスク管理のポイント",
+      "paragraph_count": 3
+    },
+    {
+      "heading": "古い価値観を手放すための心の持ち方",
+      "paragraph_count": 3
+    },
+    {
+      "heading": "動乱を乗り越えて新しい局面へ向かう方法",
+      "paragraph_count": 3
+    }
+  ],
+  "source_article_id_match": true,
+  "source_path_match": true,
+  "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+  "source_sha256_match": true
+}

@@ -1,0 +1,114 @@
+{
+  "activation": {
+    "acknowledgements": [
+      {
+        "ack_digest": "772394f0826310dc428d84632c39100b2b5bbfbb1bfb5769830f2a1683b1bf0d",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-content-publisher"
+      },
+      {
+        "ack_digest": "24ccccd45f04ddac799d4549e1719b66cd7edb95372675559b7f8af6f27a2d75",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-gemini-coordinator"
+      },
+      {
+        "ack_digest": "a782400f4ec44b3bbf9e7d19bdd04167a453c2774ffb0023220dca27d4f413c3",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-gemini-new"
+      },
+      {
+        "ack_digest": "f21102ed0739659c38b4cf11ae1ef19a3ba23218e289e59649c8ddd3adb3b54a",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-gemini-rewrite"
+      },
+      {
+        "ack_digest": "d380dd4b257b713419ee5b854182fc8a21dec658314c736abea9277f413047ba",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-gemini-i18n-new"
+      },
+      {
+        "ack_digest": "4538f2445581549cc89ab7ab1e646386bf9594b1e971438606357c1e1f287219",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.agy-gemini-i18n-rewrite"
+      },
+      {
+        "ack_digest": "d088eddeb9454e88b844b8dd4c2dbff3e797194c9b475cc0d66a42bbe51f055b",
+        "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "owner_uid": 501,
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "schema_version": 2,
+        "service_label": "com.pantheon.content-capacity-guard"
+      }
+    ],
+    "barrier": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/state/formal-rereview.barrier",
+    "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+    "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+    "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+    "status": "PASS"
+  },
+  "manifest": {
+    "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g65-831c5360-gen06-ja-formal-rereview-20260828",
+    "identity": "gate2-actor:831c536043d85a6cafe813c08a4f06921f0dd0e2:gen06-ja-formal-rereview-20260828",
+    "log_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/logs",
+    "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+    "owner_uid": 501,
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/state",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "f346d0086ded5dd97505c27deb3f6cab92915d665fc82950b7f717701e3dd671",
+    "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ],
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "paths": {
+    "barrier": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/state/formal-rereview.barrier",
+    "credential_state": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/state/credential-pool-state.json",
+    "lane_queue_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/queue/lanes/i18n-new",
+    "log_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/logs",
+    "manifest": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/runtime-manifest.json",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/queue",
+    "ready_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/ready",
+    "root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime",
+    "run_dir": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+    "state_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/state"
+  },
+  "schema_version": 1
+}

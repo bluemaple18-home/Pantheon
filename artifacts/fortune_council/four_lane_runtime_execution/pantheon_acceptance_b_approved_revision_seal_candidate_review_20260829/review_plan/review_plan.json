@@ -1,0 +1,60 @@
+{
+  "coordinator_policy": {
+    "approval_bias": "suggestions_and_single_non_production_warning_do_not_block",
+    "block_on": [
+      "P0",
+      "P1",
+      "production_safety_risk",
+      "exploitable_security_issue",
+      "repeated_warning_pattern"
+    ],
+    "dedupe_by": [
+      "path",
+      "line",
+      "category",
+      "risk"
+    ]
+  },
+  "diff_summary": {
+    "added_lines": 0,
+    "agents_material_files": [],
+    "changed_lines": 0,
+    "files_reviewable": 0,
+    "files_total": 0,
+    "filtered_noise_files": [],
+    "performance_sensitive_files": [],
+    "release_sensitive_files": [],
+    "removed_lines": 0,
+    "security_sensitive_files": []
+  },
+  "generated_at": "2026-08-29T00:24:45.732747+08:00",
+  "outputs": {
+    "diff_entries": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_approved_revision_seal_candidate_review_20260829/review_plan/diff_entries.jsonl",
+    "finding_schema": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_approved_revision_seal_candidate_review_20260829/review_plan/finding_schema.json",
+    "review_plan_json": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_approved_revision_seal_candidate_review_20260829/review_plan/review_plan.json",
+    "review_plan_md": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_approved_revision_seal_candidate_review_20260829/review_plan/review_plan.md",
+    "review_state": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_approved_revision_seal_candidate_review_20260829/review_plan/review_state.jsonl"
+  },
+  "reviewers": [
+    {
+      "blocks": true,
+      "dispatch_card": "任務ID / review｜coordinator / 請讀 review_plan.json / 目的：統整所有 finding / 證據路徑：review_state.jsonl",
+      "id": "coordinator",
+      "purpose": "統整 finding、去重、校正嚴重度、輸出最終決策。"
+    },
+    {
+      "blocks": true,
+      "dispatch_card": "任務ID / review｜correctness / 請讀 diff_entries.jsonl / 目的：找主要流程錯誤 / 證據路徑：finding_schema.json",
+      "id": "correctness",
+      "purpose": "檢查行為、資料流、狀態、邊界條件與錯誤處理。"
+    }
+  ],
+  "risk_reasons": [
+    "small_diff"
+  ],
+  "risk_tier": "trivial",
+  "root": "/Users/mattkuo/Documents/Pantheon",
+  "schema_version": "review.orchestrator.plan.v1",
+  "task_id": "PANTHEON-ACCEPTANCE-B-APPROVED-REVISION-SEAL-CANDIDATE-REVIEW-20260829",
+  "task_thickness": "minimal"
+}

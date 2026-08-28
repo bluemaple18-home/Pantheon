@@ -1,0 +1,12 @@
+{
+  "returncode": 0,
+  "schema_version": 1,
+  "stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stdout": {
+    "bytes": 243,
+    "sha256": "97b1e55525b73e92e1e48d27023cce5266b07be559d9cdf219e22b1b4556d385"
+  }
+}

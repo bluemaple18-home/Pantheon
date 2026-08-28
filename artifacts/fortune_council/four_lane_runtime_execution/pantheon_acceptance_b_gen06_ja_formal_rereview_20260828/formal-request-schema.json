@@ -1,0 +1,54 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "articles": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "APPROVE",
+              "REJECT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot",
+          "verdict",
+          "findings"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "articles"
+  ],
+  "type": "object"
+}

@@ -188,6 +188,381 @@ def translation_candidate(locale: str = "en") -> dict[str, object]:
     }
 
 
+def write_stage_json(path: Path, payload: object) -> None:
+    multilingual.pipeline.write_json(path, payload)
+
+
+def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    run_id = "stage-ja"
+    run_dir = tmp_path / "runtime" / "translation-runs" / run_id
+    queue_state_path = tmp_path / "runtime" / "queue" / "runs" / "stage-ja.json"
+    publisher_ledger_path = tmp_path / "runtime" / "state" / "ledger.json"
+    approved_root = tmp_path / "approved"
+    brief = translation_brief("ja")
+    brief["run_id"] = run_id
+    candidate = translation_candidate("ja")
+    candidate["run_id"] = run_id
+    article = candidate["articles"][0]
+    approved_review = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "APPROVE",
+                "findings": [],
+            }
+        ],
+    }
+    root_review = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "articles": [
+            {
+                "article_id": article["article_id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "REJECT",
+                "hard_failure": True,
+                "findings": [{"code": "AI_TEMPLATE_STYLE", "message": "退件"}],
+            }
+        ],
+    }
+    continuation = {
+        "schema_version": 1,
+        "operation_id": "stage-test-operation",
+        "run_id": run_id,
+        "source_sha256": [brief["articles"][0]["source_sha256"]],
+        "starting_review_sha256": "1" * 64,
+        "terminal_candidate_sha256": multilingual._json_sha256(candidate),
+        "terminal_review_sha256": multilingual._json_sha256(root_review),
+        "started_after_generation": 3,
+        "semantic_budget": 2,
+        "next_generation": 7,
+        "completed_generations": [5, 6],
+        "abandoned_generations": [4],
+        "status": "complete",
+    }
+    queue_state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "complete",
+        "result": {"candidate": str(run_dir / "candidate.json")},
+    }
+    ledger = {
+        "schema_version": 1,
+        "published_runs": [],
+        "quarantined_runs": [],
+        "rewrite_released_runs": [],
+        "superseded_runs": [],
+        "translation_published_runs": [],
+        "translation_deferred_runs": [],
+    }
+    formal_result = {
+        "schema_version": 1,
+        "exit_verdict": "APPROVE_READY_FOR_STAGING",
+        "findings": [],
+        "review": approved_review,
+    }
+    for path, payload in (
+        (run_dir / "brief.json", brief),
+        (run_dir / "candidate.json", candidate),
+        (run_dir / "review.json", root_review),
+        (run_dir / "continuation" / "state.json", continuation),
+        (run_dir / "generations" / "06" / "candidate.json", candidate),
+        (run_dir / "generations" / "06" / "review.json", root_review),
+        (queue_state_path, queue_state),
+        (publisher_ledger_path, ledger),
+        (approved_root / "candidate.json", candidate),
+        (approved_root / "review.json", approved_review),
+        (approved_root / "formal-review-result.json", formal_result),
+        (
+            approved_root / "formal-request-identity.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "lane": "i18n-new",
+                "role": "reviewer",
+                "job_id": "a" * 40,
+                "request_sha256": "a" * 64,
+            },
+        ),
+    ):
+        write_stage_json(path, payload)
+    kwargs = {
+        "repo_root": repo_root,
+        "run_dir": run_dir,
+        "approved_candidate_path": approved_root / "candidate.json",
+        "approved_review_path": approved_root / "review.json",
+        "formal_review_result_path": approved_root / "formal-review-result.json",
+        "queue_state_path": queue_state_path,
+        "publisher_ledger_path": publisher_ledger_path,
+        "expected_run_id": run_id,
+        "terminal_generation": 6,
+        "expected_approved_article_sha256": article_sha256(article),
+        "expected_root_candidate_sha256": hashlib.sha256((run_dir / "candidate.json").read_bytes()).hexdigest(),
+        "expected_root_review_sha256": hashlib.sha256((run_dir / "review.json").read_bytes()).hexdigest(),
+        "expected_continuation_state_sha256": hashlib.sha256((run_dir / "continuation" / "state.json").read_bytes()).hexdigest(),
+        "expected_queue_state_sha256": hashlib.sha256(queue_state_path.read_bytes()).hexdigest(),
+        "expected_publisher_ledger_sha256": hashlib.sha256(publisher_ledger_path.read_bytes()).hexdigest(),
+        "expected_approved_candidate_sha256": hashlib.sha256((approved_root / "candidate.json").read_bytes()).hexdigest(),
+        "expected_approved_review_sha256": hashlib.sha256((approved_root / "review.json").read_bytes()).hexdigest(),
+        "expected_formal_review_result_sha256": hashlib.sha256((approved_root / "formal-review-result.json").read_bytes()).hexdigest(),
+        "expected_source_sha256": brief["articles"][0]["source_sha256"],
+    }
+    return {
+        "repo_root": repo_root,
+        "run_dir": run_dir,
+        "queue_state_path": queue_state_path,
+        "publisher_ledger_path": publisher_ledger_path,
+        "candidate": candidate,
+        "root_review": root_review,
+        "approved_review": approved_review,
+        "kwargs": kwargs,
+    }
+
+
+def test_approved_edited_stage_plan_is_read_only(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert plan["status"] == "READY_TO_EXECUTE"
+    assert re.fullmatch(r"[0-9a-f]{64}", plan["plan_digest"])
+    assert plan["provider_calls"] == 0
+    assert not (run_dir / "editorial-staging").exists()
+    assert not (run_dir / "generations" / "07").exists()
+
+
+def test_approved_edited_stage_execute_is_idempotent_and_rollback_scoped(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    kwargs = fixture["kwargs"]
+    run_dir = fixture["run_dir"]
+    root_candidate_before = (run_dir / "candidate.json").read_bytes()
+    root_review_before = (run_dir / "review.json").read_bytes()
+    continuation_before = (run_dir / "continuation" / "state.json").read_bytes()
+    plan = multilingual.plan_approved_edited_candidate_stage(**kwargs)
+
+    receipt = multilingual.apply_approved_edited_candidate_stage(
+        **kwargs,
+        expected_plan_digest=plan["plan_digest"],
+    )
+    loaded = multilingual.load_approved_edited_candidate_stage(run_dir)
+    again = multilingual.apply_approved_edited_candidate_stage(
+        **kwargs,
+        expected_plan_digest=plan["plan_digest"],
+    )
+
+    assert receipt["status"] == "STAGED"
+    assert loaded["candidate"] == fixture["candidate"]
+    assert loaded["receipt_sha256"] == hashlib.sha256(
+        Path(receipt["receipt_path"]).read_bytes()
+    ).hexdigest()
+    assert again["status"] == "ALREADY_STAGED"
+    assert (run_dir / "candidate.json").read_bytes() == root_candidate_before
+    assert (run_dir / "review.json").read_bytes() == root_review_before
+    assert (run_dir / "continuation" / "state.json").read_bytes() == continuation_before
+    assert not (run_dir / "generations" / "07").exists()
+
+    rollback = multilingual.rollback_approved_edited_candidate_stage(
+        run_dir,
+        receipt["operation_id"],
+    )
+
+    assert rollback["status"] == "ROLLED_BACK"
+    assert not (run_dir / "editorial-staging" / "current.json").exists()
+    assert not Path(receipt["operation_dir"]).exists()
+    assert (run_dir / "candidate.json").read_bytes() == root_candidate_before
+    assert (run_dir / "review.json").read_bytes() == root_review_before
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate"),
+    [
+        ("approved candidate", lambda fixture: write_stage_json(fixture["kwargs"]["approved_candidate_path"], {**fixture["candidate"], "run_id": "other"})),
+        ("approved review", lambda fixture: write_stage_json(fixture["kwargs"]["approved_review_path"], {**fixture["approved_review"], "run_id": "other"})),
+        ("formal result", lambda fixture: write_stage_json(fixture["kwargs"]["formal_review_result_path"], {"schema_version": 1, "exit_verdict": "REJECT", "findings": [], "review": fixture["approved_review"]})),
+        ("root candidate", lambda fixture: write_stage_json(fixture["run_dir"] / "candidate.json", {**fixture["candidate"], "run_id": "other"})),
+        ("root review", lambda fixture: write_stage_json(fixture["run_dir"] / "review.json", {**fixture["root_review"], "run_id": "other"})),
+        ("continuation", lambda fixture: write_stage_json(fixture["run_dir"] / "continuation" / "state.json", {"schema_version": 1})),
+        ("queue", lambda fixture: write_stage_json(fixture["queue_state_path"], {"schema_version": 1, "run_id": "other"})),
+        ("ledger", lambda fixture: write_stage_json(fixture["publisher_ledger_path"], {"schema_version": 1, "translation_published_runs": [{"run_id": "stage-ja"}], "translation_deferred_runs": []})),
+    ],
+)
+def test_approved_edited_stage_rejects_identity_drift(
+    tmp_path: Path,
+    label: str,
+    mutate: object,
+) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    mutate(fixture)
+
+    with pytest.raises(ValueError):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+
+def test_approved_edited_stage_rejects_plan_digest_drift_without_writes(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+
+    with pytest.raises(ValueError, match="plan digest"):
+        multilingual.apply_approved_edited_candidate_stage(
+            **fixture["kwargs"],
+            expected_plan_digest="f" * 64,
+        )
+
+    assert not (run_dir / "editorial-staging").exists()
+
+
+def test_approved_edited_stage_rejects_conflicting_second_payload(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"],
+        expected_plan_digest=plan["plan_digest"],
+    )
+    changed = json.loads(json.dumps(fixture["candidate"], ensure_ascii=False))
+    changed["articles"][0]["title"] += " 追記"
+    write_stage_json(fixture["kwargs"]["approved_candidate_path"], changed)
+    fixture["kwargs"]["expected_approved_article_sha256"] = article_sha256(changed["articles"][0])
+    fixture["kwargs"]["expected_approved_candidate_sha256"] = hashlib.sha256(
+        fixture["kwargs"]["approved_candidate_path"].read_bytes()
+    ).hexdigest()
+    changed_review = {
+        **fixture["approved_review"],
+        "articles": [
+            {
+                **fixture["approved_review"]["articles"][0],
+                "candidate_sha256": article_sha256(changed["articles"][0]),
+            }
+        ],
+    }
+    write_stage_json(fixture["kwargs"]["approved_review_path"], changed_review)
+    write_stage_json(
+        fixture["kwargs"]["formal_review_result_path"],
+        {
+            "schema_version": 1,
+            "exit_verdict": "APPROVE_READY_FOR_STAGING",
+            "findings": [],
+            "review": changed_review,
+        },
+    )
+    fixture["kwargs"]["expected_approved_review_sha256"] = hashlib.sha256(
+        fixture["kwargs"]["approved_review_path"].read_bytes()
+    ).hexdigest()
+    fixture["kwargs"]["expected_formal_review_result_sha256"] = hashlib.sha256(
+        fixture["kwargs"]["formal_review_result_path"].read_bytes()
+    ).hexdigest()
+
+    with pytest.raises(ValueError, match="conflicts"):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+
+def test_approved_edited_stage_rejects_tampered_payload(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"],
+        expected_plan_digest=plan["plan_digest"],
+    )
+    payload_path = Path(receipt["payload_path"])
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    payload["candidate"]["run_id"] = "tampered"
+    write_stage_json(payload_path, payload)
+
+    with pytest.raises(ValueError, match="record digest"):
+        multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])
+
+
+@pytest.mark.parametrize("mutation", ["missing_run_id", "wrong_lane", "request_job_mismatch"])
+def test_approved_edited_stage_rejects_formal_job_identity_tamper(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    identity_path = fixture["kwargs"]["formal_review_result_path"].parent / "formal-request-identity.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    if mutation == "missing_run_id":
+        identity.pop("run_id")
+    elif mutation == "wrong_lane":
+        identity["lane"] = "create"
+    else:
+        identity["request_sha256"] = "b" * 64
+    write_stage_json(identity_path, identity)
+
+    with pytest.raises(ValueError, match="formal review identity"):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+
+def test_approved_edited_stage_recovers_verified_operation_before_current(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    original_write = multilingual._atomic_write_json
+
+    def crash_before_current(path: Path, payload: object) -> None:
+        if path.name == "current.json":
+            raise RuntimeError("synthetic crash before current")
+        original_write(path, payload)
+
+    monkeypatch.setattr(multilingual, "_atomic_write_json", crash_before_current)
+    with pytest.raises(RuntimeError, match="before current"):
+        multilingual.apply_approved_edited_candidate_stage(
+            **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+        )
+    monkeypatch.setattr(multilingual, "_atomic_write_json", original_write)
+
+    recovered = multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+
+    assert recovered["recovered_current_pointer"] is True
+    assert multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])["candidate"] == fixture["candidate"]
+
+
+@pytest.mark.parametrize("target", ["current", "payload"])
+def test_approved_edited_stage_rejects_symlinked_authority_path(
+    tmp_path: Path,
+    target: str,
+) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    path = Path(receipt["current_seal_path"] if target == "current" else receipt["payload_path"])
+    outside = tmp_path / f"outside-{target}.json"
+    path.rename(outside)
+    path.symlink_to(outside)
+
+    with pytest.raises(ValueError, match="symlink"):
+        multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])
+
+
+def test_approved_edited_stage_rollback_rejects_symlinked_operation_dir(tmp_path: Path) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    operation_dir = Path(receipt["operation_dir"])
+    outside = tmp_path / "outside-operation"
+    operation_dir.rename(outside)
+    operation_dir.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        multilingual.rollback_approved_edited_candidate_stage(
+            fixture["run_dir"], receipt["operation_id"]
+        )
+    assert outside.is_dir()
+
+
 def load_ja_boundary_fixture(name: str) -> dict[str, object]:
     path = (
         Path(__file__).parent

@@ -1,0 +1,306 @@
+{
+  "actor_authority": {
+    "expected": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+    "runtime_manifest": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+      "sha256": "f8e5e65d3758cc978d4414f9ee943d99a338c08670afcbfc87c32c36ada64dbf",
+      "size": 1453
+    }
+  },
+  "evidence_dir": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828",
+  "external_tool_gate": {
+    "confirmation_required": "already received for production staging only; no external write authorized",
+    "connection_status": "not_applicable",
+    "execution_status": "no provider call, no remote write",
+    "operation_level": "read_only/dry_run",
+    "schema_checked": "repo entrypoints and JSON artifacts inspected",
+    "tool_service": "local filesystem and local Python only"
+  },
+  "formal_approval_binding": {
+    "approved_candidate": {
+      "article_count": 1,
+      "articles": [
+        {
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "article_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+          "locale": "ja",
+          "source_article_id": "V2-TAROT-DEATH-MONEY",
+          "source_path": "/articles/tarot/tarot-1884",
+          "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+        }
+      ],
+      "file": {
+        "exists": true,
+        "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_content_repair_20260828/candidate-repaired.json",
+        "sha256": "6a77700f41bbc4e3ee274e8b018f694bb7912ab57c4f56df687a944e3c2f3d5c",
+        "size": 9642
+      },
+      "mode": "translate_existing",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "article_sha_matches_expected": true,
+    "exit_verdict": "APPROVE_READY_FOR_STAGING",
+    "expected_article_sha": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+    "findings": [],
+    "formal_job": "e6c4542483f0b1100a19a5fb7af8c0597600462f",
+    "formal_review_file": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/formal-review-result.json",
+      "sha256": "8394f603d024d64019881c44457fd3fbd279d3854764e8ea3be624fdae80ff19",
+      "size": 525
+    },
+    "isolated_review_file": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json",
+      "sha256": "817c8507bee7a26b23dbad7b87871c6f5d043a2725ce133be7f9337540429c8b",
+      "size": 240
+    },
+    "review_articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "candidate_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+        "findings": [],
+        "verdict": "APPROVE"
+      }
+    ],
+    "review_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "review_sha_matches_candidate": true
+  },
+  "gen07_absent": true,
+  "git": {
+    "status_short": {
+      "args": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-RULE21-CREATED-UNBOUND-TITLE-MISMATCH-RECOVERY-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-UV-CACHE-EXTERNAL-VOLUME-PERMISSION-REPORT-20260820.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-JA-CONTENT-REPAIR-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-JA-FORMAL-REREVIEW-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-JA-PRODUCTION-STAGING-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-PRODUCTION-COMPLETION-FF41-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-PRODUCTION-RETRY-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-REVIEWER-REJECT-TERMINALIZATION-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-SAME-GEN-RETRY-COMPLETION-18B-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-FOUR-LANE-STATE-CONVERGENCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-LAUNCHD-ACTIVATION-RECOVERY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-PRERENDER-READONLY-RCA-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-RECOVERY-REWRITE-ACCEPTANCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-REGISTRY-NODE-CANARY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-SAFE-ACTIVATION-REVIEW-20260818.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-RUNTIME-DIGEST-CORRECTION-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/HANDOFF-PANTHEON-ACCEPTANCE-B-GEN04-LIFECYCLE-RCA-20260827.md\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_bounded_completion_29c_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_final_retry_831_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_content_repair_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_production_staging_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_null_last_job_identity_rca_20260828/live-provenance-snapshot.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/apply-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/authorization-payload-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/final-state-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/finalize-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/gen06-seam-preflight-provider0.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/plan-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/preflight-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/preserved-run-ids-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-apply-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-finalize-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-plan-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995-command.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.returncode.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stderr.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stdout.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion-status-995.stdout.txt\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/promotion_exact_runner_995.py\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-after-apply-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-final-stop-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-pre-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/status-source-identity-995.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_completion_ff41_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_f12_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_retry_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_reviewer_reject_terminalization_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_completion_18b_20260828/\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_provider0_rca_20260828/provenance-hash-chain.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/swap-telemetry-repeated-readonly.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/terminal-rejected-gen06-reproduction.json\n?? artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_terminal_continuation_and_capacity_rca_20260828/terminal_rejected_gen06_harness.py\n?? artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/\n?? handoff_20260817_pantheon_writer_vnext_four_lane_recovery.md\n?? handoff_20260820_g8_current_readiness_uv_cache_blocker.md"
+    },
+    "tag_contains_expected_article_sha": {
+      "args": [
+        "git",
+        "tag",
+        "--list",
+        "*a64d8a33b0b7*"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": ""
+    }
+  },
+  "label": "before",
+  "production_candidate": {
+    "article_count": 1,
+    "articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "article_sha256": "d7cbe749ea1732dd1a54691b8eaac13d851b7ff4deb1e600d17e70161d1f346e",
+        "locale": "ja",
+        "source_article_id": "V2-TAROT-DEATH-MONEY",
+        "source_path": "/articles/tarot/tarot-1884",
+        "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+      }
+    ],
+    "file": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+      "sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+      "size": 8878
+    },
+    "mode": "translate_existing",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "production_files": {
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/brief.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/brief.json",
+      "sha256": "93e09f8f637c396e35ccc28707c66734b08eb7f1c0c4cbdcb246df5b11ac8844",
+      "size": 7575
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+      "sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+      "size": 8878
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/generation-lifecycle.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/generation-lifecycle.json",
+      "sha256": "be91e46f5c31acbf6cc91ec2d85ca1b9e871730c1d01a633b77f139126f4427b",
+      "size": 526
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/state.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/state.json",
+      "sha256": "9b0b90943928d255454cab496dba502701e046446579a193820ac0205145818b",
+      "size": 659
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/candidate.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/candidate.json",
+      "sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+      "size": 8878
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/review.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/review.json",
+      "sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+      "size": 784
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json",
+      "sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+      "size": 784
+    }
+  },
+  "production_gen06_review": {
+    "articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "candidate_sha256": "d7cbe749ea1732dd1a54691b8eaac13d851b7ff4deb1e600d17e70161d1f346e",
+        "findings": [
+          {
+            "code": "NON_NATIVE_LANGUAGE_RESIDUE",
+            "message": "Detected residual Traditional Chinese characters '内容只提供通用理解' in meta_description, body sections, and FAQ. The content must be fully localized into native Japanese."
+          },
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing or improperly formatted in meta_description due to the inclusion of non-Japanese characters."
+          },
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing from meta_description"
+          }
+        ],
+        "hard_failure": true,
+        "verdict": "REJECT"
+      }
+    ],
+    "file": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/review.json",
+      "sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+      "size": 784
+    },
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "production_review": {
+    "articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "candidate_sha256": "d7cbe749ea1732dd1a54691b8eaac13d851b7ff4deb1e600d17e70161d1f346e",
+        "findings": [
+          {
+            "code": "NON_NATIVE_LANGUAGE_RESIDUE",
+            "message": "Detected residual Traditional Chinese characters '内容只提供通用理解' in meta_description, body sections, and FAQ. The content must be fully localized into native Japanese."
+          },
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing or improperly formatted in meta_description due to the inclusion of non-Japanese characters."
+          },
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing from meta_description"
+          }
+        ],
+        "hard_failure": true,
+        "verdict": "REJECT"
+      }
+    ],
+    "file": {
+      "exists": true,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json",
+      "sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+      "size": 784
+    },
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "production_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "seam_search_decision": {
+    "blocker": "BLOCKED_NO_FORMAL_STAGING_SEAM",
+    "evaluated_existing_entrypoints": [
+      {
+        "decision": "reject_for_this_card",
+        "entrypoint": "scripts.agy_multilingual_pipeline approve_and_apply_translation_run/apply",
+        "reason": "applies approved translation directly into repo locale registry and approval.json; no production-run staging receipt, expected-current SHA lock, or publish-boundary separation for edited candidate replacement."
+      },
+      {
+        "decision": "reject_for_this_card",
+        "entrypoint": "scripts.agy_content_publisher publish_ready_translation_runs",
+        "reason": "publisher path applies, bumps version, prerenders/feed, writes changelog, and enters commit/tag/push-capable release boundary; not a staging-only seam."
+      },
+      {
+        "decision": "reject_for_this_card",
+        "entrypoint": "scripts.agy_gemini_coordinator replay_campaign_editorial_workset_through_translation",
+        "reason": "campaign dry-run/replay helper stages in a temporary directory and copies only during campaign replay; not a standalone approved edited candidate staging command for an existing production run."
+      },
+      {
+        "decision": "reject_for_this_card",
+        "entrypoint": "scripts.pantheon_content_runtime_promotion",
+        "reason": "promotes actor/runtime manifest/private launchd stage; it preserves run queues but does not stage candidate/review replacements."
+      }
+    ],
+    "formal_staging_seam_found": false,
+    "mutation_count": 0
+  },
+  "tree_digests": {
+    "continuation": {
+      "exists": true,
+      "file_count": 5,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation",
+      "sha256": "208121a6947cd623ba52c9f5277b3033580c73e0783b816fa7129ff553054bda"
+    },
+    "gen06": {
+      "exists": true,
+      "file_count": 20,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06",
+      "sha256": "0ff51120fddd6ecd92ce2acadc127c18c6ce7ae04d28a8f2951b9ecbc2d9ad99"
+    },
+    "gen07": {
+      "exists": false,
+      "file_count": 0,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/07",
+      "sha256": null
+    },
+    "lane_i18n_new": {
+      "exists": true,
+      "file_count": 132,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new",
+      "sha256": "511fe123ad8ad5b9a7a474cf81dd63342c6a24095ff4bef946daf091c1c0b45d"
+    },
+    "private_stage": {
+      "exists": true,
+      "file_count": 7,
+      "path": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage",
+      "sha256": "81d39ffefc391571351db2232ed584e9ce125dd95c7b2cd5c6685a8dbf2013c3"
+    },
+    "publisher_state": {
+      "exists": true,
+      "file_count": 82,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+      "sha256": "01d3e9c1bc4f3a6da3c0057a59fc66102157cdff3b992883a0d33a8702aa0b87"
+    },
+    "repo_public_content": {
+      "exists": true,
+      "file_count": 1118,
+      "path": "/Users/mattkuo/Documents/Pantheon/app/web",
+      "sha256": "d6572ef6de705bfa5132f21d92f1858f75cb03e81982996d10f249dcbe32113e"
+    },
+    "run_dir": {
+      "exists": true,
+      "file_count": 74,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+      "sha256": "85189b3ac4441fd53fd3e728c26b9b0a1206b31c4d506b5f91f5bd0aa20a8703"
+    }
+  }
+}
