@@ -9,9 +9,11 @@ import fcntl
 import hashlib
 import json
 import os
+import plistlib
 import re
 import secrets
 import stat
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -102,6 +104,28 @@ PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 CONTENT_LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PRODUCTION_ATTEMPT_STATES = frozenset({"started", "succeeded", "failed"})
+FORMAL_PRODUCTION_TRANSPORT_ENV = (
+    "AGY_GEMINI_CREDENTIAL_POOL_FILE",
+    "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG",
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST",
+    "AGY_REVIEWER_MODEL",
+    "AGY_WRITER_MODEL",
+)
+FORMAL_PRODUCTION_SECRET_ENV = frozenset({"AGY_GEMINI_CREDENTIAL_POOL_FILE"})
+OPERATOR_SAFE_CHILD_RESULT_KEYS = frozenset({
+    "status",
+    "reason",
+    "service_label",
+    "missing_env",
+    "job_id",
+    "error_type",
+    "error_code",
+    "failure_category",
+    "http_status",
+    "http_status_class",
+    "lane",
+})
 V4_ROLE_INSTRUCTIONS: Final = {
     "writer": "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。",
     "reviewer": "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。",
@@ -375,6 +399,231 @@ def _new_only_enabled() -> bool:
     if raw not in {"0", "1"}:
         raise ValueError("AGY_GEMINI_NEW_ONLY must be 0 or 1")
     return raw == "1"
+
+
+def _is_formal_production_gemini_service(service_label: str) -> bool:
+    return (
+        service_label.startswith("com.pantheon.agy-gemini-")
+        and service_label != "com.pantheon.agy-gemini-coordinator"
+        and service_label.removeprefix("com.pantheon.agy-gemini-") in CONTENT_LANES
+    )
+
+
+def _formal_production_transport_block(
+    service_label: str,
+    environment: dict[str, str] | os._Environ[str] = os.environ,
+) -> dict[str, Any] | None:
+    if environment.get("PANTHEON_FORMAL_RUNTIME") != "1":
+        return None
+    if not _is_formal_production_gemini_service(service_label):
+        return None
+    missing = [
+        name
+        for name in FORMAL_PRODUCTION_TRANSPORT_ENV
+        if not str(environment.get(name, "")).strip()
+    ]
+    if not missing:
+        return None
+    return {
+        "status": "blocked",
+        "reason": "formal_production_transport_env_missing",
+        "service_label": service_label,
+        "missing_env": missing,
+    }
+
+
+def _read_plist_environment(plist_path: Path, service_label: str) -> dict[str, str]:
+    if not plist_path.is_absolute() or plist_path.is_symlink() or not plist_path.is_file():
+        raise ValueError("formal operator plist is unavailable")
+    payload = plistlib.loads(plist_path.read_bytes())
+    if type(payload) is not dict or payload.get("Label") != service_label:
+        raise ValueError("formal operator plist label mismatch")
+    environment = payload.get("EnvironmentVariables")
+    if type(environment) is not dict:
+        raise ValueError("formal operator plist environment is missing")
+    result: dict[str, str] = {}
+    for key, value in environment.items():
+        if type(key) is str and type(value) in {str, int, float, bool}:
+            result[key] = str(value)
+    return result
+
+
+def _manifest_environment(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    service_label: str,
+) -> dict[str, str]:
+    result = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": str(manifest["manifest_digest"]),
+        "PANTHEON_RUNTIME_IDENTITY": str(manifest["identity"]),
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": str(manifest["runtime_identity_digest"]),
+        "PANTHEON_RUNTIME_CODE_DIGEST": str(manifest["runtime_digest"]),
+        "PANTHEON_RUNTIME_CONFIG_VERSION": str(manifest["config_version"]),
+        "PANTHEON_RUNTIME_GENERATION": str(manifest["generation"]),
+        "PANTHEON_RUNTIME_ACTOR_ROOT": str(manifest["actor_root"]),
+        "PANTHEON_RUNTIME_QUEUE_ROOT": str(manifest["queue_root"]),
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": str(manifest["publisher_state_root"]),
+        "PANTHEON_RUNTIME_LOG_ROOT": str(manifest["log_root"]),
+        "PANTHEON_RUNTIME_SERVICE_LABEL": service_label,
+    }
+    if "python_executable" in manifest:
+        result["PANTHEON_RUNTIME_PYTHON_EXECUTABLE"] = str(
+            manifest["python_executable"]
+        )
+    if "uv_executable" in manifest:
+        result["PANTHEON_RUNTIME_UV_EXECUTABLE"] = str(manifest["uv_executable"])
+    if "actor_head" in manifest:
+        result["PANTHEON_RUNTIME_ACTOR_HEAD"] = str(manifest["actor_head"])
+    return result
+
+
+def _file_identity_receipt(path_value: str) -> dict[str, Any]:
+    receipt: dict[str, Any] = {"present": bool(path_value.strip())}
+    if not path_value.strip():
+        return receipt
+    path = Path(path_value)
+    receipt["absolute"] = path.is_absolute()
+    if path.is_absolute() and path.is_file() and not path.is_symlink():
+        payload = path.read_bytes()
+        receipt["size"] = len(payload)
+        receipt["sha256"] = hashlib.sha256(payload).hexdigest()
+    return receipt
+
+
+def _operator_env_receipt(environment: dict[str, str]) -> dict[str, Any]:
+    receipt: dict[str, Any] = {}
+    for name in FORMAL_PRODUCTION_TRANSPORT_ENV:
+        value = environment.get(name, "")
+        if name in FORMAL_PRODUCTION_SECRET_ENV or name.endswith("_FILE") or name.endswith("_CONFIG"):
+            receipt[name] = _file_identity_receipt(value)
+        else:
+            encoded = value.encode("utf-8", errors="replace")
+            receipt[name] = {
+                "present": bool(value.strip()),
+                "sha256": hashlib.sha256(encoded).hexdigest(),
+            }
+    return receipt
+
+
+def _stream_receipt(value: str) -> dict[str, Any]:
+    encoded = value.encode("utf-8", errors="replace")
+    return {
+        "bytes": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "empty": not bool(value),
+    }
+
+
+def _safe_child_result_summary(stdout: str) -> tuple[str, dict[str, Any] | None]:
+    for line in reversed(stdout.splitlines()):
+        candidate = line.strip()
+        if not candidate:
+            continue
+        if not candidate.startswith("{") or not candidate.endswith("}"):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            return "invalid_last_json_line", None
+        if type(parsed) is not dict:
+            return "last_json_line_not_object", None
+        return (
+            "parsed_last_json_line",
+            {
+                key: parsed[key]
+                for key in sorted(OPERATOR_SAFE_CHILD_RESULT_KEYS)
+                if key in parsed
+            },
+        )
+    return "no_json_object_line", None
+
+
+def operator_exact_process_once(
+    *,
+    manifest_path: Path,
+    expected_digest: str,
+    barrier: Path,
+    service_label: str,
+    ready_root: Path,
+    plist: Path,
+    exact_run_id: str,
+    timeout: int,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> dict[str, Any]:
+    """以 current manifest/barrier 與 plist env 執行單一正式 runner tick。"""
+    if EXACT_RUN_ID_PATTERN.fullmatch(exact_run_id) is None:
+        raise ValueError("formal operator exact run id is invalid")
+    if not 1 <= timeout <= 300:
+        raise ValueError("formal operator timeout is invalid")
+    if not _is_formal_production_gemini_service(service_label):
+        raise ValueError("formal operator service label is invalid")
+    manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+    lane = service_label.removeprefix("com.pantheon.agy-gemini-")
+    python_executable = str(manifest.get("python_executable") or sys.executable)
+    lane_queue_root = Path(str(manifest["queue_root"])) / "lanes" / lane
+    child_command = [
+        python_executable,
+        "-m",
+        "scripts.agy_gemini_runner",
+        "--queue-root",
+        str(lane_queue_root),
+        "--lane",
+        lane,
+        "--exact-run-id",
+        exact_run_id,
+        "process-once",
+    ]
+    command = [
+        python_executable,
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "barrier-exec",
+        "--barrier",
+        str(barrier),
+        "--expected-digest",
+        str(manifest["manifest_digest"]),
+        "--manifest",
+        str(manifest_path),
+        "--service-label",
+        service_label,
+        "--ready-root",
+        str(ready_root),
+        "--timeout",
+        str(timeout),
+        "--",
+        *child_command,
+    ]
+    environment = os.environ.copy()
+    environment.update(_read_plist_environment(plist, service_label))
+    environment.update(_manifest_environment(manifest_path, manifest, service_label))
+    transport_block = _formal_production_transport_block(service_label, environment)
+    if transport_block is not None:
+        return {
+            **transport_block,
+            "env_receipt": _operator_env_receipt(environment),
+        }
+    completed = runner(
+        command,
+        cwd=str(manifest["actor_root"]),
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    result: dict[str, Any] = {
+        "status": "executed",
+        "returncode": completed.returncode,
+        "stdout_receipt": _stream_receipt(completed.stdout),
+        "stderr_receipt": _stream_receipt(completed.stderr),
+        "env_receipt": _operator_env_receipt(environment),
+    }
+    parse_status, child_summary = _safe_child_result_summary(completed.stdout)
+    result["child_result_summary_parse"] = parse_status
+    if child_summary is not None:
+        result["child_result_summary"] = child_summary
+    return result
 
 
 def _read_production_api_key(descriptor: int) -> str:
@@ -1140,6 +1389,9 @@ def process_once(
                 "reason": "new_only",
                 "lane": lane or "shared",
             }
+        transport_block = _formal_production_transport_block(service_label)
+        if transport_block is not None:
+            return transport_block
         pool_file = os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip()
         production_enabled = (
             os.environ.get("AGY_GEMINI_V4_BROKER") != "1"
@@ -1455,6 +1707,14 @@ def parse_args() -> argparse.Namespace:
     validate = subparsers.add_parser("validate-production-installation")
     validate.add_argument("--pool-file", type=Path, required=True)
     validate.add_argument("--state-file", type=Path, required=True)
+    operator = subparsers.add_parser("operator-exact-process-once")
+    operator.add_argument("--manifest", type=Path, required=True)
+    operator.add_argument("--expected-digest", required=True)
+    operator.add_argument("--barrier", type=Path, required=True)
+    operator.add_argument("--service-label", required=True)
+    operator.add_argument("--ready-root", type=Path, required=True)
+    operator.add_argument("--plist", type=Path, required=True)
+    operator.add_argument("--timeout", type=int, default=90)
     drain = subparsers.add_parser("drain")
     drain.add_argument("--max-jobs", type=int, default=5)
     return parser.parse_args()
@@ -1470,6 +1730,45 @@ def main() -> int:
             print(str(error), file=sys.stderr)
             return 1
         print('{"status":"valid"}')
+        return 0
+    if args.command == "operator-exact-process-once":
+        if not args.exact_run_id or len(args.exact_run_id) != 1:
+            print(
+                json.dumps(
+                    {
+                        "status": "rejected",
+                        "error": "formal operator requires exactly one exact run id",
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 64
+        try:
+            result = operator_exact_process_once(
+                manifest_path=args.manifest.resolve(),
+                expected_digest=args.expected_digest,
+                barrier=args.barrier.resolve(),
+                service_label=args.service_label,
+                ready_root=args.ready_root.resolve(),
+                plist=args.plist.resolve(),
+                exact_run_id=args.exact_run_id[0],
+                timeout=args.timeout,
+            )
+        except (OSError, ValueError, formal_runtime.RuntimeManifestError) as error:
+            print(
+                json.dumps(
+                    {"status": "rejected", "error": str(error)},
+                    ensure_ascii=False,
+                )
+            )
+            return 1
+        print(json.dumps(result, ensure_ascii=False))
+        if result["status"] in {"blocked", "rejected"}:
+            return 1
+        if result["status"] == "executed":
+            returncode = result.get("returncode")
+            if type(returncode) is int and returncode != 0:
+                return returncode if 1 <= returncode <= 255 else 1
         return 0
     if args.command == "process-once":
         result = process_once(

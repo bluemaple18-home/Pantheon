@@ -1,0 +1,43 @@
+{
+  "disk_free": 38681661440,
+  "manifest_actor": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+  "manifest_digest": "3012fdc78422dbfe1534b1eb1d353decb72ab0bd430e8e17f86a8fe6c4c586f0",
+  "manifest_file_sha256": "e7f19887067fc962f86601c72d93b3c2798fc70f6bf8ebf10d222de98ee79afa",
+  "manifest_generation": "g56-8a50395f-gen05-dangling-registry-guard-release-20260828",
+  "phase": "after_rollback",
+  "promotion_status": {
+    "audit_receipt_exists": true,
+    "correlation_id": "pantheon-gen05-release-23e-20260828",
+    "plan_digest": "a5cbf2a1860dfb0186aa7fd76f5e8075b06ba6c7d9552d32dd5045fb0c6b929d",
+    "rollback_bundle_exists": true,
+    "rollback_required": false,
+    "state": "ROLLED_BACK",
+    "status": "PASS"
+  },
+  "services": {
+    "com.pantheon.agy-content-publisher": {
+      "loaded": false,
+      "returncode": 1
+    },
+    "com.pantheon.agy-gemini-coordinator": {
+      "loaded": false,
+      "returncode": 1
+    },
+    "com.pantheon.agy-gemini-i18n-new": {
+      "loaded": false,
+      "returncode": 1
+    },
+    "com.pantheon.agy-gemini-i18n-rewrite": {
+      "loaded": false,
+      "returncode": 1
+    },
+    "com.pantheon.agy-gemini-new": {
+      "loaded": false,
+      "returncode": 1
+    },
+    "com.pantheon.agy-gemini-rewrite": {
+      "loaded": false,
+      "returncode": 1
+    }
+  }
+}

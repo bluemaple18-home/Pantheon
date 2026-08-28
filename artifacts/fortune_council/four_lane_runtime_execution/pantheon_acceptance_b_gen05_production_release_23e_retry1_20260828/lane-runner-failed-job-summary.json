@@ -1,0 +1,62 @@
+{
+  "archive": {
+    "attempt_status": null,
+    "diagnostic": null,
+    "error_code": null,
+    "error_type": null,
+    "failure_category": null,
+    "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+    "model": "gemini-3.5-flash-lite",
+    "namespace": "f46cda9eaa9ded446bf8e6c6",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/archive/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+    "production_attempt": null,
+    "provider": null,
+    "result": null,
+    "role": "writer",
+    "sha256": "cebee0ffed85a3b65283d875be3b5efede57d116ad6880470c2f533857a485b4",
+    "status": null,
+    "top_keys": [
+      "job_id",
+      "model",
+      "namespace",
+      "operation_level",
+      "prompt",
+      "prompt_sha256",
+      "request_sha256",
+      "response_schema",
+      "role",
+      "schema_sha256",
+      "schema_version",
+      "thinking_level"
+    ]
+  },
+  "failed": {
+    "attempt_status": null,
+    "diagnostic": null,
+    "error_code": null,
+    "error_type": "ValueError",
+    "failure_category": "INVALID_RECEIPT",
+    "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+    "model": null,
+    "namespace": null,
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/failed/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+    "production_attempt": null,
+    "provider": null,
+    "result": null,
+    "role": null,
+    "sha256": "a161e46034ae5b57d8be081a5af22421ce46b1db7aaa3aa4a968e56491c92fb4",
+    "status": null,
+    "top_keys": [
+      "completed_at",
+      "error_type",
+      "failure_category",
+      "job_id",
+      "request_sha256",
+      "schema_version"
+    ]
+  },
+  "matching_files": [
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/archive/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/failed/61a83c341d39c882d5eed8ea23b7f805a89085e3.json"
+  ]
+}

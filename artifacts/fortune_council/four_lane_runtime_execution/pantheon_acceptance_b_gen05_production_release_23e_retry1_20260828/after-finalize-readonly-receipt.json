@@ -1,0 +1,47 @@
+{
+  "disk_free": 37974061056,
+  "finalize": {
+    "plan_digest": "6a93618bfaca1583fb12d59c5b4ce3f7fc5dd71ef0b702e7010e41a84df7815f",
+    "status": "COMMITTED"
+  },
+  "manifest_actor": "23eab63ea31031094aa084faee0e5ff65d326533",
+  "manifest_digest": "142d044fda404a5d6f42e8b547d2160a1f024eb648a374034d2eb1bf6868e28d",
+  "manifest_file_sha256": "4ff21c49c5315d1a8b5b39eb46860953cd76b7543898c7aa0afc3623bed070a3",
+  "manifest_generation": "g58-23eab63e-gen05-lane-selector-repair-retry1-20260828",
+  "phase": "after_finalize",
+  "services": {
+    "com.pantheon.agy-content-publisher": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-coordinator": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-i18n-new": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-i18n-rewrite": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-new": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-rewrite": {
+      "loaded": false,
+      "returncode": 113
+    }
+  },
+  "status": {
+    "audit_receipt_exists": true,
+    "correlation_id": "pantheon-gen05-release-23e-retry1-20260828",
+    "plan_digest": "6a93618bfaca1583fb12d59c5b4ce3f7fc5dd71ef0b702e7010e41a84df7815f",
+    "rollback_bundle_exists": false,
+    "rollback_required": false,
+    "state": "COMMITTED",
+    "status": "PASS"
+  }
+}

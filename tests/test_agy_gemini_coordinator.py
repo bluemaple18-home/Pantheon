@@ -3293,6 +3293,27 @@ def _replace_failed(
     return coordinator.replace_failed_external_job(run_dir, queue_root, **args)
 
 
+def _legacy_null_correlation_id(run_id: str) -> str:
+    return f"legacy-null-correlation:{run_id}"
+
+
+def _write_provider_attempt_zero_invalid_receipt(
+    queue_root: Path,
+    request: dict[str, object],
+) -> None:
+    coordinator.atomic_write_json(
+        queue_root / "failed" / f"{request['job_id']}.json",
+        {
+            "schema_version": 1,
+            "job_id": request["job_id"],
+            "request_sha256": request["request_sha256"],
+            "error_type": "ValueError",
+            "failure_category": "INVALID_RECEIPT",
+            "completed_at": "2026-08-28T17:34:28+08:00",
+        },
+    )
+
+
 def _failed_external_replacement_invalid_receipt_fixture(
     tmp_path: Path,
     *,
@@ -3362,6 +3383,137 @@ def test_failed_external_job_replacement_plan_only_is_side_effect_free(tmp_path:
     assert result["request_sha256"] == request["request_sha256"]
     assert result["failure_category"] == "CLI_NONZERO"
     assert result["authority_digest"] == _replacement_authority_digest()
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_plan_only_accepts_provider_zero_invalid_receipt_legacy_null_correlation(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, _correlation_id = _failed_external_replacement_fixture(
+        tmp_path,
+    )
+    run_id = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))["run_id"]
+    failed_path = queue_root / "failed" / f"{request['job_id']}.json"
+    failed_path.unlink()
+    _write_provider_attempt_zero_invalid_receipt(queue_root, request)
+    state = read_run_state(run_dir, queue_root)
+    state.pop("correlation_id")
+    state["last_job_id"] = request["job_id"]
+    coordinator._write_state(queue_root, state)
+    before = _file_snapshot(queue_root)
+
+    result = _replace_failed(
+        run_dir,
+        queue_root,
+        request,
+        _legacy_null_correlation_id(run_id),
+        failure_category="INVALID_RECEIPT",
+        error_code="NO_ERROR_CODE",
+        execute=False,
+        plan_only=True,
+    )
+
+    assert result["status"] == "plan_only"
+    assert result["failure_category"] == "INVALID_RECEIPT"
+    assert result["error_code"] is None
+    assert result["correlation_id"] is None
+    assert result["legacy_null_correlation"] is True
+    assert result["operator_correlation_authority"] == _legacy_null_correlation_id(run_id)
+    assert result["source_provider_attempt"] == 0
+    assert result["source_job_id"] == request["job_id"]
+    assert result["namespace"] == request["namespace"]
+    assert _file_snapshot(queue_root) == before
+
+
+def test_failed_external_job_replacement_legacy_null_correlation_result_recovers_without_actor_run_dir(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, _correlation_id = _failed_external_replacement_fixture(
+        tmp_path,
+    )
+    run_id = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))["run_id"]
+    (queue_root / "failed" / f"{request['job_id']}.json").unlink()
+    _write_provider_attempt_zero_invalid_receipt(queue_root, request)
+    state = read_run_state(run_dir, queue_root)
+    state.pop("correlation_id")
+    state["last_job_id"] = request["job_id"]
+    coordinator._write_state(queue_root, state)
+
+    result = _replace_failed(
+        run_dir,
+        queue_root,
+        request,
+        _legacy_null_correlation_id(run_id),
+        failure_category="INVALID_RECEIPT",
+        error_code="NO_ERROR_CODE",
+    )
+    replacement_job_id = str(result["replacement_job_id"])
+    persisted = coordinator._read_run_state_by_id(run_id, queue_root)
+    assert persisted.get("correlation_id") is None
+    assert persisted["failed_external_job_replacement"]["correlation_id"] is None
+    coordinator.atomic_write_json(
+        queue_root / "inbox" / f"{replacement_job_id}.json",
+        {
+            "schema_version": 1,
+            "job_id": replacement_job_id,
+            "request_sha256": request["request_sha256"],
+            "model": request["model"],
+            "completed_at": "2026-08-28T17:35:00+08:00",
+            "result": {"ok": True},
+        },
+    )
+    shutil.rmtree(run_dir)
+
+    summary = coordinator.cycle_once(queue_root, exact_run_ids=(run_id,))
+
+    state = coordinator._read_run_state_by_id(run_id, queue_root)
+    assert summary["complete"] == 1
+    assert summary["failed"] == 0
+    assert state["status"] == "complete"
+    assert state["result"]["recovered_failed_external_job"] == {
+        "source_job_id": request["job_id"],
+        "replacement_job_id": replacement_job_id,
+        "decision": f"failed-external-job-replacements/{request['job_id']}.json",
+    }
+    assert state["result"]["external_result"] == {"ok": True}
+
+
+def test_failed_external_job_replacement_rejects_invalid_receipt_when_provider_attempt_exists(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request, _correlation_id = _failed_external_replacement_fixture(
+        tmp_path,
+    )
+    run_id = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))["run_id"]
+    (queue_root / "failed" / f"{request['job_id']}.json").unlink()
+    _write_provider_attempt_zero_invalid_receipt(queue_root, request)
+    attempt_path = queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    coordinator.atomic_write_json(
+        attempt_path,
+        {
+            "schema_version": 1,
+            "job_id": request["job_id"],
+            "attempt": 1,
+            "recorded_at": "2026-08-28T17:34:28+08:00",
+        },
+    )
+    state = read_run_state(run_dir, queue_root)
+    state.pop("correlation_id")
+    state["last_job_id"] = request["job_id"]
+    coordinator._write_state(queue_root, state)
+    before = _file_snapshot(queue_root)
+
+    with pytest.raises(ValueError, match="failure identity"):
+        _replace_failed(
+            run_dir,
+            queue_root,
+            request,
+            _legacy_null_correlation_id(run_id),
+            failure_category="INVALID_RECEIPT",
+            error_code="NO_ERROR_CODE",
+            execute=False,
+            plan_only=True,
+        )
     assert _file_snapshot(queue_root) == before
 
 

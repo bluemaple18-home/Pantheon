@@ -62,6 +62,8 @@ DANGLING_ACTIVE_TERMINALIZATION_REASONS = frozenset({
 FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS = frozenset({
     "NO_ANTIGRAVITY_LOW_MODEL_LABEL",
 })
+FAILED_REPLACEMENT_NO_ERROR_CODE_SENTINEL = "NO_ERROR_CODE"
+LEGACY_NULL_CORRELATION_PREFIX = "legacy-null-correlation:"
 JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 Tick = Callable[[Path, Path], dict[str, Any]]
@@ -1766,6 +1768,30 @@ def _closed_failed_replacement_resume_preflight(
     return f"no Antigravity Low model label for {model}"
 
 
+def _legacy_null_correlation_requested(
+    correlation_id: str,
+    *,
+    expected_run_id: str,
+) -> bool:
+    return correlation_id == f"{LEGACY_NULL_CORRELATION_PREFIX}{expected_run_id}"
+
+
+def _provider_attempt_zero_invalid_receipt(
+    job_root: Path,
+    source_job_id: str,
+    source_request: Mapping[str, Any],
+    failure: Mapping[str, Any],
+) -> bool:
+    return (
+        failure.get("error_type") == "ValueError"
+        and classify_external_failure(failure) == "INVALID_RECEIPT"
+        and "error_code" not in failure
+        and "credential_pool" not in failure
+        and source_request.get("transport_attempt", 0) == 0
+        and not (job_root / "production-attempts" / f"{source_job_id}.attempt").exists()
+    )
+
+
 def replace_failed_external_job(
     run_dir: Path,
     queue_root: Path,
@@ -1822,10 +1848,20 @@ def replace_failed_external_job(
 
     with _failed_external_replacement_lock(job_root, source_job_id):
         state = _read_run_state_by_id(expected_run_id, state_root)
+        legacy_null_correlation = (
+            state.get("correlation_id") is None
+            and _legacy_null_correlation_requested(
+                correlation_id,
+                expected_run_id=expected_run_id,
+            )
+        )
         if (
             state.get("run_id") != expected_run_id
             or state.get("run_dir") != str(resolved_run_dir)
-            or state.get("correlation_id") != correlation_id
+            or (
+                not legacy_null_correlation
+                and state.get("correlation_id") != correlation_id
+            )
         ):
             raise ValueError("failed external replacement state identity mismatch")
         if state.get("status") != "active" and not (
@@ -1860,7 +1896,22 @@ def replace_failed_external_job(
             raise ValueError("failed external replacement request identity mismatch")
         failure = validate_external_failure_receipt(job_root, source_request)
         actual_failure_category = classify_external_failure(failure)
-        if actual_failure_category != failure_category or failure.get("error_code") != error_code:
+        provider_attempt_zero_invalid_receipt = (
+            failure_category == "INVALID_RECEIPT"
+            and error_code == FAILED_REPLACEMENT_NO_ERROR_CODE_SENTINEL
+            and actual_failure_category == "INVALID_RECEIPT"
+            and legacy_null_correlation
+            and _provider_attempt_zero_invalid_receipt(
+                job_root,
+                source_job_id,
+                source_request,
+                failure,
+            )
+        )
+        if not provider_attempt_zero_invalid_receipt and (
+            actual_failure_category != failure_category
+            or failure.get("error_code") != error_code
+        ):
             raise ValueError("failed external replacement failure identity mismatch")
 
         replacement_request = build_external_replacement_request(
@@ -1884,6 +1935,9 @@ def replace_failed_external_job(
             "decision": decision_relative,
             "identity_envelope": identity_envelope,
         }
+        receipt_correlation_id = (
+            state.get("correlation_id") if legacy_null_correlation else correlation_id
+        )
         state_receipt = {
             "decision": decision_relative,
             "source_job_id": source_job_id,
@@ -1891,7 +1945,7 @@ def replace_failed_external_job(
             "request_sha256": request_sha256,
             "namespace": namespace,
             "lane": lane,
-            "correlation_id": correlation_id,
+            "correlation_id": receipt_correlation_id,
             "authority_digest": authority_digest,
             "replacement_lineage_id": replacement_lineage["lineage_id"],
         }
@@ -1901,7 +1955,7 @@ def replace_failed_external_job(
             "action": "replace_failed_external_job",
             "run_id": expected_run_id,
             "lane": lane,
-            "correlation_id": correlation_id,
+            "correlation_id": receipt_correlation_id,
             "namespace": namespace,
             "source_job_id": source_job_id,
             "replacement_job_id": replacement_job_id,
@@ -1920,7 +1974,7 @@ def replace_failed_external_job(
             "action": "replace_failed_external_job",
             "run_id": expected_run_id,
             "lane": lane,
-            "correlation_id": correlation_id,
+            "correlation_id": receipt_correlation_id,
             "namespace": namespace,
             "source_job_id": source_job_id,
             "replacement_job_id": replacement_job_id,
@@ -1935,6 +1989,10 @@ def replace_failed_external_job(
             "from": "archive+failed",
             "to": "outbox",
         }
+        if provider_attempt_zero_invalid_receipt:
+            result["legacy_null_correlation"] = True
+            result["operator_correlation_authority"] = correlation_id
+            result["source_provider_attempt"] = 0
 
         outbox_path = job_root / "outbox" / f"{replacement_job_id}.json"
         staging_path = _failed_replacement_staging_path(

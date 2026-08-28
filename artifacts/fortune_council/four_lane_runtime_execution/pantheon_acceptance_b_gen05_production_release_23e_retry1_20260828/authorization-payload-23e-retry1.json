@@ -1,0 +1,10 @@
+{
+  "authorization": "owner_explicit_go_live_20260828_retry1",
+  "correlation_id": "pantheon-gen05-release-23e-retry1-20260828",
+  "rule24_capacity_receipt_sha256": "0d4ff2e6026c48de2cbd4ae27aaa605ec90cb42f09e384a1b8c738263be9fe47",
+  "rule25_status": "READY",
+  "schema_version": 1,
+  "scope": "gen05_lane_selector_lifecycle_repair_release_retry1_only",
+  "target_commit": "23eab63ea31031094aa084faee0e5ff65d326533",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

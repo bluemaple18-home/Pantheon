@@ -1,0 +1,69 @@
+{
+  "disk_free": 37970309120,
+  "git_head": "23eab63ea31031094aa084faee0e5ff65d326533",
+  "git_origin_main": "23eab63ea31031094aa084faee0e5ff65d326533",
+  "manifest": {
+    "actor_head": "23eab63ea31031094aa084faee0e5ff65d326533",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g58-23eab63e-gen05-lane-selector-repair-retry1-20260828",
+    "identity": "gate2-actor:23eab63ea31031094aa084faee0e5ff65d326533:gen05-lane-selector-repair-retry1-20260828",
+    "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "manifest_digest": "142d044fda404a5d6f42e8b547d2160a1f024eb648a374034d2eb1bf6868e28d",
+    "owner_uid": 501,
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "runtime_identity_digest": "650d3f1ddb5b0e30c0b6e809f9b118970f0e5de3502b3508e09a0c0f161947c6",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ],
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "manifest_file_sha256": "4ff21c49c5315d1a8b5b39eb46860953cd76b7543898c7aa0afc3623bed070a3",
+  "phase": "final_readonly",
+  "promotion_status": {
+    "audit_receipt_exists": true,
+    "correlation_id": "pantheon-gen05-release-23e-retry1-20260828",
+    "plan_digest": "6a93618bfaca1583fb12d59c5b4ce3f7fc5dd71ef0b702e7010e41a84df7815f",
+    "rollback_bundle_exists": false,
+    "rollback_required": false,
+    "state": "COMMITTED",
+    "status": "PASS"
+  },
+  "services": {
+    "com.pantheon.agy-content-publisher": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-coordinator": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-i18n-new": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-i18n-rewrite": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-new": {
+      "loaded": false,
+      "returncode": 113
+    },
+    "com.pantheon.agy-gemini-rewrite": {
+      "loaded": false,
+      "returncode": 113
+    }
+  }
+}

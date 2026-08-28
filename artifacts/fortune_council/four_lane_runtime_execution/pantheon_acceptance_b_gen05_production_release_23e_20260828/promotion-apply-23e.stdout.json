@@ -1,0 +1,6 @@
+{
+  "plan_digest": "a5cbf2a1860dfb0186aa7fd76f5e8075b06ba6c7d9552d32dd5045fb0c6b929d",
+  "rollback_bundle": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-gen05-release-23e-20260828/rollback-bundle",
+  "status": "POSTCHECK_PASSED",
+  "target_manifest_digest": "09e08c50ffd31b3cd67658c881fe72d4ee3245eef8eea7164569846de442bf62"
+}

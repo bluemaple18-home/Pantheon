@@ -1,0 +1,18 @@
+{
+  "direct_swap_telemetry": {
+    "available": true,
+    "error": null,
+    "value": 7599093186
+  },
+  "disk": {
+    "free": 38669787136,
+    "free_pct": 15.776683745811207,
+    "total": 245107195904
+  },
+  "manifest_actor": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+  "manifest_digest": "3012fdc78422dbfe1534b1eb1d353decb72ab0bd430e8e17f86a8fe6c4c586f0",
+  "manifest_file_sha256": "e7f19887067fc962f86601c72d93b3c2798fc70f6bf8ebf10d222de98ee79afa",
+  "origin_main_remote_returncode": 0,
+  "origin_main_remote_stderr": "",
+  "origin_main_remote_stdout": "23eab63ea31031094aa084faee0e5ff65d326533\trefs/heads/main"
+}

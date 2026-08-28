@@ -1,0 +1,60 @@
+{
+  "after_cleanup": {
+    "elapsed_seconds": 10.861424417002127,
+    "file_count": 0,
+    "host_free_bytes": 40164511744,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-2-after-cleanup",
+    "process_rss_bytes": 41697280,
+    "project_bytes": 0,
+    "sampled_epoch": 1787901391.3009129,
+    "swap_used_bytes": 0
+  },
+  "before": {
+    "elapsed_seconds": 4.0917075239121914e-05,
+    "file_count": 0,
+    "host_free_bytes": 40165367808,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-2-before",
+    "process_rss_bytes": 34881536,
+    "project_bytes": 0,
+    "sampled_epoch": 1787901380.43956,
+    "swap_used_bytes": 0
+  },
+  "canary_created": false,
+  "capability_receipt_status": "PASS",
+  "cleanup": {
+    "elapsed_seconds": 0.0015616660239174962,
+    "reclaimed_bytes": 36185,
+    "reclaimed_file_count": 36,
+    "root_exists_after_cleanup": false
+  },
+  "correlation_id": "corr-ra-slice-005-cycle-2",
+  "cycle": 2,
+  "execution_line_id": "exec-ra-slice-005-cycle-2",
+  "growth_bytes_per_hour": 11998587,
+  "peak": {
+    "elapsed_seconds": 10.856818750035018,
+    "file_count": 36,
+    "host_free_bytes": 40164339712,
+    "host_total_bytes": 245107195904,
+    "label": "cycle-2-peak",
+    "process_rss_bytes": 41697280,
+    "project_bytes": 36185,
+    "sampled_epoch": 1787901391.2963068,
+    "swap_used_bytes": 0
+  },
+  "peak_transaction_temp_bytes": 36185,
+  "production_mutation": false,
+  "root": "/private/tmp/pantheon-gen05-release-23e-20260828-rule24/capacity-sandbox/cycle-2",
+  "root_unique": true,
+  "seven_step_capabilities": [
+    "create",
+    "run",
+    "select",
+    "publish",
+    "transaction",
+    "tag",
+    "push"
+  ]
+}

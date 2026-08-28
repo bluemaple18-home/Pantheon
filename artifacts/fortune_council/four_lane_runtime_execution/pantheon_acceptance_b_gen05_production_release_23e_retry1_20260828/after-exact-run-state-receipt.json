@@ -1,0 +1,213 @@
+{
+  "attempt03_review": {
+    "json": {
+      "articles": [
+        {
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "candidate_sha256": "4d99ffed53c3a4c8ec3b6176fd6ea2d32f002dcf01cf81049c5033631c1e3e2c",
+          "findings": [
+            {
+              "code": "COVERAGE_MISSING",
+              "message": "The candidate article completely omits the mandatory disclaimer '內容只提供通用理解，不能替個人下結論' (Content provides general understanding only, cannot make conclusions for individuals) which is required by the editorial policy for every section and the overall context."
+            },
+            {
+              "code": "NON_NATIVE_SEARCH_INTENT",
+              "message": "The title and content structure are too generic and lack the specific, natural Japanese search intent phrasing required for a localized SEO article. The tone is overly academic/translated rather than native web media style."
+            }
+          ],
+          "verdict": "REJECT"
+        }
+      ],
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/03/review.json",
+    "sha256": "d4d4e7bb6820ff2608f4bf1016646b31dcd2d4bff7df21b5138ee879ed4db33d"
+  },
+  "candidate": {
+    "json": {
+      "articles": [
+        {
+          "answer": "金銭における死神のカードは、古いパターンの終了や構造的な転換を象徴しています。破産を直接意味するものではなく、財務状況を見直す契機となります。",
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "bodySections": [
+            {
+              "heading": "金銭における死神の意味と現状の見直し",
+              "paragraphs": [
+                "日常の支出や債務の数字に向き合うには勇気が必要です。死神カードが表す変化のプロセスは、こうした長年の課題を直視するよう促します。不必要な出費の削減や資産の再配分など、徹底的な整理が求められます。"
+              ]
+            },
+            {
+              "heading": "構造的な変化とリスク管理のポイント",
+              "paragraphs": [
+                "いかなる経済状況においても絶対的な安定は存在せず、死神カードはその無常さを映し出します。高リスクな行動にブレーキをかけ、失われた環節に警戒することが重要です。危機を転機に変えるには、継続的な忍耐と客観的な視点が欠かせません。"
+              ]
+            },
+            {
+              "heading": "古い価値観を手放すための心の持ち方",
+              "paragraphs": [
+                "過去の経済的な失敗や古いモデルにいつまでも固執すると、さらなる損失を招くおそれがあります。大口の支出や投資の判断では冷静さを保ち、不要な執着を手放すことが求められます。"
+              ]
+            },
+            {
+              "heading": "動乱を乗り越えて新しい局面へ向かう方法",
+              "paragraphs": [
+                "動揺や転折の時期を経たのち、財務状況は新たな局面を迎えます。終わりは同時に新しい芽生えの空間を生み出すため、柔軟な姿勢を保つことが大切です。"
+              ]
+            }
+          ],
+          "description": "タロットの死神が示す金銭的な変容と現実に向き合うための心構えについて解説します。",
+          "faq": [
+            {
+              "answer": "破産を直接意味するものではなく、現在の財務状況や消費習慣を見直す契機となります。",
+              "question": "金銭において死神カードが出たら破産を意味しますか？"
+            },
+            {
+              "answer": "古いパターンの終了や構造的な転換、そして現状を見直すための気づきを象徴しています。",
+              "question": "タロットの死神が金銭において表す主な意味は何ですか？"
+            }
+          ],
+          "locale": "ja",
+          "source_article_id": "V2-TAROT-DEATH-MONEY",
+          "source_path": "/articles/tarot/tarot-1884",
+          "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+          "tags": [
+            "タロット 死神 金銭 意味",
+            "死神カード お金 不安",
+            "金銭管理 タロット 死神 解釈"
+          ],
+          "title": "金銭におけるタロット死神の意味と現実に向き合う心構え"
+        }
+      ],
+      "mode": "translate_existing",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+    "sha256": "2a57b6bcb7fe27eeee0c57ff10d18d773643139b8a24e392b0b215be72aabda8"
+  },
+  "continuation_state": {
+    "json": {
+      "abandoned_generations": [
+        4
+      ],
+      "completed_generations": [],
+      "next_generation": 5,
+      "operation_id": "42b2d14947072732654bb169c4aaf317f2d649631ea33fb655a104bce08f28c9",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1,
+      "semantic_budget": 1,
+      "source_sha256": [
+        "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+      ],
+      "started_after_generation": 3,
+      "starting_review_sha256": "31b5d156a987a227adccbd3c02f37f609985983d4deca7c057fcd1c27c7155cd",
+      "status": "active",
+      "terminal_candidate_sha256": null,
+      "terminal_review_sha256": null
+    },
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/state.json",
+    "sha256": "99f8202b572bd947678b948605c6876be41d7f63fef9228a39ee8341f63dc7cc"
+  },
+  "disk_free": 37958127616,
+  "generation_dirs": [
+    "04",
+    "05"
+  ],
+  "generation_lifecycle": {
+    "json": {
+      "contract": "continuation-generation-lifecycle",
+      "generations": {
+        "04": {
+          "allocated": true,
+          "committed": false,
+          "decision": "terminalize",
+          "decision_artifact": "generations/04/partial-generation-decision.json",
+          "generation": 4,
+          "lifecycle_state": "abandoned",
+          "resumable": false,
+          "terminal_reason": "source ref map missing for persisted external locale plan",
+          "terminal_stage": "PLANNING"
+        }
+      },
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1,
+      "source_package_sha256": "9f98a3690f5b3496d1ed82906779e507cad63d5363795fe23420b67600453ad7"
+    },
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/generation-lifecycle.json",
+    "sha256": "be91e46f5c31acbf6cc91ec2d85ca1b9e871730c1d01a633b77f139126f4427b"
+  },
+  "review": {
+    "json": {
+      "articles": [
+        {
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "candidate_sha256": "4d99ffed53c3a4c8ec3b6176fd6ea2d32f002dcf01cf81049c5033631c1e3e2c",
+          "findings": [
+            {
+              "code": "COVERAGE_MISSING",
+              "message": "The candidate article completely omits the mandatory disclaimer '內容只提供通用理解，不能替個人下結論' (Content provides general understanding only, cannot make conclusions for individuals) which is required by the editorial policy for every section and the overall context."
+            },
+            {
+              "code": "NON_NATIVE_SEARCH_INTENT",
+              "message": "The title and content structure are too generic and lack the specific, natural Japanese search intent phrasing required for a localized SEO article. The tone is overly academic/translated rather than native web media style."
+            }
+          ],
+          "verdict": "REJECT"
+        }
+      ],
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json",
+    "sha256": "d4d4e7bb6820ff2608f4bf1016646b31dcd2d4bff7df21b5138ee879ed4db33d"
+  },
+  "run_tree_files": [
+    "attempts/01/article-operation.json",
+    "attempts/01/candidate.json",
+    "attempts/01/deterministic-findings.json",
+    "attempts/01/external-candidate.json",
+    "attempts/01/external-plan.json",
+    "attempts/01/external-review.json",
+    "attempts/01/locale-plan.json",
+    "attempts/01/plan-operation.json",
+    "attempts/01/review.json",
+    "attempts/01/reviewer-operation.json",
+    "attempts/02/article-operation.json",
+    "attempts/02/candidate.json",
+    "attempts/02/deterministic-findings.json",
+    "attempts/02/external-candidate.json",
+    "attempts/02/external-plan.json",
+    "attempts/02/external-review.json",
+    "attempts/02/locale-plan.json",
+    "attempts/02/plan-operation.json",
+    "attempts/02/review.json",
+    "attempts/02/reviewer-operation.json",
+    "attempts/03/article-operation.json",
+    "attempts/03/candidate.json",
+    "attempts/03/deterministic-findings.json",
+    "attempts/03/external-candidate.json",
+    "attempts/03/external-plan.json",
+    "attempts/03/external-review.json",
+    "attempts/03/locale-plan.json",
+    "attempts/03/plan-operation.json",
+    "attempts/03/review.json",
+    "attempts/03/reviewer-operation.json",
+    "brief.json",
+    "candidate.json",
+    "continuation/authority-transition-04.json",
+    "continuation/generation-lifecycle.json",
+    "continuation/state.json",
+    "generations/04/external-plan.json",
+    "generations/04/partial-generation-decision.json",
+    "generations/04/plan-operation.json",
+    "generations/04/planning-result.json",
+    "generations/05/article-operation.json",
+    "generations/05/external-plan.json",
+    "generations/05/locale-plan.json",
+    "generations/05/plan-operation.json",
+    "generations/05/planning-result.json",
+    "generations/05/source-ref-map.json",
+    "review.json"
+  ]
+}

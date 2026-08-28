@@ -1,0 +1,46 @@
+{
+  "credential_pool_state_meta": {
+    "exists": true,
+    "mode": "0o600",
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/production-credential-pool-state.json",
+    "safe_summary": {
+      "cooldowns": "list",
+      "last_ordinal": "int",
+      "last_slot_id": "str",
+      "lock_device": "int",
+      "lock_inode": "int",
+      "manifest_sha256": "str",
+      "pool_id": "str",
+      "quota_blocks": "list",
+      "schema_version": "int"
+    },
+    "sha256": "0092147fac6dc718074003770b26a81461e48ba6224f051f4e6ea35a1f7c3e23",
+    "size": 262,
+    "top_keys": [
+      "cooldowns",
+      "last_ordinal",
+      "last_slot_id",
+      "lock_device",
+      "lock_inode",
+      "manifest_sha256",
+      "pool_id",
+      "quota_blocks",
+      "schema_version"
+    ]
+  },
+  "failed_receipt": {
+    "completed_at": "2026-08-28T15:35:01+08:00",
+    "error_type": "ValueError",
+    "failure_category": "INVALID_RECEIPT",
+    "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+    "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b",
+    "schema_version": 1
+  },
+  "failed_receipt_has_credential_pool": false,
+  "failed_receipt_has_error_code": false,
+  "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+  "production_attempt_markers_for_job": [],
+  "production_attempt_markers_for_job_count": 0,
+  "provider_attempt_conclusion": "provider_attempt_0_candidate",
+  "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b"
+}

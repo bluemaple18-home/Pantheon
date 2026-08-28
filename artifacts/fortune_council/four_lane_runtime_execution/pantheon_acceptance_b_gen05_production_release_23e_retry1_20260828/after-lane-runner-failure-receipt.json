@@ -1,0 +1,394 @@
+{
+  "disk_free": 37965197312,
+  "files": {
+    "attempt03_candidate": {
+      "exists": true,
+      "json": {
+        "articles": [
+          {
+            "answer": "金銭における死神のカードは、古いパターンの終了や構造的な転換を象徴しています。破産を直接意味するものではなく、財務状況を見直す契機となります。",
+            "article_id": "V2-TAROT-DEATH-MONEY:ja",
+            "bodySections": [
+              {
+                "heading": "金銭における死神の意味と現状の見直し",
+                "paragraphs": [
+                  "日常の支出や債務の数字に向き合うには勇気が必要です。死神カードが表す変化のプロセスは、こうした長年の課題を直視するよう促します。不必要な出費の削減や資産の再配分など、徹底的な整理が求められます。"
+                ]
+              },
+              {
+                "heading": "構造的な変化とリスク管理のポイント",
+                "paragraphs": [
+                  "いかなる経済状況においても絶対的な安定は存在せず、死神カードはその無常さを映し出します。高リスクな行動にブレーキをかけ、失われた環節に警戒することが重要です。危機を転機に変えるには、継続的な忍耐と客観的な視点が欠かせません。"
+                ]
+              },
+              {
+                "heading": "古い価値観を手放すための心の持ち方",
+                "paragraphs": [
+                  "過去の経済的な失敗や古いモデルにいつまでも固執すると、さらなる損失を招くおそれがあります。大口の支出や投資の判断では冷静さを保ち、不要な執着を手放すことが求められます。"
+                ]
+              },
+              {
+                "heading": "動乱を乗り越えて新しい局面へ向かう方法",
+                "paragraphs": [
+                  "動揺や転折の時期を経たのち、財務状況は新たな局面を迎えます。終わりは同時に新しい芽生えの空間を生み出すため、柔軟な姿勢を保つことが大切です。"
+                ]
+              }
+            ],
+            "description": "タロットの死神が示す金銭的な変容と現実に向き合うための心構えについて解説します。",
+            "faq": [
+              {
+                "answer": "破産を直接意味するものではなく、現在の財務状況や消費習慣を見直す契機となります。",
+                "question": "金銭において死神カードが出たら破産を意味しますか？"
+              },
+              {
+                "answer": "古いパターンの終了や構造的な転換、そして現状を見直すための気づきを象徴しています。",
+                "question": "タロットの死神が金銭において表す主な意味は何ですか？"
+              }
+            ],
+            "locale": "ja",
+            "source_article_id": "V2-TAROT-DEATH-MONEY",
+            "source_path": "/articles/tarot/tarot-1884",
+            "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+            "tags": [
+              "タロット 死神 金銭 意味",
+              "死神カード お金 不安",
+              "金銭管理 タロット 死神 解釈"
+            ],
+            "title": "金銭におけるタロット死神の意味と現実に向き合う心構え"
+          }
+        ],
+        "mode": "translate_existing",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/03/candidate.json",
+      "sha256": "2a57b6bcb7fe27eeee0c57ff10d18d773643139b8a24e392b0b215be72aabda8"
+    },
+    "attempt03_review": {
+      "exists": true,
+      "json": {
+        "articles": [
+          {
+            "article_id": "V2-TAROT-DEATH-MONEY:ja",
+            "candidate_sha256": "4d99ffed53c3a4c8ec3b6176fd6ea2d32f002dcf01cf81049c5033631c1e3e2c",
+            "findings": [
+              {
+                "code": "COVERAGE_MISSING",
+                "message": "The candidate article completely omits the mandatory disclaimer '內容只提供通用理解，不能替個人下結論' (Content provides general understanding only, cannot make conclusions for individuals) which is required by the editorial policy for every section and the overall context."
+              },
+              {
+                "code": "NON_NATIVE_SEARCH_INTENT",
+                "message": "The title and content structure are too generic and lack the specific, natural Japanese search intent phrasing required for a localized SEO article. The tone is overly academic/translated rather than native web media style."
+              }
+            ],
+            "verdict": "REJECT"
+          }
+        ],
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/attempts/03/review.json",
+      "sha256": "d4d4e7bb6820ff2608f4bf1016646b31dcd2d4bff7df21b5138ee879ed4db33d"
+    },
+    "continuation_state": {
+      "exists": true,
+      "json": {
+        "abandoned_generations": [
+          4
+        ],
+        "completed_generations": [],
+        "next_generation": 5,
+        "operation_id": "42b2d14947072732654bb169c4aaf317f2d649631ea33fb655a104bce08f28c9",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "semantic_budget": 1,
+        "source_sha256": [
+          "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+        ],
+        "started_after_generation": 3,
+        "starting_review_sha256": "31b5d156a987a227adccbd3c02f37f609985983d4deca7c057fcd1c27c7155cd",
+        "status": "active",
+        "terminal_candidate_sha256": null,
+        "terminal_review_sha256": null
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/state.json",
+      "sha256": "99f8202b572bd947678b948605c6876be41d7f63fef9228a39ee8341f63dc7cc"
+    },
+    "generation_lifecycle": {
+      "exists": true,
+      "json": {
+        "contract": "continuation-generation-lifecycle",
+        "generations": {
+          "04": {
+            "allocated": true,
+            "committed": false,
+            "decision": "terminalize",
+            "decision_artifact": "generations/04/partial-generation-decision.json",
+            "generation": 4,
+            "lifecycle_state": "abandoned",
+            "resumable": false,
+            "terminal_reason": "source ref map missing for persisted external locale plan",
+            "terminal_stage": "PLANNING"
+          }
+        },
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1,
+        "source_package_sha256": "9f98a3690f5b3496d1ed82906779e507cad63d5363795fe23420b67600453ad7"
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/generation-lifecycle.json",
+      "sha256": "be91e46f5c31acbf6cc91ec2d85ca1b9e871730c1d01a633b77f139126f4427b"
+    },
+    "lane_archive_job": {
+      "exists": true,
+      "json": {
+        "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+        "model": "gemini-3.5-flash-lite",
+        "namespace": "f46cda9eaa9ded446bf8e6c6",
+        "operation_level": "external_generation",
+        "prompt": "你是 Pantheon 的目標語言母語主編。這不是翻譯任務；slot 必須逐字複製。\n只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。\n所有可見欄位都必須以 article input.locale 指定的語言完整重寫；title、description、answer、tags、FAQ、H2 與 paragraphs 禁止保留來源語言文字，只有該 locale 慣用的專有名詞與識別符例外。\ntags 必須逐項以目標語言的自然搜尋用語重寫，不得複製或沿用來源語言 tag。\n寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。\nordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。\nbodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。\n不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。\nJA protected_constraints 必須覆蓋其 required_fields；raw boundary source_text 只供 provenance trace，不得逐段複製成重複 boilerplate。\n禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。\n只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。\narticle input:\n{\"articles\": [{\"editorial_contract\": {\"avoid\": \"中国語の語順、対句、段落構成を写さない。「〜することができます」「〜において」「〜を提供します」などの翻訳調を連発しない。文体を混在させない。\", \"search\": \"現在のsource factsから検索意図を導き、日本語で実際に入力される助詞省略や疑問形を自然に使う。キーワードを詰め込まない。\", \"syntax\": \"日本語として自然な主題提示と省略を使い、長い修飾語を分ける。見出しと段落は読者の疑問順に再構成する。\", \"voice\": \"日本のWebメディア向けに、自然で落ち着いた「です・ます調」で書く。説明は丁寧にするが、回りくどくしない。\"}, \"facts\": [{\"source_ref\": \"source_ref_01\", \"text\": \"塔羅死神在金錢中代表什麼是許多人在財務焦慮時常思考的問題。當這張牌出現時，往往象徵著某個階段的結束或既有模式的瓦解。面對金錢局勢的轉變，牌面本身並不直接等於破產或發財，而是提醒我們檢視現狀。\"}, {\"source_ref\": \"source_ref_02\", \"text\": \"消費抉擇與風險管理是金錢世界永恆的課題。當死神牌出現於財務陣型中，往往暗示某些高風險行為需要踩煞車。牌面傳遞的訊息在於提醒人們注意那些已經失控或即將崩解的財務環節。\"}, {\"source_ref\": \"source_ref_03\", \"text\": \"在金錢管理的世界裡，沒有所謂的絕對安全或永久穩定。死神牌恰好映照出這項現實，提醒我們隨時準備好面對無常。文章內容僅作文化反思與交流。保持彈性與開放的心態，才是面對財務波動時的重要資產。\"}, {\"source_ref\": \"source_ref_04\", \"text\": \"牌面象徵改變與重塑的契機，提醒我們檢視財務現狀。\"}, {\"source_ref\": \"source_ref_05\", \"text\": \"塔羅牌的象徵意義在於提供不同於日常邏輯的思考視角。面對金錢的不確定性，人們總希望能得到明確答案。藉由符號的反思，我們得以在雜亂的思緒中釐清真正重要的需求。\"}, {\"source_ref\": \"source_ref_06\", \"text\": \"塔羅死神在金錢中代表什麼只能提供牌義和情境提醒。\"}, {\"source_ref\": \"source_ref_07\", \"text\": \"在日常生活中，檢視帳單與債務往往需要勇氣面對真實數字。死神牌所代表的轉化過程，鼓勵人們直面這些長期累積的問題。不論是削減不必要的開銷還是重新分配資產，都需要徹底的清理。這段期間的調整可能會帶來陣痛，但長期來看有助於建立健康的金錢關係。\"}, {\"source_ref\": \"source_ref_08\", \"text\": \"在日常財務規劃裡，每一次的危機都可能成為轉機的起點。當舊的債務清償或不良習慣根除，經濟壓力便會逐漸減輕。這需要持之以恆的耐心與紀律，而非依賴神祕學工具來解決現實問題。我們在此探討的皆屬文化反思範疇，旨在豐富個人的心智層面與看待金錢的角度。\"}, {\"source_ref\": \"source_ref_09\", \"text\": \"總結來說，塔羅死神在金錢中代表的是一種結構性的轉變過程。它既不是純粹的凶兆，也不是幸運的降臨，而是一面映照現實的鏡子。希望藉由這些討論，能陪伴讀者在面對金錢與人生轉折時，找到內心的平靜與清晰方向。\"}, {\"source_ref\": \"source_ref_10\", \"text\": \"面對金錢議題時，死神牌提供了一種放下執念的切入角度。我們常因習慣而持續某些無益的財務行為。讀者應結合自身狀況判斷。牌義提醒我們審視哪些投資或消費觀念已經過時，並勇敢將其拋棄以迎接新的可能。\"}, {\"source_ref\": \"source_ref_11\", \"text\": \"在財務規畫的脈絡中，這張牌常被聯想為消費習慣的轉折點。過往的支出方式可能已經不再適用於當前的生活環境。透過觀察牌面，我們能反思金錢流向背后的心理動機，而非單純恐懼改變。理解這種轉變需要保持客觀冷靜的態度，才能在變動中找到自身的平衡點。\"}, {\"source_ref\": \"source_ref_12\", \"text\": \"面對金錢抉擇時，應保持客觀並回歸實際狀況評估。\"}, {\"source_ref\": \"source_ref_13\", \"text\": \"塔羅死神在金錢中代表什麼？本文從牌義與心態切入探討轉變、反思與重塑。\"}, {\"source_ref\": \"source_ref_14\", \"text\": \"在面對大筆支出或投資決定時，保持清醒的頭腦比盲目跟風更有價值。舊的獲利模式失效時，若強求延續往往會導致更大的損失。學習放手是這張牌帶來的核心功課之一。我們在思考金錢分配的同時，也應考量風險承受能力，並為自己保留安全邊際。\"}, {\"source_ref\": \"source_ref_15\", \"text\": \"透過對牌意的文化性反思，我們學習接受經濟環境的不可預測性。內容只提供通用理解，不能替個人下結論，這點在解讀時必須時刻銘記。唯有回歸自身的生活實踐，才能真正理解金錢與個人價值之間的連結。\"}, {\"source_ref\": \"source_ref_16\", \"text\": \"許多人看到死神牌會感到不安，深怕金錢損失隨之而來。然而在塔羅符號學裡，結束通常伴隨著空間的釋放。舊的財務結構造型崩塌後，才有機會建立更穩健的基礎。我們在此探討的僅為文化與符號層面的反思，實際生活中的經濟決策仍須依賴個人審慎評估。\"}, {\"source_ref\": \"source_ref_17\", \"text\": \"跳脫舊框架往往是財務成長的第一步，而死神牌正是這種轉變的強烈象徵。過去的理財失敗或錯誤決策不該成為限制未來的枷鎖。當我們不再抗拒改變，金錢流動的方式也會展現出不同的樣貌。\"}, {\"source_ref\": \"source_ref_18\", \"text\": \"塔羅死神在金錢中代表舊模式的結束與結構性轉變。\"}, {\"source_ref\": \"source_ref_19\", \"text\": \"塔羅死神在金錢中代表改變與結束舊模式。\"}, {\"source_ref\": \"source_ref_20\", \"text\": \"先把煩惱寫成一句具體問題：關係卡在哪裡、工作缺哪個條件、現在能做哪一步。牌義只用來輔助整理。\"}, {\"source_ref\": \"source_ref_21\", \"text\": \"這種重塑並非一蹴可幾，而是需要時間慢慢沉澱與調整。當生活中面臨收入結構改變或支出增加的壓力，情緒容易陷入慌亂。透過牌面帶來的象徵意義，我們可以把焦點從焦慮本身轉移到如何應對實際狀況。這種轉變有助於減少非理性的消費衝動。\"}, {\"source_ref\": \"source_ref_22\", \"text\": \"走過動盪與轉折之後，財務狀況通常會迎來新的局面。死神牌雖然帶有結束的意味，但結束的同時也孕育著萌芽的空間。內容只提供通用理解，不能替個人下結論，未來的走向仍取決於個人的具體行動。牌面帶給我們的啟示是關於韌性與重新開始的可能性。\"}], \"locale\": \"ja\", \"locale_plan\": {\"article_angle\": \"タロットの死神が示す金銭的な変容と現実に向き合うための心構え\", \"coverage_mapping\": [{\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_01\"}, {\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_02\"}, {\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_03\"}, {\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_04\"}, {\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_05\"}, {\"coverage_note\": \"金銭における死神の意味と現状の見直し\", \"planned_h2\": \"金銭における死神の意味と現状の見直し\", \"safety_boundary\": false, \"source_ref\": \"source_ref_06\"}, {\"coverage_note\": \"構造的な変化とリスク管理のポイント\", \"planned_h2\": \"構造的な変化とリスク管理のポイント\", \"safety_boundary\": false, \"source_ref\": \"source_ref_07\"}, {\"coverage_note\": \"構造的な変化とリスク管理のポイント\", \"planned_h2\": \"構造的な変化とリスク管理のポイント\", \"safety_boundary\": false, \"source_ref\": \"source_ref_08\"}, {\"coverage_note\": \"構造的な変化とリスク管理のポイント\", \"planned_h2\": \"構造的な変化とリスク管理のポイント\", \"safety_boundary\": false, \"source_ref\": \"source_ref_09\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_10\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_11\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_12\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_13\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_14\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_15\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_16\"}, {\"coverage_note\": \"古い価値観を手放すための心の持ち方\", \"planned_h2\": \"古い価値観を手放すための心の持ち方\", \"safety_boundary\": false, \"source_ref\": \"source_ref_17\"}, {\"coverage_note\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"planned_h2\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"safety_boundary\": false, \"source_ref\": \"source_ref_18\"}, {\"coverage_note\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"planned_h2\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"safety_boundary\": false, \"source_ref\": \"source_ref_19\"}, {\"coverage_note\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"planned_h2\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"safety_boundary\": false, \"source_ref\": \"source_ref_20\"}, {\"coverage_note\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"planned_h2\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"safety_boundary\": false, \"source_ref\": \"source_ref_21\"}, {\"coverage_note\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"planned_h2\": \"動乱を乗り越えて新しい局面へ向かう方法\", \"safety_boundary\": false, \"source_ref\": \"source_ref_22\"}], \"locale\": \"ja\", \"native_query_phrasings\": [\"タロット 死神 金銭 意味\", \"タロットカード 死神 お金 不安\"], \"native_search_intent\": \"タロットの死神カードが金銭や財務状況に関してどのような意味を持ち、どのように現実と向き合えばよいかを知りたい。\", \"ordered_h2_outline\": [\"金銭における死神の意味と現状の見直し\", \"構造的な変化とリスク管理のポイント\", \"古い価値観を手放すための心の持ち方\", \"動乱を乗り越えて新しい局面へ向かう方法\"], \"rebuild_outline\": true, \"slot\": \"article-01\", \"source_structure_not_copied\": [\"解讀金錢中的死神\", \"金錢觀念的重塑與反思\", \"跳脫舊有財務框架\", \"面對消費與風險的抉擇\", \"未來的財務轉機與啟示\"]}, \"protected_constraints\": [{\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:不能替個人下結論\", \"equivalence_key\": \"不能替個人下結論\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:不能替個人下結論\", \"equivalence_key\": \"不能替個人下結論\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\", \"不能替個人下結論\"]}, {\"category\": \"professional_advice_non_substitution\", \"category_label\": \"財務、法律、投資などの専門助言に代わらない\", \"constraint_key\": \"professional_advice_non_substitution:不作任何預測承諾與財務建議\", \"equivalence_key\": \"不作任何預測承諾與財務建議\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不作任何預測承諾與財務建議\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:不用來替你拿確定答案\", \"equivalence_key\": \"不用來替你拿確定答案\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不用來替你拿確定答案\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:本篇內容只提供通用理解\", \"equivalence_key\": \"本篇內容只提供通用理解\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"本篇內容只提供通用理解\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:然而文章內容僅提供通用理解\", \"equivalence_key\": \"然而文章內容僅提供通用理解\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"然而文章內容僅提供通用理解\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:請勿將其視為明牌\", \"equivalence_key\": \"請勿將其視為明牌\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"請勿將其視為明牌\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:我們在此探討的皆屬文化反思範疇\", \"equivalence_key\": \"我們在此探討的皆屬文化反思範疇\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"我們在此探討的皆屬文化反思範疇\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:本文只提供通用理解\", \"equivalence_key\": \"本文只提供通用理解\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"本文只提供通用理解\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:文章內容僅作文化反思與交流\", \"equivalence_key\": \"文章內容僅作文化反思與交流\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"文章內容僅作文化反思與交流\"]}, {\"category\": \"professional_advice_non_substitution\", \"category_label\": \"財務、法律、投資などの専門助言に代わらない\", \"constraint_key\": \"professional_advice_non_substitution:也不代表專業財務指導\", \"equivalence_key\": \"也不代表專業財務指導\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"也不代表專業財務指導\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:但內容只提供通用理解\", \"equivalence_key\": \"但內容只提供通用理解\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"但內容只提供通用理解\", \"但內容只提供通用理解\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:內容只提供通用理解\", \"equivalence_key\": \"內容只提供通用理解\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\", \"內容只提供通用理解\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:不能替對方下結論\", \"equivalence_key\": \"不能替對方下結論\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不能替對方下結論\"]}, {\"category\": \"professional_advice_non_substitution\", \"category_label\": \"財務、法律、投資などの専門助言に代わらない\", \"constraint_key\": \"professional_advice_non_substitution:不構成任何形式的投資或法律建議\", \"equivalence_key\": \"不構成任何形式的投資或法律建議\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不構成任何形式的投資或法律建議\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:任何預測工具都無法完全確定未來的結果\", \"equivalence_key\": \"任何預測工具都無法完全確定未來的結果\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"任何預測工具都無法完全確定未來的結果\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:不作任何預測承諾與財務建議\", \"equivalence_key\": \"不作任何預測承諾與財務建議\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"不作任何預測承諾與財務建議\"]}, {\"category\": \"contextual_or_general_interpretation\", \"category_label\": \"一般的な解釈であり個人の結論を代行しない\", \"constraint_key\": \"general_interpretation_only:請讀者自行衡量適用性\", \"equivalence_key\": \"請讀者自行衡量適用性\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"請讀者自行衡量適用性\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:也不代表任何財務承諾\", \"equivalence_key\": \"也不代表任何財務承諾\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"也不代表任何財務承諾\"]}, {\"category\": \"outcome_not_determined\", \"category_label\": \"結果や個人の結末を断定しない\", \"constraint_key\": \"outcome_not_determined:也不能承諾復合成功或最終結果\", \"equivalence_key\": \"也不能承諾復合成功或最終結果\", \"provenance\": \"source\", \"required_fields\": [\"meta_description\", \"body\"], \"source_texts\": [\"也不能承諾復合、成功或最終結果\"]}], \"protected_source\": {\"boundary_candidate_dispositions\": [{\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"description\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"description\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"outcome_not_determined\", \"professional_advice_non_substitution\"], \"disposition\": \"PRESERVED\", \"field_path\": \"description\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不作任何預測承諾與財務建議\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"description\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"本文只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"description\", \"ordinal\": 7, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"answer\", \"ordinal\": 2, \"provenance\": \"source\", \"source_text\": \"但內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[0].answer\", \"ordinal\": 2, \"provenance\": \"source\", \"source_text\": \"但內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[0].answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[1].answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[1].answer\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[2].answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"faq[2].answer\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"faq[3].answer\", \"ordinal\": 2, \"provenance\": \"source\", \"source_text\": \"不能替對方下結論\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"faq[3].answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"也不能承諾復合、成功或最終結果\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"faq[4].answer\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"不用來替你拿確定答案\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[0].paragraphs[0]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"本篇內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[0].paragraphs[0]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[0].paragraphs[0]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"也不代表任何財務承諾\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[1].paragraphs[0]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[1].paragraphs[0]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[1].paragraphs[2]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"文章內容僅作文化反思與交流\"}, {\"categories\": [\"professional_advice_non_substitution\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[1].paragraphs[2]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"不構成任何形式的投資或法律建議\"}, {\"disposition\": \"NOT_A_BOUNDARY\", \"field_path\": \"bodySections[2].paragraphs[0]\", \"ordinal\": 3, \"provenance\": \"source\", \"reason_code\": \"ordinary_content_contrast\", \"source_text\": \"過去的理財失敗或錯誤決策不該成為限制未來的枷鎖\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[2].paragraphs[0]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[2].paragraphs[0]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[2].paragraphs[0]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"請讀者自行衡量適用性\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[2].paragraphs[2]\", \"ordinal\": 3, \"provenance\": \"source\", \"source_text\": \"任何預測工具都無法完全確定未來的結果\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[2].paragraphs[2]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[2].paragraphs[2]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[3].paragraphs[0]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[3].paragraphs[0]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"outcome_not_determined\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[3].paragraphs[0]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"請勿將其視為明牌\"}, {\"disposition\": \"NOT_A_BOUNDARY\", \"field_path\": \"bodySections[3].paragraphs[2]\", \"ordinal\": 2, \"provenance\": \"source\", \"reason_code\": \"ordinary_uncertainty_context\", \"source_text\": \"面對金錢的不確定性\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[3].paragraphs[2]\", \"ordinal\": 4, \"provenance\": \"source\", \"source_text\": \"然而文章內容僅提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[3].paragraphs[2]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"professional_advice_non_substitution\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[3].paragraphs[2]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"也不代表專業財務指導\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[4].paragraphs[0]\", \"ordinal\": 5, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[4].paragraphs[0]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"PRESERVED\", \"field_path\": \"bodySections[4].paragraphs[1]\", \"ordinal\": 7, \"provenance\": \"source\", \"source_text\": \"我們在此探討的皆屬文化反思範疇\"}, {\"categories\": [\"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[4].paragraphs[2]\", \"ordinal\": 6, \"provenance\": \"source\", \"source_text\": \"內容只提供通用理解\"}, {\"categories\": [\"outcome_not_determined\", \"contextual_or_general_interpretation\"], \"disposition\": \"MERGED_DUPLICATE\", \"field_path\": \"bodySections[4].paragraphs[2]\", \"ordinal\": 7, \"provenance\": \"source\", \"source_text\": \"不能替個人下結論\"}]}, \"slot\": \"article-01\", \"topic_cues\": {\"tags\": [\"塔羅\", \"財富\", \"死神\", \"心態反思\", \"正位\", \"逆位\"], \"title\": \"塔羅死神在金錢中代表什麼？先看牌義、處境與不能直接斷定的事\"}}]}\nfindings:\n[{\"article_id\": \"V2-TAROT-DEATH-MONEY:ja\", \"code\": \"COVERAGE_MISSING\", \"message\": \"The candidate article completely omits the mandatory disclaimer '內容只提供通用理解，不能替個人下結論' (Content provides general understanding only, cannot make conclusions for individuals) which is required by the editorial policy for every section and the overall context.\"}, {\"article_id\": \"V2-TAROT-DEATH-MONEY:ja\", \"code\": \"NON_NATIVE_SEARCH_INTENT\", \"message\": \"The title and content structure are too generic and lack the specific, natural Japanese search intent phrasing required for a localized SEO article. The tone is overly academic/translated rather than native web media style.\"}]",
+        "prompt_sha256": "620f99ab5a0dde35894755aea81a6b76f229072606ee75c1f2e146ba23eb915e",
+        "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b",
+        "response_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "articles": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  },
+                  "bodySections": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "heading": {
+                          "type": "string"
+                        },
+                        "paragraphs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "heading",
+                        "paragraphs"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 5,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "faq": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "answer": {
+                          "type": "string"
+                        },
+                        "question": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "slot": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "slot",
+                  "answer",
+                  "bodySections",
+                  "description",
+                  "faq",
+                  "tags",
+                  "title"
+                ],
+                "type": "object"
+              },
+              "maxItems": 5,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "articles"
+          ],
+          "type": "object"
+        },
+        "role": "writer",
+        "schema_sha256": "e2865950f5db19967ac320d7a197db6dd5627f6b5a56caefc3a9799e138f7740",
+        "schema_version": 1,
+        "thinking_level": "LOW"
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/archive/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "sha256": "cebee0ffed85a3b65283d875be3b5efede57d116ad6880470c2f533857a485b4"
+    },
+    "lane_outbox_job": {
+      "exists": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/outbox/61a83c341d39c882d5eed8ea23b7f805a89085e3.json"
+    },
+    "lane_processing_job": {
+      "exists": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/processing/61a83c341d39c882d5eed8ea23b7f805a89085e3.json"
+    },
+    "run_candidate": {
+      "exists": true,
+      "json": {
+        "articles": [
+          {
+            "answer": "金銭における死神のカードは、古いパターンの終了や構造的な転換を象徴しています。破産を直接意味するものではなく、財務状況を見直す契機となります。",
+            "article_id": "V2-TAROT-DEATH-MONEY:ja",
+            "bodySections": [
+              {
+                "heading": "金銭における死神の意味と現状の見直し",
+                "paragraphs": [
+                  "日常の支出や債務の数字に向き合うには勇気が必要です。死神カードが表す変化のプロセスは、こうした長年の課題を直視するよう促します。不必要な出費の削減や資産の再配分など、徹底的な整理が求められます。"
+                ]
+              },
+              {
+                "heading": "構造的な変化とリスク管理のポイント",
+                "paragraphs": [
+                  "いかなる経済状況においても絶対的な安定は存在せず、死神カードはその無常さを映し出します。高リスクな行動にブレーキをかけ、失われた環節に警戒することが重要です。危機を転機に変えるには、継続的な忍耐と客観的な視点が欠かせません。"
+                ]
+              },
+              {
+                "heading": "古い価値観を手放すための心の持ち方",
+                "paragraphs": [
+                  "過去の経済的な失敗や古いモデルにいつまでも固執すると、さらなる損失を招くおそれがあります。大口の支出や投資の判断では冷静さを保ち、不要な執着を手放すことが求められます。"
+                ]
+              },
+              {
+                "heading": "動乱を乗り越えて新しい局面へ向かう方法",
+                "paragraphs": [
+                  "動揺や転折の時期を経たのち、財務状況は新たな局面を迎えます。終わりは同時に新しい芽生えの空間を生み出すため、柔軟な姿勢を保つことが大切です。"
+                ]
+              }
+            ],
+            "description": "タロットの死神が示す金銭的な変容と現実に向き合うための心構えについて解説します。",
+            "faq": [
+              {
+                "answer": "破産を直接意味するものではなく、現在の財務状況や消費習慣を見直す契機となります。",
+                "question": "金銭において死神カードが出たら破産を意味しますか？"
+              },
+              {
+                "answer": "古いパターンの終了や構造的な転換、そして現状を見直すための気づきを象徴しています。",
+                "question": "タロットの死神が金銭において表す主な意味は何ですか？"
+              }
+            ],
+            "locale": "ja",
+            "source_article_id": "V2-TAROT-DEATH-MONEY",
+            "source_path": "/articles/tarot/tarot-1884",
+            "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+            "tags": [
+              "タロット 死神 金銭 意味",
+              "死神カード お金 不安",
+              "金銭管理 タロット 死神 解釈"
+            ],
+            "title": "金銭におけるタロット死神の意味と現実に向き合う心構え"
+          }
+        ],
+        "mode": "translate_existing",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+      "sha256": "2a57b6bcb7fe27eeee0c57ff10d18d773643139b8a24e392b0b215be72aabda8"
+    },
+    "run_review": {
+      "exists": true,
+      "json": {
+        "articles": [
+          {
+            "article_id": "V2-TAROT-DEATH-MONEY:ja",
+            "candidate_sha256": "4d99ffed53c3a4c8ec3b6176fd6ea2d32f002dcf01cf81049c5033631c1e3e2c",
+            "findings": [
+              {
+                "code": "COVERAGE_MISSING",
+                "message": "The candidate article completely omits the mandatory disclaimer '內容只提供通用理解，不能替個人下結論' (Content provides general understanding only, cannot make conclusions for individuals) which is required by the editorial policy for every section and the overall context."
+              },
+              {
+                "code": "NON_NATIVE_SEARCH_INTENT",
+                "message": "The title and content structure are too generic and lack the specific, natural Japanese search intent phrasing required for a localized SEO article. The tone is overly academic/translated rather than native web media style."
+              }
+            ],
+            "verdict": "REJECT"
+          }
+        ],
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "schema_version": 1
+      },
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.json",
+      "sha256": "d4d4e7bb6820ff2608f4bf1016646b31dcd2d4bff7df21b5138ee879ed4db33d"
+    }
+  },
+  "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+  "lane_counts": {
+    "archive": 40,
+    "outbox": 0,
+    "processing": 0
+  },
+  "manifest": {
+    "actor_head": "23eab63ea31031094aa084faee0e5ff65d326533",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g58-23eab63e-gen05-lane-selector-repair-retry1-20260828",
+    "identity": "gate2-actor:23eab63ea31031094aa084faee0e5ff65d326533:gen05-lane-selector-repair-retry1-20260828",
+    "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "manifest_digest": "142d044fda404a5d6f42e8b547d2160a1f024eb648a374034d2eb1bf6868e28d",
+    "owner_uid": 501,
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "runtime_identity_digest": "650d3f1ddb5b0e30c0b6e809f9b118970f0e5de3502b3508e09a0c0f161947c6",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ],
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "phase": "after_lane_runner_failure",
+  "promotion_status": {
+    "audit_receipt_exists": true,
+    "correlation_id": "pantheon-gen05-release-23e-retry1-20260828",
+    "plan_digest": "6a93618bfaca1583fb12d59c5b4ce3f7fc5dd71ef0b702e7010e41a84df7815f",
+    "rollback_bundle_exists": false,
+    "rollback_required": false,
+    "state": "COMMITTED",
+    "status": "PASS"
+  },
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74"
+}

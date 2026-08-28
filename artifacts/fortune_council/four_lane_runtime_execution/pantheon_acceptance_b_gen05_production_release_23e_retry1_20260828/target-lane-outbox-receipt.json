@@ -1,0 +1,16 @@
+{
+  "namespace": "f46cda9eaa9ded446bf8e6c6",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "target_job_count": 1,
+  "target_jobs": [
+    {
+      "job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+      "model": "gemini-3.5-flash-lite",
+      "namespace": "f46cda9eaa9ded446bf8e6c6",
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/outbox/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b",
+      "role": "writer",
+      "sha256": "cebee0ffed85a3b65283d875be3b5efede57d116ad6880470c2f533857a485b4"
+    }
+  ]
+}
