@@ -1447,6 +1447,206 @@ def test_resume_other_failure_preserves_existing_job_lineage(tmp_path: Path) -> 
     assert "error_type" not in resumed
 
 
+def _write_terminal_authorized_registry_split(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:
+    run_id = "auto-i18n-ja-1414b75a404721e95e74"
+    run_dir = tmp_path / "private-runs" / run_id
+    queue_root = tmp_path / "queue"
+    _write_brief(run_dir, run_id)
+    state = register_run(run_dir, queue_root)
+    state.update({"status": "complete", "last_job_id": "reviewer-job", "result": {"status": "complete", "run_id": run_id}})
+    coordinator._write_state(queue_root, state)
+    continuation = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "active",
+        "next_generation": 6,
+        "semantic_budget": 2,
+    }
+    transition = {
+        "schema_version": 1,
+        "contract": "continuation-authority-transition",
+        "action": "authorize_next_generation_after_reviewer_reject",
+        "run_id": run_id,
+        "terminal_generation": 5,
+        "to_next_generation": 6,
+        "state_after_sha256": coordinator.multilingual._json_sha256(continuation),
+        "state_after": continuation,
+    }
+    (run_dir / "continuation").mkdir()
+    (run_dir / "continuation/state.json").write_text(json.dumps(continuation, ensure_ascii=False), encoding="utf-8")
+    (run_dir / "continuation/authority-transition-05.json").write_text(json.dumps(transition, ensure_ascii=False), encoding="utf-8")
+    return run_dir, queue_root, {
+        "run_id": run_id,
+        "registry_digest": coordinator._canonical_json_file_sha256(state),
+        "transition_digest": coordinator.multilingual._json_sha256(transition),
+        "state_after_digest": transition["state_after_sha256"],
+    }
+
+
+def test_authorized_next_generation_reactivation_plan_is_zero_write(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+    receipt = coordinator.reactivate_authorized_next_generation_registry(
+        run_dir,
+        queue_root,
+        expected_run_id=expected["run_id"],
+        terminal_generation=5,
+        expected_registry_digest=expected["registry_digest"],
+        expected_transition_digest=expected["transition_digest"],
+        expected_state_after_digest=expected["state_after_digest"],
+        expected_next_generation=6,
+    )
+
+    assert receipt["status"] == "READY_TO_EXECUTE"
+    assert before == {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+
+def test_authorized_next_generation_reactivation_enables_exact_cycle(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+
+    receipt = coordinator.reactivate_authorized_next_generation_registry(
+        run_dir,
+        queue_root,
+        expected_run_id=expected["run_id"],
+        terminal_generation=5,
+        expected_registry_digest=expected["registry_digest"],
+        expected_transition_digest=expected["transition_digest"],
+        expected_state_after_digest=expected["state_after_digest"],
+        expected_next_generation=6,
+        execute=True,
+    )
+    calls: list[Path] = []
+
+    def tick(path: Path, _job_root: Path) -> dict[str, object]:
+        calls.append(path)
+        raise ExternalJobPending("gen06-writer-job")
+
+    summary = cycle_once(queue_root, tick=tick, process=lambda _root, **_kwargs: {"status": "idle"}, repo_root=Path(__file__).resolve().parents[1], lane_mode=True, exact_run_ids=[expected["run_id"]])
+    state = read_run_state(run_dir, queue_root)
+
+    assert receipt["status"] == "REACTIVATED"
+    assert calls == [run_dir.resolve()]
+    assert summary["active"] == 1
+    assert state["status"] == "active"
+    assert state["last_job_id"] == "gen06-writer-job"
+    assert not (run_dir / "generations/06").exists()
+
+
+@pytest.mark.parametrize("drift", ["registry", "transition", "state", "gen06"])
+def test_authorized_next_generation_reactivation_rejects_drift(tmp_path: Path, drift: str) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    if drift == "registry":
+        state = read_run_state(run_dir, queue_root)
+        state["result"] = {"status": "failed", "run_id": expected["run_id"]}
+        coordinator._write_state(queue_root, state)
+    elif drift == "transition":
+        expected["transition_digest"] = "0" * 64
+    elif drift == "state":
+        (run_dir / "continuation/state.json").write_text(json.dumps({"status": "active", "next_generation": 7}), encoding="utf-8")
+    else:
+        (run_dir / "generations/06").mkdir(parents=True)
+
+    with pytest.raises(ValueError):
+        coordinator.reactivate_authorized_next_generation_registry(
+            run_dir,
+            queue_root,
+            expected_run_id=expected["run_id"],
+            terminal_generation=5,
+            expected_registry_digest=expected["registry_digest"],
+            expected_transition_digest=expected["transition_digest"],
+            expected_state_after_digest=expected["state_after_digest"],
+            expected_next_generation=6,
+            execute=True,
+        )
+
+
+def test_authorized_next_generation_reactivation_active_replay_is_idempotent(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+
+    replay = coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+
+    assert replay["status"] == "ALREADY_ACTIVE"
+
+
+def test_authorized_next_generation_reactivation_revalidates_transition_inside_lock(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    real_lock = coordinator._run_identity_lock
+
+    @coordinator.contextmanager
+    def drifting_lock(run_id: str, root: Path):
+        with real_lock(run_id, root):
+            transition_path = run_dir / "continuation/authority-transition-05.json"
+            transition = json.loads(transition_path.read_text())
+            transition["state_after"]["next_generation"] = 7
+            transition_path.write_text(json.dumps(transition, ensure_ascii=False), encoding="utf-8")
+            yield
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(coordinator, "_run_identity_lock", drifting_lock)
+        with pytest.raises(ValueError, match="transition identity"):
+            coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+    assert read_run_state(run_dir, queue_root)["status"] == "complete"
+
+
+def test_authorized_next_generation_reactivation_rejects_active_replay_with_stale_result(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+    state = read_run_state(run_dir, queue_root)
+    state["result"] = {"status": "complete", "run_id": expected["run_id"]}
+    coordinator._write_state(queue_root, state)
+
+    with pytest.raises(ValueError, match="already active"):
+        coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+
+
+@pytest.mark.parametrize("field,value", [("lane", "rewrite"), ("mode", "rewrite_existing_body"), ("routing_schema_version", 99)])
+def test_authorized_next_generation_reactivation_rejects_active_selector_drift(tmp_path: Path, field: str, value: object) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+    state = read_run_state(run_dir, queue_root)
+    state[field] = value
+    coordinator._write_state(queue_root, state)
+
+    with pytest.raises(ValueError, match="already active"):
+        coordinator.reactivate_authorized_next_generation_registry(run_dir, queue_root, expected_run_id=expected["run_id"], terminal_generation=5, expected_registry_digest=expected["registry_digest"], expected_transition_digest=expected["transition_digest"], expected_state_after_digest=expected["state_after_digest"], expected_next_generation=6, execute=True)
+
+
+def test_authorized_next_generation_reactivation_cli_plan_only(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_terminal_authorized_registry_split(tmp_path)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agy_gemini_coordinator",
+            "--queue-root",
+            str(queue_root),
+            "reactivate-authorized-next-generation",
+            str(run_dir),
+            "--run-id",
+            expected["run_id"],
+            "--terminal-generation",
+            "5",
+            "--expected-registry-digest",
+            expected["registry_digest"],
+            "--expected-transition-digest",
+            expected["transition_digest"],
+            "--expected-state-after-digest",
+            expected["state_after_digest"],
+            "--expected-next-generation",
+            "6",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert json.loads(completed.stdout)["status"] == "READY_TO_EXECUTE"
+    assert read_run_state(run_dir, queue_root)["status"] == "complete"
+
+
 def test_register_run_rejects_more_than_five_articles(tmp_path: Path) -> None:
     run_dir = tmp_path / "private-runs" / "run-oversized"
     run_dir.mkdir(parents=True)

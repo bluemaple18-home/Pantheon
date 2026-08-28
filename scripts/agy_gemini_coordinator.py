@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import fcntl
 import hashlib
 import json
@@ -5469,6 +5469,121 @@ def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     return state
 
 
+def reactivate_authorized_next_generation_registry(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    expected_run_id: str,
+    terminal_generation: int,
+    expected_registry_digest: str,
+    expected_transition_digest: str,
+    expected_state_after_digest: str,
+    expected_next_generation: int,
+    execute: bool = False,
+) -> dict[str, Any]:
+    """將已授權的 terminal REJECT next-generation run 重新暴露給 coordinator。"""
+    if (
+        EXACT_RUN_ID_PATTERN.fullmatch(expected_run_id) is None
+        or terminal_generation < 1
+        or expected_next_generation != terminal_generation + 1
+    ):
+        raise ValueError("authorized reactivation identity is invalid")
+    for digest in (expected_registry_digest, expected_transition_digest, expected_state_after_digest):
+        if SHA256_PATTERN.fullmatch(digest) is None:
+            raise ValueError("authorized reactivation digest is invalid")
+    root = queue_root.resolve()
+    resolved_run_dir = run_dir.resolve(strict=True)
+    transition_path = resolved_run_dir / "continuation" / f"authority-transition-{terminal_generation:02d}.json"
+    state_path = resolved_run_dir / "continuation" / "state.json"
+    if (resolved_run_dir / "generations" / f"{expected_next_generation:02d}").exists():
+        raise ValueError("authorized reactivation target generation already exists")
+    transition = json.loads(transition_path.read_text(encoding="utf-8"))
+    run_state = json.loads(state_path.read_text(encoding="utf-8"))
+    if (
+        multilingual._json_sha256(transition) != expected_transition_digest
+        or transition.get("contract") != "continuation-authority-transition"
+        or transition.get("action") != "authorize_next_generation_after_reviewer_reject"
+        or transition.get("run_id") != expected_run_id
+        or transition.get("terminal_generation") != terminal_generation
+        or transition.get("to_next_generation") != expected_next_generation
+        or transition.get("state_after_sha256") != expected_state_after_digest
+        or not isinstance(transition.get("state_after"), dict)
+        or multilingual._json_sha256(transition["state_after"]) != expected_state_after_digest
+        or multilingual._json_sha256(run_state) != expected_state_after_digest
+        or run_state.get("status") != "active"
+        or run_state.get("next_generation") != expected_next_generation
+    ):
+        raise ValueError("authorized reactivation transition identity differs")
+    receipt = {
+        "action": "reactivate_authorized_next_generation_registry",
+        "run_id": expected_run_id,
+        "terminal_generation": terminal_generation,
+        "next_generation": expected_next_generation,
+        "registry_digest_before": expected_registry_digest,
+        "transition_digest": expected_transition_digest,
+        "state_after_sha256": expected_state_after_digest,
+    }
+    result = {**receipt, "execute": execute}
+    def selector_shape(state: Mapping[str, Any]) -> dict[str, Any]:
+        return {key: state.get(key) for key in ("lane", "mode", "routing_schema_version")}
+
+    context = _run_identity_lock(expected_run_id, root) if execute else nullcontext()
+    with context:
+        if (resolved_run_dir / "generations" / f"{expected_next_generation:02d}").exists():
+            raise ValueError("authorized reactivation target generation already exists")
+        transition = json.loads(transition_path.read_text(encoding="utf-8"))
+        run_state = json.loads(state_path.read_text(encoding="utf-8"))
+        if (
+            multilingual._json_sha256(transition) != expected_transition_digest
+            or transition.get("contract") != "continuation-authority-transition"
+            or transition.get("action") != "authorize_next_generation_after_reviewer_reject"
+            or transition.get("run_id") != expected_run_id
+            or transition.get("terminal_generation") != terminal_generation
+            or transition.get("to_next_generation") != expected_next_generation
+            or transition.get("state_after_sha256") != expected_state_after_digest
+            or not isinstance(transition.get("state_after"), dict)
+            or multilingual._json_sha256(transition["state_after"]) != expected_state_after_digest
+            or multilingual._json_sha256(run_state) != expected_state_after_digest
+        ):
+            raise ValueError("authorized reactivation transition identity differs")
+        registry = read_run_state(resolved_run_dir, root)
+        if registry.get("run_id") != expected_run_id or registry.get("run_dir") != str(resolved_run_dir):
+            raise ValueError("authorized reactivation registry identity differs")
+        if registry.get("status") == "active":
+            stored = registry.get("authorized_next_generation_reactivation")
+            if (
+                isinstance(stored, dict)
+                and {key: stored.get(key) for key in receipt} == receipt
+                and stored.get("selector") == selector_shape(registry)
+                and "result" not in registry
+                and "error_type" not in registry
+                and "error_code" not in registry
+                and "failure_category" not in registry
+                and "transport_attempts" not in registry
+            ):
+                return {**result, "status": "ALREADY_ACTIVE"}
+            raise ValueError("authorized reactivation registry already active")
+        registry_digest = _canonical_json_file_sha256(registry)
+        if (
+            registry_digest != expected_registry_digest
+            or registry.get("status") != "complete"
+            or not isinstance(registry.get("result"), dict)
+            or registry["result"].get("status") != "complete"
+            or registry["result"].get("run_id") != expected_run_id
+        ):
+            raise ValueError("authorized reactivation registry state differs")
+        reactivation_receipt = {**receipt, "selector": selector_shape(registry)}
+        if not execute:
+            return {**reactivation_receipt, "execute": execute, "status": "READY_TO_EXECUTE"}
+        registry["status"] = "active"
+        registry["authorized_next_generation_reactivation"] = reactivation_receipt
+        registry.pop("error_type", None)
+        registry.pop("error_code", None)
+        registry.pop("result", None)
+        _write_state(root, registry)
+        return {**reactivation_receipt, "execute": execute, "status": "REACTIVATED", "after_digest": _canonical_json_file_sha256(read_run_state(resolved_run_dir, root))}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--queue-root", type=Path, default=Path(".work/gemini-runner"))
@@ -5488,6 +5603,15 @@ def parse_args() -> argparse.Namespace:
     register.add_argument("run_dir", type=Path)
     resume = subparsers.add_parser("resume")
     resume.add_argument("run_dir", type=Path)
+    reactivate = subparsers.add_parser("reactivate-authorized-next-generation")
+    reactivate.add_argument("run_dir", type=Path)
+    reactivate.add_argument("--run-id", required=True)
+    reactivate.add_argument("--terminal-generation", type=int, required=True)
+    reactivate.add_argument("--expected-registry-digest", required=True)
+    reactivate.add_argument("--expected-transition-digest", required=True)
+    reactivate.add_argument("--expected-state-after-digest", required=True)
+    reactivate.add_argument("--expected-next-generation", type=int, required=True)
+    reactivate.add_argument("--execute", action="store_true")
     status = subparsers.add_parser("status")
     status.add_argument("run_dir", type=Path)
     terminalize = subparsers.add_parser("terminalize-pending")
@@ -5552,6 +5676,18 @@ def main() -> int:
         result = register_run(args.run_dir, queue_root)
     elif args.command == "resume":
         result = resume_run(args.run_dir, queue_root)
+    elif args.command == "reactivate-authorized-next-generation":
+        result = reactivate_authorized_next_generation_registry(
+            args.run_dir,
+            queue_root,
+            expected_run_id=args.run_id,
+            terminal_generation=args.terminal_generation,
+            expected_registry_digest=args.expected_registry_digest,
+            expected_transition_digest=args.expected_transition_digest,
+            expected_state_after_digest=args.expected_state_after_digest,
+            expected_next_generation=args.expected_next_generation,
+            execute=args.execute,
+        )
     elif args.command == "status":
         result = read_run_state(args.run_dir, queue_root)
     elif args.command == "terminalize-pending":
