@@ -2281,7 +2281,27 @@ def _active_run_integrity_block(
             envelope_value = state.get("identity_envelope")
             if envelope_value is not None:
                 envelope = _validate_identity_envelope(envelope_value)
-                if _identity_envelope_from_brief(brief) != envelope:
+                if (
+                    brief.get("mode") == "translate_existing"
+                    and brief.get("lane") is None
+                ):
+                    envelope_mode = str(envelope["mode"])
+                    if envelope_mode != "translate_existing":
+                        raise ValueError("active run registry identity is invalid")
+                    _mode, state_lane = _validate_mode_lane_pair(
+                        envelope_mode,
+                        state.get("lane"),
+                    )
+                    if state_lane != envelope["lane"]:
+                        raise ValueError("active run registry identity is invalid")
+                    observed_envelope = _build_identity_envelope(
+                        envelope_mode,
+                        state_lane,
+                        _identity_article_ids_from_brief(brief),
+                    )
+                else:
+                    observed_envelope = _identity_envelope_from_brief(brief)
+                if observed_envelope != envelope:
                     raise ValueError("active run registry identity is invalid")
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
             return {

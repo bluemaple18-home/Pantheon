@@ -5357,6 +5357,177 @@ def test_active_translation_identity_rejects_observed_lane_drift(
     }
 
 
+_MISSING = object()
+
+
+def _production_shaped_legacy_translation_active_run(
+    tmp_path: Path,
+    *,
+    run_id: str = "auto-i18n-ja-1414b75a404721e95e74",
+    source_article_id: str = "V2-TAROT-DEATH-MONEY",
+    registry_lane: str = "i18n-new",
+    state_lane: object = "i18n-new",
+    brief_lane: object = _MISSING,
+) -> tuple[Path, Path, Path]:
+    queue_root = tmp_path / "queue"
+    repo_root = tmp_path / "repo"
+    run_dir = (queue_root / "gsc-copy" / run_id).resolve()
+    repo_root.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    brief: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "translate_existing",
+        "source_commit": "a" * 40,
+        "generation": 5,
+        "articles": [
+            {
+                "source_article_id": source_article_id,
+                "locale": "ja",
+                "article_id": f"{source_article_id}:ja",
+            }
+        ],
+    }
+    if brief_lane is not _MISSING:
+        brief["lane"] = brief_lane
+    coordinator.atomic_write_json(run_dir / "brief.json", brief)
+
+    state: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "active",
+        "correlation_id": f"{run_id}-correlation",
+        "active_generation": 5,
+        "next_generation": 5,
+        "semantic_budget": 1,
+        "routing_schema_version": 1,
+        "mode": "translate_existing",
+        "identity_envelope": _expected_identity_envelope(
+            "translate_existing",
+            registry_lane,
+            [source_article_id],
+        ),
+    }
+    if state_lane is not _MISSING:
+        state["lane"] = state_lane
+    coordinator.atomic_write_json(coordinator._state_path(run_id, queue_root), state)
+    return queue_root, repo_root, run_dir
+
+
+def test_active_legacy_translation_missing_brief_lane_uses_valid_current_identity_without_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_root, repo_root, _run_dir = _production_shaped_legacy_translation_active_run(
+        tmp_path,
+    )
+    calls = {"tick": 0, "process": 0}
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+
+    def complete_tick(_run_dir: Path, _job_queue_root: Path) -> dict[str, object]:
+        calls["tick"] += 1
+        return {"status": "synthetic-complete"}
+
+    def provider_process(*_args, **_kwargs) -> dict[str, str]:
+        calls["process"] += 1
+        return {"status": "processed"}
+
+    summary = cycle_once(
+        queue_root,
+        tick=complete_tick,
+        process=provider_process,
+        repo_root=repo_root,
+        lane_mode=True,
+        exact_run_ids=["auto-i18n-ja-1414b75a404721e95e74"],
+    )
+
+    assert summary.get("reason") != "active run registry is dangling", {
+        "summary": summary,
+        "calls": calls,
+    }
+    assert summary == {
+        "status": "ok",
+        "active": 0,
+        "complete": 1,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+        "lanes": {
+            "new": {"active": 0, "queued": 0, "processing": 0},
+            "rewrite": {"active": 0, "queued": 0, "processing": 0},
+            "i18n-new": {"active": 0, "queued": 0, "processing": 0},
+            "i18n-rewrite": {"active": 0, "queued": 0, "processing": 0},
+        },
+        "migrated_jobs": None,
+    }, {"summary": summary, "calls": calls}
+    assert calls == {"tick": 1, "process": 0}
+
+
+def test_active_guard_accepts_missing_brief_lane_with_matching_state_lane_without_state_mode(
+    tmp_path: Path,
+) -> None:
+    queue_root, _repo_root, _run_dir = _production_shaped_legacy_translation_active_run(
+        tmp_path,
+    )
+    state_path = coordinator._state_path(
+        "auto-i18n-ja-1414b75a404721e95e74",
+        queue_root,
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.pop("mode")
+    coordinator.atomic_write_json(state_path, state)
+
+    assert coordinator._active_run_integrity_block([state]) is None
+
+
+@pytest.mark.parametrize(
+    ("state_lane", "brief_lane"),
+    [
+        (_MISSING, _MISSING),
+        ("new", _MISSING),
+        ("i18n-rewrite", _MISSING),
+        ("i18n-new", "i18n-rewrite"),
+    ],
+)
+def test_active_legacy_translation_identity_fails_closed_for_lane_authority_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    state_lane: object,
+    brief_lane: object,
+) -> None:
+    queue_root, repo_root, _run_dir = _production_shaped_legacy_translation_active_run(
+        tmp_path,
+        state_lane=state_lane,
+        brief_lane=brief_lane,
+    )
+    calls = {"tick": 0, "process": 0}
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args: calls.__setitem__("tick", calls["tick"] + 1) or {"status": "unreachable"},
+        process=lambda *_args, **_kwargs: calls.__setitem__("process", calls["process"] + 1) or {"status": "unreachable"},
+        repo_root=repo_root,
+        lane_mode=True,
+        exact_run_ids=["auto-i18n-ja-1414b75a404721e95e74"],
+    )
+
+    assert summary == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "active": 1,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
+    assert calls == {"tick": 0, "process": 0}
+
+
 def _durable_dangling_state(
     tmp_path: Path,
     run_id: str,
