@@ -1,0 +1,10 @@
+{
+  "authorization": "owner_explicit_go_live_20260828",
+  "correlation_id": "pantheon-gen05-release-8a-20260828",
+  "rule24_capacity_receipt_sha256": "b5331fd08631ef723e2c2b29f75e166ecc4da82dd124c94855bdcc729cec7908",
+  "rule25_status": "READY",
+  "schema_version": 1,
+  "scope": "gen05_dangling_registry_guard_release_only",
+  "target_commit": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

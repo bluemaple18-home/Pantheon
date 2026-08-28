@@ -1,0 +1,150 @@
+{
+  "canary_created": false,
+  "cycles": [
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.92282533296384,
+        "file_count": 0,
+        "host_free_bytes": 39964811264,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-after-cleanup",
+        "process_rss_bytes": 42876928,
+        "project_bytes": 0,
+        "sampled_epoch": 1787898453.109192,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 6.262492388486862e-05,
+        "file_count": 0,
+        "host_free_bytes": 39966191616,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-before",
+        "process_rss_bytes": 30801920,
+        "project_bytes": 0,
+        "sampled_epoch": 1787898442.190036,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.00167758297175169,
+        "reclaimed_bytes": 35141,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-1",
+      "cycle": 1,
+      "execution_line_id": "exec-ra-slice-005-cycle-1",
+      "growth_bytes_per_hour": 11587254,
+      "peak": {
+        "elapsed_seconds": 10.917886042036116,
+        "file_count": 36,
+        "host_free_bytes": 39964643328,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-peak",
+        "process_rss_bytes": 42876928,
+        "project_bytes": 35141,
+        "sampled_epoch": 1787898453.1042528,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 35141,
+      "production_mutation": false,
+      "root": "/private/tmp/pantheon-gen05-release-8a-20260828-rule24c/capacity-sandbox/cycle-1",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    },
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.853489084052853,
+        "file_count": 0,
+        "host_free_bytes": 39964737536,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-after-cleanup",
+        "process_rss_bytes": 45842432,
+        "project_bytes": 0,
+        "sampled_epoch": 1787898463.963218,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 4.837499000132084e-05,
+        "file_count": 0,
+        "host_free_bytes": 39964807168,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-before",
+        "process_rss_bytes": 42876928,
+        "project_bytes": 0,
+        "sampled_epoch": 1787898453.111549,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0016153749311342835,
+        "reclaimed_bytes": 35141,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-2",
+      "cycle": 2,
+      "execution_line_id": "exec-ra-slice-005-cycle-2",
+      "growth_bytes_per_hour": 11661145,
+      "peak": {
+        "elapsed_seconds": 10.84869108395651,
+        "file_count": 36,
+        "host_free_bytes": 39964569600,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-peak",
+        "process_rss_bytes": 45842432,
+        "project_bytes": 35141,
+        "sampled_epoch": 1787898463.95842,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 35141,
+      "production_mutation": false,
+      "root": "/private/tmp/pantheon-gen05-release-8a-20260828-rule24c/capacity-sandbox/cycle-2",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    }
+  ],
+  "mode": "synthetic-non-production-capacity-proof",
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300
+  },
+  "production_mutation": false,
+  "projections": {
+    "day_peak_bytes": 1610647877,
+    "host_free_after_projection_bytes": 38354089659,
+    "host_reserve_bytes": 24510719590,
+    "hour_peak_bytes": 67144005,
+    "measured_max_growth_bytes_per_hour": 11661145,
+    "projected_growth_bytes_per_hour": 67108864,
+    "retention_peak_bytes": 1610647877
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss_negative_result": "BLOCKED"
+}

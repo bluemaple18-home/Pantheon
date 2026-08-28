@@ -1,0 +1,142 @@
+{
+  "after": {
+    "free": 39964663808,
+    "total": 245107195904,
+    "used": 205142532096
+  },
+  "before": {
+    "free": 37795667968,
+    "total": 245107195904,
+    "used": 207311527936
+  },
+  "current_head": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+  "deleted_count": 6,
+  "expanded_allowlist": false,
+  "host_free_delta_bytes": 2168995840,
+  "reclaimed_bytes_by_size_accounting": 2556955285,
+  "schema_version": 1,
+  "scope": "owner_authorized_exact_private_tmp_pantheon_targets",
+  "status": "PASS",
+  "targets": [
+    {
+      "deleted": true,
+      "file_count_before": 14255,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-acceptance-b-plan-2ce-source-a",
+      "repo_checks": {
+        "ancestor_of_current_head": true,
+        "clean": true,
+        "head": "2ce431ec41f5187531d88b52dfa91cef0373d8b5",
+        "head_matches_expected": true,
+        "head_returncode": 0,
+        "status_returncode": 0,
+        "status_stdout": ""
+      },
+      "size_bytes_before": 641328465,
+      "skip_reason": "",
+      "validated": true
+    },
+    {
+      "deleted": true,
+      "file_count_before": 13909,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-promotion-source-6766-20260827-git",
+      "repo_checks": {
+        "ancestor_of_current_head": true,
+        "clean": true,
+        "head": "6766fff999de7af09efc227230e69efd25795108",
+        "head_matches_expected": true,
+        "head_returncode": 0,
+        "status_returncode": 0,
+        "status_stdout": ""
+      },
+      "size_bytes_before": 641363757,
+      "skip_reason": "",
+      "validated": true
+    },
+    {
+      "deleted": true,
+      "file_count_before": 13853,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-promotion-source-e3a2-20260827",
+      "repo_checks": {
+        "ancestor_of_current_head": true,
+        "clean": true,
+        "head": "e3a2bbd188a0d25f15a02cde1b2b6820df5dd583",
+        "head_matches_expected": true,
+        "head_returncode": 0,
+        "status_returncode": 0,
+        "status_stdout": ""
+      },
+      "size_bytes_before": 640827536,
+      "skip_reason": "",
+      "validated": true
+    },
+    {
+      "deleted": true,
+      "file_count_before": 6401,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-v0395-promotion-source-799d770b",
+      "repo_checks": {
+        "ancestor_of_current_head": true,
+        "clean": true,
+        "head": "a419c9a6f642bb1de8966e50804d453523aee433",
+        "head_matches_expected": true,
+        "head_returncode": 0,
+        "status_returncode": 0,
+        "status_stdout": ""
+      },
+      "size_bytes_before": 404141447,
+      "skip_reason": "",
+      "validated": true
+    },
+    {
+      "deleted": false,
+      "file_count_before": 13812,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-promotion-f7822c99.MJS44t",
+      "repo_checks": {
+        "repo": "missing .git"
+      },
+      "size_bytes_before": 637863812,
+      "skip_reason": "repo_validation_failed",
+      "validated": false
+    },
+    {
+      "deleted": false,
+      "file_count_before": 13400,
+      "kind": "repo",
+      "path": "/private/tmp/pantheon-promotion-e5c0743f.pcIP6z",
+      "repo_checks": {
+        "repo": "missing .git"
+      },
+      "size_bytes_before": 633671419,
+      "skip_reason": "repo_validation_failed",
+      "validated": false
+    },
+    {
+      "deleted": true,
+      "file_count_before": 1,
+      "kind": "file",
+      "mode_before": "0o644",
+      "path": "/private/tmp/pantheon-rereview-f453.tar",
+      "sha256_before": "132a3eec72faf2ffae55950871495b9ff05e080810253e6c6193dcb0a33eacec",
+      "size_bytes_before": 114298880,
+      "skip_reason": "",
+      "validated": true
+    },
+    {
+      "deleted": true,
+      "file_count_before": 1,
+      "kind": "file",
+      "mode_before": "0o644",
+      "path": "/private/tmp/pantheon-gen05-clean-head-20260828.tar",
+      "sha256_before": "a66192cb7f258ece884a0aa8aee747b45647a3499075e326acdb97c36f83eab5",
+      "size_bytes_before": 114995200,
+      "skip_reason": "",
+      "validated": true
+    }
+  ],
+  "unrecoverable_but_reconstructible": true,
+  "used_globs": false
+}

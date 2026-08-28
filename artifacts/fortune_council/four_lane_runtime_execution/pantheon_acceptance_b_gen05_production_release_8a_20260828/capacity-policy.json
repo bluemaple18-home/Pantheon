@@ -1,0 +1,11 @@
+{
+  "max_bytes": 67108864,
+  "max_file_count": 1024,
+  "max_rss_growth_bytes_per_sample": 268435456,
+  "max_swap_growth_bytes_per_sample": 268435456,
+  "normal_growth_bytes_per_hour": 67108864,
+  "peak_window_seconds": 1800,
+  "recovery_deadline_seconds": 300,
+  "retention_seconds": 86400,
+  "sampling_interval_seconds": 300
+}

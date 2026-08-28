@@ -1,0 +1,9 @@
+{
+  "audit_receipt_exists": true,
+  "correlation_id": "pantheon-gen05-release-8a-20260828",
+  "plan_digest": "7bb2de22cda7b334db88f0f70800e39b064eab1ac0498e4a1eb1cd1fee057b8f",
+  "rollback_bundle_exists": false,
+  "rollback_required": false,
+  "state": "COMMITTED",
+  "status": "PASS"
+}

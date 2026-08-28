@@ -5368,6 +5368,8 @@ def _production_shaped_legacy_translation_active_run(
     registry_lane: str = "i18n-new",
     state_lane: object = "i18n-new",
     brief_lane: object = _MISSING,
+    state_mode: object = _MISSING,
+    routing_schema_version: object = _MISSING,
 ) -> tuple[Path, Path, Path]:
     queue_root = tmp_path / "queue"
     repo_root = tmp_path / "repo"
@@ -5401,8 +5403,6 @@ def _production_shaped_legacy_translation_active_run(
         "active_generation": 5,
         "next_generation": 5,
         "semantic_budget": 1,
-        "routing_schema_version": 1,
-        "mode": "translate_existing",
         "identity_envelope": _expected_identity_envelope(
             "translate_existing",
             registry_lane,
@@ -5411,6 +5411,10 @@ def _production_shaped_legacy_translation_active_run(
     }
     if state_lane is not _MISSING:
         state["lane"] = state_lane
+    if state_mode is not _MISSING:
+        state["mode"] = state_mode
+    if routing_schema_version is not _MISSING:
+        state["routing_schema_version"] = routing_schema_version
     coordinator.atomic_write_json(coordinator._state_path(run_id, queue_root), state)
     return queue_root, repo_root, run_dir
 
@@ -5465,6 +5469,23 @@ def test_active_legacy_translation_missing_brief_lane_uses_valid_current_identit
     assert calls == {"tick": 1, "process": 0}
 
 
+def test_active_legacy_translation_partial_lane_selector_uses_identity_without_migration(
+    tmp_path: Path,
+) -> None:
+    queue_root, _repo_root, _run_dir = _production_shaped_legacy_translation_active_run(
+        tmp_path,
+    )
+    state_path = coordinator._state_path(
+        "auto-i18n-ja-1414b75a404721e95e74",
+        queue_root,
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    before_bytes = state_path.read_bytes()
+
+    assert coordinator._lane_for_state(state, set(), queue_root=queue_root) == "i18n-new"
+    assert state_path.read_bytes() == before_bytes
+
+
 def test_active_guard_accepts_missing_brief_lane_with_matching_state_lane_without_state_mode(
     tmp_path: Path,
 ) -> None:
@@ -5476,7 +5497,8 @@ def test_active_guard_accepts_missing_brief_lane_with_matching_state_lane_withou
         queue_root,
     )
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    state.pop("mode")
+    assert "mode" not in state
+    assert "routing_schema_version" not in state
     coordinator.atomic_write_json(state_path, state)
 
     assert coordinator._active_run_integrity_block([state]) is None
@@ -5502,6 +5524,70 @@ def test_active_legacy_translation_identity_fails_closed_for_lane_authority_drif
         state_lane=state_lane,
         brief_lane=brief_lane,
     )
+    calls = {"tick": 0, "process": 0}
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args: calls.__setitem__("tick", calls["tick"] + 1) or {"status": "unreachable"},
+        process=lambda *_args, **_kwargs: calls.__setitem__("process", calls["process"] + 1) or {"status": "unreachable"},
+        repo_root=repo_root,
+        lane_mode=True,
+        exact_run_ids=["auto-i18n-ja-1414b75a404721e95e74"],
+    )
+
+    assert summary == {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "active": 1,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
+    assert calls == {"tick": 0, "process": 0}
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "unknown_routing_schema",
+        "state_mode_without_routing_schema",
+        "invalid_identity_digest",
+        "non_translation_envelope",
+    ],
+)
+def test_active_legacy_translation_partial_selector_fails_closed_for_invalid_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    queue_root, repo_root, _run_dir = _production_shaped_legacy_translation_active_run(
+        tmp_path,
+    )
+    state_path = coordinator._state_path(
+        "auto-i18n-ja-1414b75a404721e95e74",
+        queue_root,
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    if mutation == "unknown_routing_schema":
+        state["routing_schema_version"] = 999
+    elif mutation == "state_mode_without_routing_schema":
+        state["mode"] = "translate_existing"
+    elif mutation == "invalid_identity_digest":
+        state["identity_envelope"]["digest"] = "0" * 64
+    elif mutation == "non_translation_envelope":
+        state["lane"] = "new"
+        state["identity_envelope"] = _expected_identity_envelope(
+            "create",
+            "new",
+            ["V2-TAROT-DEATH-MONEY"],
+        )
+    else:
+        raise AssertionError(mutation)
+    coordinator.atomic_write_json(state_path, state)
     calls = {"tick": 0, "process": 0}
     monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
 

@@ -1,0 +1,11 @@
+{
+  "articles": [
+    {
+      "id": "PANTHEON-GEN05-RELEASE-8A-SYNTHETIC",
+      "title": "Pantheon gen05 8a synthetic readiness receipt"
+    }
+  ],
+  "mode": "create",
+  "run_id": "pantheon-gen05-release-8a-synthetic",
+  "schema_version": 1
+}

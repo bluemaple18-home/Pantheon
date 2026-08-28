@@ -2244,6 +2244,58 @@ def _active_states(queue_root: Path) -> list[dict[str, Any]]:
     )
 
 
+def _active_run_integrity_block_summary(run_id: object, active_count: int) -> dict[str, Any]:
+    return {
+        "status": "blocked",
+        "reason": "active run registry is dangling",
+        "run_id": run_id if type(run_id) is str else "unknown",
+        "active": active_count,
+        "complete": 0,
+        "failed": 0,
+        "runner": {"status": "idle"},
+        "new_matrix_sweep": None,
+        "legacy_sweep": None,
+    }
+
+
+def _validated_legacy_translation_lane_authority(
+    state: dict[str, Any],
+    brief: dict[str, Any],
+    *,
+    require_partial_state: bool = False,
+) -> str:
+    if require_partial_state and (
+        "routing_schema_version" in state
+        or "mode" in state
+        or "lane" not in state
+    ):
+        raise ValueError("active run routing is not legacy translation partial state")
+    envelope = _validate_identity_envelope(state.get("identity_envelope"))
+    if envelope["mode"] != "translate_existing":
+        raise ValueError("active run registry identity is invalid")
+    _mode, state_lane = _validate_mode_lane_pair(envelope["mode"], state.get("lane"))
+    if state_lane != envelope["lane"]:
+        raise ValueError("active run registry identity is invalid")
+    if brief.get("mode") != "translate_existing":
+        raise ValueError("active run registry identity is invalid")
+    brief_lane = brief.get("lane")
+    if brief_lane is not None:
+        _mode, validated_brief_lane = _validate_mode_lane_pair(
+            envelope["mode"],
+            brief_lane,
+        )
+        if validated_brief_lane != state_lane:
+            raise ValueError("active run registry identity is invalid")
+    observed_envelope = _build_identity_envelope(
+        envelope["mode"],
+        state_lane,
+        _identity_article_ids_from_brief(brief),
+    )
+    if observed_envelope != envelope:
+        raise ValueError("active run registry identity is invalid")
+    return state_lane
+
+
 def _active_run_integrity_block(
     states: list[dict[str, Any]],
     *,
@@ -2285,17 +2337,12 @@ def _active_run_integrity_block(
                     brief.get("mode") == "translate_existing"
                     and brief.get("lane") is None
                 ):
-                    envelope_mode = str(envelope["mode"])
-                    if envelope_mode != "translate_existing":
-                        raise ValueError("active run registry identity is invalid")
-                    _mode, state_lane = _validate_mode_lane_pair(
-                        envelope_mode,
-                        state.get("lane"),
+                    state_lane = _validated_legacy_translation_lane_authority(
+                        state,
+                        brief,
                     )
-                    if state_lane != envelope["lane"]:
-                        raise ValueError("active run registry identity is invalid")
                     observed_envelope = _build_identity_envelope(
-                        envelope_mode,
+                        envelope["mode"],
                         state_lane,
                         _identity_article_ids_from_brief(brief),
                     )
@@ -2304,17 +2351,7 @@ def _active_run_integrity_block(
                 if observed_envelope != envelope:
                     raise ValueError("active run registry identity is invalid")
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
-            return {
-                "status": "blocked",
-                "reason": "active run registry is dangling",
-                "run_id": run_id if type(run_id) is str else "unknown",
-                "active": len(states),
-                "complete": 0,
-                "failed": 0,
-                "runner": {"status": "idle"},
-                "new_matrix_sweep": None,
-                "legacy_sweep": None,
-            }
+            return _active_run_integrity_block_summary(run_id, len(states))
     return None
 
 
@@ -2357,6 +2394,19 @@ def _lane_for_state(
     queue_root: Path | None = None,
 ) -> str:
     routing_version = state.get("routing_schema_version")
+    if (
+        "routing_schema_version" not in state
+        and "mode" not in state
+        and "lane" in state
+    ):
+        brief = _read_run_brief_from_state(state)
+        if not isinstance(brief, dict):
+            raise ValueError("active run brief is unavailable")
+        return _validated_legacy_translation_lane_authority(
+            state,
+            brief,
+            require_partial_state=True,
+        )
     if routing_version is not None or "mode" in state or "lane" in state:
         if routing_version != ROUTING_SCHEMA_VERSION:
             raise ValueError("unknown active run routing schema")
@@ -5231,6 +5281,18 @@ def cycle_once(
             states = _select_lane_states(active_states, legacy_article_ids, root)
         else:
             states = active_states[:MAX_ACTIVE_RUNS_PER_CYCLE]
+        if selected_run_ids is not None and lane_mode:
+            selected_state_ids = {str(state.get("run_id") or "") for state in states}
+            skipped_states = [
+                state
+                for state in active_states
+                if str(state.get("run_id") or "") not in selected_state_ids
+            ]
+            if skipped_states:
+                return _active_run_integrity_block_summary(
+                    skipped_states[0].get("run_id"),
+                    len(active_states),
+                )
         pending = 0
         completed = 0
         failed = 0

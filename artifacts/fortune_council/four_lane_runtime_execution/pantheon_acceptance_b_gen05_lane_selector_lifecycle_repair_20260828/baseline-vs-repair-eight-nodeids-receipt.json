@@ -1,0 +1,69 @@
+{
+  "baseline": {
+    "command": [
+      "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]",
+      "-q"
+    ],
+    "cwd": "/private/tmp/pantheon-gen05-lane-selector-baseline-8a-20260828",
+    "label": "baseline-8a",
+    "locale_plan_validation_error_count": 40,
+    "returncode": 1,
+    "stderr_path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_lane_selector_lifecycle_repair_20260828/baseline-8a-eight-nodeids.stderr.txt",
+    "stdout_path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_lane_selector_lifecycle_repair_20260828/baseline-8a-eight-nodeids.stdout.txt",
+    "strict_coverage_error_count": 16,
+    "summary_line": ""
+  },
+  "baseline_root": "/private/tmp/pantheon-gen05-lane-selector-baseline-8a-20260828",
+  "baseline_sha": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+  "classification": "PRE_EXISTING",
+  "current": {
+    "command": [
+      "/Users/mattkuo/Documents/Pantheon/.venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]",
+      "-q"
+    ],
+    "cwd": "/Users/mattkuo/Documents/Pantheon",
+    "label": "current-repair",
+    "locale_plan_validation_error_count": 40,
+    "returncode": 1,
+    "stderr_path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_lane_selector_lifecycle_repair_20260828/current-repair-eight-nodeids.stderr.txt",
+    "stdout_path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_lane_selector_lifecycle_repair_20260828/current-repair-eight-nodeids.stdout.txt",
+    "strict_coverage_error_count": 16,
+    "summary_line": ""
+  },
+  "current_root": "/Users/mattkuo/Documents/Pantheon",
+  "nodeids": [
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+    "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+    "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]"
+  ],
+  "production_mutation": false,
+  "provider_calls": 0,
+  "same_failure_shape": true,
+  "schema_version": 1,
+  "status": "CLASSIFIED"
+}
