@@ -1,0 +1,24 @@
+{
+  "authorized_scope": "Pantheon Acceptance B gen05 ac1 production release and exact INVALID_RECEIPT recovery only",
+  "authorized_by": "owner",
+  "authorized_at": "2026-08-28T00:00:00+08:00",
+  "source_commit": "ac1faef520c9b79f9bb70265735d07a6ca826b7d",
+  "current_actor_expected": "23eab63ea31031094aa084faee0e5ff65d326533",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74",
+  "source_job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+  "rule24_status": "PASS",
+  "rule25_status": "READY",
+  "production_mutation_allowed": [
+    "runtime promotion plan/apply/finalize/status",
+    "failed external replacement plan-only/execute for exact source job",
+    "formal operator-exact-process-once for exact target run",
+    "publication transaction/tag/content push if Writer and Reviewer pass"
+  ],
+  "forbidden": [
+    "manual queue/state/registry edit",
+    "gen06 creation",
+    "unrelated sweep",
+    "provider outside exact target run",
+    "new repair on fresh related failure"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "command": [
+    ".venv/bin/python",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_ja_boundary_meaning_rca_20260828/red_capable_boundary_acceptance_check.py"
+  ],
+  "red_capable": true,
+  "returncode": 1,
+  "stderr": "Traceback (most recent call last):\n  File \"/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_ja_boundary_meaning_rca_20260828/red_capable_boundary_acceptance_check.py\", line 32, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_ja_boundary_meaning_rca_20260828/red_capable_boundary_acceptance_check.py\", line 27, in main\n    raise AssertionError(json.dumps(boundary, ensure_ascii=False, sort_keys=True))\nAssertionError: [{\"article_id\": \"V2-TAROT-DEATH-MONEY:ja\", \"code\": \"BOUNDARY_MEANING_MISSING\", \"message\": \"JA protected boundary meaning is missing from meta_description, body\", \"missing_categories\": [\"outcome_not_determined\"], \"missing_fields\": [\"meta_description\", \"body\"], \"present_categories\": [\"contextual_or_general_interpretation\", \"professional_advice_non_substitution\"], \"reasons\": [{\"category\": \"outcome_not_determined\", \"missing_fields\": [\"meta_description\", \"body\"], \"reason\": \"omission\"}]}]\n",
+  "stdout": "",
+  "target_symptom": "BOUNDARY_MEANING_MISSING missing outcome_not_determined in gen05 candidate"
+}

@@ -1,0 +1,23 @@
+{
+  "canary_created": false,
+  "case": "unknown-write-path",
+  "complete_pass_receipt_written": false,
+  "cycle": 1,
+  "external_cleanup_performed": false,
+  "last_safe_sample": {
+    "elapsed_seconds": 0.001,
+    "file_count": 0,
+    "host_free_bytes": 268435456000,
+    "host_total_bytes": 536870912000,
+    "label": "cycle-1-before",
+    "process_rss_bytes": 67108864,
+    "project_bytes": 0,
+    "sampled_epoch": 1787905281.862087,
+    "swap_used_bytes": 0
+  },
+  "next_cycle_started": false,
+  "production_mutation": false,
+  "reason": "sandbox contains unregistered write paths",
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

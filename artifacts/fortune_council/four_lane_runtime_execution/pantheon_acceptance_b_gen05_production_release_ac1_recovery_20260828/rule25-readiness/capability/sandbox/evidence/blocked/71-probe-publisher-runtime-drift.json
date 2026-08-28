@@ -1,0 +1,15 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "publish",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "0b64507f5ee62fefb50b8d3758ca9335905ffa86cfd1f7e0258c8751d82403ab",
+  "outcome": "BLOCKED",
+  "output_digest": "58773e7352b7ebff4b009ead4d6d030d281bc92a7bf5e73aa6afdc049c10a8ec",
+  "production_mutation": false,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt runtime identity drift"
+}

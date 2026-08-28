@@ -1,0 +1,11 @@
+{
+  "archive_sha256": "cebee0ffed85a3b65283d875be3b5efede57d116ad6880470c2f533857a485b4",
+  "card": "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN05-PRODUCTION-RELEASE-AC1-RECOVERY-20260828.md",
+  "failed_sha256": "a161e46034ae5b57d8be081a5af22421ce46b1db7aaa3aa4a968e56491c92fb4",
+  "manifest_digest": "5edb5d5f0b1d8eebc2fbe0855127f83fc9022fea9175c082505e807a29225bfe",
+  "schema_version": 1,
+  "source_commit": "ac1faef520c9b79f9bb70265735d07a6ca826b7d",
+  "source_job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3",
+  "state_sha256": "f4baa76d77e9c5c89b7b98482452f68cfad40a9d27c1acfed955ef6423026442",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

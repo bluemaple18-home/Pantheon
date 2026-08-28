@@ -66,6 +66,7 @@ JA_BOUNDARY_TARGET_PATTERNS = {
     "outcome_not_determined": re.compile(
         r"(結果を(?:保証|断定)しない|結果を断定せず|結果を保証せず|結果を保証したり|"
         r"結果を保証することはでき|結果を保証(?:するもの)?では|"
+        r"未来の結果を(?:完全に)?確定することはでき(?:ない|ず)|"
         r"断定(?:でき|し)ない|直接(?:示す|意味する)ものでは|"
         r"決めるわけでは|確定した答え|成功を約束|破産.*直接|"
         r"個人の結果を断定し|個人の結論や結果を断定し)"
@@ -2227,6 +2228,7 @@ def _article_prompt(
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
             "不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。",
             "JA protected_constraints 必須覆蓋其 required_fields；raw boundary source_text 只供 provenance trace，不得逐段複製成重複 boilerplate。",
+            "JA field-by-field protected boundary checklist: meta_description 與 body 必須各自包含每個 protected_constraints category 的自然日文可辨識語意；outcome_not_determined 在每個 required field 都要明確表達結果／未來結果不可斷定或保證，例如「結果を断定しない」「結果を保証しない」「未来の結果を完全に確定することはできない」。不得用 FAQ、answer、tags、另一個 required field、contextual/general disclaimer 或 professional advice disclaimer 代替；也不得把同一句 disclaimer 逐段重複成 boilerplate。",
             "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
             "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
             "article input:",

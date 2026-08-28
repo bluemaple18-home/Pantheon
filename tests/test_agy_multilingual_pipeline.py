@@ -654,6 +654,106 @@ def test_ja_boundary_candidate_03_is_missing_meaning_with_structured_trace() -> 
     )
 
 
+def test_ja_boundary_accepts_natural_future_result_not_confirmed_phrase() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+    article = candidate["articles"][0]
+    article["description"] = (
+        "死神カードが示す金銭面の変化を、文化的な象徴解釈として整理します。"
+        "未来の結果を完全に確定することはできず、投資や法律など専門的な助言に代わるものではありません。"
+    )
+    article["bodySections"][0]["paragraphs"][0] = (
+        "死神カードは金銭面の変化を考えるための一般的な象徴解釈です。"
+        "どのような予測ツールも未来の結果を完全に確定することはできないため、"
+        "専門的な財務や法律の助言に代わるものではありません。"
+    )
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    assert findings == []
+
+
+def test_ja_boundary_natural_body_phrase_does_not_rescue_missing_meta_description() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+    article = candidate["articles"][0]
+    article["description"] = (
+        "死神カードが示す金銭面の変化を、文化的な象徴解釈として整理します。"
+        "投資や法律など専門的な助言に代わるものではありません。"
+    )
+    article["bodySections"][0]["paragraphs"][0] = (
+        "死神カードは金銭面の変化を考えるための一般的な象徴解釈です。"
+        "どのような予測ツールも未来の結果を完全に確定することはできないため、"
+        "専門的な財務や法律の助言に代わるものではありません。"
+    )
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    finding = next(item for item in findings if item["code"] == "BOUNDARY_MEANING_MISSING")
+    assert finding["missing_fields"] == ["meta_description"]
+    assert "outcome_not_determined" not in finding["present_categories"] or "meta_description" in finding["missing_fields"]
+
+
+def test_ja_boundary_generic_uncertainty_does_not_count_as_outcome_not_determined() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    candidate = load_ja_boundary_fixture("corrected_test_only_candidate.json")
+    article = candidate["articles"][0]
+    article["description"] = (
+        "死神カードが示す金銭面の変化を、文化的な象徴解釈として整理します。"
+        "状況には不確実性や可能性があり、投資や法律など専門的な助言に代わるものではありません。"
+    )
+    replacements = [
+        (
+            "死神カードは金銭面の変化を考えるための一般的な象徴解釈です。"
+            "状況には不確実性や可能性があり、専門的な財務や法律の助言に代わるものではありません。"
+        ),
+        (
+            "支出や収入の変化を文化的な読み物として整理します。"
+            "先行きには曖昧さがあり、投資や法律に関する助言を構成するものではありません。"
+        ),
+        (
+            "古い金銭習慣を見直す観点を一般的な理解として扱います。"
+            "変化には幅があり、専門的な財務判断の代用にはなりません。"
+        ),
+        (
+            "カードの象徴を文化的な内省として読みます。"
+            "今後の展開には複数の可能性があり、専門家の助言に代わるものではありません。"
+        ),
+    ]
+    for section, replacement in zip(article["bodySections"], replacements):
+        section["paragraphs"] = [replacement]
+
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+
+    finding = next(item for item in findings if item["code"] == "BOUNDARY_MEANING_MISSING")
+    assert finding["missing_fields"] == ["meta_description", "body"]
+    assert "outcome_not_determined" not in multilingual._ja_boundary_target_categories(
+        multilingual._ja_field_text(article, "meta_description")
+    )
+    assert "outcome_not_determined" not in multilingual._ja_boundary_target_categories(
+        multilingual._ja_field_text(article, "body")
+    )
+
+
+def test_ja_article_prompt_has_field_by_field_boundary_checklist() -> None:
+    brief = load_ja_boundary_fixture("brief.json")
+    plan = multilingual._hydrate_locale_plan(
+        brief,
+        external_locale_plan(brief),
+        generation=1,
+        rebuild_by_slot={"article-01": False},
+    )
+
+    prompt = multilingual._article_prompt(brief, plan, [])
+
+    assert "JA field-by-field protected boundary checklist" in prompt
+    assert "meta_description 與 body 必須各自包含" in prompt
+    assert "outcome_not_determined" in prompt
+    assert "未来の結果を完全に確定することはできない" in prompt
+    assert "不得用 FAQ、answer、tags、另一個 required field" in prompt
+    assert "不得把同一句 disclaimer 逐段重複成 boilerplate" in prompt
+
+
 def test_ja_source_constraints_preserve_spans_and_merge_equivalent_duplicates() -> None:
     brief = load_ja_boundary_fixture("brief.json")
     package = multilingual._source_fact_package(brief)
