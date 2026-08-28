@@ -1468,12 +1468,12 @@ def _write_same_gen_locale_plan_retry_fixture(tmp_path: Path) -> tuple[Path, Pat
         "source_ref_map": gen_dir / "source-ref-map.json",
     }
     artifacts["external_plan"].write_text(json.dumps({"articles": [{"slot": "article-01", "coverage_mapping": [{"coverage_note": "財務現狀的檢視與重塑"}]}]}, ensure_ascii=False), encoding="utf-8")
-    artifacts["plan_operation"].write_text(json.dumps({"status": "success", "role": "writer", "transport": "_outbox_transport"}, ensure_ascii=False), encoding="utf-8")
     artifacts["planning_result"].write_text(json.dumps({"schema_version": 1, "generation": 6, "transport_status": "EXTERNAL_PLAN_AVAILABLE", "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING"}, ensure_ascii=False), encoding="utf-8")
     artifacts["source_ref_map"].write_text(json.dumps({"schema_version": 1, "generation": 6, "articles": []}, ensure_ascii=False), encoding="utf-8")
     lane_root = queue_root / "lanes/i18n-new"
     request_args = {"namespace": "same-gen-test", "role": "writer", "model": "gemini-test", "prompt": "retry prompt", "response_schema": {"type": "object"}}
     request = create_external_request(lane_root, **request_args)
+    artifacts["plan_operation"].write_text(json.dumps({"status": "success", "role": "writer", "transport": "_outbox_transport", "prompt_sha256": request["prompt_sha256"], "schema_sha256": request["schema_sha256"]}, ensure_ascii=False), encoding="utf-8")
     job_id = str(request["job_id"])
     state.update({"status": "failed", "lane": "i18n-new", "last_job_id": job_id, "error_type": "LocalePlanValidationError"})
     coordinator._write_state(queue_root, state)
@@ -1491,6 +1491,15 @@ def _write_same_gen_locale_plan_retry_fixture(tmp_path: Path) -> tuple[Path, Pat
         "request_args": request_args,
         **{key: _sha(path) for key, path in artifacts.items()},
     }
+
+
+def _write_prior_same_gen_quarantine(run_dir: Path, expected: dict[str, str]) -> None:
+    quarantine = run_dir / "generations/06/planning-cache-quarantine" / expected["job_id"]
+    quarantine.mkdir(parents=True)
+    atomic_digests = {key: expected[key] for key in ("external_plan", "plan_operation", "planning_result", "source_ref_map")}
+    for key, name in coordinator.SAME_GENERATION_PLAN_RETRY_FILES.items():
+        shutil.copy2(run_dir / "generations/06" / name, quarantine / name)
+    (quarantine / "retry-receipt.json").write_text(json.dumps({"action": "retry_same_generation_locale_plan", "run_id": expected["run_id"], "generation": 6, "job_id": expected["job_id"], "digests": {**atomic_digests, "registry": expected["registry"], "attempt": expected["attempt"], "archive": expected["archive"], "inbox": expected["inbox"]}, "status": "QUARANTINED"}, ensure_ascii=False), encoding="utf-8")
 
 
 def _retry_kwargs(expected: dict[str, str]) -> dict[str, object]:
@@ -1628,6 +1637,72 @@ def test_same_generation_locale_plan_retry_crash_window_replay(tmp_path: Path, m
 
     assert replay["status"] == "RETRY_READY"
     assert read_run_state(run_dir, queue_root)["status"] == "active"
+
+
+def test_same_generation_locale_plan_retry_recovers_null_last_job_from_exact_residue(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    _write_prior_same_gen_quarantine(run_dir, expected)
+    state = read_run_state(run_dir, queue_root)
+    state.pop("last_job_id")
+    coordinator._write_state(queue_root, state)
+    expected["registry"] = coordinator._canonical_json_file_sha256(state)
+    before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+    plan = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected))
+    assert before == {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    receipt = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    request = create_external_request(queue_root / "lanes/i18n-new", **expected["request_args"])
+
+    assert plan["status"] == "READY_TO_EXECUTE"
+    assert receipt["status"] == "RETRY_READY"
+    assert request["job_id"] == expected["job_id"]
+    with pytest.raises(ExternalJobPending):
+        consume_external_response(queue_root / "lanes/i18n-new", request)
+    assert not (run_dir / "generations/07").exists()
+
+
+@pytest.mark.parametrize("drift", ["prompt_schema", "missing_both_hashes", "invalid_matching_hashes", "wrong_job", "ambiguous"])
+def test_same_generation_locale_plan_retry_null_last_job_rejects_identity_drift(tmp_path: Path, drift: str) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    _write_prior_same_gen_quarantine(run_dir, expected)
+    state = read_run_state(run_dir, queue_root)
+    state.pop("last_job_id")
+    coordinator._write_state(queue_root, state)
+    expected["registry"] = coordinator._canonical_json_file_sha256(state)
+    if drift == "prompt_schema":
+        path = run_dir / "generations/06/plan-operation.json"
+        path.write_text(json.dumps({"status": "success", "role": "writer", "prompt_sha256": "0" * 64, "schema_sha256": "1" * 64}, ensure_ascii=False), encoding="utf-8")
+        expected["plan_operation"] = _sha(path)
+    elif drift == "missing_both_hashes":
+        plan_path = run_dir / "generations/06/plan-operation.json"
+        archive_path = queue_root / "lanes/i18n-new/archive" / f"{expected['job_id']}.json"
+        plan_path.write_text(json.dumps({"status": "success", "role": "writer"}, ensure_ascii=False), encoding="utf-8")
+        archive = json.loads(archive_path.read_text(encoding="utf-8"))
+        archive.pop("prompt_sha256")
+        archive.pop("schema_sha256")
+        archive_path.write_text(json.dumps(archive, ensure_ascii=False), encoding="utf-8")
+        expected["plan_operation"], expected["archive"] = _sha(plan_path), _sha(archive_path)
+    elif drift == "invalid_matching_hashes":
+        plan_path = run_dir / "generations/06/plan-operation.json"
+        archive_path = queue_root / "lanes/i18n-new/archive" / f"{expected['job_id']}.json"
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        archive = json.loads(archive_path.read_text(encoding="utf-8"))
+        plan["prompt_sha256"] = archive["prompt_sha256"] = "not-a-sha"
+        plan["schema_sha256"] = archive["schema_sha256"] = "also-not-a-sha"
+        plan_path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+        archive_path.write_text(json.dumps(archive, ensure_ascii=False), encoding="utf-8")
+        expected["plan_operation"], expected["archive"] = _sha(plan_path), _sha(archive_path)
+    elif drift == "wrong_job":
+        path = queue_root / "lanes/i18n-new/archive" / f"{expected['job_id']}.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["job_id"] = "0" * 40
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        expected["archive"] = _sha(path)
+    else:
+        (queue_root / "lanes/i18n-new/outbox" / f"{expected['job_id']}.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
 
 
 def _write_terminal_authorized_registry_split(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:

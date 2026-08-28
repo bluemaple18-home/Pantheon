@@ -1,0 +1,37 @@
+{
+  "after": {
+    "queue_tree": "009bfb0b4a90a895fcc3b27eee58a1c04a44718ed47ac950ef6497500a1e27d3",
+    "run_tree": "51eae8f9a3aac32d7838701a4a481f6ab7c8099fe8239f13a1e2f24ff32104a5"
+  },
+  "before": {
+    "queue_tree": "009bfb0b4a90a895fcc3b27eee58a1c04a44718ed47ac950ef6497500a1e27d3",
+    "run_tree": "51eae8f9a3aac32d7838701a4a481f6ab7c8099fe8239f13a1e2f24ff32104a5"
+  },
+  "digests": {
+    "expected_archive_digest": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c",
+    "expected_attempt_digest": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8",
+    "expected_external_plan_digest": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+    "expected_inbox_digest": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226",
+    "expected_job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+    "expected_plan_operation_digest": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5",
+    "expected_planning_result_digest": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5",
+    "expected_registry_digest": "3c8d118b484cbf8d07cc12652b236a6d17d3f1fdd79ffa5d145aeca739732fee",
+    "expected_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "expected_source_ref_map_digest": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a",
+    "generation": 6
+  },
+  "error_message": "same-generation locale plan retry registry state differs",
+  "job_id_supplied": "6894ba2772dca5fd9e44938951535d8e26d39467",
+  "mutation_boundary": "temp copy only",
+  "setup_note": "temp state run_dir normalized and copied old quarantine removed to isolate null last_job_id against exact root cache and lane residue",
+  "source_state": {
+    "error_type": "LocalePlanValidationError",
+    "lane": "i18n-new",
+    "last_job_id": null,
+    "mode": null,
+    "routing_schema_version": null,
+    "status": "failed"
+  },
+  "status": "RED",
+  "zero_write_after_invocation": true
+}

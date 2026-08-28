@@ -18,6 +18,8 @@ commit_push: 0
 
 Provider0 RCA closure 已補：同一 execute path 現在也 receipt-first quarantine lane-level `archive` / `inbox` / `production-attempt` residue；下一次相同 deterministic request 不會吃舊 inbox，而會建立 fresh outbox job。
 
+Null `last_job_id` RCA closure 已補：同一 seam 現在只在 registry `failed + LocalePlanValidationError + last_job_id=null` 且 operator 提供 exact expected job id/digests 時，透過 gen06 `plan-operation` prompt/schema 與 lane archive/inbox/attempt request identity 重新綁定 job identity；同時窄接受同 job prior quarantine + restored root cache shape。沒有掃描多 job、沒有猜 timestamp、沒有新 CLI。
+
 沒有 production、provider、publish、commit、push。
 
 ## 變更檔案
@@ -32,6 +34,7 @@ Provider0 RCA closure 已補：同一 execute path 現在也 receipt-first quara
 - source: +159 lines, within <=160 cap
 - tests: +169 lines, within <=200 reviewer closure cap
 - provider0 closure delta against 18b seam: source `+31/-11`, tests `+25/-11`; within additional `<=40` / `<=80` cap
+- null last_job identity closure delta against 29c seam: source `+25/-11`, tests `+76/-1`; within additional `<=40` / `<=80` cap
 
 Why not less:
 - 需要同時鎖 registry、job attempt/archive/inbox、gen06 artifact digests、continuation active next_generation、gen07/candidate/reviewer absence、receipt-first quarantine、crash-window replay；provider0 RCA 已證明只搬 generation-local cache 會重吃舊 inbox，少於這些會回到 manual deletion 或 generic retry。
@@ -74,6 +77,9 @@ Other gates:
 - Plan-only zero-write is covered.
 - Execute quarantines four generation planning cache files: `external-plan.json`, `plan-operation.json`, `planning-result.json`, `source-ref-map.json`.
 - Execute also quarantines the exact lane-level transport residue for the same job: `archive/<job>.json`, `inbox/<job>.json`, `production-attempts/<job>.attempt`.
+- Null `last_job_id` recovery is accepted only when the supplied expected job id is proven by exact lane archive/inbox/attempt digests plus `plan-operation` prompt/schema matching the lane archive.
+- Reviewer P1 closure: null `last_job_id` branch now requires both `plan-operation` and archive `prompt_sha256` / `schema_sha256` to be strings matching `SHA256_PATTERN` before equality; missing both or invalid matching values fail closed.
+- Prior same-job quarantine plus restored root cache is accepted only through the existing receipt identity; unrelated/mixed quarantine remains fail-closed.
 - Quarantine receipt stores expected digests and is validated on replay.
 - Quarantine receipt stores narrow selector snapshot (`lane` / `mode` / `routing_schema_version`); active replay rejects drift.
 - Execute rechecks generation and lane residue boundary inside the run identity lock; TOCTOU gen07/candidate/lane residue drift fails closed and registry remains failed.
@@ -90,7 +96,20 @@ Other gates:
 
 Updated verification:
 
-- `python -m pytest tests/test_agy_gemini_coordinator.py -k same_generation_locale_plan_retry`: 15 passed
-- `python -m pytest tests/test_agy_gemini_coordinator.py -k 'same_generation_locale_plan_retry or resume_locale_plan_validation_failure or resume_other_failure'`: 17 passed
+- `python -m pytest tests/test_agy_gemini_coordinator.py -k 'null_last_job or same_generation_locale_plan_retry_recovers_null'`: 4 passed
+- `python -m pytest tests/test_agy_gemini_coordinator.py -k same_generation_locale_plan_retry`: 19 passed
+- `python -m pytest tests/test_agy_gemini_coordinator.py -k 'same_generation_locale_plan_retry or resume_locale_plan_validation_failure or resume_other_failure'`: 21 passed
+- Reviewer P1 rerun:
+  - `python -m pytest tests/test_agy_gemini_coordinator.py -k 'null_last_job_rejects_identity_drift and (missing_both_hashes or invalid_matching_hashes)'`: 2 passed
+  - `python -m pytest tests/test_agy_gemini_coordinator.py -k 'null_last_job or same_generation_locale_plan_retry_recovers_null'`: 6 passed
+  - `python -m pytest tests/test_agy_gemini_coordinator.py -k same_generation_locale_plan_retry`: 21 passed
+  - `python -m pytest tests/test_agy_gemini_coordinator.py -k 'same_generation_locale_plan_retry or resume_locale_plan_validation_failure or resume_other_failure'`: 23 passed
 - `python -m py_compile scripts/agy_gemini_coordinator.py tests/test_agy_gemini_coordinator.py`: PASS
 - `git diff --check`: PASS
+
+## Null last_job identity RCA closure evidence
+
+- RCA result: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_null_last_job_identity_rca_20260828/RESULT-PANTHEON-ACCEPTANCE-B-GEN06-NULL-LAST-JOB-IDENTITY-RCA-20260828.md`
+- RED harness: `artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_null_last_job_identity_rca_20260828/temp-copy-red-harness.json`
+- Closure test: `tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_recovers_null_last_job_from_exact_residue`
+- Drift matrix: `tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_null_last_job_rejects_identity_drift`
