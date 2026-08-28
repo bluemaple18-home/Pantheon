@@ -1,0 +1,64 @@
+{
+  "after_error_type": "LocalePlanValidationError",
+  "after_has_last_job_id": false,
+  "after_registry_status": "failed",
+  "before_error_type": "LocalePlanValidationError",
+  "before_last_job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+  "before_registry_status": "failed",
+  "cycle_summary": {
+    "active": 0,
+    "complete": 0,
+    "failed": 1,
+    "lanes": {
+      "i18n-new": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "i18n-rewrite": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "new": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      },
+      "rewrite": {
+        "active": 0,
+        "processing": 0,
+        "queued": 0
+      }
+    },
+    "legacy_sweep": null,
+    "migrated_jobs": null,
+    "new_matrix_sweep": null,
+    "runner": {
+      "status": "idle"
+    },
+    "status": "failed"
+  },
+  "external_plan_sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+  "gen06_files": [
+    "external-plan.json",
+    "plan-operation.json",
+    "planning-result.json",
+    "source-ref-map.json"
+  ],
+  "gen07_exists": false,
+  "planning_result": {
+    "generation": 6,
+    "planning_contract_status": "PLANNING_CONTRACT_FAILURE",
+    "schema_version": 1,
+    "terminal_reason": "locale plan native locale language differs for article-01.coverage_note[3]",
+    "terminal_stage": "PLANNING",
+    "transport_status": "EXTERNAL_PLAN_AVAILABLE"
+  },
+  "production_mutation": false,
+  "provider_fail_if_called_calls": 0,
+  "resumed_has_last_job_id": false,
+  "resumed_status": "active",
+  "status": "RED_REPRODUCED",
+  "temp_root": "/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pantheon-gen06-stale-plan-red-3sm41e7e"
+}

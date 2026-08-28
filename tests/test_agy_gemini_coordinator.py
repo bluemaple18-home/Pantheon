@@ -1447,6 +1447,175 @@ def test_resume_other_failure_preserves_existing_job_lineage(tmp_path: Path) -> 
     assert "error_type" not in resumed
 
 
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_same_gen_locale_plan_retry_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:
+    run_id = "auto-i18n-ja-1414b75a404721e95e74"
+    job_id = "6894ba2772dca5fd9e44938951535d8e26d39467"
+    run_dir, queue_root = tmp_path / "private-runs" / run_id, tmp_path / "queue"
+    run_dir.mkdir(parents=True)
+    (run_dir / "brief.json").write_text(json.dumps({"schema_version": 1, "run_id": run_id, "mode": "translate_existing", "lane": "i18n-new", "articles": [{"source_article_id": "V2-TAROT-DEATH-MONEY", "locale": "ja", "article_id": "V2-TAROT-DEATH-MONEY:ja"}]}, ensure_ascii=False), encoding="utf-8")
+    state = register_run(run_dir, queue_root)
+    state.update({"status": "failed", "lane": "i18n-new", "last_job_id": job_id, "error_type": "LocalePlanValidationError"})
+    coordinator._write_state(queue_root, state)
+    (run_dir / "continuation").mkdir()
+    (run_dir / "continuation/state.json").write_text(json.dumps({"schema_version": 1, "run_id": run_id, "status": "active", "next_generation": 6}, ensure_ascii=False), encoding="utf-8")
+    gen_dir = run_dir / "generations/06"
+    gen_dir.mkdir(parents=True)
+    artifacts = {
+        "external_plan": gen_dir / "external-plan.json",
+        "plan_operation": gen_dir / "plan-operation.json",
+        "planning_result": gen_dir / "planning-result.json",
+        "source_ref_map": gen_dir / "source-ref-map.json",
+    }
+    artifacts["external_plan"].write_text(json.dumps({"articles": [{"slot": "article-01", "coverage_mapping": [{"coverage_note": "財務現狀的檢視與重塑"}]}]}, ensure_ascii=False), encoding="utf-8")
+    artifacts["plan_operation"].write_text(json.dumps({"status": "success", "role": "writer", "transport": "_outbox_transport"}, ensure_ascii=False), encoding="utf-8")
+    artifacts["planning_result"].write_text(json.dumps({"schema_version": 1, "generation": 6, "transport_status": "EXTERNAL_PLAN_AVAILABLE", "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING"}, ensure_ascii=False), encoding="utf-8")
+    artifacts["source_ref_map"].write_text(json.dumps({"schema_version": 1, "generation": 6, "articles": []}, ensure_ascii=False), encoding="utf-8")
+    lane_root = queue_root / "lanes/i18n-new"
+    for child in ("production-attempts", "archive", "inbox"):
+        (lane_root / child).mkdir(parents=True)
+    request_sha = "1" * 64
+    attempt = lane_root / "production-attempts" / f"{job_id}.attempt"
+    archive = lane_root / "archive" / f"{job_id}.json"
+    inbox = lane_root / "inbox" / f"{job_id}.json"
+    attempt.write_text(json.dumps({"job_id": job_id, "attempt_status": "succeeded", "request_sha256": request_sha}, ensure_ascii=False), encoding="utf-8")
+    archive.write_text(json.dumps({"job_id": job_id, "request_sha256": request_sha, "role": "writer"}, ensure_ascii=False), encoding="utf-8")
+    inbox.write_text(json.dumps({"job_id": job_id, "request_sha256": request_sha}, ensure_ascii=False), encoding="utf-8")
+    return run_dir, queue_root, {
+        "run_id": run_id, "job_id": job_id, "registry": coordinator._canonical_json_file_sha256(state),
+        "attempt": _sha(attempt), "archive": _sha(archive), "inbox": _sha(inbox),
+        **{key: _sha(path) for key, path in artifacts.items()},
+    }
+
+
+def _retry_kwargs(expected: dict[str, str]) -> dict[str, object]:
+    return {
+        "expected_run_id": expected["run_id"], "generation": 6, "expected_registry_digest": expected["registry"],
+        "expected_job_id": expected["job_id"], "expected_attempt_digest": expected["attempt"],
+        "expected_archive_digest": expected["archive"], "expected_inbox_digest": expected["inbox"],
+        "expected_external_plan_digest": expected["external_plan"], "expected_plan_operation_digest": expected["plan_operation"],
+        "expected_planning_result_digest": expected["planning_result"], "expected_source_ref_map_digest": expected["source_ref_map"],
+    }
+
+
+def test_same_generation_locale_plan_retry_plan_is_zero_write(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+    receipt = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected))
+
+    assert receipt["status"] == "READY_TO_EXECUTE"
+    assert before == {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+
+def test_same_generation_locale_plan_retry_cli_plan_only(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    args = [sys.executable, "-m", "scripts.agy_gemini_coordinator", "--queue-root", str(queue_root), "retry-same-generation-locale-plan", str(run_dir), "--run-id", expected["run_id"], "--generation", "6", "--expected-job-id", expected["job_id"]]
+    for key in ("registry", "attempt", "archive", "inbox", "external-plan", "plan-operation", "planning-result", "source-ref-map"):
+        args += [f"--expected-{key}-digest", expected[key.replace("-", "_")]]
+
+    completed = subprocess.run(args, cwd=Path(__file__).resolve().parents[1], text=True, capture_output=True, check=True)
+
+    assert json.loads(completed.stdout)["status"] == "READY_TO_EXECUTE"
+    assert read_run_state(run_dir, queue_root)["status"] == "failed"
+
+
+def test_same_generation_locale_plan_retry_execute_enqueues_fresh_gen06(tmp_path: Path) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+
+    receipt = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    calls = 0
+
+    def tick(path: Path, _root: Path) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        assert path.resolve() == run_dir.resolve()
+        assert not (run_dir / "generations/06/external-plan.json").exists()
+        assert not (run_dir / "generations/07").exists()
+        raise ExternalJobPending("fresh-gen06-job")
+
+    summary = cycle_once(queue_root, tick=tick, process=lambda _root, **_kwargs: {"status": "idle"}, repo_root=Path(__file__).resolve().parents[1], lane_mode=True, exact_run_ids=[expected["run_id"]])
+    state = read_run_state(run_dir, queue_root)
+
+    assert receipt["status"] == "RETRY_READY"
+    assert calls == 1
+    assert summary["runner"] == {"status": "idle"}
+    assert state["last_job_id"] == "fresh-gen06-job"
+    assert (run_dir / "generations/06/planning-cache-quarantine" / expected["job_id"] / "external-plan.json").is_file()
+    assert not (run_dir / "generations/06/candidate.json").exists()
+
+
+@pytest.mark.parametrize("drift", ["candidate", "gen07"])
+def test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock(tmp_path: Path, drift: str) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    real_lock = coordinator._run_identity_lock
+
+    @coordinator.contextmanager
+    def drifting_lock(run_id: str, root: Path):
+        with real_lock(run_id, root):
+            path = run_dir / ("generations/06/candidate.json" if drift == "candidate" else "generations/07")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}", encoding="utf-8") if drift == "candidate" else path.mkdir()
+            yield
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(coordinator, "_run_identity_lock", drifting_lock)
+        with pytest.raises(ValueError):
+            coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    assert read_run_state(run_dir, queue_root)["status"] == "failed"
+
+
+@pytest.mark.parametrize("field,value", [("lane", "i18n-rewrite"), ("mode", "create"), ("routing_schema_version", 99)])
+def test_same_generation_locale_plan_retry_rejects_active_selector_drift(tmp_path: Path, field: str, value: object) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    state = read_run_state(run_dir, queue_root)
+    state[field] = value
+    coordinator._write_state(queue_root, state)
+
+    with pytest.raises(ValueError):
+        coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+
+
+@pytest.mark.parametrize("drift", ["registry_digest", "registry_status", "job_status", "artifact_digest", "candidate_present"])
+def test_same_generation_locale_plan_retry_rejects_drift(tmp_path: Path, drift: str) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    if drift == "registry_digest":
+        expected["registry"] = "0" * 64
+    elif drift == "registry_status":
+        state = read_run_state(run_dir, queue_root)
+        state["status"] = "active"
+        coordinator._write_state(queue_root, state)
+    elif drift == "job_status":
+        attempt = queue_root / "lanes/i18n-new/production-attempts" / f"{expected['job_id']}.attempt"
+        attempt.write_text(json.dumps({"job_id": expected["job_id"], "attempt_status": "failed", "request_sha256": "1" * 64}), encoding="utf-8")
+        expected["attempt"] = _sha(attempt)
+    elif drift == "artifact_digest":
+        expected["external_plan"] = "0" * 64
+    else:
+        (run_dir / "generations/06/candidate.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+
+
+def test_same_generation_locale_plan_retry_crash_window_replay(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
+    real_write_state = coordinator._write_state
+    monkeypatch.setattr(coordinator, "_write_state", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("crash-after-quarantine")))
+    with pytest.raises(RuntimeError, match="crash-after-quarantine"):
+        coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    monkeypatch.setattr(coordinator, "_write_state", real_write_state)
+
+    replay = coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+
+    assert replay["status"] == "RETRY_READY"
+    assert read_run_state(run_dir, queue_root)["status"] == "active"
+
+
 def _write_terminal_authorized_registry_split(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:
     run_id = "auto-i18n-ja-1414b75a404721e95e74"
     run_dir = tmp_path / "private-runs" / run_id
