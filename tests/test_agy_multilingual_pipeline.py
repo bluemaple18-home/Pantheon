@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from scripts import agy_multilingual_pipeline as multilingual
+from scripts.agy_gemini_outbox import ExternalJobPending, OutboxGeminiClient
 from scripts.agy_seo_copy_pipeline import article_sha256, build_approval
 
 
@@ -53,6 +54,76 @@ def translation_brief(locale: str = "en") -> dict[str, object]:
             }
         ],
     }
+
+
+def legacy_rewrite_translation_brief(locale: str = "en") -> dict[str, object]:
+    brief = translation_brief(locale)
+    brief["run_id"] = f"legacy-rewrite-translation-{locale}"
+    brief["lane"] = "i18n-rewrite"
+    return brief
+
+
+def _translation_state_path(queue_root: Path, run_id: str) -> Path:
+    return queue_root / "runs" / f"{hashlib.sha256(run_id.encode('utf-8')).hexdigest()[:24]}.json"
+
+
+def _write_registered_translation_state(
+    queue_root: Path,
+    run_dir: Path,
+    brief: dict[str, object],
+    *,
+    lane: str = "i18n-rewrite",
+) -> None:
+    run_id = str(brief["run_id"])
+    articles = brief["articles"]
+    source_article_id = "TEST-001"
+    if isinstance(articles, list) and articles and isinstance(articles[0], dict):
+        source_article_id = str(articles[0].get("source_article_id") or source_article_id)
+    multilingual.pipeline.write_json(
+        _translation_state_path(queue_root, run_id),
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_dir": str(run_dir.resolve()),
+            "status": "active",
+            "lane": lane,
+            "identity_envelope": multilingual.translation_identity_envelope(
+                source_article_id,
+                lane,
+            ),
+            "registered_at": "2026-08-30T00:00:00+00:00",
+            "updated_at": "2026-08-30T00:00:00+00:00",
+        },
+    )
+
+
+def _registered_legacy_rewrite_run(
+    tmp_path: Path,
+    locale: str = "en",
+    *,
+    lane: str = "i18n-rewrite",
+    brief: dict[str, object] | None = None,
+) -> tuple[Path, Path, dict[str, object]]:
+    queue_root = tmp_path / f"queue-{locale}"
+    legacy_brief = brief or legacy_rewrite_translation_brief(locale)
+    run_dir = queue_root / "translation-runs" / str(legacy_brief["run_id"])
+    multilingual.pipeline.write_json(run_dir / "brief.json", legacy_brief)
+    _write_registered_translation_state(
+        queue_root,
+        run_dir,
+        legacy_brief,
+        lane=lane,
+    )
+    return queue_root, run_dir, legacy_brief
+
+
+def _outbox_client(queue_root: Path, namespace: str = "legacy-brief-test") -> OutboxGeminiClient:
+    return OutboxGeminiClient(
+        queue_root,
+        namespace=namespace,
+        writer_model="writer-test",
+        reviewer_model="reviewer-test",
+    )
 
 
 def translation_candidate(locale: str = "en") -> dict[str, object]:
@@ -4681,6 +4752,179 @@ def test_external_operation_resumes_from_saved_output_without_regeneration(tmp_p
     )
 
     assert payload == {"articles": []}
+
+
+def test_translation_brief_validator_keeps_canonical_four_field_contract() -> None:
+    multilingual.validate_translation_brief(translation_brief("ja"))
+
+    with pytest.raises(ValueError, match="translation brief fields are strict"):
+        multilingual.validate_translation_brief(legacy_rewrite_translation_brief("ja"))
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_registered_legacy_rewrite_brief_normalizes_before_first_writer_outbox(
+    tmp_path: Path,
+    locale: str,
+) -> None:
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        locale,
+    )
+    outbox_root = tmp_path / f"outbox-{locale}"
+    client = _outbox_client(outbox_root, namespace=f"legacy-{locale}")
+
+    for _replay in range(2):
+        with pytest.raises(ExternalJobPending):
+            multilingual.run_writer_reviewer(run_dir, client, max_repairs=0)
+
+    outbox_jobs = list((outbox_root / "outbox").glob("*.json"))
+    assert len(outbox_jobs) == 1
+    receipt = json.loads(
+        (run_dir / "attempts" / "01" / "plan-operation.json").read_text()
+    )
+    assert receipt["status"] == "pending"
+    assert receipt["error_type"] == "ExternalJobPending"
+    assert not (run_dir / "candidate.json").exists()
+    assert not (run_dir / "review.json").exists()
+
+
+def test_canonical_translation_brief_still_reaches_first_writer_outbox(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "canonical-run"
+    multilingual.pipeline.write_json(run_dir / "brief.json", translation_brief("ja"))
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ExternalJobPending):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root, namespace="canonical-ja"),
+            max_repairs=0,
+        )
+
+    assert len(list((outbox_root / "outbox").glob("*.json"))) == 1
+
+
+@pytest.mark.parametrize("extra_key", ["unexpected", "source_commit"])
+def test_registered_legacy_rewrite_brief_rejects_unknown_extra_without_outbox(
+    tmp_path: Path,
+    extra_key: str,
+) -> None:
+    brief = legacy_rewrite_translation_brief("ja")
+    brief[extra_key] = "legacy value"
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        "ja",
+        brief=brief,
+    )
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ValueError, match="translation brief fields are strict"):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root),
+            max_repairs=0,
+        )
+
+    assert not (outbox_root / "outbox").exists()
+
+
+@pytest.mark.parametrize("brief_lane", ["new", "rewrite", "i18n-new", "not-a-lane"])
+def test_registered_legacy_rewrite_brief_rejects_lane_mismatch_without_outbox(
+    tmp_path: Path,
+    brief_lane: str,
+) -> None:
+    brief = legacy_rewrite_translation_brief("ja")
+    brief["lane"] = brief_lane
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        "ja",
+        brief=brief,
+    )
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ValueError, match="legacy translation brief lane"):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root),
+            max_repairs=0,
+        )
+
+    assert not (outbox_root / "outbox").exists()
+
+
+def test_registered_legacy_rewrite_brief_rejects_state_lane_mismatch_without_outbox(
+    tmp_path: Path,
+) -> None:
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        "ja",
+        lane="i18n-new",
+    )
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ValueError, match="legacy translation brief lane"):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root),
+            max_repairs=0,
+        )
+
+    assert not (outbox_root / "outbox").exists()
+
+
+def test_registered_legacy_rewrite_brief_rejects_non_string_lane_without_outbox(
+    tmp_path: Path,
+) -> None:
+    brief = legacy_rewrite_translation_brief("ja")
+    brief["lane"] = 7
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        "ja",
+        brief=brief,
+    )
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ValueError, match="legacy translation brief lane"):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root),
+            max_repairs=0,
+        )
+
+    assert not (outbox_root / "outbox").exists()
+
+
+@pytest.mark.parametrize(
+    "mutate,match",
+    [
+        (lambda brief: brief.pop("mode"), "translation brief fields are strict"),
+        (lambda brief: brief.__setitem__("schema_version", "1"), "translation brief identity is invalid"),
+        (lambda brief: brief.__setitem__("articles", []), "legacy translation brief identity is invalid"),
+    ],
+)
+def test_registered_legacy_rewrite_brief_preserves_strict_canonical_validation(
+    tmp_path: Path,
+    mutate: object,
+    match: str,
+) -> None:
+    brief = legacy_rewrite_translation_brief("ja")
+    mutate(brief)
+    _queue_root, run_dir, _brief = _registered_legacy_rewrite_run(
+        tmp_path,
+        "ja",
+        brief=brief,
+    )
+    outbox_root = tmp_path / "outbox"
+
+    with pytest.raises(ValueError, match=match):
+        multilingual.run_writer_reviewer(
+            run_dir,
+            _outbox_client(outbox_root),
+            max_repairs=0,
+        )
+
+    assert not (outbox_root / "outbox").exists()
 
 
 def test_transport_failure_does_not_advance_translation_semantic_attempt(

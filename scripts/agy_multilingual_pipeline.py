@@ -26,6 +26,8 @@ from scripts import agy_seo_copy_pipeline as pipeline
 SCHEMA_VERSION = 1
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
 TRANSLATION_IDENTITY_LANES = {"i18n-new", "i18n-rewrite"}
+TRANSLATION_BRIEF_FIELDS = frozenset({"schema_version", "run_id", "mode", "articles"})
+LEGACY_REWRITE_TRANSLATION_LANE = "i18n-rewrite"
 TRANSLATION_REPLACEMENT_REASONS = frozenset({
     "LOCALE_PLAN_VALIDATION",
     "NETWORK",
@@ -247,7 +249,7 @@ def _validate_source(source: object) -> dict[str, Any]:
 
 
 def validate_translation_brief(brief: dict[str, Any]) -> None:
-    if set(brief) != {"schema_version", "run_id", "mode", "articles"}:
+    if set(brief) != TRANSLATION_BRIEF_FIELDS:
         raise ValueError("translation brief fields are strict")
     if brief.get("schema_version") != SCHEMA_VERSION or brief.get("mode") != "translate_existing":
         raise ValueError("translation brief identity is invalid")
@@ -282,6 +284,88 @@ def validate_translation_brief(brief: dict[str, Any]) -> None:
             raise ValueError("translation source identity differs from target")
         if item.get("source_sha256") != source_sha256(source):
             raise ValueError(f"translation source hash differs for {translation_id}")
+
+
+def _registered_translation_state_path(run_dir: Path, run_id: str) -> Path | None:
+    resolved_run_dir = run_dir.resolve()
+    if resolved_run_dir.parent.name != "translation-runs":
+        return None
+    queue_root = resolved_run_dir.parent.parent
+    digest = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+    return queue_root / "runs" / f"{digest}.json"
+
+
+def _legacy_rewrite_translation_article_id(brief: dict[str, Any]) -> str:
+    articles = brief.get("articles")
+    if not (
+        isinstance(articles, list)
+        and len(articles) == 1
+        and isinstance(articles[0], dict)
+    ):
+        raise ValueError("legacy translation brief identity is invalid")
+    return _non_empty_string(
+        articles[0].get("source_article_id"),
+        "source_article_id",
+    )
+
+
+def _validate_legacy_rewrite_translation_context(
+    brief: dict[str, Any],
+    run_dir: Path,
+    trusted_state: dict[str, Any],
+) -> None:
+    brief_lane = brief.get("lane")
+    if type(brief_lane) is not str or brief_lane != LEGACY_REWRITE_TRANSLATION_LANE:
+        raise ValueError("legacy translation brief lane is invalid")
+    resolved_run_dir = run_dir.resolve()
+    run_id = _non_empty_string(brief.get("run_id"), "run_id")
+    article_id = _legacy_rewrite_translation_article_id(brief)
+    expected_envelope = translation_identity_envelope(
+        article_id,
+        LEGACY_REWRITE_TRANSLATION_LANE,
+    )
+    if (
+        not isinstance(trusted_state, dict)
+        or trusted_state.get("run_id") != run_id
+        or trusted_state.get("run_dir") != str(resolved_run_dir)
+        or trusted_state.get("status") not in {"active", "complete", "failed"}
+        or trusted_state.get("lane") != LEGACY_REWRITE_TRANSLATION_LANE
+        or trusted_state.get("identity_envelope") != expected_envelope
+    ):
+        raise ValueError("legacy translation brief lane context is invalid")
+
+
+def _normalize_registered_translation_brief(
+    brief: dict[str, Any],
+    run_dir: Path,
+    *,
+    trusted_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    keys = set(brief)
+    if keys == TRANSLATION_BRIEF_FIELDS:
+        validate_translation_brief(brief)
+        return brief
+    if keys != TRANSLATION_BRIEF_FIELDS | {"lane"}:
+        validate_translation_brief(brief)
+        return brief
+    run_id = _non_empty_string(brief.get("run_id"), "run_id")
+    state = trusted_state
+    if state is None:
+        state_path = _registered_translation_state_path(run_dir, run_id)
+        if state_path is None or not state_path.is_file():
+            raise ValueError("legacy translation brief lane context is invalid")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    _validate_legacy_rewrite_translation_context(brief, run_dir, state)
+    normalized = {field: brief[field] for field in TRANSLATION_BRIEF_FIELDS}
+    validate_translation_brief(normalized)
+    return normalized
+
+
+def _load_registered_translation_brief(run_dir: Path) -> dict[str, Any]:
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    if not isinstance(brief, dict):
+        raise ValueError("translation brief must be a JSON object")
+    return _normalize_registered_translation_brief(brief, run_dir)
 
 
 def validate_translation_candidate(brief: dict[str, Any], candidate: dict[str, Any]) -> None:
@@ -935,6 +1019,11 @@ def enqueue_article_translations(
             if not brief_path.is_file():
                 raise ValueError("registered translation run brief is missing")
             existing_brief = json.loads(brief_path.read_text(encoding="utf-8"))
+            existing_brief = _normalize_registered_translation_brief(
+                existing_brief,
+                run_dir,
+                trusted_state=state,
+            )
             current_source = source_loader(repo_root, article_id)
             if existing_brief["articles"][0]["source_sha256"] != source_sha256(current_source):
                 raise ValueError("registered translation run source drift")
@@ -994,7 +1083,11 @@ def enqueue_translation_replacement(
     if not base_brief_path.is_file():
         raise ValueError("translation replacement base brief is missing")
     base_brief = json.loads(base_brief_path.read_text(encoding="utf-8"))
-    validate_translation_brief(base_brief)
+    base_brief = _normalize_registered_translation_brief(
+        base_brief,
+        base_run_dir,
+        trusted_state=terminal_state,
+    )
     if base_brief.get("run_id") != base_run_id:
         raise ValueError("translation replacement base brief identity differs")
     for article in base_brief["articles"]:
@@ -2901,7 +2994,7 @@ def plan_approved_edited_candidate_stage(
         json.loads(path.read_text(encoding="utf-8")) for path in input_paths
     )
 
-    validate_translation_brief(brief)
+    brief = _normalize_registered_translation_brief(brief, run_dir)
     validate_translation_candidate(brief, root_candidate)
     validate_translation_candidate(brief, approved_candidate)
     pipeline.validate_review(root_review, root_candidate["articles"])
@@ -3115,7 +3208,7 @@ def _load_approved_edited_candidate_stage_record(
     review = payload.get("review")
     formal_result = payload.get("formal_review_result")
     formal_job_identity = payload.get("formal_job_identity")
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    brief = _load_registered_translation_brief(run_dir)
     if not all(isinstance(item, dict) for item in (candidate, review, formal_result, formal_job_identity)):
         raise ValueError("approved edited stage payload is invalid")
     validate_translation_candidate(brief, candidate)
@@ -3261,8 +3354,7 @@ def _authorize_next_generation_after_reviewer_reject_unlocked(
         _require_sha256_digest(value, label)
         for value, label in ((expected_source_sha256, "source hash"), (expected_locale_plan_sha256, "locale plan hash"), (expected_source_ref_map_sha256, "source ref map hash"), (expected_terminal_candidate_sha256, "terminal candidate hash"), (expected_terminal_review_sha256, "terminal review hash"), (authority_digest, "authority digest"))
     )
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
-    validate_translation_brief(brief)
+    brief = _load_registered_translation_brief(run_dir)
     expected = dict(run_id=expected_run_id, terminal_generation=terminal_generation, from_status="complete", to_status="active", to_next_generation=terminal_generation + 1, source_sha256=expected_source_sha256, locale_plan_sha256=expected_locale_plan_sha256, source_ref_map_sha256=expected_source_ref_map_sha256, terminal_candidate_sha256=expected_terminal_candidate_sha256, terminal_review_sha256=expected_terminal_review_sha256, authority_digest=authority_digest)
     transition_path = _authority_transition_path(run_dir, terminal_generation)
     if transition_path.is_file():
@@ -3798,8 +3890,7 @@ def _run_fresh_writer_reviewer(
     *,
     max_repairs: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
-    validate_translation_brief(brief)
+    brief = _load_registered_translation_brief(run_dir)
     history: list[list[dict[str, str]]] = []
     findings: list[dict[str, str]] = []
     prior_plan: dict[str, Any] | None = None
@@ -4023,8 +4114,7 @@ def _continue_writer_reviewer_unlocked(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     _validate_semantic_budget(max_repairs)
     _recover_root_result(run_dir)
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
-    validate_translation_brief(brief)
+    brief = _load_registered_translation_brief(run_dir)
     root_candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
     root_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
     validate_translation_candidate(brief, root_candidate)
@@ -4141,7 +4231,7 @@ def review_edited_candidate(
     client: pipeline.GeminiClient,
 ) -> dict[str, Any]:
     """讓母語編輯稿沿用 deterministic gate 與獨立 Reviewer。"""
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    brief = _load_registered_translation_brief(run_dir)
     candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
     validate_translation_candidate(brief, candidate)
     findings = translation_findings(brief, candidate["articles"])
@@ -4263,7 +4353,7 @@ def approve_and_apply_translation_run(
     approver: str,
 ) -> list[Path]:
     """核准 Reviewer 全數通過的 run，並套用至 locale registry。"""
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    brief = _load_registered_translation_brief(run_dir)
     candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
     review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
     validate_translation_candidate(brief, candidate)
