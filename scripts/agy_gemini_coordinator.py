@@ -2929,8 +2929,7 @@ def replace_failed_translation_run_exact(
         brief_path = run_dir / "brief.json"
         if brief_path.is_symlink():
             raise ValueError("translation replacement brief path is not canonical")
-        brief = _brief(run_dir)
-        multilingual.validate_translation_brief(brief)
+        brief = multilingual._normalize_registered_translation_brief(_brief(run_dir), run_dir, trusted_state=state)
         lane = _lane_for_state(state, set())
         identity_brief = {**brief, "lane": lane}
         if (lane not in {"i18n-new", "i18n-rewrite"}

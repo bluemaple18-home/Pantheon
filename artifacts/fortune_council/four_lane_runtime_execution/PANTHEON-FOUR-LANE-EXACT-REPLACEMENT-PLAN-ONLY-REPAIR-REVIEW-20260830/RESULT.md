@@ -1,183 +1,225 @@
-# Pantheon four-lane exact replacement plan-only Repair 第三次 re-review
+# Pantheon exact replacement production-fixture re-review
 
 ## 裁決
 
 `GO`
 
-未發現阻塞問題。第二次 review 的
-`STATE_ABSENT_ORPHAN_REPLACEMENT_RESIDUE` 已關閉；第一次 review 的 consumed-state、
-write-before-drift、routing／identity-envelope與canonical／symlink findings亦全部維持
-GREEN。此GO只接受 bounded code candidate，不授權production、provider、publisher、
-promotion、commit或push。
+未發現阻塞問題。Production five-field fixture gap已在同一coordinator source seam關閉；
+global strict validator、multilingual helper與raw production brief均未修改。先前consumed、
+lock drift、orphan residue、five-bucket、routing／identity-envelope與symlink findings全部
+維持PASS。
+
+本GO只接受clean worktree candidate，不授權commit、push、promotion、production
+replacement、provider、runner或publisher。
+
+## Review authority
+
+本輪只讀：
+
+- worktree：`/private/tmp/pantheon-exact-replacement-f456`
+- HEAD：`d7b09a99bd006544dd703a49f4ce774d32554c66`
+- candidate：D7B加同worktree未提交production-fixture fix
+
+沒有以stale主workspace source判斷candidate。Main workspace只更新本review receipt。
 
 ## Findings
 
 無P0／P1／P2 finding。
 
-## 最新P1 closure
+## Production fixture gap closure
 
-### Orphan attempt、state不存在：CLOSED
+### Trusted-state normalization：PASS
 
-`scripts/agy_gemini_coordinator.py:2964` 現在不依賴replacement state存在才驗directory
-shape：
+`replace_failed_translation_run_exact()`現以：
 
-- replacement directory不存在：允許fresh create。
-- replacement directory為空：允許fresh create。
-- directory只有exact matching `brief.json`：允許partial idempotent completion。
-- directory含`attempts/`、candidate、review或任何其他entry：在plan與execute helper前
-  fail closed。
+```text
+multilingual._normalize_registered_translation_brief(
+    _brief(run_dir),
+    run_dir,
+    trusted_state=state,
+)
+```
 
-獨立重跑四個正式fixture：
+取代raw brief直接進global strict validator。`state`已先通過exact run selector、registry
+digest、canonical run dir與identity integrity；execute又在source run identity lock內重跑
+相同preflight。
 
-- no-state + orphan attempt + plan-only；
-- matching brief + no-state + orphan attempt + plan-only；
-- no-state + orphan attempt + execute；
-- matching brief + no-state + orphan attempt + execute。
+既有normalizer只接受：
 
-四者均return non-zero／structured rejected，`FailIfCalled`證明execute helper=0，且temp
-root全bytes before==after。
+- canonical四欄translation brief；或
+- exact五欄legacy brief，唯一額外欄是`lane=i18n-rewrite`。
 
-### 五個queue bucket：CLOSED
+五欄path還要求trusted state的run ID、canonical run dir、status、lane與identity envelope
+全部一致。錯lane、額外第六欄、state routing drift與envelope drift仍fail closed。Global
+`validate_translation_brief()`保持四欄strict，沒有generic unknown-field stripping。
 
-Exact namespace residue現在逐一掃描：
+### Existing helper authority：PASS
 
-- `outbox`
-- `processing`
-- `inbox`
-- `archive`
-- `failed`
+D7B既有`multilingual.enqueue_translation_replacement()`已獨立對base raw brief呼叫相同
+normalizer，並傳`trusted_state=terminal_state`。Coordinator只修preflight，execute仍只
+呼叫既有helper；沒有修改第二source、helper lifecycle或validator。
 
-五個negative fixture均在plan階段拒絕且bytes不變。Source沒有只掃EN或單一lane；shared
-root與四條lane root都涵蓋。
+### Legacy exact plan-only：PASS
 
-## 全finding regression
+Shared fixture現在預設production 0.3.368五欄shape：
 
-### Consumed／complete／failed existing replacement：PASS
+```text
+schema_version, run_id, mode, lane, articles
+lane=i18n-rewrite
+```
 
-- replacement state存在時必須exact八欄schema、`status=active`與lineage一致。
-- replacement directory必須exactly只有`brief.json`。
-- existing attempt、complete、failed與五種queue residue全部reject。
-- immediate second execute仍只回同一identity的`already_exists`，不重置state、不形成
-  attempts或第二replacement。
+Plan-only同時參數化驗canonical四欄與legacy五欄；兩者均：
 
-### Identity lock與write-before drift：PASS
+- return code 0；
+- exact replacement ID／reason／expected write set正確；
+- enqueue、cycle、runner calls=0；
+- 全temp-root bytes before==after。
 
-- execute先完成read-only plan，再取得source run identity lock。
-- lock內完整重跑registry digest、run/brief、routing、Gen03 budget、source SHA、target
-  path、replacement identity與queue residue。
-- locked receipt drift會在helper前reject。
-- race fixture令第一次read後source registry `failed→active`；第二次lock內read拒絕，
-  replacement brief/state均不存在。
+### Legacy exact execute：PASS
 
-### Routing／identity-envelope：PASS
+Execute positive使用五欄source brief。結果：
 
-- `_active_run_integrity_block()`與existing identity-envelope primitives共同驗證state、brief、
-  mode、lane與article identity。
-- 只接受既有`translate_existing`的`i18n-new`／`i18n-rewrite` authority。
-- routing drift與identity-envelope drift均reject。
-- 沒有EN、locale、article ID或單一lane hardcode。
+- exactly one replacement brief/state；
+- replacement state `active`；
+- replacement brief canonical四欄，沒有`lane`；
+- source raw五欄brief與terminal registry bytes before==after；
+- replacement沒有attempts或matching outbox；
+- immediate second execute回同一identity `already_exists`；
+- second execute後全fixture bytes與first execute後相同；
+- runner/provider/publisher沒有被呼叫。
 
-### Canonical／symlink boundary：PASS
+### Negative authority closure：PASS
 
-- source registry parent、source run／brief、replacement run／brief／state與各parent均有
-  canonical／symlink closure。
-- source run symlink與replacement target symlink負向fixture均reject且bytes不變。
-- 沒有shell、subprocess、command interpolation、secret或network新增。
+Exact suite涵蓋並拒絕：
 
-### Production-shaped Gen03 2/2與isolation：PASS
+- legacy brief wrong lane；
+- unexpected sixth field；
+- state routing drift；
+- identity-envelope drift；
+- source SHA、run ID、run dir與registry digest drift；
+- nonfailed source與second replacement。
 
-Fixture具：
+所有negative case structured rejected且全bytes before==after。
 
-- source state `failed / LocalePlanValidationError`；
-- routing／identity-envelope完整；
-- Gen01與Gen02 Reviewer `REJECT`；
-- Gen03 `PLANNING_CONTRACT_FAILURE / terminal_stage=PLANNING`；
-- attempts exact `01/02/03`，無Gen04；
-- current source SHA匹配；
-- KO、JA、四lane與publisher protected bytes。
+## Prior findings regression
 
-Plan與所有negative case使用全temp-root snapshot證明before==after；execute positive只形成
-replacement brief/state及既有source identity lock使用，不建立attempt、queue job或
-publisher mutation。
+### Consumed／complete／failed replacement：PASS
+
+- attempt residue拒絕；
+- complete／failed existing replacement拒絕；
+- pristine active existing replacement才可idempotently `already_exists`。
+
+### Identity lock／write-before drift：PASS
+
+- execute lock內重跑完整preflight；
+- registry在第一次read後漂移時，第二次locked read於helper前拒絕；
+- replacement brief/state不存在。
+
+### Orphan replacement residue：PASS
+
+- state absent + orphan attempt，plan與execute拒絕；
+- matching brief + state absent + orphan attempt，plan與execute拒絕；
+- execute cases helper=0，bytes stable。
+
+### Five queue buckets：PASS
+
+Matching namespace出現在下列任一bucket均拒絕：
+
+- outbox
+- processing
+- inbox
+- archive
+- failed
+
+Shared root與四lane root都在掃描範圍，沒有EN或單一lane hardcode。
+
+### Canonical／symlink：PASS
+
+Source registry/run/brief與replacement run/brief/state authority維持canonical closure；source
+run symlink與replacement target symlink均fail closed。
+
+### Production-shaped terminal／isolation：PASS
+
+Fixture具Gen01／02 Reviewer REJECT、Gen03
+`PLANNING_CONTRACT_FAILURE / terminal_stage=PLANNING`、attempts exact 01／02／03與無Gen04。
+KO、JA、四lane與publisher protected bytes包含在snapshot中。
 
 ## Spec axis
 
 `PASS`
 
-- FR-001：正式CLI exact selector與required mutually-exclusive plan／execute成立。
-- FR-002：plan-only只讀、canonical stdout plan、identity／lineage／source SHA／write-set
-  完整。
-- FR-003：execute在lock內重驗後只呼叫既有helper；runner/provider/publisher均0，fresh
-  replacement未consume。
-- FR-004：source terminal Gen03 repair 2/2保持，無Gen04；replacement是fresh identity與
-  budget。
-- FR-005：identity drift、second replacement、collision、consumed/pristine drift、queue
-  residue、source drift與race全部fail closed；second execute idempotent。
-- FR-006：automatic cycle仍使用default `allow_existing_replacement=false`，既有exact
-  cycle selector語意未變。
-- FR-007：四lane、KO／JA、publisher protected bytes維持；無外部呼叫。
+- Exact selector、plan／execute互斥、registry digest與run-dir authority成立。
+- Plan-only對canonical與production legacy brief都zero-write。
+- Execute只建立fresh canonical replacement，不consume、不推進semantic generation。
+- Terminal Gen03 repair 2/2、source SHA、lineage與idempotency保持。
+- Wrong legacy context、consumed／orphan／queue／path drift全部fail closed。
+- Automatic cycle default與existing helper semantics未改。
 
 ## Standards axis
 
 `PASS`
 
-- Correctness：原兩個P1與P2、最新orphan P1全部關閉。
-- Regression：automatic seed／lane cycle／exact selector／closed reason與internal helper
-  targeted suites全綠。
-- Security：canonical path、symlink、routing identity與closed selector均fail closed；無
-  command injection、secret或外部I/O新增。
-- Maintainability：唯一coordinator source seam；沒有新增registry、FSM、DB、authority或
-  second helper owner。
-- Testing：positive、negative、idempotency、race、five-bucket、production-shaped budget與
-  protected bytes均有exact fixture。
+- Correctness：production acceptance finding與歷次review findings全關閉。
+- Regression：exact、affected、selector/reason與helper suites全綠。
+- Security：trusted-state normalization保持closed authority；global validator未放寬。
+- Maintainability：唯一coordinator source seam；沒有duplicate loader、registry、FSM、DB或
+  second authority。
+- Testing：canonical與legacy positive、execute canonical output、negative legacy context、
+  bytes isolation與舊findings全部有exact fixture。
 
 ## 獨立驗證
 
+於clean worktree執行：
+
 ```text
 exact replacement positive/negative/idempotency:
-27 passed, 387 deselected
+30 passed, 387 deselected
 
 card affected replacement slice:
-30 passed, 384 deselected
+33 passed, 384 deselected
 
 existing exact selector + closed replacement reason:
-12 passed, 402 deselected
+12 passed, 405 deselected
 
 existing multilingual enqueue helper:
-2 passed, 260 deselected
+2 passed, 276 deselected
 
 py_compile scripts/agy_gemini_coordinator.py:
 PASS
 
-git diff --check (source/test):
+git diff --check (source/test/implementation RESULT):
 PASS
 ```
 
-Full-file既有campaign schema drift與launchd installer hang維持前次獨立分類：current diff
-沒有修改campaign fixture、multilingual coverage validator或installer，既有failure stack
-未進本次exact replacement seam。這兩項不構成本candidate finding，但也不能把未完成的
-full-file suite宣稱為PASS。
+## Allowlist／LOC seal
 
-## Changed-file／LOC seal
+Clean worktree current diff只有：
+
+- `scripts/agy_gemini_coordinator.py`
+- `tests/test_agy_gemini_coordinator.py`
+- `PANTHEON-FOUR-LANE-EXACT-REPLACEMENT-PLAN-ONLY-REPAIR-20260830/RESULT.md`
+
+Repair累計diff相對accepted f456 base，亦等於D7B parent加current fix：
 
 ```text
-120  1  scripts/agy_gemini_coordinator.py
+119  1  scripts/agy_gemini_coordinator.py
 260  0  tests/test_agy_gemini_coordinator.py
 ```
 
-- source exactly 1、test exactly 1，符合allowlist。
-- source/test新增量剛好達120／260 ceiling；刪除量合規。
-- `scripts/agy_multilingual_pipeline.py`、runner、publisher、shared validator diff均為0。
+- source exactly 1、test exactly 1；符合allowlist。
+- source `119/1`低於`120/20` ceiling。
+- test `260/0`等於`260/20` ceiling。
+- multilingual helper、runner、publisher、shared validator diff=0。
 - `second_source_seam=false`。
-- main worktree仍有unrelated tracked／untracked artifacts；後續只能精確stage本卡source、
-  test、implementation RESULT與本review receipt。
 
 ## Remaining risk
 
-- Full coordinator file不是全綠；已知baseline schema drift與installer hang須由其既有scope
-  處置，不能拿本次targeted GO掩蓋。
-- Source/test均已達LOC ceiling；接受前不得再附加功能或擴scope。
-- 本GO不證明production replacement已建立，也不授權後續semantic/provider/publish。
+- Full coordinator file既有campaign schema drift與launchd installer hang仍未被本candidate
+  修復；其stack不進exact replacement seam，不阻塞本bounded GO，但不得宣稱full suite
+  PASS。
+- Test LOC已達ceiling；接受前不得附加其他功能或scope。
+- Production plan-only需在candidate接受、push與新promotion後重新執行；本review沒有用
+  source worktree直接改production actor。
 
 ## Final gate
 
@@ -186,7 +228,10 @@ status: GO
 verdict: GO
 spec_axis: PASS
 standards_axis: PASS
+production_fixture_gap_closed: true
 blocking_findings: 0
+source_files_changed: 1
+test_files_changed: 1
 second_source_seam: false
 production_mutation: 0
 provider_calls: 0
@@ -196,5 +241,5 @@ commit: 0
 push: 0
 ```
 
-Candidate可回主線進行精確allowlist integration。後續production plan／execute、promotion、
-provider與publish仍須由主線依各自正式gate另行裁決。
+Candidate可回主線進行精確allowlist integration。後續promotion與production plan／execute
+仍須由主線依正式authority重新驗收；本GO不直接授權任何production mutation。

@@ -41,11 +41,20 @@ fixture；這些case對review前candidate皆不滿足預期，修訂後一併GRE
 有matching brief兩種orphan shape，各跑plan與execute RED→GREEN；四個case均structured
 reject、全bytes before==after，execute的helper由`FailIfCalled`證明呼叫數為0。
 
+Production plan-only於actor `d7b09a99`再現第三個RED：0.3.368已註冊source brief含exact
+第五欄`lane=i18n-rewrite`，coordinator preflight直接呼叫global strict validator而回
+`translation brief fields are strict`。Isolated production-shape test修前為canonical case
+PASS、legacy caseFAIL；修訂只在coordinator exact preflight沿用既有trusted registry-bound
+`_normalize_registered_translation_brief(..., trusted_state=state)`，未修改helper或raw bytes。
+
 ## GREEN 與 invariant
 
 - plan-only：exact registry digest、run ID、canonical／non-symlink run dir、failed closed
   reason、routing／identity-envelope、base brief identity與每個 current source SHA全部匹配
   才輸出 plan；fixture全 bytes before==after。
+- exact preflight同時覆蓋canonical四欄與production 0.3.368五欄registered brief；legacy
+  view只在digest-locked state的run ID、canonical run dir、failed status、
+  `lane=i18n-rewrite`與identity envelope全匹配時normalize，replacement仍為canonical四欄。
 - execute：只把已驗證 terminal state與closed reason傳給既有 helper；形成固定
   `<source>-replacement-01` brief/state，source terminal bytes不變，沒有 attempts或
   matching outbox，runner/provider/publisher均0。
@@ -61,7 +70,8 @@ reject、全bytes before==after，execute的helper由`FailIfCalled`證明呼叫�
   residue也逐bucket fail closed。
 - fail-closed：missing run、registry digest drift、run-dir drift、brief identity drift、
   source SHA drift、nonfailed state、second replacement、existing lineage collision、
-  routing drift、source／replacement symlink與concurrent registry drift全部structured reject。
+  wrong legacy lane、sixth field、routing／identity-envelope drift、source／replacement symlink與
+  concurrent registry drift全部structured reject。
 - production-shaped fixture具Gen01／02 Reviewer REJECT與Gen03
   `PLANNING_CONTRACT_FAILURE / terminal_stage=PLANNING`，封住repair 2/2與無Gen04；同時保護
   KO、JA、new、rewrite、i18n-new、i18n-rewrite與publisher bytes。
@@ -73,16 +83,16 @@ reject、全bytes before==after，execute的helper由`FailIfCalled`證明呼叫�
 
 ```text
 exact positive/negative/idempotency:
-27 passed, 387 deselected
+30 passed, 387 deselected
 
 card affected translation replacement slice:
-30 passed, 384 deselected
+33 passed, 384 deselected
 
 exact selector + closed reason regression:
-12 passed, 402 deselected
+12 passed, 405 deselected
 
 existing multilingual enqueue helper:
-2 passed, 260 deselected
+2 passed, 276 deselected
 
 py_compile scripts/agy_gemini_coordinator.py:
 PASS
@@ -94,7 +104,7 @@ PASS
 Changed-file／LOC seal：
 
 ```text
-120  1  scripts/agy_gemini_coordinator.py
+119  1  scripts/agy_gemini_coordinator.py
 260  0  tests/test_agy_gemini_coordinator.py
 ```
 

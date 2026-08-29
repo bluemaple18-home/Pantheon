@@ -2881,7 +2881,7 @@ def _exact_translation_replacement_fixture(
     brief = {
         "schema_version": 1,
         "run_id": run_id,
-        "mode": "translate_existing",
+        "mode": "translate_existing", "lane": "i18n-rewrite",
         "articles": [{
             "translation_id": "LEGACY-001:en",
             "locale": "en",
@@ -2930,12 +2930,11 @@ def _exact_translation_replacement_cli(
     return coordinator.main(), json.loads(capsys.readouterr().out)
 
 
-def test_exact_translation_replacement_cli_plan_only_is_zero_write(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+@pytest.mark.parametrize("legacy", [False, True])
+def test_exact_translation_replacement_cli_plan_only_is_zero_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], legacy: bool) -> None:
     repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
+    if not legacy:
+        coordinator.atomic_write_json(run_dir / "brief.json", {key: value for key, value in json.loads((run_dir / "brief.json").read_text()).items() if key != "lane"})
     monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
     monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
     monkeypatch.setattr(coordinator, "cycle_once", lambda *_args, **_kwargs: pytest.fail("cycle invoked"))
@@ -2991,7 +2990,7 @@ def test_exact_translation_replacement_cli_execute_is_idempotent_and_does_not_ad
     assert first["status"] == "replacement_created"
     assert second["status"] == "already_exists"
     assert first["replacement_run_id"] == second["replacement_run_id"] == replacement_id
-    assert replacement_state["status"] == "active"
+    assert (replacement_state["status"], set(json.loads((replacement_dir / "brief.json").read_text()))) == ("active", {"schema_version", "run_id", "mode", "articles"})
     assert replacement_state["replacement_of"] == state["run_id"]
     assert replacement_state["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
     assert not (replacement_dir / "attempts").exists()
@@ -3007,7 +3006,7 @@ def test_exact_translation_replacement_cli_execute_is_idempotent_and_does_not_ad
 @pytest.mark.parametrize(
     "failure",
     [
-        "missing-run", "registry-digest", "run-dir", "brief-identity",
+        "missing-run", "registry-digest", "run-dir", "brief-identity", "brief-lane", "brief-sixth-field",
         "source-drift", "nonfailed", "second-replacement", "replacement-collision", "routing",
         "consumed-attempt", "consumed-queue-outbox", "consumed-queue-processing", "consumed-queue-inbox", "consumed-queue-archive", "consumed-queue-failed", "consumed-complete", "consumed-failed",
         "source-symlink", "replacement-symlink", "identity-envelope", "orphan-attempt-plan", "orphan-brief-attempt-plan", "orphan-attempt-execute", "orphan-brief-attempt-execute",
@@ -3024,9 +3023,10 @@ def test_exact_translation_replacement_cli_rejects_identity_and_lineage_drift_wi
     if failure == "nonfailed":
         state["status"] = "active"
         coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
-    if failure == "brief-identity":
+    if failure.startswith("brief-"):
         brief = json.loads((run_dir / "brief.json").read_text())
-        coordinator.atomic_write_json(run_dir / "brief.json", {**brief, "run_id": "other-run"})
+        drift = {"brief-identity": {"run_id": "other-run"}, "brief-lane": {"lane": "i18n-new"}, "brief-sixth-field": {"unexpected": True}}[failure]
+        coordinator.atomic_write_json(run_dir / "brief.json", {**brief, **drift})
     if failure == "second-replacement":
         state["run_id"] = f"{state['run_id']}-replacement-01"
         run_dir = queue_root / "translation-runs" / str(state["run_id"])
