@@ -354,6 +354,12 @@ def test_plan_is_deterministic_and_zero_write(tmp_path: Path) -> None:
         "COMMITTED",
     ]
     assert first["target_actor_sha"] == identities["new_sha"]
+    assert first["git_tag_policy"] == "DISABLED"
+    assert first["plan_authority"]["git_tag_policy"] == "DISABLED"
+    assert not any(
+        key in first
+        for key in ("tag", "tag_name", "release_tag", "control_tag")
+    )
     assert [item["stage"] for item in first["write_set"]] == [
         "ACTOR_PROMOTED",
         "MANIFEST_WRITTEN",

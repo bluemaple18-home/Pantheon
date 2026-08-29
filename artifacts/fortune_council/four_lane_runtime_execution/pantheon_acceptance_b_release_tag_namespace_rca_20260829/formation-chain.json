@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "verdict": "RELEASE_VERSION_AUTHORITY_SPLIT",
+  "scope": "Gen06 正式 publisher release tag namespace collision",
+  "last_successful_release": {
+    "version": "0.3.372",
+    "commit": "47d7b804f4dbda6491f48141535fc869000421aa",
+    "commit_subject": "chore(content): publish Gemini rewrite release v0.3.372",
+    "tag": "v0.3.372",
+    "tag_object": "ff207a7d807e7c71dd2122ab58531ab8817ebce3",
+    "tag_peeled_commit": "47d7b804f4dbda6491f48141535fc869000421aa",
+    "tag_message": "Pantheon content release v0.3.372",
+    "package_version": "0.3.372",
+    "pyproject_version": "0.3.372",
+    "release_record_gate": "PASS"
+  },
+  "namespace_consumption": {
+    "commit": "295ae1fc246f99f78335c407e974aa33142ef912",
+    "commit_subject": "Add 2ce runtime promotion plan receipt",
+    "commit_scope": "只新增 21 個 gen05 runtime promotion plan／evidence artifacts；未改 package.json、pyproject.toml、CHANGELOG.md",
+    "tag": "v0.3.373",
+    "tag_object": "02996e750989933f5bdea047f64d950f3b3f5d17",
+    "tag_peeled_commit": "295ae1fc246f99f78335c407e974aa33142ef912",
+    "tagger_time": "2026-08-28T08:54:07+08:00",
+    "tag_message": "Pantheon v0.3.373: gen05 runtime promotion plan",
+    "package_version_at_commit": "0.3.372",
+    "pyproject_version_at_commit": "0.3.372",
+    "release_record_interpretation": "FAIL：v0.3.372 未指向 commit 295ae1fc246f99f78335c407e974aa33142ef912",
+    "mechanism": "publisher 之外的人工 annotated tag 使用了正式 release 的 vX.Y.Z namespace，先占用下一個 patch tag，卻未走 release manifest／CHANGELOG 契約"
+  },
+  "publisher_selection": {
+    "base_commit": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+    "base_package_version": "0.3.372",
+    "base_pyproject_version": "0.3.372",
+    "source_authority": "scripts/agy_content_publisher.py::_current_version 只讀 pyproject.toml",
+    "algorithm": "_bump_patch_version 對 pyproject patch + 1，之後才同步寫 package.json",
+    "selected_version": "0.3.373",
+    "selected_tag": "v0.3.373",
+    "missing_input": "既有本機／遠端 refs/tags/vX.Y.Z namespace",
+    "ordering": [
+      "journal.begin",
+      "套用 approved translation",
+      "寫入 0.3.373",
+      "大規模 prerender／feed／CHANGELOG",
+      "release tests",
+      "commit 042e2e52db6aa08170f075c2c38858ea18c721f2",
+      "git tag -a v0.3.373 時才由 Git 拒絕"
+    ]
+  },
+  "failure": {
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "failed_head": "042e2e52db6aa08170f075c2c38858ea18c721f2",
+    "error": "git tag -a v0.3.373 回傳 128",
+    "status": "FAILED_RECOVERED",
+    "repo_recovered": true,
+    "candidate_preserved": true,
+    "new_tag_created": 0,
+    "tag_pushed": 0,
+    "release_commit_pushed": 0,
+    "public_url_claim": 0,
+    "provider_calls": 0,
+    "retry_attempts_after": 2
+  },
+  "post_failure_protected_state": {
+    "actor_head": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+    "actor_clean": true,
+    "queue_state_sha256": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+    "publisher_ledger_sha256": "0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9",
+    "stage_current_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4",
+    "gen07_exists": false
+  },
+  "source_evidence": {
+    "publisher_sha256": "e775e997134b71b0b61e88ee7f4daf77243fd01358bc504cf2ef28958e93221b",
+    "release_record_checker_sha256": "603ba4789aa45b2a9db3dd756a658deb1cabbf903ed706d09244144927d7d135",
+    "failure_attempt_sha256": "9958c8c77e9cb3ea27780ea2629e24682b43118d8fb38ef51e48cd628d5cf0b3",
+    "failure_receipt_sha256": "f037c7aa0727daf045395e23fd892bc73802c12248de534ccfcbd034c6b540ee",
+    "recovered_patch_sha256": "071949336dcd2a5b2f2c251b28f992ca90dedc4948225082d1770aaee40f1111"
+  }
+}

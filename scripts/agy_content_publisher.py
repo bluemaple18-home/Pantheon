@@ -7,6 +7,7 @@ import argparse
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
@@ -118,6 +119,27 @@ RECEIPT_CONTEXT_KEYS = frozenset(
 )
 RECEIPT_CALLER_VERDICT_KEYS = frozenset({"status", "verdict", "ready", "valid"})
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+SEMVER_PATTERN = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+
+@dataclass(frozen=True)
+class ReleaseNamespacePlan:
+    base_version: str
+    selected_version: str
+    selected_tag: str
+    occupied_versions: tuple[str, ...]
+    local_tags: tuple[str, ...]
+    remote_tags: tuple[str, ...]
+
+    def receipt(self) -> dict[str, object]:
+        return {
+            "base_version": self.base_version,
+            "selected_version": self.selected_version,
+            "selected_tag": self.selected_tag,
+            "occupied_versions": list(self.occupied_versions),
+            "local_tags": list(self.local_tags),
+            "remote_tags": list(self.remote_tags),
+        }
 
 
 def _normalize_exact_run_ids(
@@ -526,6 +548,8 @@ def _formal_capability_dry_run_git(
         ["fetch", "origin", "main"],
         ["status", "--porcelain"],
         ["worktree", "prune"],
+        ["for-each-ref", "--format=%(refname:short)", "refs/tags"],
+        ["ls-remote", "--tags", "origin", "refs/tags/v*"],
     ):
         return ""
     if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
@@ -760,10 +784,23 @@ def formal_capability_preflight(
                 called.append(_isolated_transaction_worktree)
                 boundary_result["transaction_mode"] = "injected-git-dry-run"
             else:
+                capability_version = _version_file_value(actor_root)
+                capability_local_tags, capability_remote_tags = _release_tag_snapshot(
+                    actor_root, dry_run_git
+                )
+                capability_namespace_plan = ReleaseNamespacePlan(
+                    base_version=capability_version,
+                    selected_version=capability_version,
+                    selected_tag=f"v{capability_version}",
+                    occupied_versions=(),
+                    local_tags=capability_local_tags,
+                    remote_tags=capability_remote_tags,
+                )
                 commit_sha = _stage_commit_tag_push(
                     actor_root,
-                    "0.0.0",
+                    capability_version,
                     dry_run_git,
+                    namespace_plan=capability_namespace_plan,
                     push=capability == "push",
                     release_gate=False,
                     checked_runner=lambda _repo_root, _args: None,
@@ -3209,17 +3246,111 @@ def summarize_legacy_rewrite_backlog(
     return summary
 
 
-def _current_version(repo_root: Path) -> tuple[int, int, int]:
+def _version_file_value(repo_root: Path) -> str:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     match = re.search(r'^version = "(\d+)\.(\d+)\.(\d+)"$', pyproject, flags=re.MULTILINE)
     if not match:
         raise PublishBlocked("pyproject version is missing")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    pyproject_version = ".".join(match.groups())
+    try:
+        package = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise PublishBlocked("package version is unreadable") from error
+    package_version = package.get("version") if isinstance(package, dict) else None
+    if package_version != pyproject_version:
+        raise PublishBlocked("package and pyproject versions differ")
+    return pyproject_version
 
 
-def _bump_patch_version(repo_root: Path) -> str:
-    major, minor, patch = _current_version(repo_root)
-    version = f"{major}.{minor}.{patch + 1}"
+def _semver_tags(output: str, *, remote: bool) -> tuple[str, ...]:
+    tags: set[str] = set()
+    for line in output.splitlines():
+        value = line.split()[-1] if remote and line.split() else line.strip()
+        if value.startswith("refs/tags/"):
+            value = value.removeprefix("refs/tags/")
+        value = value.removesuffix("^{}")
+        if re.fullmatch(r"v\d+\.\d+\.\d+", value):
+            tags.add(value)
+    return tuple(
+        sorted(
+            tags,
+            key=lambda tag: tuple(int(part) for part in tag[1:].split(".")),
+        )
+    )
+
+
+def _release_tag_snapshot(
+    repo_root: Path, git: GitRunner
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    local_tags = _semver_tags(
+        git(
+            repo_root,
+            ["for-each-ref", "--format=%(refname:short)", "refs/tags"],
+            None,
+        ),
+        remote=False,
+    )
+    remote_tags = _semver_tags(
+        git(
+            repo_root,
+            ["ls-remote", "--tags", "origin", "refs/tags/v*"],
+            None,
+        ),
+        remote=True,
+    )
+    return local_tags, remote_tags
+
+
+def plan_release_namespace(
+    repo_root: Path, git: GitRunner = run_git
+) -> ReleaseNamespacePlan:
+    base_version = _version_file_value(repo_root)
+    match = SEMVER_PATTERN.fullmatch(base_version)
+    if match is None:
+        raise PublishBlocked("release version is invalid")
+    local_tags, remote_tags = _release_tag_snapshot(repo_root, git)
+    occupied_versions = tuple(
+        tag[1:]
+        for tag in sorted(
+            set(local_tags) | set(remote_tags),
+            key=lambda tag: tuple(int(part) for part in tag[1:].split(".")),
+        )
+    )
+    occupied = set(occupied_versions)
+    major, minor, patch = (int(value) for value in match.groups())
+    while True:
+        patch += 1
+        selected_version = f"{major}.{minor}.{patch}"
+        if selected_version not in occupied:
+            break
+    return ReleaseNamespacePlan(
+        base_version=base_version,
+        selected_version=selected_version,
+        selected_tag=f"v{selected_version}",
+        occupied_versions=occupied_versions,
+        local_tags=local_tags,
+        remote_tags=remote_tags,
+    )
+
+
+def _revalidate_release_namespace_plan(
+    repo_root: Path,
+    plan: ReleaseNamespacePlan,
+    git: GitRunner,
+) -> None:
+    if _version_file_value(repo_root) != plan.selected_version:
+        raise PublishBlocked("frozen release version drifted before commit")
+    local_tags, remote_tags = _release_tag_snapshot(repo_root, git)
+    if local_tags != plan.local_tags or remote_tags != plan.remote_tags:
+        raise PublishBlocked("release tag namespace drifted before commit")
+    if plan.selected_tag in set(local_tags) | set(remote_tags):
+        raise PublishBlocked("selected release tag is no longer free")
+
+
+def _bump_patch_version(repo_root: Path, plan: ReleaseNamespacePlan) -> str:
+    if _version_file_value(repo_root) != plan.base_version:
+        raise PublishBlocked("frozen release base version drifted before write")
+    version = plan.selected_version
     pyproject = repo_root / "pyproject.toml"
     package = repo_root / "package.json"
     pyproject.write_text(
@@ -3554,6 +3685,7 @@ def _stage_commit_tag_push(
     version: str,
     git: GitRunner = run_git,
     *,
+    namespace_plan: ReleaseNamespacePlan,
     push: bool,
     release_gate: bool,
     message: str | None = None,
@@ -3564,6 +3696,9 @@ def _stage_commit_tag_push(
     run_ids: list[str] | None = None,
     checked_runner: Callable[[Path, list[str]], None] | None = None,
 ) -> str:
+    if namespace_plan.selected_version != version:
+        raise PublishBlocked("release version differs from frozen namespace plan")
+    _revalidate_release_namespace_plan(repo_root, namespace_plan, git)
     release_plan = release_git_plan(version)
     run_checked = checked_runner or _run_checked
     if push:
@@ -3866,10 +4001,18 @@ def publish_ready_runs(
                 "seeded_translation_runs": recovered_translation_runs,
             }
         run_ids = [str(state["run_id"]) for state, _, _ in ready]
+        namespace_plan = plan_release_namespace(repo_root, git)
         journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.select_runs(run_ids)
         if dry_run:
-            return {"schema_version": SCHEMA_VERSION, "status": "dry-run", "published": 0, "ready_runs": run_ids, "base_sha": base_sha}
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "published": 0,
+                "ready_runs": run_ids,
+                "base_sha": base_sha,
+                "release_plan": namespace_plan.receipt(),
+            }
 
         journal.begin()
         changed: list[str] = []
@@ -3893,7 +4036,9 @@ def publish_ready_runs(
             approved_articles.extend(candidate["articles"])
             cache_token = f"agy-{pipeline._safe_identifier(str(candidate['run_id']))[0]}"
 
-        version = journal.capture(lambda: _bump_patch_version(repo_root))
+        version = journal.capture(
+            lambda: _bump_patch_version(repo_root, namespace_plan)
+        )
         evidence_dir = state_root / "evidence" / f"publish-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
@@ -3931,6 +4076,7 @@ def publish_ready_runs(
             repo_root,
             version,
             git,
+            namespace_plan=namespace_plan,
             push=push,
             release_gate=release_gate,
             outcome_evidence_dir=evidence_dir,
@@ -4053,6 +4199,7 @@ def publish_ready_rewrite_runs(
         run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
         candidates = [candidate for _, candidate, _, _ in ready]
         article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
+        namespace_plan = plan_release_namespace(repo_root, git)
         journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.select_runs(run_ids)
         if dry_run:
@@ -4065,6 +4212,7 @@ def publish_ready_rewrite_runs(
                 "base_sha": base_sha,
                 "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
                 "legacy_rewrite_backlog": backlog_summary,
+                "release_plan": namespace_plan.receipt(),
             }
 
         journal.begin()
@@ -4073,7 +4221,9 @@ def publish_ready_rewrite_runs(
             str(path.relative_to(repo_root))
             for path in journal.capture(lambda: apply_rewrite_release(repo_root, release_id, candidates))
         ]
-        version = journal.capture(lambda: _bump_patch_version(repo_root))
+        version = journal.capture(
+            lambda: _bump_patch_version(repo_root, namespace_plan)
+        )
         evidence_dir = state_root / "evidence" / f"rewrite-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
@@ -4106,6 +4256,7 @@ def publish_ready_rewrite_runs(
             repo_root,
             version,
             git,
+            namespace_plan=namespace_plan,
             push=push,
             release_gate=release_gate,
             message=f"chore(content): publish Gemini rewrite release v{version}",
@@ -4197,6 +4348,7 @@ def publish_ready_translation_runs(
             status = "idle_rejects_only" if ledger["translation_deferred_runs"] else "idle"
             return {"schema_version": SCHEMA_VERSION, "status": status, "translated": 0, "base_sha": base_sha}
         ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        namespace_plan = plan_release_namespace(repo_root, git)
         journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.select_runs(ready_run_ids)
         if dry_run:
@@ -4206,6 +4358,7 @@ def publish_ready_translation_runs(
                 "translated": 0,
                 "ready_runs": ready_run_ids,
                 "base_sha": base_sha,
+                "release_plan": namespace_plan.receipt(),
             }
 
         journal.begin()
@@ -4266,7 +4419,9 @@ def publish_ready_translation_runs(
         run_ids = [item[0] for item in published]
         locales = [item[1] for item in published]
         article_ids = [item[2] for item in published]
-        version = journal.capture(lambda: _bump_patch_version(repo_root))
+        version = journal.capture(
+            lambda: _bump_patch_version(repo_root, namespace_plan)
+        )
         evidence_dir = state_root / "evidence" / f"translation-{version}"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
@@ -4296,6 +4451,7 @@ def publish_ready_translation_runs(
             repo_root,
             version,
             git,
+            namespace_plan=namespace_plan,
             push=push,
             release_gate=release_gate,
             message=f"chore(content): publish multilingual release v{version}",

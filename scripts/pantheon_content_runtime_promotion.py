@@ -34,6 +34,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 PRESERVABLE_RUN_STATUSES = {"active", "complete", "failed"}
 RUN_IDENTITY_SCHEMA_VERSION = 1
+PROMOTION_GIT_TAG_POLICY = "DISABLED"
 
 
 class PromotionError(RuntimeError):
@@ -1079,6 +1080,7 @@ def _plan_authority_payload(
         "preserved_run_ids": list(request.preserved_run_ids),
         "queue_identity_snapshot": queue_identity_snapshot,
         "queue_snapshot_digest": queue_snapshot_digest,
+        "git_tag_policy": PROMOTION_GIT_TAG_POLICY,
     }
 
 
@@ -1171,6 +1173,7 @@ def _plan_payload(request: PromotionRequest) -> dict[str, Any]:
         "preserved_run_ids": list(request.preserved_run_ids),
         "queue_identity_snapshot": queue_identity_snapshot,
         "queue_snapshot_digest": queue_snapshot_digest,
+        "git_tag_policy": PROMOTION_GIT_TAG_POLICY,
         "plan_authority": plan_authority,
     }
     plan["plan_digest"] = _json_digest(plan_authority)

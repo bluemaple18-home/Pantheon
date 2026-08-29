@@ -1823,6 +1823,12 @@ def _sealed_publisher_fixture(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, object], dict[str, object]]:
     fixture = approved_stage_fixture(tmp_path)
+    (fixture["repo_root"] / "pyproject.toml").write_text(
+        '[project]\nversion = "0.3.998"\n', encoding="utf-8"
+    )
+    (fixture["repo_root"] / "package.json").write_text(
+        '{"version":"0.3.998"}\n', encoding="utf-8"
+    )
     plan = publisher.multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
     receipt = publisher.multilingual.apply_approved_edited_candidate_stage(
         **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
@@ -1939,7 +1945,9 @@ def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
     fixture_path = repo_root / "cache-fixture.txt"
     fixture_path.write_text("stable\n", encoding="utf-8")
     monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: "b" * 40)
-    monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo: "0.3.999")
+    monkeypatch.setattr(
+        publisher, "_bump_patch_version", lambda _repo, _plan: "0.3.999"
+    )
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
     monkeypatch.setattr(publisher.pipeline, "_bump_article_cache_queries", lambda _repo, _token: [])
     monkeypatch.setattr(publisher, "_sync_web_test_cache_token", lambda _repo, **_kwargs: fixture_path)
@@ -2010,6 +2018,7 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
     subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(repo_root)], cwd=repo_root, check=True)
     subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
     base_sha = subprocess.run(
@@ -2154,6 +2163,202 @@ def test_publish_ready_runs_applies_approved_candidate_without_push(tmp_path: Pa
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
     assert ledger["published_runs"][0]["translation_seed_status"] == "seeded"
     assert ledger["published_runs"][0]["translation_run_ids"] == ["AUTO-001-en"]
+
+
+def test_translation_release_namespace_is_planned_before_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "auto-i18n-ja-1414b75a404721e95e74"
+    (repo_root / "app/web").mkdir(parents=True)
+    queue_root.mkdir()
+    state_root.mkdir()
+    run_dir.mkdir(parents=True)
+    (repo_root / "pyproject.toml").write_text(
+        '[project]\nversion = "0.3.372"\n', encoding="utf-8"
+    )
+    (repo_root / "package.json").write_text(
+        '{"version":"0.3.372"}\n', encoding="utf-8"
+    )
+    protected = {
+        repo_root / "app/web/article.html": b"public-before\n",
+        queue_root / "run.json": b"queue-before\n",
+        state_root / "ledger.json": b"ledger-before\n",
+        state_root / "retry/translation" / f"{run_dir.name}.json": b"retry-before\n",
+        run_dir / "candidate.json": b"candidate-before\n",
+        run_dir / "review.json": b"review-before\n",
+        run_dir / "stage-seal.json": b"stage-before\n",
+    }
+    for path, body in protected.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+    before = {path: path.read_bytes() for path in protected}
+    run_id = "auto-i18n-ja-1414b75a404721e95e74"
+    state = {"run_id": run_id, "run_dir": str(run_dir)}
+    candidate = {
+        "run_id": run_id,
+        "articles": [
+            {
+                "article_id": "AUTO-001:ja",
+                "source_article_id": "AUTO-001",
+                "locale": "ja",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        publisher,
+        "collect_ready_translation_runs",
+        lambda *_args, **_kwargs: [
+            (state, {"run_id": run_id}, candidate, {"verdict": "APPROVE"})
+        ],
+    )
+    mutation_calls: list[str] = []
+    monkeypatch.setattr(
+        publisher.multilingual,
+        "approve_and_apply_translation_run",
+        lambda *_args, **_kwargs: mutation_calls.append("translation-apply"),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_run_prerender",
+        lambda *_args, **_kwargs: mutation_calls.append("prerender"),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_run_feed",
+        lambda *_args, **_kwargs: mutation_calls.append("feed"),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_run_release_tests",
+        lambda *_args, **_kwargs: mutation_calls.append("release-tests"),
+    )
+    git_calls: list[list[str]] = []
+    journal_begin_calls: list[str] = []
+
+    class DryRunJournal:
+        def select_runs(self, _run_ids: list[str]) -> None:
+            return None
+
+        def begin(self) -> None:
+            journal_begin_calls.append("begin")
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        git_calls.append(args)
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
+            return "1" * 40
+        if args == ["for-each-ref", "--format=%(refname:short)", "refs/tags"]:
+            return "v0.3.373\n"
+        if args == ["ls-remote", "--tags", "origin", "refs/tags/v*"]:
+            return (
+                "295ae1fc246f99f78335c407e974aa33142ef912"
+                "\trefs/tags/v0.3.373\n"
+            )
+        return ""
+
+    results = [
+        publisher.publish_ready_translation_runs(
+            repo_root,
+            queue_root,
+            state_root,
+            dry_run=True,
+            push=False,
+            run_tests=False,
+            release_gate=False,
+            git=fake_git,
+            exact_run_ids=(run_id,),
+            _mutation_journal=DryRunJournal(),
+        )
+        for _ in range(2)
+    ]
+
+    assert results[0]["release_plan"] == results[1]["release_plan"]
+    assert results[0]["release_plan"]["base_version"] == "0.3.372"
+    assert results[0]["release_plan"]["selected_version"] == "0.3.374"
+    assert results[0]["release_plan"]["selected_tag"] == "v0.3.374"
+    assert "0.3.373" in results[0]["release_plan"]["occupied_versions"]
+    assert mutation_calls == []
+    assert journal_begin_calls == []
+    assert not any(
+        args and args[0] in {"add", "commit", "tag", "push"}
+        for args in git_calls
+    )
+    assert {path: path.read_bytes() for path in protected} == before
+
+
+def test_release_namespace_planner_rejects_version_file_drift_before_git_read(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nversion = "0.3.372"\n', encoding="utf-8"
+    )
+    (tmp_path / "package.json").write_text(
+        '{"version":"0.3.371"}\n', encoding="utf-8"
+    )
+    git_calls: list[list[str]] = []
+
+    with pytest.raises(
+        publisher.PublishBlocked, match="package and pyproject versions differ"
+    ):
+        publisher.plan_release_namespace(
+            tmp_path,
+            lambda _repo, args, _input=None: git_calls.append(args) or "",
+        )
+
+    assert git_calls == []
+
+
+def test_release_namespace_drift_blocks_before_commit(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nversion = "0.3.372"\n', encoding="utf-8"
+    )
+    (tmp_path / "package.json").write_text(
+        '{"version":"0.3.372"}\n', encoding="utf-8"
+    )
+    remote_drifted = False
+    git_calls: list[list[str]] = []
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        git_calls.append(args)
+        if args == ["for-each-ref", "--format=%(refname:short)", "refs/tags"]:
+            return "v0.3.373\n"
+        if args == ["ls-remote", "--tags", "origin", "refs/tags/v*"]:
+            suffix = (
+                "2" * 40 + "\trefs/tags/v0.3.374\n"
+                if remote_drifted
+                else ""
+            )
+            return "1" * 40 + "\trefs/tags/v0.3.373\n" + suffix
+        return ""
+
+    plan = publisher.plan_release_namespace(tmp_path, fake_git)
+    assert plan.selected_version == "0.3.374"
+    publisher._bump_patch_version(tmp_path, plan)
+    remote_drifted = True
+    git_calls.clear()
+
+    with pytest.raises(
+        publisher.PublishBlocked, match="release tag namespace drifted"
+    ):
+        publisher._stage_commit_tag_push(
+            tmp_path,
+            plan.selected_version,
+            fake_git,
+            namespace_plan=plan,
+            push=False,
+            release_gate=False,
+        )
+
+    assert not any(
+        args and args[0] in {"add", "commit", "tag", "push"}
+        for args in git_calls
+    )
 
 
 def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4319,7 +4524,27 @@ def test_main_new_only_passes_translation_seed_gate(
     assert json.loads(capsys.readouterr().out)["status"] == "idle"
 
 
-def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pytest.MonkeyPatch) -> None:
+def _release_stage_plan(repo_root: Path, version: str) -> publisher.ReleaseNamespacePlan:
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "pyproject.toml").write_text(
+        f'[project]\nversion = "{version}"\n', encoding="utf-8"
+    )
+    (repo_root / "package.json").write_text(
+        json.dumps({"version": version}) + "\n", encoding="utf-8"
+    )
+    return publisher.ReleaseNamespacePlan(
+        base_version=version,
+        selected_version=version,
+        selected_tag=f"v{version}",
+        occupied_versions=(),
+        local_tags=(),
+        remote_tags=(),
+    )
+
+
+def test_stage_commit_pushes_release_commit_and_tag_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     calls: list[list[str]] = []
     checked: list[list[str]] = []
 
@@ -4330,9 +4555,10 @@ def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pyte
     monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: checked.append(args))
 
     publisher._stage_commit_tag_push(
-        Path("/synthetic/repo"),
+        tmp_path,
         "0.3.59",
         fake_git,
+        namespace_plan=_release_stage_plan(tmp_path, "0.3.59"),
         push=True,
         release_gate=True,
     )
@@ -4350,7 +4576,9 @@ def test_stage_commit_pushes_release_commit_and_tag_atomically(monkeypatch: pyte
     assert calls[-1] == ["push", "--atomic", "origin", "HEAD:main", "v0.3.59"]
 
 
-def test_push_checks_live_canonical_host_before_git_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_push_checks_live_canonical_host_before_git_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     events: list[tuple[str, list[str]]] = []
 
     def fake_checked(_repo_root: Path, args: list[str]) -> None:
@@ -4363,29 +4591,39 @@ def test_push_checks_live_canonical_host_before_git_mutation(monkeypatch: pytest
     monkeypatch.setattr(publisher, "_run_checked", fake_checked)
 
     publisher._stage_commit_tag_push(
-        Path("/synthetic/repo"),
+        tmp_path,
         "0.3.59",
         fake_git,
+        namespace_plan=_release_stage_plan(tmp_path, "0.3.59"),
         push=True,
         release_gate=False,
     )
 
-    assert events[0] == (
+    canonical_check = (
         "check",
         [*publisher.PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"],
     )
-    assert events[1][0] == "git"
+    first_mutation = next(
+        index
+        for index, event in enumerate(events)
+        if event[0] == "git" and event[1][0] in {"add", "commit", "tag", "push"}
+    )
+    assert canonical_check in events
+    assert events.index(canonical_check) < first_mutation
 
 
-def test_local_release_does_not_require_live_canonical_host(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_release_does_not_require_live_canonical_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     checked: list[list[str]] = []
 
     monkeypatch.setattr(publisher, "_run_checked", lambda _repo, args: checked.append(args))
 
     publisher._stage_commit_tag_push(
-        Path("/synthetic/repo"),
+        tmp_path,
         "0.3.59",
         lambda _repo, args, _input=None: "c" * 40 if args == ["rev-parse", "HEAD"] else "",
+        namespace_plan=_release_stage_plan(tmp_path, "0.3.59"),
         push=False,
         release_gate=False,
     )
@@ -4596,6 +4834,7 @@ def test_atomic_push_exception_reconciles_remote_matrix(
     candidate = "c" * 40
     base = "b" * 40
     evidence_dir = tmp_path / "evidence"
+    namespace_plan = _release_stage_plan(tmp_path, "0.3.59")
 
     def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
         if args[:2] == ["push", "--atomic"]:
@@ -4617,6 +4856,7 @@ def test_atomic_push_exception_reconciles_remote_matrix(
                 tmp_path,
                 "0.3.59",
                 fake_git,
+                namespace_plan=namespace_plan,
                 push=True,
                 release_gate=False,
                 outcome_evidence_dir=evidence_dir,
@@ -4627,6 +4867,7 @@ def test_atomic_push_exception_reconciles_remote_matrix(
                 tmp_path,
                 "0.3.59",
                 fake_git,
+                namespace_plan=namespace_plan,
                 push=True,
                 release_gate=False,
                 outcome_evidence_dir=evidence_dir,
@@ -4640,6 +4881,7 @@ def test_atomic_push_exception_reconciles_remote_matrix(
             tmp_path,
             "0.3.59",
             fake_git,
+            namespace_plan=namespace_plan,
             push=True,
             release_gate=False,
             outcome_evidence_dir=evidence_dir,
@@ -4653,6 +4895,7 @@ def test_unresolved_push_record_blocks_next_full_publish_before_clean_origin(
     base = "b" * 40
     state_root = tmp_path / "state"
     evidence_dir = state_root / "evidence" / "publish-0.3.59"
+    namespace_plan = _release_stage_plan(tmp_path, "0.3.59")
 
     def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
         if args[:2] == ["push", "--atomic"]:
@@ -4673,6 +4916,7 @@ def test_unresolved_push_record_blocks_next_full_publish_before_clean_origin(
             tmp_path,
             "0.3.59",
             fake_git,
+            namespace_plan=namespace_plan,
             push=True,
             release_gate=False,
             outcome_evidence_dir=evidence_dir,
@@ -4795,6 +5039,7 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
     subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(repo_root)], cwd=repo_root, check=True)
     subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
     base_sha = subprocess.run(
@@ -4820,7 +5065,9 @@ def test_failed_first_queue_run_is_deferred_and_second_run_remains_publishable(
         return [target]
 
     monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", apply_good)
-    monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo: "0.3.59")
+    monkeypatch.setattr(
+        publisher, "_bump_patch_version", lambda _repo, _plan: "0.3.59"
+    )
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
     monkeypatch.setattr(publisher, "_run_prerender", lambda _repo, **_kwargs: None)
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
@@ -4859,9 +5106,16 @@ def test_recovery_retry_uses_collector_selected_run_and_leaves_third_publishable
     target = repo_root / "app/web/published.txt"
     target.parent.mkdir(parents=True)
     target.write_text("base\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text(
+        '[project]\nversion = "0.3.58"\n', encoding="utf-8"
+    )
+    (repo_root / "package.json").write_text(
+        '{"version":"0.3.58"}\n', encoding="utf-8"
+    )
     subprocess.run(["git", "init", "-q"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.email", "publisher-test@example.invalid"], cwd=repo_root, check=True)
     subprocess.run(["git", "config", "user.name", "Publisher Test"], cwd=repo_root, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(repo_root)], cwd=repo_root, check=True)
     subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
     subprocess.run(["git", "commit", "-qm", "baseline"], cwd=repo_root, check=True)
     base_sha = subprocess.run(

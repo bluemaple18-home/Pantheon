@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "test_id": "test_translation_release_namespace_is_planned_before_mutation",
+  "target_file": "tests/test_agy_content_publisher.py",
+  "public_seam": "publish_ready_translation_runs 的 dry-run／正式執行共用 release namespace preflight",
+  "fixture": {
+    "package_version": "0.3.372",
+    "pyproject_version": "0.3.372",
+    "occupied_local_tag": "v0.3.373 -> 295ae1fc246f99f78335c407e974aa33142ef912",
+    "occupied_remote_tag": "v0.3.373 -> 295ae1fc246f99f78335c407e974aa33142ef912",
+    "exact_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "candidate_state": "complete、Reviewer APPROVE、尚未 publish"
+  },
+  "single_command": ".venv/bin/python -m pytest -q tests/test_agy_content_publisher.py::test_translation_release_namespace_is_planned_before_mutation",
+  "required_assertions": {
+    "namespace_observation": "preflight 在 journal.begin 前辨識 v0.3.373 已占用，並產生 frozen next-version plan；若採自動配置，selected_version 必須是 0.3.374 且 occupied_versions 包含 0.3.373；若採 fail-closed，必須回 RELEASE_TAG_COLLISION 且不得進 mutation",
+    "repeatability": "同 fixture 連跑兩次得到同一 plan／blocker，且不增加 retry receipt",
+    "provider_calls": 0,
+    "approved_translation_apply_calls": 0,
+    "prerender_calls": 0,
+    "feed_calls": 0,
+    "release_test_calls": 0,
+    "commit_calls": 0,
+    "tag_calls": 0,
+    "push_calls": 0,
+    "production_public_bytes_changed": 0,
+    "queue_bytes_changed": 0,
+    "ledger_bytes_changed": 0,
+    "candidate_review_stage_bytes_changed": 0
+  },
+  "red_today": {
+    "status": "RED_CAPABLE_BY_FORMATION_EVIDENCE",
+    "reason": "目前 dry-run 只回 ready_runs／base_sha，不建立 release namespace plan；正式路徑在 journal.begin、translation apply、prerender、tests、commit 之後才執行 git tag，因此無法滿足任何 early-boundary assertion",
+    "already_observed_exact_failure": "正式 run 已實際在 v0.3.373 tag 建立時回傳 128；不是推測 fixture",
+    "not_rerun_reason": "RCA 卡明確禁止再次執行 publisher；本卡不以第二次 production 或 synthetic publisher execution製造證據"
+  },
+  "green_contract": {
+    "planning_boundary": "ready selection 後、journal.begin 前",
+    "version_authority": "對齊的 package／pyproject 版本加上 fresh local／remote immutable vX.Y.Z tag set",
+    "frozen_plan": "同一 transaction 後續 bump、CHANGELOG、commit、tag、atomic push 全部使用同一 selected_version",
+    "pre_commit_revalidation": "commit 前重驗 selected tag 仍未被其他 writer 占用；競態仍由 atomic push fail-closed"
+  }
+}
