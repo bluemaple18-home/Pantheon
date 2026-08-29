@@ -1,0 +1,82 @@
+{
+  "baseline": {
+    "failure_count": 8,
+    "failure_nodes": [
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work"
+    ],
+    "normalized_error_digest_by_node": {
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing": "9890c84c96203b6c2dce73aa528e5f89100a2d45ec9038970ed43744133be2f8",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work": "9890c84c96203b6c2dce73aa528e5f89100a2d45ec9038970ed43744133be2f8"
+    },
+    "normalized_output_sha256": "8a53bffb30f9913f83e6ea48682ad96ccb3eacaf7bb5b5ba65f59515603490c6",
+    "passed_count": 442,
+    "returncode": 1,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "71343d4771840154eb91231a50f254e7c41754e2c4af80fcc5ac7e559f7fc0aa"
+  },
+  "candidate": {
+    "failure_count": 8,
+    "failure_nodes": [
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work"
+    ],
+    "normalized_error_digest_by_node": {
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain": "59118b396e0c17800a02d570e49bc75ce6d1bcaaf391db852223dc67bea8c6c9",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing": "9890c84c96203b6c2dce73aa528e5f89100a2d45ec9038970ed43744133be2f8",
+      "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work": "9890c84c96203b6c2dce73aa528e5f89100a2d45ec9038970ed43744133be2f8"
+    },
+    "normalized_output_sha256": "c62420e4ef86cc009e593d8cee94517cb83398af4687b4c13b1689fcbf8e67ab",
+    "passed_count": 442,
+    "returncode": 1,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "7fee4901a9af4071eb4a73b2ed9f40d9720efddcdaca5b42cdd9aea56fee8a4c"
+  },
+  "command": [
+    "/Users/mattkuo/.codex/worktrees/a018/Pantheon/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_agy_gemini_coordinator.py",
+    "tests/test_agy_gemini_coordinator_capability_receipt.py",
+    "tests/test_pantheon_g8_production_preactivation.py",
+    "tests/test_pantheon_runtime_activation.py"
+  ],
+  "command_sha256": "1dc2e990d89de20bcd82d5f9f7e6c6a68182695073c6d4bc7f91cca60f3559e0",
+  "environment_contract": {
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "PYTEST_ADDOPTS": null,
+    "PYTHONHASHSEED": null,
+    "TZ": null
+  },
+  "environment_contract_sha256": "650bdc1ba45db6a0bc8bbc729713b12f06be6372affeb4415d14ce55b16b7bce",
+  "identical": true,
+  "parent_sha": "779fb96434c15013d82833788a6795119730daad",
+  "production_live_mutations": 0,
+  "schema_version": 1,
+  "status": "BASELINE_IDENTICAL"
+}

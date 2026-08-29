@@ -1,0 +1,23 @@
+{
+  "allowlist_only": true,
+  "changed_loc": {
+    "additions": 115,
+    "deletions": 13,
+    "total": 128,
+    "upper_bound": 220
+  },
+  "forbidden_private_pattern_remaining": 0,
+  "identity_whitelist_added": 0,
+  "new_authority_ledger": 0,
+  "new_database": 0,
+  "new_fsm": 0,
+  "new_identity_parser": 0,
+  "new_migration": 0,
+  "production_mutations": 0,
+  "provider_calls": 0,
+  "publisher_calls": 0,
+  "reviewer_calls": 0,
+  "runtime_manifest_source_diff_from_parent": 0,
+  "source_files_changed": 1,
+  "test_files_changed": 2
+}

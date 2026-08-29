@@ -415,8 +415,7 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
     launchctl = fake_bin / "launchctl"
     launchctl.write_text(
         "#!/bin/sh\n"
-        "if [ \"$1\" = \"print\" ]; then "
-        "printf '%s = {\\n\\tstate = not running\\n}\\n' \"$2\"; exit 0; fi\n"
+        "if [ \"$1\" = \"print\" ]; then exit 113; fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
         "exit 0\n",
         encoding="utf-8",
@@ -668,6 +667,7 @@ def _write_activation_only_live_plists(
         "PANTHEON_RUNTIME_QUEUE_ROOT": "queue_root",
         "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "publisher_state_root",
         "PANTHEON_RUNTIME_LOG_ROOT": "log_root",
+        "PANTHEON_RUNTIME_ACTOR_HEAD": "actor_head",
         "PANTHEON_RUNTIME_PYTHON_EXECUTABLE": "python_executable",
         "PANTHEON_RUNTIME_UV_EXECUTABLE": "uv_executable",
     }
@@ -701,7 +701,9 @@ def _write_activation_only_live_plists(
             "WorkingDirectory": receipt["actor_root"],
             "RunAtLoad": True,
             "EnvironmentVariables": {
-                name: receipt[field] for name, field in environment_fields.items()
+                name: receipt[field]
+                for name, field in environment_fields.items()
+                if field in receipt
             },
         }
         path = launch_agents / f"{label}.plist"
@@ -830,6 +832,8 @@ def _capacity_transition_installer_env(
     tmp_path: Path,
     *,
     config_version: str = "formal-runtime-v2-gate2",
+    identity_suffix: str = "activation-only",
+    include_actor_head: bool = False,
 ) -> tuple[dict[str, str], Path, Path, dict[str, object], Path]:
     repo = Path(__file__).resolve().parents[1]
     fake_bin = tmp_path / "bin"
@@ -852,12 +856,13 @@ def _capacity_transition_installer_env(
         queue_root=queue_root,
         publisher_state_root=publisher_root,
         log_root=log_root,
-        identity=f"gate2-actor:{actor_head}:activation-only",
+        identity=f"gate2-actor:{actor_head}:{identity_suffix}",
         runtime_digest="c" * 64,
         config_version=config_version,
         generation="g2-capacity-transition",
         python_executable=python,
         uv_executable=python,
+        actor_head=actor_head if include_actor_head else None,
     )
     manifest_path = tmp_path / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -910,12 +915,17 @@ def _capacity_transition_installer_env(
 
 def _g5_capacity_transition_fixture(
     tmp_path: Path,
+    *,
+    identity_suffix: str = "activation-only",
+    include_actor_head: bool = False,
 ) -> tuple[Path, dict[str, str], Path, Path, dict[str, object], Path]:
     repo = Path(__file__).resolve().parents[1]
     env, fake_home, mutation_log, manifest, manifest_path = (
         _capacity_transition_installer_env(
             tmp_path,
             config_version="formal-runtime-v3-model-route-v1",
+            identity_suffix=identity_suffix,
+            include_actor_head=include_actor_head,
         )
     )
     python = Path(sys.executable).resolve(strict=True)
@@ -1110,6 +1120,55 @@ def test_capacity_installer_recovery_stages_after_guard_stopped_normal_services(
         launch_agents
         / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
     ).is_file()
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_recovery_accepts_operation_identity_with_actor_head(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(
+            tmp_path,
+            identity_suffix="new-lane-current-acceptance-20260829",
+            include_actor_head=True,
+        )
+    )
+    fake_git = tmp_path / "bin" / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        f"case \"$*\" in\n"
+        f"  *'rev-parse --show-toplevel') printf '%s\\n' '{repo}' ;;\n"
+        f"  *'rev-parse HEAD') printf '%s\\n' '{_manifest['actor_head']}' ;;\n"
+        "  *'status --porcelain') exit 0 ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o700)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=guard.SERVICE_LABELS,
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert '"recovery_from_normal_stopped": true' in completed.stdout
     assert not mutation_log.exists()
 
 
@@ -1909,6 +1968,14 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         "_disk_sample",
         lambda _path: (200 * guard.GIB, 100 * guard.GIB),
     )
+    activation_labels = {
+        "value": frozenset({"com.pantheon.agy-content-publisher"})
+    }
+    monkeypatch.setattr(
+        guard,
+        "_activation_only_service_labels",
+        lambda _receipt: activation_labels["value"],
+    )
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
         if command[:2] == ["launchctl", "print"]:
@@ -1980,6 +2047,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         )
 
     identity["value"] = f"gate2-actor:{'a' * 40}:normal"
+    activation_labels["value"] = frozenset()
     launch_output["build"] = exact_fixture
     normal = guard.preflight(
         tmp_path,
@@ -2159,6 +2227,22 @@ def test_normal_scheduled_service_persistent_pid_gap_fails_closed(
     assert result["available"] is False
     assert result["error"] == f"loaded_service_pid_missing:{label}"
     assert calls == (1 if last_exit_code else guard.SERVICE_TRANSITION_RECHECKS + 1)
+
+
+def test_activation_only_service_labels_does_not_infer_mode_from_opaque_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PANTHEON_USER_HOME_DIR", str(tmp_path / "missing-home"))
+
+    labels = guard._activation_only_service_labels(
+        {
+            "status": "PASS",
+            "identity": f"gate2-actor:{'a' * 40}:activation-only",
+        }
+    )
+
+    assert labels == frozenset()
 
 
 @pytest.mark.parametrize(

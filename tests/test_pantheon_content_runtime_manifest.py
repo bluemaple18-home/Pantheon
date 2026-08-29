@@ -93,6 +93,32 @@ def test_manifest_actor_head_must_match_clean_actor_git_head(tmp_path: Path) -> 
         runtime.load_manifest(manifest_path, manifest["manifest_digest"])
 
 
+@pytest.mark.parametrize("identity", ["g8-live", "g8-staged"])
+def test_manifest_accepts_opaque_identity_with_separate_actor_head(
+    tmp_path: Path, identity: str
+) -> None:
+    actor, head = _git_actor_repo(tmp_path)
+    roots = [tmp_path / name for name in ("queue", "state", "logs")]
+    for root in roots:
+        root.mkdir()
+
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=roots[0],
+        publisher_state_root=roots[1],
+        log_root=roots[2],
+        identity=identity,
+        actor_head=head,
+    )
+    manifest_path = tmp_path / f"{identity}.json"
+    runtime.write_manifest(manifest_path, manifest)
+
+    loaded = runtime.load_manifest(manifest_path, manifest["manifest_digest"])
+
+    assert loaded["identity"] == identity
+    assert loaded["actor_head"] == head
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

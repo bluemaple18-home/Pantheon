@@ -1,0 +1,20 @@
+{
+  "actor_head_present": true,
+  "double_run": [
+    {
+      "result": "1 passed",
+      "returncode": 0
+    },
+    {
+      "result": "1 passed",
+      "returncode": 0
+    }
+  ],
+  "identity": "gate2-actor:<HEAD>:new-lane-current-acceptance-20260829",
+  "phase": "GREEN",
+  "revision": "DESIGN_GO_MINIMUM",
+  "source_test_diff_sha256": "f754f483762b271275aff113947cff0731cbdb05dbcf0441315652dcae7ca553",
+  "production_mutations": 0,
+  "service_mode": "install-recovery-stage",
+  "stage_topology": "exact coordinator/publisher six-stage production shape"
+}

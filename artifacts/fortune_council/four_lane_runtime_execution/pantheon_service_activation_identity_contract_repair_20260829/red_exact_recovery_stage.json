@@ -1,0 +1,11 @@
+{
+  "actor_head_present": true,
+  "command": ".venv/bin/python -m pytest -q tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_recovery_accepts_operation_identity_with_actor_head",
+  "expected": "PASS",
+  "identity": "gate2-actor:<HEAD>:new-lane-current-acceptance-20260829",
+  "observed_error": "preactivation manifest mismatch",
+  "phase": "RED",
+  "production_mutations": 0,
+  "returncode": 1,
+  "service_mode": "install-recovery-stage"
+}

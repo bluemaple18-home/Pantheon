@@ -43,9 +43,6 @@ SERVICE_LABELS = (
     "com.pantheon.agy-gemini-i18n-rewrite",
 )
 CAPACITY_GUARD_LABEL = "com.pantheon.content-capacity-guard"
-ACTIVATION_ONLY_IDENTITY_PATTERN = re.compile(
-    r"gate2-actor:[0-9a-f]{40}:activation-only"
-)
 ACTIVATION_CORRELATION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 PUBLISHER_RESET_RECEIPT_NAME = "publisher-reset-receipt.json"
 PUBLISHER_RESET_RECEIPT_SCHEMA_VERSION = 1
@@ -142,9 +139,6 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
 def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozenset[str]:
     if runtime_receipt.get("status") != "PASS":
         return frozenset()
-    identity_is_activation_only = ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
-        str(runtime_receipt.get("identity", ""))
-    ) is not None
     try:
         home = Path(
             os.environ.get("PANTHEON_USER_HOME_DIR")
@@ -162,7 +156,7 @@ def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozense
             ):
                 return frozenset()
     except OSError:
-        return frozenset(SERVICE_LABELS) if identity_is_activation_only else frozenset()
+        return frozenset()
     except plistlib.InvalidFileException:
         return frozenset()
     return frozenset(SERVICE_LABELS)
@@ -1039,8 +1033,6 @@ def validate_preactivation_transition(
     if not isinstance(receipt, dict) or receipt.get("status") != "PASS":
         raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
-    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", ""))) is None:
-        raise formal_runtime.RuntimeManifestError("preactivation manifest mismatch")
     formal_runtime.validate_barrier(barrier, manifest)
     launch_agents = launch_agents_dir.resolve(strict=True)
     stage_dir = launch_agents / ".pantheon-four-lane-stage"

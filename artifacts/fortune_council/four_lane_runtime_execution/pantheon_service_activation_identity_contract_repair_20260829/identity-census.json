@@ -1,0 +1,990 @@
+{
+  "accepted_parent": "779fb96434c15013d82833788a6795119730daad",
+  "committed_manifest_census": {
+    "actor_head_absent_count": 2,
+    "actor_head_present_count": 3,
+    "count": 5,
+    "records": [
+      {
+        "actor_head": "28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1",
+        "actor_head_present": true,
+        "bytes": 1161,
+        "identity": "gate2-actor:28b8b84b6dfa319d8151aac3bc1a6a819ae82aa1:activation-only",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": "c57a95aa72d8e01c676e50a9a54156da04ef1f9c3b4c86fa788819200df586a2",
+        "path": "artifacts/fortune_council/content_writer_vnext_execution/apf_004_canary/publisher_launchagent_identity_repair_20260815/formal-runtime-manifest.json",
+        "runtime_identity_digest": "48c118d586b4ee17fda23059a2b524bbdfe040dca95faa39345ea8f98e0301c7",
+        "sha256": "70c2a0e2b95d5666c1d89f9561c3332a82802b6313e9ffe1d04ed83c2be43958"
+      },
+      {
+        "actor_head": null,
+        "actor_head_present": false,
+        "bytes": 1590,
+        "identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+        "identity_contains_actor_head": false,
+        "identity_shape": "parent:<sha>;tree:<sha256>",
+        "manifest_digest": "b23c334a51f185b0c9aff097ef8552aeb283fcc25d4ae8a08c38fb4fd7103355",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-negative-publish/runtime-manifest.json",
+        "runtime_identity_digest": "713bf80452f8448df9edd51626e36ed51d425a0524fe2b14c14b68dca0e18174",
+        "sha256": "f815b224feb50315dfac0de63617d00c86a8f04294de13098e7c1d31d1a0ef41"
+      },
+      {
+        "actor_head": null,
+        "actor_head_present": false,
+        "bytes": 1566,
+        "identity": "parent:f31ef017170c69543528708fd1314dc87ff7528a;tree:e63f8e1ed6f26620265d10bfe62c6b2ec96cf9d093a9131a3fbaf7d3179a721b",
+        "identity_contains_actor_head": false,
+        "identity_shape": "parent:<sha>;tree:<sha256>",
+        "manifest_digest": "128160f9b9f98021310c10395b740ee72cb5c57a1ea449287871b3b418814d0f",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/evidence/formal_runtime_chain_001/capability-positive/runtime-manifest.json",
+        "runtime_identity_digest": "83a09af277de6e3bce36d0dbebbc0255021a046de24b7c704d77a6e201fc4fa2",
+        "sha256": "5e24a8186eeb729f0d06c3defc0d1e22dd3861d433b9b65ceb1a0506e23f89ff"
+      },
+      {
+        "actor_head": "db9fb4343df212fd3b65546b017aba159620a058",
+        "actor_head_present": true,
+        "bytes": 1428,
+        "identity": "gate2-actor:db9fb4343df212fd3b65546b017aba159620a058:activation-only",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": "d067358d4d6228483484cdd984f25963ccbe131e8250e4a131ea10a6e6d6e08e",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/raw-current/runtime/runtime-manifest.json",
+        "runtime_identity_digest": "1f6395163f34817a1dd5c36cba33a735cf3319a6c26ff9c811aa84bd6df596f9",
+        "sha256": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23"
+      },
+      {
+        "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+        "actor_head_present": true,
+        "bytes": 1811,
+        "identity": "gate2-actor:831c536043d85a6cafe813c08a4f06921f0dd0e2:gen06-ja-formal-rereview-20260828",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": "51e258f30de159499f89a7a39db21688c8134d10d897c8b8988f5d8d38e427e4",
+        "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_ja_formal_rereview_20260828/isolated-formal-runtime/runtime-manifest.json",
+        "runtime_identity_digest": "ee3925bcc3c770ca18a1a8639a70eaf95b746dd1fc0b67df4626e87a33655512",
+        "sha256": "c745b23a4c95370e025f087be68186193c0ef51b5f551383e5d11822ae9792cd"
+      }
+    ],
+    "shape_counts": {
+      "gate2-actor:<sha>:<opaque-correlation>": 3,
+      "parent:<sha>;tree:<sha256>": 2
+    },
+    "total_bytes": 7556
+  },
+  "consumer_semantics": {
+    "capacity_parent_semantic_identity_consumers": [
+      "ACTIVATION_ONLY_IDENTITY_PATTERN transition rejection",
+      "ACTIVATION_ONLY_IDENTITY_PATTERN mode fallback when live plists unavailable"
+    ],
+    "non_capacity_consumers_deriving_actor_from_identity": 0,
+    "non_capacity_consumers_deriving_mode_from_identity": 0,
+    "other_consumers": "exact tuple/digest comparison or identity propagation only"
+  },
+  "digest_authority": {
+    "identity_and_actor_head_bound_together_when_actor_head_present": true,
+    "load_manifest_validates_actor_head_against_actor_root": true,
+    "manifest_digest_binds_entire_payload": true,
+    "runtime_identity_digest_fields": [
+      "schema_version",
+      "identity",
+      "runtime_digest",
+      "config_version",
+      "generation",
+      "path fields",
+      "actor_head when present",
+      "python_executable when present",
+      "uv_executable when present"
+    ]
+  },
+  "durable_invariant_verdict": {
+    "actor_authority": "separate actor_head plus manifest/runtime identity digests",
+    "identity_contract": "nonempty trimmed opaque correlation",
+    "identity_must_embed_actor_sha": false,
+    "minimum_repair": "withdraw shared parser additions; capacity stops private suffix parsing while preserving existing load_manifest actor_head/digest and barrier/stage/live checks",
+    "mode_authority": "explicit arguments and plist/stage topology",
+    "original_actor_prefix_frontier": "OVERREACH"
+  },
+  "formal_call_sites": {
+    "build_manifest": [
+      {
+        "line": 1214,
+        "path": "scripts/install_agy_gemini_coordinator_launchd.sh"
+      },
+      {
+        "line": 143,
+        "path": "scripts/pantheon_content_actor_recovery.py"
+      },
+      {
+        "line": 116,
+        "path": "scripts/pantheon_content_capability_probe.py"
+      },
+      {
+        "line": 999,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1043,
+        "path": "scripts/pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 339,
+        "path": "scripts/prepare_pantheon_canary_actor.py"
+      }
+    ],
+    "build_manifest_count": 6,
+    "build_manifest_digest": "ac0d1e69e981a7298e999c594c5c39a35af0f435fe390aa3a5a040825bafa23e",
+    "load_manifest": [
+      {
+        "line": 4705,
+        "path": "scripts/agy_content_publisher.py"
+      },
+      {
+        "line": 562,
+        "path": "scripts/agy_gemini_runner.py"
+      },
+      {
+        "line": 93,
+        "path": "scripts/pantheon_content_capability_adapter.py"
+      },
+      {
+        "line": 178,
+        "path": "scripts/pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 355,
+        "path": "scripts/pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 1041,
+        "path": "scripts/pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 582,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 905,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 928,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 950,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1025,
+        "path": "scripts/pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1133,
+        "path": "scripts/pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 1317,
+        "path": "scripts/pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 765,
+        "path": "scripts/pantheon_g8_production_preactivation.py"
+      }
+    ],
+    "load_manifest_count": 14,
+    "load_manifest_digest": "6c9232f3907c8cc8aea828bb60184d6694484e008e64b4db67d69aec67485fc1"
+  },
+  "mutation_receipt": {
+    "external_calls": 0,
+    "production_live_mutations": 0,
+    "source_changes_in_this_followup": 0,
+    "test_changes_in_this_followup": 0
+  },
+  "producer_schemas": [
+    {
+      "actor_head": "separate optional --actor-head",
+      "identity_owner": "caller --identity",
+      "producer": "runtime-manifest CLI"
+    },
+    {
+      "actor_head": "separate source_sha",
+      "identity_owner": "caller authorization target_identity",
+      "producer": "runtime promotion"
+    },
+    {
+      "actor_head": "copied separate optional common actor_head",
+      "identity_owner": "copied common manifest identity",
+      "producer": "coordinator installer"
+    },
+    {
+      "actor_head": "separate source_sha",
+      "identity_owner": "actor-recovery:<source_sha>:<runtime_digest>",
+      "producer": "actor recovery"
+    },
+    {
+      "actor_head": "separate actor_sha",
+      "identity_owner": "canary-actor:<actor_sha>:<run_id>",
+      "producer": "canary actor"
+    },
+    {
+      "actor_head": "absent",
+      "identity_owner": "parent:<sha>;tree:<sha256>",
+      "producer": "capability probe"
+    }
+  ],
+  "production_history": {
+    "lineage": [
+      {
+        "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+        "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+        "name": "last_good",
+        "promotion_state": "COMMITTED"
+      },
+      {
+        "actor_head": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+        "identity": "gate2-actor:8a50395f67d22343fec4b0a8a5f41c8f40ac360e:gen05-dangling-registry-guard-release-20260828",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": null,
+        "name": "first_bad_operational_manifest",
+        "promotion_state": "COMMITTED"
+      },
+      {
+        "actor_head": "779fb96434c15013d82833788a6795119730daad",
+        "identity": "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829",
+        "identity_contains_actor_head": true,
+        "identity_shape": "gate2-actor:<sha>:<opaque-correlation>",
+        "manifest_digest": null,
+        "name": "current",
+        "promotion_state": "COMMITTED"
+      }
+    ],
+    "lineage_count": 3,
+    "live_plist_count": 7,
+    "live_plist_sha256": [
+      "5b5d4ac37991a98ef8da8430e06e96037f1627e693347f7c3f1d39241298876c",
+      "90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712",
+      "373b8162c967e4bd368a5971ea238ab850b0b7b02b5b2ff79c5098041bafe530",
+      "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc",
+      "5aa0ebeb148bbe792f79b951bb5358893ffc9c6879d33433b0479a296c12a88b",
+      "4acf50b23652565d3f4aebd18c393e40e371436eb1a898e1833687c70733fefd",
+      "e0ba76e9df2124cb0d93d5ccd01ab5b460f20ef3810d2abf412f8e9d70df3c49"
+    ],
+    "live_plist_total_bytes": 36135,
+    "observation": "three located production identities embed actor SHA, but do not override the broader producer contract and committed schema plurality"
+  },
+  "schema_version": 1,
+  "status": "DESIGN_CORRECTION_EVIDENCE_READY",
+  "test_census": {
+    "accepted_parent_build_manifest_call_count": 49,
+    "accepted_parent_build_manifest_calls": [
+      {
+        "line": 61,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 3791,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 3985,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 1376,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 7334,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 9147,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11238,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11369,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 90,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 176,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 261,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 420,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 149,
+        "path": "tests/test_pantheon_content_capability_probe.py"
+      },
+      {
+        "line": 193,
+        "path": "tests/test_pantheon_content_capability_probe.py"
+      },
+      {
+        "line": 110,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 395,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 503,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 588,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 850,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 922,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 1164,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 1280,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 2187,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 53,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 73,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 116,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 164,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 202,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 248,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 442,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 450,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 519,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 526,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 608,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 839,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 871,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 906,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 978,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1093,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1171,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1242,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1302,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1359,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1421,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 279,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 660,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 125,
+        "path": "tests/test_pantheon_g8_production_preactivation.py"
+      },
+      {
+        "line": 135,
+        "path": "tests/test_pantheon_g8_production_preactivation.py"
+      },
+      {
+        "line": 34,
+        "path": "tests/test_pantheon_runtime_activation.py"
+      }
+    ],
+    "accepted_parent_build_manifest_calls_digest": "bcff6a293391ec82248a13761f106a1d30de141191c7dad4d94f4613219da472",
+    "accepted_parent_load_manifest_call_count": 31,
+    "accepted_parent_load_manifest_calls": [
+      {
+        "line": 7396,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 7657,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8149,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8236,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8361,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8460,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8557,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8675,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10035,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10138,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10246,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10409,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10546,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10668,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10801,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10929,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11039,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11121,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11237,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11368,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11750,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11898,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 85,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 93,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 147,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 175,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 181,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 213,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 219,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 498,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 87,
+        "path": "tests/test_prepare_pantheon_canary_actor.py"
+      }
+    ],
+    "accepted_parent_load_manifest_calls_digest": "6c8f5a8007e924046562b8404f5349d7c59e191153b87fcaae364517985b8000",
+    "baseline_failed": 8,
+    "baseline_passed": 442,
+    "candidate_build_manifest_call_count": 50,
+    "candidate_build_manifest_calls": [
+      {
+        "line": 61,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 3791,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 3985,
+        "path": "tests/test_agy_content_publisher.py"
+      },
+      {
+        "line": 1376,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 7334,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 9147,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11238,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11369,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 90,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 176,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 261,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 420,
+        "path": "tests/test_agy_gemini_runner.py"
+      },
+      {
+        "line": 149,
+        "path": "tests/test_pantheon_content_capability_probe.py"
+      },
+      {
+        "line": 193,
+        "path": "tests/test_pantheon_content_capability_probe.py"
+      },
+      {
+        "line": 110,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 395,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 502,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 587,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 854,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 932,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 1223,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 1339,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 2255,
+        "path": "tests/test_pantheon_content_capacity_guard.py"
+      },
+      {
+        "line": 53,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 73,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 115,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 145,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 193,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 231,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 277,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 471,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 479,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 548,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 555,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 637,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 868,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 900,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 935,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1007,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1122,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1200,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1271,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1331,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1388,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 1450,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 279,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 660,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 125,
+        "path": "tests/test_pantheon_g8_production_preactivation.py"
+      },
+      {
+        "line": 135,
+        "path": "tests/test_pantheon_g8_production_preactivation.py"
+      },
+      {
+        "line": 34,
+        "path": "tests/test_pantheon_runtime_activation.py"
+      }
+    ],
+    "candidate_build_manifest_calls_digest": "689e25b36c413ff3ec4c9787101f39296f797be66b78c90cf1e3af62132d1ec1",
+    "candidate_failed": 44,
+    "candidate_load_manifest_call_count": 31,
+    "candidate_load_manifest_calls": [
+      {
+        "line": 7396,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 7657,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8149,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8236,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8361,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8460,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8557,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 8675,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10035,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10138,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10246,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10409,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10546,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10668,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10801,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 10929,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11039,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11121,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11237,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11368,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11750,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 11898,
+        "path": "tests/test_agy_gemini_coordinator.py"
+      },
+      {
+        "line": 85,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 93,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 176,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 204,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 210,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 242,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 248,
+        "path": "tests/test_pantheon_content_runtime_manifest.py"
+      },
+      {
+        "line": 498,
+        "path": "tests/test_pantheon_content_runtime_promotion.py"
+      },
+      {
+        "line": 87,
+        "path": "tests/test_prepare_pantheon_canary_actor.py"
+      }
+    ],
+    "candidate_load_manifest_calls_digest": "437666aaf7782bf89b02a1232ac70752b29292f0b8c2cf7ded3d45e19d70e8a4",
+    "candidate_passed": 406,
+    "new_regression_common_cause": "shared actor-prefix parser rejects accepted opaque g8-live/g8-staged identities whose actor_head is a separate field",
+    "new_regression_count": 36,
+    "new_regression_nodes": [
+      "tests/test_pantheon_g8_production_preactivation.py::test_actor_manifest_mismatch_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_rejects_protected_evidence_paths_without_side_effect[manifest_exact-<lambda>-<lambda>]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_rejects_protected_evidence_paths_without_side_effect[queue_child-<lambda>-<lambda>]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_rejects_protected_evidence_paths_without_side_effect[state_child-<lambda>-<lambda>]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_rejects_protected_evidence_paths_without_side_effect[symlink_alias-<lambda>-<lambda>]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_writes_legal_external_evidence_path",
+      "tests/test_pantheon_g8_production_preactivation.py::test_cli_writes_machine_readable_receipt_and_exit_code",
+      "tests/test_pantheon_g8_production_preactivation.py::test_live_mixed_identity_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_mutation_tripwire_blocks_collect_ready_runs_side_effect",
+      "tests/test_pantheon_g8_production_preactivation.py::test_non_allowlisted_source_drift_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_positive_planned_fast_forward_old_live_to_new_stage_exact_selector",
+      "tests/test_pantheon_g8_production_preactivation.py::test_reg_g8_rel_rev_002_conflicting_duplicate_service_scope_is_ambiguous",
+      "tests/test_pantheon_g8_production_preactivation.py::test_reg_g8_rel_rev_002_duplicate_service_scope_path_drift_is_ambiguous",
+      "tests/test_pantheon_g8_production_preactivation.py::test_reg_g8_rel_rev_002_identical_duplicate_service_scope_is_deduped",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-ACTIVATED-ST-CANARY-READY]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-CANARY-READY-ST-CANARY-RUNNING]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-CANARY-RUNNING-ST-CANARY-TERMINAL]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-CANARY-TERMINAL-ST-TARGET-STAGED]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-CAPACITY-READY-ST-ACTIVATED]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-QUIESCED-TARGET-STAGED-ST-CAPACITY-READY]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-STEADY-None]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_contract_matches_all_eight_states[ST-TARGET-STAGED-ST-QUIESCED-TARGET-STAGED]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_reconciliation_current_historical_mix_is_ambiguous",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_reconciliation_forbids_implicit_transitioning",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_reconciliation_missing_current_is_unknown",
+      "tests/test_pantheon_g8_production_preactivation.py::test_release_reconciliation_reports_per_service_divergence",
+      "tests/test_pantheon_g8_production_preactivation.py::test_remote_diverged_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_run_identity_drift_blocks_without_mutation",
+      "tests/test_pantheon_g8_production_preactivation.py::test_selector_snapshot_preserves_existing_production_state_parity[ledger]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_selector_snapshot_preserves_existing_production_state_parity[policy_rejection]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_selector_snapshot_preserves_existing_production_state_parity[retry]",
+      "tests/test_pantheon_g8_production_preactivation.py::test_selector_two_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_selector_zero_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_staged_drift_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_staged_missing_service_blocks",
+      "tests/test_pantheon_g8_production_preactivation.py::test_wrong_exact_run_blocks"
+    ],
+    "new_regression_nodes_digest": "10623ed403bee85a02aa65bed738012323b4b6c902203224f3b8455dea71d0ba"
+  },
+  "why_not_whitelist": "g8-live is evidence of a valid opaque schema, not the only valid exception; a whitelist would preserve capacity-owned identity semantics, conflict with six producer schemas, and miss future opaque correlations"
+}

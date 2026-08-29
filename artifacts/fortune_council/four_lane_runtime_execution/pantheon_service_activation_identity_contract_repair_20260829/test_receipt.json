@@ -1,0 +1,48 @@
+{
+  "base_head": "779fb96434c15013d82833788a6795119730daad",
+  "broad_comparison": {
+    "baseline_result": "442 passed, 8 failed",
+    "candidate_result": "442 passed, 8 failed",
+    "command_sha256": "1dc2e990d89de20bcd82d5f9f7e6c6a68182695073c6d4bc7f91cca60f3559e0",
+    "environment_contract_sha256": "650bdc1ba45db6a0bc8bbc729713b12f06be6372affeb4415d14ce55b16b7bce",
+    "failure_node_set_identical": true,
+    "normalized_error_digest_by_node_identical": true,
+    "status": "BASELINE_IDENTICAL"
+  },
+  "diff_sha256": "f754f483762b271275aff113947cff0731cbdb05dbcf0441315652dcae7ca553",
+  "first_candidate": {
+    "result": "406 passed, 44 failed",
+    "status": "WITHDRAWN",
+    "true_regressions": 36
+  },
+  "gates": [
+    {
+      "name": "targeted manifest and capacity suites",
+      "result": "114 passed",
+      "status": "PASS"
+    },
+    {
+      "name": "promotion downstream suite",
+      "result": "65 passed",
+      "status": "PASS"
+    },
+    {
+      "name": "coordinator installer and aggregate affected selection",
+      "result": "11 passed",
+      "status": "PASS"
+    },
+    {
+      "name": "py_compile and JSON parse",
+      "result": "PASS",
+      "status": "PASS"
+    },
+    {
+      "name": "git diff --check",
+      "result": "clean",
+      "status": "PASS"
+    }
+  ],
+  "origin_main": "779fb96434c15013d82833788a6795119730daad",
+  "production_live_mutations": 0,
+  "schema_version": 2
+}
