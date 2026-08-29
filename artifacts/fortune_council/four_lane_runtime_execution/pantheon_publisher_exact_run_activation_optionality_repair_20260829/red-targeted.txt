@@ -1,0 +1,72 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_capacity_installer_recovery_accepts_absent_future_run_selector ______
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1192/test_capacity_installer_recove0')
+
+    def test_capacity_installer_recovery_accepts_absent_future_run_selector(
+        tmp_path: Path,
+    ) -> None:
+        repo, env, fake_home, mutation_log, manifest, _manifest_path = (
+            _g5_capacity_transition_fixture(
+                tmp_path,
+                identity_suffix="new-lane-current-acceptance-20260829",
+                include_actor_head=True,
+                exact_run_id=None,
+            )
+        )
+        fake_git = tmp_path / "bin" / "git"
+        fake_git.write_text(
+            "#!/bin/sh\n"
+            f"case \"$*\" in\n"
+            f"  *'rev-parse --show-toplevel') printf '%s\\n' '{repo}' ;;\n"
+            f"  *'rev-parse HEAD') printf '%s\\n' '{manifest['actor_head']}' ;;\n"
+            "  *'status --porcelain') exit 0 ;;\n"
+            "  *) exit 1 ;;\n"
+            "esac\n",
+            encoding="utf-8",
+        )
+        fake_git.chmod(0o700)
+        launch_agents = fake_home / "Library" / "LaunchAgents"
+        stage_dir = launch_agents / ".pantheon-four-lane-stage"
+        _make_live_plists_normal(launch_agents)
+        _write_capacity_transition_launchctl(
+            tmp_path / "bin" / "launchctl",
+            launch_agents=launch_agents,
+            mutation_log=mutation_log,
+            absent_labels=guard.SERVICE_LABELS,
+        )
+
+        assert not (stage_dir / "publisher-exact-run-id").exists()
+        publisher_receipt = runtime_manifest.publisher_plist_preflight(
+            manifest,
+            stage_dir / "com.pantheon.agy-content-publisher.plist",
+            require_no_exact_run_id=True,
+        )
+        assert publisher_receipt["exact_run_id"] == ""
+
+        completed = subprocess.run(
+            [
+                "/bin/bash",
+                str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+                "--install-recovery-stage",
+            ],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+>       assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+E       AssertionError: {"preactivation_transition": "rejected", "reasons": ["preactivation stage mismatch"], "status": "NO-GO"}
+E         {"bytes": 8060, "disk_free_bytes": 35656474624, "disk_total_bytes": 245107195904, "file_count": 16, "process_policy": {"measurement_required": true, "pid_required": true, "topology": "RSS_REQUIRED"}, "reasons": [], "rss_available": true, "rss_bytes": 0, "rss_error": null, "rss_identity": {"absent_labels": [{"label": "com.pantheon.agy-content-publisher", "returncode": 113}, {"label": "com.pantheon.agy-gemini-coordinator", "returncode": 113}, {"label": "com.pantheon.agy-gemini-new", "returncode": 113}, {"label": "com.pantheon.agy-gemini-rewrite", "returncode": 113}, {"label": "com.pantheon.agy-gemini-i18n-new", "returncode": 113}, {"label": "com.pantheon.agy-gemini-i18n-rewrite", "returncode": 113}], "idle_labels": [], "inert_labels": [], "loaded_labels": []}, "status": "PASS", "swap_available": true, "swap_error": null, "swap_used_bytes": 0}
+E
+E
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/bin/bash', '/Users/mattkuo/.codex/worktrees/a018/Pantheon/scripts/install_pantheon_content_ca...loaded_labels": []}, "status": "PASS", "swap_available": true, "swap_error": null, "swap_used_bytes": 0}\n', stderr='').returncode
+
+tests/test_pantheon_content_capacity_guard.py:1233: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_content_capacity_guard.py::test_capacity_installer_recovery_accepts_absent_future_run_selector
+1 failed in 1.95s

@@ -719,7 +719,7 @@ def _write_normal_stage_plists(
     manifest_path: Path,
     barrier: Path,
     python: Path,
-    exact_run_id: str,
+    exact_run_id: str | None,
 ) -> None:
     stage_dir.mkdir(parents=True, exist_ok=True)
     (stage_dir / "manifest-digest").write_text(
@@ -731,10 +731,11 @@ def _write_normal_stage_plists(
         encoding="utf-8",
     )
     (stage_dir / "publisher-max-runs").write_text("1\n", encoding="utf-8")
-    (stage_dir / "publisher-exact-run-id").write_text(
-        exact_run_id + "\n",
-        encoding="utf-8",
-    )
+    exact_run_path = stage_dir / "publisher-exact-run-id"
+    if exact_run_id is None:
+        exact_run_path.unlink(missing_ok=True)
+    else:
+        exact_run_path.write_text(exact_run_id + "\n", encoding="utf-8")
     _write_activation_only_live_plists(
         stage_dir,
         manifest=manifest,
@@ -756,10 +757,12 @@ def _write_normal_stage_plists(
                     str(manifest["publisher_state_root"]),
                     "--max-runs",
                     "1",
-                    "--exact-run-id",
-                    exact_run_id,
                 ]
             )
+            if exact_run_id is not None:
+                payload["ProgramArguments"].extend(
+                    ["--exact-run-id", exact_run_id]
+                )
         with plist_path.open("wb") as stream:
             plistlib.dump(payload, stream, sort_keys=True)
     (stage_dir / "com.pantheon.content-capacity-guard.plist").unlink()
@@ -918,6 +921,7 @@ def _g5_capacity_transition_fixture(
     *,
     identity_suffix: str = "activation-only",
     include_actor_head: bool = False,
+    exact_run_id: str | None = "auto-i18n-en-614aa4dc3542ab2c5637",
 ) -> tuple[Path, dict[str, str], Path, Path, dict[str, object], Path]:
     repo = Path(__file__).resolve().parents[1]
     env, fake_home, mutation_log, manifest, manifest_path = (
@@ -964,7 +968,7 @@ def _g5_capacity_transition_fixture(
         manifest_path=manifest_path,
         barrier=new_barrier,
         python=python,
-        exact_run_id="auto-i18n-en-614aa4dc3542ab2c5637",
+        exact_run_id=exact_run_id,
     )
     return repo, env, fake_home, mutation_log, manifest, manifest_path
 
@@ -1172,6 +1176,67 @@ def test_capacity_installer_recovery_accepts_operation_identity_with_actor_head(
     assert not mutation_log.exists()
 
 
+def test_capacity_installer_recovery_accepts_absent_future_run_selector(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(
+            tmp_path,
+            identity_suffix="new-lane-current-acceptance-20260829",
+            include_actor_head=True,
+            exact_run_id=None,
+        )
+    )
+    fake_git = tmp_path / "bin" / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        f"case \"$*\" in\n"
+        f"  *'rev-parse --show-toplevel') printf '%s\\n' '{repo}' ;;\n"
+        f"  *'rev-parse HEAD') printf '%s\\n' '{manifest['actor_head']}' ;;\n"
+        "  *'status --porcelain') exit 0 ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o700)
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=guard.SERVICE_LABELS,
+    )
+
+    assert not (stage_dir / "publisher-exact-run-id").exists()
+    publisher_receipt = runtime_manifest.publisher_plist_preflight(
+        manifest,
+        stage_dir / "com.pantheon.agy-content-publisher.plist",
+        require_no_exact_run_id=True,
+    )
+    assert publisher_receipt["exact_run_id"] == ""
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert (
+        stage_dir / "com.pantheon.content-capacity-guard.plist"
+    ).is_file()
+    assert not mutation_log.exists()
+
+
 def test_capacity_installer_recovery_rejects_loaded_business_service(
     tmp_path: Path,
 ) -> None:
@@ -1276,7 +1341,10 @@ def test_capacity_installer_accepts_g6_old_live_model_route_identity(
     [
         "stage_manifest_digest",
         "publisher_exact_receipt_missing",
+        "publisher_exact_plist_missing",
         "publisher_exact_receipt_wrong",
+        "publisher_exact_receipt_empty",
+        "publisher_exact_both_malformed",
         "staged_lane_digest",
         "staged_activation_only_child_io",
     ],
@@ -1298,6 +1366,23 @@ def test_capacity_installer_rejects_g5_preactivation_stage_drift(
             "wrong-exact-run\n",
             encoding="utf-8",
         )
+    elif case == "publisher_exact_receipt_empty":
+        (stage_dir / "publisher-exact-run-id").write_text("\n", encoding="utf-8")
+    elif case in {"publisher_exact_plist_missing", "publisher_exact_both_malformed"}:
+        publisher_plist = stage_dir / "com.pantheon.agy-content-publisher.plist"
+        payload = plistlib.loads(publisher_plist.read_bytes())
+        arguments = payload["ProgramArguments"]
+        exact_index = arguments.index("--exact-run-id")
+        if case == "publisher_exact_plist_missing":
+            del arguments[exact_index : exact_index + 2]
+        else:
+            arguments[exact_index + 1] = "malformed selector"
+            (stage_dir / "publisher-exact-run-id").write_text(
+                "malformed selector\n",
+                encoding="utf-8",
+            )
+        with publisher_plist.open("wb") as stream:
+            plistlib.dump(payload, stream, sort_keys=True)
     elif case == "staged_lane_digest":
         lane_plist = stage_dir / "com.pantheon.agy-gemini-new.plist"
         payload = plistlib.loads(lane_plist.read_bytes())

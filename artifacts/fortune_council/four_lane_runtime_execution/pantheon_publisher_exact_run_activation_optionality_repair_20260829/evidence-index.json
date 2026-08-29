@@ -1,0 +1,31 @@
+{
+  "accepted_base": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "broad_parity_receipt": "broad-baseline-candidate.json",
+  "candidate_double_run": {
+    "canonical_digest_without_self": "d5235759fa93fe3867b93dd3ee5c8b1267d96026cc2875b7e7a312dfdbda5280",
+    "files": [
+      "production-shaped-green-run-1.json",
+      "production-shaped-green-run-2.json"
+    ],
+    "sha256": "04327717f255f2d47846b869ca3b1d7fa5407bfea774c13efc8ecfd0591161fd"
+  },
+  "candidate_harness": {
+    "file": "production-shaped-green-harness.py",
+    "sha256": "c11c1336fba3d45b3d2ca79233dc5747732bcddbbe4acb634f21e1d48994e8fc"
+  },
+  "production_red_authority": {
+    "files": [
+      "production-shaped-red-before-run-1.json",
+      "production-shaped-red-before-run-2.json"
+    ],
+    "sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9"
+  },
+  "schema_version": 1,
+  "source_test_diff_sha256": "87029a93697ffcb374c39f349f48e1ce5823df0bce413c8ba454f018459fb847",
+  "targeted": {
+    "green_sha256": "4b6d07f3dd9162cdd77e3e17e4080e549552f0916da64fe26a751d430973d321",
+    "red_sha256": "6a9040cf58b623955234cb285bb4b8abb619e389a82ab06053b70f46319da0b5",
+    "suite_sha256": "9e063201f85222bf9ae79f75e54f55506ebb8e83dd1a9f479b79c62e5014ebaa"
+  },
+  "verdict": "RE_REVIEW_REQUESTED"
+}

@@ -1,0 +1,2246 @@
+........................................................................ [ 14%]
+.......................................................FF.F............. [ 28%]
+.............FFFFF...................................................... [ 42%]
+........................................................................ [ 57%]
+........................................................................ [ 71%]
+........................................................................ [ 85%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain __
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x1094289b0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_runs0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108ed0470>
+
+    def test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+        original_loader = coordinator.multilingual.load_source_article
+        original_enqueue = coordinator.multilingual.enqueue_article_translations
+        enqueue_lanes: list[str] = []
+
+        def tracking_enqueue_article_translations(
+            repo_root: Path,
+            queue: Path,
+            *,
+            source_run_id: str,
+            article_id: str,
+            locales: list[str] | None = None,
+            lane: str,
+            source_loader=coordinator.multilingual.load_source_article,
+        ) -> list[dict[str, str]]:
+            enqueue_lanes.append(lane)
+            return original_enqueue(
+                repo_root,
+                queue,
+                source_run_id=source_run_id,
+                article_id=article_id,
+                locales=locales,
+                lane=lane,
+                source_loader=source_loader,
+            )
+
+        monkeypatch.setattr(
+            coordinator.multilingual,
+            "enqueue_article_translations",
+            tracking_enqueue_article_translations,
+        )
+
+>       first = coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:449:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x1094289b0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_______ test_private_campaign_e2e_composes_four_lanes_without_publishing _______
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-4a25de9ed10c275d325f', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x10943c2c0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_private_campaign_e2e_comp0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10943dbb0>
+
+    def test_private_campaign_e2e_composes_four_lanes_without_publishing(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workset = {
+            "schema_version": 1,
+            "campaign_version": "checkpoint-a-v1",
+            "lanes": ["new", "rewrite", "i18n-new", "i18n-rewrite"],
+            "items": [
+                _campaign_item("matrix", "NEW-001", "checkpoint-a-v1"),
+                _campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"),
+                {
+                    **_campaign_item("matrix", "NEW-001", "checkpoint-a-v1"),
+                    "locale": "ja",
+                    "work_id": coordinator._campaign_work_id("matrix", "NEW-001", "ja", "checkpoint-a-v1"),
+                    "lane": "i18n-new",
+                },
+                {
+                    **_campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"),
+                    "locale": "ja",
+                    "work_id": coordinator._campaign_work_id("legacy", "LEGACY-001", "ja", "checkpoint-a-v1"),
+                    "lane": "i18n-rewrite",
+                },
+            ],
+            "summary": {},
+        }
+        briefs = [
+            coordinator._campaign_translation_brief(
+                {"run_id": f"{lane}-run-001", "article_id": article_id, "lane": lane},
+                coordinator._campaign_translation_source({
+                    "candidate": _valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id)),
+                    "article_id": article_id,
+                    "lane": lane,
+                    "brief": _publisher_rewrite_brief(_valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id))) if lane == "rewrite" else {"articles": []},
+                }),
+                "ja",
+            )
+            for lane, article_id in (("new", "NEW-001"), ("rewrite", "LEGACY-001"))
+        ]
+        client = _CampaignTranslationClient(briefs)
+        builder_calls: list[tuple[Path, Path, Path, str, tuple[str, ...]]] = []
+
+        def build_workset(
+            repo_root: Path,
+            queue_root: Path,
+            state_root: Path,
+            *,
+            campaign_version: str,
+            locales: tuple[str, ...],
+        ) -> dict[str, object]:
+            builder_calls.append((repo_root, queue_root, state_root, campaign_version, locales))
+            return workset
+
+        monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", build_workset)
+
+>       first = coordinator.execute_private_campaign_e2e(
+            Path(__file__).resolve().parents[1],
+            tmp_path / "runs",
+            tmp_path / "queue",
+            tmp_path / "publisher-state",
+            client,
+            campaign_version="checkpoint-a-v1",
+            brief_factory=lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+            writer=_valid_campaign_candidate,
+            reviewer=_clean_review,
+            rewrite_brief_factory=_publisher_rewrite_brief,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:548:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4298: in execute_private_campaign_e2e
+    translation_receipt = replay_campaign_editorial_workset_through_translation(
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-4a25de9ed10c275d325f', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x10943c2c0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-4a25de9ed10c275d325f', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c2b560>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_private_campaign_e2e_resu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109c2b440>
+
+    def test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workset = {
+            "schema_version": 1,
+            "campaign_version": "checkpoint-a-v1",
+            "lanes": ["new", "rewrite", "i18n-new", "i18n-rewrite"],
+            "items": [
+                _campaign_item("matrix", "NEW-001", "checkpoint-a-v1"),
+                _campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"),
+                {**_campaign_item("matrix", "NEW-001", "checkpoint-a-v1"), "locale": "ja", "work_id": coordinator._campaign_work_id("matrix", "NEW-001", "ja", "checkpoint-a-v1"), "lane": "i18n-new"},
+                {**_campaign_item("legacy", "LEGACY-001", "checkpoint-a-v1"), "locale": "ja", "work_id": coordinator._campaign_work_id("legacy", "LEGACY-001", "ja", "checkpoint-a-v1"), "lane": "i18n-rewrite"},
+            ],
+            "summary": {},
+        }
+        briefs = [
+            coordinator._campaign_translation_brief(
+                {"run_id": f"{lane}-run-001", "article_id": article_id, "lane": lane},
+                coordinator._campaign_translation_source({
+                    "candidate": _valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id)),
+                    "article_id": article_id,
+                    "lane": lane,
+                    "brief": _publisher_rewrite_brief(_valid_campaign_candidate(_article_brief_v2(f"{lane}-run-001", article_id))) if lane == "rewrite" else {"articles": []},
+                }),
+                "ja",
+            )
+            for lane, article_id in (("new", "NEW-001"), ("rewrite", "LEGACY-001"))
+        ]
+        client = _CampaignTranslationClient(briefs)
+        calls = {"writer": 0, "reviewer": 0}
+
+        def writer(brief: dict[str, object]) -> dict[str, object]:
+            calls["writer"] += 1
+            return _valid_campaign_candidate(brief)
+
+        def reviewer(brief: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
+            calls["reviewer"] += 1
+            return _clean_review(brief, candidate)
+
+        monkeypatch.setattr(coordinator, "build_campaign_dry_run_workset", lambda *_args, **_kwargs: workset)
+        arguments = (
+            Path(__file__).resolve().parents[1],
+            tmp_path / "runs",
+            tmp_path / "queue",
+            tmp_path / "publisher-state",
+            client,
+        )
+        options = {
+            "campaign_version": "checkpoint-a-v1",
+            "brief_factory": lambda item: _article_brief_v2(f"{item['lane']}-run-001", str(item["article_id"])),
+            "writer": writer,
+            "reviewer": reviewer,
+            "rewrite_brief_factory": _publisher_rewrite_brief,
+            "locale": "ja",
+            "max_repairs": 0,
+        }
+>       first = coordinator.execute_private_campaign_e2e(*arguments, **options)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agy_gemini_coordinator.py:700:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4298: in execute_private_campaign_e2e
+    translation_receipt = replay_campaign_editorial_workset_through_translation(
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-4a25de9ed10c275d325f', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c2b560>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha] _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7fda0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_drif0')
+drift = 'source_sha'
+
+    @pytest.mark.parametrize(
+        "drift",
+        ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+    )
+    def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+        tmp_path: Path,
+        drift: str,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+>       coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:1132:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7fda0>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha] _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7e030>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_drif1')
+drift = 'translation_sha'
+
+    @pytest.mark.parametrize(
+        "drift",
+        ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+    )
+    def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+        tmp_path: Path,
+        drift: str,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+>       coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:1132:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7e030>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale] _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109bd4770>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_drif2')
+drift = 'locale'
+
+    @pytest.mark.parametrize(
+        "drift",
+        ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+    )
+    def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+        tmp_path: Path,
+        drift: str,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+>       coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:1132:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109bd4770>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity] _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7c980>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_drif3')
+drift = 'article_identity'
+
+    @pytest.mark.parametrize(
+        "drift",
+        ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+    )
+    def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+        tmp_path: Path,
+        drift: str,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+>       coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:1132:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109c7c980>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+_ test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity] _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109941550>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+>           plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+
+scripts/agy_multilingual_pipeline.py:3653:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_multilingual_pipeline.py:1982: in _hydrate_locale_plan
+    external_mappings = _canonicalize_external_coverage_mappings(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+expected_facts = [{'fact_id': 'fact-028b25a13b72', 'safety_boundary': False, 'text': '測試關鍵字在第11個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，...: '測試關鍵字在第4個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結論。再核對一項具體資料，避免把通用描述當成個人結'}, ...]
+mappings = [{'coverage_note': 'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-1', 'safety_boundary': False, 'source_fact_id': 'fact-...'この事実と制限を該当する節で説明する', 'planned_h2_slot': 'h2-2', 'safety_boundary': False, 'source_fact_id': 'fact-143dc01526c6'}, ...]
+
+    def _canonicalize_external_coverage_mappings(
+        expected_facts: list[dict[str, Any]],
+        mappings: object,
+        *,
+        slot: str,
+        source_ref_map: dict[str, str] | None = None,
+        allow_provider_safety_boundary: bool = False,
+    ) -> list[dict[str, Any]]:
+        """驗證 fact 集合後，依 deterministic fact 順序注入本機 safety。"""
+        if not isinstance(mappings, list) or len(mappings) != len(expected_facts):
+            raise ValueError(f"external locale plan coverage differs for {slot}")
+        expected_by_id = {
+            str(fact["fact_id"]): fact
+            for fact in expected_facts
+        }
+        mapped_by_id: dict[str, dict[str, Any]] = {}
+        identity_field = "source_ref" if source_ref_map is not None else "source_fact_id"
+        required = {
+            identity_field,
+            "planned_h2_slot",
+            "coverage_note",
+        }
+        if allow_provider_safety_boundary:
+            required.add("safety_boundary")
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or set(mapping) != required:
+>               raise ValueError(
+                    f"external locale plan coverage fields are strict for {slot}"
+                )
+E               ValueError: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:1905: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1195/test_campaign_translation_drif4')
+drift = 'review_identity'
+
+    @pytest.mark.parametrize(
+        "drift",
+        ["source_sha", "translation_sha", "locale", "article_identity", "review_identity"],
+    )
+    def test_campaign_translation_drift_fails_before_queue_or_handoff_mutation(
+        tmp_path: Path,
+        drift: str,
+    ) -> None:
+        result, rewrite_briefs, briefs = _campaign_translation_fixture(tmp_path)
+        client = _CampaignTranslationClient(briefs)
+        queue_root = tmp_path / "translation-queue"
+        state_root = tmp_path / "publisher-state"
+>       coordinator.replay_campaign_editorial_workset_through_translation(
+            Path(__file__).resolve().parents[1],
+            result,
+            queue_root,
+            state_root,
+            client,
+            rewrite_briefs=rewrite_briefs,
+            locale="ja",
+            max_repairs=0,
+        )
+
+tests/test_agy_gemini_coordinator.py:1132:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/agy_gemini_coordinator.py:4028: in replay_campaign_editorial_workset_through_translation
+    candidate, review = multilingual.run_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:4132: in run_writer_reviewer
+    return _run_fresh_writer_reviewer(
+scripts/agy_multilingual_pipeline.py:3809: in _run_fresh_writer_reviewer
+    candidate, review, prior_plan = _run_locale_generation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+brief = {'articles': [{'locale': 'ja', 'source': {'answer': '測試關鍵字提供通用觀察，不能替個人下結論。', 'article_id': 'NEW-001', 'bodySections': ...new-001-9999', ...}], 'mode': 'translate_existing', 'run_id': 'auto-i18n-ja-e0f54baeac079ee537dd', 'schema_version': 1}
+client = <test_agy_gemini_coordinator._CampaignTranslationClient object at 0x109941550>
+
+    def _run_locale_generation(
+        brief: dict[str, Any],
+        client: pipeline.GeminiClient,
+        *,
+        generation: int,
+        generation_dir: Path,
+        findings: list[dict[str, str]],
+        history: list[list[dict[str, str]]],
+        prior_plan: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        rebuild_by_slot = _rebuild_authority(brief, history)
+        source_ref_path = generation_dir / "source-ref-map.json"
+        external_plan_path = generation_dir / "external-plan.json"
+        planning_result_path = generation_dir / "planning-result.json"
+        try:
+            source_ref_maps = _load_or_create_source_ref_maps(
+                source_ref_path,
+                brief,
+                prior_plan,
+                generation=generation,
+                external_plan_path=external_plan_path,
+            )
+        except ValueError as error:
+            terminal_reason = str(error)
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status=(
+                    "EXTERNAL_PLAN_AVAILABLE"
+                    if external_plan_path.is_file()
+                    else "NOT_STARTED"
+                ),
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=terminal_reason,
+            )
+            _record_partial_generation_terminalization(
+                brief,
+                generation=generation,
+                generation_dir=generation_dir,
+                reason=terminal_reason,
+            )
+            raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+        plan_prompt = _plan_prompt(
+            brief,
+            generation=generation,
+            prior_plan=prior_plan,
+            findings=findings,
+            rebuild_by_slot=rebuild_by_slot,
+            source_ref_maps=source_ref_maps,
+        )
+        plan_schema = _external_locale_plan_schema(
+            brief,
+            prior_plan=prior_plan,
+            source_ref_maps=source_ref_maps,
+        )
+        try:
+            external_plan, allow_provider_safety_boundary = (
+                _load_or_generate_external_locale_plan(
+                    client,
+                    plan_prompt,
+                    plan_schema,
+                    generation_dir / "plan-operation.json",
+                    external_plan_path,
+                    brief=brief,
+                    prior_plan=prior_plan,
+                    source_ref_maps=source_ref_maps,
+                )
+            )
+            plan = _hydrate_locale_plan(
+                brief,
+                external_plan,
+                generation=generation,
+                rebuild_by_slot=rebuild_by_slot,
+                prior_plan=prior_plan,
+                source_ref_maps=source_ref_maps,
+                allow_provider_safety_boundary=allow_provider_safety_boundary,
+            )
+        except ValueError as error:
+            _write_locale_planning_result(
+                planning_result_path,
+                generation=generation,
+                transport_status="EXTERNAL_PLAN_AVAILABLE",
+                planning_contract_status="PLANNING_CONTRACT_FAILURE",
+                terminal_stage="PLANNING",
+                terminal_reason=str(error),
+            )
+>           raise LocalePlanValidationError(
+                f"deterministic locale plan failure: {error}"
+            ) from error
+E           scripts.agy_multilingual_pipeline.LocalePlanValidationError: deterministic locale plan failure: external locale plan coverage fields are strict for article-01
+
+scripts/agy_multilingual_pipeline.py:3671: LocalePlanValidationError
+=========================== short test summary info ============================
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain
+FAILED tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing
+FAILED tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]
+FAILED tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]
+8 failed, 497 passed in 468.63s (0:07:48)

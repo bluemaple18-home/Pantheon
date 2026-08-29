@@ -1046,23 +1046,37 @@ def validate_preactivation_transition(
         publisher_max_runs = (stage_dir / "publisher-max-runs").read_text(
             encoding="utf-8"
         ).strip()
+    except OSError as error:
+        raise formal_runtime.RuntimeManifestError("preactivation stage mismatch") from error
+    try:
         publisher_exact_run_id = (stage_dir / "publisher-exact-run-id").read_text(
             encoding="utf-8"
         ).strip()
+    except FileNotFoundError:
+        publisher_exact_run_id = None
     except OSError as error:
         raise formal_runtime.RuntimeManifestError("preactivation stage mismatch") from error
     if (
         stage_manifest_digest != manifest["manifest_digest"]
         or stage_generation != manifest["generation"]
         or publisher_max_runs != "1"
-        or not publisher_exact_run_id
     ):
         raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
-    formal_runtime.publisher_plist_preflight(
-        manifest,
-        stage_dir / "com.pantheon.agy-content-publisher.plist",
-        expected_exact_run_id=publisher_exact_run_id,
-    )
+    publisher_plist = stage_dir / "com.pantheon.agy-content-publisher.plist"
+    if publisher_exact_run_id is None:
+        formal_runtime.publisher_plist_preflight(
+            manifest,
+            publisher_plist,
+            require_no_exact_run_id=True,
+        )
+    else:
+        if not publisher_exact_run_id:
+            raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
+        formal_runtime.publisher_plist_preflight(
+            manifest,
+            publisher_plist,
+            expected_exact_run_id=publisher_exact_run_id,
+        )
     staged_plists = {
         **{label: stage_dir / f"{label}.plist" for label in SERVICE_LABELS},
         CAPACITY_GUARD_LABEL: capacity_plist,
