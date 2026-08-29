@@ -1,0 +1,81 @@
+    return state_root / "ledger.json"
+
+
+def _load_ledger(state_root: Path) -> dict[str, Any]:
+    path = _ledger_path(state_root)
+    if not path.exists():
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "published_runs": [],
+            "quarantined_runs": [],
+            "rewrite_released_runs": [],
+            "superseded_runs": [],
+            "translation_published_runs": [],
+            "translation_deferred_runs": [],
+        }
+    ledger = _read_json(path)
+    if ledger.get("schema_version") != SCHEMA_VERSION:
+        raise PublishBlocked("publisher ledger schema is invalid")
+    ledger.setdefault("published_runs", [])
+    ledger.setdefault("quarantined_runs", [])
+    ledger.setdefault("rewrite_released_runs", [])
+    ledger.setdefault("superseded_runs", [])
+    ledger.setdefault("translation_published_runs", [])
+    ledger.setdefault("translation_deferred_runs", [])
+    return ledger
+
+
+def _ledger_article_ids(entry: object, label: str) -> list[str]:
+    if not isinstance(entry, dict):
+        raise PublishBlocked(f"{label} ledger identity mismatch")
+    article_ids = entry.get("article_ids")
+    if (
+        not isinstance(article_ids, list)
+        or any(
+            type(article_id) is not str
+            or not article_id
+            or article_id.strip() != article_id
+            for article_id in article_ids
+        )
+        or article_ids != sorted(set(article_ids))
+    ):
+        raise PublishBlocked(f"{label} ledger identity mismatch")
+    return list(article_ids)
+
+
+def _ledger_run_lifecycle(
+    ledger: dict[str, Any],
+    *,
+    run_id: str,
+    article_ids: list[str],
+) -> str | None:
+    matched: list[tuple[str, str]] = []
+    for key, lifecycle in (
+        ("published_runs", "published"),
+        ("superseded_runs", "superseded"),
+    ):
+        entries = ledger.get(key)
+        if not isinstance(entries, list):
+            raise PublishBlocked("publisher ledger schema is invalid")
+        seen = 0
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise PublishBlocked("publisher ledger schema is invalid")
+            if entry.get("run_id") != run_id:
+                continue
+            seen += 1
+            if _ledger_article_ids(entry, lifecycle) != article_ids:
+                raise PublishBlocked(f"{lifecycle} ledger identity mismatch")
+            matched.append((key, lifecycle))
+        if seen > 1:
+            raise PublishBlocked(f"{lifecycle} ledger identity mismatch")
+    if len(matched) > 1:
+        raise PublishBlocked("publisher ledger lifecycle conflict")
+    return matched[0][1] if matched else None
+
+
+def _record_translation_deferred(state_root: Path, run_id: str, reason: str) -> None:
+    ledger = _load_ledger(state_root)
+    existing = {(str(item.get("run_id")), str(item.get("reason"))) for item in ledger["translation_deferred_runs"]}
+    if run_id and (run_id, reason) not in existing:
+        ledger["translation_deferred_runs"].append({"run_id": run_id, "reason": reason, "recorded_at": _now()})

@@ -1,0 +1,146 @@
+        ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        namespace_plan = plan_release_namespace(repo_root, git)
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(ready_run_ids)
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "translated": 0,
+                "ready_runs": ready_run_ids,
+                "base_sha": base_sha,
+                "release_plan": namespace_plan.receipt(),
+            }
+
+        journal.begin()
+        changed: list[str] = []
+        published: list[tuple[str, str, str, str | None]] = []
+        for state, _brief, candidate, _review in ready:
+            run_id = str(state["run_id"])
+            locale = str(candidate["articles"][0]["locale"])
+            article_id = str(candidate["articles"][0]["source_article_id"])
+            approved_stage = state.get("_approved_revision_stage")
+            try:
+                if isinstance(approved_stage, dict):
+                    decisions = {
+                        str(article["article_id"]): "APPROVE"
+                        for article in candidate["articles"]
+                    }
+                    approval = pipeline.build_approval(
+                        run_id,
+                        candidate["articles"],
+                        _review,
+                        decisions,
+                        PUBLISHER_ID,
+                    )
+                    def apply_staged_translation() -> list[Path]:
+                        return multilingual.apply_approved_translations(
+                            repo_root,
+                            run_id,
+                            _brief,
+                            candidate,
+                            _review,
+                            approval,
+                        )
+
+                    paths = journal.capture(apply_staged_translation)
+                    staging_receipt_sha256 = str(approved_stage["receipt_sha256"])
+                else:
+                    paths = journal.capture(
+                        lambda: multilingual.approve_and_apply_translation_run(
+                            repo_root,
+                            Path(str(state["run_dir"])),
+                            PUBLISHER_ID,
+                        )
+                    )
+                    staging_receipt_sha256 = None
+            except ValueError as error:
+                _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
+                continue
+            changed.extend(str(path.relative_to(repo_root)) for path in paths)
+            published.append((run_id, locale, article_id, staging_receipt_sha256))
+        if not published:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "idle_rejects_only",
+                "translated": 0,
+                "base_sha": base_sha,
+            }
+
+        run_ids = [item[0] for item in published]
+        locales = [item[1] for item in published]
+        article_ids = [item[2] for item in published]
+        version = journal.capture(
+            lambda: _bump_patch_version(repo_root, namespace_plan)
+        )
+        evidence_dir = state_root / "evidence" / f"translation-{version}"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
+        article_count = _public_article_count(repo_root)
+        cache_token = f"agy-i18n-{version.replace('.', '-')}"
+        changed.extend(
+            str(path.relative_to(repo_root))
+            for path in journal.capture(lambda: pipeline._bump_article_cache_queries(repo_root, cache_token))
+        )
+        fixture_path = journal.capture(lambda: _sync_web_test_cache_token(repo_root, cache_token=cache_token))
+        changed.append(str(fixture_path.relative_to(repo_root)))
+        journal.capture(lambda: _run_prerender(repo_root))
+        journal.capture(lambda: _run_feed(repo_root))
+        journal.capture(
+            lambda: _prepend_translation_changelog(
+                repo_root,
+                version=version,
+                article_count=article_count,
+                run_ids=run_ids,
+                locales=locales,
+                evidence_path=evidence_rel,
+            )
+        )
+        if run_tests:
+            _run_release_tests(repo_root)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            namespace_plan=namespace_plan,
+            push=push,
+            release_gate=release_gate,
+            message=f"chore(content): publish multilingual release v{version}",
+            outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="translation",
+            run_ids=run_ids,
+        )
+        ledger = _load_ledger(state_root)
+        for run_id, locale, article_id, staging_receipt_sha256 in published:
+            entry = {
+                "run_id": run_id,
+                "locale": locale,
+                "article_id": article_id,
+                "version": version,
+                "commit_sha": commit_sha,
+                "published_at": _now(),
+            }
+            if staging_receipt_sha256 is not None:
+                entry["staging_receipt_sha256"] = staging_receipt_sha256
+            ledger["translation_published_runs"].append(entry)
+        _write_json(_ledger_path(state_root), ledger)
+        evidence = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "PUBLISHED_TRANSLATION",
+            "base_sha": base_sha,
+            "commit_sha": commit_sha,
+            "version": version,
+            "run_ids": run_ids,
+            "locales": locales,
+            "article_ids": article_ids,
+            "changed": sorted(set(changed)),
+            "public_article_count": article_count,
+            "pushed": push,
+        }
+        _write_json(evidence_dir / "translation-evidence.json", evidence)
+        return evidence
+
+
+def publish_ready_all(
+    repo_root: Path,

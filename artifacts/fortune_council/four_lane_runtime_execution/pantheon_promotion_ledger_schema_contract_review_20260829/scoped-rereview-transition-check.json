@@ -1,0 +1,36 @@
+[
+  {
+    "classification": "measured_mismatch_red_to_green",
+    "ledger_matches": [
+      {
+        "after_article_ids": [
+          "V2-TAROT-DEATH-MONEY"
+        ],
+        "after_ok": true,
+        "before_article_ids": [],
+        "before_ok": false,
+        "cardinality": "one",
+        "collection": "translation_published_runs",
+        "has_article_id": true,
+        "has_article_ids": false,
+        "identity_field": "article_id",
+        "lifecycle": "published_translation",
+        "version": "0.3.374"
+      }
+    ],
+    "registry_file": "f46cda9eaa9ded446bf8e6c6.json",
+    "registry_file_sha256": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+    "registry_identity": {
+      "article_ids": [
+        "V2-TAROT-DEATH-MONEY"
+      ],
+      "lane": "i18n-new",
+      "mode": "translate_existing",
+      "source": "identity_envelope",
+      "valid": true
+    },
+    "run_dir_kind": "absolute",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "status": "complete"
+  }
+]

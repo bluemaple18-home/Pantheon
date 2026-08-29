@@ -1,0 +1,240 @@
+                evidence_path=evidence_rel,
+            )
+        )
+        if run_tests:
+            _run_release_tests(repo_root)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            namespace_plan=namespace_plan,
+            push=push,
+            release_gate=release_gate,
+            outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="create",
+            run_ids=run_ids,
+        )
+        ledger = _load_ledger(state_root)
+        articles_by_run = {
+            str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
+            for state, candidate, _ in ready
+        }
+        for run_id in run_ids:
+            ledger["published_runs"].append(
+                {
+                    "run_id": run_id,
+                    "version": version,
+                    "commit_sha": commit_sha,
+                    "published_at": _now(),
+                    "article_ids": articles_by_run[run_id],
+                    "translation_seed_status": "pending",
+                }
+            )
+        _write_json(_ledger_path(state_root), ledger)
+        seeded_translation_runs = (
+            []
+            if selected_run_ids is not None or not seed_translations
+            else [
+                *recovered_translation_runs,
+                *_seed_pending_translations(repo_root, queue_root, state_root),
+            ]
+        )
+        evidence = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "PUBLISHED",
+            "base_sha": base_sha,
+            "commit_sha": commit_sha,
+            "version": version,
+            "run_ids": run_ids,
+            "changed": sorted(set(changed)),
+            "public_article_count": article_count,
+            "seeded_translation_runs": seeded_translation_runs,
+            "pushed": push,
+            "policy_version": pipeline.publication_policy_version(),
+            "validator_result": "PASS",
+            "article_ids": sorted(
+                str(article["id"])
+                for candidate in [candidate for _, candidate, _ in ready]
+                for article in candidate["articles"]
+            ),
+            "failure_codes": [],
+            "input_hash": hashlib.sha256(
+                pipeline.compact_json_bytes(
+                    [candidate for _, candidate, _ in ready]
+                )
+            ).hexdigest(),
+        }
+        _write_json(evidence_dir / "publish-evidence.json", evidence)
+        return evidence
+
+
+@_recoverable_publish("rewrite", "rewritten")
+def publish_ready_rewrite_runs(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    state_root: Path,
+    *,
+    max_runs: int = DEFAULT_MAX_RUNS,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+    git: GitRunner = run_git,
+    _transaction_base_sha: str | None = None,
+    _mutation_journal: MutationJournal | None = None,
+    exact_run_ids: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    state_root.mkdir(parents=True, exist_ok=True)
+    lock_path = state_root / "publisher.lock"
+    with lock_path.open("a+") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"schema_version": SCHEMA_VERSION, "status": "busy", "rewritten": 0}
+        base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
+        legacy_records = legacy_article_records(repo_root)
+        allowed_article_ids = {str(record["id"]) for record in legacy_records}
+        backlog_summary = summarize_legacy_rewrite_backlog(
+            queue_root,
+            state_root,
+            allowed_article_ids=allowed_article_ids,
+            legacy_records=legacy_records,
+        )
+        ready = collect_ready_rewrite_runs(
+            queue_root,
+            state_root,
+            limit=max_runs,
+            allowed_article_ids=allowed_article_ids,
+            repo_root=repo_root,
+            exact_run_ids=selected_run_ids,
+        )
+        ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
+        if not ready:
+            backlog_summary = summarize_legacy_rewrite_backlog(
+                queue_root,
+                state_root,
+                allowed_article_ids=allowed_article_ids,
+                legacy_records=legacy_records,
+            )
+            status = "idle_rejects_only" if backlog_summary["repair_rejects_allowed"] else "idle"
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": status,
+                "rewritten": 0,
+                "base_sha": base_sha,
+                "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+                "legacy_rewrite_backlog": backlog_summary,
+            }
+        run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        candidates = [candidate for _, candidate, _, _ in ready]
+        article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
+        namespace_plan = plan_release_namespace(repo_root, git)
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(run_ids)
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "rewritten": 0,
+                "ready_runs": run_ids,
+                "article_ids": article_ids,
+                "base_sha": base_sha,
+                "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+                "legacy_rewrite_backlog": backlog_summary,
+                "release_plan": namespace_plan.receipt(),
+            }
+
+        journal.begin()
+        release_id = _next_rewrite_release_id(repo_root)
+        changed = [
+            str(path.relative_to(repo_root))
+            for path in journal.capture(lambda: apply_rewrite_release(repo_root, release_id, candidates))
+        ]
+        version = journal.capture(
+            lambda: _bump_patch_version(repo_root, namespace_plan)
+        )
+        evidence_dir = state_root / "evidence" / f"rewrite-{version}"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
+        article_count = _public_article_count(repo_root)
+        fixture_path = journal.capture(lambda: _sync_web_test_cache_token(repo_root, cache_token=release_id))
+        changed.append(str(fixture_path.relative_to(repo_root)))
+        journal.capture(
+            lambda: _run_prerender(
+                repo_root,
+                required_article_modes={
+                    article_id: "rewrite_existing_body"
+                    for article_id in article_ids
+                },
+            )
+        )
+        journal.capture(lambda: _run_feed(repo_root))
+        journal.capture(
+            lambda: _prepend_rewrite_changelog(
+                repo_root,
+                version=version,
+                article_count=article_count,
+                run_ids=run_ids,
+                article_ids=article_ids,
+                evidence_path=evidence_rel,
+            )
+        )
+        if run_tests:
+            _run_release_tests(repo_root)
+        commit_sha = _stage_commit_tag_push(
+            repo_root,
+            version,
+            git,
+            namespace_plan=namespace_plan,
+            push=push,
+            release_gate=release_gate,
+            message=f"chore(content): publish Gemini rewrite release v{version}",
+            extra_add_paths=["scripts/agy_content_publisher.py"],
+            outcome_evidence_dir=evidence_dir,
+            state_root=state_root,
+            phase="rewrite",
+            run_ids=run_ids,
+        )
+        ledger = _load_ledger(state_root)
+        for run_id in run_ids:
+            ledger["rewrite_released_runs"].append(
+                {
+                    "run_id": run_id,
+                    "version": version,
+                    "commit_sha": commit_sha,
+                    "published_at": _now(),
+                    "article_ids": [
+                        str(article["article_id"])
+                        for candidate in candidates
+                        for article in candidate["articles"]
+                        if str(candidate["run_id"]) == run_id
+                    ],
+                    "translation_seed_status": "pending",
+                }
+            )
+        _write_json(_ledger_path(state_root), ledger)
+        seeded_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
+        evidence = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "PUBLISHED_REWRITE",
+            "base_sha": base_sha,
+            "commit_sha": commit_sha,
+            "version": version,
+            "run_ids": run_ids,
+            "article_ids": article_ids,
+            "changed": sorted(set(changed)),
+            "public_article_count": article_count,
+            "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+            "legacy_rewrite_backlog": backlog_summary,
+            "seeded_translation_runs": seeded_translation_runs,
+            "pushed": push,
+            "policy_version": pipeline.publication_policy_version(),
+            "validator_result": "PASS",
+            "failure_codes": [],
+            "input_hash": hashlib.sha256(
+                pipeline.compact_json_bytes(candidates)
+            ).hexdigest(),
+        }

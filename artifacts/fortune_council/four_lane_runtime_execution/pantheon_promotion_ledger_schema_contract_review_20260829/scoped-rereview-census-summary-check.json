@@ -1,0 +1,33 @@
+{
+  "status": "PASS",
+  "input_sources": {
+    "publisher_ledger": {
+      "sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+      "source_id": "runtime_manifest.publisher_state_root/ledger.json"
+    },
+    "queue_runs_registry": {
+      "file_count": 136,
+      "source_id": "runtime_manifest.queue_root/runs",
+      "tree_digest": "5c224ee2ab5374099339a930c33a062b324e4c40d77ee547278cc500458ac942"
+    },
+    "runtime_manifest_snapshot": {
+      "sha256": "5a43c7ad9e2576cb6e54b268b609133ad99e089dcdca16348eeee6d7943fdf23",
+      "source_id": "artifact:raw-current/runtime/runtime-manifest.json"
+    }
+  },
+  "counts": {
+    "malformed_fail_closed": 4,
+    "measured_mismatch_red_to_green": 1,
+    "unchanged_pass": 131
+  },
+  "transition_run_ids": [
+    "auto-i18n-ja-1414b75a404721e95e74"
+  ],
+  "production_immutability": {
+    "live_mutation_calls": 0,
+    "pre_post_fingerprints_identical": true,
+    "provider_calls": 0,
+    "publisher_calls": 0,
+    "transaction_calls": 0
+  }
+}

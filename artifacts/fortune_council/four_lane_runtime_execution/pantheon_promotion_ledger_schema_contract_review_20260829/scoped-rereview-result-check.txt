@@ -1,0 +1,8 @@
+3:Verdict: `GO`
+7:No remaining P0/P1 finding.
+11:- Prior P1 finding closed. New evidence provides a reproducible evidence-only 136-row census/equivalent matrix.
+12:- Harness inputs are traceable to the runtime manifest, `runtime_manifest.queue_root/runs`, and `runtime_manifest.publisher_state_root/ledger.json`; evidence records manifest SHA256, queue registry file count/tree digest, and publisher ledger SHA256.
+13:- Census matrix has exactly 136 classified rows with exhaustive/non-overlapping totals: 131 `unchanged_pass`, 1 `measured_mismatch_red_to_green`, and 4 `malformed_fail_closed`.
+15:- Double run is byte-identical: `census-run-1.json` and `census-run-2.json` both have SHA256 `4425553c5904824f9a0a442bb17b9aa2fe183b3a6d62f5a60750728be4eb8b65`.
+17:- Live/provider/publisher/transaction mutation count: 0.
+73:- Production/provider/publisher mutation count from reviewer command scope: 0.

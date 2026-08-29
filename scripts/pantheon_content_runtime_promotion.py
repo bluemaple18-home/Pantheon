@@ -73,6 +73,24 @@ class PromotionRequest:
     target_uv_executable: Path | None = None
 
 
+@dataclass(frozen=True)
+class LedgerCollectionDescriptor:
+    key: str
+    mode: str
+    lane: str | None
+    lifecycle: str
+    identity_field: str
+    cardinality: str
+
+
+LEDGER_COLLECTION_DESCRIPTORS = (
+    LedgerCollectionDescriptor("published_runs", "create", "new", "published", "article_ids", "many"),
+    LedgerCollectionDescriptor("rewrite_released_runs", "rewrite_existing_body", "rewrite", "released", "article_ids", "many"),
+    LedgerCollectionDescriptor("translation_published_runs", "translate_existing", None, "published_translation", "article_id", "one"),
+    LedgerCollectionDescriptor("superseded_runs", "create", "new", "superseded_create", "article_ids", "many"),
+)
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -446,7 +464,13 @@ def _run_identity_from_brief(brief: dict[str, Any]) -> dict[str, Any]:
     return identity
 
 
-def _validated_ledger_article_ids(value: object) -> list[str]:
+def _validated_ledger_article_id(value: object) -> str:
+    if type(value) is not str or not value or value.strip() != value:
+        raise PromotionError("publisher ledger identity mismatch")
+    return value
+
+
+def _validated_ledger_article_ids(value: object) -> tuple[str, ...]:
     if (
         not isinstance(value, list)
         or any(
@@ -458,7 +482,22 @@ def _validated_ledger_article_ids(value: object) -> list[str]:
         or value != sorted(set(value))
     ):
         raise PromotionError("publisher ledger identity mismatch")
-    return value
+    return tuple(value)
+
+
+def _canonical_ledger_article_ids(
+    entry: dict[str, Any],
+    descriptor: LedgerCollectionDescriptor,
+) -> tuple[str, ...]:
+    if descriptor.identity_field == "article_id" and descriptor.cardinality == "one":
+        if "article_ids" in entry:
+            raise PromotionError("publisher ledger identity mismatch")
+        return (_validated_ledger_article_id(entry.get("article_id")),)
+    if descriptor.identity_field == "article_ids" and descriptor.cardinality == "many":
+        if "article_id" in entry:
+            raise PromotionError("publisher ledger identity mismatch")
+        return _validated_ledger_article_ids(entry.get("article_ids"))
+    raise PromotionError("publisher ledger is invalid")
 
 
 def _publisher_ledger_evidence(
@@ -473,19 +512,9 @@ def _publisher_ledger_evidence(
     ledger = _read_json_file(ledger_path, "publisher ledger")
     if ledger.get("schema_version") != SCHEMA_VERSION:
         raise PromotionError("publisher ledger is invalid")
-    ledger_keys = {
-        "published_runs": ("create", "new", "published"),
-        "rewrite_released_runs": ("rewrite_existing_body", "rewrite", "released"),
-        "translation_published_runs": (
-            "translate_existing",
-            None,
-            "published_translation",
-        ),
-        "superseded_runs": ("create", "new", "superseded_create"),
-    }
     matched: list[dict[str, Any]] = []
-    for key, (expected_mode, expected_lane, lifecycle) in ledger_keys.items():
-        entries = ledger.get(key, [])
+    for descriptor in LEDGER_COLLECTION_DESCRIPTORS:
+        entries = ledger.get(descriptor.key, [])
         if not isinstance(entries, list):
             raise PromotionError("publisher ledger is invalid")
         seen = 0
@@ -497,12 +526,12 @@ def _publisher_ledger_evidence(
             seen += 1
             matched.append(
                 {
-                    "mode": expected_mode,
-                    "lane": expected_lane,
-                    "article_ids": _validated_ledger_article_ids(
-                        entry.get("article_ids")
+                    "mode": descriptor.mode,
+                    "lane": descriptor.lane,
+                    "article_ids": list(
+                        _canonical_ledger_article_ids(entry, descriptor)
                     ),
-                    "lifecycle": lifecycle,
+                    "lifecycle": descriptor.lifecycle,
                 }
             )
         if seen > 1:

@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/a018/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 11 items
+
+tests/test_pantheon_content_runtime_promotion.py ...........             [100%]
+
+============================== 11 passed in 2.59s ==============================

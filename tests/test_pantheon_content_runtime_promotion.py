@@ -1112,7 +1112,7 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
             "translation_published_runs": [
                 {
                     "run_id": translation_id,
-                    "article_ids": ["TRANSLATED-SOURCE-001"],
+                    "article_id": "TRANSLATED-SOURCE-001",
                     "published_at": "2026-08-26T00:00:00+00:00",
                 }
             ],
@@ -1150,6 +1150,79 @@ def test_plan_allows_ledger_terminal_history_without_execution_schema(
     assert promotion.tree_digest(request.queue_root) == before_queue
     assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
     assert not request.transaction_root.exists()
+
+
+def _write_complete_translation_history(
+    request: promotion.PromotionRequest,
+    *,
+    run_id: str = "legacy-translation-history",
+    article_id: str = "TRANSLATED-SOURCE-001",
+    ledger_entry: dict[str, object] | None = None,
+) -> None:
+    run_dir = request.queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    _write_json(
+        run_dir / "brief.json",
+        _preserved_brief(run_id, mode="translate_existing", lane="i18n-new", article_ids=[article_id]),
+    )
+    _write_json(
+        request.queue_root / "runs" / f"{run_id}.json",
+        {"schema_version": 1, "run_id": run_id, "run_dir": str(run_dir), "status": "complete"},
+    )
+    _write_json(
+        request.publisher_state_root / "ledger.json",
+        {
+            "schema_version": 1,
+            "published_runs": [],
+            "rewrite_released_runs": [],
+            "superseded_runs": [],
+            "translation_published_runs": [ledger_entry or {"run_id": run_id, "article_id": article_id}],
+            "quarantined_runs": [],
+            "translation_deferred_runs": [],
+        },
+    )
+
+
+def test_plan_accepts_v0374_singular_translation_published_ledger_without_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "gemini-i18n-ja-fresh-v0374"
+    article_id = "V2-MBTI-INTJ-WORK"
+    _write_complete_translation_history(
+        request,
+        run_id=run_id,
+        article_id=article_id,
+        ledger_entry={
+            "run_id": run_id,
+            "locale": "ja",
+            "article_id": article_id,
+            "version": "0.3.374",
+            "commit_sha": "5" * 40,
+            "published_at": "2026-08-29T00:00:00+00:00",
+            "staging_receipt_sha256": "6" * 64,
+        },
+    )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+    before_queue = promotion.tree_digest(request.queue_root)
+    before_ledger = promotion.file_sha256(request.publisher_state_root / "ledger.json")
+
+    first = promotion.plan_promotion(request)
+    second = promotion.plan_promotion(request)
+
+    classification = first["queue_identity_snapshot"]["preservation_classification"]
+    assert first == second
+    assert first["status"] == "READY_TO_APPLY"
+    assert classification[run_id]["identity_source"] == "publisher_ledger"
+    assert classification[run_id]["lifecycle"] == "published_translation"
+    assert classification[run_id]["article_ids"] == [article_id]
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
 
 
 def test_plan_allows_terminalized_dangling_active_history_without_execution_schema(
@@ -1519,6 +1592,10 @@ def test_plan_classifies_preserved_lifecycle_contract_before_runtime_mutation(
             {"superseded_runs": [{"run_id": "published-create", "article_ids": ["OTHER-001"]}]},
             "publisher ledger identity mismatch",
         ),
+        (
+            {"published_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001", "PUBLISHED-001"]}]},
+            "publisher ledger identity mismatch",
+        ),
     ],
 )
 def test_plan_rejects_invalid_lifecycle_ledger_before_runtime_mutation(
@@ -1559,6 +1636,39 @@ def test_plan_rejects_invalid_lifecycle_ledger_before_runtime_mutation(
     before = _snapshot(request)
 
     with pytest.raises(promotion.PromotionError, match=message):
+        promotion.plan_promotion(request)
+
+    assert not request.transaction_root.exists()
+    assert _snapshot(request) == before
+
+
+@pytest.mark.parametrize(
+    "translation_entry",
+    [
+        {"run_id": "legacy-translation-history", "article_ids": ["TRANSLATED-SOURCE-001"]},
+        {
+            "run_id": "legacy-translation-history",
+            "article_id": "TRANSLATED-SOURCE-001",
+            "article_ids": ["TRANSLATED-SOURCE-001"],
+        },
+        {"run_id": "legacy-translation-history", "article_id": ["TRANSLATED-SOURCE-001"]},
+        {"run_id": "legacy-translation-history"},
+        {"run_id": "legacy-translation-history", "article_id": "OTHER-SOURCE-001"},
+    ],
+)
+def test_plan_rejects_malformed_translation_lifecycle_ledger_before_runtime_mutation(
+    tmp_path: Path,
+    translation_entry: dict[str, object],
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_id = "legacy-translation-history"
+    _write_complete_translation_history(request, run_id=run_id, ledger_entry=translation_entry)
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": (run_id,)}
+    )
+    before = _snapshot(request)
+
+    with pytest.raises(promotion.PromotionError, match="publisher ledger identity mismatch"):
         promotion.plan_promotion(request)
 
     assert not request.transaction_root.exists()

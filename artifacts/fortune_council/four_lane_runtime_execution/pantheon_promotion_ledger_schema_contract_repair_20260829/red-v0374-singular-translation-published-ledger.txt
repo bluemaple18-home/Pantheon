@@ -1,0 +1,110 @@
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Installed 28 packages in 273ms
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mattkuo/.codex/worktrees/a018/Pantheon
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 1 item
+
+tests/test_pantheon_content_runtime_promotion.py F                       [100%]
+
+=================================== FAILURES ===================================
+_ test_plan_accepts_v0374_singular_translation_published_ledger_without_runtime_mutation _
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-1143/test_plan_accepts_v0374_singul0')
+
+    def test_plan_accepts_v0374_singular_translation_published_ledger_without_runtime_mutation(
+        tmp_path: Path,
+    ) -> None:
+        request, _identities = _runtime_fixture(tmp_path)
+        run_id = "gemini-i18n-ja-fresh-v0374"
+        article_id = "V2-MBTI-INTJ-WORK"
+        run_dir = request.queue_root / "translation-runs" / run_id
+        run_dir.mkdir(parents=True)
+        _write_json(
+            run_dir / "brief.json",
+            _preserved_brief(
+                run_id,
+                mode="translate_existing",
+                lane="i18n-new",
+                article_ids=[article_id],
+            ),
+        )
+        _write_json(
+            request.queue_root / "runs" / "translation-v0374.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "run_dir": str(run_dir),
+                "status": "complete",
+            },
+        )
+        _write_json(
+            request.publisher_state_root / "ledger.json",
+            {
+                "schema_version": 1,
+                "published_runs": [],
+                "rewrite_released_runs": [],
+                "superseded_runs": [],
+                "translation_published_runs": [
+                    {
+                        "run_id": run_id,
+                        "locale": "ja",
+                        "article_id": article_id,
+                        "version": "0.3.374",
+                        "commit_sha": "5" * 40,
+                        "published_at": "2026-08-29T00:00:00+00:00",
+                        "staging_receipt_sha256": "6" * 64,
+                    }
+                ],
+                "quarantined_runs": [],
+                "translation_deferred_runs": [],
+            },
+        )
+        request = promotion.PromotionRequest(
+            **{**request.__dict__, "preserved_run_ids": (run_id,)}
+        )
+        before = _snapshot(request)
+        before_queue = promotion.tree_digest(request.queue_root)
+        before_ledger = promotion.file_sha256(request.publisher_state_root / "ledger.json")
+
+>       first = promotion.plan_promotion(request)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_pantheon_content_runtime_promotion.py:1210:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts/pantheon_content_runtime_promotion.py:1184: in plan_promotion
+    return _plan_payload(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+scripts/pantheon_content_runtime_promotion.py:1091: in _plan_payload
+    queue_identity_snapshot = _queue_identity_snapshot(request)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts/pantheon_content_runtime_promotion.py:834: in _queue_identity_snapshot
+    ledger_evidence = _publisher_ledger_evidence(request, run_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts/pantheon_content_runtime_promotion.py:502: in _publisher_ledger_evidence
+    "article_ids": _validated_ledger_article_ids(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+value = None
+
+    def _validated_ledger_article_ids(value: object) -> list[str]:
+        if (
+            not isinstance(value, list)
+            or any(
+                type(article_id) is not str
+                or not article_id
+                or article_id.strip() != article_id
+                for article_id in value
+            )
+            or value != sorted(set(value))
+        ):
+>           raise PromotionError("publisher ledger identity mismatch")
+E           scripts.pantheon_content_runtime_promotion.PromotionError: publisher ledger identity mismatch
+
+scripts/pantheon_content_runtime_promotion.py:460: PromotionError
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_content_runtime_promotion.py::test_plan_accepts_v0374_singular_translation_published_ledger_without_runtime_mutation
+============================== 1 failed in 0.33s ===============================

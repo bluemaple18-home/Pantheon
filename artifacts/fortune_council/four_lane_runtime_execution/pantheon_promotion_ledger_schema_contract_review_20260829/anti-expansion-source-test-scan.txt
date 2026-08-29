@@ -1,0 +1,105 @@
+scripts/pantheon_content_runtime_promotion.py:77:class LedgerCollectionDescriptor:
+scripts/pantheon_content_runtime_promotion.py:87:    LedgerCollectionDescriptor("published_runs", "create", "new", "published", "article_ids", "many"),
+scripts/pantheon_content_runtime_promotion.py:88:    LedgerCollectionDescriptor("rewrite_released_runs", "rewrite_existing_body", "rewrite", "released", "article_ids", "many"),
+scripts/pantheon_content_runtime_promotion.py:89:    LedgerCollectionDescriptor("translation_published_runs", "translate_existing", None, "published_translation", "article_id", "one"),
+scripts/pantheon_content_runtime_promotion.py:90:    LedgerCollectionDescriptor("superseded_runs", "create", "new", "superseded_create", "article_ids", "many"),
+scripts/pantheon_content_runtime_promotion.py:323:        "article_ids",
+scripts/pantheon_content_runtime_promotion.py:338:    article_ids = value.get("article_ids")
+scripts/pantheon_content_runtime_promotion.py:340:        not isinstance(article_ids, list)
+scripts/pantheon_content_runtime_promotion.py:341:        or any(type(article_id) is not str or not article_id or article_id.strip() != article_id for article_id in article_ids)
+scripts/pantheon_content_runtime_promotion.py:342:        or article_ids != sorted(set(article_ids))
+scripts/pantheon_content_runtime_promotion.py:349:        "article_ids": article_ids,
+scripts/pantheon_content_runtime_promotion.py:371:    article_ids = identity["article_ids"]
+scripts/pantheon_content_runtime_promotion.py:386:            value_id = article.get("article_id")
+scripts/pantheon_content_runtime_promotion.py:388:            value_id = article.get("source_article_id")
+scripts/pantheon_content_runtime_promotion.py:392:    if sorted(observed_ids) != article_ids or len(observed_ids) != len(set(observed_ids)):
+scripts/pantheon_content_runtime_promotion.py:425:    article_ids: list[str] = []
+scripts/pantheon_content_runtime_promotion.py:434:            value_id = article.get("article_id")
+scripts/pantheon_content_runtime_promotion.py:436:            value_id = article.get("source_article_id")
+scripts/pantheon_content_runtime_promotion.py:441:        article_ids.append(value_id)
+scripts/pantheon_content_runtime_promotion.py:447:            "article_ids": sorted(article_ids),
+scripts/pantheon_content_runtime_promotion.py:454:                        "article_ids": sorted(article_ids),
+scripts/pantheon_content_runtime_promotion.py:467:def _validated_ledger_article_id(value: object) -> str:
+scripts/pantheon_content_runtime_promotion.py:473:def _validated_ledger_article_ids(value: object) -> tuple[str, ...]:
+scripts/pantheon_content_runtime_promotion.py:477:            type(article_id) is not str
+scripts/pantheon_content_runtime_promotion.py:478:            or not article_id
+scripts/pantheon_content_runtime_promotion.py:479:            or article_id.strip() != article_id
+scripts/pantheon_content_runtime_promotion.py:480:            for article_id in value
+scripts/pantheon_content_runtime_promotion.py:488:def _canonical_ledger_article_ids(
+scripts/pantheon_content_runtime_promotion.py:490:    descriptor: LedgerCollectionDescriptor,
+scripts/pantheon_content_runtime_promotion.py:492:    if descriptor.identity_field == "article_id" and descriptor.cardinality == "one":
+scripts/pantheon_content_runtime_promotion.py:493:        if "article_ids" in entry:
+scripts/pantheon_content_runtime_promotion.py:495:        return (_validated_ledger_article_id(entry.get("article_id")),)
+scripts/pantheon_content_runtime_promotion.py:496:    if descriptor.identity_field == "article_ids" and descriptor.cardinality == "many":
+scripts/pantheon_content_runtime_promotion.py:497:        if "article_id" in entry:
+scripts/pantheon_content_runtime_promotion.py:499:        return _validated_ledger_article_ids(entry.get("article_ids"))
+scripts/pantheon_content_runtime_promotion.py:507:    ledger_path = request.publisher_state_root / "ledger.json"
+scripts/pantheon_content_runtime_promotion.py:531:                    "article_ids": list(
+scripts/pantheon_content_runtime_promotion.py:532:                        _canonical_ledger_article_ids(entry, descriptor)
+scripts/pantheon_content_runtime_promotion.py:556:        or identity["article_ids"] != evidence["article_ids"]
+scripts/pantheon_content_runtime_promotion.py:581:            value_id = article.get("article_id")
+scripts/pantheon_content_runtime_promotion.py:583:            value_id = article.get("source_article_id")
+scripts/pantheon_content_runtime_promotion.py:588:        sorted(observed_ids) != ledger_evidence["article_ids"]
+scripts/pantheon_content_runtime_promotion.py:598:        "article_ids": list(ledger_evidence["article_ids"]),
+scripts/pantheon_content_runtime_promotion.py:669:        "article_ids": [],
+scripts/pantheon_content_runtime_promotion.py:758:        "article_ids": list(identity["article_ids"]),
+scripts/pantheon_content_runtime_promotion.py:807:        raise PromotionError("preserved run registry is invalid")
+scripts/pantheon_content_runtime_promotion.py:813:            raise PromotionError("preserved run registry contains unexpected residue")
+scripts/pantheon_content_runtime_promotion.py:824:            raise PromotionError("preserved run registry contains duplicate identity")
+tests/test_pantheon_content_runtime_promotion.py:45:    article_ids: list[str] | None = None,
+tests/test_pantheon_content_runtime_promotion.py:54:        "article_ids": sorted(article_ids or []),
+tests/test_pantheon_content_runtime_promotion.py:72:    article_ids: list[str] | None = None,
+tests/test_pantheon_content_runtime_promotion.py:75:    for article_id in article_ids or []:
+tests/test_pantheon_content_runtime_promotion.py:77:            articles.append({"target": {"id": article_id}})
+tests/test_pantheon_content_runtime_promotion.py:79:            articles.append({"article_id": article_id})
+tests/test_pantheon_content_runtime_promotion.py:81:            articles.append({"source_article_id": article_id})
+tests/test_pantheon_content_runtime_promotion.py:803:            article_ids=["SOURCE-ARTICLE-001"],
+tests/test_pantheon_content_runtime_promotion.py:827:    assert classification[run_id]["article_ids"] == ["SOURCE-ARTICLE-001"]
+tests/test_pantheon_content_runtime_promotion.py:850:            article_ids=["SOURCE-ARTICLE-001"],
+tests/test_pantheon_content_runtime_promotion.py:886:            article_ids=["ASTRO-BASE-01"],
+tests/test_pantheon_content_runtime_promotion.py:916:    assert classification[run_id]["article_ids"] == ["ASTRO-BASE-01"]
+tests/test_pantheon_content_runtime_promotion.py:937:            article_ids=["ASTRO-BASE-01"],
+tests/test_pantheon_content_runtime_promotion.py:1015:        _preserved_brief(published_id, article_ids=["PUBLISHED-HISTORY-001"]),
+tests/test_pantheon_content_runtime_promotion.py:1032:        _preserved_brief(superseded_id, article_ids=["SUPERSEDED-HISTORY-001"]),
+tests/test_pantheon_content_runtime_promotion.py:1052:            article_ids=["RELEASED-HISTORY-001"],
+tests/test_pantheon_content_runtime_promotion.py:1074:            article_ids=["TRANSLATED-SOURCE-001"],
+tests/test_pantheon_content_runtime_promotion.py:1088:        request.publisher_state_root / "ledger.json",
+tests/test_pantheon_content_runtime_promotion.py:1094:                    "article_ids": ["PUBLISHED-HISTORY-001"],
+tests/test_pantheon_content_runtime_promotion.py:1101:                    "article_ids": ["RELEASED-HISTORY-001"],
+tests/test_pantheon_content_runtime_promotion.py:1108:                    "article_ids": ["SUPERSEDED-HISTORY-001"],
+tests/test_pantheon_content_runtime_promotion.py:1112:            "translation_published_runs": [
+tests/test_pantheon_content_runtime_promotion.py:1115:                    "article_id": "TRANSLATED-SOURCE-001",
+tests/test_pantheon_content_runtime_promotion.py:1140:    before_ledger = promotion.file_sha256(request.publisher_state_root / "ledger.json")
+tests/test_pantheon_content_runtime_promotion.py:1151:    assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
+tests/test_pantheon_content_runtime_promotion.py:1159:    article_id: str = "TRANSLATED-SOURCE-001",
+tests/test_pantheon_content_runtime_promotion.py:1166:        _preserved_brief(run_id, mode="translate_existing", lane="i18n-new", article_ids=[article_id]),
+tests/test_pantheon_content_runtime_promotion.py:1173:        request.publisher_state_root / "ledger.json",
+tests/test_pantheon_content_runtime_promotion.py:1179:            "translation_published_runs": [ledger_entry or {"run_id": run_id, "article_id": article_id}],
+tests/test_pantheon_content_runtime_promotion.py:1191:    article_id = "V2-MBTI-INTJ-WORK"
+tests/test_pantheon_content_runtime_promotion.py:1195:        article_id=article_id,
+tests/test_pantheon_content_runtime_promotion.py:1199:            "article_id": article_id,
+tests/test_pantheon_content_runtime_promotion.py:1211:    before_ledger = promotion.file_sha256(request.publisher_state_root / "ledger.json")
+tests/test_pantheon_content_runtime_promotion.py:1221:    assert classification[run_id]["article_ids"] == [article_id]
+tests/test_pantheon_content_runtime_promotion.py:1223:    assert promotion.file_sha256(request.publisher_state_root / "ledger.json") == before_ledger
+tests/test_pantheon_content_runtime_promotion.py:1430:            article_ids=["V2-SOURCE-001"],
+tests/test_pantheon_content_runtime_promotion.py:1462:        _preserved_brief(superseded_id, article_ids=["SUPERSEDED-001"]),
+tests/test_pantheon_content_runtime_promotion.py:1478:        _preserved_brief(published_id, article_ids=["PUBLISHED-001"]),
+tests/test_pantheon_content_runtime_promotion.py:1498:            article_ids=["ASTRO-BASE-01"],
+tests/test_pantheon_content_runtime_promotion.py:1514:        request.publisher_state_root / "ledger.json",
+tests/test_pantheon_content_runtime_promotion.py:1520:                    "article_ids": ["PUBLISHED-001"],
+tests/test_pantheon_content_runtime_promotion.py:1527:                    "article_ids": ["ASTRO-BASE-01"],
+tests/test_pantheon_content_runtime_promotion.py:1534:                    "article_ids": ["SUPERSEDED-001"],
+tests/test_pantheon_content_runtime_promotion.py:1538:            "translation_published_runs": [],
+tests/test_pantheon_content_runtime_promotion.py:1581:            {"published_runs": [{"run_id": "published-create", "article_ids": "PUBLISHED-001"}]},
+tests/test_pantheon_content_runtime_promotion.py:1586:                "published_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001"]}],
+tests/test_pantheon_content_runtime_promotion.py:1587:                "superseded_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001"]}],
+tests/test_pantheon_content_runtime_promotion.py:1592:            {"superseded_runs": [{"run_id": "published-create", "article_ids": ["OTHER-001"]}]},
+tests/test_pantheon_content_runtime_promotion.py:1596:            {"published_runs": [{"run_id": "published-create", "article_ids": ["PUBLISHED-001", "PUBLISHED-001"]}]},
+tests/test_pantheon_content_runtime_promotion.py:1612:        _preserved_brief(run_id, article_ids=["PUBLISHED-001"]),
+tests/test_pantheon_content_runtime_promotion.py:1626:        "translation_published_runs": [],
+tests/test_pantheon_content_runtime_promotion.py:1632:    _write_json(request.publisher_state_root / "ledger.json", ledger)
+tests/test_pantheon_content_runtime_promotion.py:1648:        {"run_id": "legacy-translation-history", "article_ids": ["TRANSLATED-SOURCE-001"]},
+tests/test_pantheon_content_runtime_promotion.py:1651:            "article_id": "TRANSLATED-SOURCE-001",
+tests/test_pantheon_content_runtime_promotion.py:1652:            "article_ids": ["TRANSLATED-SOURCE-001"],
+tests/test_pantheon_content_runtime_promotion.py:1654:        {"run_id": "legacy-translation-history", "article_id": ["TRANSLATED-SOURCE-001"]},
+tests/test_pantheon_content_runtime_promotion.py:1656:        {"run_id": "legacy-translation-history", "article_id": "OTHER-SOURCE-001"},
