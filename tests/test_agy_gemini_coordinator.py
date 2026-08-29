@@ -2868,6 +2868,266 @@ def test_translation_replacement_reason_is_closed_and_requires_exhaustion(
     assert coordinator._translation_replacement_reason(tmp_path, state) == expected
 
 
+def _exact_translation_replacement_fixture(
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, dict[str, object], dict[str, object]]:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    queue_root = tmp_path / "queue"
+    run_id = "translation-terminal-en"
+    run_dir = queue_root / "translation-runs" / run_id
+    run_dir.mkdir(parents=True)
+    source = {"article_id": "LEGACY-001", "canonical_path": "/articles/astrology/legacy-001", "title": "Source title", "description": "Source description", "answer": "Source answer", "tags": ["source"], "faq": [{"question": "Question?", "answer": "Answer."}], "bodySections": [{"heading": "Heading", "paragraphs": ["Paragraph."]}]}
+    brief = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "translate_existing",
+        "articles": [{
+            "translation_id": "LEGACY-001:en",
+            "locale": "en",
+            "source_article_id": "LEGACY-001",
+            "source_path": source["canonical_path"],
+            "source_sha256": coordinator.multilingual.source_sha256(source),
+            "source": source,
+        }],
+    }
+    coordinator.atomic_write_json(run_dir / "brief.json", brief)
+    state = {"schema_version": 1, "run_id": run_id, "run_dir": str(run_dir.resolve()), "status": "failed", "error_type": "LocalePlanValidationError", "routing_schema_version": 1, "mode": "translate_existing", "lane": "i18n-rewrite", "identity_envelope": coordinator._build_identity_envelope("translate_existing", "i18n-rewrite", ["LEGACY-001"]), "registered_at": "2026-08-30T10:00:00+08:00", "updated_at": "2026-08-30T10:00:00+08:00"}
+    coordinator.atomic_write_json(coordinator._state_path(run_id, queue_root), state)
+    for generation in ("01", "02"):
+        coordinator.atomic_write_json(
+            run_dir / "attempts" / generation / "review.json",
+            {"articles": [{"verdict": "REJECT"}]},
+        )
+    coordinator.atomic_write_json(
+        run_dir / "attempts" / "03" / "planning-result.json",
+        {"schema_version": 1, "generation": 3, "transport_status": "EXTERNAL_PLAN_AVAILABLE", "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING", "terminal_reason": "locale plan rebuild reused prior outline topology for article-01"},
+    )
+    for lane in coordinator.CONTENT_LANES:
+        coordinator.atomic_write_json(queue_root / "lanes" / lane / "protected.json", {"lane": lane})
+    for locale in ("ko", "ja"):
+        coordinator.atomic_write_json(queue_root / "protected-runs" / f"{locale}.json", {"locale": locale})
+    coordinator.atomic_write_json(queue_root / "publisher" / "protected.json", {"status": "unchanged"})
+    return repo_root, queue_root, run_dir, source, state
+
+
+def _exact_translation_replacement_cli(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    repo_root: Path,
+    queue_root: Path,
+    run_dir: Path,
+    state: dict[str, object],
+    mode: str,
+) -> tuple[int, dict[str, object]]:
+    monkeypatch.setattr(coordinator, "_validate_formal_runtime", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(sys, "argv", [
+        "agy_gemini_coordinator", "--queue-root", str(queue_root), "--repo-root", str(repo_root),
+        "replace-failed-translation-run", "--run-id", str(state["run_id"]),
+        "--expected-registry-digest", coordinator._canonical_json_file_sha256(state),
+        "--expected-run-dir", str(run_dir.resolve()), mode,
+    ])
+    return coordinator.main(), json.loads(capsys.readouterr().out)
+
+
+def test_exact_translation_replacement_cli_plan_only_is_zero_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
+    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
+    monkeypatch.setattr(coordinator, "cycle_once", lambda *_args, **_kwargs: pytest.fail("cycle invoked"))
+    monkeypatch.setattr(coordinator, "process_once", lambda *_args, **_kwargs: pytest.fail("runner invoked"))
+    before = _file_snapshot(tmp_path)
+    returncode, receipt = _exact_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, run_dir, state, "--plan-only"
+    )
+    replacement_id = f"{state['run_id']}-replacement-01"
+    assert returncode == 0
+    assert receipt["status"] == "plan_only"
+    assert receipt["source_run_id"] == state["run_id"]
+    assert receipt["replacement_run_id"] == replacement_id
+    assert receipt["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
+    assert receipt["expected_write_set"] == [
+        str((queue_root / "translation-runs" / replacement_id / "brief.json").resolve()),
+        str(coordinator._state_path(replacement_id, queue_root).resolve()),
+    ]
+    assert receipt["runner_invoked"] is False
+    assert receipt["provider_invoked"] is False
+    assert receipt["publisher_invoked"] is False
+    assert _file_snapshot(tmp_path) == before
+
+
+def test_exact_translation_replacement_cli_execute_is_idempotent_and_does_not_advance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
+    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    original_enqueue = coordinator.multilingual.enqueue_translation_replacement
+    calls = 0
+    def enqueue(*args: object, **kwargs: object) -> dict[str, str]:
+        nonlocal calls
+        calls += 1
+        return original_enqueue(*args, **kwargs, source_loader=lambda *_args: source)
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", enqueue)
+    monkeypatch.setattr(coordinator, "cycle_once", lambda *_args, **_kwargs: pytest.fail("cycle invoked"))
+    monkeypatch.setattr(coordinator, "process_once", lambda *_args, **_kwargs: pytest.fail("runner invoked"))
+    source_before = (run_dir / "brief.json").read_bytes(), coordinator._state_path(str(state["run_id"]), queue_root).read_bytes()
+    first_code, first = _exact_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, run_dir, state, "--execute"
+    )
+    after_first = _file_snapshot(tmp_path)
+    second_code, second = _exact_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, run_dir, state, "--execute"
+    )
+    replacement_id = f"{state['run_id']}-replacement-01"
+    replacement_dir = queue_root / "translation-runs" / replacement_id
+    replacement_state = json.loads(coordinator._state_path(replacement_id, queue_root).read_text())
+    assert first_code == second_code == 0
+    assert first["status"] == "replacement_created"
+    assert second["status"] == "already_exists"
+    assert first["replacement_run_id"] == second["replacement_run_id"] == replacement_id
+    assert replacement_state["status"] == "active"
+    assert replacement_state["replacement_of"] == state["run_id"]
+    assert replacement_state["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
+    assert not (replacement_dir / "attempts").exists()
+    assert not list((queue_root / "lanes" / "i18n-rewrite" / "outbox").glob(f"*{replacement_id}*"))
+    assert source_before == ((run_dir / "brief.json").read_bytes(), coordinator._state_path(str(state["run_id"]), queue_root).read_bytes())
+    assert _file_snapshot(tmp_path) == after_first
+    assert calls == 2
+    assert first["source_terminal_preserved"] is True
+    assert first["replacement_consumed"] is False
+    assert first["runner_invoked"] is first["provider_invoked"] is first["publisher_invoked"] is False
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing-run", "registry-digest", "run-dir", "brief-identity",
+        "source-drift", "nonfailed", "second-replacement", "replacement-collision", "routing",
+        "consumed-attempt", "consumed-queue-outbox", "consumed-queue-processing", "consumed-queue-inbox", "consumed-queue-archive", "consumed-queue-failed", "consumed-complete", "consumed-failed",
+        "source-symlink", "replacement-symlink", "identity-envelope", "orphan-attempt-plan", "orphan-brief-attempt-plan", "orphan-attempt-execute", "orphan-brief-attempt-execute",
+    ],
+)
+def test_exact_translation_replacement_cli_rejects_identity_and_lineage_drift_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
+    selected_source = {**source, "title": "Drifted"} if failure == "source-drift" else source
+    if failure == "nonfailed":
+        state["status"] = "active"
+        coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
+    if failure == "brief-identity":
+        brief = json.loads((run_dir / "brief.json").read_text())
+        coordinator.atomic_write_json(run_dir / "brief.json", {**brief, "run_id": "other-run"})
+    if failure == "second-replacement":
+        state["run_id"] = f"{state['run_id']}-replacement-01"
+        run_dir = queue_root / "translation-runs" / str(state["run_id"])
+        run_dir.mkdir(parents=True)
+        brief = json.loads((queue_root / "translation-runs" / "translation-terminal-en" / "brief.json").read_text())
+        coordinator.atomic_write_json(run_dir / "brief.json", {**brief, "run_id": state["run_id"]})
+        state["run_dir"] = str(run_dir.resolve())
+        coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
+    if failure == "replacement-collision":
+        replacement_id = f"{state['run_id']}-replacement-01"
+        coordinator.atomic_write_json(
+            coordinator._state_path(replacement_id, queue_root),
+            {"run_id": replacement_id, "replacement_of": "other-run"},
+        )
+    if failure == "routing":
+        state["lane"] = "new"
+        coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
+    if failure == "identity-envelope":
+        state["identity_envelope"] = coordinator._build_identity_envelope("translate_existing", "i18n-new", ["LEGACY-001"]); coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
+    if failure.startswith("orphan-"):
+        replacement_dir = queue_root / "translation-runs" / f"{state['run_id']}-replacement-01"
+        if "brief" in failure:
+            coordinator.atomic_write_json(replacement_dir / "brief.json", {**json.loads((run_dir / "brief.json").read_text()), "run_id": replacement_dir.name})
+        coordinator.atomic_write_json(replacement_dir / "attempts" / "01" / "plan-operation.json", {"status": "pending"})
+        monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
+    if failure.startswith("consumed-"):
+        replacement = coordinator.multilingual.enqueue_translation_replacement(
+            repo_root, queue_root, terminal_state=state, recovery_reason="LOCALE_PLAN_VALIDATION",
+            source_loader=lambda *_args: source,
+        )
+        replacement_dir = Path(replacement["run_dir"])
+        replacement_state_path = Path(replacement["state_path"])
+        replacement_state = json.loads(replacement_state_path.read_text())
+        if failure == "consumed-attempt":
+            coordinator.atomic_write_json(replacement_dir / "attempts" / "01" / "plan-operation.json", {"status": "pending"})
+        elif failure.startswith("consumed-queue-"):
+            namespace = hashlib.sha256(str(replacement["run_id"]).encode()).hexdigest()[:24]
+            coordinator.atomic_write_json(queue_root / "lanes" / "i18n-rewrite" / failure.removeprefix("consumed-queue-") / "job.json", {"namespace": namespace})
+        else:
+            replacement_state["status"] = failure.removeprefix("consumed-")
+            coordinator.atomic_write_json(replacement_state_path, replacement_state)
+    if failure == "source-symlink":
+        target = tmp_path / "source-outside"
+        run_dir.rename(target)
+        run_dir.symlink_to(target, target_is_directory=True)
+        state["run_dir"] = str(run_dir)
+        coordinator.atomic_write_json(coordinator._state_path(str(state["run_id"]), queue_root), state)
+    if failure == "replacement-symlink":
+        target = tmp_path / "replacement-outside"
+        target.mkdir()
+        (queue_root / "translation-runs" / f"{state['run_id']}-replacement-01").symlink_to(target, target_is_directory=True)
+    selected_run_id = "missing-terminal-run" if failure == "missing-run" else str(state["run_id"])
+    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: selected_source)
+    monkeypatch.setattr(coordinator, "_validate_formal_runtime", lambda *_args, **_kwargs: {})
+    argv = [
+        "agy_gemini_coordinator", "--queue-root", str(queue_root), "--repo-root", str(repo_root),
+        "replace-failed-translation-run", "--run-id", selected_run_id,
+        "--expected-registry-digest", "0" * 64 if failure == "registry-digest" else coordinator._canonical_json_file_sha256(state),
+        "--expected-run-dir", str((tmp_path / "wrong-run").resolve()) if failure == "run-dir" else str(run_dir.resolve()),
+        "--execute" if failure.endswith("execute") else "--plan-only",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    before = _file_snapshot(tmp_path)
+    returncode = coordinator.main()
+    receipt = json.loads(capsys.readouterr().out)
+    assert returncode == 1
+    assert receipt["status"] == "rejected"
+    assert _file_snapshot(tmp_path) == before
+
+
+def test_exact_translation_replacement_execute_revalidates_under_lock_before_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
+    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
+    original_read = coordinator._read_run_state_by_id
+    reads = 0
+    def read_then_drift(run_id: str, root: Path) -> dict[str, object]:
+        nonlocal reads
+        current = original_read(run_id, root)
+        reads += 1
+        if reads == 1:
+            coordinator.atomic_write_json(
+                coordinator._state_path(str(state["run_id"]), queue_root),
+                {**state, "status": "active"},
+            )
+        return current
+    monkeypatch.setattr(coordinator, "_read_run_state_by_id", read_then_drift)
+    returncode, receipt = _exact_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, run_dir, state, "--execute"
+    )
+    assert returncode == 1
+    assert receipt["status"] == "rejected"
+    assert reads == 2
+    assert not (queue_root / "translation-runs" / f"{state['run_id']}-replacement-01").exists()
+    assert not coordinator._state_path(f"{state['run_id']}-replacement-01", queue_root).exists()
+
+
 def test_cycle_persists_closed_external_failure_recovery_metadata(
     tmp_path: Path,
 ) -> None:

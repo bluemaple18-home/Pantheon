@@ -2873,13 +2873,18 @@ def _lane_summary(
 def _translation_replacement_reason(
     queue_root: Path,
     state: dict[str, Any],
+    *,
+    allow_existing_replacement: bool = False,
 ) -> str | None:
     run_id = str(state.get("run_id") or "")
     if (
         state.get("status") != "failed"
         or not run_id
         or run_id.endswith("-replacement-01")
-        or _state_path(f"{run_id}-replacement-01", queue_root).exists()
+        or (
+            not allow_existing_replacement
+            and _state_path(f"{run_id}-replacement-01", queue_root).exists()
+        )
         or _translation_replacement_decision_path(queue_root, run_id).exists()
     ):
         return None
@@ -2893,6 +2898,101 @@ def _translation_replacement_reason(
     ):
         return str(category)
     return None
+
+
+def replace_failed_translation_run_exact(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    expected_run_id: str,
+    expected_registry_digest: str,
+    expected_run_dir: Path,
+    execute: bool,
+) -> dict[str, Any]:
+    """精確驗證 terminal translation run，必要時只建立一次 replacement。"""
+    run_dir = (root := queue_root.resolve()) / "translation-runs" / expected_run_id
+    replacement_run_id = f"{expected_run_id}-replacement-01"
+    replacement_run_dir = root / "translation-runs" / replacement_run_id
+    replacement_state_path = _state_path(replacement_run_id, root)
+    def preflight() -> tuple[dict[str, Any], dict[str, Any]]:
+        state_path = _state_path(expected_run_id, root)
+        if state_path.is_symlink() or state_path.parent.resolve(strict=True) != state_path.parent:
+            raise ValueError("translation replacement registry path is not canonical")
+        state = _read_run_state_by_id(expected_run_id, root)
+        digest = _canonical_json_file_sha256(state)
+        if digest != expected_registry_digest:
+            raise ValueError("translation replacement registry digest differs")
+        if (_active_run_integrity_block([state], exact_run_ids=frozenset({expected_run_id}))
+                or not expected_run_dir.is_absolute() or expected_run_dir.is_symlink()
+                or expected_run_dir != run_dir or state.get("run_dir") != str(run_dir)):
+            raise ValueError("translation replacement run identity differs")
+        brief_path = run_dir / "brief.json"
+        if brief_path.is_symlink():
+            raise ValueError("translation replacement brief path is not canonical")
+        brief = _brief(run_dir)
+        multilingual.validate_translation_brief(brief)
+        lane = _lane_for_state(state, set())
+        identity_brief = {**brief, "lane": lane}
+        if (lane not in {"i18n-new", "i18n-rewrite"}
+                or _validate_identity_envelope(state.get("identity_envelope"))
+                != _identity_envelope_from_brief(identity_brief)):
+            raise ValueError("translation replacement routing identity differs")
+        reason = _translation_replacement_reason(root, state, allow_existing_replacement=True)
+        if reason is None:
+            raise ValueError("translation replacement source is not eligible")
+        if reason == "LOCALE_PLAN_VALIDATION":
+            attempts = run_dir / "attempts"
+            if [path.name for path in sorted(attempts.iterdir())] != ["01", "02", "03"]:
+                raise ValueError("translation replacement semantic budget differs")
+            reviews = [read_closed_json_artifact(attempts / name / "review.json", max_bytes=512 * 1024, label="translation replacement prior review") for name in ("01", "02")]
+            terminal = read_closed_json_artifact(attempts / "03" / "planning-result.json", max_bytes=64 * 1024, label="translation replacement terminal planning result")
+            if (any(not any(item.get("verdict") == "REJECT" for item in review.get("articles", [])) for review in reviews)
+                    or {key: terminal.get(key) for key in ("generation", "planning_contract_status", "terminal_stage")}
+                    != {"generation": 3, "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING"}):
+                raise ValueError("translation replacement terminal budget differs")
+        for article in brief["articles"]:
+            current = multilingual.load_source_article(repo_root.resolve(), str(article["source_article_id"]))
+            if multilingual.source_sha256(current) != article["source_sha256"]:
+                raise ValueError("translation replacement source drift")
+        paths = (replacement_run_dir, replacement_run_dir / "brief.json", replacement_state_path)
+        if (any(path.is_symlink() for path in paths)
+                or replacement_run_dir.parent.resolve(strict=True) != replacement_run_dir.parent
+                or replacement_state_path.parent.resolve(strict=True) != replacement_state_path.parent
+                or (replacement_run_dir.exists() and (not replacement_run_dir.is_dir() or replacement_run_dir.resolve(strict=True) != replacement_run_dir))):
+            raise ValueError("translation replacement target path is not canonical")
+        replacement_brief = {**brief, "run_id": replacement_run_id}
+        expected_writes = [str(path) for path in paths[1:] if not path.exists()]
+        if ((replacement_run_dir.exists() and {path.name for path in replacement_run_dir.iterdir()} not in (set(), {"brief.json"})) or (paths[1].exists() and _brief(replacement_run_dir) != replacement_brief)):
+            raise ValueError("translation replacement brief collision")
+        if replacement_state_path.exists():
+            replacement_state = read_closed_json_artifact(replacement_state_path, max_bytes=64 * 1024, label="translation replacement state")
+            fields = {"schema_version", "run_id", "run_dir", "status", "registered_at", "updated_at", "replacement_of", "replacement_reason"}
+            identity = {"run_id": replacement_run_id, "run_dir": str(replacement_run_dir), "replacement_of": expected_run_id, "replacement_reason": reason}
+            if (set(replacement_state) != fields or replacement_state.get("schema_version") != 1
+                    or replacement_state.get("status") != "active" or any(replacement_state.get(key) != value for key, value in identity.items())
+                    or set(path.name for path in replacement_run_dir.iterdir()) != {"brief.json"}):
+                raise ValueError("translation replacement is not pristine")
+        namespace = hashlib.sha256(replacement_run_id.encode("utf-8")).hexdigest()[:24].encode()
+        job_roots = [root, *(_lane_queue_root(root, lane_name) for lane_name in CONTENT_LANES)]
+        if any(path.is_symlink() or (path.is_file() and namespace in path.read_bytes()) for job_root in job_roots for bucket in ("outbox", "processing", "inbox", "archive", "failed") for path in (job_root / bucket).glob("*")):
+            raise ValueError("translation replacement has queue residue")
+        receipt = {"status": "plan_only", "source_run_id": expected_run_id, "source_run_dir": str(run_dir), "source_registry_digest": digest, "replacement_run_id": replacement_run_id, "replacement_reason": reason, "replacement_run_dir": str(replacement_run_dir), "replacement_state_path": str(replacement_state_path), "proposed_lineage": {"replacement_of": expected_run_id, "replacement_reason": reason}, "expected_write_set": expected_writes, "runner_invoked": False, "provider_invoked": False, "publisher_invoked": False}
+        return receipt, state
+    receipt, state = preflight()
+    if not execute:
+        return receipt
+    with _run_identity_lock(expected_run_id, root):
+        locked_receipt, state = preflight()
+        if locked_receipt != receipt:
+            raise ValueError("translation replacement authority changed before execute")
+        replacement = multilingual.enqueue_translation_replacement(repo_root.resolve(), root, terminal_state=state, recovery_reason=str(receipt["replacement_reason"]))
+    return {
+        **receipt,
+        **{f"replacement_{key}": value for key, value in replacement.items()},
+        "status": "already_exists" if not receipt["expected_write_set"] else "replacement_created",
+        "source_terminal_preserved": True,
+        "replacement_consumed": False,
+    }
 
 
 def seed_failed_translation_replacements(
@@ -6194,6 +6294,13 @@ def parse_args() -> argparse.Namespace:
     )
     replacement.add_argument("--plan-only", action="store_true")
     replacement.add_argument("--execute", action="store_true")
+    exact_replacement = subparsers.add_parser("replace-failed-translation-run")
+    exact_replacement.add_argument("--run-id", required=True)
+    exact_replacement.add_argument("--expected-registry-digest", required=True)
+    exact_replacement.add_argument("--expected-run-dir", type=Path, required=True)
+    exact_mode = exact_replacement.add_mutually_exclusive_group(required=True)
+    exact_mode.add_argument("--plan-only", action="store_true")
+    exact_mode.add_argument("--execute", action="store_true")
     campaign = subparsers.add_parser("dry-run-campaign")
     campaign.add_argument("--campaign-version", required=True)
     campaign.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
@@ -6308,6 +6415,18 @@ def main() -> int:
                 plan_only=args.plan_only,
                 execute=args.execute,
             )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "replace-failed-translation-run":
+        try:
+            result = replace_failed_translation_run_exact(
+                args.repo_root, queue_root, expected_run_id=args.run_id,
+                expected_registry_digest=args.expected_registry_digest,
+                expected_run_dir=args.expected_run_dir, execute=args.execute,
+            )
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            return 0
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
             print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
             return 1
