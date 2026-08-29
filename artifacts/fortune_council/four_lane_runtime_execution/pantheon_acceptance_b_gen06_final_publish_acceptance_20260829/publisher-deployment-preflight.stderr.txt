@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_content_publisher.py", line 4657, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_content_publisher.py", line 4556, in main
+    preflight = deployment_preflight(
+                ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_content_publisher.py", line 1757, in deployment_preflight
+    raise PublishBlocked(
+PublishBlocked: publisher runtime digest differs from deployment contract

@@ -1,0 +1,8 @@
+{
+  "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "actor_head": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "runtime_digest": "38f3a73b56cf9753b277b7e3ec52242f76aa7d81cf34784316a7197312921ce3",
+  "manifest_digest": "eb439da071f677f9be42311fe2db59ba2068db8c3dcf78b63cf6c4d8c609916e",
+  "generation": "g66-5704fa60-gen06-final-publish-runtime-digest-correction-20260829",
+  "identity": "gate2-actor:5704fa6077aa4187619fddc08d9c29cad2f2dabf:gen06-final-publish-runtime-digest-correction-20260829"
+}

@@ -1,0 +1,39 @@
+{
+  "status": "READY_TO_APPLY",
+  "plan_digest": "ead126da43537771c46d61dc46fcc83538628921dd5ca567f47195e31f3c1888",
+  "write_set": [
+    {
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+      "stage": "ACTOR_PROMOTED",
+      "type": "actor"
+    },
+    {
+      "digest": "eb439da071f677f9be42311fe2db59ba2068db8c3dcf78b63cf6c4d8c609916e",
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+      "stage": "MANIFEST_WRITTEN",
+      "type": "manifest"
+    },
+    {
+      "path": "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g66-5704fa60-gen06-final-publish-runtime-digest-correction-20260829",
+      "stage": "STAGE_INSTALLED",
+      "type": "readiness_acknowledgements"
+    },
+    {
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g66-5704fa60-gen06-final-publish-runtime-digest-correction-20260829.barrier",
+      "stage": "STAGE_INSTALLED",
+      "type": "activation_barrier"
+    }
+  ],
+  "postchecks": [
+    "actor_clean_head_origin",
+    "manifest_digest_actor_head_generation",
+    "private_stage_readiness_and_barrier",
+    "queue_preserved",
+    "capacity_receipt_payload_stop_loss_pass"
+  ],
+  "run_set_count": 136,
+  "target_manifest_digest": "eb439da071f677f9be42311fe2db59ba2068db8c3dcf78b63cf6c4d8c609916e",
+  "expected_current_actor_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "target_actor_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "correlation_id": "pantheon-gen06-final-publish-runtime-digest-correction-5704-20260829"
+}

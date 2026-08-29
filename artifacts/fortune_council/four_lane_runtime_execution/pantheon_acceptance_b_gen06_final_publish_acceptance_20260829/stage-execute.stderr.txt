@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_multilingual_pipeline.py", line 4438, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_multilingual_pipeline.py", line 4413, in main
+    receipt = apply_approved_edited_candidate_stage(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_multilingual_pipeline.py", line 3024, in apply_approved_edited_candidate_stage
+    with _continuation_run_lock(run_dir):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon/scripts/agy_multilingual_pipeline.py", line 2652, in _continuation_run_lock
+    with (continuation_dir / "continuation.lock").open("a+b") as lock_file:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted: '/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/continuation/continuation.lock'

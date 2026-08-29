@@ -1,0 +1,24 @@
+{
+  "allowed_mutations": [
+    "push exact target sha to origin/main once",
+    "formal runtime promotion",
+    "formal approved edited candidate staging",
+    "formal publisher transaction/tag/push/deploy"
+  ],
+  "authorized_by": "Owner prompt",
+  "correction": "OPERATOR_HELPER_DIGEST_DERIVATION_ERROR",
+  "expected_initial_origin_main": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "forbidden_mutations": [
+    "force push",
+    "source edits",
+    "test edits",
+    "manual production state edits",
+    "provider calls",
+    "coordinator calls",
+    "Gen07 creation"
+  ],
+  "operation": "pantheon-gen06-final-publish-acceptance",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "target_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf"
+}

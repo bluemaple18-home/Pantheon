@@ -1,0 +1,734 @@
+app/web/seo/articles/fortune/index.html
+app/web/seo/articles/personality/index.html
+app/web/seo/articles/tarot/index.html
+app/web/seo/articles/astro/index.html
+app/web/seo/topics/mbti/index.html
+app/web/seo/topics/personality/index.html
+app/web/seo/topics/tarot/index.html
+app/web/seo/topics/upright/index.html
+app/web/seo/topics/fortune/index.html
+app/web/seo/topics/bazi/index.html
+app/web/seo/topics/ziwei/index.html
+app/web/seo/topics/astrology/index.html
+app/web/seo/topics/love/index.html
+app/web/seo/topics/career/index.html
+app/web/seo/topics/interpersonal/index.html
+app/web/seo/topics/wealth/index.html
+app/web/seo/topics/life-direction/index.html
+app/web/seo/topics/reversed/index.html
+app/web/seo/articles/personality/personality-0001/index.html
+app/web/seo/articles/personality/personality-0002/index.html
+app/web/seo/articles/personality/personality-0003/index.html
+app/web/seo/articles/personality/personality-0004/index.html
+app/web/seo/articles/personality/personality-0005/index.html
+app/web/seo/articles/personality/personality-0006/index.html
+app/web/seo/articles/personality/personality-0007/index.html
+app/web/seo/articles/personality/personality-0008/index.html
+app/web/seo/articles/tarot/tarot-0001/index.html
+app/web/seo/articles/tarot/tarot-0002/index.html
+app/web/seo/articles/tarot/tarot-0003/index.html
+app/web/seo/articles/tarot/tarot-0004/index.html
+app/web/seo/articles/tarot/tarot-0005/index.html
+app/web/seo/articles/tarot/tarot-0006/index.html
+app/web/seo/articles/tarot/tarot-0007/index.html
+app/web/seo/articles/tarot/tarot-0008/index.html
+app/web/seo/articles/fortune/fortune-0001/index.html
+app/web/seo/articles/fortune/fortune-0002/index.html
+app/web/seo/articles/fortune/fortune-0003/index.html
+app/web/seo/articles/fortune/fortune-0004/index.html
+app/web/seo/articles/fortune/fortune-0005/index.html
+app/web/seo/articles/fortune/fortune-0006/index.html
+app/web/seo/articles/astrology/astrology-0001/index.html
+app/web/seo/articles/astrology/astrology-0002/index.html
+app/web/seo/articles/astrology/astrology-0003/index.html
+app/web/seo/articles/astrology/astrology-0004/index.html
+app/web/seo/articles/love/love-0001/index.html
+app/web/seo/articles/career/career-0001/index.html
+app/web/seo/articles/interpersonal/interpersonal-0001/index.html
+app/web/seo/articles/wealth/wealth-0001/index.html
+app/web/seo/articles/life-direction/life-direction-0001/index.html
+app/web/seo/articles/tarot/tarot-0009/index.html
+app/web/seo/articles/fortune/fortune-0007/index.html
+app/web/seo/articles/personality/personality-0009/index.html
+app/web/seo/articles/love/love-0002/index.html
+app/web/seo/articles/career/career-0002/index.html
+app/web/seo/articles/tarot/tarot-0010/index.html
+app/web/seo/articles/fortune/fortune-0008/index.html
+app/web/seo/articles/personality/personality-0010/index.html
+app/web/seo/articles/love/love-0003/index.html
+app/web/seo/articles/career/career-0003/index.html
+app/web/seo/articles/interpersonal/interpersonal-0002/index.html
+app/web/seo/articles/wealth/wealth-0002/index.html
+app/web/seo/articles/life-direction/life-direction-0002/index.html
+app/web/seo/articles/tarot/tarot-0011/index.html
+app/web/seo/articles/fortune/fortune-0009/index.html
+app/web/seo/articles/personality/personality-0011/index.html
+app/web/seo/articles/astrology/astrology-0005/index.html
+app/web/seo/articles/love/love-0004/index.html
+app/web/seo/articles/career/career-0004/index.html
+app/web/seo/articles/wealth/wealth-0003/index.html
+app/web/seo/articles/tarot/tarot-0012/index.html
+app/web/seo/articles/tarot/tarot-0013/index.html
+app/web/seo/articles/tarot/tarot-0014/index.html
+app/web/seo/articles/tarot/tarot-0015/index.html
+app/web/seo/articles/tarot/tarot-0016/index.html
+app/web/seo/articles/tarot/tarot-0017/index.html
+app/web/seo/articles/tarot/tarot-0018/index.html
+app/web/seo/articles/tarot/tarot-0019/index.html
+app/web/seo/articles/tarot/tarot-0020/index.html
+app/web/seo/articles/tarot/tarot-0021/index.html
+app/web/seo/articles/tarot/tarot-0022/index.html
+app/web/seo/articles/tarot/tarot-0023/index.html
+app/web/seo/articles/tarot/tarot-0024/index.html
+app/web/seo/articles/tarot/tarot-0025/index.html
+app/web/seo/articles/tarot/tarot-0026/index.html
+app/web/seo/articles/tarot/tarot-0027/index.html
+app/web/seo/articles/tarot/tarot-0028/index.html
+app/web/seo/articles/tarot/tarot-0029/index.html
+app/web/seo/articles/tarot/tarot-0030/index.html
+app/web/seo/articles/tarot/tarot-0031/index.html
+app/web/seo/articles/tarot/tarot-0032/index.html
+app/web/seo/articles/personality/personality-0012/index.html
+app/web/seo/articles/personality/personality-0013/index.html
+app/web/seo/articles/personality/personality-0014/index.html
+app/web/seo/articles/personality/personality-0015/index.html
+app/web/seo/articles/personality/personality-0016/index.html
+app/web/seo/articles/personality/personality-0017/index.html
+app/web/seo/articles/personality/personality-0018/index.html
+app/web/seo/articles/personality/personality-0019/index.html
+app/web/seo/articles/personality/personality-0020/index.html
+app/web/seo/articles/tarot/tarot-0033/index.html
+app/web/seo/articles/tarot/tarot-0034/index.html
+app/web/seo/articles/tarot/tarot-0035/index.html
+app/web/seo/articles/tarot/tarot-0036/index.html
+app/web/seo/articles/tarot/tarot-0037/index.html
+app/web/seo/articles/tarot/tarot-0038/index.html
+app/web/seo/articles/tarot/tarot-0039/index.html
+app/web/seo/articles/tarot/tarot-0040/index.html
+app/web/seo/articles/tarot/tarot-0041/index.html
+app/web/seo/articles/tarot/tarot-0042/index.html
+app/web/seo/articles/tarot/tarot-0043/index.html
+app/web/seo/articles/tarot/tarot-0044/index.html
+app/web/seo/articles/tarot/tarot-0045/index.html
+app/web/seo/articles/tarot/tarot-0046/index.html
+app/web/seo/articles/tarot/tarot-0047/index.html
+app/web/seo/articles/tarot/tarot-0048/index.html
+app/web/seo/articles/tarot/tarot-0049/index.html
+app/web/seo/articles/tarot/tarot-0050/index.html
+app/web/seo/articles/tarot/tarot-0051/index.html
+app/web/seo/articles/tarot/tarot-0052/index.html
+app/web/seo/articles/tarot/tarot-0053/index.html
+app/web/seo/articles/tarot/tarot-0054/index.html
+app/web/seo/articles/tarot/tarot-0055/index.html
+app/web/seo/articles/tarot/tarot-0056/index.html
+app/web/seo/articles/tarot/tarot-0057/index.html
+app/web/seo/articles/tarot/tarot-0058/index.html
+app/web/seo/articles/tarot/tarot-0059/index.html
+app/web/seo/articles/tarot/tarot-0060/index.html
+app/web/seo/articles/tarot/tarot-0061/index.html
+app/web/seo/articles/tarot/tarot-0062/index.html
+app/web/seo/articles/tarot/tarot-0063/index.html
+app/web/seo/articles/tarot/tarot-0064/index.html
+app/web/seo/articles/tarot/tarot-0065/index.html
+app/web/seo/articles/tarot/tarot-0066/index.html
+app/web/seo/articles/tarot/tarot-0067/index.html
+app/web/seo/articles/tarot/tarot-0068/index.html
+app/web/seo/articles/tarot/tarot-0069/index.html
+app/web/seo/articles/tarot/tarot-0070/index.html
+app/web/seo/articles/tarot/tarot-0071/index.html
+app/web/seo/articles/tarot/tarot-0072/index.html
+app/web/seo/articles/tarot/tarot-0073/index.html
+app/web/seo/articles/tarot/tarot-0074/index.html
+app/web/seo/articles/tarot/tarot-0075/index.html
+app/web/seo/articles/tarot/tarot-0076/index.html
+app/web/seo/articles/tarot/tarot-0077/index.html
+app/web/seo/articles/tarot/tarot-0078/index.html
+app/web/seo/articles/tarot/tarot-0079/index.html
+app/web/seo/articles/tarot/tarot-0080/index.html
+app/web/seo/articles/love/love-0005/index.html
+app/web/seo/articles/love/love-0006/index.html
+app/web/seo/articles/love/love-0007/index.html
+app/web/seo/articles/love/love-0008/index.html
+app/web/seo/articles/love/love-0009/index.html
+app/web/seo/articles/love/love-0010/index.html
+app/web/seo/articles/love/love-0011/index.html
+app/web/seo/articles/love/love-0012/index.html
+app/web/seo/articles/career/career-0005/index.html
+app/web/seo/articles/career/career-0006/index.html
+app/web/seo/articles/career/career-0007/index.html
+app/web/seo/articles/career/career-0008/index.html
+app/web/seo/articles/career/career-0009/index.html
+app/web/seo/articles/career/career-0010/index.html
+app/web/seo/articles/career/career-0011/index.html
+app/web/seo/articles/career/career-0012/index.html
+app/web/seo/articles/interpersonal/interpersonal-0003/index.html
+app/web/seo/articles/interpersonal/interpersonal-0004/index.html
+app/web/seo/articles/interpersonal/interpersonal-0005/index.html
+app/web/seo/articles/interpersonal/interpersonal-0006/index.html
+app/web/seo/articles/interpersonal/interpersonal-0007/index.html
+app/web/seo/articles/interpersonal/interpersonal-0008/index.html
+app/web/seo/articles/interpersonal/interpersonal-0009/index.html
+app/web/seo/articles/interpersonal/interpersonal-0010/index.html
+app/web/seo/articles/interpersonal/interpersonal-0011/index.html
+app/web/seo/articles/interpersonal/interpersonal-0012/index.html
+app/web/seo/articles/wealth/wealth-0004/index.html
+app/web/seo/articles/wealth/wealth-0005/index.html
+app/web/seo/articles/wealth/wealth-0006/index.html
+app/web/seo/articles/wealth/wealth-0007/index.html
+app/web/seo/articles/wealth/wealth-0008/index.html
+app/web/seo/articles/wealth/wealth-0009/index.html
+app/web/seo/articles/wealth/wealth-0010/index.html
+app/web/seo/articles/wealth/wealth-0011/index.html
+app/web/seo/articles/wealth/wealth-0012/index.html
+app/web/seo/articles/life-direction/life-direction-0003/index.html
+app/web/seo/articles/life-direction/life-direction-0004/index.html
+app/web/seo/articles/life-direction/life-direction-0005/index.html
+app/web/seo/articles/life-direction/life-direction-0006/index.html
+app/web/seo/articles/life-direction/life-direction-0007/index.html
+app/web/seo/articles/life-direction/life-direction-0008/index.html
+app/web/seo/articles/life-direction/life-direction-0009/index.html
+app/web/seo/articles/life-direction/life-direction-0010/index.html
+app/web/seo/articles/life-direction/life-direction-0011/index.html
+app/web/seo/articles/life-direction/life-direction-0012/index.html
+app/web/seo/articles/astrology/astrology-0006/index.html
+app/web/seo/articles/astrology/astrology-0007/index.html
+app/web/seo/articles/astrology/astrology-0008/index.html
+app/web/seo/articles/astrology/astrology-0009/index.html
+app/web/seo/articles/astrology/astrology-0010/index.html
+app/web/seo/articles/personality/personality-0021/index.html
+app/web/seo/articles/personality/personality-0022/index.html
+app/web/seo/articles/personality/personality-0023/index.html
+app/web/seo/articles/personality/personality-0024/index.html
+app/web/seo/articles/personality/personality-0025/index.html
+app/web/seo/articles/personality/personality-0026/index.html
+app/web/seo/articles/personality/personality-0027/index.html
+app/web/seo/articles/personality/personality-0028/index.html
+app/web/seo/articles/personality/personality-0029/index.html
+app/web/seo/articles/personality/personality-0030/index.html
+app/web/seo/articles/personality/personality-0031/index.html
+app/web/seo/articles/personality/personality-0032/index.html
+app/web/seo/articles/personality/personality-0033/index.html
+app/web/seo/articles/personality/personality-0034/index.html
+app/web/seo/articles/personality/personality-0035/index.html
+app/web/seo/articles/personality/personality-0036/index.html
+app/web/seo/articles/astrology/astrology-0011/index.html
+app/web/seo/articles/astrology/astrology-0012/index.html
+app/web/seo/articles/astrology/astrology-0013/index.html
+app/web/seo/articles/astrology/astrology-0014/index.html
+app/web/seo/articles/astrology/astrology-0015/index.html
+app/web/seo/articles/astrology/astrology-0016/index.html
+app/web/seo/articles/astrology/astrology-0017/index.html
+app/web/seo/articles/astrology/astrology-0018/index.html
+app/web/seo/articles/astrology/astrology-0019/index.html
+app/web/seo/articles/astrology/astrology-0020/index.html
+app/web/seo/articles/astrology/astrology-0021/index.html
+app/web/seo/articles/astrology/astrology-0022/index.html
+app/web/seo/articles/astrology/astrology-0023/index.html
+app/web/seo/articles/astrology/astrology-0024/index.html
+app/web/seo/articles/astrology/astrology-0025/index.html
+app/web/seo/articles/astrology/astrology-0026/index.html
+app/web/seo/articles/astrology/astrology-0027/index.html
+app/web/seo/articles/fortune/fortune-0010/index.html
+app/web/seo/articles/fortune/fortune-0011/index.html
+app/web/seo/articles/fortune/fortune-0012/index.html
+app/web/seo/articles/fortune/fortune-0013/index.html
+app/web/seo/articles/fortune/fortune-0014/index.html
+app/web/seo/articles/fortune/fortune-0015/index.html
+app/web/seo/articles/fortune/fortune-0016/index.html
+app/web/seo/articles/fortune/fortune-0017/index.html
+app/web/seo/articles/fortune/fortune-0018/index.html
+app/web/seo/articles/fortune/fortune-0019/index.html
+app/web/seo/articles/fortune/fortune-0020/index.html
+app/web/seo/articles/fortune/fortune-0021/index.html
+app/web/seo/articles/fortune/fortune-0022/index.html
+app/web/seo/articles/fortune/fortune-0023/index.html
+app/web/seo/articles/fortune/fortune-0024/index.html
+app/web/seo/articles/fortune/fortune-0025/index.html
+app/web/seo/articles/fortune/fortune-0026/index.html
+app/web/seo/articles/personality/personality-0037/index.html
+app/web/seo/articles/personality/personality-0038/index.html
+app/web/seo/articles/personality/personality-0039/index.html
+app/web/seo/articles/personality/personality-0040/index.html
+app/web/seo/articles/personality/personality-0041/index.html
+app/web/seo/articles/personality/personality-0042/index.html
+app/web/seo/articles/personality/personality-0043/index.html
+app/web/seo/articles/personality/personality-0044/index.html
+app/web/seo/articles/personality/personality-0045/index.html
+app/web/seo/articles/personality/personality-0046/index.html
+app/web/seo/articles/personality/personality-0047/index.html
+app/web/seo/articles/personality/personality-0048/index.html
+app/web/seo/articles/personality/personality-0049/index.html
+app/web/seo/articles/personality/personality-0050/index.html
+app/web/seo/articles/personality/personality-0051/index.html
+app/web/seo/articles/personality/personality-0052/index.html
+app/web/seo/articles/astrology/astrology-0028/index.html
+app/web/seo/articles/astrology/astrology-0029/index.html
+app/web/seo/articles/astrology/astrology-0030/index.html
+app/web/seo/articles/astrology/astrology-0031/index.html
+app/web/seo/articles/astrology/astrology-0032/index.html
+app/web/seo/articles/astrology/astrology-0033/index.html
+app/web/seo/articles/astrology/astrology-0034/index.html
+app/web/seo/articles/astrology/astrology-0035/index.html
+app/web/seo/articles/astrology/astrology-0036/index.html
+app/web/seo/articles/astrology/astrology-0037/index.html
+app/web/seo/articles/astrology/astrology-0038/index.html
+app/web/seo/articles/astrology/astrology-0039/index.html
+app/web/seo/articles/astrology/astrology-0040/index.html
+app/web/seo/articles/astrology/astrology-0041/index.html
+app/web/seo/articles/astrology/astrology-0042/index.html
+app/web/seo/articles/astrology/astrology-0043/index.html
+app/web/seo/articles/astrology/astrology-0044/index.html
+app/web/seo/articles/fortune/fortune-0027/index.html
+app/web/seo/articles/fortune/fortune-0028/index.html
+app/web/seo/articles/fortune/fortune-0029/index.html
+app/web/seo/articles/fortune/fortune-0030/index.html
+app/web/seo/articles/fortune/fortune-0031/index.html
+app/web/seo/articles/fortune/fortune-0032/index.html
+app/web/seo/articles/fortune/fortune-0033/index.html
+app/web/seo/articles/fortune/fortune-0034/index.html
+app/web/seo/articles/fortune/fortune-0035/index.html
+app/web/seo/articles/fortune/fortune-0036/index.html
+app/web/seo/articles/fortune/fortune-0037/index.html
+app/web/seo/articles/fortune/fortune-0038/index.html
+app/web/seo/articles/fortune/fortune-0039/index.html
+app/web/seo/articles/fortune/fortune-0040/index.html
+app/web/seo/articles/fortune/fortune-0041/index.html
+app/web/seo/articles/fortune/fortune-0042/index.html
+app/web/seo/articles/fortune/fortune-0043/index.html
+app/web/seo/articles/astrology/astrology-0065/index.html
+app/web/seo/articles/astrology/astrology-0066/index.html
+app/web/seo/articles/astrology/astrology-0067/index.html
+app/web/seo/articles/astrology/astrology-0068/index.html
+app/web/seo/articles/astrology/astrology-0069/index.html
+app/web/seo/articles/astrology/astrology-0070/index.html
+app/web/seo/articles/astrology/astrology-0071/index.html
+app/web/seo/articles/astrology/astrology-0072/index.html
+app/web/seo/articles/astrology/astrology-0073/index.html
+app/web/seo/articles/astrology/astrology-0074/index.html
+app/web/seo/articles/astrology/astrology-0075/index.html
+app/web/seo/articles/astrology/astrology-0076/index.html
+app/web/seo/articles/astrology/astrology-0077/index.html
+app/web/seo/articles/astrology/astrology-0078/index.html
+app/web/seo/articles/astrology/astrology-0079/index.html
+app/web/seo/articles/astrology/astrology-0080/index.html
+app/web/seo/articles/astrology/astrology-0081/index.html
+app/web/seo/articles/astrology/astrology-0082/index.html
+app/web/seo/articles/astrology/astrology-0083/index.html
+app/web/seo/articles/astrology/astrology-0084/index.html
+app/web/seo/articles/astrology/astrology-0085/index.html
+app/web/seo/articles/astrology/astrology-0086/index.html
+app/web/seo/articles/astrology/astrology-0087/index.html
+app/web/seo/articles/astrology/astrology-0088/index.html
+app/web/seo/articles/astrology/astrology-0089/index.html
+app/web/seo/articles/astrology/astrology-0090/index.html
+app/web/seo/articles/astrology/astrology-0091/index.html
+app/web/seo/articles/astrology/astrology-0092/index.html
+app/web/seo/articles/astrology/astrology-0093/index.html
+app/web/seo/articles/astrology/astrology-0094/index.html
+app/web/seo/articles/astrology/astrology-0095/index.html
+app/web/seo/articles/astrology/astrology-0096/index.html
+app/web/seo/articles/astrology/astrology-0097/index.html
+app/web/seo/articles/astrology/astrology-0098/index.html
+app/web/seo/articles/astrology/astrology-0099/index.html
+app/web/seo/articles/astrology/astrology-0100/index.html
+app/web/seo/articles/astrology/astrology-0101/index.html
+app/web/seo/articles/astrology/astrology-0102/index.html
+app/web/seo/articles/astrology/astrology-0103/index.html
+app/web/seo/articles/astrology/astrology-0104/index.html
+app/web/seo/articles/astrology/astrology-0105/index.html
+app/web/seo/articles/astrology/astrology-0106/index.html
+app/web/seo/articles/astrology/astrology-0107/index.html
+app/web/seo/articles/astrology/astrology-0108/index.html
+app/web/seo/articles/astrology/astrology-0109/index.html
+app/web/seo/articles/astrology/astrology-0110/index.html
+app/web/seo/articles/astrology/astrology-0111/index.html
+app/web/seo/articles/astrology/astrology-0112/index.html
+app/web/seo/articles/astrology/astrology-0113/index.html
+app/web/seo/articles/astrology/astrology-0114/index.html
+app/web/seo/articles/personality/personality-0053/index.html
+app/web/seo/articles/personality/personality-0054/index.html
+app/web/seo/articles/personality/personality-0055/index.html
+app/web/seo/articles/personality/personality-0056/index.html
+app/web/seo/articles/fortune/fortune-0044/index.html
+app/web/seo/articles/astrology/astrology-0045/index.html
+app/web/seo/articles/astrology/astrology-0046/index.html
+app/web/seo/articles/astrology/astrology-0047/index.html
+app/web/seo/articles/astrology/astrology-0052/index.html
+app/web/seo/articles/astrology/astrology-0048/index.html
+app/web/seo/articles/astrology/astrology-0049/index.html
+app/web/seo/articles/astrology/astrology-0050/index.html
+app/web/seo/articles/astrology/astrology-0051/index.html
+app/web/seo/articles/astrology/astrology-0053/index.html
+app/web/seo/articles/astrology/astrology-0054/index.html
+app/web/seo/articles/astrology/astrology-0055/index.html
+app/web/seo/articles/astrology/astrology-0056/index.html
+app/web/seo/articles/astrology/astrology-0057/index.html
+app/web/seo/articles/astrology/astrology-0058/index.html
+app/web/seo/articles/astrology/astrology-0061/index.html
+app/web/seo/articles/astrology/astrology-0062/index.html
+app/web/seo/articles/astrology/astrology-0064/index.html
+app/web/seo/articles/astrology/astrology-0063/index.html
+app/web/seo/articles/astrology/astrology-0115/index.html
+app/web/seo/articles/astrology/astrology-0139/index.html
+app/web/seo/articles/personality/personality-0069/index.html
+app/web/seo/articles/personality/personality-0089/index.html
+app/web/seo/articles/personality/personality-0063/index.html
+app/web/seo/articles/astrology/astrology-0136/index.html
+app/web/seo/articles/astrology/astrology-0177/index.html
+app/web/seo/articles/personality/personality-0087/index.html
+app/web/seo/articles/astrology/astrology-0165/index.html
+app/web/seo/articles/personality/personality-0083/index.html
+app/web/seo/articles/astrology/astrology-0171/index.html
+app/web/seo/articles/astrology/astrology-0145/index.html
+app/web/seo/articles/personality/personality-0085/index.html
+app/web/seo/articles/astrology/astrology-0158/index.html
+app/web/seo/articles/astrology/astrology-0180/index.html
+app/web/seo/articles/personality/personality-0072/index.html
+app/web/seo/articles/personality/personality-0065/index.html
+app/web/seo/articles/astrology/astrology-0151/index.html
+app/web/seo/articles/astrology/astrology-0154/index.html
+app/web/seo/articles/astrology/astrology-0125/index.html
+app/web/seo/articles/personality/personality-0066/index.html
+app/web/seo/articles/astrology/astrology-0119/index.html
+app/web/seo/articles/personality/personality-0071/index.html
+app/web/seo/articles/astrology/astrology-0128/index.html
+app/web/seo/articles/astrology/astrology-0124/index.html
+app/web/seo/articles/astrology/astrology-0169/index.html
+app/web/seo/articles/personality/personality-0058/index.html
+app/web/seo/articles/astrology/astrology-0150/index.html
+app/web/seo/articles/personality/personality-0059/index.html
+app/web/seo/articles/astrology/astrology-0176/index.html
+app/web/seo/articles/astrology/astrology-0148/index.html
+app/web/seo/articles/personality/personality-0067/index.html
+app/web/seo/articles/astrology/astrology-0156/index.html
+app/web/seo/articles/astrology/astrology-0129/index.html
+app/web/seo/articles/astrology/astrology-0170/index.html
+app/web/seo/articles/personality/personality-0076/index.html
+app/web/seo/articles/astrology/astrology-0178/index.html
+app/web/seo/articles/astrology/astrology-0153/index.html
+app/web/seo/articles/astrology/astrology-0133/index.html
+app/web/seo/articles/astrology/astrology-0140/index.html
+app/web/seo/articles/personality/personality-0074/index.html
+app/web/seo/articles/astrology/astrology-0155/index.html
+app/web/seo/articles/astrology/astrology-0138/index.html
+app/web/seo/articles/astrology/astrology-0173/index.html
+app/web/seo/articles/astrology/astrology-0142/index.html
+app/web/seo/articles/astrology/astrology-0120/index.html
+app/web/seo/articles/astrology/astrology-0134/index.html
+app/web/seo/articles/astrology/astrology-0167/index.html
+app/web/seo/articles/personality/personality-0061/index.html
+app/web/seo/articles/astrology/astrology-0116/index.html
+app/web/seo/articles/astrology/astrology-0172/index.html
+app/web/seo/articles/astrology/astrology-0166/index.html
+app/web/seo/articles/astrology/astrology-0163/index.html
+app/web/seo/articles/astrology/astrology-0131/index.html
+app/web/seo/articles/astrology/astrology-0175/index.html
+app/web/seo/articles/astrology/astrology-0147/index.html
+app/web/seo/articles/personality/personality-0078/index.html
+app/web/seo/articles/astrology/astrology-0164/index.html
+app/web/seo/articles/personality/personality-0090/index.html
+app/web/seo/articles/personality/personality-0057/index.html
+app/web/seo/articles/astrology/astrology-0127/index.html
+app/web/seo/articles/personality/personality-0084/index.html
+app/web/seo/articles/astrology/astrology-0179/index.html
+app/web/seo/articles/astrology/astrology-0174/index.html
+app/web/seo/articles/astrology/astrology-0159/index.html
+app/web/seo/articles/astrology/astrology-0157/index.html
+app/web/seo/articles/personality/personality-0073/index.html
+app/web/seo/articles/personality/personality-0060/index.html
+app/web/seo/articles/personality/personality-0108/index.html
+app/web/seo/articles/personality/personality-0109/index.html
+app/web/seo/articles/personality/personality-0110/index.html
+app/web/seo/articles/personality/personality-0143/index.html
+app/web/seo/articles/personality/personality-0144/index.html
+app/web/seo/articles/personality/personality-0177/index.html
+app/web/seo/articles/personality/personality-0178/index.html
+app/web/seo/articles/personality/personality-0179/index.html
+app/web/seo/articles/personality/personality-0217/index.html
+app/web/seo/articles/personality/personality-0218/index.html
+app/web/seo/articles/personality/personality-0222/index.html
+app/web/seo/articles/personality/personality-0223/index.html
+app/web/seo/articles/personality/personality-0236/index.html
+app/web/seo/articles/personality/personality-0237/index.html
+app/web/seo/articles/personality/personality-0238/index.html
+app/web/seo/articles/personality/personality-0244/index.html
+app/web/seo/articles/personality/personality-0245/index.html
+app/web/seo/articles/personality/personality-0241/index.html
+app/web/seo/articles/personality/personality-0242/index.html
+app/web/seo/articles/personality/personality-0243/index.html
+app/web/seo/articles/personality/personality-0278/index.html
+app/web/seo/articles/personality/personality-0279/index.html
+app/web/seo/articles/personality/personality-0273/index.html
+app/web/seo/articles/personality/personality-0274/index.html
+app/web/seo/articles/tarot/tarot-0105/index.html
+app/web/seo/articles/tarot/tarot-0106/index.html
+app/web/seo/articles/tarot/tarot-0192/index.html
+app/web/seo/articles/tarot/tarot-0193/index.html
+app/web/seo/articles/tarot/tarot-0194/index.html
+app/web/seo/articles/tarot/tarot-0260/index.html
+app/web/seo/articles/tarot/tarot-0261/index.html
+app/web/seo/articles/tarot/tarot-0391/index.html
+app/web/seo/articles/tarot/tarot-0392/index.html
+app/web/seo/articles/tarot/tarot-0393/index.html
+app/web/seo/articles/astrology/astrology-0181/index.html
+app/web/seo/articles/astrology/astrology-0182/index.html
+app/web/seo/articles/tarot/tarot-0394/index.html
+app/web/seo/articles/tarot/tarot-0395/index.html
+app/web/seo/articles/tarot/tarot-0527/index.html
+app/web/seo/articles/astrology/astrology-0193/index.html
+app/web/seo/articles/tarot/tarot-0567/index.html
+app/web/seo/articles/astrology/astrology-0196/index.html
+app/web/seo/articles/tarot/tarot-0613/index.html
+app/web/seo/articles/tarot/tarot-0609/index.html
+app/web/seo/articles/tarot/tarot-0632/index.html
+app/web/seo/articles/tarot/tarot-0597/index.html
+app/web/seo/articles/tarot/tarot-0561/index.html
+app/web/seo/articles/tarot/tarot-0562/index.html
+app/web/seo/articles/tarot/tarot-0549/index.html
+app/web/seo/articles/tarot/tarot-0566/index.html
+app/web/seo/articles/tarot/tarot-0647/index.html
+app/web/seo/articles/tarot/tarot-0526/index.html
+app/web/seo/articles/tarot/tarot-0644/index.html
+app/web/seo/articles/tarot/tarot-0602/index.html
+app/web/seo/articles/tarot/tarot-0558/index.html
+app/web/seo/articles/tarot/tarot-0904/index.html
+app/web/seo/articles/tarot/tarot-0640/index.html
+app/web/seo/articles/tarot/tarot-0603/index.html
+app/web/seo/articles/tarot/tarot-0611/index.html
+app/web/seo/articles/tarot/tarot-0512/index.html
+app/web/seo/articles/tarot/tarot-0624/index.html
+app/web/seo/articles/tarot/tarot-0634/index.html
+app/web/seo/articles/tarot/tarot-0648/index.html
+app/web/seo/articles/tarot/tarot-0590/index.html
+app/web/seo/articles/tarot/tarot-0521/index.html
+app/web/seo/articles/tarot/tarot-0564/index.html
+app/web/seo/articles/tarot/tarot-0621/index.html
+app/web/seo/articles/tarot/tarot-1170/index.html
+app/web/seo/articles/tarot/tarot-0639/index.html
+app/web/seo/articles/tarot/tarot-1174/index.html
+app/web/seo/articles/tarot/tarot-1442/index.html
+app/web/seo/articles/fortune/fortune-0056/index.html
+app/web/seo/articles/tarot/tarot-1786/index.html
+app/web/seo/articles/fortune/fortune-0061/index.html
+app/web/seo/articles/tarot/tarot-1789/index.html
+app/web/seo/articles/personality/personality-0340/index.html
+app/web/seo/articles/personality/personality-0432/index.html
+app/web/seo/articles/personality/personality-0454/index.html
+app/web/seo/articles/personality/personality-0458/index.html
+app/web/seo/articles/personality/personality-0467/index.html
+app/web/seo/articles/personality/personality-0471/index.html
+app/web/seo/articles/personality/personality-0498/index.html
+app/web/seo/articles/personality/personality-0506/index.html
+app/web/seo/articles/personality/personality-0675/index.html
+app/web/seo/articles/personality/personality-0844/index.html
+app/web/seo/articles/personality/personality-0848/index.html
+app/web/seo/articles/personality/personality-0861/index.html
+app/web/seo/articles/personality/personality-0864/index.html
+app/web/seo/articles/personality/personality-1054/index.html
+app/web/seo/articles/personality/personality-1061/index.html
+app/web/seo/articles/personality/personality-1253/index.html
+app/web/seo/articles/personality/personality-1063/index.html
+app/web/seo/articles/personality/personality-1270/index.html
+app/web/seo/articles/personality/personality-1273/index.html
+app/web/seo/articles/personality/personality-1276/index.html
+app/web/seo/articles/personality/personality-1279/index.html
+app/web/seo/articles/personality/personality-1281/index.html
+app/web/seo/articles/personality/personality-1282/index.html
+app/web/seo/articles/personality/personality-1286/index.html
+app/web/seo/articles/personality/personality-1291/index.html
+app/web/seo/articles/personality/personality-1296/index.html
+app/web/seo/articles/personality/personality-1299/index.html
+app/web/seo/articles/personality/personality-1525/index.html
+app/web/seo/articles/personality/personality-1534/index.html
+app/web/seo/articles/personality/personality-1536/index.html
+app/web/seo/articles/personality/personality-1540/index.html
+app/web/seo/articles/personality/personality-1544/index.html
+app/web/seo/articles/personality/personality-1545/index.html
+app/web/seo/articles/personality/personality-1555/index.html
+app/web/seo/articles/personality/personality-1558/index.html
+app/web/seo/articles/personality/personality-1559/index.html
+app/web/seo/articles/personality/personality-1564/index.html
+app/web/seo/articles/personality/personality-1565/index.html
+app/web/seo/articles/personality/personality-1568/index.html
+app/web/seo/articles/personality/personality-1573/index.html
+app/web/seo/articles/personality/personality-1574/index.html
+app/web/seo/articles/personality/personality-1578/index.html
+app/web/seo/articles/personality/personality-1842/index.html
+app/web/seo/articles/personality/personality-1848/index.html
+app/web/seo/articles/personality/personality-1851/index.html
+app/web/seo/articles/personality/personality-1852/index.html
+app/web/seo/articles/personality/personality-1854/index.html
+app/web/seo/articles/personality/personality-1857/index.html
+app/web/seo/articles/personality/personality-1861/index.html
+app/web/seo/articles/personality/personality-1862/index.html
+app/web/seo/articles/personality/personality-1868/index.html
+app/web/seo/articles/personality/personality-1869/index.html
+app/web/seo/articles/personality/personality-1870/index.html
+app/web/seo/articles/personality/personality-1873/index.html
+app/web/seo/articles/personality/personality-2177/index.html
+app/web/seo/articles/personality/personality-2178/index.html
+app/web/seo/articles/personality/personality-2181/index.html
+app/web/seo/articles/personality/personality-2184/index.html
+app/web/seo/articles/personality/personality-2189/index.html
+app/web/seo/articles/personality/personality-2191/index.html
+app/web/seo/articles/personality/personality-2216/index.html
+app/web/seo/articles/personality/personality-2217/index.html
+app/web/seo/articles/personality/personality-2220/index.html
+app/web/seo/articles/personality/personality-2224/index.html
+app/web/seo/articles/personality/personality-2233/index.html
+app/web/seo/articles/personality/personality-2237/index.html
+app/web/seo/articles/personality/personality-2243/index.html
+app/web/seo/articles/personality/personality-2248/index.html
+app/web/seo/articles/personality/personality-2250/index.html
+app/web/seo/articles/personality/personality-2257/index.html
+app/web/seo/articles/personality/personality-2260/index.html
+app/web/seo/articles/personality/personality-2271/index.html
+app/web/seo/articles/personality/personality-2277/index.html
+app/web/seo/articles/personality/personality-2282/index.html
+app/web/seo/articles/personality/personality-2289/index.html
+app/web/seo/articles/personality/personality-2292/index.html
+app/web/seo/articles/personality/personality-2293/index.html
+app/web/seo/articles/personality/personality-2299/index.html
+app/web/seo/articles/personality/personality-2301/index.html
+app/web/seo/articles/personality/personality-2304/index.html
+app/web/seo/articles/personality/personality-2305/index.html
+app/web/seo/articles/personality/personality-2307/index.html
+app/web/seo/articles/personality/personality-2316/index.html
+app/web/seo/articles/personality/personality-2317/index.html
+app/web/seo/articles/personality/personality-2318/index.html
+app/web/seo/articles/personality/personality-2322/index.html
+app/web/seo/articles/personality/personality-2326/index.html
+app/web/seo/articles/personality/personality-2328/index.html
+app/web/seo/articles/personality/personality-2332/index.html
+app/web/seo/articles/personality/personality-2338/index.html
+app/web/seo/articles/personality/personality-2339/index.html
+app/web/seo/articles/personality/personality-2341/index.html
+app/web/seo/articles/personality/personality-2345/index.html
+app/web/seo/articles/personality/personality-2349/index.html
+app/web/seo/articles/personality/personality-2367/index.html
+app/web/seo/articles/personality/personality-2369/index.html
+app/web/seo/articles/personality/personality-2372/index.html
+app/web/seo/articles/personality/personality-2377/index.html
+app/web/seo/articles/personality/personality-2386/index.html
+app/web/seo/articles/personality/personality-2396/index.html
+app/web/seo/articles/personality/personality-2399/index.html
+app/web/seo/articles/personality/personality-2403/index.html
+app/web/seo/articles/personality/personality-2886/index.html
+app/web/seo/articles/personality/personality-2898/index.html
+app/web/seo/articles/personality/personality-2904/index.html
+app/web/seo/articles/personality/personality-2927/index.html
+app/web/seo/articles/personality/personality-2931/index.html
+app/web/seo/articles/personality/personality-2943/index.html
+app/web/seo/articles/personality/personality-2947/index.html
+app/web/seo/articles/personality/personality-2946/index.html
+app/web/seo/articles/personality/personality-2950/index.html
+app/web/seo/articles/personality/personality-2953/index.html
+app/web/seo/articles/personality/personality-2949/index.html
+app/web/seo/articles/personality/personality-2959/index.html
+app/web/seo/articles/personality/personality-2964/index.html
+app/web/seo/articles/personality/personality-2970/index.html
+app/web/seo/articles/personality/personality-2972/index.html
+app/web/seo/articles/personality/personality-2971/index.html
+app/web/seo/articles/personality/personality-2984/index.html
+app/web/seo/articles/personality/personality-2987/index.html
+app/web/seo/articles/personality/personality-2985/index.html
+app/web/seo/articles/personality/personality-2991/index.html
+app/web/seo/articles/personality/personality-2994/index.html
+app/web/seo/articles/personality/personality-3565/index.html
+app/web/seo/articles/astrology/astrology-0197/index.html
+app/web/seo/articles/tarot/tarot-1818/index.html
+app/web/seo/articles/tarot/tarot-1884/index.html
+app/web/feed.xml
+...                                                                      [100%]
+=============================== warnings summary ===============================
+tests/test_web.py:1790
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/tests/test_web.py:1790: SyntaxWarning: invalid escape sequence '\/'
+    assert not record["relatedHasEntrance"], record
+
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 2 warnings in 20.98s
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 42%]
+........................................................................ [ 56%]
+............F........................................................... [ 71%]
+........................................................................ [ 85%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_exact_production_gen05_legacy_safety_hydrates_read_only _________
+
+    def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
+        run_dir = Path(
+            "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/"
+            "translation-runs/auto-i18n-ja-1414b75a404721e95e74"
+        )
+        if not run_dir.is_dir():
+            pytest.skip("exact production gen05 fixture is not mounted")
+        generation_dir = run_dir / "generations" / "05"
+        legacy_paths = [
+            generation_dir / "external-plan.json",
+            generation_dir / "source-ref-map.json",
+            generation_dir / "plan-operation.json",
+        ]
+        for path in [
+            run_dir / "brief.json",
+            run_dir / "attempts/03/locale-plan.json",
+            *legacy_paths,
+        ]:
+            assert path.is_file()
+        state_path = run_dir / "continuation/state.json"
+        before_bytes = {path: path.read_bytes() for path in legacy_paths}
+        before_state = state_path.read_bytes() if state_path.is_file() else None
+
+        brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+        prior = json.loads(
+            (run_dir / "attempts/03/locale-plan.json").read_text(encoding="utf-8")
+        )
+        source_ref_maps = multilingual._source_ref_maps_from_artifact(
+            json.loads((generation_dir / "source-ref-map.json").read_text(encoding="utf-8")),
+            generation=5,
+        )
+        multilingual._validate_source_ref_maps_against_current_package(brief, source_ref_maps)
+        multilingual._validate_legacy_provider_safety_receipt(
+            generation_dir / "plan-operation.json",
+            brief,
+            prior,
+            source_ref_maps,
+        )
+        plan = multilingual._hydrate_locale_plan(
+            brief,
+            json.loads((generation_dir / "external-plan.json").read_text(encoding="utf-8")),
+            generation=5,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+            source_ref_maps=source_ref_maps,
+            allow_provider_safety_boundary=True,
+        )
+        coverage = plan["articles"][0]["coverage_mapping"]
+
+        assert len(coverage) == 22
+        assert {mapping["safety_boundary"] for mapping in coverage} == {False}
+        assert multilingual._outline_topology(plan["articles"][0]) != (
+            multilingual._outline_topology(prior["articles"][0])
+        )
+>       assert not (run_dir / "generations/06").exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (PosixPath('/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74') / 'generations/06').exists
+
+tests/test_agy_multilingual_pipeline.py:2040: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_agy_multilingual_pipeline.py::test_exact_production_gen05_legacy_safety_hydrates_read_only
+1 failed, 506 passed, 1 warning in 158.47s (0:02:38)
+{"schema_version": 1, "status": "failed_recovered", "translated": 0, "base_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf", "error_type": "CalledProcessError", "evidence": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-bc77843e37/failure.json", "retry_status": "candidate_preserved_deferred"}

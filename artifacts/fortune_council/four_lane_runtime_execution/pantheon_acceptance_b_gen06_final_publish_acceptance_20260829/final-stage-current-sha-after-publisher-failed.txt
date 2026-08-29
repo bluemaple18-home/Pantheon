@@ -1,0 +1,1 @@
+9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/editorial-staging/current.json

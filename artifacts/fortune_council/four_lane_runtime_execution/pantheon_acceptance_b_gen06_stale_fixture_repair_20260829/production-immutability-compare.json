@@ -1,0 +1,23 @@
+{
+  "compared_keys": [
+    "actor_head",
+    "actor_tracked_status",
+    "runtime_manifest_sha256",
+    "queue_root_tree_sha256",
+    "run_dir_tree_sha256",
+    "gen06_exists",
+    "gen06_tree_sha256",
+    "gen06_regular_files",
+    "gen07_exists",
+    "gen07_tree_sha256",
+    "ledger_sha256",
+    "seal_current_sha256",
+    "queue_state_sha256",
+    "provider_calls",
+    "coordinator_calls",
+    "publisher_calls",
+    "tag_pushes"
+  ],
+  "differences": {},
+  "status": "PASS"
+}

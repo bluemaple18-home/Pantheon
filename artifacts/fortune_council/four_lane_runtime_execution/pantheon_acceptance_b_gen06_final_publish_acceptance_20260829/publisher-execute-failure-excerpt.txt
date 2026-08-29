@@ -1,0 +1,103 @@
+app/web/seo/articles/personality/personality-2984/index.html
+app/web/seo/articles/personality/personality-2987/index.html
+app/web/seo/articles/personality/personality-2985/index.html
+app/web/seo/articles/personality/personality-2991/index.html
+app/web/seo/articles/personality/personality-2994/index.html
+app/web/seo/articles/personality/personality-3565/index.html
+app/web/seo/articles/astrology/astrology-0197/index.html
+app/web/seo/articles/tarot/tarot-1818/index.html
+app/web/seo/articles/tarot/tarot-1884/index.html
+app/web/feed.xml
+...                                                                      [100%]
+=============================== warnings summary ===============================
+tests/test_web.py:1790
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/tests/test_web.py:1790: SyntaxWarning: invalid escape sequence '\/'
+    assert not record["relatedHasEntrance"], record
+
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 2 warnings in 20.98s
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 42%]
+........................................................................ [ 56%]
+............F........................................................... [ 71%]
+........................................................................ [ 85%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_exact_production_gen05_legacy_safety_hydrates_read_only _________
+
+    def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
+        run_dir = Path(
+            "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/"
+            "translation-runs/auto-i18n-ja-1414b75a404721e95e74"
+        )
+        if not run_dir.is_dir():
+            pytest.skip("exact production gen05 fixture is not mounted")
+        generation_dir = run_dir / "generations" / "05"
+        legacy_paths = [
+            generation_dir / "external-plan.json",
+            generation_dir / "source-ref-map.json",
+            generation_dir / "plan-operation.json",
+        ]
+        for path in [
+            run_dir / "brief.json",
+            run_dir / "attempts/03/locale-plan.json",
+            *legacy_paths,
+        ]:
+            assert path.is_file()
+        state_path = run_dir / "continuation/state.json"
+        before_bytes = {path: path.read_bytes() for path in legacy_paths}
+        before_state = state_path.read_bytes() if state_path.is_file() else None
+
+        brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+        prior = json.loads(
+            (run_dir / "attempts/03/locale-plan.json").read_text(encoding="utf-8")
+        )
+        source_ref_maps = multilingual._source_ref_maps_from_artifact(
+            json.loads((generation_dir / "source-ref-map.json").read_text(encoding="utf-8")),
+            generation=5,
+        )
+        multilingual._validate_source_ref_maps_against_current_package(brief, source_ref_maps)
+        multilingual._validate_legacy_provider_safety_receipt(
+            generation_dir / "plan-operation.json",
+            brief,
+            prior,
+            source_ref_maps,
+        )
+        plan = multilingual._hydrate_locale_plan(
+            brief,
+            json.loads((generation_dir / "external-plan.json").read_text(encoding="utf-8")),
+            generation=5,
+            rebuild_by_slot={"article-01": True},
+            prior_plan=prior,
+            source_ref_maps=source_ref_maps,
+            allow_provider_safety_boundary=True,
+        )
+        coverage = plan["articles"][0]["coverage_mapping"]
+
+        assert len(coverage) == 22
+        assert {mapping["safety_boundary"] for mapping in coverage} == {False}
+        assert multilingual._outline_topology(plan["articles"][0]) != (
+            multilingual._outline_topology(prior["articles"][0])
+        )
+>       assert not (run_dir / "generations/06").exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (PosixPath('/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74') / 'generations/06').exists
+
+tests/test_agy_multilingual_pipeline.py:2040: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/transaction-x0uym7l7/repo/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_agy_multilingual_pipeline.py::test_exact_production_gen05_legacy_safety_hydrates_read_only
+1 failed, 506 passed, 1 warning in 158.47s (0:02:38)
+{"schema_version": 1, "status": "failed_recovered", "translated": 0, "base_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf", "error_type": "CalledProcessError", "evidence": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-bc77843e37/failure.json", "retry_status": "candidate_preserved_deferred"}

@@ -1,0 +1,1 @@
+{"audit_receipt_exists": true, "correlation_id": "pantheon-gen06-final-publish-runtime-digest-correction-5704-20260829", "plan_digest": "ead126da43537771c46d61dc46fcc83538628921dd5ca567f47195e31f3c1888", "rollback_bundle_exists": false, "rollback_required": false, "state": "COMMITTED", "status": "PASS"}

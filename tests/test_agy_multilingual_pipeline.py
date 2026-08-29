@@ -2005,6 +2005,19 @@ def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
     state_path = run_dir / "continuation/state.json"
     before_bytes = {path: path.read_bytes() for path in legacy_paths}
     before_state = state_path.read_bytes() if state_path.is_file() else None
+    gen06_dir = run_dir / "generations/06"
+
+    def gen06_file_snapshot() -> dict[str, bytes] | None:
+        if not gen06_dir.exists():
+            return None
+        assert gen06_dir.is_dir()
+        return {
+            path.relative_to(gen06_dir).as_posix(): path.read_bytes()
+            for path in sorted(gen06_dir.rglob("*"))
+            if path.is_file()
+        }
+
+    before_gen06 = gen06_file_snapshot()
 
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     prior = json.loads(
@@ -2037,7 +2050,7 @@ def test_exact_production_gen05_legacy_safety_hydrates_read_only() -> None:
     assert multilingual._outline_topology(plan["articles"][0]) != (
         multilingual._outline_topology(prior["articles"][0])
     )
-    assert not (run_dir / "generations/06").exists()
+    assert gen06_file_snapshot() == before_gen06
     assert before_bytes == {path: path.read_bytes() for path in legacy_paths}
     if before_state is not None:
         assert state_path.read_bytes() == before_state

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "FAILED_RECOVERED",
+  "retry_status": "candidate_preserved",
+  "return_code": 1,
+  "base_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "failed_head": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "phase": "translation",
+  "error_type": "CalledProcessError",
+  "run_ids": [
+    "auto-i18n-ja-1414b75a404721e95e74"
+  ],
+  "repo_recovered": true,
+  "concurrent_write_conflicts": [],
+  "unknown_tracked_paths_preserved": [],
+  "untracked_files_preserved": [
+    "app/web/static/article-locale-auto-i18n-ja-1414b75a404721e95e74.js"
+  ],
+  "removed_local_tags": [],
+  "recorded_at": "2026-08-29T01:39:08+08:00",
+  "restored_count": 1123,
+  "status_after_recovery": [],
+  "status_before_recovery_count": 654
+}
