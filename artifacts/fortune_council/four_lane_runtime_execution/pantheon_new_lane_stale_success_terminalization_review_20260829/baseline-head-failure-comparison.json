@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "operation": "candidate_regression_attribution",
+  "baseline_commit": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "candidate_suite": {
+    "command": ".venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q --tb=short",
+    "result": "379 passed, 8 failed",
+    "duration_seconds": 425.99
+  },
+  "baseline_exact_failures": {
+    "source": "clean git archive of baseline_commit under /tmp",
+    "result": "8 failed",
+    "duration_seconds": 1.96
+  },
+  "node_ids": [
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_runs_new_and_rewrite_through_real_vertical_chain",
+    "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_composes_four_lanes_without_publishing",
+    "tests/test_agy_gemini_coordinator.py::test_private_campaign_e2e_resumes_seeded_partial_state_without_repeating_completed_work",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[source_sha]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[translation_sha]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[locale]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[article_identity]",
+    "tests/test_agy_gemini_coordinator.py::test_campaign_translation_drift_fails_before_queue_or_handoff_mutation[review_identity]"
+  ],
+  "shared_failure": {
+    "exception": "LocalePlanValidationError",
+    "cause": "external locale plan coverage fields are strict for article-01",
+    "source_boundary": "scripts/agy_multilingual_pipeline.py:_canonicalize_external_coverage_mappings"
+  },
+  "candidate_diff_touches_failure_source": false,
+  "candidate_diff_touches_failing_test_bodies": false,
+  "conclusion": "NOT_CAUSED_BY_CANDIDATE_DIFF"
+}

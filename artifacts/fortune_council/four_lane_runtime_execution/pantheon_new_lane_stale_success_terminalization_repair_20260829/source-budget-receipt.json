@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "operation": "bounded_source_budget",
+  "scope": "scripts/agy_gemini_coordinator.py",
+  "added_lines": 373,
+  "removed_lines": 0,
+  "bounded_ceiling": 400,
+  "remaining_lines": 27,
+  "new_subsystem": false,
+  "new_registry": false,
+  "new_fsm": false,
+  "new_database": false
+}

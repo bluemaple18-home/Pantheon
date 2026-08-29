@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "status": "PASS_WITH_BASELINE_KNOWN_FAILURES",
+  "candidate_fingerprint": {
+    "scripts/agy_gemini_coordinator.py": "59d5b3caf1a1963eac016a2a27df6c9cc1743440c9ef26bc5ea551c29aa5ee60",
+    "tests/test_agy_gemini_coordinator.py": "c7dc19a8e59de711655d524c175d7b974f08bd7f3196264741664ba0c3d8cfb6",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/archive.json": "655a01e97a712e1aaefc9f99e0d2d5222ebff2391fd22f486eedab9c8218dbd0",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/attempt.json": "ae052e389aafdd43033af145f67b69d081f91f850ad599b9f63a0df5ef8fa78d",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/inbox.json": "28b65e223f5f36dfc21ab60b0801c3fbf085f0e25c500b426a29dc0662ef6a2b",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/writer-operation.json": "1aca602672aefd06a38e9a97d29461d1d11ee02c172627e0e85f5f2dff25f546"
+  },
+  "tests": [
+    {"scope": "exact_positive", "result": "5 passed"},
+    {"scope": "negative", "result": "19 passed, 368 deselected"},
+    {"scope": "affected", "result": "55 passed, 332 deselected"},
+    {"scope": "full_coordinator", "result": "379 passed, 8 failed", "attribution": "baseline-identical"}
+  ],
+  "static_checks": {
+    "py_compile": "PASS",
+    "git_diff_check": "PASS",
+    "source_budget": "373 additions, 0 deletions; ceiling 400; PASS"
+  },
+  "behavior": {
+    "exact_new_writer_succeeded_unconsumed_only": "PASS",
+    "receipt_first_process_crash_recovery": "PASS",
+    "idempotent_second_execute": "PASS",
+    "protected_archive_inbox_attempt_writer_operation_bytes": "UNCHANGED",
+    "drift_ambiguity_wrong_lane_missing_symlink_candidate_review_boundaries": "FAIL_CLOSED",
+    "publisher_boundary": "PASS_BY_CONTROL_FLOW_AND_EXISTING_CANDIDATE_REVIEW_PREREQUISITES",
+    "scheduler_frontier": "SYNTHETIC_DRY_RUN_ONLY",
+    "provider_calls": 0,
+    "reviewer_calls": 0,
+    "publisher_calls": 0,
+    "production_mutation": false
+  }
+}
