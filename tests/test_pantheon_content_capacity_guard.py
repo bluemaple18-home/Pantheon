@@ -1605,6 +1605,45 @@ def test_capacity_installer_stages_during_manifest_bound_preactivation_transitio
     assert not mutation_log.exists()
 
 
+@pytest.mark.skipif(
+    Path("/var").resolve() == Path("/var"),
+    reason="macOS /var → /private/var canonical alias is required",
+)
+def test_capacity_installer_canonicalizes_var_tmp_plist_for_preactivation_transition(
+    tmp_path: Path,
+) -> None:
+    """REG-TEMP-PLIST-CANONICAL-PATH-001：public installer 必須接受 /var temp alias。"""
+    repo = Path(__file__).resolve().parents[1]
+    env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _capacity_transition_installer_env(tmp_path)
+    )
+    private_tmp = tmp_path.resolve(strict=True)
+    alias_tmp = Path("/var") / private_tmp.relative_to("/private/var")
+
+    assert alias_tmp.samefile(private_tmp)
+    assert alias_tmp != alias_tmp.resolve(strict=True)
+    env["TMPDIR"] = str(alias_tmp)
+
+    completed = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert "preactivation_transition" in completed.stdout
+    staged = (
+        fake_home
+        / "Library/LaunchAgents/.pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    )
+    assert staged.is_file()
+    assert not mutation_log.exists()
+    assert not list(alias_tmp.glob("pantheon-content-capacity-guard.*"))
+
+
 def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
     tmp_path: Path,
 ) -> None:

@@ -33,6 +33,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+TEMP_PLIST_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${TEMP_PLIST}")"
+if [[ -z "${TEMP_PLIST_REALPATH}" || ! -f "${TEMP_PLIST_REALPATH}" || -L "${TEMP_PLIST_REALPATH}" ]]; then
+  echo "無法取得 capacity temporary plist 的 canonical path。" >&2
+  exit 1
+fi
+TEMP_PLIST="${TEMP_PLIST_REALPATH}"
+
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--install-recovery-stage" ]]; then
   echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage]" >&2
