@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "operation": "bounded_repair_modified_path_allowlist",
+  "allowed_paths": [
+    "scripts/agy_gemini_coordinator.py",
+    "tests/test_agy_gemini_coordinator.py",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/archive.json",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/attempt.json",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/inbox.json",
+    "tests/fixtures/new_lane_stale_success_rca_20260829/writer-operation.json",
+    "artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-NEW-LANE-STALE-SUCCESS-TERMINALIZATION-REPAIR-20260829.md",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_new_lane_stale_success_terminalization_repair_20260829/RESULT.md",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_new_lane_stale_success_terminalization_repair_20260829/allowlist-receipt.json",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_new_lane_stale_success_terminalization_repair_20260829/immutability-receipt.json",
+    "artifacts/fortune_council/four_lane_runtime_execution/pantheon_new_lane_stale_success_terminalization_repair_20260829/source-budget-receipt.json"
+  ],
+  "forbidden_scope_touched": false,
+  "other_lanes_changed": false,
+  "registry_fsm_or_database_added": false,
+  "production_mutation": false,
+  "commit": false,
+  "push": false,
+  "tag": false
+}

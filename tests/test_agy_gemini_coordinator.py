@@ -4623,6 +4623,420 @@ def test_terminalize_pending_cli_defaults_to_dry_run_without_mutation(
     assert not list((queue_root / "operator-terminalizations").glob("*.json"))
 
 
+RCA_STALE_SUCCESS_FIXTURE_ROOT = (
+    Path(__file__).parent / "fixtures" / "new_lane_stale_success_rca_20260829"
+)
+RCA_STALE_SUCCESS_RUN_ID = "auto-new-v1-20260826-001-01"
+RCA_STALE_SUCCESS_JOB_ID = "6972e8062d1aad444b30ec0fdf201bf8fce36d9d"
+
+
+def _stale_success_rca_fixture(
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, dict[str, str]]:
+    run_dir = tmp_path / "gsc-copy" / RCA_STALE_SUCCESS_RUN_ID
+    state_root = tmp_path / "queue"
+    lane_root = state_root / "lanes" / "new"
+    _write_brief(run_dir, RCA_STALE_SUCCESS_RUN_ID)
+    state = register_run(run_dir, state_root)
+    state["last_job_id"] = RCA_STALE_SUCCESS_JOB_ID
+    coordinator._write_state(state_root, state)
+    writer_path = run_dir / "attempts" / "01" / "writer-operation.json"
+    writer_path.parent.mkdir(parents=True)
+    shutil.copyfile(RCA_STALE_SUCCESS_FIXTURE_ROOT / "writer-operation.json", writer_path)
+    fixture_paths = {
+        "archive": lane_root / "archive" / f"{RCA_STALE_SUCCESS_JOB_ID}.json",
+        "inbox": lane_root / "inbox" / f"{RCA_STALE_SUCCESS_JOB_ID}.json",
+        "attempt": lane_root
+        / "production-attempts"
+        / f"{RCA_STALE_SUCCESS_JOB_ID}.attempt",
+    }
+    for name, target in fixture_paths.items():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(RCA_STALE_SUCCESS_FIXTURE_ROOT / f"{name}.json", target)
+    inbox = json.loads(fixture_paths["inbox"].read_text(encoding="utf-8"))
+    result_sha256 = hashlib.sha256(
+        json.dumps(
+            inbox["result"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    expected = {
+        "run_id": RCA_STALE_SUCCESS_RUN_ID,
+        "job_id": RCA_STALE_SUCCESS_JOB_ID,
+        "request_sha256": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d1ef47912f70bc4b47e3a8a6e",
+        "prompt_sha256": "b669a9c30674d89b9198c452d42d28a723d6f7bd3e9ccabe66c59f0097d57cf0",
+        "schema_sha256": "86c426c3a0c3fcaaa5a6472a865675362d814cb48db64d0ce37dfc71fdfb52bd",
+        "result_sha256": result_sha256,
+        "registry": coordinator._canonical_json_file_sha256(
+            read_run_state(run_dir, state_root)
+        ),
+        "writer_operation": _sha(writer_path),
+        **{name: _sha(path) for name, path in fixture_paths.items()},
+    }
+    assert {
+        key: expected[key]
+        for key in ("writer_operation", "attempt", "inbox", "archive", "result_sha256")
+    } == {
+        "writer_operation": "1aca602672aefd06a38e9a97d29461d1d11ee02c172627e0e85f5f2dff25f546",
+        "attempt": "ae052e389aafdd43033af145f67b69d081f91f850ad599b9f63a0df5ef8fa78d",
+        "inbox": "28b65e223f5f36dfc21ab60b0801c3fbf085f0e25c500b426a29dc0662ef6a2b",
+        "archive": "655a01e97a712e1aaefc9f99e0d2d5222ebff2391fd22f486eedab9c8218dbd0",
+        "result_sha256": "2448751f5c4bd3a5b2b3a015c4b7e15ed84eaa61477b28c2171ca4f81b3c938f",
+    }
+    return run_dir, state_root, lane_root, expected
+
+
+def _stale_success_cli(
+    run_dir: Path,
+    state_root: Path,
+    lane_root: Path,
+    expected: dict[str, str],
+    *,
+    execute: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.agy_gemini_coordinator",
+        "--queue-root",
+        str(state_root),
+        "terminalize-stale-succeeded-writer",
+        str(run_dir),
+        "--job-queue-root",
+        str(lane_root),
+        "--lane",
+        "new",
+        "--run-id",
+        expected["run_id"],
+        "--job-id",
+        expected["job_id"],
+        "--request-sha256",
+        expected["request_sha256"],
+        "--prompt-sha256",
+        expected["prompt_sha256"],
+        "--schema-sha256",
+        expected["schema_sha256"],
+        "--result-sha256",
+        expected["result_sha256"],
+        "--expected-registry-digest",
+        expected["registry"],
+        "--expected-writer-operation-digest",
+        expected["writer_operation"],
+        "--expected-attempt-digest",
+        expected["attempt"],
+        "--expected-inbox-digest",
+        expected["inbox"],
+        "--expected-archive-digest",
+        expected["archive"],
+        "--reason",
+        "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+    ]
+    if execute:
+        command.append("--execute")
+    return subprocess.run(
+        command,
+        cwd=Path(coordinator.__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_stale_success_rca_exact_fixture_has_plan_only_operator_seam(
+    tmp_path: Path,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    before = _file_snapshot(tmp_path)
+
+    completed = _stale_success_cli(run_dir, state_root, lane_root, expected)
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["status"] == "READY_TO_EXECUTE"
+    assert _file_snapshot(tmp_path) == before
+
+
+def _stale_success_kwargs(
+    lane_root: Path,
+    expected: dict[str, str],
+    **overrides: object,
+) -> dict[str, object]:
+    arguments: dict[str, object] = {
+        "job_queue_root": lane_root,
+        "lane": "new",
+        "expected_run_id": expected["run_id"],
+        "expected_job_id": expected["job_id"],
+        "expected_request_sha256": expected["request_sha256"],
+        "expected_prompt_sha256": expected["prompt_sha256"],
+        "expected_schema_sha256": expected["schema_sha256"],
+        "expected_result_sha256": expected["result_sha256"],
+        "expected_registry_digest": expected["registry"],
+        "expected_writer_operation_digest": expected["writer_operation"],
+        "expected_attempt_digest": expected["attempt"],
+        "expected_inbox_digest": expected["inbox"],
+        "expected_archive_digest": expected["archive"],
+        "reason": "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+        "execute": True,
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def test_stale_success_execute_is_receipt_first_immutable_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    protected = {
+        name: path.read_bytes()
+        for name, path in {
+            "archive": lane_root / "archive" / f"{expected['job_id']}.json",
+            "inbox": lane_root / "inbox" / f"{expected['job_id']}.json",
+            "attempt": lane_root
+            / "production-attempts"
+            / f"{expected['job_id']}.attempt",
+            "writer_operation": run_dir / "attempts" / "01" / "writer-operation.json",
+        }.items()
+    }
+    before = _file_snapshot(tmp_path)
+
+    first = coordinator.terminalize_stale_succeeded_writer(
+        run_dir,
+        state_root,
+        **_stale_success_kwargs(lane_root, expected),
+    )
+    after_first = _file_snapshot(tmp_path)
+    second = coordinator.terminalize_stale_succeeded_writer(
+        run_dir,
+        state_root,
+        **_stale_success_kwargs(lane_root, expected),
+    )
+
+    changed = {path for path in before | after_first if before.get(path) != after_first.get(path)}
+    state_path = coordinator._state_path(expected["run_id"], state_root)
+    receipt_path = (
+        state_root / "succeeded-provider-terminalizations" / f"{expected['job_id']}.json"
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert first["status"] == "terminalized"
+    assert second["status"] == "already_terminalized"
+    assert first["provider_calls"] == first["reviewer_calls"] == first["publisher_calls"] == 0
+    assert state["status"] == "failed"
+    assert state["error_type"] == "SucceededProviderOutcomeTerminalized"
+    assert receipt["status"] == "TERMINALIZED"
+    assert changed == {
+        str(state_path.relative_to(tmp_path)),
+        str(receipt_path.relative_to(tmp_path)),
+    }
+    assert _file_snapshot(tmp_path) == after_first
+    assert protected == {
+        "archive": (lane_root / "archive" / f"{expected['job_id']}.json").read_bytes(),
+        "inbox": (lane_root / "inbox" / f"{expected['job_id']}.json").read_bytes(),
+        "attempt": (
+            lane_root / "production-attempts" / f"{expected['job_id']}.attempt"
+        ).read_bytes(),
+        "writer_operation": (
+            run_dir / "attempts" / "01" / "writer-operation.json"
+        ).read_bytes(),
+    }
+
+
+def test_stale_success_cli_execute_wires_public_operator_seam(tmp_path: Path) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+
+    completed = _stale_success_cli(
+        run_dir,
+        state_root,
+        lane_root,
+        expected,
+        execute=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["status"] == "terminalized"
+    assert read_run_state(run_dir, state_root)["status"] == "failed"
+
+
+def test_stale_success_crash_after_receipt_replays_without_state_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    state_path = coordinator._state_path(expected["run_id"], state_root)
+    receipt_path = (
+        state_root / "succeeded-provider-terminalizations" / f"{expected['job_id']}.json"
+    )
+    original = coordinator.atomic_write_json
+
+    def fail_state(path: Path, payload: object) -> None:
+        if path == state_path and isinstance(payload, dict) and payload.get("status") == "failed":
+            raise OSError("synthetic state interruption after receipt")
+        original(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_state)
+    with pytest.raises(OSError, match="synthetic state interruption after receipt"):
+        coordinator.terminalize_stale_succeeded_writer(
+            run_dir,
+            state_root,
+            **_stale_success_kwargs(lane_root, expected),
+        )
+    assert json.loads(receipt_path.read_text(encoding="utf-8"))["status"] == "PREPARED"
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "active"
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", original)
+    recovered = coordinator.terminalize_stale_succeeded_writer(
+        run_dir,
+        state_root,
+        **_stale_success_kwargs(lane_root, expected),
+    )
+
+    assert recovered["status"] == "terminalized"
+    assert json.loads(receipt_path.read_text(encoding="utf-8"))["status"] == "TERMINALIZED"
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        "expected_request_sha256",
+        "expected_prompt_sha256",
+        "expected_schema_sha256",
+        "expected_result_sha256",
+        "expected_registry_digest",
+        "expected_writer_operation_digest",
+        "expected_attempt_digest",
+        "expected_inbox_digest",
+        "expected_archive_digest",
+    ],
+)
+def test_stale_success_hash_drift_is_zero_write(
+    tmp_path: Path,
+    override: str,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    before = _file_snapshot(tmp_path)
+
+    with pytest.raises(ValueError, match="mismatch"):
+        coordinator.terminalize_stale_succeeded_writer(
+            run_dir,
+            state_root,
+            **_stale_success_kwargs(lane_root, expected, **{override: "0" * 64}),
+        )
+
+    assert _file_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("boundary", ["second_job", "candidate", "review", "wrong_lane"])
+def test_stale_success_boundaries_fail_closed(
+    tmp_path: Path,
+    boundary: str,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    overrides: dict[str, object] = {}
+    if boundary == "second_job":
+        second = run_dir / "attempts" / "02" / "writer-operation.json"
+        second.parent.mkdir(parents=True)
+        second.write_text("{}\n", encoding="utf-8")
+    elif boundary == "candidate":
+        (run_dir / "attempts" / "01" / "candidate.json").write_text("{}\n", encoding="utf-8")
+    elif boundary == "review":
+        (run_dir / "review.json").write_text("{}\n", encoding="utf-8")
+    else:
+        overrides["lane"] = "rewrite"
+    before = _file_snapshot(tmp_path)
+
+    with pytest.raises(ValueError):
+        coordinator.terminalize_stale_succeeded_writer(
+            run_dir,
+            state_root,
+            **_stale_success_kwargs(lane_root, expected, **overrides),
+        )
+
+    assert _file_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("missing", ["archive", "inbox"])
+def test_stale_success_missing_protected_evidence_is_zero_write(
+    tmp_path: Path,
+    missing: str,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    target = lane_root / missing / f"{expected['job_id']}.json"
+    target.unlink()
+    before = _file_snapshot(tmp_path)
+
+    with pytest.raises(ValueError, match="regular file"):
+        coordinator.terminalize_stale_succeeded_writer(
+            run_dir,
+            state_root,
+            **_stale_success_kwargs(lane_root, expected),
+        )
+
+    assert _file_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("artifact", ["archive", "inbox", "attempt", "writer_operation"])
+def test_stale_success_rejects_symlinked_protected_artifact(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    paths = {
+        "archive": lane_root / "archive" / f"{expected['job_id']}.json",
+        "inbox": lane_root / "inbox" / f"{expected['job_id']}.json",
+        "attempt": lane_root / "production-attempts" / f"{expected['job_id']}.attempt",
+        "writer_operation": run_dir / "attempts" / "01" / "writer-operation.json",
+    }
+    target = paths[artifact]
+    preserved = tmp_path / f"preserved-{artifact}.json"
+    target.replace(preserved)
+    target.symlink_to(preserved)
+    before = _file_snapshot(tmp_path)
+
+    with pytest.raises(ValueError, match="regular file"):
+        coordinator.terminalize_stale_succeeded_writer(
+            run_dir,
+            state_root,
+            **_stale_success_kwargs(lane_root, expected),
+        )
+
+    assert target.is_symlink()
+    assert _file_snapshot(tmp_path) == before
+
+
+def test_stale_success_terminalization_releases_fresh_new_scheduler_frontier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, state_root, lane_root, expected = _stale_success_rca_fixture(tmp_path)
+    coordinator.terminalize_stale_succeeded_writer(
+        run_dir,
+        state_root,
+        **_stale_success_kwargs(lane_root, expected),
+    )
+    provider_calls = 0
+
+    def prepare(_repo: Path, _prefix: str, *, output_root: Path, **_kwargs: object) -> list[Path]:
+        fresh = output_root / "fresh-new-after-stale-terminalization"
+        _write_brief(fresh, "fresh-new-after-stale-terminalization")
+        return [fresh / "brief.json"]
+
+    monkeypatch.setattr(coordinator.pipeline, "prepare_matrix_runs", prepare)
+    scheduler = seed_new_matrix_runs(
+        tmp_path / "repo",
+        state_root,
+        tmp_path / "fresh-runs",
+        min_active_runs=1,
+        max_new_runs=1,
+        max_articles_per_run=1,
+    )
+
+    assert scheduler["status"] == "seeded"
+    assert scheduler["created_run_ids"] == ["fresh-new-after-stale-terminalization"]
+    assert provider_calls == 0
+
+
 def test_terminalize_pending_cli_supports_split_state_and_job_queue_roots(
     tmp_path: Path,
 ) -> None:

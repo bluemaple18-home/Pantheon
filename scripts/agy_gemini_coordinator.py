@@ -59,6 +59,9 @@ OPERATOR_TERMINALIZATION_REASONS = frozenset({
 DANGLING_ACTIVE_TERMINALIZATION_REASONS = frozenset({
     "UNRECOVERABLE_RUN_DIR_MISSING",
 })
+STALE_SUCCEEDED_WRITER_TERMINALIZATION_REASONS = frozenset({
+    "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+})
 FAILED_REPLACEMENT_RESUME_PREFLIGHT_REASONS = frozenset({
     "NO_ANTIGRAVITY_LOW_MODEL_LABEL",
 })
@@ -1486,6 +1489,336 @@ def terminalize_pending_job(
         "status": "terminalized",
         "decision": state_receipt["decision"],
     }
+
+
+def _stale_succeeded_writer_receipt_path(queue_root: Path, job_id: str) -> Path:
+    if JOB_ID_PATTERN.fullmatch(job_id) is None:
+        raise ValueError("stale succeeded writer terminalization job id is invalid")
+    return queue_root / "succeeded-provider-terminalizations" / f"{job_id}.json"
+
+
+def _read_stale_succeeded_writer_artifact(
+    path: Path,
+    *,
+    expected_digest: str,
+    label: str,
+) -> tuple[dict[str, Any], bytes]:
+    if path.is_symlink() or not path.is_file() or path.parent.is_symlink():
+        raise ValueError(f"{label} must be a regular file below a regular directory")
+    encoded = path.read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != expected_digest:
+        raise ValueError(f"{label} digest mismatch")
+    try:
+        payload = json.loads(encoded)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} JSON is invalid") from error
+    if type(payload) is not dict:
+        raise ValueError(f"{label} JSON must be an object")
+    return payload, encoded
+
+
+def terminalize_stale_succeeded_writer(
+    run_dir: Path,
+    queue_root: Path,
+    *,
+    job_queue_root: Path,
+    lane: str,
+    expected_run_id: str,
+    expected_job_id: str,
+    expected_request_sha256: str,
+    expected_prompt_sha256: str,
+    expected_schema_sha256: str,
+    expected_result_sha256: str,
+    expected_registry_digest: str,
+    expected_writer_operation_digest: str,
+    expected_attempt_digest: str,
+    expected_inbox_digest: str,
+    expected_archive_digest: str,
+    reason: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    """以 exact hashes 終結單一已成功但未消費的 new Writer outcome。"""
+    if lane != "new":
+        raise ValueError("stale succeeded writer terminalization requires new lane")
+    if EXACT_RUN_ID_PATTERN.fullmatch(expected_run_id) is None:
+        raise ValueError("stale succeeded writer terminalization run id is invalid")
+    if JOB_ID_PATTERN.fullmatch(expected_job_id) is None:
+        raise ValueError("stale succeeded writer terminalization job id is invalid")
+    expected_hashes = {
+        "request_sha256": expected_request_sha256,
+        "prompt_sha256": expected_prompt_sha256,
+        "schema_sha256": expected_schema_sha256,
+        "result_sha256": expected_result_sha256,
+        "registry_digest": expected_registry_digest,
+        "writer_operation_digest": expected_writer_operation_digest,
+        "attempt_digest": expected_attempt_digest,
+        "inbox_digest": expected_inbox_digest,
+        "archive_digest": expected_archive_digest,
+    }
+    if any(SHA256_PATTERN.fullmatch(value) is None for value in expected_hashes.values()):
+        raise ValueError("stale succeeded writer terminalization hash is invalid")
+    if reason not in STALE_SUCCEEDED_WRITER_TERMINALIZATION_REASONS:
+        raise ValueError("stale succeeded writer terminalization reason is invalid")
+    if queue_root.is_symlink() or not queue_root.is_dir():
+        raise ValueError("stale succeeded writer terminalization queue root is invalid")
+    state_root = queue_root.resolve(strict=True)
+    if job_queue_root.is_symlink() or not job_queue_root.is_dir():
+        raise ValueError("stale succeeded writer terminalization job root is invalid")
+    job_root = job_queue_root.resolve(strict=True)
+    if job_root != state_root / "lanes" / "new":
+        raise ValueError("stale succeeded writer terminalization job root is not new lane")
+    if not run_dir.is_absolute() or run_dir.is_symlink():
+        raise ValueError("stale succeeded writer terminalization run directory is invalid")
+    resolved_run_dir = run_dir.resolve(strict=True)
+    if resolved_run_dir != run_dir or not resolved_run_dir.is_dir():
+        raise ValueError("stale succeeded writer terminalization run directory is not canonical")
+
+    brief_path = resolved_run_dir / "brief.json"
+    if brief_path.is_symlink() or not brief_path.is_file():
+        raise ValueError("stale succeeded writer terminalization brief is invalid")
+    brief = _brief(resolved_run_dir)
+    if brief.get("run_id") != expected_run_id or brief.get("mode") != "create":
+        raise ValueError("stale succeeded writer terminalization brief identity mismatch")
+
+    attempt_dir = resolved_run_dir / "attempts" / "01"
+    writer_path = attempt_dir / "writer-operation.json"
+    candidate_paths = (
+        resolved_run_dir / "candidate.json",
+        resolved_run_dir / "review.json",
+        resolved_run_dir / "review.md",
+        attempt_dir / "candidate.json",
+        attempt_dir / "external-candidate.json",
+        attempt_dir / "review.json",
+        attempt_dir / "external-review.json",
+    )
+    if any(path.exists() or path.is_symlink() for path in candidate_paths):
+        raise ValueError("stale succeeded writer terminalization crossed candidate or review boundary")
+    attempts_root = resolved_run_dir / "attempts"
+    if (
+        attempts_root.is_symlink()
+        or not attempts_root.is_dir()
+        or [path.name for path in sorted(attempts_root.iterdir())] != ["01"]
+    ):
+        raise ValueError("stale succeeded writer terminalization has a second writer attempt")
+
+    archive_path = job_root / "archive" / f"{expected_job_id}.json"
+    inbox_path = job_root / "inbox" / f"{expected_job_id}.json"
+    attempt_path = job_root / "production-attempts" / f"{expected_job_id}.attempt"
+    forbidden_job_paths = (
+        job_root / "outbox" / f"{expected_job_id}.json",
+        job_root / "outbox" / f"{expected_job_id}.json.terminalizing",
+        job_root / "processing" / f"{expected_job_id}.json",
+        job_root / "failed" / f"{expected_job_id}.json",
+    )
+    if any(path.exists() or path.is_symlink() for path in forbidden_job_paths):
+        raise ValueError("stale succeeded writer terminalization job location is ambiguous")
+
+    receipt_path = _stale_succeeded_writer_receipt_path(state_root, expected_job_id)
+    receipt_relative = str(receipt_path.relative_to(state_root))
+    state_marker = {
+        "receipt": receipt_relative,
+        "lane": lane,
+        "run_id": expected_run_id,
+        "job_id": expected_job_id,
+        "reason": reason,
+        **expected_hashes,
+    }
+    result = {
+        "status": "READY_TO_EXECUTE",
+        "action": "terminalize_stale_succeeded_writer",
+        "lane": lane,
+        "run_id": expected_run_id,
+        "job_id": expected_job_id,
+        "reason": reason,
+        "receipt": receipt_relative,
+        "provider_calls": 0,
+        "reviewer_calls": 0,
+        "publisher_calls": 0,
+    }
+
+    with _dangling_active_terminalization_lock(state_root):
+        writer, _writer_bytes = _read_stale_succeeded_writer_artifact(
+            writer_path,
+            expected_digest=expected_writer_operation_digest,
+            label="stale succeeded writer operation",
+        )
+        archive, archive_bytes = _read_stale_succeeded_writer_artifact(
+            archive_path,
+            expected_digest=expected_archive_digest,
+            label="stale succeeded writer archive",
+        )
+        inbox, inbox_bytes = _read_stale_succeeded_writer_artifact(
+            inbox_path,
+            expected_digest=expected_inbox_digest,
+            label="stale succeeded writer inbox",
+        )
+        attempt, attempt_bytes = _read_stale_succeeded_writer_artifact(
+            attempt_path,
+            expected_digest=expected_attempt_digest,
+            label="stale succeeded writer attempt",
+        )
+        validate_external_request(archive)
+        actual_result_sha256 = _coordinator_receipt_digest(inbox.get("result"))
+        if (
+            archive.get("job_id") != expected_job_id
+            or archive.get("request_sha256") != expected_request_sha256
+            or archive.get("prompt_sha256") != expected_prompt_sha256
+            or archive.get("schema_sha256") != expected_schema_sha256
+            or archive.get("role") != "writer"
+            or writer.get("role") != "writer"
+            or writer.get("model") != archive.get("model")
+            or writer.get("status") != "pending"
+            or writer.get("error_type") != "ExternalJobPending"
+            or writer.get("prompt_sha256") != expected_prompt_sha256
+            or writer.get("schema_sha256") != expected_schema_sha256
+            or attempt != {
+                "schema_version": 1,
+                "job_id": expected_job_id,
+                "request_sha256": expected_request_sha256,
+                "attempt_status": "succeeded",
+            }
+            or inbox.get("schema_version") != 1
+            or inbox.get("job_id") != expected_job_id
+            or inbox.get("request_sha256") != expected_request_sha256
+            or inbox.get("model") != archive.get("model")
+            or actual_result_sha256 != expected_result_sha256
+        ):
+            raise ValueError("stale succeeded writer terminalization identity mismatch")
+
+        state_path = _state_path(expected_run_id, state_root)
+        if state_path.is_symlink() or not state_path.is_file():
+            raise ValueError("stale succeeded writer terminalization registry is invalid")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if type(state) is not dict:
+            raise ValueError("stale succeeded writer terminalization registry is invalid")
+        existing_receipt: dict[str, Any] | None = None
+        if receipt_path.exists() or receipt_path.is_symlink():
+            existing_receipt = read_closed_json_artifact(
+                receipt_path,
+                max_bytes=256 * 1024,
+                label="stale succeeded writer terminalization receipt",
+            )
+            required = {
+                "schema_version", "status", "action", "terminalized_at", "identity",
+                "before_digest", "after_digest", "before", "after", "protected_sha256",
+            }
+            allowed = required | {"finalized_at"}
+            if (
+                set(existing_receipt) not in (required, allowed)
+                or existing_receipt.get("schema_version") != 1
+                or existing_receipt.get("status") not in {"PREPARED", "TERMINALIZED"}
+                or (existing_receipt.get("status") == "TERMINALIZED")
+                != ("finalized_at" in existing_receipt)
+                or existing_receipt.get("action") != "terminalize_stale_succeeded_writer"
+                or existing_receipt.get("identity") != state_marker
+                or existing_receipt.get("before_digest") != expected_registry_digest
+                or existing_receipt.get("protected_sha256") != {
+                    "archive": expected_archive_digest,
+                    "inbox": expected_inbox_digest,
+                    "attempt": expected_attempt_digest,
+                    "writer_operation": expected_writer_operation_digest,
+                }
+                or type(existing_receipt.get("before")) is not dict
+                or type(existing_receipt.get("after")) is not dict
+                or _canonical_json_file_sha256(existing_receipt["before"])
+                != expected_registry_digest
+                or _canonical_json_file_sha256(existing_receipt["after"])
+                != existing_receipt.get("after_digest")
+            ):
+                raise ValueError("stale succeeded writer terminalization receipt identity mismatch")
+            before_state = existing_receipt["before"]
+            after_state = existing_receipt["after"]
+            current_digest = _canonical_json_file_sha256(state)
+            if current_digest == existing_receipt["after_digest"] and state == after_state:
+                if existing_receipt["status"] == "TERMINALIZED":
+                    return {**result, "status": "already_terminalized", "after_digest": current_digest}
+                if not execute:
+                    return {**result, "status": "READY_TO_EXECUTE", "recovery": "FINALIZE_RECEIPT"}
+            elif current_digest == expected_registry_digest and state == before_state:
+                if existing_receipt["status"] != "PREPARED":
+                    raise ValueError("stale succeeded writer terminalization state regressed")
+            else:
+                raise ValueError("stale succeeded writer terminalization state differs from receipt")
+        else:
+            before_state = state
+            if _canonical_json_file_sha256(before_state) != expected_registry_digest:
+                raise ValueError("stale succeeded writer terminalization registry digest mismatch")
+            if (
+                before_state.get("status") != "active"
+                or before_state.get("run_id") != expected_run_id
+                or before_state.get("run_dir") != str(resolved_run_dir)
+                or before_state.get("last_job_id") != expected_job_id
+                or before_state.get("mode") != "create"
+                or before_state.get("lane") != "new"
+                or "result" in before_state
+            ):
+                raise ValueError("stale succeeded writer terminalization registry identity mismatch")
+            identity = _validate_identity_envelope(before_state.get("identity_envelope"))
+            if identity.get("mode") != "create" or identity.get("lane") != "new":
+                raise ValueError("stale succeeded writer terminalization envelope is not new lane")
+            terminalized_at = _now()
+            after_state = dict(before_state)
+            after_state["status"] = "failed"
+            after_state["error_type"] = "SucceededProviderOutcomeTerminalized"
+            after_state["succeeded_provider_terminalization"] = state_marker
+            after_state["terminalized_at"] = terminalized_at
+            after_state["updated_at"] = terminalized_at
+            after_state.pop("error_code", None)
+            after_state.pop("failure_category", None)
+            after_state.pop("transport_attempts", None)
+            after_state.pop("result", None)
+            existing_receipt = {
+                "schema_version": 1,
+                "status": "PREPARED",
+                "action": "terminalize_stale_succeeded_writer",
+                "terminalized_at": terminalized_at,
+                "identity": state_marker,
+                "before_digest": expected_registry_digest,
+                "after_digest": _canonical_json_file_sha256(after_state),
+                "before": before_state,
+                "after": after_state,
+                "protected_sha256": {
+                    "archive": expected_archive_digest,
+                    "inbox": expected_inbox_digest,
+                    "attempt": expected_attempt_digest,
+                    "writer_operation": expected_writer_operation_digest,
+                },
+            }
+        if not execute:
+            return result
+
+        if not receipt_path.exists():
+            if _canonical_json_file_sha256(_read_run_state_by_id(expected_run_id, state_root)) != expected_registry_digest:
+                raise ValueError("stale succeeded writer terminalization registry changed before receipt")
+            atomic_write_json(receipt_path, existing_receipt)
+        current = _read_run_state_by_id(expected_run_id, state_root)
+        if current == existing_receipt["before"]:
+            atomic_write_json(state_path, existing_receipt["after"])
+        elif current != existing_receipt["after"]:
+            raise ValueError("stale succeeded writer terminalization registry changed after receipt")
+        if (
+            hashlib.sha256(archive_path.read_bytes()).hexdigest() != expected_archive_digest
+            or hashlib.sha256(inbox_path.read_bytes()).hexdigest() != expected_inbox_digest
+            or hashlib.sha256(attempt_path.read_bytes()).hexdigest() != expected_attempt_digest
+            or hashlib.sha256(writer_path.read_bytes()).hexdigest()
+            != expected_writer_operation_digest
+            or archive_path.read_bytes() != archive_bytes
+            or inbox_path.read_bytes() != inbox_bytes
+            or attempt_path.read_bytes() != attempt_bytes
+        ):
+            raise ValueError("stale succeeded writer terminalization protected evidence changed")
+        if existing_receipt["status"] != "TERMINALIZED":
+            existing_receipt = {
+                **existing_receipt,
+                "status": "TERMINALIZED",
+                "finalized_at": _now(),
+            }
+            atomic_write_json(receipt_path, existing_receipt)
+        return {
+            **result,
+            "status": "terminalized",
+            "after_digest": existing_receipt["after_digest"],
+        }
 
 
 def _failed_external_replacement_lock_path(queue_root: Path, source_job_id: str) -> Path:
@@ -5826,6 +6159,22 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     dangling.add_argument("--execute", action="store_true")
+    stale_success = subparsers.add_parser("terminalize-stale-succeeded-writer")
+    stale_success.add_argument("run_dir", type=Path)
+    stale_success.add_argument("--job-queue-root", type=Path, required=True)
+    stale_success.add_argument("--lane", choices=CONTENT_LANES, required=True)
+    stale_success.add_argument("--run-id", required=True)
+    stale_success.add_argument("--job-id", required=True)
+    for name in ("request", "prompt", "schema", "result"):
+        stale_success.add_argument(f"--{name}-sha256", required=True)
+    for name in ("registry", "writer-operation", "attempt", "inbox", "archive"):
+        stale_success.add_argument(f"--expected-{name}-digest", required=True)
+    stale_success.add_argument(
+        "--reason",
+        choices=sorted(STALE_SUCCEEDED_WRITER_TERMINALIZATION_REASONS),
+        required=True,
+    )
+    stale_success.add_argument("--execute", action="store_true")
     replacement = subparsers.add_parser("replace-failed-external-job")
     replacement.add_argument("run_dir", type=Path)
     replacement.add_argument("--job-queue-root", type=Path, required=True)
@@ -5909,6 +6258,30 @@ def main() -> int:
                 expected_run_id=args.run_id,
                 expected_registry_digest=args.expected_registry_digest,
                 expected_run_dir=args.expected_run_dir,
+                reason=args.reason,
+                execute=args.execute,
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "terminalize-stale-succeeded-writer":
+        try:
+            result = terminalize_stale_succeeded_writer(
+                args.run_dir,
+                queue_root,
+                job_queue_root=args.job_queue_root,
+                lane=args.lane,
+                expected_run_id=args.run_id,
+                expected_job_id=args.job_id,
+                expected_request_sha256=args.request_sha256,
+                expected_prompt_sha256=args.prompt_sha256,
+                expected_schema_sha256=args.schema_sha256,
+                expected_result_sha256=args.result_sha256,
+                expected_registry_digest=args.expected_registry_digest,
+                expected_writer_operation_digest=args.expected_writer_operation_digest,
+                expected_attempt_digest=args.expected_attempt_digest,
+                expected_inbox_digest=args.expected_inbox_digest,
+                expected_archive_digest=args.expected_archive_digest,
                 reason=args.reason,
                 execute=args.execute,
             )
