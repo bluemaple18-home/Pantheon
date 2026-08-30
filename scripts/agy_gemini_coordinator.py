@@ -3065,6 +3065,38 @@ def reconcile_translation_replacement_identity(
             if path.is_file() and needle in path.read_bytes():
                 raise ValueError("translation replacement publisher evidence exists")
 
+    def identity_envelope_from_reconcile_brief(brief: dict[str, Any]) -> dict[str, Any]:
+        if brief.get("mode") != "translate_existing":
+            raise ValueError("translation replacement brief mode differs")
+        articles = brief.get("articles")
+        if not isinstance(articles, list) or len(articles) != 1 or not isinstance(articles[0], dict):
+            raise ValueError("translation replacement brief article identity differs")
+        article = articles[0]
+        if set(article) != {"translation_id", "locale", "source_article_id", "source_path", "source_sha256", "source"}:
+            raise ValueError("translation replacement brief article identity differs")
+        locale = article.get("locale")
+        source_article_id = article.get("source_article_id")
+        source = article.get("source")
+        if type(locale) is not str or not locale or type(source_article_id) is not str or source_article_id != article_id:
+            raise ValueError("translation replacement brief article identity differs")
+        if article.get("translation_id") != f"{article_id}:{locale}":
+            raise ValueError("translation replacement brief translation identity differs")
+        if (
+            not isinstance(source, dict)
+            or source.get("article_id") != article_id
+            or type(source.get("canonical_path")) is not str
+            or source.get("canonical_path") != article.get("source_path")
+            or article.get("source_sha256") != multilingual.source_sha256(source)
+        ):
+            raise ValueError("translation replacement brief source identity differs")
+        article_ids = [article_id]
+        brief_lane = brief.get("lane")
+        if brief_lane is None:
+            return _build_identity_envelope("translate_existing", lane, article_ids)
+        if brief_lane != lane:
+            raise ValueError("translation replacement brief lane differs")
+        return _identity_envelope_from_brief(brief)
+
     def validate_after_receipt(current_state: dict[str, Any], observed_digest: str) -> None:
         if not receipt_path.exists():
             raise ValueError("translation replacement identity receipt is required for replay")
@@ -3143,7 +3175,7 @@ def reconcile_translation_replacement_identity(
         if not isinstance(target_state.get("last_job_id"), str) or not target_state["last_job_id"]:
             raise ValueError("translation replacement last job differs")
         brief = _brief(target_run_dir)
-        if _identity_envelope_from_brief(brief) != expected_identity:
+        if identity_envelope_from_reconcile_brief(brief) != expected_identity:
             raise ValueError("translation replacement brief identity differs")
         tree_digests = _tree_file_digest_map(target_run_dir)
         attempts = target_run_dir / "attempts"

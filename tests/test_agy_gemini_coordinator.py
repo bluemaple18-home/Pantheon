@@ -2949,7 +2949,6 @@ def _production_shaped_translation_replacement_fixture(
         "schema_version": 1,
         "run_id": target_run_id,
         "mode": "translate_existing",
-        "lane": "i18n-rewrite",
         "articles": [{
             "translation_id": "ASTRO-BASE-03:en",
             "locale": "en",
@@ -3080,6 +3079,25 @@ def test_reconcile_translation_replacement_identity_plan_only_accepts_production
     assert _file_snapshot(tmp_path) == before
 
 
+def test_reconcile_translation_replacement_identity_accepts_matching_brief_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    brief_path = target_run_dir / "brief.json"
+    coordinator.atomic_write_json(brief_path, {**json.loads(brief_path.read_text()), "lane": "i18n-rewrite"})
+    before = _file_snapshot(tmp_path)
+
+    returncode, receipt = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--plan-only"
+    )
+
+    assert returncode == 0
+    assert receipt["status"] == "plan_only"
+    assert _file_snapshot(tmp_path) == before
+
+
 def test_reconcile_translation_replacement_identity_execute_only_adds_identity_envelope(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3193,7 +3211,10 @@ def test_reconcile_translation_replacement_identity_rejects_registry_clobber_aft
         "routing-drift", "replacement-of", "result-candidate", "last-job", "attempt04",
         "replacement02", "publish-transaction", "publisher-ledger", "result-review", "run-symlink",
         "candidate-mirror-drift", "review-mirror-drift", "extra-result-target", "root-review-md",
-        "already-identity-wrong-digest", "external-run-dir",
+        "already-identity-wrong-digest", "external-run-dir", "brief-wrong-lane", "brief-wrong-mode",
+        "brief-wrong-article", "brief-multiple-articles", "brief-missing-articles", "registry-cli-lane-mismatch",
+        "brief-translation-id-mismatch", "brief-locale-missing", "brief-source-article-mismatch",
+        "brief-source-sha-mismatch", "brief-source-path-mismatch",
     ],
 )
 def test_reconcile_translation_replacement_identity_negative_matrix_has_zero_mutation(
@@ -3257,6 +3278,54 @@ def test_reconcile_translation_replacement_identity_negative_matrix_has_zero_mut
             "candidate": str(target_run_dir / "candidate.json"),
             "review": str(target_run_dir / "review.md"),
         }
+        coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "brief-wrong-lane":
+        brief_path = target_run_dir / "brief.json"
+        coordinator.atomic_write_json(brief_path, {**json.loads(brief_path.read_text()), "lane": "i18n-new"})
+    elif failure == "brief-wrong-mode":
+        brief_path = target_run_dir / "brief.json"
+        coordinator.atomic_write_json(brief_path, {**json.loads(brief_path.read_text()), "mode": "create"})
+    elif failure == "brief-wrong-article":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["source_article_id"] = "ASTRO-BASE-04"
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-multiple-articles":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"].append({**brief["articles"][0], "source_article_id": "ASTRO-BASE-04"})
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-missing-articles":
+        brief_path = target_run_dir / "brief.json"
+        coordinator.atomic_write_json(brief_path, {key: value for key, value in json.loads(brief_path.read_text()).items() if key != "articles"})
+    elif failure == "brief-translation-id-mismatch":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["translation_id"] = "ASTRO-BASE-03:ja"
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-locale-missing":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["locale"] = ""
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-source-article-mismatch":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["source"] = {**brief["articles"][0]["source"], "article_id": "ASTRO-BASE-04"}
+        brief["articles"][0]["source_sha256"] = coordinator.multilingual.source_sha256(brief["articles"][0]["source"])
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-source-sha-mismatch":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["source_sha256"] = "0" * 64
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "brief-source-path-mismatch":
+        brief_path = target_run_dir / "brief.json"
+        brief = json.loads(brief_path.read_text())
+        brief["articles"][0]["source_path"] = "/articles/other"
+        coordinator.atomic_write_json(brief_path, brief)
+    elif failure == "registry-cli-lane-mismatch":
+        target_state["lane"] = "i18n-new"
         coordinator.atomic_write_json(target_state_path, target_state)
     before = _file_snapshot(tmp_path)
     if failure == "wrong-digest":
