@@ -1095,6 +1095,13 @@ def enqueue_translation_replacement(
         current_source = source_loader(repo_root, str(article["source_article_id"]))
         if source_sha256(current_source) != article["source_sha256"]:
             raise ValueError("translation replacement source drift")
+    lane = str(base_brief.get("lane") or terminal_state.get("lane") or "")
+    if len(base_brief["articles"]) != 1:
+        raise ValueError("translation replacement identity requires one source article")
+    identity_envelope = translation_identity_envelope(
+        str(base_brief["articles"][0]["source_article_id"]),
+        lane,
+    )
 
     replacement_run_id = f"{base_run_id}-replacement-01"
     replacement_run_dir = (
@@ -1126,6 +1133,10 @@ def enqueue_translation_replacement(
             "run_dir": str(replacement_run_dir),
             "replacement_of": base_run_id,
             "replacement_reason": recovery_reason,
+            "routing_schema_version": SCHEMA_VERSION,
+            "mode": "translate_existing",
+            "lane": lane,
+            "identity_envelope": identity_envelope,
         }
         if any(
             replacement_state.get(field) != value
@@ -1143,6 +1154,10 @@ def enqueue_translation_replacement(
             "updated_at": now,
             "replacement_of": base_run_id,
             "replacement_reason": recovery_reason,
+            "routing_schema_version": SCHEMA_VERSION,
+            "mode": "translate_existing",
+            "lane": lane,
+            "identity_envelope": identity_envelope,
         }
         _atomic_write_json(replacement_state_path, replacement_state)
     return {

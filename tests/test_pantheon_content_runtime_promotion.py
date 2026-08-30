@@ -989,6 +989,48 @@ def test_plan_preserves_exact_complete_run_queue(tmp_path: Path) -> None:
     assert plan["preserved_run_ids"] == [run_id]
 
 
+def test_plan_preserves_137_production_shaped_translation_runs_without_source_diff(
+    tmp_path: Path,
+) -> None:
+    request, _identities = _runtime_fixture(tmp_path)
+    run_ids = [f"auto-i18n-en-preserved-{index:03d}-replacement-01" for index in range(137)]
+    for index, run_id in enumerate(run_ids):
+        article_id = f"ASTRO-BASE-{index:03d}"
+        run_dir = request.queue_root / "translation-runs" / run_id
+        run_dir.mkdir(parents=True)
+        _write_json(
+            run_dir / "brief.json",
+            _preserved_brief(
+                run_id,
+                mode="translate_existing",
+                lane="i18n-rewrite",
+                article_ids=[article_id],
+            ),
+        )
+        _write_json(run_dir / "candidate.json", {"run_id": run_id, "status": "complete"})
+        _write_json(run_dir / "review.json", {"run_id": run_id, "status": "complete"})
+        _write_preserved_state(
+            request,
+            f"{index:03d}.json",
+            run_id=run_id,
+            run_dir=run_dir,
+            status="complete",
+            identity_envelope=_identity_envelope([article_id], mode="translate_existing", lane="i18n-rewrite"),
+        )
+    request = promotion.PromotionRequest(
+        **{**request.__dict__, "preserved_run_ids": tuple(run_ids)}
+    )
+    before_queue = promotion.tree_digest(request.queue_root)
+
+    plan = promotion.plan_promotion(request)
+
+    assert plan["status"] == "READY_TO_APPLY"
+    assert len(plan["preserved_run_ids"]) == 137
+    assert len(plan["queue_identity_snapshot"]["preserved_runs"]) == 137
+    assert promotion.tree_digest(request.queue_root) == before_queue
+    assert _git(request.source_repo, "diff", "--stat") == ""
+
+
 def test_plan_allows_ledger_terminal_history_without_execution_schema(
     tmp_path: Path,
 ) -> None:

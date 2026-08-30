@@ -2966,11 +2966,20 @@ def replace_failed_translation_run_exact(
         if replacement_state_path.exists():
             replacement_state = read_closed_json_artifact(replacement_state_path, max_bytes=64 * 1024, label="translation replacement state")
             fields = {"schema_version", "run_id", "run_dir", "status", "registered_at", "updated_at", "replacement_of", "replacement_reason"}
+            identity_fields = {"routing_schema_version", "mode", "lane", "identity_envelope"}
             identity = {"run_id": replacement_run_id, "run_dir": str(replacement_run_dir), "replacement_of": expected_run_id, "replacement_reason": reason}
-            if (set(replacement_state) != fields or replacement_state.get("schema_version") != 1
+            if (set(replacement_state) not in (fields, fields | identity_fields) or replacement_state.get("schema_version") != 1
                     or replacement_state.get("status") != "active" or any(replacement_state.get(key) != value for key, value in identity.items())
                     or set(path.name for path in replacement_run_dir.iterdir()) != {"brief.json"}):
                 raise ValueError("translation replacement is not pristine")
+            if set(replacement_state) == fields | identity_fields and (
+                replacement_state.get("routing_schema_version") != ROUTING_SCHEMA_VERSION
+                or replacement_state.get("mode") != "translate_existing"
+                or replacement_state.get("lane") != lane
+                or _validate_identity_envelope(replacement_state.get("identity_envelope"))
+                != _identity_envelope_from_brief(identity_brief)
+            ):
+                raise ValueError("translation replacement identity differs")
         namespace = hashlib.sha256(replacement_run_id.encode("utf-8")).hexdigest()[:24].encode()
         job_roots = [root, *(_lane_queue_root(root, lane_name) for lane_name in CONTENT_LANES)]
         if any(path.is_symlink() or (path.is_file() and namespace in path.read_bytes()) for job_root in job_roots for bucket in ("outbox", "processing", "inbox", "archive", "failed") for path in (job_root / bucket).glob("*")):
@@ -2992,6 +3001,252 @@ def replace_failed_translation_run_exact(
         "source_terminal_preserved": True,
         "replacement_consumed": False,
     }
+
+
+def _translation_replacement_identity_receipt_path(
+    queue_root: Path,
+    target_run_id: str,
+) -> Path:
+    if EXACT_RUN_ID_PATTERN.fullmatch(target_run_id) is None:
+        raise ValueError("translation replacement identity target run id is invalid")
+    return queue_root / "translation-replacement-identity-reconciliations" / f"{target_run_id}.json"
+
+
+def _tree_file_digest_map(root: Path) -> dict[str, str]:
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("translation replacement run tree is invalid")
+    digests: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("translation replacement run tree contains symlink")
+        if path.is_file():
+            digests[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digests
+
+
+def reconcile_translation_replacement_identity(
+    queue_root: Path,
+    *,
+    source_run_id: str,
+    target_run_id: str,
+    target_registry_relative_path: str,
+    expected_target_registry_digest: str,
+    expected_target_run_dir: Path,
+    publisher_state_root: Path,
+    article_id: str,
+    lane: str,
+    reason: str,
+    execute: bool,
+) -> dict[str, Any]:
+    """只對 exact complete replacement 補 missing identity_envelope。"""
+    root = queue_root.resolve()
+    expected_root_run_dir = (root / "translation-runs" / target_run_id).resolve()
+    if expected_target_run_dir.is_symlink() or not expected_target_run_dir.is_dir():
+        raise ValueError("translation replacement target run directory is invalid")
+    target_run_dir = expected_target_run_dir.resolve(strict=True)
+    if target_run_dir != expected_root_run_dir:
+        raise ValueError("translation replacement target run directory differs")
+    publisher_root = publisher_state_root.resolve()
+    target_state_path = _state_path(target_run_id, root)
+    if Path(target_registry_relative_path).is_absolute() or root / target_registry_relative_path != target_state_path:
+        raise ValueError("translation replacement identity registry path differs")
+    expected_identity = _build_identity_envelope("translate_existing", lane, [article_id])
+    receipt_path = _translation_replacement_identity_receipt_path(root, target_run_id)
+    receipt_relative = str(receipt_path.relative_to(root))
+    lock_relative = str(_run_identity_lock_path(target_run_id, root).relative_to(root))
+
+    def reject_if_published() -> None:
+        if publisher_root.is_symlink() or not publisher_root.is_dir():
+            raise ValueError("publisher state root is invalid")
+        needle = target_run_id.encode("utf-8")
+        for path in sorted(publisher_root.rglob("*")):
+            if path.is_symlink():
+                raise ValueError("publisher state root contains symlink")
+            if path.is_file() and needle in path.read_bytes():
+                raise ValueError("translation replacement publisher evidence exists")
+
+    def validate_after_receipt(current_state: dict[str, Any], observed_digest: str) -> None:
+        if not receipt_path.exists():
+            raise ValueError("translation replacement identity receipt is required for replay")
+        existing = read_closed_json_artifact(receipt_path, max_bytes=256 * 1024, label="translation replacement identity receipt")
+        before = existing.get("before") if isinstance(existing, dict) else None
+        if (
+            type(existing) is not dict
+            or existing.get("status") not in {"PREPARED", "RECONCILED"}
+            or existing.get("action") != "reconcile_translation_replacement_identity"
+            or existing.get("target_run_id") != target_run_id
+            or existing.get("source_run_id") != source_run_id
+            or existing.get("target_registry_path") != str(target_state_path.relative_to(root))
+            or existing.get("before_digest") != expected_target_registry_digest
+            or existing.get("after_digest") != observed_digest
+            or existing.get("expected_before_digest") != expected_target_registry_digest
+            or existing.get("expected_after_digest") != observed_digest
+            or existing.get("after") != current_state
+            or type(before) is not dict
+            or _canonical_json_file_sha256(before) != expected_target_registry_digest
+            or {**before, "identity_envelope": expected_identity} != current_state
+        ):
+            raise ValueError("translation replacement identity receipt differs")
+
+    def build_plan() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        if target_state_path.is_symlink() or target_state_path.parent.resolve(strict=True) != target_state_path.parent:
+            raise ValueError("translation replacement identity registry path is not canonical")
+        matches = []
+        for path in sorted((root / "runs").glob("*.json")):
+            if path.is_symlink():
+                raise ValueError("translation replacement identity registry contains symlink")
+            try:
+                candidate = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict) and candidate.get("run_id") == target_run_id:
+                matches.append(path)
+        if matches != [target_state_path]:
+            raise ValueError("translation replacement identity target is not unique")
+        target_state = _read_run_state_by_id(target_run_id, root)
+        before_digest = _canonical_json_file_sha256(target_state)
+        observed_identity = target_state.get("identity_envelope")
+        if before_digest != expected_target_registry_digest:
+            if observed_identity != expected_identity:
+                raise ValueError("translation replacement identity registry digest differs")
+            validate_after_receipt(target_state, before_digest)
+        elif observed_identity is not None:
+            validate_after_receipt(target_state, before_digest)
+        source_state = _read_run_state_by_id(source_run_id, root)
+        if (
+            source_state.get("run_id") != source_run_id
+            or target_state.get("run_id") != target_run_id
+            or target_state.get("replacement_of") != source_run_id
+            or target_state.get("replacement_reason") != reason
+            or target_state.get("run_dir") != str(target_run_dir)
+            or target_state.get("status") != "complete"
+            or target_state.get("routing_schema_version") != ROUTING_SCHEMA_VERSION
+            or target_state.get("mode") != "translate_existing"
+            or target_state.get("lane") != lane
+        ):
+            raise ValueError("translation replacement identity target differs")
+        required_fields = {"schema_version", "run_id", "run_dir", "status", "registered_at", "updated_at", "replacement_of", "replacement_reason", "routing_schema_version", "mode", "lane", "last_job_id", "result"}
+        fields = set(target_state)
+        if fields not in (required_fields, required_fields | {"identity_envelope"}):
+            raise ValueError("translation replacement identity target shape differs")
+        result = target_state.get("result")
+        if (
+            type(result) is not dict
+            or set(result) != {"approved_by_reviewer", "candidate", "review", "run_id", "status"}
+            or result.get("approved_by_reviewer") != 0
+            or result.get("candidate") != str(target_run_dir / "candidate.json")
+            or result.get("review") != str(target_run_dir / "review.md")
+            or result.get("run_id") != target_run_id
+            or result.get("status") != "complete"
+        ):
+            raise ValueError("translation replacement result identity differs")
+        if not isinstance(target_state.get("last_job_id"), str) or not target_state["last_job_id"]:
+            raise ValueError("translation replacement last job differs")
+        brief = _brief(target_run_dir)
+        if _identity_envelope_from_brief(brief) != expected_identity:
+            raise ValueError("translation replacement brief identity differs")
+        tree_digests = _tree_file_digest_map(target_run_dir)
+        attempts = target_run_dir / "attempts"
+        if (
+            {path.name for path in target_run_dir.iterdir()} != {"brief.json", "candidate.json", "review.json", "attempts", "continuation"}
+            or not attempts.is_dir()
+            or {path.name for path in attempts.iterdir()} != {"01", "02", "03"}
+        ):
+            raise ValueError("translation replacement run tree shape differs")
+        required_tree = {"brief.json", "candidate.json", "review.json"}
+        attempt_files = {"article-operation.json", "candidate.json", "deterministic-findings.json", "external-candidate.json", "external-plan.json", "external-review.json", "locale-plan.json", "plan-operation.json", "planning-result.json", "review.json", "reviewer-operation.json"}
+        if (
+            not required_tree.issubset(tree_digests)
+            or any(not (attempts / name).is_dir() for name in ("01", "02", "03"))
+            or any({path.name for path in (attempts / name).iterdir()} != attempt_files for name in ("01", "02", "03"))
+            or any(not (attempts / name / file_name).is_file() for name in ("01", "02", "03") for file_name in attempt_files)
+            or not (target_run_dir / "continuation").is_dir()
+            or any((target_run_dir / "continuation").iterdir())
+        ):
+            raise ValueError("translation replacement run tree shape differs")
+        if (
+            tree_digests["candidate.json"] != tree_digests["attempts/03/candidate.json"]
+            or tree_digests["review.json"] != tree_digests["attempts/03/review.json"]
+        ):
+            raise ValueError("translation replacement root mirror differs")
+        if any(path.startswith("attempts/04") or "replacement-02" in path or "publish" in path or "ledger" in path for path in tree_digests):
+            raise ValueError("translation replacement run tree contains forbidden evidence")
+        reject_if_published()
+        if target_state.get("identity_envelope") is None:
+            after_state = {**target_state, "identity_envelope": expected_identity}
+            status = "plan_only"
+            missing_fields = ["identity_envelope"]
+        elif _validate_identity_envelope(target_state.get("identity_envelope")) == expected_identity:
+            after_state = dict(target_state)
+            status = "already_reconciled"
+            missing_fields = []
+        else:
+            raise ValueError("translation replacement identity envelope differs")
+        after_digest = _canonical_json_file_sha256(after_state)
+        receipt = {
+            "schema_version": 1,
+            "status": status,
+            "action": "reconcile_translation_replacement_identity",
+            "source_run_id": source_run_id,
+            "target_run_id": target_run_id,
+            "target_registry_path": str(target_state_path.relative_to(root)),
+            "target_run_dir": str(target_run_dir),
+            "article_id": article_id,
+            "lane": lane,
+            "reason": reason,
+            "missing_fields": missing_fields,
+            "planned_mutation_count": 0,
+            "expected_write_set": [lock_relative, receipt_relative, str(target_state_path.relative_to(root))],
+            "before_digest": before_digest,
+            "after_digest": after_digest,
+            "expected_before_digest": before_digest,
+            "expected_after_digest": after_digest,
+            "expected_identity_envelope": expected_identity,
+            "run_tree_digests": tree_digests,
+            "receipt": receipt_relative,
+            "runner_invoked": False,
+            "provider_invoked": False,
+            "publisher_invoked": False,
+            "promotion_invoked": False,
+        }
+        return receipt, target_state, after_state
+
+    if not execute:
+        receipt, _before_state, _after_state = build_plan()
+        return receipt
+    with _run_identity_lock(target_run_id, root):
+        locked, before_state, after_state = build_plan()
+        if locked["before_digest"] == locked["after_digest"]:
+            return {**locked, "status": "already_reconciled"}
+        prepared = {**locked, "status": "PREPARED", "before": before_state, "after": after_state}
+        if receipt_path.exists():
+            existing = read_closed_json_artifact(receipt_path, max_bytes=256 * 1024, label="translation replacement identity receipt")
+            if (
+                type(existing) is not dict
+                or existing.get("status") not in {"PREPARED", "RECONCILED"}
+                or existing.get("action") != prepared["action"]
+                or existing.get("target_run_id") != target_run_id
+                or existing.get("source_run_id") != source_run_id
+                or existing.get("before_digest") != prepared["before_digest"]
+                or existing.get("after_digest") != prepared["after_digest"]
+                or existing.get("before") != before_state
+                or existing.get("after") != after_state
+            ):
+                raise ValueError("translation replacement identity receipt differs")
+        else:
+            receipt_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_json_exclusive(receipt_path, prepared)
+        current = _read_run_state_by_id(target_run_id, root)
+        if current == before_state:
+            atomic_write_json(target_state_path, after_state)
+        elif current != after_state:
+            raise ValueError("translation replacement identity registry changed after receipt")
+        final_state = _read_run_state_by_id(target_run_id, root)
+        if final_state != after_state:
+            raise ValueError("translation replacement identity registry changed during update")
+        final_receipt = {**prepared, "status": "RECONCILED"}
+        atomic_write_json(receipt_path, final_receipt)
+        return {**locked, "status": "reconciled", "receipt": receipt_relative}
 
 
 def seed_failed_translation_replacements(
@@ -6300,6 +6555,19 @@ def parse_args() -> argparse.Namespace:
     exact_mode = exact_replacement.add_mutually_exclusive_group(required=True)
     exact_mode.add_argument("--plan-only", action="store_true")
     exact_mode.add_argument("--execute", action="store_true")
+    reconcile_identity = subparsers.add_parser("reconcile-translation-replacement-identity")
+    reconcile_identity.add_argument("--source-run-id", required=True)
+    reconcile_identity.add_argument("--target-run-id", required=True)
+    reconcile_identity.add_argument("--target-registry-relative-path", required=True)
+    reconcile_identity.add_argument("--expected-target-registry-digest", required=True)
+    reconcile_identity.add_argument("--expected-target-run-dir", type=Path, required=True)
+    reconcile_identity.add_argument("--publisher-state-root", type=Path, required=True)
+    reconcile_identity.add_argument("--article-id", required=True)
+    reconcile_identity.add_argument("--lane", choices=("i18n-new", "i18n-rewrite"), required=True)
+    reconcile_identity.add_argument("--reason", choices=sorted(multilingual.TRANSLATION_REPLACEMENT_REASONS), required=True)
+    reconcile_mode = reconcile_identity.add_mutually_exclusive_group(required=True)
+    reconcile_mode.add_argument("--plan-only", action="store_true")
+    reconcile_mode.add_argument("--execute", action="store_true")
     campaign = subparsers.add_parser("dry-run-campaign")
     campaign.add_argument("--campaign-version", required=True)
     campaign.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
@@ -6423,6 +6691,26 @@ def main() -> int:
                 args.repo_root, queue_root, expected_run_id=args.run_id,
                 expected_registry_digest=args.expected_registry_digest,
                 expected_run_dir=args.expected_run_dir, execute=args.execute,
+            )
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            return 0
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "reconcile-translation-replacement-identity":
+        try:
+            result = reconcile_translation_replacement_identity(
+                queue_root,
+                source_run_id=args.source_run_id,
+                target_run_id=args.target_run_id,
+                target_registry_relative_path=args.target_registry_relative_path,
+                expected_target_registry_digest=args.expected_target_registry_digest,
+                expected_target_run_dir=args.expected_target_run_dir,
+                publisher_state_root=args.publisher_state_root,
+                article_id=args.article_id,
+                lane=args.lane,
+                reason=args.reason,
+                execute=args.execute,
             )
             print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             return 0
