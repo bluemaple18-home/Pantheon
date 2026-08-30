@@ -2,74 +2,81 @@
 
 export const CODEX_EMERGENCY_I18N_20260726_ASTRO_BASE_03_ARTICLE_LOCALES = [
   {
-    "runId": "codex-emergency-i18n-20260726-astro-base-03",
+    "runId": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
     "articleId": "ASTRO-BASE-03",
     "locale": "en",
     "sourcePath": "/articles/astrology/astrology-0003",
-    "sourceSha256": "5a85b2c48e4a640ca0240f5537b3dde2c399200ff884ba2395c17d60a0bef824",
-    "answer": "The Moon sign is often used to observe emotional reactions, sources of safety, and needs in intimate relationships. It is not a mind-reading tool, and it cannot decide the outcome of any relationship. Its practical use is to notice how your body and behavior respond when you feel hurt, relaxed, waiting, or ignored.",
+    "sourceSha256": "542e7159e3c9fe31b091188c9fe6b435818c2f337e49c40909d47d2119a42c77",
+    "answer": "In astrology, a moon sign is used to describe instinctive emotional reactions, sources of security, and private needs in close relationships. It can add context to those patterns, but it cannot replace a full birth chart, direct communication, or time spent observing how someone actually behaves.",
     "bodySections": [
       {
-        "heading": "Start With Your Response When You Are Affected",
+        "heading": "What a Moon Sign Can Tell You—and What It Cannot",
         "paragraphs": [
-          "The Moon sign is often used to observe emotional reactions, sources of safety, and needs in intimate relationships. It is not a mind-reading tool, and it cannot decide the outcome of any relationship. Its practical use is to notice how your body and behavior respond when you feel hurt, relaxed, waiting, or ignored.",
-          "If you are looking up the Moon sign because a late reply made you anxious, separate facts from guesses first. The facts are how long the message has gone unanswered and whether the other person mentioned a schedule. The guesses are that you may feel ignored, abandoned, or unimportant.",
-          "The Moon sign does not offer only comfort. It helps you make needs more specific. You may need advance notice, steady company, repair after conflict, or quiet space. Once a need can be described, it has a better chance of being discussed and coordinated."
+          "Astrologers use the moon sign as one lens on emotional reflexes: what feels reassuring, what closeness requires, and which defenses appear first under pressure. In a late-night disagreement, for example, one partner may want to settle everything immediately while the other needs a quiet night alone before continuing the conversation. The contrast can clarify different needs without proving that either response is fixed or wrong.",
+          "That lens has strict limits. A moon sign is not mind reading, a complete personality profile, or a forecast of how a relationship will turn out. A full chart and real interaction add context that one placement cannot provide, and no astrological label should be used to speak for someone or avoid the work of communicating with them."
         ]
       },
       {
-        "heading": "Turn Emotional Safety Into Behavior",
+        "heading": "Look for the Pattern When Plans Go Sideways",
         "paragraphs": [
-          "Many people say they need safety, but if safety remains only an adjective, the other person may not know what to do. The point of reading the Moon sign is to translate abstract needs into observable behaviors, such as checking in, explaining important changes in advance, or agreeing to return to a conversation after conflict.",
-          "In a romantic relationship, one person may need to talk immediately, another may need thirty minutes of quiet, and another may reconnect through physical closeness. These differences do not make one person more mature than the other. They show different routes back to stability.",
-          "In friendships and work, the Moon sign can also help you check stress reactions. Do you become silent, explain too much, seek repeated confirmation, or want to leave the room? Recording these verbs is more useful than saying only that you are sensitive."
+          "Calm days reveal less than small disruptions do. Notice the first reaction when a restaurant brings the wrong order, rain cancels a trip, or fatigue shortens everyone's patience. One person may reach for a phone and start rebuilding the plan; another may need a hot drink and a few quiet minutes before deciding what to do next.",
+          "The same kind of pattern can appear at work. An urgent assignment may feel energizing to one person and destabilizing to another. The useful question is not which response matches a sign description, but what the reaction says about that person's need for predictability, space, reassurance, or control in that moment.",
+          "Treat these observations as provisional. People adapt as their experiences change, and the same person may respond differently in another setting. The point is to notice a possible emotional baseline, not to turn a few reactions into a permanent label."
         ]
       },
       {
-        "heading": "Two Scenes: Waiting and Repair",
+        "heading": "Turn a Vague Need for Security into a Clear Request",
         "paragraphs": [
-          "The first scene is waiting for a reply. If you keep opening your phone late at night, the Moon sign can remind you to observe where the anxiety began. Did the other person actually break an agreement, or are you bringing an older experience of being ignored into the present?",
-          "The second scene is repair after conflict. Some people need immediate reassurance that the relationship still matters; others need a night of sleep before speaking clearly. You can agree on how to pause, when to return, and which words make the injury worse.",
-          "If you are single, the Moon sign can still help organize self-care. Under pressure, record sleep, meals, social load, and emotional swings. When your body is depleted, any relational signal may feel larger than it is. Restoring basic stability comes first."
+          "Security is too broad to negotiate until it becomes behavior. For one person, it means receiving a message when a partner goes out; for another, it means having privacy without being treated as distant. Naming the action matters more than debating who is naturally more secure.",
+          "If anxiety is building, replace “I never feel safe with you” with a request the other person can understand and answer. Asking for ten minutes to share the day's events before bed is concrete. It reduces guesswork, gives both people a clearer rhythm, and leaves room to discuss whether that routine works for them."
         ]
       },
       {
-        "heading": "What the Moon Sign Cannot Decide",
+        "heading": "Check the Facts Before You Interpret the Silence",
         "paragraphs": [
-          "The Moon sign cannot decide who loves whom, who will stay, or which relationship will work. It cannot speak thoughts the other person has not expressed. It offers an observing angle. The relationship itself still depends on conversation, action, commitment, boundaries, and mutual willingness to adjust.",
-          "Do not use the Moon sign as a way to avoid communication. Saying that this is just how you are usually stops the conversation. A more responsible version is: I need thirty minutes to calm down after conflict, and then I am willing to come back and talk.",
-          "If emotional distress continues to affect sleep, eating, work, or safety, seek mental health support first. A public astrology article can organize general concepts. It does not know your full context and should not replace medical, legal, or high-risk financial judgment."
+          "When a reaction feels charged, divide a page into two columns. Put only what has objectively happened on one side and your guesses about it on the other. Seeing the difference can expose how much of the anxiety comes from interpretation rather than something the other person has actually done.",
+          "Once the two columns are clear, choose a response that fits the evidence. You might state the need directly, ask what happened, or agree to give each other time to settle. Any of those options is more useful than assigning a motive through a moon-sign stereotype.",
+          "This fact-versus-assumption check does not erase emotion. It creates enough distance to have a calmer conversation and protects trust from guesses that have not been confirmed."
         ]
       },
       {
-        "heading": "A Moon Sign Exercise for Today",
+        "heading": "Keep a Short List of What Helps You Reset",
         "paragraphs": [
-          "Choose one recent event that affected your mood and divide it into four columns: what happened, my first reaction, what I truly needed, and what request I can make. This turns the Moon sign from an abstract description into a practical organizing tool.",
-          "Then check whether the request can be understood. Asking someone to care more is too vague. Asking them to send a short note when they will reply late is clearer. The more executable the need is, the less the interaction is driven by guessing.",
-          "Finally, treat the Moon sign as an emotional map, not a relationship verdict. It can help you recognize safety needs and repair routes, but every action still needs review: did the situation become clearer, was the cost bearable, and does the next step need adjustment?"
+          "Astrology is more useful here as a prompt for reflection than as a prediction tool. Write down a few specific things that reliably help when irritation or anxiety rises: a proper meal, a hot shower, a quiet pause, or a conversation with a trusted friend. When stress returns, the list gives you options without requiring you to solve the whole situation at once.",
+          "Update the list as you learn what works in different circumstances. Everyone is entitled to their emotions and may need time to learn how to live with uncertainty. Observing those needs with patience can make relationships gentler, but lasting security still comes from practiced coping, open communication, and attention to the person in front of you."
         ]
       }
     ],
-    "description": "The Moon sign is often used to observe emotional reactions, sources of safety, and needs in intimate relationships. It is not a mind-reading tool, and it cannot decide the outcome of any relationship. Its practical use i",
+    "description": "Learn what a moon sign may reveal about emotional reactions and security needs, plus practical ways to communicate without turning astrology into a fixed label.",
     "faq": [
       {
-        "question": "Can this article make a personal prediction?",
-        "answer": "No. It offers a general framework and should be checked against real context, choices, and limits."
+        "answer": "In astrology, a moon sign describes instinctive emotional responses, sources of security, and private needs in close relationships, especially the reactions that surface under pressure.",
+        "question": "What is a moon sign in astrology?"
       },
       {
-        "question": "How should I use the method in daily life?",
-        "answer": "Start with one concrete scene, write down observable facts, and turn the reading into one small next action."
+        "answer": "Use it alongside the sun sign, rising sign, and the rest of the birth chart. A single placement cannot describe a whole personality.",
+        "question": "What other chart information should you consider with a moon sign?"
       },
       {
-        "question": "When should I seek other support?",
-        "answer": "If the issue involves health, safety, legal, financial, or severe emotional risk, use qualified professional support first."
+        "answer": "The most common mistake is reducing it to one fixed personality trait. It offers only one part of the picture and cannot replace context or observation over time.",
+        "question": "What is the most common moon-sign oversimplification?"
+      },
+      {
+        "answer": "No. A moon sign may suggest a useful question about emotional patterns, but it cannot tell you exactly what someone thinks or how a relationship will turn out. It also cannot replace personal details, a specific question, or professional judgment.",
+        "question": "Can a moon sign tell you how someone will behave?"
+      },
+      {
+        "answer": "Write the situation as one concrete sentence, then separate what happened from what you assume it means. Use astrology only to frame questions about needs, limits, and what to clarify next.",
+        "question": "How can you use moon-sign information in a real situation?"
       }
     ],
     "tags": [
-      "en",
-      "Pantheon"
+      "astrology basics",
+      "emotional security",
+      "relationship communication",
+      "birth chart insights"
     ],
-    "title": "How to Read the Moon Sign: Naming Emotional Reactions, Safety, and Needs"
+    "title": "What Is a Moon Sign? Emotional Needs, Triggers, and Limits"
   },
   {
     "runId": "codex-emergency-i18n-20260726-astro-base-03",
