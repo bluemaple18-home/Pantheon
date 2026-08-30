@@ -1,0 +1,19 @@
+{
+  "allowed_mutations": [
+    "formal runtime promotion dfcb to 55e2",
+    "exact stale succeeded writer terminalization once",
+    "formal current runtime install and aggregate activation",
+    "one fresh new run writer reviewer publisher release deploy"
+  ],
+  "authorized_by": "Owner four-lane production continuation",
+  "forbidden_mutations": [
+    "source repair",
+    "manual plist edits",
+    "rewrite or i18n lane execution",
+    "second provider or publisher execute"
+  ],
+  "operation": "new-lane-current-production-acceptance-55e2",
+  "parent_sha": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "schema_version": 1,
+  "target_sha": "55e2a78de92a6d7929da531ffc3e0dab049df142"
+}

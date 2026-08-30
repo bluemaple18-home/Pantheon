@@ -1,0 +1,60 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "transaction",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:_isolated_transaction_worktree"
+    ],
+    "git_trace": [
+      [
+        "rev-parse",
+        "--git-common-dir"
+      ],
+      [
+        "fetch",
+        "origin",
+        "main"
+      ],
+      [
+        "status",
+        "--porcelain"
+      ],
+      [
+        "rev-parse",
+        "origin/main"
+      ],
+      [
+        "worktree",
+        "add",
+        "--detach",
+        "publisher-state/transaction-93cd6d7aa4543cabbd540e6b/repo",
+        "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef"
+      ],
+      [
+        "worktree",
+        "remove",
+        "--force",
+        "publisher-state/transaction-93cd6d7aa4543cabbd540e6b/repo"
+      ]
+    ],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "9c1ba8333aeb1e1abcc5daca60dc7c377c10e43503b31058f5eb5800d6c76ef0",
+  "operation_trace_digest": "570814be0bad5704a3910c2232cab452b93ebb0370e74e6be03a5f6f9b56dd7e",
+  "outcome": "PASS",
+  "output_digest": "6a0c32157f66db90c5c5764f9a91b13634c71b5322f6766845df9a20f1207320",
+  "packaged_source_artifact": "positive/05-transaction.json",
+  "packaged_source_digest": "b649905d02c0a83bcf34577cb1b968cf66e8d2c278184012fe52b9fa20e8c6f5",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

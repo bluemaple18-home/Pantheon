@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "FAILED_RECOVERED",
+  "retry_status": "candidate_preserved",
+  "return_code": 128,
+  "base_sha": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+  "failed_head": "042e2e52db6aa08170f075c2c38858ea18c721f2",
+  "phase": "translation",
+  "error_type": "CalledProcessError",
+  "run_ids": [
+    "auto-i18n-ja-1414b75a404721e95e74"
+  ],
+  "repo_recovered": true,
+  "concurrent_write_conflicts": [],
+  "unknown_tracked_paths_preserved": [],
+  "untracked_files_preserved": [],
+  "removed_local_tags": [],
+  "recorded_at": "2026-08-29T10:22:55+08:00",
+  "restored_count": 1123,
+  "status_before_recovery_count": 0,
+  "status_after_recovery": []
+}

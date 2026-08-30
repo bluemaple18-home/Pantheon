@@ -1,0 +1,1 @@
+{"audit_receipt_exists": true, "correlation_id": "pantheon-gen06-final-publish-release-namespace-dfcb-20260829", "plan_digest": "c0c7d0b90ccf45264580fbb7cc246abfdc67c76a1357e5fe563260cd2cdc8753", "rollback_bundle_exists": false, "rollback_required": false, "state": "COMMITTED", "status": "PASS"}

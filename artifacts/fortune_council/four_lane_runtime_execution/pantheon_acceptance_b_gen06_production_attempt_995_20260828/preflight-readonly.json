@@ -1,0 +1,198 @@
+{
+  "actor_head": "ac1faef520c9b79f9bb70265735d07a6ca826b7d",
+  "actor_status_short": "",
+  "files": {
+    "gen05_candidate_sha256": "e8937d77fe21800d69ebacd6ed7d3fb6bbb0cb15c81ba0368fc63574900d7555",
+    "gen05_locale_plan_sha256": "9b9f29fe166d17a648b0c950bfb392367aaaba6d27e5000d550351722278eee8",
+    "gen05_review_sha256": "207194690e5ccccdf04bde380d7520952a5b04a21638e428a79de916ce03c718",
+    "gen05_source_ref_map_sha256": "8c17a15d27ed776c4265757edc084a990ead2f3146422de3a845b93770970bdc"
+  },
+  "git": {
+    "head": {
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "99507c67e27d9e6f3af4e33c3ab0727682ed82bd"
+    },
+    "origin_main": {
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "99507c67e27d9e6f3af4e33c3ab0727682ed82bd"
+    },
+    "status_short": {
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-RULE21-CREATED-UNBOUND-TITLE-MISMATCH-RECOVERY-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-AI-CORE-UV-CACHE-EXTERNAL-VOLUME-PERMISSION-REPORT-20260820.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-ACCEPTANCE-B-GEN06-PRODUCTION-ATTEMPT-995-20260828.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-FOUR-LANE-STATE-CONVERGENCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-LAUNCHD-ACTIVATION-RECOVERY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-PRERENDER-READONLY-RCA-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-RECOVERY-REWRITE-ACCEPTANCE-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-REGISTRY-NODE-CANARY-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-PUBLISHER-SAFE-ACTIVATION-REVIEW-20260818.md\n?? artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-RUNTIME-DIGEST-CORRECTION-20260817.md\n?? artifacts/fortune_council/four_lane_runtime_execution/HANDOFF-PANTHEON-ACCEPTANCE-B-GEN04-LIFECYCLE-RCA-20260827.md\n?? artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/\n?? handoff_20260817_pantheon_writer_vnext_four_lane_recovery.md\n?? handoff_20260820_g8_current_readiness_uv_cache_blocker.md"
+    }
+  },
+  "manifest": {
+    "actor_head": "ac1faef520c9b79f9bb70265735d07a6ca826b7d",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g59-ac1faef5-gen05-entrypoint-recovery-20260828",
+    "identity": "gate2-actor:ac1faef520c9b79f9bb70265735d07a6ca826b7d:gen05-entrypoint-recovery-20260828",
+    "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "manifest_digest": "5edb5d5f0b1d8eebc2fbe0855127f83fc9022fea9175c082505e807a29225bfe",
+    "owner_uid": 501,
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "1c4bc28cda62a56fcf31bf007fd7905c4a45a5e1ca6b9fb8d0e9bfcb94498d21",
+    "runtime_identity_digest": "1e88e4772b8e6a9eff21a2a176dc9ce3d41f6002918a794c0970d201091ef4b2",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ],
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "manifest_sha256": "f03ae30702a744d5a4caf63ca61bbf575075e6163d5ee00fe33fce8a72f48e20",
+  "services": {
+    "returncode": 1,
+    "stderr": "",
+    "stdout": ""
+  },
+  "target": {
+    "brief_sha256": "93e09f8f637c396e35ccc28707c66734b08eb7f1c0c4cbdcb246df5b11ac8844",
+    "gen05_deterministic_findings": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "code": "BOUNDARY_MEANING_MISSING",
+        "message": "JA protected boundary meaning is missing from meta_description, body",
+        "missing_categories": [
+          "outcome_not_determined"
+        ],
+        "missing_fields": [
+          "meta_description",
+          "body"
+        ],
+        "present_categories": [
+          "contextual_or_general_interpretation",
+          "professional_advice_non_substitution"
+        ],
+        "reasons": [
+          {
+            "category": "outcome_not_determined",
+            "missing_fields": [
+              "meta_description",
+              "body"
+            ],
+            "reason": "omission"
+          }
+        ]
+      }
+    ],
+    "gen05_exists": true,
+    "gen05_review": {
+      "articles": [
+        {
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "candidate_sha256": "ab582a8871d17176d0e84736a2e94e9e293fefa3ba48472eed9a4daa2d790272",
+          "findings": [
+            {
+              "code": "BOUNDARY_MEANING_MISSING",
+              "message": "JA protected boundary meaning is missing from meta_description, body. The required constraint 'outcome_not_determined' is not adequately covered in the meta_description and body sections as per the deterministic findings."
+            },
+            {
+              "code": "BOUNDARY_MEANING_MISSING",
+              "message": "JA protected boundary meaning is missing from meta_description, body"
+            }
+          ],
+          "hard_failure": true,
+          "verdict": "REJECT"
+        }
+      ],
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "gen06_exists": false,
+    "published_url": null,
+    "root_review": {
+      "articles": [
+        {
+          "article_id": "V2-TAROT-DEATH-MONEY:ja",
+          "candidate_sha256": "ab582a8871d17176d0e84736a2e94e9e293fefa3ba48472eed9a4daa2d790272",
+          "findings": [
+            {
+              "code": "BOUNDARY_MEANING_MISSING",
+              "message": "JA protected boundary meaning is missing from meta_description, body. The required constraint 'outcome_not_determined' is not adequately covered in the meta_description and body sections as per the deterministic findings."
+            },
+            {
+              "code": "BOUNDARY_MEANING_MISSING",
+              "message": "JA protected boundary meaning is missing from meta_description, body"
+            }
+          ],
+          "hard_failure": true,
+          "verdict": "REJECT"
+        }
+      ],
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1
+    },
+    "run_dir_exists": true,
+    "state": {
+      "abandoned_generations": [
+        4
+      ],
+      "completed_generations": [
+        5
+      ],
+      "next_generation": 6,
+      "operation_id": "42b2d14947072732654bb169c4aaf317f2d649631ea33fb655a104bce08f28c9",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1,
+      "semantic_budget": 1,
+      "source_sha256": [
+        "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+      ],
+      "started_after_generation": 3,
+      "starting_review_sha256": "31b5d156a987a227adccbd3c02f37f609985983d4deca7c057fcd1c27c7155cd",
+      "status": "complete",
+      "terminal_candidate_sha256": "d70d7423ae6e0c8a5705c30ff21753705a0a3439906fbec63fbd9a67ee39540e",
+      "terminal_review_sha256": "02f7431faecfbef8178b62320243b50baa38ec03ec4fdcdc4c985dd07a4d04d6"
+    },
+    "state_file": {
+      "failed_external_job_replacement": {
+        "authority_digest": "d44a30713092c1721cffa1974661508a2a2d10367e7a736d77d8841e2053ce2c",
+        "correlation_id": null,
+        "decision": "lanes/i18n-new/failed-external-job-replacements/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+        "lane": "i18n-new",
+        "namespace": "f46cda9eaa9ded446bf8e6c6",
+        "replacement_job_id": "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9",
+        "replacement_lineage_id": "e6ee67a605d2e5b98788723907ecf2168dce37b66f9cec77a44434e26d15dbf4",
+        "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b",
+        "source_job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3"
+      },
+      "identity_envelope": {
+        "article_ids": [
+          "V2-TAROT-DEATH-MONEY"
+        ],
+        "digest": "5527bccc79f7089b2e8e24d256df5ff81205b574a233e7537e314af9a19da0ef",
+        "lane": "i18n-new",
+        "mode": "translate_existing",
+        "schema_version": 1
+      },
+      "identity_replacement_receipt": "identity-replacement-receipts/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "lane": "i18n-new",
+      "last_job_id": "32570d45e3dd22f0fea558c414063bd186002c0d",
+      "registered_at": "2026-08-26T23:32:41+08:00",
+      "result": {
+        "approved_by_reviewer": 0,
+        "candidate": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+        "review": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.md",
+        "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+        "status": "complete"
+      },
+      "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "schema_version": 1,
+      "status": "complete",
+      "updated_at": "2026-08-28T16:28:35+08:00"
+    }
+  }
+}

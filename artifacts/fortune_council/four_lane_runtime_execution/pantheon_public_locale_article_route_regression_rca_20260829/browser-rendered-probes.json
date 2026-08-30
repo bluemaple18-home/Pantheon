@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-29T11:56:54+08:00",
+  "browser": "Chrome",
+  "wait_contract": "load plus 1800-2500ms; DOM read after document.readyState complete",
+  "target": {
+    "url": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884?rca=20260829t1",
+    "title": "タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方 | Pantheon",
+    "h1": "タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方",
+    "canonical": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884",
+    "unique_body_sentinel": "金銭における死神の意味と現状の見直し",
+    "sentinel_present": true,
+    "script": "https://www.mysticpantheon.com/static/article.js?v=agy-i18n-0-3-374",
+    "ready_state": "complete",
+    "console_warnings_or_errors": [],
+    "verdict": "PASS"
+  },
+  "general_localized_control": {
+    "url": "https://www.mysticpantheon.com/ja/articles/astrology/astrology-0181?rca=20260829general",
+    "title": "MCでキャリア定位を見るには？まず「どう見られたいか」を整理する | Pantheon",
+    "h1": "MCでキャリア定位を見るには？まず「どう見られたいか」を整理する",
+    "canonical": "https://www.mysticpantheon.com/ja/articles/astrology/astrology-0181",
+    "body_locale": "ja",
+    "body_length": 1917,
+    "console_warnings_or_errors": [],
+    "verdict": "PASS"
+  },
+  "i18n_rewrite_route_control": {
+    "url": "https://www.mysticpantheon.com/ja/articles/astrology/astrology-0003?rca=20260829rewrite",
+    "title": "月星座の読み方：感情反応、安心感、必要なことを言葉にする | Pantheon",
+    "h1": "月星座の読み方：感情反応、安心感、必要なことを言葉にする",
+    "canonical": "https://www.mysticpantheon.com/ja/articles/astrology/astrology-0003",
+    "body_locale": "ja",
+    "body_length": 1722,
+    "console_warnings_or_errors": [],
+    "verdict": "PASS"
+  },
+  "network_note": "Browser plugin exposed console logs but no separate requestfailed/pageerror event API; successful static-asset byte probes and empty warning/error logs are recorded separately."
+}

@@ -1,0 +1,25 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "capability": "select",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids"
+    ],
+    "git_trace": [],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "40d985fd3995293983fbca086435b43b3c16a0d122bc5ec6141aa50b86a5ee0f",
+  "operation_trace_digest": "7140b95cc32ffba9dfb6c4f846ae2d525d9d7af49ca6ea9b4c6fec867de0a3ff",
+  "outcome": "PASS",
+  "output_digest": "9ee12f191e23fbbdf90eb68ee6811011e318873dc88dac9a5b57ae53215d9bc6",
+  "production_mutation": false,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

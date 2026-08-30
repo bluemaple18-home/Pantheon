@@ -1,0 +1,1 @@
+{"audit_receipt_exists": true, "correlation_id": "pantheon-gen06-samegen-retry-18b-20260828", "plan_digest": "549f54e5a35d168fc511731c289e48a31debb54729c11bf7d5d1894fa23342c2", "rollback_bundle_exists": false, "rollback_required": false, "state": "COMMITTED", "status": "PASS"}

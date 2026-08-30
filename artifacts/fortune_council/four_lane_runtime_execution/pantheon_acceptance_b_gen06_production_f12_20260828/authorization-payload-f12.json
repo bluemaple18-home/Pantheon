@@ -1,0 +1,9 @@
+{
+  "mission": "pantheon-gen06-production-f12-20260828",
+  "no_gen07": true,
+  "no_second_gen06": true,
+  "no_source_change": true,
+  "scope": "single controlled gen06 production attempt",
+  "source_sha": "f12f24315d30a8d030cf2e9d99a310c711eeeb0e",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

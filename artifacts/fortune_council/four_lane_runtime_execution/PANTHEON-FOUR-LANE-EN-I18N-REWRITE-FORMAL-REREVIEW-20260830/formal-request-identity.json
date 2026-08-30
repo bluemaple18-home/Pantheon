@@ -1,0 +1,20 @@
+{
+  "candidate_sha256": "26dd6ccf15a37a165f2ec11f9dd0220db26b9cdbc7fc8b2641b50b551e6731d1",
+  "external_provider_attempt_limit": 1,
+  "job_id": "af0a7de946841d3e899f7b7aeb8c3993762775d3",
+  "lane": "i18n-rewrite",
+  "model": "gemini-3.1-flash-lite",
+  "namespace": "1bf0bbc61ff8d10e808f6923",
+  "operation_level": "external_generation",
+  "outbox_files": [
+    "af0a7de946841d3e899f7b7aeb8c3993762775d3.json"
+  ],
+  "prompt_sha256": "a72a332959cd80de0dfcfb0ce04a7eda4a9518fb05f7e8e96ce7536953b44b6a",
+  "request_file_sha256": "4a626ed360df9a21e9c49cef69983510f421af84ce44812d1167685c74cd864d",
+  "request_path": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-FOUR-LANE-EN-I18N-REWRITE-FORMAL-REREVIEW-20260830/isolated-formal-runtime/queue/lanes/i18n-rewrite/outbox/af0a7de946841d3e899f7b7aeb8c3993762775d3.json",
+  "request_sha256": "af0a7de946841d3e899f7b7aeb8c3993762775d35ed87658f22aab375f83c563",
+  "role": "reviewer",
+  "run_id": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
+  "schema_sha256": "3895a88af266c8f9ebde177ade284b9feab2075dd2375c53ac09bccee0d07940",
+  "schema_version": 1
+}

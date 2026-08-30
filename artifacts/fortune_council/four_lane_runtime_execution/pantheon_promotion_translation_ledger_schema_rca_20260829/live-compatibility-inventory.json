@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "status": "CLOSED",
+  "ledger_path": "local-only:/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/ledger.json",
+  "ledger_sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+  "preserved_run_count": 136,
+  "collections": [
+    {
+      "name": "published_runs",
+      "count": 3,
+      "producer": "scripts/agy_content_publisher.py:4093",
+      "identity_shape": "article_ids: list[str]",
+      "promotion_consumer": "consumed; expects article_ids",
+      "matching_preserved_count": 3,
+      "blocking_mismatch_count": 0
+    },
+    {
+      "name": "rewrite_released_runs",
+      "count": 3,
+      "producer": "scripts/agy_content_publisher.py:4271",
+      "identity_shape": "article_ids: list[str]",
+      "promotion_consumer": "consumed; expects article_ids",
+      "matching_preserved_count": 3,
+      "blocking_mismatch_count": 0
+    },
+    {
+      "name": "translation_published_runs",
+      "count": 2,
+      "producer": "scripts/agy_content_publisher.py:4464-4475",
+      "identity_shape": "article_id: str; optional staging_receipt_sha256 does not alter identity",
+      "promotion_consumer": "consumed; incorrectly expects article_ids for every matched record",
+      "matching_preserved_count": 1,
+      "blocking_mismatch_count": 1,
+      "blocking_run_ids": [
+        "auto-i18n-ja-1414b75a404721e95e74"
+      ]
+    },
+    {
+      "name": "superseded_runs",
+      "count": 0,
+      "producer": "no production append seam found; contract currently appears in lifecycle readers and tests",
+      "identity_shape": "article_ids: list[str] (test contract)",
+      "promotion_consumer": "consumed; expects article_ids",
+      "matching_preserved_count": 0,
+      "blocking_mismatch_count": 0
+    },
+    {
+      "name": "quarantined_runs",
+      "count": 2,
+      "producer": "scripts/agy_content_publisher.py:2624-2630",
+      "identity_shape": "run_id + reason + recorded_at; no article identity",
+      "promotion_consumer": "not consumed by _publisher_ledger_evidence",
+      "matching_preserved_count": 2,
+      "blocking_mismatch_count": 0
+    },
+    {
+      "name": "translation_deferred_runs",
+      "count": 8,
+      "producer": "scripts/agy_content_publisher.py:2616-2621",
+      "identity_shape": "run_id + reason + recorded_at; no article identity",
+      "promotion_consumer": "not consumed by _publisher_ledger_evidence",
+      "matching_preserved_count": 2,
+      "blocking_mismatch_count": 0
+    }
+  ],
+  "all_measured_preflight_blockers": [
+    {
+      "collection": "translation_published_runs",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "actual": "article_id: V2-TAROT-DEATH-MONEY",
+      "expected_by_current_promotion": "article_ids: [V2-TAROT-DEATH-MONEY]"
+    }
+  ],
+  "additional_blocking_shape_mismatches_found": 0,
+  "repair_scope_expansion_authorized": false
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "release_commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+  "release_parent": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "remote_main_at_probe": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+  "article_shell": {
+    "origin_22d7_sha256": "9c36f6ddc6d4b281386036394b7fef9453e414b48a73e8895942d88360772362",
+    "public_raw_sha256": "934634e2a64af86c4d6d6ed7dfa3305b55c7cb549d2a9b2b92933e843d96b440",
+    "public_cf_normalized_sha256": "9c36f6ddc6d4b281386036394b7fef9453e414b48a73e8895942d88360772362",
+    "origin_equals_public_after_cloudflare_email_obfuscation_normalization": true,
+    "only_cloudflare_transform": "mailto obfuscation plus email-decode script injection"
+  },
+  "historical_vs_current_public_raw_shell": {
+    "historical_recorded_at": "2026-08-29T11:22:51+08:00",
+    "current_recorded_at": "2026-08-29T11:53:28+08:00",
+    "historical_bytes": 9646,
+    "current_bytes": 9646,
+    "historical_raw_sha256": "2dfa0e228301fe16583b4faeb9d14e9da98613456389fcdab5da54343b456d4d",
+    "current_raw_sha256": "934634e2a64af86c4d6d6ed7dfa3305b55c7cb549d2a9b2b92933e843d96b440",
+    "normalized_historical_sha256": "69f4a92635a0142c6e09e5b019b7f59ac2de6bdec007b91a5c1ebec09297e475",
+    "normalized_current_sha256": "69f4a92635a0142c6e09e5b019b7f59ac2de6bdec007b91a5c1ebec09297e475",
+    "normalized_equal": true,
+    "normalization": "Cloudflare email-protection token only"
+  },
+  "public_asset_exact_matches": [
+    {
+      "path": "app/web/static/article.js",
+      "origin_22d7_sha256": "73c01ef2c1fffa6c29fc309e16feece137fd7f307bf461e388834134072ed588",
+      "public_sha256": "73c01ef2c1fffa6c29fc309e16feece137fd7f307bf461e388834134072ed588",
+      "exact": true
+    },
+    {
+      "path": "app/web/static/article-locales.js",
+      "origin_22d7_sha256": "9c4ec6173e1c531f41d6b514971bee697596d2dc226f7f20472748bd7963e94f",
+      "public_sha256": "9c4ec6173e1c531f41d6b514971bee697596d2dc226f7f20472748bd7963e94f",
+      "exact": true
+    },
+    {
+      "path": "app/web/static/article-locale-auto-i18n-ja-1414b75a404721e95e74.js",
+      "origin_22d7_sha256": "2c73125d209d39f500ea9969089e228b9dfff0f693cf73357220efda5315b8ab",
+      "public_sha256": "2c73125d209d39f500ea9969089e228b9dfff0f693cf73357220efda5315b8ab",
+      "exact": true
+    }
+  ],
+  "redirect_contract": {
+    "dfcb_sha256": "2f862ee162e88351638bf5a171de01644bc66fa279af7a9d95b7ee8868e0385d",
+    "release_22d7_sha256": "2f862ee162e88351638bf5a171de01644bc66fa279af7a9d95b7ee8868e0385d",
+    "unchanged_by_release": true,
+    "localized_rule": "/ja/articles/* /article 200",
+    "dynamic_locale_route_introduced_by": "396266bd277608d7122b29ee8ee3daa19ae155ef",
+    "dynamic_locale_route_introduced_at": "2026-07-27T00:03:01+08:00",
+    "dynamic_locale_route_introduction_subject": "Publish multilingual article routes (#11)",
+    "cloudflare_extensionless_rewrite_fix": "93edf8cfe5f95555d30b65fe1e5c898ed8770430"
+  }
+}

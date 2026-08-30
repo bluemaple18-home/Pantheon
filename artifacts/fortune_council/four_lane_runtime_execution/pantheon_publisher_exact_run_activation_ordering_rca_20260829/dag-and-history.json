@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "primary_cause": "CAPACITY_VALIDATOR_OVERREACH",
+  "secondary": ["CROSS_VERSION_STAGE_SCHEMA_GAP", "serial exposure of the same activation control-plane seam"],
+  "dag": [
+    {"edge": 1, "node": "promotion COMMITTED", "reads": ["accepted source", "authorization", "Rule24 receipt"], "writes": ["actor", "runtime manifest", "barrier/readiness", "promotion receipt"], "run_id": "not owned"},
+    {"edge": 2, "node": "coordinator --install", "reads": ["runtime manifest", "model route"], "writes": ["coordinator plus four lane staged plists", "manifest/generation/model-route stage controls"], "run_id": "not owned"},
+    {"edge": 3, "node": "publisher --install", "reads": ["runtime manifest", "optional PANTHEON_PUBLISH_EXACT_RUN_ID"], "writes": ["publisher staged plist", "publisher-max-runs", "optional publisher-exact-run-id"], "run_id": "optional bounded selector"},
+    {"edge": 4, "node": "capacity --install-recovery-stage", "reads": ["Rule24", "barrier", "six staged plists", "old live cohort/services"], "writes": ["capacity staged plist after PASS"], "run_id": "incorrectly required by private validator"},
+    {"edge": 5, "node": "coordinator aggregate activation", "reads": ["seven staged plists", "shared manifest tuple", "model route", "old live snapshot"], "writes": ["seven live plists", "launchctl topology", "new readiness/barrier"], "run_id": "not required"},
+    {"edge": 6, "node": "activated coordinator scheduler cycle", "reads": ["active registry", "new content matrix"], "writes": ["at most one fresh new run brief and registry state"], "run_id": "allocated here"},
+    {"edge": 7, "node": "new lane Writer", "reads": ["fresh lane outbox exact run"], "writes": ["candidate/outbox state"], "run_id": "required after allocation"},
+    {"edge": 8, "node": "Formal Reviewer", "reads": ["candidate exact run"], "writes": ["APPROVE or REJECT receipt"], "run_id": "required"},
+    {"edge": 9, "node": "publisher selection/transaction", "reads": ["approved exact run"], "writes": ["release transaction/ledger/repository only after authorization"], "run_id": "required bounded selector"}
+  ],
+  "semantic_owner": {
+    "activation_cohort": "runtime manifest identity/digest/generation plus seven plist receipts and barrier",
+    "run_allocation": "coordinator seed_new_matrix_runs after activated scheduler cycle",
+    "publisher_exact_run_id": "publisher bounded selection of an already allocated run; may be absent before allocation",
+    "publish_transaction": "consumes the selected run but does not own activation cohort identity"
+  },
+  "preallocation_census": {
+    "official_current_new_scheduler": "seed_new_matrix_runs; creates brief and registry state",
+    "exact_seed": "_seed_exact_new_matrix_run reserves identity then creates/activates registry state; not plan-only",
+    "provider_calls": 0,
+    "production_mutation": "queue/run/registry mutation is nonzero",
+    "create_single_source_run_adapter_plan_only": "different workset/campaign adapter; not the current new-lane scheduler contract",
+    "formal_provider_zero_preallocation_without_queue_mutation": false
+  },
+  "history": {
+    "shared_optional_contract_commit": {"sha": "1eb39f9c50a9308c742e576946d4c0c6d7930bf9", "parent": "6791ad8e88d685712a01be9b13ce2b650ef8100e", "effect": "publisher preflight gained expected_exact_run_id and require_no_exact_run_id; absence explicitly legal"},
+    "first_bad_mechanism": {"sha": "29f758f6ad74afa412dd8ff3878efdd79074b36f", "parent": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e", "effect": "capacity transition began unconditional read/nonempty check of publisher-exact-run-id"},
+    "contract_last_good_parent": {"sha": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e", "effect": "did not make staged publisher run selector an activation prerequisite"},
+    "last_located_successful_production_activation": {"actor": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001", "generation": "g47-6477ab81-activation-only-20260826", "live_plist_install_time": "2026-08-26T10:45:12+08:00", "post_activation_new_run_registration": "2026-08-26T10:45:19+08:00", "how_exact_was_obtained": "pre-existing completed historical run auto-i18n-en-614aa4dc3542ab2c5637"},
+    "first_located_fresh_run_failure": {"actor": "bde44589f3785aae738bb7d7b1626270ba5505d0", "generation": "g71-bde44589-new-lane-current-acceptance-20260829", "receipt": "resume-bde445-blocked-contract-gap-receipt.json", "effect": "no future run exists before activation, so optional publisher installer correctly omits selector and capacity rejects"}
+  },
+  "blame": {
+    "scripts/pantheon_content_capacity_guard.py:1040-1064": "29f758f6ad74afa412dd8ff3878efdd79074b36f",
+    "scripts/pantheon_content_runtime_manifest.py:469-480": "shared optional publisher selector validation",
+    "scripts/install_agy_content_publisher_launchd.sh:250-254": "optional stage write/remove"
+  }
+}

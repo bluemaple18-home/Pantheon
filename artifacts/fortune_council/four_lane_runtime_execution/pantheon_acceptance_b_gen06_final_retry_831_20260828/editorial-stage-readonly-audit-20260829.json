@@ -1,0 +1,167 @@
+{
+  "approved_article_sha256_actual": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+  "approved_review_summary": [
+    {
+      "article_id": "V2-TAROT-DEATH-MONEY:ja",
+      "candidate_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+      "findings": [],
+      "hard_failure": null,
+      "verdict": "APPROVE"
+    }
+  ],
+  "candidate_validation": "PASS",
+  "changed_paths": [
+    {
+      "after": "タロットの死神カードが金銭面において示すのは、破産や幸運の断定ではなく、古いパターンや価値観の終了と、それに伴う構造的な変化です。本稿は一般的な理解を目的とした文化的な考察であり、結果を断定したり個人の結論を代行したりすることはできません。未来の結果を完全に確定することはできないため、財務上の決定はご自身の責任で行ってください。",
+      "before": "タロットの死神カードが金銭面において示すのは、破産や幸運の断定ではなく、古いパターンや価値観の終了と、それに伴う構造的な変化です。本篇の内容は一般的な理解を目的とした文化的な反思であり、結果を断定したり個人の結論を代行したりすることはできません。未来の結果を完全に確定することはできないため、財務上の決定はご自身の責任で行ってください。",
+      "path": "articles[0].answer"
+    },
+    {
+      "after": "タロットの死神カードが金銭において何を意味するのかは、財務的な不安を抱えるときによく考えられるテーマです。このカードが現れたとき、それは多くの場合、特定の段階の終了や既存のパターンの崩壊を象徴しています。金銭情勢の変化に直面した際、カードそのものは破産や一攫千金を直接意味するものではなく、むしろ現状を見直すためのきっかけとなります。本稿は一般的な理解を...",
+      "before": "タロットの死神カードが金銭において何を意味するのかは、財務的な不安を抱えるときによく考えられるテーマです。このカードが現れたとき、それは多くの場合、特定の段階の終了や既存のパターンの崩壊を象徴しています。金銭情勢の変化に直面した際、カードそのものは破産や一攫千金を直接意味するものではなく、むしろ現状を見直すためのきっかけとなります。本篇の内容は一般的な...",
+      "path": "articles[0].bodySections[0].paragraphs[0]"
+    },
+    {
+      "after": "ここで扱う内容はすべて文化的な考察の範疇に属し、個人の思考を深め、お金に対する視点を広げることを目的としています。これらは専門的な投資や法律の助言を構成するものではなく、結果を断定するものでもありません。",
+      "before": "ここで探求する内容はすべて文化的な反思の範疇に属し、個人の心智の豊かさやお金に対する視点を広げることを目的としています。これらは専門的な投資や法律の助言を構成するものではなく、結果を断定するものでもありません。",
+      "path": "articles[0].bodySections[1].paragraphs[2]"
+    },
+    {
+      "after": "金銭の話題に向き合うとき、死神カードは執着を手放すためのアプローチを提供します。私たちは習慣によって、利益をもたらさない財務的な行動を続けてしまいがちです。読者の皆様にはご自身の状況に合わせて適用性を判断していただくようお願いいたします。本稿は一般的な理解を提供するものであり、個人の結論を代行するものではなく、未来の結果を完全に確定することはできません。",
+      "before": "金銭の話題に向き合うとき、死神カードは執着を手放すためのアプローチを提供します。私たちは習慣によって、利益をもたらさない財務的な行動を続けてしまいがちです。読者の皆様にはご自身の状況に合わせて適用性を判断していただくようお願いいたします。内容只提供通用理解であり、個人の結論を代行するものではなく、未来の結果を完全に確定することはできません。",
+      "path": "articles[0].bodySections[2].paragraphs[0]"
+    },
+    {
+      "after": "過去の資産管理における失敗や誤った決断が、未来を制限する足枷となってはなりません。変化を拒まないとき、お金の流れのあり方もまた異なった姿を見せることになります。どのような予測ツールであっても未来の結果を完全に確定することはできず、本稿は一般的な理解を提供するものです。",
+      "before": "過去の理財における失敗や誤った決断が、未来を制限する足枷となってはなりません。変化を拒まないとき、お金の流れのあり方もまた異なった姿を見せることになります。どのような予測ツールであっても未来の結果を完全に確定することはできず、内容只提供通用理解となります。",
+      "path": "articles[0].bodySections[2].paragraphs[2]"
+    },
+    {
+      "after": "動乱と転換の時期を乗り越えた先で、財務状況は通常新しい局面を迎えることになります。死神カードは終わりを意味する側面を持っていますが、終わりと同時にそれは新たな芽生えの空間を生み出すものでもあります。ただし、結果を断定することはできず、これを確実な答えとして扱わないでください。未来の方向性は、あくまで個人の具体的な行動に依存しています。",
+      "before": "動乱と転換の時期を乗り越えた先で、財務状況は通常新しい局面を迎えることになります。死神カードは終わりを意味する側面を持っていますが、終わりと同時にそれは新たな芽生えの空間を生み出すものでもあります。ただし、結果を断定することはできず、請勿將其視為明牌（これを確実な勝利のヒントとして扱わないでください）。未来の方向性は、あくまで個人の具体的な行動に依存し...",
+      "path": "articles[0].bodySections[3].paragraphs[0]"
+    },
+    {
+      "after": "タロットの死神カードが金銭に与える影響と現状の見直しについて解説します。本稿は一般的な象徴解釈であり、個人の結論を代行するものではなく、未来の結果を完全に確定することはできず、専門的な財務、投資、法律の助言に代わるものではありません。",
+      "before": "タロットの死神カードが金銭に与える影響と現状の見直しについて解説します。内容只提供通用理解であり、個人の結論を代行するものではなく、結果を断定したり財務上の予測を保証したりすることはできません。",
+      "path": "articles[0].description"
+    },
+    {
+      "after": "死神カードが現れたときは、高リスクな支出や古い財務パターンを見直す良い機会となります。ただし、未来の結果を断定したり、特定の投資成果を保証したりすることはできません。内容は一般的な文化的考察の範疇にとどまります。",
+      "before": "死神カードが現れたときは、高リスクな支出や古い財務パターンを見直す良い機会となります。ただし、未来の結果を断定したり、特定の投資成果を保証したりすることはできません。内容は一般的な文化的反思の範疇にとどまります。",
+      "path": "articles[0].faq[1].answer"
+    },
+    {
+      "after": "いいえ、このカードは専門的な投資や法律、財務上の助言に代わるものではありません。本稿は一般的な理解を提供するものであり、個人の経済状況に対する具体的な結論を代行するものではなく、結果を保証することはできません。",
+      "before": "いいえ、このカードは専門的な投資や法律、財務上の助言に代わるものではありません。内容只提供通用理解であり、個人の経済状況に対する具体的な結論を代行するものではなく、結果を保証することはできません。",
+      "path": "articles[0].faq[2].answer"
+    },
+    {
+      "after": "死神カードは困難な状況からの転換や古い習慣の終了を示しますが、それによって復縁の成功や最終的な結果、特定の財務的結末を断定・約束することはできません。結果を完全に確定することは不可能です。",
+      "before": "死神カードは困難な状況からの転換や古い習慣の終了を示しますが、それによって復合の成功や最終的な結果、特定の財務的結末を断定・約束することはできません。結果を完全に確定することは不可能です。",
+      "path": "articles[0].faq[3].answer"
+    },
+    {
+      "after": "はい、あらゆるタロットの解釈は一般的な文化的考察や象徴の理解を目的として提供されています。これらを確実な答えとして扱うことはできず、個人の結論を代行したり未来の結末を断定したりするものではありません。",
+      "before": "はい、あらゆるタロットの解釈は一般的な文化的反思や象徴の理解を目的として提供されています。これらを確実な答えや明牌として扱うことはできず、個人の結論を代行したり未来の結末を断定したりするものではありません。",
+      "path": "articles[0].faq[4].answer"
+    }
+  ],
+  "changed_paths_count": 11,
+  "content_only_candidate_paths": true,
+  "continuation_state_sha256_actual": "9b0b90943928d255454cab496dba502701e046446579a193820ac0205145818b",
+  "continuation_state_shape": {
+    "completed_generations": [
+      5,
+      6
+    ],
+    "next_generation": 7,
+    "status": "complete",
+    "terminal_candidate_sha256": "b1a6ece40c6341323b2e92ef3faa9fa6338d9978b583f8d98a36021f58c41420",
+    "terminal_review_sha256": "5d36cc57d478d319ccafb7effe3d46558216cb4d9644918be1349ab0ab18de1a"
+  },
+  "deterministic_findings_on_staged_candidate": [],
+  "formal_job_identity": {
+    "job_id": "e6c4542483f0b1100a19a5fb7af8c0597600462f",
+    "lane": "i18n-new",
+    "request_sha256": "e6c4542483f0b1100a19a5fb7af8c0597600462f307dab5d5ade3ded8e1f9a10",
+    "role": "reviewer",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "formal_reviewer_result_summary": {
+    "article_sha256": null,
+    "exit_verdict": "APPROVE_READY_FOR_STAGING",
+    "findings": [],
+    "provider_calls": null,
+    "run_id": null,
+    "status": null
+  },
+  "gen06_candidate_sha256_actual": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+  "gen06_review_sha256_actual": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+  "gen07_exists": false,
+  "official_stage_load_error": null,
+  "official_stage_load_status": "PASS",
+  "payload": {
+    "keys": [
+      "candidate",
+      "contract",
+      "formal_job_identity",
+      "formal_review_result",
+      "operation_id",
+      "plan_digest",
+      "review",
+      "schema_version"
+    ],
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/editorial-staging/approved-edit-stage-8bd84d12bcb6a61d53e10513/payload.json",
+    "sha256": "bc7dc938263ef15b8a4ead2fd8203b0e89c9239429420dd618bc09bb2f28a9b7"
+  },
+  "public_url_expected_from_prior_acceptance": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884",
+  "published_exists": false,
+  "publisher_ledger_path_candidates": [
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/ledger.json"
+  ],
+  "queue_state_sha256_actual": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+  "queue_state_shape": {
+    "error_type": null,
+    "lane": "i18n-new",
+    "last_job_id": "735ffd07d47e4b25d49f85f137d9dd238d8e9967",
+    "result": {
+      "approved_by_reviewer": 0,
+      "candidate": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+      "review": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.md",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "status": "complete"
+    },
+    "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "status": "complete"
+  },
+  "root_candidate_sha256_actual": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+  "root_review_sha256_actual": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+  "runtime_state_registry_changed_by_stage_payload": false,
+  "seal_core": {
+    "actor_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+    "approved_article_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+    "continuation_state_sha256": "9b0b90943928d255454cab496dba502701e046446579a193820ac0205145818b",
+    "contract": "approved-edited-candidate-stage",
+    "formal_job_id": "e6c4542483f0b1100a19a5fb7af8c0597600462f",
+    "formal_request_sha256": "e6c4542483f0b1100a19a5fb7af8c0597600462f307dab5d5ade3ded8e1f9a10",
+    "formal_review_result_sha256": "8394f603d024d64019881c44457fd3fbd279d3854764e8ea3be624fdae80ff19",
+    "operation_id": "approved-edit-stage-8bd84d12bcb6a61d53e10513",
+    "plan_digest": "3b6becaaa5bff23605a894c725d8acf62987d5a8f7a49ba993a290e112d3df35",
+    "provider_calls": 0,
+    "publisher_ledger_sha256": "0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9",
+    "queue_state_sha256": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+    "root_candidate_sha256": "09aa9ea8187a5884dd255d8d51020c32bbad4a1747c6c6f86b50973e3630ecee",
+    "root_review_sha256": "4176d9306c5e49e5ab4bbd3860ed5eb2669c9490a506d20c4d7ef7e321bce3c9",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "source_sha256": "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23",
+    "status": "STAGED",
+    "terminal_generation": 6
+  },
+  "stage_current": {
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/editorial-staging/current.json",
+    "sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4"
+  }
+}

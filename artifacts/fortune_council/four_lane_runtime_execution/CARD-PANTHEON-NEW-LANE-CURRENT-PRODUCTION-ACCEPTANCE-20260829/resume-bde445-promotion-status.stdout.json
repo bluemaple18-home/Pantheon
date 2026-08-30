@@ -1,0 +1,9 @@
+{
+  "audit_receipt_exists": true,
+  "correlation_id": "pantheon-new-lane-current-acceptance-bde445-20260829",
+  "plan_digest": "65724d0a572110912ce6618774b0799e5bce11ee7ea57e9d5be683ca270be89c",
+  "rollback_bundle_exists": false,
+  "rollback_required": false,
+  "state": "COMMITTED",
+  "status": "PASS"
+}

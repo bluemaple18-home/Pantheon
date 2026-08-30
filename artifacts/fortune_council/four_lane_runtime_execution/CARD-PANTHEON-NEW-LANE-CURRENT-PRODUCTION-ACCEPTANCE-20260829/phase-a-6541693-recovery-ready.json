@@ -1,0 +1,122 @@
+{
+  "accepted_source": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+  "actual_mutation_counts": {
+    "activate": 0,
+    "content": 0,
+    "external_write": 0,
+    "install": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "provider": 0,
+    "publisher": 0,
+    "queue": 0,
+    "reviewer": 0,
+    "scheduler": 0,
+    "state": 0
+  },
+  "current_runtime": {
+    "actor_head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+    "all_services_stopped": true,
+    "live_plist_actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+    "manifest_digest": "255c72a7234ca97d1868c278acb5a92405bef03954a1b8e5918f62a4c663a358",
+    "registry_count": 136,
+    "stage_digest": "7a930571de8a7d474202f644e3d8778a45c81eea467657b5b1dca72cdf929dbf"
+  },
+  "gates": {
+    "immutable_snapshot": "PASS",
+    "origin_main": "PASS",
+    "promotion_plan_1": "READY_TO_APPLY",
+    "promotion_plan_2": "READY_TO_APPLY",
+    "promotion_plan_byte_identical": true,
+    "rule24": "PASS",
+    "rule25": "READY",
+    "seven_services_stopped": "PASS"
+  },
+  "immutable_comparison": {
+    "after_sha256": "f07cc7e5db33293f4b5f8eb07d87dc9bf51e5628304f6484dd5024d4abad931a",
+    "all_production_domains_equal": true,
+    "before_sha256": "f07cc7e5db33293f4b5f8eb07d87dc9bf51e5628304f6484dd5024d4abad931a",
+    "transaction_root_created": false
+  },
+  "next_phase_mutation_plan": {
+    "authorization_status": "PLANNED_NOT_AUTHORIZED_BY_THIS_PHASE",
+    "ordered_states": [
+      "PREPARED",
+      "ACTOR_PROMOTED",
+      "MANIFEST_WRITTEN",
+      "STAGE_INSTALLED",
+      "POSTCHECK_PASSED",
+      "COMMITTED"
+    ],
+    "rollback_order": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "target": {
+      "actor_head": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+      "generation": "g72-6541693e-new-lane-current-acceptance-20260829",
+      "identity": "gate2-actor:6541693e929a20cbcffe8b070085b5f1caec7a92:new-lane-current-acceptance-20260829",
+      "manifest_digest": "3cf887f1c0bfaa09bc92e375e4dc883fadbc3fb9b1911cf64efc28a9ec0c2024",
+      "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba"
+    },
+    "write_set": [
+      {
+        "stage": "ACTOR_PROMOTED",
+        "type": "actor"
+      },
+      {
+        "digest": "3cf887f1c0bfaa09bc92e375e4dc883fadbc3fb9b1911cf64efc28a9ec0c2024",
+        "stage": "MANIFEST_WRITTEN",
+        "type": "manifest"
+      },
+      {
+        "generation": "g72-6541693e-new-lane-current-acceptance-20260829",
+        "stage": "STAGE_INSTALLED",
+        "type": "readiness_acknowledgements"
+      },
+      {
+        "generation": "g72-6541693e-new-lane-current-acceptance-20260829",
+        "stage": "STAGE_INSTALLED",
+        "type": "activation_barrier"
+      }
+    ]
+  },
+  "promotion_plan": {
+    "command_sha256": "8833061ed9ddec485a49049de29db7258f29e33abe77eb0d976387eac3cba498",
+    "plan_digest": "49871b0f6611fdb2adedf2b37e166bc9d85be71d141f2c72ecfc575d1070d734",
+    "preserved_run_count": 136,
+    "queue_snapshot_digest": "ef90d018b5e98f9a62320b1e74f5b83c2d00d194f7b6deceae635c2043d2957f",
+    "stderr_bytes_each": 0,
+    "stdout_sha256_each": "5f1adf1e9e66e879069667a691de4f596595b37256c10b677de7c2c5dd7ac735"
+  },
+  "rule24": {
+    "binding_sha256": "49ed6800ef91bb73024dccf6f43ab31ef2c203551c86e2acfeb65ede94f9a6b7",
+    "fresh_receipt_sha256": "a7b998a2b7b1365c4c93dd4e02a3f4af8e8de97bb842856c860e122a563b3620",
+    "normalized_policy_proof_sha256": "24e7e3885735988237e09ab9723765986f399e5c957fe2dd87609b5371e29333",
+    "projected_margin_over_reserve_bytes": 10586122295,
+    "production_mutation": false,
+    "rss_available_all": true,
+    "status": "PASS",
+    "swap_available_all": true
+  },
+  "rule25": {
+    "failures": [],
+    "status": "READY",
+    "stdout_sha256": "7abf924dfaf10584448f21ba7a52e0bcce5d755f05a8c184ac96482d362428b4"
+  },
+  "schema_version": 1,
+  "status": "READY",
+  "stop_conditions": [
+    "source or remote origin/main is not 6541693e929a20cbcffe8b070085b5f1caec7a92",
+    "actor or manifest no longer identifies bde44589f3785aae738bb7d7b1626270ba5505d0 before apply",
+    "seven services are not all stopped",
+    "fresh Rule24 receipt or bound normalized proof is not PASS",
+    "projected free after retention peak is not greater than Rule24 reserve",
+    "Rule25 is not READY",
+    "official promotion plans are not byte-identical READY_TO_APPLY",
+    "plan digest, target tuple, preserved-run count, queue snapshot digest, stage digest, or write set drifts",
+    "any production domain changes before a separately authorized apply"
+  ],
+  "verdict": "READY"
+}

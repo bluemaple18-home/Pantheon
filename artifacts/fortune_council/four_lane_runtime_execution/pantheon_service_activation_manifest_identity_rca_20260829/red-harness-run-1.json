@@ -1,0 +1,291 @@
+{
+  "activation_calls": 0,
+  "actor_head": "779fb96434c15013d82833788a6795119730daad",
+  "canonical_digest_without_self": "213074ebda806e8e01dfab57d6de3a13c545f7c7cbae0b3577dbd65ea771d0ba",
+  "canonical_transition": {
+    "order": [
+      "install_agy_gemini_coordinator_launchd.sh",
+      "install_agy_content_publisher_launchd.sh",
+      "install_pantheon_content_capacity_guard_launchd.sh"
+    ],
+    "stage": {
+      "count": 6,
+      "generation_present": true,
+      "identity_values": [
+        "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829"
+      ],
+      "labels": [
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite"
+      ],
+      "manifest_digest_present": true,
+      "publisher_max_runs_present": true
+    },
+    "steps": [
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_agy_gemini_coordinator_launchd.sh",
+        "returncode": 0
+      },
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_agy_content_publisher_launchd.sh",
+        "returncode": 0
+      },
+      {
+        "error": "preactivation manifest mismatch",
+        "exact_edge": "validate_preactivation_transition:ACTIVATION_ONLY_IDENTITY_PATTERN",
+        "installer": "install_pantheon_content_capacity_guard_launchd.sh",
+        "returncode": 1
+      }
+    ]
+  },
+  "diagnostic_capacity_first_bypass": {
+    "order": [
+      "install_pantheon_content_capacity_guard_launchd.sh",
+      "install_agy_content_publisher_launchd.sh",
+      "install_agy_gemini_coordinator_launchd.sh"
+    ],
+    "stage": {
+      "count": 7,
+      "generation_present": true,
+      "identity_values": [
+        "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829"
+      ],
+      "labels": [
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite",
+        "com.pantheon.content-capacity-guard"
+      ],
+      "manifest_digest_present": true,
+      "publisher_max_runs_present": true
+    },
+    "steps": [
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_pantheon_content_capacity_guard_launchd.sh",
+        "returncode": 0
+      },
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_agy_content_publisher_launchd.sh",
+        "returncode": 0
+      },
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_agy_gemini_coordinator_launchd.sh",
+        "returncode": 0
+      }
+    ]
+  },
+  "generation": "g70-779fb964-new-lane-current-acceptance-20260829",
+  "production_after": {
+    "live_plists": {
+      "com.pantheon.agy-content-publisher": {
+        "bytes": 5377,
+        "digest": "6606c39fc1c8bec661d627cd3315b886f87dc04b3c2ae0b6d74b92c3df25b839",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "bytes": 5690,
+        "digest": "f35a16b800688a72c23cafa1dd03383e1f707d9d4778e062765c60b525960753",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "bytes": 5169,
+        "digest": "31c1d30193db114bad502805dad85338ee288257acfe97b5586579778c82ad45",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "bytes": 5197,
+        "digest": "7cc9d6b5006fdb22646d768e3e0ed970ed6a74d15102e7682c6b765d7fb051fa",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-new": {
+        "bytes": 5134,
+        "digest": "bc006067cf52a2915c0653038939e633b96ce1a9e3cfc684fd48cd4f0a31ee54",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "bytes": 5162,
+        "digest": "e3c181243e2a14084c216ca531b356cbd0d4f5687487b3946eff71349b61aaf0",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.content-capacity-guard": {
+        "bytes": 4406,
+        "digest": "9b05357e308ae928af1aa4ede4137ac8c54d5d682493cac09fbd11d31155866d",
+        "exists": true,
+        "files": 1
+      }
+    },
+    "live_stage": {
+      "bytes": 8637,
+      "digest": "dd0b6dbc8de04a641ec739fba7c83908da4683a7eb3fd277cf9e018c2498cc58",
+      "exists": true,
+      "files": 11
+    },
+    "promotion_receipt": {
+      "bytes": 1333,
+      "digest": "8582d2c92281d6e9797bea81176e65786be7e0058cebd5698c561cf56e303cf4",
+      "exists": true,
+      "files": 1
+    },
+    "publisher_ledger": {
+      "bytes": 4652,
+      "digest": "40f31c3df7f4a1428b6f3507f7214ab555accc72041ddd8a08a0d2e92702c054",
+      "exists": true,
+      "files": 1
+    },
+    "registry": {
+      "bytes": 103136,
+      "digest": "3d4bbcd62c32f419cca12f2c0723f8120b960a3387b03eff33fd450d7476a5cb",
+      "exists": true,
+      "files": 136
+    },
+    "runtime_manifest": {
+      "bytes": 1469,
+      "digest": "e4aeae93673e05addbca8e8d39fa9e96903f980b5cffd2a9a66cae5d420bae44",
+      "exists": true,
+      "files": 1
+    }
+  },
+  "production_before": {
+    "live_plists": {
+      "com.pantheon.agy-content-publisher": {
+        "bytes": 5377,
+        "digest": "6606c39fc1c8bec661d627cd3315b886f87dc04b3c2ae0b6d74b92c3df25b839",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "bytes": 5690,
+        "digest": "f35a16b800688a72c23cafa1dd03383e1f707d9d4778e062765c60b525960753",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "bytes": 5169,
+        "digest": "31c1d30193db114bad502805dad85338ee288257acfe97b5586579778c82ad45",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "bytes": 5197,
+        "digest": "7cc9d6b5006fdb22646d768e3e0ed970ed6a74d15102e7682c6b765d7fb051fa",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-new": {
+        "bytes": 5134,
+        "digest": "bc006067cf52a2915c0653038939e633b96ce1a9e3cfc684fd48cd4f0a31ee54",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "bytes": 5162,
+        "digest": "e3c181243e2a14084c216ca531b356cbd0d4f5687487b3946eff71349b61aaf0",
+        "exists": true,
+        "files": 1
+      },
+      "com.pantheon.content-capacity-guard": {
+        "bytes": 4406,
+        "digest": "9b05357e308ae928af1aa4ede4137ac8c54d5d682493cac09fbd11d31155866d",
+        "exists": true,
+        "files": 1
+      }
+    },
+    "live_stage": {
+      "bytes": 8637,
+      "digest": "dd0b6dbc8de04a641ec739fba7c83908da4683a7eb3fd277cf9e018c2498cc58",
+      "exists": true,
+      "files": 11
+    },
+    "promotion_receipt": {
+      "bytes": 1333,
+      "digest": "8582d2c92281d6e9797bea81176e65786be7e0058cebd5698c561cf56e303cf4",
+      "exists": true,
+      "files": 1
+    },
+    "publisher_ledger": {
+      "bytes": 4652,
+      "digest": "40f31c3df7f4a1428b6f3507f7214ab555accc72041ddd8a08a0d2e92702c054",
+      "exists": true,
+      "files": 1
+    },
+    "registry": {
+      "bytes": 103136,
+      "digest": "3d4bbcd62c32f419cca12f2c0723f8120b960a3387b03eff33fd450d7476a5cb",
+      "exists": true,
+      "files": 136
+    },
+    "runtime_manifest": {
+      "bytes": 1469,
+      "digest": "e4aeae93673e05addbca8e8d39fa9e96903f980b5cffd2a9a66cae5d420bae44",
+      "exists": true,
+      "files": 1
+    }
+  },
+  "production_bytes_unchanged": true,
+  "production_shaped_identity": "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829",
+  "provider_calls": 0,
+  "publisher_calls": 0,
+  "publisher_first": {
+    "order": [
+      "install_agy_content_publisher_launchd.sh",
+      "install_pantheon_content_capacity_guard_launchd.sh",
+      "install_agy_gemini_coordinator_launchd.sh"
+    ],
+    "stage": {
+      "count": 1,
+      "generation_present": true,
+      "identity_values": [
+        "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829"
+      ],
+      "labels": [
+        "com.pantheon.agy-content-publisher"
+      ],
+      "manifest_digest_present": true,
+      "publisher_max_runs_present": true
+    },
+    "steps": [
+      {
+        "error": null,
+        "exact_edge": null,
+        "installer": "install_agy_content_publisher_launchd.sh",
+        "returncode": 0
+      },
+      {
+        "error": "preactivation manifest mismatch",
+        "exact_edge": "validate_preactivation_transition:ACTIVATION_ONLY_IDENTITY_PATTERN",
+        "installer": "install_pantheon_content_capacity_guard_launchd.sh",
+        "returncode": 1
+      }
+    ]
+  },
+  "reviewer_calls": 0,
+  "rule24_receipt": {
+    "bytes": 2149,
+    "projection": "byte-exact stdout replay; no field projection",
+    "sha256": "ec6faea1d8d1d334b9d0eb092eecf6c509d108d78b4339e388d75309c57465cb"
+  },
+  "schema_version": 1
+}

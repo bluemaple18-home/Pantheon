@@ -1,0 +1,137 @@
+{
+  "cycles": [
+    {
+      "after_bytes": 1048576,
+      "before_bytes": 0,
+      "cycle": 1,
+      "growth_bytes": 1048576,
+      "host_free_after": 27257683968,
+      "host_free_before": 27258732544,
+      "rss_after": 24395776,
+      "rss_available": true,
+      "rss_before": 23281664,
+      "swap_after": 9497351290,
+      "swap_available": true,
+      "swap_before": 9497351290
+    },
+    {
+      "after_bytes": 2097152,
+      "before_bytes": 1048576,
+      "cycle": 2,
+      "growth_bytes": 1048576,
+      "host_free_after": 27256635392,
+      "host_free_before": 27257683968,
+      "rss_after": 24395776,
+      "rss_available": true,
+      "rss_before": 24395776,
+      "swap_after": 9497351290,
+      "swap_available": true,
+      "swap_before": 9497351290
+    }
+  ],
+  "host_reserve": {
+    "filesystem": "/System/Volumes/Data",
+    "free_bytes": 27256635392,
+    "margin_bytes": 2745915802,
+    "required_reserve_bytes": 24510719590,
+    "shortfall_bytes": 0,
+    "ten_percent_bytes": 24510719590,
+    "total_bytes": 245107195904,
+    "twenty_gib_bytes": 21474836480
+  },
+  "launch_agent_stop_start": false,
+  "official_gate": {
+    "canary_created": false,
+    "capacity_status": "PASS",
+    "official_blocked_fixture_status": "BLOCKED",
+    "official_gate_status": "READY",
+    "production_mutation": false,
+    "readiness_status": "READY"
+  },
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300
+  },
+  "production_mutation": false,
+  "projection": {
+    "projected_free_after_retention_peak_bytes": 25645989533,
+    "projected_margin_after_retention_peak_bytes": 1135269943,
+    "projected_shortfall_bytes": 0,
+    "required_reserve_bytes": 24510719590,
+    "retention_peak_bytes": 1610645859
+  },
+  "reclaim_existing_files": false,
+  "reclamation": {
+    "allowlist": [
+      "/private/tmp/pantheon-rule24-dfcb-20260829-host-telemetry/cycle-1.bin"
+    ],
+    "bytes_after": 1048576,
+    "bytes_before": 2097152
+  },
+  "schema_version": 1,
+  "source": {
+    "host_telemetry_receipt": "resume-dfcb-rule24-capacity-pre-host-telemetry.json",
+    "host_telemetry_receipt_sha256": "f3b93074ea5fa4a497b03a63572d0aefbb59bedef7041d624115970c35a75938",
+    "machine_triage_receipt_sha256": "1cf03f00292f1c1877b99ab1e7790951f9bb4751ac3a83b6d84b27e9f3e3b373",
+    "official_gate_ready": "resume-dfcb-rule24-host-readiness/official-gate-ready.json",
+    "official_gate_ready_sha256": "54bddb49fbcb1db477616b6596241fefd1f3de1fff33059ce472f22f38495bed",
+    "packaged_capacity_proof": "resume-dfcb-rule24-host-readiness/package/capacity-proof-normalized.json",
+    "packaged_capacity_proof_sha256": "556cd33d4ea19e6cf825e1b51ba3c3fb3159735130f6f13ec7701d83eed4205a",
+    "readiness_summary": "resume-dfcb-rule24-host-readiness/readiness-summary.json",
+    "readiness_summary_sha256": "c9a94d3646c06dc05f3e21bad5683817e38d3968fbb28b44b804918a729c7e05"
+  },
+  "status": "PASS",
+  "stop_loss": {
+    "cross_project_deletions": [],
+    "outcomes": {
+      "com.pantheon.agy-content-publisher": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-coordinator": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-i18n-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-new": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      },
+      "com.pantheon.agy-gemini-rewrite": {
+        "absent_after": true,
+        "controller": "bounded-synthetic",
+        "loaded_before": true
+      }
+    },
+    "registered_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite"
+    ],
+    "remaining_loaded": [],
+    "status": "STOPPED",
+    "triggered": true
+  }
+}

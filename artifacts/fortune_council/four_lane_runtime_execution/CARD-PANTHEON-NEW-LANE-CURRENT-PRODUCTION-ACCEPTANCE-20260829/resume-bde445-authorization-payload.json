@@ -1,0 +1,18 @@
+{
+  "allowed_mutations": [
+    "formal runtime promotion 779fb to bde445",
+    "formal seven-service staged install and aggregate activation after lane-isolation proof",
+    "one fresh new run and bounded writer/reviewer/publisher/release/deploy"
+  ],
+  "authorized_by": "Owner four-lane production acceptance continuation",
+  "forbidden_mutations": [
+    "source or test edits",
+    "manual queue/state/plist edits",
+    "rewrite or i18n lane execution",
+    "second provider, reviewer, publisher, job, or candidate"
+  ],
+  "operation": "new-lane-current-production-acceptance-bde445",
+  "parent_sha": "779fb96434c15013d82833788a6795119730daad",
+  "schema_version": 1,
+  "target_sha": "bde44589f3785aae738bb7d7b1626270ba5505d0"
+}

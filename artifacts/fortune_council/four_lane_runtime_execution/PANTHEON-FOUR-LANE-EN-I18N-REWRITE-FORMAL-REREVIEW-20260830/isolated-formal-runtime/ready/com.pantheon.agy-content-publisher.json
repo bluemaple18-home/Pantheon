@@ -1,0 +1,9 @@
+{
+  "ack_digest": "06692984550eff92873f047e0db30c46358ae1971b27e7c021b053addd12bb3d",
+  "generation": "g75-e01d56e3-en-manual-formal-rereview-20260830",
+  "manifest_digest": "d7efb524ec71c390c2668df5e634bf3c27d21ce56b15ffd351087804c2e320ab",
+  "owner_uid": 501,
+  "runtime_identity_digest": "e195138b7c8f49297cfea11492675d2477a526aacace7481ce1ca30a2a987eea",
+  "schema_version": 2,
+  "service_label": "com.pantheon.agy-content-publisher"
+}

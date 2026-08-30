@@ -1,0 +1,632 @@
+{
+  "causal_mapping": {
+    "current_red": "779fb operation-specific suffix deterministically reproduces the same producer-accepts/consumer-rejects boundary",
+    "first_located_bad": "8a50395f COMMITTED an operation-specific suffix accepted by the 11e6c4c producer but rejected by the transition consumer introduced at 35cfdd52 and preserved by 29f758f6",
+    "hard_transition_boundary": "35cfdd52 is the blamed introduction of the narrow consumer before barrier/stage/live checks; 29f758f6 keeps the same ordering",
+    "last_good": "6477ab81 used the only identity shape accepted by both contracts (:activation-only), so it does not falsify the latent gap",
+    "latent_gap_start": "11e6c4c introduced an opaque caller-controlled producer; 35cfdd52 later introduced the transition's narrower activation-only consumer check using the 5b0c662f pattern",
+    "reviewed_29f_effect": "parent\u219229f exact diff disproves that 29f introduced the identity requirement; it preserves that inherited check while hardening stage validation"
+  },
+  "commit_11e6c4c_contract": {
+    "after": {
+      "shared_manifest_identity_rule": {
+        "end_line": 161,
+        "exists": true,
+        "lines": [
+          {
+            "line": 144,
+            "text": "    config_version: str = \"runtime-v2\","
+          },
+          {
+            "line": 145,
+            "text": "    generation: str = \"legacy-generation\","
+          },
+          {
+            "line": 146,
+            "text": "    actor_head: str | None = None,"
+          },
+          {
+            "line": 147,
+            "text": "    python_executable: Path | None = None,"
+          },
+          {
+            "line": 148,
+            "text": ") -> dict[str, Any]:"
+          },
+          {
+            "line": 149,
+            "text": "    if not identity or identity.strip() != identity:"
+          },
+          {
+            "line": 150,
+            "text": "        raise RuntimeManifestError(\"identity is required\")"
+          },
+          {
+            "line": 151,
+            "text": "    effective_runtime_digest = runtime_digest or hashlib.sha256("
+          },
+          {
+            "line": 152,
+            "text": "        identity.encode(\"utf-8\")"
+          },
+          {
+            "line": 153,
+            "text": "    ).hexdigest()"
+          },
+          {
+            "line": 154,
+            "text": "    if SHA256_PATTERN.fullmatch(effective_runtime_digest) is None:"
+          },
+          {
+            "line": 155,
+            "text": "        raise RuntimeManifestError(\"runtime digest must be exact sha256\")"
+          },
+          {
+            "line": 156,
+            "text": "    if not config_version or config_version.strip() != config_version:"
+          },
+          {
+            "line": 157,
+            "text": "        raise RuntimeManifestError(\"config version is required\")"
+          },
+          {
+            "line": 158,
+            "text": "    if GENERATION_PATTERN.fullmatch(generation) is None:"
+          },
+          {
+            "line": 159,
+            "text": "        raise RuntimeManifestError(\"generation is invalid\")"
+          },
+          {
+            "line": 160,
+            "text": "    payload: dict[str, Any] = {"
+          },
+          {
+            "line": 161,
+            "text": "        \"schema_version\": SCHEMA_VERSION,"
+          }
+        ],
+        "matched": true,
+        "needle": "if not identity or identity.strip() != identity",
+        "start_line": 144
+      },
+      "target_identity_cli": {
+        "end_line": 668,
+        "exists": true,
+        "lines": [
+          {
+            "line": 651,
+            "text": "    parser.add_argument(\"--expected-current-stage-digest\", required=True)"
+          },
+          {
+            "line": 652,
+            "text": "    parser.add_argument(\"--transaction-root\", type=Path, required=True)"
+          },
+          {
+            "line": 653,
+            "text": "    parser.add_argument(\"--queue-root\", type=Path, required=True)"
+          },
+          {
+            "line": 654,
+            "text": "    parser.add_argument(\"--publisher-state-root\", type=Path, required=True)"
+          },
+          {
+            "line": 655,
+            "text": "    parser.add_argument(\"--log-root\", type=Path, required=True)"
+          },
+          {
+            "line": 656,
+            "text": "    parser.add_argument(\"--target-identity\", required=True)"
+          },
+          {
+            "line": 657,
+            "text": "    parser.add_argument(\"--target-runtime-digest\", required=True)"
+          },
+          {
+            "line": 658,
+            "text": "    parser.add_argument(\"--target-config-version\", required=True)"
+          },
+          {
+            "line": 659,
+            "text": "    parser.add_argument(\"--target-generation\", required=True)"
+          },
+          {
+            "line": 660,
+            "text": "    parser.add_argument(\"--target-python-executable\", type=Path, required=True)"
+          },
+          {
+            "line": 661,
+            "text": "    parser.add_argument(\"--authorization-digest\", required=True)"
+          },
+          {
+            "line": 662,
+            "text": "    parser.add_argument(\"--capacity-receipt-digest\", required=True)"
+          },
+          {
+            "line": 663,
+            "text": "    parser.add_argument(\"--correlation-id\", required=True)"
+          },
+          {
+            "line": 664,
+            "text": ""
+          },
+          {
+            "line": 665,
+            "text": ""
+          },
+          {
+            "line": 666,
+            "text": "def _request_from_args(args: argparse.Namespace) -> PromotionRequest:"
+          },
+          {
+            "line": 667,
+            "text": "    return PromotionRequest("
+          },
+          {
+            "line": 668,
+            "text": "        source_repo=args.source_repo,"
+          }
+        ],
+        "matched": true,
+        "needle": "add_argument(\"--target-identity\"",
+        "start_line": 651
+      },
+      "target_manifest_writer": {
+        "end_line": 264,
+        "exists": true,
+        "lines": [
+          {
+            "line": 247,
+            "text": "        raise PromotionError(f\"{label} origin drift\")"
+          },
+          {
+            "line": 248,
+            "text": "    if _git(repo, \"status\", \"--porcelain\"):"
+          },
+          {
+            "line": 249,
+            "text": "        raise PromotionError(f\"{label} worktree is dirty\")"
+          },
+          {
+            "line": 250,
+            "text": ""
+          },
+          {
+            "line": 251,
+            "text": ""
+          },
+          {
+            "line": 252,
+            "text": "def _target_manifest(request: PromotionRequest) -> dict[str, Any]:"
+          },
+          {
+            "line": 253,
+            "text": "    return runtime_manifest.build_manifest("
+          },
+          {
+            "line": 254,
+            "text": "        actor_root=request.actor_root,"
+          },
+          {
+            "line": 255,
+            "text": "        queue_root=request.queue_root,"
+          },
+          {
+            "line": 256,
+            "text": "        publisher_state_root=request.publisher_state_root,"
+          },
+          {
+            "line": 257,
+            "text": "        log_root=request.log_root,"
+          },
+          {
+            "line": 258,
+            "text": "        identity=request.target_identity,"
+          },
+          {
+            "line": 259,
+            "text": "        runtime_digest=request.target_runtime_digest,"
+          },
+          {
+            "line": 260,
+            "text": "        config_version=request.target_config_version,"
+          },
+          {
+            "line": 261,
+            "text": "        generation=request.target_generation,"
+          },
+          {
+            "line": 262,
+            "text": "        actor_head=request.source_sha,"
+          },
+          {
+            "line": 263,
+            "text": "        python_executable=request.target_python_executable,"
+          },
+          {
+            "line": 264,
+            "text": "    )"
+          }
+        ],
+        "matched": true,
+        "needle": "def _target_manifest",
+        "start_line": 247
+      }
+    },
+    "before": {
+      "promotion_module": {
+        "exists": false,
+        "lines": [],
+        "needle": "def _target_manifest"
+      },
+      "shared_manifest_identity_rule": {
+        "end_line": 161,
+        "exists": true,
+        "lines": [
+          {
+            "line": 144,
+            "text": "    config_version: str = \"runtime-v2\","
+          },
+          {
+            "line": 145,
+            "text": "    generation: str = \"legacy-generation\","
+          },
+          {
+            "line": 146,
+            "text": "    actor_head: str | None = None,"
+          },
+          {
+            "line": 147,
+            "text": "    python_executable: Path | None = None,"
+          },
+          {
+            "line": 148,
+            "text": ") -> dict[str, Any]:"
+          },
+          {
+            "line": 149,
+            "text": "    if not identity or identity.strip() != identity:"
+          },
+          {
+            "line": 150,
+            "text": "        raise RuntimeManifestError(\"identity is required\")"
+          },
+          {
+            "line": 151,
+            "text": "    effective_runtime_digest = runtime_digest or hashlib.sha256("
+          },
+          {
+            "line": 152,
+            "text": "        identity.encode(\"utf-8\")"
+          },
+          {
+            "line": 153,
+            "text": "    ).hexdigest()"
+          },
+          {
+            "line": 154,
+            "text": "    if SHA256_PATTERN.fullmatch(effective_runtime_digest) is None:"
+          },
+          {
+            "line": 155,
+            "text": "        raise RuntimeManifestError(\"runtime digest must be exact sha256\")"
+          },
+          {
+            "line": 156,
+            "text": "    if not config_version or config_version.strip() != config_version:"
+          },
+          {
+            "line": 157,
+            "text": "        raise RuntimeManifestError(\"config version is required\")"
+          },
+          {
+            "line": 158,
+            "text": "    if GENERATION_PATTERN.fullmatch(generation) is None:"
+          },
+          {
+            "line": 159,
+            "text": "        raise RuntimeManifestError(\"generation is invalid\")"
+          },
+          {
+            "line": 160,
+            "text": "    payload: dict[str, Any] = {"
+          },
+          {
+            "line": 161,
+            "text": "        \"schema_version\": SCHEMA_VERSION,"
+          }
+        ],
+        "matched": true,
+        "needle": "if not identity or identity.strip() != identity",
+        "start_line": 144
+      }
+    },
+    "blame": "11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 252) def _target_manifest(request: PromotionRequest) -> dict[str, Any]:\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 253)     return runtime_manifest.build_manifest(\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 254)         actor_root=request.actor_root,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 255)         queue_root=request.queue_root,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 256)         publisher_state_root=request.publisher_state_root,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 257)         log_root=request.log_root,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 258)         identity=request.target_identity,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 259)         runtime_digest=request.target_runtime_digest,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 260)         config_version=request.target_config_version,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 261)         generation=request.target_generation,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 262)         actor_head=request.source_sha,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 263)         python_executable=request.target_python_executable,\n11e6c4c1056 (bluemaple18-home 2026-08-15 01:50:23 +0800 264)     )",
+    "contract_delta": "new promotion CLI accepts caller target_identity and passes it unchanged into the pre-existing non-empty opaque manifest identity field"
+  },
+  "commit_29f758f6_contract": {
+    "after": {
+      "stage_contract": {
+        "end_line": 686,
+        "exists": true,
+        "lines": [
+          {
+            "line": 669,
+            "text": "        raise formal_runtime.RuntimeManifestError(\"preactivation manifest mismatch\")"
+          },
+          {
+            "line": 670,
+            "text": "    formal_runtime.validate_barrier(barrier, manifest)"
+          },
+          {
+            "line": 671,
+            "text": "    launch_agents = launch_agents_dir.resolve(strict=True)"
+          },
+          {
+            "line": 672,
+            "text": "    stage_dir = launch_agents / \".pantheon-four-lane-stage\""
+          },
+          {
+            "line": 673,
+            "text": "    try:"
+          },
+          {
+            "line": 674,
+            "text": "        stage_manifest_digest = (stage_dir / \"manifest-digest\").read_text("
+          },
+          {
+            "line": 675,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 676,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 677,
+            "text": "        stage_generation = (stage_dir / \"generation\").read_text("
+          },
+          {
+            "line": 678,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 679,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 680,
+            "text": "        publisher_max_runs = (stage_dir / \"publisher-max-runs\").read_text("
+          },
+          {
+            "line": 681,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 682,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 683,
+            "text": "        publisher_exact_run_id = (stage_dir / \"publisher-exact-run-id\").read_text("
+          },
+          {
+            "line": 684,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 685,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 686,
+            "text": "    except OSError as error:"
+          }
+        ],
+        "matched": true,
+        "needle": "stage_manifest_digest",
+        "start_line": 669
+      },
+      "transition_identity_check": {
+        "end_line": 681,
+        "exists": true,
+        "lines": [
+          {
+            "line": 664,
+            "text": "        )"
+          },
+          {
+            "line": 665,
+            "text": "    ):"
+          },
+          {
+            "line": 666,
+            "text": "        raise formal_runtime.RuntimeManifestError(\"preactivation receipt mismatch\")"
+          },
+          {
+            "line": 667,
+            "text": "    manifest = formal_runtime.load_manifest(manifest_path, expected_digest)"
+          },
+          {
+            "line": 668,
+            "text": "    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get(\"identity\", \"\"))) is None:"
+          },
+          {
+            "line": 669,
+            "text": "        raise formal_runtime.RuntimeManifestError(\"preactivation manifest mismatch\")"
+          },
+          {
+            "line": 670,
+            "text": "    formal_runtime.validate_barrier(barrier, manifest)"
+          },
+          {
+            "line": 671,
+            "text": "    launch_agents = launch_agents_dir.resolve(strict=True)"
+          },
+          {
+            "line": 672,
+            "text": "    stage_dir = launch_agents / \".pantheon-four-lane-stage\""
+          },
+          {
+            "line": 673,
+            "text": "    try:"
+          },
+          {
+            "line": 674,
+            "text": "        stage_manifest_digest = (stage_dir / \"manifest-digest\").read_text("
+          },
+          {
+            "line": 675,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 676,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 677,
+            "text": "        stage_generation = (stage_dir / \"generation\").read_text("
+          },
+          {
+            "line": 678,
+            "text": "            encoding=\"utf-8\""
+          },
+          {
+            "line": 679,
+            "text": "        ).strip()"
+          },
+          {
+            "line": 680,
+            "text": "        publisher_max_runs = (stage_dir / \"publisher-max-runs\").read_text("
+          },
+          {
+            "line": 681,
+            "text": "            encoding=\"utf-8\""
+          }
+        ],
+        "matched": true,
+        "needle": "preactivation manifest mismatch",
+        "start_line": 664
+      }
+    },
+    "before": {
+      "stage_contract": {
+        "exists": true,
+        "lines": [],
+        "matched": false,
+        "needle": "stage_manifest_digest"
+      },
+      "transition_identity_check": {
+        "end_line": 685,
+        "exists": true,
+        "lines": [
+          {
+            "line": 668,
+            "text": "    if ("
+          },
+          {
+            "line": 669,
+            "text": "        manifest.get(\"config_version\") != \"formal-runtime-v2-gate2\""
+          },
+          {
+            "line": 670,
+            "text": "        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get(\"identity\", \"\")))"
+          },
+          {
+            "line": 671,
+            "text": "        is None"
+          },
+          {
+            "line": 672,
+            "text": "    ):"
+          },
+          {
+            "line": 673,
+            "text": "        raise formal_runtime.RuntimeManifestError(\"preactivation manifest mismatch\")"
+          },
+          {
+            "line": 674,
+            "text": "    formal_runtime.validate_barrier(barrier, manifest)"
+          },
+          {
+            "line": 675,
+            "text": "    launch_agents = launch_agents_dir.resolve(strict=True)"
+          },
+          {
+            "line": 676,
+            "text": "    plist_paths = ["
+          },
+          {
+            "line": 677,
+            "text": "        launch_agents / f\"{label}.plist\" for label in formal_runtime.SERVICE_LABELS"
+          },
+          {
+            "line": 678,
+            "text": "    ]"
+          },
+          {
+            "line": 679,
+            "text": "    formal_runtime.aggregate_plist_preflight("
+          },
+          {
+            "line": 680,
+            "text": "        manifest,"
+          },
+          {
+            "line": 681,
+            "text": "        plist_paths,"
+          },
+          {
+            "line": 682,
+            "text": "        expected_activation_mode=\"activation-only\","
+          },
+          {
+            "line": 683,
+            "text": "    )"
+          },
+          {
+            "line": 684,
+            "text": "    domain = f\"gui/{os.getuid()}\""
+          },
+          {
+            "line": 685,
+            "text": "    loaded: list[dict[str, Any]] = []"
+          }
+        ],
+        "matched": true,
+        "needle": "preactivation manifest mismatch",
+        "start_line": 668
+      }
+    },
+    "blame": "35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 660)         or receipt.get(\"reasons\") != [\"rss_telemetry_unknown\"]\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 661)         or receipt.get(\"rss_available\") is not False\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 662)         or not str(receipt.get(\"rss_error\", \"\")).startswith(\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 663)             \"loaded_service_pid_missing:\"\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 664)         )\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 665)     ):\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 666)         raise formal_runtime.RuntimeManifestError(\"preactivation receipt mismatch\")\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 667)     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 668)     if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get(\"identity\", \"\"))) is None:\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 669)         raise formal_runtime.RuntimeManifestError(\"preactivation manifest mismatch\")\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 670)     formal_runtime.validate_barrier(barrier, manifest)\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 671)     launch_agents = launch_agents_dir.resolve(strict=True)\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 672)     stage_dir = launch_agents / \".pantheon-four-lane-stage\"\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 673)     try:\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 674)         stage_manifest_digest = (stage_dir / \"manifest-digest\").read_text(\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 675)             encoding=\"utf-8\"\n29f758f6ad7 (bluemaple18-home 2026-08-18 20:18:05 +0800 676)         ).strip()",
+    "contract_delta": "29f758f6 does not introduce the activation-only identity requirement: its parent already has it. The commit removes the separate config-version conjunct, preserves the suffix check, and adds full target-stage identity/cardinality validation; tests remain activation-only-shaped",
+    "inherited_identity_blame": "35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 668)     if (\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 669)         manifest.get(\"config_version\") != \"formal-runtime-v2-gate2\"\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 670)         or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get(\"identity\", \"\")))\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 671)         is None\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 672)     ):\n35cfdd52739 (bluemaple18-home 2026-08-18 19:48:50 +0800 673)         raise formal_runtime.RuntimeManifestError(\"preactivation manifest mismatch\")"
+  },
+  "schema_version": 1,
+  "scoped_diffs": {
+    "11e6c4c": {
+      "commit": "11e6c4c10566af1db0e182af49cf339d8019f7f6",
+      "diff_bytes": 37965,
+      "diff_file": "commit-11e6c4c-parent-scoped.diff",
+      "diff_numstat": "731\t0\tscripts/pantheon_content_runtime_promotion.py\n245\t0\ttests/test_pantheon_content_runtime_promotion.py",
+      "diff_sha256": "374fcecb02fb05aebc75a8ae22bc2a3eb10a85d87df1aded9dedd9d0588c1d7e",
+      "parent": "4c8a07adfb53f4655b01aeb699ce920539c9c62c",
+      "paths": [
+        "scripts/pantheon_content_runtime_promotion.py",
+        "tests/test_pantheon_content_runtime_promotion.py"
+      ]
+    },
+    "29f758f6": {
+      "commit": "29f758f6ad74afa412dd8ff3878efdd79074b36f",
+      "diff_bytes": 12043,
+      "diff_file": "commit-29f758f6-parent-scoped.diff",
+      "diff_numstat": "77\t12\tscripts/pantheon_content_capacity_guard.py\n186\t1\ttests/test_pantheon_content_capacity_guard.py",
+      "diff_sha256": "9276ca48872531e5f533d9552baf1ccd347c382c00e5f69e14a8c0f03b64be26",
+      "parent": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e",
+      "paths": [
+        "scripts/pantheon_content_capacity_guard.py",
+        "tests/test_pantheon_content_capacity_guard.py"
+      ]
+    }
+  }
+}

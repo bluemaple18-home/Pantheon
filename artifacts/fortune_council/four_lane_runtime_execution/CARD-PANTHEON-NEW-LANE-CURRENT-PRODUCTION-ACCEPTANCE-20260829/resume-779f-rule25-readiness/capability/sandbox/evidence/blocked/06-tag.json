@@ -1,0 +1,15 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "tag",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "6a0c32157f66db90c5c5764f9a91b13634c71b5322f6766845df9a20f1207320",
+  "outcome": "BLOCKED",
+  "output_digest": "d91705d523b642eeef021f8ca734dd84b67c54e9078874e8e4cd770dd8280d3c",
+  "production_mutation": false,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt tag mode must be dry-run"
+}

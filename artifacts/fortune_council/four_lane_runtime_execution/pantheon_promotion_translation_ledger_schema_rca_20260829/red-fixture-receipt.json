@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "status": "RED_CONFIRMED",
+  "command": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_promotion_translation_ledger_schema_rca_20260829/real_v0374_red_fixture.py",
+  "exit_code": 1,
+  "expected_failure": "publisher ledger identity mismatch",
+  "observed_failure": "publisher ledger identity mismatch",
+  "fixture": {
+    "publisher_ledger_schema_version": 1,
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "article_id": "V2-TAROT-DEATH-MONEY",
+    "version": "0.3.374",
+    "commit_sha": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "locale": "ja",
+    "staging_receipt_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4"
+  },
+  "before": {
+    "ledger_sha256": "7a8b0e6f5c321a82df4a015165d9f4fbfced8bd4614646238f36f5a0ab34fc78",
+    "queue_tree_digest": "fe4cc410ad19509de502ee9e62e1666ef08ef174ecb821715b2d488828d60369",
+    "transaction_exists": false
+  },
+  "after": {
+    "ledger_sha256": "7a8b0e6f5c321a82df4a015165d9f4fbfced8bd4614646238f36f5a0ab34fc78",
+    "queue_tree_digest": "fe4cc410ad19509de502ee9e62e1666ef08ef174ecb821715b2d488828d60369",
+    "transaction_exists": false
+  },
+  "mutation_accounting": {
+    "provider_calls": 0,
+    "publisher_executes": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "new_transaction_count": 0,
+    "input_bytes_changed": false
+  },
+  "attempt_history": [
+    {
+      "attempt": 1,
+      "qualified_red": false,
+      "reason": "harness import path did not include repo root"
+    },
+    {
+      "attempt": 2,
+      "qualified_red": false,
+      "reason": "temporary root was not resolved to a canonical realpath"
+    },
+    {
+      "attempt": 3,
+      "qualified_red": true,
+      "reason": "same promotion validator path emitted the target failure"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "status": "BLOCKED_RELEASE_TAG_NAMESPACE_COLLISION",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "base_sha": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+  "publisher_execute": {
+    "attempt_count_this_resume": 1,
+    "contract": "--include-rewrites --exact-run-id auto-i18n-ja-1414b75a404721e95e74 --max-runs 1 --push",
+    "stdout_summary": "resume-1e46-publisher-execute-normal-retry-include-rewrites-summary.json",
+    "final_receipt": "resume-1e46-publisher-execute-normal-retry-include-rewrites-final.json",
+    "status": "failed",
+    "translation_status": "failed_recovered",
+    "retry_status": "candidate_preserved_deferred"
+  },
+  "failure_receipt": {
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-452aba18fa/failure.json",
+    "summary": "resume-1e46-publisher-failed-recovered-452aba18-summary.json",
+    "status": "FAILED_RECOVERED",
+    "phase": "translation",
+    "return_code": 128,
+    "failed_head": "042e2e52db6aa08170f075c2c38858ea18c721f2",
+    "error": "Command '['git', 'tag', '-a', 'v0.3.373', '-m', 'Pantheon content release v0.3.373']' returned non-zero exit status 128.",
+    "repo_recovered": true,
+    "status_after_recovery": [],
+    "removed_local_tags": [],
+    "candidate_preserved": true
+  },
+  "tag_collision": {
+    "base_version_pyproject": "0.3.372",
+    "base_version_package_json": "0.3.372",
+    "failed_release_commit": "042e2e52db6aa08170f075c2c38858ea18c721f2",
+    "failed_release_commit_subject": "chore(content): publish multilingual release v0.3.373",
+    "failed_release_version_pyproject": "0.3.373",
+    "requested_tag": "v0.3.373",
+    "existing_tag_object": "02996e750989933f5bdea047f64d950f3b3f5d17",
+    "existing_tag_peeled_commit": "295ae1fc246f99f78335c407e974aa33142ef912",
+    "existing_tag_message": "Pantheon v0.3.373: gen05 runtime promotion plan",
+    "remote_refs_observed_read_only": {
+      "refs/heads/main": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+      "refs/tags/v0.3.373": "02996e750989933f5bdea047f64d950f3b3f5d17",
+      "refs/tags/v0.3.373^{}": "295ae1fc246f99f78335c407e974aa33142ef912"
+    }
+  },
+  "post_failure_state": {
+    "snapshot": "resume-1e46-terminal-normal-retry-failed-recovered-snapshot.json",
+    "actor_head": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+    "actor_status": "",
+    "manifest_digest": "71ac7256575fa7c17e32cf00aafd357acb8e0f3719a1b58e121203578a111e20",
+    "runtime_digest": "38f3a73b56cf9753b277b7e3ec52242f76aa7d81cf34784316a7197312921ce3",
+    "stage_current_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4",
+    "queue_state_sha256": "397afcc959e1b8383541241fd3aed231e6b2545d6173b60155d8b8ed61d150ca",
+    "publisher_ledger_sha256": "0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9",
+    "gen07_exists": false
+  },
+  "retry_receipt_after_execute": {
+    "attempts": 2,
+    "max_attempts": 3,
+    "candidate_preserved": true,
+    "next_eligible_at": "2026-08-29T10:32:55+08:00"
+  },
+  "successful_release": {
+    "writer_revision_publish": 0,
+    "release_commit_pushed": 0,
+    "annotated_tag_created": 0,
+    "tag_pushed": 0,
+    "deploy_completed": 0,
+    "public_url_http_200_body_visible": 0
+  }
+}

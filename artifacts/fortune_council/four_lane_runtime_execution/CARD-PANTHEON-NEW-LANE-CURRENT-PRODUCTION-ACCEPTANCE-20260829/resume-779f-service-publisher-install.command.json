@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/install_agy_content_publisher_launchd.sh",
+    "--install"
+  ],
+  "environment": {
+    "AGY_GEMINI_CLI_PATH": "/Users/mattkuo/.antigravity/bin/agy-1.1.3",
+    "AGY_GEMINI_CREDENTIAL_POOL_FILE": "/Users/mattkuo/.config/pantheon/gemini-api-pool.json",
+    "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/production-credential-pool-state.json",
+    "PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST": "937fe73ef1f5cfb2b319bc6120937584ab4455d29f7755b8c4e88b97f672a3dd",
+    "PANTHEON_PUBLISH_MAX_RUNS": "1",
+    "PANTHEON_PYTHON_PATH": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "PANTHEON_RUNTIME_MANIFEST_FILE": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json"
+  }
+}

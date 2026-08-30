@@ -1,0 +1,15 @@
+{
+  "authorization_scope": "final controlled gen06 same-generation locale plan retry; stop before runner/provider",
+  "correlation_id": "pantheon-gen06-final-retry-831-20260828",
+  "current_actor_sha": "18b121fa335ab74621fb8da03d1a6b2a02916c88",
+  "expected_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "forbidden": [
+    "provider",
+    "runner",
+    "publish",
+    "gen07",
+    "source_change"
+  ],
+  "source_sha": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "target_generation": "g64-831c5360-gen06-final-retry-20260828"
+}

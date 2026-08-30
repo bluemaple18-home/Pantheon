@@ -1,0 +1,1 @@
+Pantheon content publisher plist 已寫入 private aggregate stage；尚未 activation。

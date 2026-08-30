@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "source": {
+    "fresh_host_telemetry": "rule24-host-telemetry.json",
+    "fresh_host_telemetry_sha256": "a62ae8bb815270cea6195abbefb9befbd8499361f9dcba91020b28dd700ec81d",
+    "fresh_normalized_capacity_proof": "rule25-readiness/package/capacity-proof-normalized.json",
+    "fresh_normalized_capacity_proof_sha256": "2a519ebd646c6925ab7d5bf4ad0b98888ad5b6968c31e2a09f0bd8eab58eb73a"
+  },
+  "telemetry": {
+    "cycle_count": 2,
+    "rss_available": true,
+    "swap_available": true,
+    "reclamation_verified": true,
+    "stop_loss_status": "STOPPED",
+    "production_mutation": false
+  },
+  "host_reserve": {
+    "total_bytes": 245107195904,
+    "free_bytes": 38550728704,
+    "ten_percent_bytes": 24510719590,
+    "twenty_gib_bytes": 21474836480,
+    "required_reserve_bytes": 24510719590,
+    "margin_bytes": 14040009114
+  },
+  "projection": {
+    "retention_peak_bytes": 1610647135,
+    "projected_free_after_retention_peak_bytes": 36940081569,
+    "projected_margin_after_retention_peak_bytes": 12429361979,
+    "projected_shortfall_bytes": 0
+  },
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456
+  }
+}

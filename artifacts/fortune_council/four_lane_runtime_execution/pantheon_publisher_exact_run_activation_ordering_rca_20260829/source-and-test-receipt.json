@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "origin_main": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "source_sha256": {
+    "scripts/pantheon_content_runtime_manifest.py": "a12c75b9fc5a463ea1c01fbd23a11d8bf9103efb72df06cc0a298c3e4477d915",
+    "scripts/pantheon_content_capacity_guard.py": "cda3d009145b2684839d1f18048d1f5d044c2e4fcad4d40f97c153e5532f0f6f",
+    "scripts/install_agy_gemini_coordinator_launchd.sh": "0a6d73b660e10f46bc9105063e26b9e60289af97983783a5d33aa3c9e98e49ae",
+    "scripts/install_agy_content_publisher_launchd.sh": "b95a5dbb8305ed0fcdfd8eedc817363b9a8b57906a9938513cb700bf38f316d6",
+    "scripts/install_pantheon_content_capacity_guard_launchd.sh": "cedef1682a19ac039d791cba1fa1e42171ec7a920ebd79167712b3df06946da5",
+    "scripts/agy_gemini_coordinator.py": "59d5b3caf1a1963eac016a2a27df6c9cc1743440c9ef26bc5ea551c29aa5ee60",
+    "scripts/agy_content_publisher.py": "834faf0d4e75bc9a15a0d3b69b19348355074ef3d2ab77d40c124256a6577f49"
+  },
+  "tests": {
+    "command": ".venv/bin/python -m pytest -q tests/test_pantheon_content_capacity_guard.py tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_coordinator.py -k 'preactivation or publisher_plist or seed_new_matrix_runs or launchd_template_runs_coordinator'",
+    "result": "22 passed, 479 deselected",
+    "exit_code": 0,
+    "duration_seconds": 13.06,
+    "finding": "existing tests independently cover capacity preactivation, optional publisher plist identity, post-start scheduler allocation, and launchd topology; no test joins fresh-after-activation with capacity optionality"
+  },
+  "production_receipts": {
+    "blocked_receipt": {"bytes": 5504, "sha256": "71c8a99ec73d417d222333c4cbb3a7e1e9eaf9b75f77186881bc869070196872"},
+    "immutability_comparison": {"bytes": 2635, "sha256": "417f92267915659ae44df95db0c8aaeadc5b713c2de9c69b492d186ff3a23978"}
+  },
+  "harness": {
+    "script_bytes": 13488,
+    "script_sha256": "5bc775927ba462ad1026790e52cec72edea354738915e75f51eeae5ee5c05186",
+    "run_1_sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9",
+    "run_2_sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9",
+    "canonical_digest": "bfca973b57dc5df53dfcc52560794b0a3cf609d0db2986eba27bc01e036acadb",
+    "byte_identical": true,
+    "production_bytes_unchanged": true,
+    "external_calls": 0
+  }
+}

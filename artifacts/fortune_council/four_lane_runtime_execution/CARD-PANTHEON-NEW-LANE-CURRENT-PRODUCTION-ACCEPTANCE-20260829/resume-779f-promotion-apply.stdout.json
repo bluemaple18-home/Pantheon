@@ -1,0 +1,6 @@
+{
+  "plan_digest": "16324a53809b21c8034d6b21512d78e1ff20006b36ae76e4580ec4b50c773434",
+  "rollback_bundle": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions/pantheon-new-lane-current-acceptance-779f-20260829/rollback-bundle",
+  "status": "POSTCHECK_PASSED",
+  "target_manifest_digest": "937fe73ef1f5cfb2b319bc6120937584ab4455d29f7755b8c4e88b97f672a3dd"
+}

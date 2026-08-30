@@ -1,0 +1,1 @@
+{"audit_receipt_exists": true, "correlation_id": "pantheon-gen06-production-completion-ff41-20260828", "plan_digest": "4acc03b4adad93df113e17b0d44c10e1b5f1748900c8b99e8a4c430b89bb5282", "rollback_bundle_exists": false, "rollback_required": false, "state": "COMMITTED", "status": "PASS"}

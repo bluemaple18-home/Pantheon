@@ -1,0 +1,29 @@
+{
+  "article_id": "ASTRO-BASE-03:en",
+  "candidate_canonical_sha256": "6c12fd705db85c70a24b948cd0707128c3f3ef856ac14e68d5e186a1aecfba53",
+  "candidate_sha256": "26dd6ccf15a37a165f2ec11f9dd0220db26b9cdbc7fc8b2641b50b551e6731d1",
+  "deterministic_translation_findings": [],
+  "locale": "en",
+  "mode_match": true,
+  "prior_review_scope": {
+    "instruction": "Independently reassess the repaired candidate under the unchanged reviewer rubric. Do not auto-approve or auto-reject because the previous candidate was rejected.",
+    "prior_findings": [
+      {
+        "article_id": "ASTRO-BASE-03:en",
+        "code": "SOURCE_SYNTAX_TRANSFER",
+        "message": "The structure of the body sections mirrors the source text's thematic progression too closely, failing to fully restructure the content into a native English editorial flow."
+      }
+    ],
+    "prior_review_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/review.json",
+    "prior_review_sha256": "43ee5f34e50a652fc70da7129cd22ca16a8341adc4b740b1b103d36c0aa47ae3",
+    "prior_verdict": [
+      "REJECT"
+    ]
+  },
+  "run_id_match": true,
+  "schema_version": 1,
+  "source_article_id_match": true,
+  "source_path_match": true,
+  "source_sha256": "542e7159e3c9fe31b091188c9fe6b435818c2f337e49c40909d47d2119a42c77",
+  "source_sha256_match": true
+}

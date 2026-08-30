@@ -1,0 +1,17 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "case": "run-boundary",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+  "execution_line_id": "exec-ra-slice-004",
+  "outcome": "BLOCKED",
+  "packaged_source_artifact": "blocked/02-run.json",
+  "packaged_source_digest": "9fb658fe1699b1fbba049e254d77737b3833d7d7c0057e3ad13fbe237a356b64",
+  "production_mutation": false,
+  "reason": "exact run ids not found: ra-slice-002-missing-negative-probe",
+  "receipt_relative": true,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/blocked-run.json",
+  "step": "run"
+}

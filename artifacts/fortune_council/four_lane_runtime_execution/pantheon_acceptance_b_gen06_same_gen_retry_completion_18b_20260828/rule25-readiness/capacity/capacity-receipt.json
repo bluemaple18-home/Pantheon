@@ -1,0 +1,150 @@
+{
+  "canary_created": false,
+  "cycles": [
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.880113125080243,
+        "file_count": 0,
+        "host_free_bytes": 35771027456,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-after-cleanup",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 0,
+        "sampled_epoch": 1787918759.201662,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 7.950002327561378e-05,
+        "file_count": 0,
+        "host_free_bytes": 35771187200,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-before",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 0,
+        "sampled_epoch": 1787918748.3214662,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0023943750420585275,
+        "reclaimed_bytes": 33610,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-1",
+      "cycle": 1,
+      "execution_line_id": "exec-ra-slice-005-cycle-1",
+      "growth_bytes_per_hour": 11127832,
+      "peak": {
+        "elapsed_seconds": 10.873356000054628,
+        "file_count": 36,
+        "host_free_bytes": 35770863616,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-peak",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 33610,
+        "sampled_epoch": 1787918759.194904,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33610,
+      "production_mutation": false,
+      "root": "<apf-004-readiness-root>/capacity-sandbox/cycle-1",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    },
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.952935124980286,
+        "file_count": 0,
+        "host_free_bytes": 35770957824,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-after-cleanup",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 0,
+        "sampled_epoch": 1787918770.1577659,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 5.7124998420476913e-05,
+        "file_count": 0,
+        "host_free_bytes": 35771027456,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-before",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 0,
+        "sampled_epoch": 1787918759.204725,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0018172500422224402,
+        "reclaimed_bytes": 33610,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-2",
+      "cycle": 2,
+      "execution_line_id": "exec-ra-slice-005-cycle-2",
+      "growth_bytes_per_hour": 11052205,
+      "peak": {
+        "elapsed_seconds": 10.947736291913316,
+        "file_count": 36,
+        "host_free_bytes": 35770789888,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-peak",
+        "process_rss_bytes": 43122688,
+        "project_bytes": 33610,
+        "sampled_epoch": 1787918770.1525671,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33610,
+      "production_mutation": false,
+      "root": "<apf-004-readiness-root>/capacity-sandbox/cycle-2",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    }
+  ],
+  "mode": "synthetic-non-production-capacity-proof",
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300
+  },
+  "production_mutation": false,
+  "projections": {
+    "day_peak_bytes": 1610646346,
+    "host_free_after_projection_bytes": 34160311478,
+    "host_reserve_bytes": 24510719590,
+    "hour_peak_bytes": 67142474,
+    "measured_max_growth_bytes_per_hour": 11127832,
+    "projected_growth_bytes_per_hour": 67108864,
+    "retention_peak_bytes": 1610646346
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss_negative_result": "BLOCKED"
+}

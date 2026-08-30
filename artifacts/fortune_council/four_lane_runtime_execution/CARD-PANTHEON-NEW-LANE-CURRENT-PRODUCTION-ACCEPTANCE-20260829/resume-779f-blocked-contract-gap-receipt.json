@@ -1,0 +1,131 @@
+{
+  "blocker": "BLOCKED_CONTRACT_GAP",
+  "external_call_counts": {
+    "deploy": 0,
+    "provider": 0,
+    "publisher": 0,
+    "push": 0,
+    "release_commit": 0,
+    "reviewer": 0,
+    "scheduler_create": 0,
+    "tag": 0
+  },
+  "other_lane_mutation": {
+    "i18n-new": {
+      "after_sha256": "a04a253d818e0ae1c2fdefcea0d2e521d70a1c457422e4ec999bb59c97892f61",
+      "before_sha256": "a04a253d818e0ae1c2fdefcea0d2e521d70a1c457422e4ec999bb59c97892f61",
+      "unchanged": true
+    },
+    "i18n-rewrite": {
+      "after_sha256": "b0480a1865cd964edcfb5a0e3aaaec3fc31df46090c59e0442eaae62bf9ce5ac",
+      "before_sha256": "b0480a1865cd964edcfb5a0e3aaaec3fc31df46090c59e0442eaae62bf9ce5ac",
+      "unchanged": true
+    },
+    "rewrite": {
+      "after_sha256": "540713a7d7e2935bcedb71c96e6f31c98c9ee3df4336f90c54ab38ef4ff1ceb2",
+      "before_sha256": "540713a7d7e2935bcedb71c96e6f31c98c9ee3df4336f90c54ab38ef4ff1ceb2",
+      "unchanged": true
+    }
+  },
+  "production": {
+    "bytes_after": 2034569818,
+    "bytes_before": 2017790554,
+    "publisher_ledger_sha256_after": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+    "publisher_ledger_sha256_before": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+    "tree_sha256_after": "4a3569ea0e0d5db0af9ffca6e4ffc42544970d537d92f44794ec13242c61c6d4",
+    "tree_sha256_before": "78d0b28f8483181201568d173c3e88d50164964cf1e414fe3e757bc78817cabb"
+  },
+  "promotion": {
+    "actor_head_after": "779fb96434c15013d82833788a6795119730daad",
+    "apply_status": "POSTCHECK_PASSED",
+    "finalize_status": "COMMITTED",
+    "manifest_actor_head_after": "779fb96434c15013d82833788a6795119730daad",
+    "plan_digest": "16324a53809b21c8034d6b21512d78e1ff20006b36ae76e4580ec4b50c773434",
+    "plan_digest_identical": true,
+    "plan_run_1_sha256": "063d4ad88b35e00f223df63dfbc6079a2d1b2ece051aeaed580e1ab1c1879307",
+    "plan_run_2_sha256": "063d4ad88b35e00f223df63dfbc6079a2d1b2ece051aeaed580e1ab1c1879307",
+    "plan_runs_byte_identical": true,
+    "plan_statuses": [
+      "READY_TO_APPLY",
+      "READY_TO_APPLY"
+    ],
+    "transaction_status": {
+      "audit_receipt_exists": true,
+      "correlation_id": "pantheon-new-lane-current-acceptance-779f-20260829",
+      "plan_digest": "16324a53809b21c8034d6b21512d78e1ff20006b36ae76e4580ec4b50c773434",
+      "rollback_bundle_exists": false,
+      "rollback_required": false,
+      "state": "COMMITTED",
+      "status": "PASS"
+    }
+  },
+  "root_evidence": {
+    "capacity_install_returncode": 1,
+    "capacity_install_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capacity_install_stdout_sha256": "f7f2e66886ab87392d122d50058d2bd4e2e0130ddc9cc9027a20c9ee60ab138a",
+    "capacity_transition_required_identity_pattern": "gate2-actor:<sha>:activation-only",
+    "forbidden_workarounds": [
+      "manual stage deletion/edit",
+      "manifest rewrite",
+      "source change"
+    ],
+    "observed_error": "preactivation manifest mismatch",
+    "promotion_manifest_identity": "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829"
+  },
+  "rule24_after": {
+    "sha256": "cb306d0a44f94753b4004ba479792ab1807c320155d036a06082237de9241131",
+    "status": "PASS"
+  },
+  "schema_version": 1,
+  "services": {
+    "all_stopped": true,
+    "stopped_count_after": 7,
+    "total": 7
+  },
+  "snapshot_sha256": {
+    "after": "223dbb97695aed0b033606f98843aed7abbc8cd7ebb19f0ccd29e9d205fa9288",
+    "before": "b725f2b208a11c19fe6966ce42dc621cb9581cfb53d5d78ddbd5e7317d56e5d7"
+  },
+  "stale_terminalization": {
+    "execute": {
+      "action": "terminalize_stale_succeeded_writer",
+      "after_digest": "29ff451e2b652f566eb63182090c02457bf737a0a2fb6504f9cec46bd4881a70",
+      "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d",
+      "lane": "new",
+      "provider_calls": 0,
+      "publisher_calls": 0,
+      "reason": "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+      "receipt": "succeeded-provider-terminalizations/6972e8062d1aad444b30ec0fdf201bf8fce36d9d.json",
+      "reviewer_calls": 0,
+      "run_id": "auto-new-v1-20260826-001-01",
+      "status": "terminalized"
+    },
+    "idempotence": {
+      "action": "terminalize_stale_succeeded_writer",
+      "after_digest": "29ff451e2b652f566eb63182090c02457bf737a0a2fb6504f9cec46bd4881a70",
+      "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d",
+      "lane": "new",
+      "provider_calls": 0,
+      "publisher_calls": 0,
+      "reason": "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+      "receipt": "succeeded-provider-terminalizations/6972e8062d1aad444b30ec0fdf201bf8fce36d9d.json",
+      "reviewer_calls": 0,
+      "run_id": "auto-new-v1-20260826-001-01",
+      "status": "already_terminalized"
+    },
+    "plan": {
+      "action": "terminalize_stale_succeeded_writer",
+      "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d",
+      "lane": "new",
+      "provider_calls": 0,
+      "publisher_calls": 0,
+      "reason": "CURRENT_ACCEPTANCE_REQUIRES_FRESH_WRITER",
+      "receipt": "succeeded-provider-terminalizations/6972e8062d1aad444b30ec0fdf201bf8fce36d9d.json",
+      "reviewer_calls": 0,
+      "run_id": "auto-new-v1-20260826-001-01",
+      "status": "READY_TO_EXECUTE"
+    },
+    "protected_hashes_unchanged": true
+  },
+  "verdict": "BLOCKED"
+}

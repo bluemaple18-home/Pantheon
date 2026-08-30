@@ -1,0 +1,121 @@
+{
+  "candidate_reviewer_absent": {
+    "candidate.json": true,
+    "deterministic-findings.json": true,
+    "external-review.json": true,
+    "review.json": true
+  },
+  "external_plan_sha256": "ffceb6ddda2cf6c1c17453440e6c2cfdeb45c033c13115efc688e7326a04591a",
+  "fresh_job_id": "386d575a16907716cf1d4d303fbae5dcc496f805",
+  "fresh_job_locations": {
+    "archive": {
+      "exists": false,
+      "sha256": null
+    },
+    "attempt": {
+      "exists": false,
+      "sha256": null
+    },
+    "failed": {
+      "exists": false,
+      "sha256": null
+    },
+    "inbox": {
+      "exists": false,
+      "sha256": null
+    },
+    "outbox": {
+      "exists": true,
+      "sha256": "8d7b04eb01b5cfaf20b129915bd27f6f35fc1581ded8a0d78948990e123135d4"
+    },
+    "processing": {
+      "exists": false,
+      "sha256": null
+    }
+  },
+  "fresh_request_boundary": {
+    "article_id": null,
+    "created_at": null,
+    "generation": null,
+    "job_id": "386d575a16907716cf1d4d303fbae5dcc496f805",
+    "lane": null,
+    "locale": null,
+    "mode": null,
+    "model": "gemini-3.5-flash-lite",
+    "prompt_sha256": "cb33e874485a837a2905a5c535a915b973d4fcda2c3a32c5197060985309b5e7",
+    "request_sha256": "386d575a16907716cf1d4d303fbae5dcc496f805f09e3ab7633025a7d8b5011c",
+    "role": "writer",
+    "routing_schema_version": null,
+    "run_id": null,
+    "schema_sha256": "e2865950f5db19967ac320d7a197db6dd5627f6b5a56caefc3a9799e138f7740",
+    "source_id": null
+  },
+  "fresh_request_keys": [
+    "job_id",
+    "model",
+    "namespace",
+    "operation_level",
+    "prompt",
+    "prompt_sha256",
+    "request_sha256",
+    "response_schema",
+    "role",
+    "schema_sha256",
+    "schema_version",
+    "thinking_level"
+  ],
+  "gen07_exists": false,
+  "language_article_fields": [
+    [
+      "external_plan",
+      0,
+      {
+        "article_id": null,
+        "language": null,
+        "locale": "ja",
+        "slug": null,
+        "source_id": null,
+        "source_language": null,
+        "source_locale": null,
+        "target_language": null,
+        "target_locale": null,
+        "title": null
+      }
+    ],
+    [
+      "locale_plan",
+      0,
+      {
+        "article_id": null,
+        "language": null,
+        "locale": "ja",
+        "slug": null,
+        "source_id": null,
+        "source_language": null,
+        "source_locale": null,
+        "target_language": null,
+        "target_locale": null,
+        "title": null
+      }
+    ]
+  ],
+  "locale_plan_sha256": "445cb7abbaff654fa91d6ed4ddc8ad3b44577aa252b1f182956a5be999b2a2f2",
+  "planning_validation": {
+    "error_code": null,
+    "error_type": null,
+    "generation": 6,
+    "planning_contract_status": "PASS",
+    "status": null,
+    "transport_status": "EXTERNAL_PLAN_AVAILABLE"
+  },
+  "registry_status": {
+    "error_code": null,
+    "error_type": null,
+    "lane": "i18n-new",
+    "last_job_id": "386d575a16907716cf1d4d303fbae5dcc496f805",
+    "mode": null,
+    "routing_schema_version": null,
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "status": "active"
+  }
+}

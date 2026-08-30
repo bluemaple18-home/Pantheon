@@ -1,0 +1,28 @@
+{
+  "correlation_id": "corr-apf-004-readiness",
+  "identity_envelope": {
+    "article_ids": [
+      "APF-004-READINESS-SYNTHETIC"
+    ],
+    "digest": "56bb99edf8ac774f3be1106d162d40eafc2c252b72a9679e51340ce40d109809",
+    "lane": "new",
+    "mode": "create",
+    "schema_version": 1
+  },
+  "lane": "new",
+  "last_job_id": "ra-slice-002-local-job",
+  "mode": "create",
+  "registered_at": "2026-08-28T20:05:37+08:00",
+  "result": {
+    "bounded": true,
+    "job_queue": "queue",
+    "run_id": "ra-slice-002-synthetic-create-run",
+    "status": "complete"
+  },
+  "routing_schema_version": 1,
+  "run_dir": "<apf-004-readiness-root>/sandbox/runs/ra-slice-002-synthetic-create-run",
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "schema_version": 1,
+  "status": "complete",
+  "updated_at": "2026-08-28T20:05:37+08:00"
+}

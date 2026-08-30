@@ -1,0 +1,12 @@
+{
+  "after": {
+    "gen06_tree": "6819079491034f3ca5850acf362bdd74b68408cbfd9870b8d85f1c6aa9f12ce4",
+    "registry": "24cea55efa8b5d774f29afd9702fb9454097f35b15f6ace4ce9b9dec3d679147"
+  },
+  "before": {
+    "gen06_tree": "e56d1a6769bfe724cf639d941ddc211516c1b3e4472622fafd5ee3d6eda436a3",
+    "registry": "0fd57325d3699a972aa2f9dfe4cd585affc3ef57451eaf997ade9f46341d68cc"
+  },
+  "returncode": 1,
+  "zero_write": false
+}

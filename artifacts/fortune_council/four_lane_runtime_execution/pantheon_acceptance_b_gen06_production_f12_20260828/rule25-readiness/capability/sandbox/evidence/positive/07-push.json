@@ -1,0 +1,58 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "push",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:_stage_commit_tag_push"
+    ],
+    "git_trace": [
+      [
+        "add",
+        "app/web",
+        "tests/test_web.py",
+        "pyproject.toml",
+        "package.json",
+        "CHANGELOG.md"
+      ],
+      [
+        "commit",
+        "-m",
+        "chore(content): publish Gemini approved articles v0.0.0"
+      ],
+      [
+        "tag",
+        "-a",
+        "v0.0.0",
+        "-m",
+        "Pantheon content release v0.0.0"
+      ],
+      [
+        "rev-parse",
+        "HEAD"
+      ],
+      [
+        "push",
+        "--atomic",
+        "origin",
+        "HEAD:main",
+        "v0.0.0"
+      ]
+    ],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "6a489ea47ab953cae460552475fd8bc608158ff0f98318401959f782f5c0b842",
+  "operation_trace_digest": "f3a89bd7d4dfdbdf011eba3616df59094c49ca7f049e97fa7f391643464bd5a7",
+  "outcome": "PASS",
+  "output_digest": "0b64507f5ee62fefb50b8d3758ca9335905ffa86cfd1f7e0258c8751d82403ab",
+  "production_mutation": false,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

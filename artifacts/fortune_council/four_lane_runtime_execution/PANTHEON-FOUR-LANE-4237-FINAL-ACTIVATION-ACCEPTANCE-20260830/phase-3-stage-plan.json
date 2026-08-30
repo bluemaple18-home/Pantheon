@@ -1,0 +1,8 @@
+{
+  "green_receipt": "phase-0-exact-stage-green.json",
+  "green_receipt_sha256": "02f6fc4f5b7570724197c3b769f458795876ad0ef713df378f9266561a38bf60",
+  "plan_digest": "ac4613d9808d1bcc51a75195abce804e77004cc67d75467d3803d16ef9dd399e",
+  "production_mutation": 0,
+  "schema_version": 1,
+  "status": "PRE_PROMOTION_PLAN_ONLY_GREEN_BUT_NOT_AUTHORIZED_TO_EXECUTE_WITHOUT_PROMOTION"
+}

@@ -1,0 +1,49 @@
+{
+  "status": "BLOCKED_RULE24_CAPACITY_NO_GO",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "accepted_main_sha": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "stop_step": "pre-promotion Rule24 capacity gate",
+  "production_mutation_before_stop": false,
+  "external_mutation_before_stop": false,
+  "rule24_receipt": "resume-dfcb-rule24-capacity-pre.json",
+  "rule24_result": {
+    "status": "NO-GO",
+    "mode": "bounded-synthetic-dry-run",
+    "production_mutation": false,
+    "cycle_count": 2,
+    "stop_loss_status": "STOPPED",
+    "cycle_1_rss_available": true,
+    "cycle_1_swap_available": false,
+    "cycle_2_rss_available": true,
+    "cycle_2_swap_available": false
+  },
+  "pre_stop_identity": {
+    "local_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "local_origin_main": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "remote_origin_main": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "actor_head": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+    "actor_status": "",
+    "manifest_digest": "71ac7256575fa7c17e32cf00aafd357acb8e0f3719a1b58e121203578a111e20",
+    "runtime_digest": "38f3a73b56cf9753b277b7e3ec52242f76aa7d81cf34784316a7197312921ce3",
+    "stage_current_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4",
+    "gen07_exists": false,
+    "candidate_preserved": true
+  },
+  "mutation_counts_this_round": {
+    "origin_push": 0,
+    "runtime_promotion_plan": 0,
+    "runtime_promotion_apply": 0,
+    "runtime_promotion_finalize": 0,
+    "stage_execute": 0,
+    "publisher_preflight": 0,
+    "publisher_dry_run": 0,
+    "publisher_execute": 0,
+    "release_commit_push": 0,
+    "tag_create": 0,
+    "tag_push": 0,
+    "deploy": 0,
+    "provider_calls": 0,
+    "coordinator_calls": 0,
+    "gen07_creation": 0
+  }
+}

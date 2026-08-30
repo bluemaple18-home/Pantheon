@@ -1,0 +1,6 @@
+[
+  "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "/Users/mattkuo/ai-core/scripts/production_canary_readiness_gate.py",
+  "--receipt",
+  "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-NEW-LANE-CURRENT-PRODUCTION-ACCEPTANCE-20260829/resume-779f-rule25-readiness/package/production-canary-capability-receipt.json"
+]

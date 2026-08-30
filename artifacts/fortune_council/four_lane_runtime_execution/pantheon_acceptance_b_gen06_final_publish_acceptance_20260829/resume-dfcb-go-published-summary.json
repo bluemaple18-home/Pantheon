@@ -1,0 +1,83 @@
+{
+  "status": "GO_PUBLISHED",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "accepted_main_sha": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "promotion": {
+    "status": "PASS",
+    "state": "COMMITTED",
+    "plan_digest": "c0c7d0b90ccf45264580fbb7cc246abfdc67c76a1357e5fe563260cd2cdc8753",
+    "actor_head_after": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "manifest_digest_after": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+    "runtime_digest_after": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba"
+  },
+  "rule24": {
+    "host_telemetry_receipt": "resume-dfcb-rule24-capacity-pre-host-telemetry.json",
+    "normalized_proof": "resume-dfcb-rule24-normalized-proof.json",
+    "status": "PASS",
+    "swap_telemetry_available": true,
+    "production_mutation": false,
+    "projected_shortfall_bytes": 0
+  },
+  "rule25": {
+    "readiness_summary": "resume-dfcb-rule24-host-readiness/readiness-summary.json",
+    "official_gate": "resume-dfcb-rule25-official-gate.stdout.json",
+    "status": "READY",
+    "canary_created": false,
+    "production_mutation": false
+  },
+  "publisher": {
+    "preflight": "ready",
+    "dry_run_status": "ok",
+    "ready_runs": [
+      "auto-i18n-ja-1414b75a404721e95e74"
+    ],
+    "execute_status": "ok",
+    "translation_status": "PUBLISHED_TRANSLATION",
+    "release_commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "version": "0.3.374",
+    "tag": "v0.3.374",
+    "pushed": true,
+    "article_id": "V2-TAROT-DEATH-MONEY",
+    "locale": "ja"
+  },
+  "remote_refs": {
+    "origin_main": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "refs/tags/v0.3.374": "cc247ee98ffb56f1e7d3e50a6d5b17556032a9a4",
+    "refs/tags/v0.3.374^{}": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41"
+  },
+  "ledger": {
+    "record": "resume-dfcb-ledger-translation-published-record.json",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "commit_sha": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "version": "0.3.374",
+    "staging_receipt_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4"
+  },
+  "public_url": {
+    "url": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884",
+    "http_status": 200,
+    "curl_evidence": "resume-dfcb-public-ja.curl.txt",
+    "rendered_dom": "resume-dfcb-public-ja-rendered-dom.html",
+    "rendered_validation": "resume-dfcb-public-ja-rendered-validation.json",
+    "body_visible": true,
+    "japanese_title_body_visible": true,
+    "protected_boundary_present": true,
+    "traditional_chinese_source_residue_in_title_answer_body": false
+  },
+  "mutation_counts_this_round": {
+    "origin_push_preexisting_dfcb": 0,
+    "runtime_promotion_plan": 1,
+    "runtime_promotion_apply": 1,
+    "runtime_promotion_finalize": 1,
+    "stage_execute": 0,
+    "publisher_preflight": 1,
+    "publisher_dry_run": 1,
+    "publisher_execute": 1,
+    "release_commit_push": 1,
+    "tag_create": 1,
+    "tag_push": 1,
+    "deploy_verified_by_public_http_body": 1,
+    "provider_calls": 0,
+    "coordinator_calls": 0,
+    "gen07_creation": 0
+  }
+}

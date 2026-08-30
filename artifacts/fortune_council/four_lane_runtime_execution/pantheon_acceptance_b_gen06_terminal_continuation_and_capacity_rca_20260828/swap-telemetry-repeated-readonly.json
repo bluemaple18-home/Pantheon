@@ -1,0 +1,301 @@
+{
+  "measurements": [
+    {
+      "combined_available": false,
+      "combined_error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+      "combined_value": null,
+      "fallback_error": "sysctlbyname_failed:1",
+      "fallback_value": null,
+      "sample": 1,
+      "sysctl_returncode": 1,
+      "sysctl_stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted",
+      "sysctl_stdout": ""
+    },
+    {
+      "combined_available": false,
+      "combined_error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+      "combined_value": null,
+      "fallback_error": "sysctlbyname_failed:1",
+      "fallback_value": null,
+      "sample": 2,
+      "sysctl_returncode": 1,
+      "sysctl_stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted",
+      "sysctl_stdout": ""
+    },
+    {
+      "combined_available": false,
+      "combined_error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+      "combined_value": null,
+      "fallback_error": "sysctlbyname_failed:1",
+      "fallback_value": null,
+      "sample": 3,
+      "sysctl_returncode": 1,
+      "sysctl_stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted",
+      "sysctl_stdout": ""
+    },
+    {
+      "combined_available": false,
+      "combined_error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+      "combined_value": null,
+      "fallback_error": "sysctlbyname_failed:1",
+      "fallback_value": null,
+      "sample": 4,
+      "sysctl_returncode": 1,
+      "sysctl_stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted",
+      "sysctl_stdout": ""
+    },
+    {
+      "combined_available": false,
+      "combined_error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
+      "combined_value": null,
+      "fallback_error": "sysctlbyname_failed:1",
+      "fallback_value": null,
+      "sample": 5,
+      "sysctl_returncode": 1,
+      "sysctl_stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted",
+      "sysctl_stdout": ""
+    }
+  ],
+  "recent_capacity_examples": [
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-final-stop-995.json",
+      "status": "NO-GO",
+      "swap_available_values": [
+        false,
+        false
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-28f366-host.json",
+      "status": "PASS",
+      "swap_available_values": [
+        true,
+        true
+      ],
+      "swap_values": [
+        8742701629,
+        8742701629
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/planner-capacity-receipt-798-repair2.json",
+      "status": "PASS",
+      "swap_available_values": [
+        true,
+        true
+      ],
+      "swap_values": [
+        9539420160,
+        9539420160
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/promotion-capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        true,
+        true
+      ],
+      "swap_values": [
+        4635356037,
+        4635356037
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_v0388_fresh_rule24_unsigned_bundle_20260824/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_production_release_8a_20260828/rule24-capacity-pass/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/synthetic-readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/g8_current_production_readonly_reconciliation_v0370_20260822_retry_1/synthetic-readiness/package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_production_release_ac1_recovery_20260828/rule25-readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_production_release_ac1_recovery_20260828/rule25-readiness/package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_production_release_23e_20260828/rule24-capacity-pass/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen05_runtime_promotion_readiness_20260827/rule25-readiness/package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/planner-capacity-receipt-67f62f.json",
+      "status": "PASS",
+      "swap_available_values": [
+        true,
+        true
+      ],
+      "swap_values": [
+        11214457405,
+        11214457405
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/model_route_runtime_adoption_20260825/fresh-67f62f/rule25-readiness/package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/readiness-package/capacity-proof-normalized.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "path": "artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/capacity/capacity-receipt.json",
+      "status": "PASS",
+      "swap_available_values": [
+        null,
+        null
+      ],
+      "swap_values": [
+        null,
+        null
+      ]
+    }
+  ]
+}

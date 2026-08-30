@@ -1,0 +1,117 @@
+{
+  "current": {
+    "actor_head": "779fb96434c15013d82833788a6795119730daad",
+    "identity": "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829",
+    "promotion_state": "COMMITTED",
+    "services_loaded": 0
+  },
+  "first_bad_operational_manifest": {
+    "actor_head": "8a50395f67d22343fec4b0a8a5f41c8f40ac360e",
+    "command_sha256": "2ba2495e5cbd7ac999ed87eaf98003cdcad061881aa29f4e5f592692b7a2947d",
+    "identity": "gate2-actor:8a50395f67d22343fec4b0a8a5f41c8f40ac360e:gen05-dangling-registry-guard-release-20260828",
+    "promotion_receipt_sha256": "2f3ded6d1218313c2402e377ed5c183215bbf4cf3a549d7e9ee0097ca873127f",
+    "promotion_receipt_state": "COMMITTED",
+    "reason": "first located COMMITTED production target using a non-activation-only identity, which cannot match capacity regex",
+    "transaction": "pantheon-gen05-release-8a-20260828"
+  },
+  "last_good": {
+    "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+    "generation": "g47-6477ab81-activation-only-20260826",
+    "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+    "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+    "post_install_runtime_evidence": "new run auto-new-v1-20260826-001-01 registered at 10:45:19 +08:00 after seven-plist replacement at 10:45:12",
+    "promotion_receipt_sha256": "4de306562501a20ba8ecf4e0f2657c05d86e10d707d47a5ab8d7b0f4171d5f37",
+    "promotion_receipt_state": "COMMITTED",
+    "seven_live_plist_install_window": [
+      "2026-08-26T10:45:12.535691+08:00",
+      "2026-08-26T10:45:12.549134+08:00"
+    ],
+    "seven_live_plists_same_tuple": true
+  },
+  "live_seven_plist_census": [
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5690,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-coordinator",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.535691+08:00",
+      "sha256": "5b5d4ac37991a98ef8da8430e06e96037f1627e693347f7c3f1d39241298876c"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5134,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-new",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.537904+08:00",
+      "sha256": "90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5162,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-rewrite",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.539741+08:00",
+      "sha256": "373b8162c967e4bd368a5971ea238ab850b0b7b02b5b2ff79c5098041bafe530"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5169,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-i18n-new",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.541628+08:00",
+      "sha256": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5197,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-i18n-rewrite",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.543561+08:00",
+      "sha256": "5aa0ebeb148bbe792f79b951bb5358893ffc9c6879d33433b0479a296c12a88b"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5377,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-content-publisher",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.545521+08:00",
+      "sha256": "4acf50b23652565d3f4aebd18c393e40e371436eb1a898e1833687c70733fefd"
+    },
+    {
+      "activation_only_argument": false,
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 4406,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.content-capacity-guard",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "mtime": "2026-08-26T10:45:12.549134+08:00",
+      "sha256": "e0ba76e9df2124cb0d93d5ccd01ab5b460f20ef3810d2abf412f8e9d70df3c49"
+    }
+  ],
+  "schema_version": 1,
+  "source_first_incompatible_mechanism": {
+    "capacity_activation_only_regex_since": "5b0c662f466a6bf32c39fccb9c4d66e88f355377",
+    "opaque_promotion_identity_since": "11e6c4c10566af1db0e182af49cf339d8019f7f6",
+    "transition_identity_check_since": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e",
+    "transition_stage_hardening_preserved_check": "29f758f6ad74afa412dd8ff3878efdd79074b36f"
+  }
+}

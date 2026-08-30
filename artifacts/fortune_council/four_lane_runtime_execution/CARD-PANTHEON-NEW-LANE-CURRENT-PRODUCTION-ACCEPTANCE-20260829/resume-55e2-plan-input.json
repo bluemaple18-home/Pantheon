@@ -1,0 +1,20 @@
+{
+  "actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "authorization_sha256": "491f757d8642df9dc9f2d993ea9dedd0104c997f8de3b5a0cf3fbfa33d7e29e5",
+  "capacity_receipt_sha256": "0677f6eb5e7976a88a835e6d6e29a6a9c9b4b15d7ee46d9f4727340449745f33",
+  "manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+  "preserved_run_count": 136,
+  "services_stopped_returncodes": {
+    "com.pantheon.agy-content-publisher": 113,
+    "com.pantheon.agy-gemini-coordinator": 113,
+    "com.pantheon.agy-gemini-i18n-new": 113,
+    "com.pantheon.agy-gemini-i18n-rewrite": 113,
+    "com.pantheon.agy-gemini-new": 113,
+    "com.pantheon.agy-gemini-rewrite": 113,
+    "com.pantheon.content-capacity-guard": 113
+  },
+  "source_head": "55e2a78de92a6d7929da531ffc3e0dab049df142",
+  "target_generation": "g69-55e2a78d-new-lane-current-acceptance-20260829",
+  "target_identity": "gate2-actor:55e2a78de92a6d7929da531ffc3e0dab049df142:new-lane-current-acceptance-20260829",
+  "target_runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba"
+}

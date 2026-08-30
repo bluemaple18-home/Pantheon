@@ -1,0 +1,17 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "case": "missing-brief",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+  "execution_line_id": "exec-apf-004-readiness",
+  "outcome": "BLOCKED",
+  "packaged_source_artifact": "blocked/01-create.json",
+  "packaged_source_digest": "e16636446b00fd736dda54ebbe846bfbd35f671f2cbdcb33319651ea4a332b0b",
+  "production_mutation": false,
+  "reason": "brief is required",
+  "receipt_relative": true,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/blocked-create.json",
+  "step": "create"
+}

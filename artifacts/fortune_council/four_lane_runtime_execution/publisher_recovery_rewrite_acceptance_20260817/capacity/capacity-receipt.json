@@ -1,0 +1,150 @@
+{
+  "canary_created": false,
+  "cycles": [
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.943892625000444,
+        "file_count": 0,
+        "host_free_bytes": 52474740736,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-after-cleanup",
+        "process_rss_bytes": 44105728,
+        "project_bytes": 0,
+        "sampled_epoch": 1786979188.965767,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 5.5500000598840415e-05,
+        "file_count": 0,
+        "host_free_bytes": 52475310080,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-before",
+        "process_rss_bytes": 30048256,
+        "project_bytes": 0,
+        "sampled_epoch": 1786979178.021753,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0017452920001232997,
+        "reclaimed_bytes": 33132,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-1",
+      "cycle": 1,
+      "execution_line_id": "exec-ra-slice-005-cycle-1",
+      "growth_bytes_per_hour": 10903744,
+      "peak": {
+        "elapsed_seconds": 10.938976790996094,
+        "file_count": 36,
+        "host_free_bytes": 52474580992,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-1-peak",
+        "process_rss_bytes": 44105728,
+        "project_bytes": 33132,
+        "sampled_epoch": 1786979188.960851,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33132,
+      "production_mutation": false,
+      "root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/capacity/capacity-sandbox/cycle-1",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    },
+    {
+      "after_cleanup": {
+        "elapsed_seconds": 10.986602999997558,
+        "file_count": 0,
+        "host_free_bytes": 52474597376,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-after-cleanup",
+        "process_rss_bytes": 44761088,
+        "project_bytes": 0,
+        "sampled_epoch": 1786979199.955371,
+        "swap_used_bytes": 0
+      },
+      "before": {
+        "elapsed_seconds": 6.262499664444476e-05,
+        "file_count": 0,
+        "host_free_bytes": 52474736640,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-before",
+        "process_rss_bytes": 44105728,
+        "project_bytes": 0,
+        "sampled_epoch": 1786979188.968652,
+        "swap_used_bytes": 0
+      },
+      "canary_created": false,
+      "capability_receipt_status": "PASS",
+      "cleanup": {
+        "elapsed_seconds": 0.0017207499986398034,
+        "reclaimed_bytes": 33132,
+        "reclaimed_file_count": 36,
+        "root_exists_after_cleanup": false
+      },
+      "correlation_id": "corr-ra-slice-005-cycle-2",
+      "cycle": 2,
+      "execution_line_id": "exec-ra-slice-005-cycle-2",
+      "growth_bytes_per_hour": 10861087,
+      "peak": {
+        "elapsed_seconds": 10.981946457999584,
+        "file_count": 36,
+        "host_free_bytes": 52474433536,
+        "host_total_bytes": 245107195904,
+        "label": "cycle-2-peak",
+        "process_rss_bytes": 44761088,
+        "project_bytes": 33132,
+        "sampled_epoch": 1786979199.950714,
+        "swap_used_bytes": 0
+      },
+      "peak_transaction_temp_bytes": 33132,
+      "production_mutation": false,
+      "root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/publisher_recovery_rewrite_acceptance_20260817/capacity/capacity-sandbox/cycle-2",
+      "root_unique": true,
+      "seven_step_capabilities": [
+        "create",
+        "run",
+        "select",
+        "publish",
+        "transaction",
+        "tag",
+        "push"
+      ]
+    }
+  ],
+  "mode": "synthetic-non-production-capacity-proof",
+  "policy": {
+    "max_bytes": 67108864,
+    "max_file_count": 1024,
+    "max_rss_growth_bytes_per_sample": 268435456,
+    "max_swap_growth_bytes_per_sample": 268435456,
+    "normal_growth_bytes_per_hour": 67108864,
+    "peak_window_seconds": 1800,
+    "recovery_deadline_seconds": 300,
+    "retention_seconds": 86400,
+    "sampling_interval_seconds": 300
+  },
+  "production_mutation": false,
+  "projections": {
+    "day_peak_bytes": 1610645868,
+    "host_free_after_projection_bytes": 50863951508,
+    "host_reserve_bytes": 24510719590,
+    "hour_peak_bytes": 67141996,
+    "measured_max_growth_bytes_per_hour": 10903744,
+    "projected_growth_bytes_per_hour": 67108864,
+    "retention_peak_bytes": 1610645868
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "stop_loss_negative_result": "BLOCKED"
+}

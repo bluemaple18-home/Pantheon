@@ -1,0 +1,34 @@
+{
+  "file_list_changed": false,
+  "gen06_exists_after": false,
+  "interpretation": "continue_writer_reviewer replays terminal complete state and does not create generation 06",
+  "provider_called": false,
+  "returned_review_verdicts": [
+    "REJECT"
+  ],
+  "returned_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "source_run": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+  "state_after": {
+    "abandoned_generations": [
+      4
+    ],
+    "completed_generations": [
+      5
+    ],
+    "next_generation": 6,
+    "operation_id": "42b2d14947072732654bb169c4aaf317f2d649631ea33fb655a104bce08f28c9",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1,
+    "semantic_budget": 1,
+    "source_sha256": [
+      "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+    ],
+    "started_after_generation": 3,
+    "starting_review_sha256": "31b5d156a987a227adccbd3c02f37f609985983d4deca7c057fcd1c27c7155cd",
+    "status": "complete",
+    "terminal_candidate_sha256": "d70d7423ae6e0c8a5705c30ff21753705a0a3439906fbec63fbd9a67ee39540e",
+    "terminal_review_sha256": "02f7431faecfbef8178b62320243b50baa38ec03ec4fdcdc4c985dd07a4d04d6"
+  },
+  "status": "NO_GEN06_SEAM_FOR_COMPLETE_STATE",
+  "tmp_copy": "/private/tmp/pantheon-gen06-seam-preflight-copy-20260828"
+}

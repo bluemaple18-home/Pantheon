@@ -1,0 +1,75 @@
+{
+  "generation_06": {
+    "candidate.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "deterministic-findings.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "external-plan.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "external-review.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "plan-operation.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "planning-result.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "review.json": {
+      "exists": false,
+      "sha256": null
+    },
+    "source-ref-map.json": {
+      "exists": false,
+      "sha256": null
+    }
+  },
+  "generation_07_exists": false,
+  "outbox_files": 0,
+  "provider_attempt_files": 0,
+  "quarantine_exists": false,
+  "quarantine_files": {},
+  "registry": {
+    "__error__": "[Errno 2] No such file or directory: '/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/registries/i18n-new/queue.json'"
+  },
+  "registry_sha256": null,
+  "residue": {
+    "archive": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/registries/i18n-new/archive/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": null
+    },
+    "attempt": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/registries/i18n-new/production-attempts/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": null
+    },
+    "inbox": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/registries/i18n-new/inbox/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": null
+    }
+  },
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "state": {
+    "correlation_id": null,
+    "last_job_id": null,
+    "next_generation": null,
+    "status": null
+  }
+}

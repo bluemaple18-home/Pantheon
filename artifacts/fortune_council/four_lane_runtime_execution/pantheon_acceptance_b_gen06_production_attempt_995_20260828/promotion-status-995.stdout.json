@@ -1,0 +1,9 @@
+{
+  "audit_receipt_exists": true,
+  "correlation_id": "pantheon-gen06-production-attempt-995-20260828",
+  "plan_digest": "8e06237a2ef69a15a0a4d77cf022260f8c3761d5962ebf16f402199cbd3dd915",
+  "rollback_bundle_exists": false,
+  "rollback_required": false,
+  "state": "COMMITTED",
+  "status": "PASS"
+}

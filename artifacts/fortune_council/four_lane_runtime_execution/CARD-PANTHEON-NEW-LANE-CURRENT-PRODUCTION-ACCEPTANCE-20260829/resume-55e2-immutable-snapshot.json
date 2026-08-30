@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-08-29T13:13:26+08:00",
+  "operation": "read-only",
+  "remote": {
+    "origin_main": "55e2a78de92a6d7929da531ffc3e0dab049df142",
+    "accepted_parent": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "release_tag": "v0.3.374",
+    "release_tag_object": "cc247ee98ffb56f1e7d3e50a6d5b17556032a9a4",
+    "release_tag_peeled_commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41"
+  },
+  "production": {
+    "actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "actor_clean": true,
+    "manifest_file_sha256": "2231c13d71fcfd874f3655805da8e8dcb6dc25af44c94350158547fa27597cad",
+    "manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+    "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+    "generation": "g68-dfcb3c77-gen06-final-publish-release-namespace-20260829",
+    "ledger_sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37"
+  },
+  "services": {
+    "expected_stopped_count": 7,
+    "observed_stopped_count": 7,
+    "launchctl_print_returncode": 113,
+    "labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ]
+  },
+  "stale_run": {
+    "run_id": "auto-new-v1-20260826-001-01",
+    "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d",
+    "registry_sha256": "c53839bbef2293a0864651b0f4b1135560c8614049eb712b4e864c9e21a71ed9",
+    "writer_operation_sha256": "1aca602672aefd06a38e9a97d29461d1d11ee02c172627e0e85f5f2dff25f546",
+    "attempt_sha256": "ae052e389aafdd43033af145f67b69d081f91f850ad599b9f63a0df5ef8fa78d",
+    "inbox_sha256": "28b65e223f5f36dfc21ab60b0801c3fbf085f0e25c500b426a29dc0662ef6a2b",
+    "archive_sha256": "655a01e97a712e1aaefc9f99e0d2d5222ebff2391fd22f486eedab9c8218dbd0"
+  }
+}

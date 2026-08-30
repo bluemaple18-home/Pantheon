@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "protected_files": [
+    {
+      "path": "actor/app/web/seo/articles/astrology/astrology-0003/index.html",
+      "before_sha256": "11db51f23af9bf426a4585afea24b3473ebeabb45ac1255beb83fb5e3d773eab",
+      "after_sha256": "11db51f23af9bf426a4585afea24b3473ebeabb45ac1255beb83fb5e3d773eab"
+    },
+    {
+      "path": "queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/brief.json",
+      "before_sha256": "a8410b89d96d7a86af9ccea22d1cb2d817619707d10436461c9b80229f0b191f",
+      "after_sha256": "a8410b89d96d7a86af9ccea22d1cb2d817619707d10436461c9b80229f0b191f"
+    },
+    {
+      "path": "queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/candidate.json",
+      "before_sha256": "b9799d335a5ec8ec22a32e063174681a9d8e050a65a2a6015b6f39eb54fc1547",
+      "after_sha256": "b9799d335a5ec8ec22a32e063174681a9d8e050a65a2a6015b6f39eb54fc1547"
+    },
+    {
+      "path": "queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/review.json",
+      "before_sha256": "43ee5f34e50a652fc70da7129cd22ca16a8341adc4b740b1b103d36c0aa47ae3",
+      "after_sha256": "43ee5f34e50a652fc70da7129cd22ca16a8341adc4b740b1b103d36c0aa47ae3"
+    },
+    {
+      "path": "queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/locale-plan.json",
+      "before_sha256": "9844184ac8fc29cdd6b0bed56ce8d799ec3f80d01bc4d152bc2d703e2c0c89f9",
+      "after_sha256": "9844184ac8fc29cdd6b0bed56ce8d799ec3f80d01bc4d152bc2d703e2c0c89f9"
+    }
+  ],
+  "all_before_equal_after": true,
+  "actor_git_status": "clean",
+  "production_mutation": 0
+}

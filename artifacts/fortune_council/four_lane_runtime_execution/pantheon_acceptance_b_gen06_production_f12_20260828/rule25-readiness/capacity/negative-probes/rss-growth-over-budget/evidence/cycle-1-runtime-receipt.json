@@ -1,0 +1,38 @@
+{
+  "canary_created": false,
+  "mode": "synthetic-non-production",
+  "production_mutation": false,
+  "receipt": {
+    "steps": [
+      {
+        "capability": "create",
+        "ordinal": 1
+      },
+      {
+        "capability": "run",
+        "ordinal": 2
+      },
+      {
+        "capability": "select",
+        "ordinal": 3
+      },
+      {
+        "capability": "publish",
+        "ordinal": 4
+      },
+      {
+        "capability": "transaction",
+        "ordinal": 5
+      },
+      {
+        "capability": "tag",
+        "ordinal": 6
+      },
+      {
+        "capability": "push",
+        "ordinal": 7
+      }
+    ]
+  },
+  "status": "PASS"
+}

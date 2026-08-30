@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "status": "CLOSED",
+  "timeline": [
+    {
+      "at": "2026-07-24T17:35:12+08:00",
+      "commit": "2b5da2f068ff4661e2bebc02069098a1d0211663",
+      "subject": "feat(content): queue and publish multilingual articles independently",
+      "effect": "introduced translation publisher durable records with singular article_id"
+    },
+    {
+      "at": "2026-08-18T14:22:06+08:00",
+      "version": "0.3.369",
+      "commit": "3ded64e00bbd905549c771ae746952e767c94cdf",
+      "effect": "production translation_published_runs record used singular article_id"
+    },
+    {
+      "at": "2026-08-26T14:25:09+08:00",
+      "commit": "92131e35522ea18063f98cf3ecd76d9675a4c299",
+      "subject": "fix: classify preserved publisher runs",
+      "effect": "promotion began consuming publisher ledger, but missing article_ids was still tolerated"
+    },
+    {
+      "at": "2026-08-26T17:36:30+08:00",
+      "commit": "2c1c6a4850c508ffab26108f7fd9181c05ea2269",
+      "subject": "Fix promotion history authority boundary",
+      "effect": "promotion made article_ids mandatory for every matched ledger collection and introduced the rejecting validator"
+    },
+    {
+      "at": "2026-08-29T11:14:06+08:00",
+      "commit": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+      "effect": "last successful promotion finalized COMMITTED; ledger digest remained 0fc223530e1f8af7d0b495e28e4a336471a2349ceabd93074459827cbe93d8f9"
+    },
+    {
+      "at": "2026-08-29T11:21:04+08:00",
+      "version": "0.3.374",
+      "commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+      "effect": "publisher appended another formal singular article_id translation record; ledger digest became 4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37"
+    },
+    {
+      "at": "2026-08-29T13:09:50+08:00",
+      "commit": "55e2a78de92a6d7929da531ffc3e0dab049df142",
+      "effect": "next promotion plan matched the v0.3.374 translation run and failed publisher ledger identity mismatch before transaction creation"
+    }
+  ],
+  "last_success_translation_presence": {
+    "translation_published_runs_was_empty": false,
+    "existing_record_version": "0.3.369",
+    "existing_record_run_id": "auto-i18n-en-fcaa5bb4adcfef7aa55c",
+    "why_not_exercised": "the old published translation run was absent from the 136 preserved run IDs, so promotion never matched that ledger entry"
+  },
+  "authority": {
+    "durable_ledger_schema_owner": "scripts/agy_content_publisher.py",
+    "registry_identity_owner": "scripts/agy_multilingual_pipeline.py and scripts/agy_gemini_coordinator.py",
+    "promotion_role": "validate and canonicalize producer-owned durable records; it may not redefine their persisted shape"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-08-29T12:18:01+08:00",
+  "operation": "read-only",
+  "workspace": {
+    "head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "origin_main_local": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "tracked_preexisting_change": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_final_publish_acceptance_20260829/RESULT.md"
+  },
+  "remote": {
+    "origin_main": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "release_tag": "v0.3.374",
+    "release_tag_object": "cc247ee98ffb56f1e7d3e50a6d5b17556032a9a4",
+    "release_tag_peeled_commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41"
+  },
+  "production": {
+    "actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "actor_origin_main": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "actor_clean": true,
+    "manifest_file_sha256": "2231c13d71fcfd874f3655805da8e8dcb6dc25af44c94350158547fa27597cad",
+    "manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+    "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+    "generation": "g68-dfcb3c77-gen06-final-publish-release-namespace-20260829",
+    "identity": "gate2-actor:dfcb3c77f9404fc9ff0707cb944ad08f50a4abef:gen06-final-publish-release-namespace-20260829",
+    "ledger_sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37"
+  }
+}

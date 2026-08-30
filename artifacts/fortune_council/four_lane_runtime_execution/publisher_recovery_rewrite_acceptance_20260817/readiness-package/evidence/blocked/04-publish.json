@@ -1,0 +1,18 @@
+{
+  "actor_identity": "actor-ra-slice-004",
+  "capability": "publish",
+  "correlation_id": "corr-ra-slice-004",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-ra-slice-004",
+  "input_digest": "9ee12f191e23fbbdf90eb68ee6811011e318873dc88dac9a5b57ae53215d9bc6",
+  "outcome": "BLOCKED",
+  "output_digest": "0fe7ccdbfc05bab304fc4cea2e99228e81d1f0a3edc985f8e6e7df794892ead0",
+  "packaged_source_artifact": "blocked/04-publish.json",
+  "packaged_source_digest": "6013ac4de0b6b3941ff6b4d58a1ec178288b4518222172e547203f5d9476126b",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "bf05967550b1a538299d4bd29a2d31a968ddc924f9aea9e93e0b9e5a1b169391",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt runtime identity drift"
+}

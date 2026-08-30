@@ -1,0 +1,11 @@
+{
+  "expected_current_actor_sha": "f12f24315d30a8d030cf2e9d99a310c711eeeb0e",
+  "generation": "g62-ff41cb1c-gen06-production-completion-20260828",
+  "mission": "gen06-production-completion-ff41",
+  "operator_authority": "Owner authorized controlled production completion for exact ff41; no retry/gen07/source mutation.",
+  "rule24_capacity_receipt": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_completion_ff41_20260828/rule24-capacity-exercise-ff41.json",
+  "rule25_ready_receipt": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/package/production-canary-capability-receipt.json",
+  "schema_version": 1,
+  "source_sha": "ff41cb1c113fc78c9026662186d7bb4c47204a49",
+  "target_run_id": "auto-i18n-ja-1414b75a404721e95e74"
+}

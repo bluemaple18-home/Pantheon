@@ -1,0 +1,90 @@
+{
+  "head": "779fb96434c15013d82833788a6795119730daad",
+  "line_receipts": {
+    "aggregate_activator": "scripts/install_agy_gemini_coordinator_launchd.sh:868-893,1371-1516",
+    "capacity_order_branch": "scripts/install_pantheon_content_capacity_guard_launchd.sh:123-180",
+    "capacity_pattern": "scripts/pantheon_content_capacity_guard.py:46-48",
+    "capacity_rejection": "scripts/pantheon_content_capacity_guard.py:1022-1044",
+    "coordinator_lane_stage_writer": "scripts/install_agy_gemini_coordinator_launchd.sh:312-402",
+    "manifest_acceptance": "scripts/pantheon_content_runtime_manifest.py:137-194",
+    "promotion_target_identity_input": "scripts/pantheon_content_runtime_promotion.py:1530,1558",
+    "promotion_to_manifest": "scripts/pantheon_content_runtime_promotion.py:1040-1055",
+    "publisher_stage_writer": "scripts/install_agy_content_publisher_launchd.sh:244-255"
+  },
+  "mechanism_commits": {
+    "activation_only_pattern": {
+      "authored_at": "2026-08-15T15:35:04+08:00",
+      "parents": "33bd4a5ef6a5c2c9959c8a22e216b08522f1adaa",
+      "sha": "5b0c662f466a6bf32c39fccb9c4d66e88f355377",
+      "subject": "fix capacity guard activation-only rss preflight"
+    },
+    "promotion_opaque_identity": {
+      "authored_at": "2026-08-15T01:50:23+08:00",
+      "parents": "4c8a07adfb53f4655b01aeb699ce920539c9c62c",
+      "sha": "11e6c4c10566af1db0e182af49cf339d8019f7f6",
+      "subject": "feat(apf-004): add aggregate runtime promotion cli"
+    },
+    "transition_identity_requirement": {
+      "authored_at": "2026-08-18T19:48:50+08:00",
+      "parents": "144a8dbe28f5bc93c2f3f47f4facc560e44b31d8",
+      "sha": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e",
+      "subject": "Repair capacity guard preactivation transition"
+    },
+    "transition_stage_hardening": {
+      "authored_at": "2026-08-18T20:18:05+08:00",
+      "parents": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e",
+      "sha": "29f758f6ad74afa412dd8ff3878efdd79074b36f",
+      "subject": "Repair G5 capacity preactivation stage contract"
+    }
+  },
+  "origin_main": "779fb96434c15013d82833788a6795119730daad",
+  "owners": {
+    "activation_only_schema_owner": "pantheon_content_capacity_guard.ACTIVATION_ONLY_IDENTITY_PATTERN",
+    "activation_only_validator": "validate_preactivation_transition",
+    "manifest_identity_schema": "non-empty stripped opaque string; no activation suffix validation",
+    "promotion_identity_semantic_input": "caller --target-identity / authorization payload",
+    "promotion_manifest_byte_writer": "pantheon_content_runtime_promotion._target_manifest -> runtime_manifest.build_manifest/write_manifest",
+    "seven_service_activator": "install_agy_gemini_coordinator_launchd.sh --activate|--activate-only",
+    "seven_service_stage_identity": "one shared manifest identity/digest/generation tuple copied into every plist"
+  },
+  "schema_version": 1,
+  "source_files": {
+    "scripts/install_agy_content_publisher_launchd.sh": {
+      "bytes": 12016,
+      "sha256": "b95a5dbb8305ed0fcdfd8eedc817363b9a8b57906a9938513cb700bf38f316d6"
+    },
+    "scripts/install_agy_gemini_coordinator_launchd.sh": {
+      "bytes": 69475,
+      "sha256": "0a6d73b660e10f46bc9105063e26b9e60289af97983783a5d33aa3c9e98e49ae"
+    },
+    "scripts/install_pantheon_content_capacity_guard_launchd.sh": {
+      "bytes": 11107,
+      "sha256": "cedef1682a19ac039d791cba1fa1e42171ec7a920ebd79167712b3df06946da5"
+    },
+    "scripts/pantheon_content_capacity_guard.py": {
+      "bytes": 60295,
+      "sha256": "cda3d009145b2684839d1f18048d1f5d044c2e4fcad4d40f97c153e5532f0f6f"
+    },
+    "scripts/pantheon_content_runtime_manifest.py": {
+      "bytes": 45839,
+      "sha256": "a12c75b9fc5a463ea1c01fbd23a11d8bf9103efb72df06cc0a298c3e4477d915"
+    },
+    "scripts/pantheon_content_runtime_promotion.py": {
+      "bytes": 63973,
+      "sha256": "867f485391e1e36582729b50459d75562c574e285b09daf2eac3ae79a194520d"
+    },
+    "tests/test_pantheon_content_capacity_guard.py": {
+      "bytes": 82818,
+      "sha256": "f0e8c8a6ddd88983609941741c0b5d44e304409c8d898a54775771353b3e9b13"
+    },
+    "tests/test_pantheon_content_runtime_promotion.py": {
+      "bytes": 76736,
+      "sha256": "cdcccbee2368a7f3f04fc0c938be5aa2b668fe31d3e2c00b54eb467dd2ea8ef3"
+    }
+  },
+  "test_shape": {
+    "capacity_fixtures_use_activation_only_identity": true,
+    "production_named_identity_cross_contract_test": false,
+    "promotion_fixtures_use_activation_only_identity": true
+  }
+}

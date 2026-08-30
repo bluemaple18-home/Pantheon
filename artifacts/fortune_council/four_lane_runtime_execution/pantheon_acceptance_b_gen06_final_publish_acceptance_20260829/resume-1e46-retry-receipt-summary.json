@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "attempts": 1,
+  "max_attempts": 3,
+  "candidate_preserved": true,
+  "next_eligible_at": "2026-08-29T01:44:08+08:00",
+  "last_failure_type": null,
+  "last_failure_status": null
+}

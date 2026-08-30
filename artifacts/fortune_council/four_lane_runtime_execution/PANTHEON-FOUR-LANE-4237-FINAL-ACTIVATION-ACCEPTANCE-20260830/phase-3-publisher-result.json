@@ -1,0 +1,8 @@
+{
+  "blocked_by": "COMPLETE_UNPUBLISHED_REPLACEMENT_PROMOTION_IDENTITY_GAP",
+  "phase_artifact": "phase-3-publisher-result.json",
+  "production_mutation": 0,
+  "schema_version": 1,
+  "status": "NOT_EXECUTED",
+  "stop_condition": "SECOND_SOURCE_SEAM_REQUIRED"
+}

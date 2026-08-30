@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "source": {
+    "fresh_host_telemetry": "resume-55e2-rule24-host-telemetry.json",
+    "fresh_host_telemetry_sha256": "0677f6eb5e7976a88a835e6d6e29a6a9c9b4b15d7ee46d9f4727340449745f33",
+    "fresh_normalized_capacity_proof": "resume-55e2-rule25-readiness/package/capacity-proof-normalized.json",
+    "fresh_normalized_capacity_proof_sha256": "96dfc54a1a6058b99c22f293af1ccc4a8045f0385096b0108aff9ef3912808d2"
+  },
+  "telemetry": {
+    "cycle_count": 2,
+    "rss_available": true,
+    "swap_available": true,
+    "reclamation_verified": true,
+    "stop_loss_status": "STOPPED",
+    "production_mutation": false
+  },
+  "host_reserve": {
+    "total_bytes": 245107195904,
+    "free_bytes": 38037807104,
+    "required_reserve_bytes": 24510719590,
+    "margin_bytes": 13527087514
+  },
+  "projection": {
+    "retention_peak_bytes": 1610647147,
+    "projected_free_after_retention_peak_bytes": 36427159957,
+    "projected_margin_after_retention_peak_bytes": 11916440367,
+    "projected_shortfall_bytes": 0
+  }
+}

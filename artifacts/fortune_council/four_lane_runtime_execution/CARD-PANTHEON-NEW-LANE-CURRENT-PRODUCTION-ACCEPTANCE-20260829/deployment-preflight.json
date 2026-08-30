@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "publisher": {
+    "status": "ready",
+    "operation": "deployment-preflight",
+    "mode": "read-only",
+    "mutation_permitted": false,
+    "actor": "matched",
+    "queue": "matched",
+    "state": "matched",
+    "runtime_sha": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+    "manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+    "push_mode": "push",
+    "exact_run_ids": ["auto-new-v1-20260826-001-01"],
+    "max_runs": 1,
+    "exit_code": 0
+  },
+  "runtime_manifest": {
+    "status": "PASS",
+    "barrier_status": "PASS"
+  },
+  "new_provider_entrypoint": {
+    "status": "NO-GO",
+    "error": "com.pantheon.agy-gemini-new identity mismatch",
+    "exit_code": 1,
+    "live_plist_sha256": "90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712",
+    "live_actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+    "live_manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+    "live_generation": "g47-6477ab81-activation-only-20260826",
+    "expected_actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "expected_manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+    "expected_generation": "g68-dfcb3c77-gen06-final-publish-release-namespace-20260829",
+    "current_readiness_ack_sha256": "d44677231b23c7dca0b2291b95b3af0865e95a35256f5d5621f4011c8db8c25b",
+    "current_barrier_sha256": "cd5c637592c4321c46ba3ff3a7d59e187e3d927419969fda560ffb35690fca43"
+  },
+  "overall": "NO-GO"
+}

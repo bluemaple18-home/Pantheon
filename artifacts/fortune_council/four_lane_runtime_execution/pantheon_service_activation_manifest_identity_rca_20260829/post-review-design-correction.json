@@ -1,0 +1,24 @@
+{
+  "actor_authority": "separate actor_head plus manifest/runtime identity digests",
+  "accepted_parent": "779fb96434c15013d82833788a6795119730daad",
+  "committed_manifest_bytes": 7556,
+  "committed_manifest_count": 5,
+  "committed_manifest_shapes": {
+    "gate2-actor:<sha>:<opaque-correlation>": 3,
+    "parent:<sha>;tree:<sha256>": 2
+  },
+  "formal_build_manifest_call_sites": 6,
+  "formal_load_manifest_call_sites": 14,
+  "identity_contract": "nonempty trimmed opaque correlation",
+  "identity_must_embed_actor_sha": false,
+  "mode_authority": "explicit arguments and plist/stage topology",
+  "new_regression_count": 36,
+  "non_capacity_actor_derivation_consumers": 0,
+  "non_capacity_mode_derivation_consumers": 0,
+  "original_actor_prefix_frontier": "OVERREACH",
+  "primary_rca": "CROSS_VERSION_ACTIVATION_SCHEMA_GAP",
+  "primary_rca_changed": false,
+  "production_live_mutations": 0,
+  "schema_version": 1,
+  "why_not_whitelist": "g8-live is one valid opaque schema, not the only exception; whitelisting preserves the wrong semantic owner and fails future opaque correlations"
+}

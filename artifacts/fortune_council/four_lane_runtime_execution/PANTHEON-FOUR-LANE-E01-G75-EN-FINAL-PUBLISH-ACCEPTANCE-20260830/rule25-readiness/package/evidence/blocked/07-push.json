@@ -1,0 +1,18 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "push",
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "6a489ea47ab953cae460552475fd8bc608158ff0f98318401959f782f5c0b842",
+  "outcome": "BLOCKED",
+  "output_digest": "1541c27331897fbe6a061f9494efb63f43b242b9ec08c9458406f87adf720728",
+  "packaged_source_artifact": "blocked/07-push.json",
+  "packaged_source_digest": "eefa7a953300c2ed560b0e56c127c18fe6da4645ad5c7eea03a937b05b467d86",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt push mode must be dry-run"
+}

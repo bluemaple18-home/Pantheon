@@ -1,0 +1,238 @@
+{
+  "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "generation_07_exists": false,
+  "lane_counts": {
+    "archive": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.json",
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.json",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.json",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.json",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.json",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.json",
+      "1dd4579867356480bbd1c5c0f89ed0421dbd9e5b.json",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.json",
+      "2877084105222ff0af34a42d51371b81c41cc67a.json",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.json",
+      "36489700f2d317c715b68d4d35656007dc2c9321.json",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.json",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.json",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.json",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.json",
+      "5f18032de8486a227b459087ff473579277e0460.json",
+      "61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.json",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.json",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.json",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.json",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.json",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.json",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.json",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.json",
+      "8716b5377a56896be374635569bc2eddb121d1dc.json",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.json",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.json",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.json",
+      "9c41c58014d22329674cad98dc44a93daa070b95.json",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.json",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.json",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.json",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.json",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.json",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.json",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.json",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.json",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.json",
+      "f13ee1470556242210c77cd39d75a03e80278373.json",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.json",
+      "fc1995c988f1cca803324c35b2433c265a33e11b.json"
+    ],
+    "failed": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.json",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.json",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.json",
+      "1dd4579867356480bbd1c5c0f89ed0421dbd9e5b.json",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.json",
+      "2877084105222ff0af34a42d51371b81c41cc67a.json",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.json",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.json",
+      "5f18032de8486a227b459087ff473579277e0460.json",
+      "61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.json",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.json",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.json",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.json",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.json",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.json",
+      "8716b5377a56896be374635569bc2eddb121d1dc.json",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.json",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.json",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.json",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.json",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.json",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.json",
+      "fc1995c988f1cca803324c35b2433c265a33e11b.json"
+    ],
+    "inbox": [
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.json",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.json",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.json",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.json",
+      "36489700f2d317c715b68d4d35656007dc2c9321.json",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.json",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.json",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.json",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.json",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.json",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.json",
+      "9c41c58014d22329674cad98dc44a93daa070b95.json",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.json",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.json",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.json",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.json",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.json",
+      "f13ee1470556242210c77cd39d75a03e80278373.json"
+    ],
+    "outbox": [
+      "6894ba2772dca5fd9e44938951535d8e26d39467.json"
+    ],
+    "processing": [],
+    "production-attempts": [
+      "0992e3482abd2d6abc0543512fd5e89cbe2a5262.attempt",
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.attempt",
+      "0e0f1324d982434bc52799417caa70ef30e0be3a.attempt",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.attempt",
+      "1988a1d49511ce79f808eacfa44977b1c9249bf5.attempt",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.attempt",
+      "2070d64ae5eaa1491258a29f342d43b778eb80ab.attempt",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.attempt",
+      "36489700f2d317c715b68d4d35656007dc2c9321.attempt",
+      "3d0e702e4363fbfbd86f11b5e15eed378d62cc65.attempt",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.attempt",
+      "4e640f1d134fd81f1d4e49885be5d1751fe4fe70.attempt",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.attempt",
+      "5f18032de8486a227b459087ff473579277e0460.attempt",
+      "630babac8c79f8c6206cb55a833e01618f8f7e22.attempt",
+      "673f11f62b9831d756ee9aaa238c4631a694059b.attempt",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.attempt",
+      "7609994e4a36574b472711d7d74cf7b347f7109a.attempt",
+      "7a32f5717d21f4395870bcc51a2df4da7821851c.attempt",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.attempt",
+      "81a531aa446cfd361eb0607583ba5301d9f69d10.attempt",
+      "84902ca62893d479c0df21809e60fb6eea3c06e3.attempt",
+      "8716b5377a56896be374635569bc2eddb121d1dc.attempt",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.attempt",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.attempt",
+      "9530fc1f63fa6dd7ab70fd961327537fba4f7197.attempt",
+      "9c41c58014d22329674cad98dc44a93daa070b95.attempt",
+      "a567ef27fe82c30449e3878d0cd793f115cdb742.attempt",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.attempt",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.attempt",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.attempt",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.attempt",
+      "c6a2fb453f291cccca5eae7dde2baae7e1096387.attempt",
+      "ce356c2c624d5a56e676e49c6eb6c4c8a060b735.attempt",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.attempt",
+      "dbb3e23b318af8c9a0fe608a7ecf035c3b891644.attempt",
+      "f13ee1470556242210c77cd39d75a03e80278373.attempt",
+      "f4eec57efc186f876ad92f481a89393ecda0471b.attempt"
+    ]
+  },
+  "manifest": {
+    "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+    "generation": "g64-831c5360-gen06-final-retry-20260828",
+    "identity": "gate2-actor:831c536043d85a6cafe813c08a4f06921f0dd0e2:gen06-final-retry-831-20260828",
+    "manifest_digest": "0c62650249e24dba5754926ab416308f0fa1a6ad30aaa6856b497408ad3205f9",
+    "runtime_digest": "f346d0086ded5dd97505c27deb3f6cab92915d665fc82950b7f717701e3dd671"
+  },
+  "paths": {
+    "archive_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "attempt_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "gen06_candidate": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "gen06_plan_operation": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "4a0f5ebc63d884a7ed02c6291c5639a290d21a515340970356fdc8b9fef1a1de"
+    },
+    "gen06_review": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "gen06_source_ref_map": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    },
+    "inbox_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "outbox": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+    }
+  },
+  "provider_total_for_target_job": 0,
+  "quarantine_exists": true,
+  "quarantine_files": {
+    "external-plan.json": {
+      "regular_no_symlink": true,
+      "sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27"
+    },
+    "lane-archive.json": {
+      "regular_no_symlink": true,
+      "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+    },
+    "lane-attempt.attempt": {
+      "regular_no_symlink": true,
+      "sha256": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8"
+    },
+    "lane-inbox.json": {
+      "regular_no_symlink": true,
+      "sha256": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226"
+    },
+    "plan-operation.json": {
+      "regular_no_symlink": true,
+      "sha256": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5"
+    },
+    "planning-result.json": {
+      "regular_no_symlink": true,
+      "sha256": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5"
+    },
+    "retry-receipt.json": {
+      "regular_no_symlink": true,
+      "sha256": "b1d1db26b8debc41b1688d1a3227d6019325eb1f565caa35c1f7e2bea694277f"
+    },
+    "source-ref-map.json": {
+      "regular_no_symlink": true,
+      "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    }
+  },
+  "registry_digest_raw": "07ce1ac515551c502b0fc1ba381809bc3dee08102d7759c6567d5e64f2c82a61",
+  "registry_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/f46cda9eaa9ded446bf8e6c6.json",
+  "registry_shape": {
+    "error_code": null,
+    "error_type": null,
+    "lane": "i18n-new",
+    "last_job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+    "mode": null,
+    "routing_schema_version": null,
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "status": "active"
+  },
+  "services_note": "runner/provider not invoked by this worker after fresh outbox"
+}

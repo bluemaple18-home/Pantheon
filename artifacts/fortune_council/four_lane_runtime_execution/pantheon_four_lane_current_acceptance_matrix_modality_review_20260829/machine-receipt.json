@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "card_id": "CARD-PANTHEON-FOUR-LANE-CURRENT-ACCEPTANCE-MATRIX-MODALITY-REVIEW-20260829",
+  "recorded_at": "2026-08-29T12:09:32+08:00",
+  "operation": "read_only_evidence_modality_review",
+  "verdict": "GO",
+  "production_mutation": false,
+  "p0_findings": [],
+  "p1_findings": [
+    {
+      "id": "P1-MACHINE-RECEIPT-APPROVED-EDIT-LINEAGE-EXPLICITNESS",
+      "blocking": false,
+      "summary": "The matrix receipt lists terminal Gen06 root candidate/review hashes, whose review verdict is REJECT, without separately exposing the approved-edit article hash and formal APPROVE verdict; human and linked stage evidence disambiguate the accepted path."
+    }
+  ],
+  "source_artifacts": {
+    "matrix_result_sha256": "06829167d737606163f51e61ef8cf25f0b2338a1ff569b4b8292cb2d6ff5fa9f",
+    "matrix_machine_receipt_sha256": "0abec25abc3a1dc37335fdf01fc6985a56721887d62f2a9dcf3ffff2e30ff66c",
+    "rca_result_sha256": "0cbea49aefdba0e92ac6e7d8dbc477e423864e99db9ebab9d49cdb034ebae1f9",
+    "browser_rendered_probes_sha256": "784b95c67357b7770b246ae087c0fab8bfb932bf93d9b1cb1f3b029dafa96a86",
+    "raw_http_red_probe_sha256": "25db974f1ab1c5aee2146e38bc2a308a979f34fa4c9a8cf38bce4d08243f3076",
+    "release_public_byte_comparison_sha256": "bd12b5e3fdcfc820e10ccc00ec17d853a59b6857a97dc9a34be60314d28e5075"
+  },
+  "independent_recalculation": {
+    "runtime_manifest_sha256": "2231c13d71fcfd874f3655805da8e8dcb6dc25af44c94350158547fa27597cad",
+    "runtime_actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+    "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+    "ledger_sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+    "stage_current_sha256": "9544705d7d8c92b370451bf8560aa9815699bfe3f67e9fa527c5e3d7b233d1a4",
+    "formal_review_result_sha256": "8394f603d024d64019881c44457fd3fbd279d3854764e8ea3be624fdae80ff19",
+    "approved_article_sha256": "a64d8a33b0b70933134452491c10058e820dd93d5c748d3cc220bbfc25da7b9c",
+    "formal_review_verdict": "APPROVE_READY_FOR_STAGING",
+    "rendered_dom_sha256": "51b987193bc5da9b277532e70222a317be41873ef1adb6176093365dec4b808a",
+    "remote_main": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "remote_tag_object": "cc247ee98ffb56f1e7d3e50a6d5b17556032a9a4",
+    "remote_tag_peeled_commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "public_http_status": 200,
+    "public_asset_sha256": {
+      "article_js": "73c01ef2c1fffa6c29fc309e16feece137fd7f307bf461e388834134072ed588",
+      "article_locales_js": "9c4ec6173e1c531f41d6b514971bee697596d2dc226f7f20472748bd7963e94f",
+      "target_locale_record_js": "2c73125d209d39f500ea9969089e228b9dfff0f693cf73357220efda5315b8ab"
+    }
+  },
+  "acceptance": {
+    "i18n_new_same_release_ledger_public_rendered_dom_closed": true,
+    "rendered_canonical_pass": true,
+    "rendered_title_pass": true,
+    "rendered_h1_pass": true,
+    "rendered_body_sentinel_pass": true,
+    "rendered_console_warnings_or_errors": 0,
+    "raw_http_generic_shell_classified_as_transport_shell": true,
+    "new_verdict": "HISTORICAL_ONLY",
+    "rewrite_verdict": "HISTORICAL_ONLY",
+    "i18n_new_verdict": "GO_CURRENT",
+    "i18n_rewrite_verdict": "MISSING_PRODUCTION_E2E",
+    "four_lanes_overall": "NO_GO_FOUR_LANES"
+  },
+  "next_frontier": "new",
+  "dependency_order": [
+    "new",
+    "rewrite",
+    "i18n-rewrite"
+  ],
+  "push_required_before_next_frontier": false
+}

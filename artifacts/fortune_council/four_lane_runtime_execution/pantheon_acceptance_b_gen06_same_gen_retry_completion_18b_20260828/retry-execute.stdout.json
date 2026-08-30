@@ -1,0 +1,24 @@
+{
+  "action": "retry_same_generation_locale_plan",
+  "after_digest": "0fd57325d3699a972aa2f9dfe4cd585affc3ef57451eaf997ade9f46341d68cc",
+  "digests": {
+    "archive": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c",
+    "attempt": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8",
+    "external_plan": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+    "inbox": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226",
+    "plan_operation": "b8772a9f78de42ef4e799efe7580adf36b23f8dbc414b42d2fc656b2dc1b5fe3",
+    "planning_result": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5",
+    "registry": "497e9b2f7aea82f8595fe29e9358f91bd4e4a3ccd40c0a40feb37623e39eb318",
+    "source_ref_map": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+  },
+  "execute": true,
+  "generation": 6,
+  "job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "selector": {
+    "lane": "i18n-new",
+    "mode": null,
+    "routing_schema_version": null
+  },
+  "status": "RETRY_READY"
+}

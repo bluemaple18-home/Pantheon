@@ -1,0 +1,147 @@
+{
+  "generation_06": {
+    "candidate.json": {
+      "exists": false,
+      "is_symlink": false,
+      "sha256": null
+    },
+    "deterministic-findings.json": {
+      "exists": false,
+      "is_symlink": false,
+      "sha256": null
+    },
+    "external-plan.json": {
+      "exists": true,
+      "is_symlink": false,
+      "sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27"
+    },
+    "external-review.json": {
+      "exists": false,
+      "is_symlink": false,
+      "sha256": null
+    },
+    "plan-operation.json": {
+      "exists": true,
+      "is_symlink": false,
+      "sha256": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5"
+    },
+    "planning-result.json": {
+      "exists": true,
+      "is_symlink": false,
+      "sha256": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5"
+    },
+    "review.json": {
+      "exists": false,
+      "is_symlink": false,
+      "sha256": null
+    },
+    "source-ref-map.json": {
+      "exists": true,
+      "is_symlink": false,
+      "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    }
+  },
+  "generation_07_exists": false,
+  "lane_counts": {
+    "inbox": [
+      "0c693baa53a9a872b2d06f7a04d45b9d31d49d3f.json",
+      "192d387c28bc3a5c86cb85e6ed80e9fecc6b12ff.json",
+      "1d11d30169a8454a929505cfc5216589d0c21aa1.json",
+      "32570d45e3dd22f0fea558c414063bd186002c0d.json",
+      "36489700f2d317c715b68d4d35656007dc2c9321.json",
+      "43d06b5c27b3a66a4b1ee3639c97b320a47b3d45.json",
+      "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9.json",
+      "688d59fbcec73a9a068dd2654d0ea5c744464291.json",
+      "6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "7f7bf0ac59eed5de405bc1d61d412f5915d49637.json",
+      "8d6875c98bf9bd30efdc5ac65c84f77bcc725568.json",
+      "92ed2fced0a3da776d6397ad8f6da763a211837f.json",
+      "9c41c58014d22329674cad98dc44a93daa070b95.json",
+      "a95c3ea627180560e1f11fcaa26b3c1575492b3e.json",
+      "ad3bc763cb4dc654e624a490717d78c9b0ce2563.json",
+      "ae0b347e64132ed8eb8e80cecc056339ae88a9ec.json",
+      "b349b08ed7ef3c8af36e60e1a36c767f12addb7e.json",
+      "d4368ba5f37a52d441ca6868867422e7788b8e7c.json",
+      "f13ee1470556242210c77cd39d75a03e80278373.json"
+    ],
+    "outbox": [],
+    "production_attempts": []
+  },
+  "quarantine_exists": true,
+  "quarantine_files": {
+    "external-plan.json": {
+      "is_file": true,
+      "is_symlink": false,
+      "sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27"
+    },
+    "plan-operation.json": {
+      "is_file": true,
+      "is_symlink": false,
+      "sha256": "b8772a9f78de42ef4e799efe7580adf36b23f8dbc414b42d2fc656b2dc1b5fe3"
+    },
+    "planning-result.json": {
+      "is_file": true,
+      "is_symlink": false,
+      "sha256": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5"
+    },
+    "retry-receipt.json": {
+      "is_file": true,
+      "is_symlink": false,
+      "sha256": "42ba2a6b3a823db6f847afa0ab0df575a46dc92bc0c7299af7a296ad35060b5b"
+    },
+    "source-ref-map.json": {
+      "is_file": true,
+      "is_symlink": false,
+      "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    }
+  },
+  "registry": {
+    "authorized_next_generation_reactivation": null,
+    "error_code": null,
+    "error_type": null,
+    "lane": null,
+    "last_job_id": null,
+    "mode": null,
+    "routing_schema_version": null,
+    "run_id": null,
+    "status": null
+  },
+  "registry_sha256": null,
+  "residue": {
+    "archive": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/archive/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+    },
+    "attempt": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/production-attempts/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": null
+    },
+    "inbox": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-new/inbox/6894ba2772dca5fd9e44938951535d8e26d39467.json",
+      "sha256": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226"
+    }
+  },
+  "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "state": {
+    "abandoned_generations": [
+      4
+    ],
+    "completed_generations": [
+      5
+    ],
+    "correlation_id": null,
+    "last_job_id": null,
+    "next_generation": 6,
+    "status": "active"
+  }
+}

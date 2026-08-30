@@ -1,0 +1,10 @@
+{
+  "authorization_digest": "d9668637ad8c79c4c824bdf4a67b270df22250407ea3c0781740ebae00e41fb4",
+  "capacity_receipt_digest": "a46339334c7496987ea2f66dcb2122ccc52e3371cb242c94b813702ade388c9e",
+  "current_manifest_actor_head": "f12f24315d30a8d030cf2e9d99a310c711eeeb0e",
+  "current_manifest_digest": "9eba8d646a1552488fbaf03d4506946a54f6260371a87c796ceccc5defd0bc0d",
+  "current_manifest_generation": "g61-f12f2431-gen06-production-f12-20260828",
+  "current_stage_digest": "02e16842b3cb8c3d3da0dec442f7e6e98977748c89de833e91af0ab5b00b0b2e",
+  "preserved_run_count": 136,
+  "source_runtime_digest": "f346d0086ded5dd97505c27deb3f6cab92915d665fc82950b7f717701e3dd671"
+}

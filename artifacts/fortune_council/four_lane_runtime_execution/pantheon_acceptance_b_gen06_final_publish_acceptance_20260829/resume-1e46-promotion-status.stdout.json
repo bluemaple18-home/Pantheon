@@ -1,0 +1,9 @@
+{
+  "audit_receipt_exists": true,
+  "correlation_id": "pantheon-gen06-final-publish-test-repair-1e46-20260829",
+  "plan_digest": "b8dae57c435c9dd3ce8be06f1052620f1b90fee28d27d13f1d02e25bf2788342",
+  "rollback_bundle_exists": false,
+  "rollback_required": false,
+  "state": "COMMITTED",
+  "status": "PASS"
+}

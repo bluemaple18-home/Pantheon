@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "command": [
+    "git",
+    "diff",
+    "--check"
+  ],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "status": "PASS"
+}

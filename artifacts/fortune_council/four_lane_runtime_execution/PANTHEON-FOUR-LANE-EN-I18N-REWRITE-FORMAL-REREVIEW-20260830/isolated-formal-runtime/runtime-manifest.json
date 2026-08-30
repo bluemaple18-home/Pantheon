@@ -1,0 +1,27 @@
+{
+  "actor_head": "e01d56e3847600fa8723a006b3f16e3757af7610",
+  "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+  "config_version": "formal-runtime-v3-model-route-v1",
+  "generation": "g75-e01d56e3-en-manual-formal-rereview-20260830",
+  "identity": "gate2-actor:e01d56e3847600fa8723a006b3f16e3757af7610:en-manual-formal-rereview-20260830",
+  "log_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-FOUR-LANE-EN-I18N-REWRITE-FORMAL-REREVIEW-20260830/isolated-formal-runtime/logs",
+  "manifest_digest": "d7efb524ec71c390c2668df5e634bf3c27d21ce56b15ffd351087804c2e320ab",
+  "owner_uid": 501,
+  "publisher_state_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-FOUR-LANE-EN-I18N-REWRITE-FORMAL-REREVIEW-20260830/isolated-formal-runtime/state",
+  "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "queue_root": "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/PANTHEON-FOUR-LANE-EN-I18N-REWRITE-FORMAL-REREVIEW-20260830/isolated-formal-runtime/queue",
+  "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+  "runtime_digest": "8287e7c2826f083db612b8bd83197fa3a2044b630c2a1a4414d1d419c7f17b54",
+  "runtime_identity_digest": "e195138b7c8f49297cfea11492675d2477a526aacace7481ce1ca30a2a987eea",
+  "schema_version": 2,
+  "service_labels": [
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.agy-gemini-coordinator",
+    "com.pantheon.agy-gemini-new",
+    "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new",
+    "com.pantheon.agy-gemini-i18n-rewrite",
+    "com.pantheon.content-capacity-guard"
+  ],
+  "uv_executable": "/Users/mattkuo/.local/bin/uv"
+}

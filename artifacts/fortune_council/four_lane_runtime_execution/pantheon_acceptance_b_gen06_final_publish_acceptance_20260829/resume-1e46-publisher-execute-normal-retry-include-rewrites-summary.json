@@ -1,0 +1,19 @@
+{
+  "status": "failed",
+  "create": {
+    "status": "idle",
+    "published": 0
+  },
+  "rewrite": {
+    "status": "idle",
+    "rewritten": 0
+  },
+  "translation": {
+    "status": "failed_recovered",
+    "translated": 0,
+    "base_sha": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4",
+    "error_type": "CalledProcessError",
+    "evidence": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/failed-translation-452aba18fa/failure.json",
+    "retry_status": "candidate_preserved_deferred"
+  }
+}

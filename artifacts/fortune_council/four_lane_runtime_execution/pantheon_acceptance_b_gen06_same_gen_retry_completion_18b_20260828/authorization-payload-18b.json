@@ -1,0 +1,11 @@
+{
+  "authorization_scope": "one controlled same-generation gen06 retry completion: promotion ff41 to 18b, hash-bound LocalePlanValidationError retry seam, exact coordinator enqueue only",
+  "canary_created": false,
+  "correlation_id": "pantheon-gen06-samegen-retry-18b-20260828",
+  "expected_current_actor_sha": "ff41cb1c113fc78c9026662186d7bb4c47204a49",
+  "production_boundary": "stop after fresh same-gen06 writer job enqueue; no provider processing by this worker after enqueue",
+  "rule24_receipt": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_completion_18b_20260828/rule24-capacity-pre-18b.json",
+  "rule25_summary": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_same_gen_retry_completion_18b_20260828/rule25-readiness/readiness-summary.json",
+  "source_commit": "18b121fa335ab74621fb8da03d1a6b2a02916c88",
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

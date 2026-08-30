@@ -1,0 +1,19 @@
+{
+  "status": "ok",
+  "create": {
+    "status": "idle",
+    "published": 0
+  },
+  "rewrite": {
+    "status": "idle",
+    "rewritten": 0
+  },
+  "translation": {
+    "status": "dry-run",
+    "ready_runs": [
+      "auto-i18n-ja-1414b75a404721e95e74"
+    ],
+    "translated": 0,
+    "base_sha": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef"
+  }
+}

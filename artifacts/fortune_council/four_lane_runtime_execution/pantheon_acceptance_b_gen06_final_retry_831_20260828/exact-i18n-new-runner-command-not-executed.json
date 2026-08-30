@@ -1,0 +1,22 @@
+[
+  "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "-m",
+  "scripts.agy_gemini_runner",
+  "--exact-run-id",
+  "auto-i18n-ja-1414b75a404721e95e74",
+  "operator-exact-process-once",
+  "--manifest",
+  "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json",
+  "--expected-digest",
+  "0c62650249e24dba5754926ab416308f0fa1a6ad30aaa6856b497408ad3205f9",
+  "--barrier",
+  "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/four-lane-activation-g64-831c5360-gen06-final-retry-20260828.barrier",
+  "--service-label",
+  "com.pantheon.agy-gemini-i18n-new",
+  "--ready-root",
+  "/Users/mattkuo/Library/LaunchAgents/.pantheon-four-lane-stage/readiness/g64-831c5360-gen06-final-retry-20260828",
+  "--plist",
+  "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist",
+  "--timeout",
+  "90"
+]

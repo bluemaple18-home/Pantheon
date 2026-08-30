@@ -1,0 +1,28 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "select",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids"
+    ],
+    "git_trace": [],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "4135429380deebe019be6c99124385adb491f076952ba50ac0dc00fb9d95748e",
+  "operation_trace_digest": "e1705c06e51c0f3baa0c574f62111dfc2a23b34a6de03fdf146e885369d246d4",
+  "outcome": "PASS",
+  "output_digest": "4928e2d89ad69624b43341de6bfa9d105d61656b7188c7f7db079a865baaa19e",
+  "packaged_source_artifact": "positive/03-select.json",
+  "packaged_source_digest": "58545f13a8731dbd79d9689dee6aaad967da483a27fef8db709a8919adc981fa",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

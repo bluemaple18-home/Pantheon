@@ -1,0 +1,40 @@
+{
+  "after": {
+    "archive_job_exists": false,
+    "attempt_job_exists": false,
+    "gen06_tree": "442310a2a6d720b9ddb48ecd0ac6f5722bb96b4246d72c9bcfcbeb9ec43e59a4",
+    "gen07_exists": false,
+    "hashes": {
+      "archive": null,
+      "attempt": null,
+      "external_plan": null,
+      "inbox": null,
+      "plan_operation": null,
+      "planning_result": null,
+      "registry": "442850399d751fb9f05fd16fae710342c64fda8bbe21182f5083505bfa47d278",
+      "source_ref_map": null
+    },
+    "inbox_job_exists": false,
+    "outbox": []
+  },
+  "before": {
+    "archive_job_exists": true,
+    "attempt_job_exists": true,
+    "gen06_tree": "6819079491034f3ca5850acf362bdd74b68408cbfd9870b8d85f1c6aa9f12ce4",
+    "gen07_exists": false,
+    "hashes": {
+      "archive": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c",
+      "attempt": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8",
+      "external_plan": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27",
+      "inbox": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226",
+      "plan_operation": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5",
+      "planning_result": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5",
+      "registry": "24cea55efa8b5d774f29afd9702fb9454097f35b15f6ace4ce9b9dec3d679147",
+      "source_ref_map": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    },
+    "inbox_job_exists": true,
+    "outbox": []
+  },
+  "returncode": 0,
+  "zero_write": false
+}

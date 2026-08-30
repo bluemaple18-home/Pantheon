@@ -1,0 +1,51 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "capability": "publish",
+  "capability_boundary": {
+    "boundary_status": "idle",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:publish_ready_runs"
+    ],
+    "git_trace": [
+      [
+        "rev-parse",
+        "--git-common-dir"
+      ],
+      [
+        "fetch",
+        "origin",
+        "main"
+      ],
+      [
+        "status",
+        "--porcelain"
+      ],
+      [
+        "rev-parse",
+        "HEAD"
+      ],
+      [
+        "rev-parse",
+        "origin/main"
+      ]
+    ],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-apf-004-readiness",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-apf-004-readiness",
+  "input_digest": "4928e2d89ad69624b43341de6bfa9d105d61656b7188c7f7db079a865baaa19e",
+  "operation_trace_digest": "cd9f359149a20f97ce5914bb6ac95d54ee33e801e1f67ee332542fca0ae1d786",
+  "outcome": "PASS",
+  "output_digest": "9c1ba8333aeb1e1abcc5daca60dc7c377c10e43503b31058f5eb5800d6c76ef0",
+  "packaged_source_artifact": "positive/04-publish.json",
+  "packaged_source_digest": "fa062473f29811a7a5c76b2906c9d6361ac4e341bc418f212ae804a580066ff8",
+  "production_mutation": false,
+  "receipt_relative": true,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

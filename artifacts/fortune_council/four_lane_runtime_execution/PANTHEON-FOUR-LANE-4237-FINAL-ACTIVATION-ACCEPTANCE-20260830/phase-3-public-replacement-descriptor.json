@@ -1,0 +1,19 @@
+{
+  "approved_article_sha256": "7a63cb36b0dae48df870647653846b9d3e20da97f1725f232d9139c70d378314",
+  "contract": "approved-locale-existing-record-replacement",
+  "locale": "en",
+  "manifest_path": "app/web/static/article-locales.js",
+  "manifest_sha256": "9c4ec6173e1c531f41d6b514971bee697596d2dc226f7f20472748bd7963e94f",
+  "module_after_sha256": "15ac74235bf9e66acb91edad7631b70c580d873b9083d29fb984c6fbdb0a282b",
+  "module_before_sha256": "e7ce268dd761e80bb60bcbbfd88638a3c92cb773df95567d41901d26b86b028a",
+  "module_export": "CODEX_EMERGENCY_I18N_20260726_ASTRO_BASE_03_ARTICLE_LOCALES",
+  "module_path": "app/web/static/article-locale-codex-emergency-i18n-20260726-astro-base-03.js",
+  "old_record_sha256": "4e79687247d1038b7d4a8c00d5d603e8d2302d5d84da0ca09b8fd7ecd97f5450",
+  "old_run_id": "codex-emergency-i18n-20260726-astro-base-03",
+  "old_source_sha256": "5a85b2c48e4a640ca0240f5537b3dde2c399200ff884ba2395c17d60a0bef824",
+  "record_index": 0,
+  "replacement_record_sha256": "a3dff3a5d51c5a5d9640404117aa7c5568fb3816754fe427e526445dfde6cf71",
+  "replacement_run_id": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
+  "replacement_source_sha256": "542e7159e3c9fe31b091188c9fe6b435818c2f337e49c40909d47d2119a42c77",
+  "source_article_id": "ASTRO-BASE-03"
+}

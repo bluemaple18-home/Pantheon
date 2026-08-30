@@ -1,0 +1,22 @@
+{
+  "translation_published_matches": [],
+  "translation_deferred_matches": [],
+  "published_seed_matches": [
+    {
+      "article_ids": [
+        "V2-TAROT-DEATH-MONEY"
+      ],
+      "commit_sha": "0257bd5213eed0d0df10661a54f6215901a54997",
+      "published_at": "2026-08-26T10:31:43+08:00",
+      "run_id": "v0391-publish-canary-20260826-02",
+      "translation_run_ids": [
+        "auto-i18n-en-a2089936cbb010f5b0c1",
+        "auto-i18n-ja-1414b75a404721e95e74",
+        "auto-i18n-ko-c656242ea6760f47e01a"
+      ],
+      "translation_seed_status": "seeded",
+      "translation_seeded_at": "2026-08-26T10:45:52+08:00",
+      "version": "0.3.371"
+    }
+  ]
+}

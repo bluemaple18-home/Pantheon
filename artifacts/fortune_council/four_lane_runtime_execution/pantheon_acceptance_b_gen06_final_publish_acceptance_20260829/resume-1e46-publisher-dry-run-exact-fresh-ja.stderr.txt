@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4657, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4630, in main
+    with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 2036, in _isolated_transaction_worktree
+    with _transaction_lifecycle_lock(
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 1875, in _transaction_lifecycle_lock
+    lock_context = lock_path.open("a+")
+                   ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted: '/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/.git/agy-content-publisher.lifecycle.lock'

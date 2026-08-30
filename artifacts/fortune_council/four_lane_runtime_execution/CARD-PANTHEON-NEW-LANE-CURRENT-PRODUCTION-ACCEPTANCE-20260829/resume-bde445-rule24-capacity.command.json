@@ -1,0 +1,12 @@
+[
+  "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+  "-m",
+  "scripts.pantheon_content_capacity_guard",
+  "--exercise-root",
+  "/private/tmp/pantheon-new-lane-current-acceptance-rule24-bde445-20260829",
+  "--receipt",
+  "/Users/mattkuo/Documents/Pantheon/artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-NEW-LANE-CURRENT-PRODUCTION-ACCEPTANCE-20260829/resume-bde445-rule24-capacity-raw.json",
+  "--cycle-bytes",
+  "1048576",
+  "exercise"
+]

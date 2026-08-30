@@ -1,0 +1,25 @@
+{
+  "ack_digests": [
+    "06692984550eff92873f047e0db30c46358ae1971b27e7c021b053addd12bb3d",
+    "a59f7f41ed6616622e684279fbd59329b80a2dc7ab26d0b229c3507b583fed93",
+    "df712075f2a45a21bd204d52156f01ece63fc757e784e76fba92c9a17da89cd8",
+    "39b06707d2cd0e504421efe900891b000312a013a65e77cc11057964fef8ae57",
+    "5c8f7090fa9ba53459f9e4a9e0a01665e54a76acacb2296aaa9813ba6f129c68",
+    "883c246572965a96b31a8e70ebbf9e9ab346bcc94e395a513fafe4632c731bc5",
+    "0163e85b29359fdbafaa79352531dafb9dae6eb628c766dce9f1575f2166b31e"
+  ],
+  "generation": "g75-e01d56e3-en-manual-formal-rereview-20260830",
+  "manifest_digest": "d7efb524ec71c390c2668df5e634bf3c27d21ce56b15ffd351087804c2e320ab",
+  "owner_uid": 501,
+  "runtime_identity_digest": "e195138b7c8f49297cfea11492675d2477a526aacace7481ce1ca30a2a987eea",
+  "schema_version": 2,
+  "service_labels": [
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.agy-gemini-coordinator",
+    "com.pantheon.agy-gemini-new",
+    "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new",
+    "com.pantheon.agy-gemini-i18n-rewrite",
+    "com.pantheon.content-capacity-guard"
+  ]
+}

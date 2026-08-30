@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "origin_main": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "harness_py_compile": "PASS",
+  "json_parse": {"status": "PASS", "files": 7},
+  "diff_check": {"status": "PASS", "scope": "RCA card plus evidence files"},
+  "focused_tests": {"status": "PASS", "passed": 22, "deselected": 479},
+  "replay": {
+    "double_run_byte_identical": true,
+    "sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9",
+    "canonical_digest": "bfca973b57dc5df53dfcc52560794b0a3cf609d0db2986eba27bc01e036acadb",
+    "fresh_without_future_run": "RED at publisher-exact-run-id capacity edge",
+    "historical_existing_run": "GREEN through seventh stage"
+  },
+  "source_test_changes": 0,
+  "production_live_mutation": 0,
+  "external_calls": 0,
+  "forbidden_actions": {
+    "install": 0,
+    "activate": 0,
+    "scheduler": 0,
+    "provider": 0,
+    "reviewer": 0,
+    "publisher": 0,
+    "commit": 0,
+    "push": 0,
+    "tag": 0,
+    "deploy": 0
+  }
+}

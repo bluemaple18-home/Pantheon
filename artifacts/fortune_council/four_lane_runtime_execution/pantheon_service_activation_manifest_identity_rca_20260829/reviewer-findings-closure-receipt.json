@@ -1,0 +1,55 @@
+{
+  "external_calls": {
+    "activation": 0,
+    "provider": 0,
+    "publisher_execute": 0,
+    "reviewer": 0,
+    "scheduler": 0
+  },
+  "mutations": {
+    "git": 0,
+    "live_state": 0,
+    "production": 0,
+    "service_control": 0,
+    "source": 0,
+    "tests": 0
+  },
+  "primary_verdict": "CROSS_VERSION_ACTIVATION_SCHEMA_GAP",
+  "reviewer_findings": {
+    "P1-parent-commit-causality": {
+      "29f_effect": "preserves suffix check, removes config-version conjunct, adds full stage validation",
+      "commit_11e6c4c_diff_sha256": "374fcecb02fb05aebc75a8ae22bc2a3eb10a85d87df1aded9dedd9d0588c1d7e",
+      "commit_29f758f6_diff_sha256": "9276ca48872531e5f533d9552baf1ccd347c382c00e5f69e14a8c0f03b64be26",
+      "corrected_introduction": "35cfdd52739f3e2896bf151ed6434a5e6d6ab95e",
+      "disproved": "29f758f6 is not the first identity hard check; its parent already contains the activation-only check",
+      "proved": "11e6c4c introduces caller target_identity passthrough into opaque manifest identity",
+      "status": "CLOSED_WITH_TIMELINE_CORRECTION"
+    },
+    "P1-recovery-stage-replay": {
+      "byte_identical": true,
+      "exact_edge": "validate_preactivation_transition:ACTIVATION_ONLY_IDENTITY_PATTERN",
+      "exact_error": "preactivation manifest mismatch",
+      "exact_order": [
+        {
+          "action": "--install",
+          "installer": "install_agy_gemini_coordinator_launchd.sh"
+        },
+        {
+          "action": "--install",
+          "installer": "install_agy_content_publisher_launchd.sh"
+        },
+        {
+          "action": "--install-recovery-stage",
+          "installer": "install_pantheon_content_capacity_guard_launchd.sh"
+        }
+      ],
+      "production_bytes_unchanged": true,
+      "run_1_sha256": "f80fa92d0d22aa0445174153192cd161af7d5e294bfecc35927ee72249c13dcc",
+      "run_2_sha256": "f80fa92d0d22aa0445174153192cd161af7d5e294bfecc35927ee72249c13dcc",
+      "stage_count_at_red": 6,
+      "status": "CLOSED"
+    }
+  },
+  "schema_version": 1,
+  "status": "RCA_RE_REVIEW_REQUESTED"
+}

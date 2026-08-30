@@ -1,0 +1,23 @@
+{
+  "allowed_mutations": [
+    "push exact test-only repair sha to origin/main once",
+    "formal runtime promotion from 5704 to 1e46",
+    "formal publisher transaction/tag/push/deploy"
+  ],
+  "authorized_by": "Owner prompt",
+  "forbidden_mutations": [
+    "force push",
+    "source edits",
+    "test edits",
+    "manual production state edits",
+    "provider calls",
+    "coordinator calls",
+    "Gen07 creation",
+    "stage execute replay"
+  ],
+  "operation": "pantheon-gen06-final-publish-acceptance-resume-after-test-repair",
+  "parent_sha": "5704fa6077aa4187619fddc08d9c29cad2f2dabf",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "target_sha": "1e46c46426cf1662c1089cbf33dcf2ee54d437c4"
+}

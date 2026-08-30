@@ -1,0 +1,91 @@
+{
+  "forbidden_mutations": {
+    "coordinator": 0,
+    "publisher": 0,
+    "push": 0,
+    "tag": 0
+  },
+  "generation_04": {
+    "exists": false,
+    "file_count": 0,
+    "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/04"
+  },
+  "production_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8",
+  "queue_surface": {
+    "i18n-new": {
+      "outbox": [],
+      "processing": []
+    },
+    "i18n-rewrite": {
+      "outbox": [],
+      "processing": []
+    },
+    "new": {
+      "outbox": [],
+      "processing": []
+    },
+    "rewrite": {
+      "outbox": [],
+      "processing": []
+    }
+  },
+  "run_id": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
+  "schema_version": 1,
+  "target_files": {
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-rewrite/archive/97678eafb23595f3f8dcff696b3d2e254e0cd2e0.json": {
+      "exists": true,
+      "sha256": "6fd7f852c6f43b7433f887c6aa2c5d5238fa7e4190681fe42dedb4a55404affc",
+      "size": 13495
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-rewrite/inbox/97678eafb23595f3f8dcff696b3d2e254e0cd2e0.json": {
+      "exists": true,
+      "sha256": "d39482f37142e726c7839f8aaddfbacfffc433d4845593e5024bbaf9f569a02b",
+      "size": 688
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/lanes/i18n-rewrite/production-attempts/97678eafb23595f3f8dcff696b3d2e254e0cd2e0.attempt": {
+      "exists": true,
+      "sha256": "e0129fd35492486091a059df6e2840ee93013c478f11bffe1e2a3f132ff3d276",
+      "size": 186
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/candidate.json": {
+      "exists": true,
+      "sha256": "b9799d335a5ec8ec22a32e063174681a9d8e050a65a2a6015b6f39eb54fc1547",
+      "size": 3739
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/locale-plan.json": {
+      "exists": true,
+      "sha256": "9844184ac8fc29cdd6b0bed56ce8d799ec3f80d01bc4d152bc2d703e2c0c89f9",
+      "size": 5703
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/attempts/03/review.json": {
+      "exists": true,
+      "sha256": "43ee5f34e50a652fc70da7129cd22ca16a8341adc4b740b1b103d36c0aa47ae3",
+      "size": 466
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/brief.json": {
+      "exists": true,
+      "sha256": "a8410b89d96d7a86af9ccea22d1cb2d817619707d10436461c9b80229f0b191f",
+      "size": 6643
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/candidate.json": {
+      "exists": true,
+      "sha256": "b9799d335a5ec8ec22a32e063174681a9d8e050a65a2a6015b6f39eb54fc1547",
+      "size": 3739
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01/review.json": {
+      "exists": true,
+      "sha256": "43ee5f34e50a652fc70da7129cd22ca16a8341adc4b740b1b103d36c0aa47ae3",
+      "size": 466
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json": {
+      "exists": true,
+      "sha256": "39f9797f3039a65eaa7bc6f6643168c7560b83c67e55af7988058b27e43c4f21",
+      "size": 1463
+    },
+    "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/ledger.json": {
+      "exists": true,
+      "sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+      "size": 4652
+    }
+  }
+}

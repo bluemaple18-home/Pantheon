@@ -1,0 +1,11 @@
+{
+  "articles": [
+    {
+      "id": "APF-004-READINESS-SYNTHETIC",
+      "title": "APF-004 synthetic readiness receipt"
+    }
+  ],
+  "mode": "create",
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "schema_version": 1
+}

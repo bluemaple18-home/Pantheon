@@ -1,0 +1,157 @@
+{
+  "checks": [
+    true,
+    true,
+    false,
+    true,
+    null,
+    null,
+    null,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false
+  ],
+  "gen06_artifacts": {
+    "candidate": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/candidate.json",
+      "sha256": null
+    },
+    "deterministic_findings": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/deterministic-findings.json",
+      "sha256": null
+    },
+    "external_plan": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/external-plan.json",
+      "sha256": "b4e1b9fdd2c0fbe7235d4faffd18851c7a36dbea8e38cf7eb510aeea212b8e27"
+    },
+    "external_review": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/external-review.json",
+      "sha256": null
+    },
+    "plan_operation": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/plan-operation.json",
+      "sha256": "2a03eb2235665c70f132e7921ec3d085bd0a00552ed097c4e18cd488409172b5"
+    },
+    "planning_result": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-result.json",
+      "sha256": "007cf6536435af98827061e9d7319936692803cca378fd256dc1a05f1c5aded5"
+    },
+    "review": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/review.json",
+      "sha256": null
+    },
+    "source_ref_map": {
+      "exists": true,
+      "is_file": true,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/source-ref-map.json",
+      "sha256": "25ada6a21585eac315cba762816e4228658a892420d3650a998a6d38b73cbb0a"
+    }
+  },
+  "gen07_exists": false,
+  "job_id": null,
+  "lane_paths": {},
+  "lane_residue_count_for_job": 0,
+  "provider_attempt_marker_count_for_job": 0,
+  "quarantine_artifacts": {
+    "external-plan.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/external-plan.json",
+      "sha256": null
+    },
+    "lane-archive.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/lane-archive.json",
+      "sha256": null
+    },
+    "lane-attempt.attempt": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/lane-attempt.attempt",
+      "sha256": null
+    },
+    "lane-inbox.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/lane-inbox.json",
+      "sha256": null
+    },
+    "plan-operation.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/plan-operation.json",
+      "sha256": null
+    },
+    "planning-result.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/planning-result.json",
+      "sha256": null
+    },
+    "retry-receipt.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/retry-receipt.json",
+      "sha256": null
+    },
+    "source-ref-map.json": {
+      "exists": false,
+      "is_file": false,
+      "is_symlink": false,
+      "path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/generations/06/planning-cache-quarantine/None/source-ref-map.json",
+      "sha256": null
+    }
+  },
+  "registry_digest": "24cea55efa8b5d774f29afd9702fb9454097f35b15f6ace4ce9b9dec3d679147",
+  "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "state": {
+    "error_code": null,
+    "error_type": "LocalePlanValidationError",
+    "failure_category": null,
+    "lane": "i18n-new",
+    "last_job_id": null,
+    "mode": null,
+    "routing_schema_version": null,
+    "status": "failed"
+  },
+  "state_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/f46cda9eaa9ded446bf8e6c6.json",
+  "status": "NO_GO"
+}

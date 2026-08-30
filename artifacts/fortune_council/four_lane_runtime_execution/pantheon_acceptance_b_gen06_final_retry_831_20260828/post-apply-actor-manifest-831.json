@@ -1,0 +1,8 @@
+{
+  "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "generation": "g64-831c5360-gen06-final-retry-20260828",
+  "identity": "gate2-actor:831c536043d85a6cafe813c08a4f06921f0dd0e2:gen06-final-retry-831-20260828",
+  "manifest_digest": "0c62650249e24dba5754926ab416308f0fa1a6ad30aaa6856b497408ad3205f9",
+  "manifest_file_sha256": "f8e5e65d3758cc978d4414f9ee943d99a338c08670afcbfc87c32c36ada64dbf",
+  "runtime_digest": "f346d0086ded5dd97505c27deb3f6cab92915d665fc82950b7f717701e3dd671"
+}

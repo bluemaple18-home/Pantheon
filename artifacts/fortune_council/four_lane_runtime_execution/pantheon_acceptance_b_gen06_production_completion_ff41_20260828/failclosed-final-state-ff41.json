@@ -1,0 +1,16 @@
+{
+  "actor_head": "ff41cb1c113fc78c9026662186d7bb4c47204a49",
+  "gen06_exists": false,
+  "gen07_exists": false,
+  "generation": "g62-ff41cb1c-gen06-production-completion-20260828",
+  "job_files_count": null,
+  "manifest_actor_head": "ff41cb1c113fc78c9026662186d7bb4c47204a49",
+  "manifest_digest": "bf6b6be8cec1133281bcc24dd52d40302f7619565720bf231a8967982b027b20",
+  "reactivation_receipt_present": true,
+  "registry_digest": "b1c43a8b342a9ff567b4eb18cd7cca8e5a48e048c5ce6cc2d1ccd87c56489f36",
+  "registry_error_keys": [],
+  "registry_result_present": false,
+  "registry_status": "active",
+  "state_next_generation": 6,
+  "state_status": "active"
+}

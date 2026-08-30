@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "CLOSED",
+  "events": [
+    {
+      "at": "2026-08-26T10:05:48+08:00",
+      "event": "g47 actor/manifest promotion committed",
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53"
+    },
+    {
+      "at": "2026-08-26T10:31:43+08:00",
+      "event": "last successful new publication",
+      "run_id": "v0391-publish-canary-20260826-02",
+      "version": "0.3.371",
+      "commit_sha": "0257bd5213eed0d0df10661a54f6215901a54997",
+      "runtime_actor": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001"
+    },
+    {
+      "at": "2026-08-26T10:45:12+08:00",
+      "event": "current live new plist last modified",
+      "generation": "g47-6477ab81-activation-only-20260826"
+    },
+    {
+      "at": "2026-08-26T10:45:19+08:00",
+      "event": "new run registered active",
+      "run_id": "auto-new-v1-20260826-001-01"
+    },
+    {
+      "at": "2026-08-26T10:45:20+08:00",
+      "event": "writer operation persisted pending",
+      "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d"
+    },
+    {
+      "at": "2026-08-26T10:46:45+08:00",
+      "event": "provider attempt succeeded and response persisted in inbox/archive",
+      "job_id": "6972e8062d1aad444b30ec0fdf201bf8fce36d9d"
+    },
+    {
+      "at": "2026-08-26T19:43:53+08:00",
+      "event": "first post-g47 promotion committed without live activation",
+      "correlation_id": "v0404-gsc-json-shape-e5c0743f-20260826",
+      "actor_head": "e5c0743fe1e0c99a66f2c0e3355591f2a353a322",
+      "manifest_digest": "9344898970dfa335dc5e238d3c7acc2baf634de52fc60206b441292f66261f2f"
+    },
+    {
+      "at": "2026-08-29T11:14:00+08:00",
+      "event": "current promotion committed",
+      "correlation_id": "pantheon-gen06-final-publish-release-namespace-dfcb-20260829",
+      "actor_head": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+      "manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+      "generation": "g68-dfcb3c77-gen06-final-publish-release-namespace-20260829"
+    }
+  ],
+  "current_service_observation": {
+    "seven_services_loaded": 0,
+    "launchctl_return_code_per_service": 113,
+    "production_mutation": false
+  }
+}

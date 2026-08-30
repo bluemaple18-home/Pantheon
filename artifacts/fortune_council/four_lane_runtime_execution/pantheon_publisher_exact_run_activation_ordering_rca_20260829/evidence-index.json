@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "status": "RCA_COMPLETE",
+  "primary_cause": "CAPACITY_VALIDATOR_OVERREACH",
+  "files": [
+    {"path": "RESULT.md", "purpose": "human verdict, invariant, history, frontier"},
+    {"path": "dag-and-history.json", "purpose": "full edge ownership and commit lineage"},
+    {"path": "prerequisite-matrix.json", "purpose": "capacity and aggregate required-field census"},
+    {"path": "source-and-test-receipt.json", "purpose": "source bytes, tests, production receipts and replay digests"},
+    {"path": "production-shaped-red-harness.py", "purpose": "reproducible isolated formal installer replay"},
+    {"path": "red-harness-run-1.json", "sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9"},
+    {"path": "red-harness-run-2.json", "sha256": "ee8a886285ee4321251e7b06fcd474c687c4f5a5ad01f56d0df4f2358dd59aa9"},
+    {"path": "verification-receipt.json", "purpose": "JSON, py_compile, diff-check and scope verification"}
+  ],
+  "external_calls": 0,
+  "production_mutation": 0
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "ranked_hypotheses": [
+    {
+      "rank": 1,
+      "id": "EVIDENCE_MODALITY_MISMATCH",
+      "prediction": "If the alleged regression compares raw HTTP shell with an earlier rendered DOM, historical raw bytes will already show the same generic shell while current rendered DOM still passes.",
+      "evidence": [
+        "historical raw and current raw are byte-identical after Cloudflare email-token normalization",
+        "historical raw title/canonical were already 最新文章 and /articles",
+        "current rendered target title/canonical/H1/body sentinel all pass"
+      ],
+      "verdict": "CONFIRMED_ROOT_CAUSE_LAYER"
+    },
+    {
+      "rank": 2,
+      "id": "CLOUDFLARE_DEPLOY_OR_ASSET_CACHE_DRIFT",
+      "prediction": "If deploy/cache drift caused the failure, public article.js, locale registry, or target locale record will differ from origin 22d7, or Cloudflare will serve a stale cache version.",
+      "evidence": [
+        "Cloudflare Pages deployment bbad7483-e5c5-4e02-b382-1e176b8b5031 succeeded for 22d7",
+        "all three public JS assets exactly match origin 22d7 SHA256",
+        "HTTP reports cf-cache-status DYNAMIC and article.js cache token agy-i18n-0-3-374",
+        "GitHub main remains 22d7"
+      ],
+      "verdict": "FALSIFIED"
+    },
+    {
+      "rank": 3,
+      "id": "CLIENT_LOCALE_LOOKUP_FALLBACK",
+      "prediction": "If client locale lookup regressed, current rendered DOM will retain generic list metadata or redirect away, and the unique target body sentinel will be absent.",
+      "evidence": [
+        "current target rendered DOM has correct locale canonical/title/H1/body sentinel",
+        "target locale record public bytes exactly match origin 22d7",
+        "general localized and astrology-0003 controls both render correct Japanese article bodies"
+      ],
+      "verdict": "FALSIFIED"
+    },
+    {
+      "rank": 4,
+      "id": "GENERATED_LOCALIZED_SEO_ROUTE_MISSING_OR_WRONG",
+      "prediction": "If the architecture promises localized prerendered HTML, a locale-specific generated HTML artifact should exist and /ja/articles/* should rewrite to it.",
+      "evidence": [
+        "release commit adds a locale JS record, not a localized prerendered HTML artifact",
+        "unchanged redirect contract rewrites /ja/articles/* to /article",
+        "origin article.html intentionally contains generic shell metadata before JS"
+      ],
+      "verdict": "CONFIRMED_AS_PRE_EXISTING_ARCHITECTURAL_GAP_NOT_A_REGRESSION"
+    }
+  ],
+  "localized_route_impact": {
+    "raw_http_shell": "all /en|ja|ko/articles/* routes share the same generic /article shell by design",
+    "rendered_runtime": "no observed regression; target, general localized control, and i18n-rewrite route control all passed",
+    "i18n_rewrite_lane_note": "route availability does not prove the lane's missing current production E2E; it only falsifies a shared locale-route outage"
+  }
+}

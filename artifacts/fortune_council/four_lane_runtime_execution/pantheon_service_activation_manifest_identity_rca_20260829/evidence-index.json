@@ -1,0 +1,76 @@
+{
+  "card": "CARD-PANTHEON-SERVICE-ACTIVATION-MANIFEST-IDENTITY-RCA-20260829",
+  "files": [
+    {
+      "name": "RESULT.md",
+      "purpose": "human RCA verdict and bounded Repair frontier"
+    },
+    {
+      "name": "production-shaped-red-harness.py",
+      "purpose": "replay official installers in isolated roots with byte-bound Rule24 PASS"
+    },
+    {
+      "name": "red-harness-run-1.json",
+      "purpose": "superseded --install replay retained as historical evidence"
+    },
+    {
+      "name": "red-harness-run-2.json",
+      "purpose": "superseded --install replay retained as historical evidence"
+    },
+    {
+      "name": "red-harness-recovery-run-1.json",
+      "purpose": "first exact --install-recovery-stage deterministic RED receipt"
+    },
+    {
+      "name": "red-harness-recovery-run-2.json",
+      "purpose": "second byte-identical --install-recovery-stage RED receipt"
+    },
+    {
+      "name": "control-plane-topology.json",
+      "purpose": "seven-service DAG, read/write authority and ordering"
+    },
+    {
+      "name": "source-contract-receipt.json",
+      "purpose": "source hashes, owners, lines, commits and test-shape gap"
+    },
+    {
+      "name": "history-and-live-census.json",
+      "purpose": "last-good, first-bad and seven-live-plist identity census"
+    },
+    {
+      "name": "commit-11e6c4c-parent-scoped.diff",
+      "purpose": "exact 4c8a07ad parent to 11e6c4c promotion source/test diff"
+    },
+    {
+      "name": "commit-29f758f6-parent-scoped.diff",
+      "purpose": "exact 35cfdd52 parent to 29f758f6 capacity source/test diff"
+    },
+    {
+      "name": "commit-contract-before-after.json",
+      "purpose": "before/after excerpts, blame and last-good/first-bad causal mapping"
+    },
+    {
+      "name": "reviewer-findings-closure-receipt.json",
+      "purpose": "machine-readable closure for the two scoped Reviewer P1 findings"
+    },
+    {
+      "name": "post-review-design-correction.json",
+      "purpose": "post-review durable invariant and bounded Repair frontier correction; primary RCA unchanged"
+    },
+    {
+      "name": "evidence-collector.py",
+      "purpose": "read-only deterministic collector for topology/history/source receipts"
+    },
+    {
+      "name": "verification-receipt.json",
+      "purpose": "hashes, tests, determinism, mutation counts and anti-expansion receipt"
+    }
+  ],
+  "primary_verdict": "CROSS_VERSION_ACTIVATION_SCHEMA_GAP",
+  "post_review_design_correction": "ACTOR_PREFIX_REQUIREMENT_OVERREACH",
+  "reviewer_findings": {
+    "P1-parent-commit-causality": "CLOSED_WITH_TIMELINE_CORRECTION",
+    "P1-recovery-stage-replay": "CLOSED"
+  },
+  "status": "RCA_RE_REVIEW_REQUESTED"
+}

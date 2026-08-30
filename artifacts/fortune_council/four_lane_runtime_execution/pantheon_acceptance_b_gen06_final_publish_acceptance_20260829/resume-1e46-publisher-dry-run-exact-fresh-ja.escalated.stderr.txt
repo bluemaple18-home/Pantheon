@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4657, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 4632, in main
+    result = publish_exact_fresh_ja_translation_run(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 2921, in publish_exact_fresh_ja_translation_run
+    selected_run_id = _assert_exact_fresh_ja_translation_run(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor/scripts/agy_content_publisher.py", line 2883, in _assert_exact_fresh_ja_translation_run
+    raise PublishBlocked("exact fresh JA selector rejects old retry run")
+PublishBlocked: exact fresh JA selector rejects old retry run

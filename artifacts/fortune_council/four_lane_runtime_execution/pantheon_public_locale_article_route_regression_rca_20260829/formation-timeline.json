@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "timezone_note": "UTC timestamps from GitHub/HTTP; Asia/Taipei is UTC+08:00",
+  "events": [
+    {
+      "at": "2026-08-29T03:20:59Z",
+      "event": "release commit and annotated tag formed",
+      "commit": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+      "parent": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+      "tag": "v0.3.374",
+      "tag_object": "cc247ee98ffb56f1e7d3e50a6d5b17556032a9a4"
+    },
+    {
+      "at": "2026-08-29T03:21:26Z",
+      "event": "Cloudflare Pages check completed successfully",
+      "deployment_id": "bbad7483-e5c5-4e02-b382-1e176b8b5031",
+      "check_conclusion": "success"
+    },
+    {
+      "at": "2026-08-29T03:22:51Z",
+      "event": "Gen06 acceptance raw HTTP captured generic article shell",
+      "http_status": 200,
+      "cf_cache_status": "DYNAMIC",
+      "cf_ray": "a3286f0759315fe3-SJC",
+      "raw_title": "最新文章 | Pantheon",
+      "raw_canonical": "https://www.mysticpantheon.com/articles"
+    },
+    {
+      "at": "2026-08-29T03:22:51Z approximately",
+      "event": "Gen06 browser rendered DOM passed after JavaScript execution",
+      "rendered_title": "タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方 | Pantheon",
+      "rendered_canonical": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884",
+      "rendered_dom_sha256": "51b987193bc5da9b277532e70222a317be41873ef1adb6176093365dec4b808a"
+    },
+    {
+      "at": "2026-08-29T03:46:00Z–03:47:43Z",
+      "event": "four-lane matrix reclassified raw HTTP generic shell as current regression",
+      "probe_count": 2,
+      "cache_bust_same_raw_result": true
+    },
+    {
+      "at": "2026-08-29T03:53:28Z",
+      "event": "RCA raw HTTP recapture",
+      "http_status": 200,
+      "cf_cache_status": "DYNAMIC",
+      "cf_ray": "a3289be04ccdad44-SJC",
+      "historical_raw_shell_equal_after_cf_token_normalization": true
+    },
+    {
+      "at": "2026-08-29T03:56:00Z approximately",
+      "event": "RCA current browser rendered DOM recapture",
+      "target_rendered_pass": true,
+      "general_localized_control_pass": true,
+      "i18n_rewrite_route_control_pass": true,
+      "console_warnings_or_errors": 0
+    }
+  ]
+}

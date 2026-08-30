@@ -1,0 +1,109 @@
+{
+  "accepted_source": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+  "current_live_actor": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "external_calls": {
+    "provider": 0,
+    "publisher": 0,
+    "reviewer": 0,
+    "remote_read": 1,
+    "remote_write": 0
+  },
+  "gates": {
+    "immutable_snapshot": "PASS",
+    "official_promotion_plan_run_1": "NOT_RUN_STOPPED_AT_RULE24",
+    "official_promotion_plan_run_2": "NOT_RUN_STOPPED_AT_RULE24",
+    "origin_main": "PASS",
+    "rule24": "NO-GO",
+    "rule25": "NOT_RUN_STOPPED_AT_RULE24",
+    "seven_services_stopped": "PASS"
+  },
+  "immutable_comparison": {
+    "after_sha256": "f07cc7e5db33293f4b5f8eb07d87dc9bf51e5628304f6484dd5024d4abad931a",
+    "all_production_domains_equal": true,
+    "before_sha256": "f07cc7e5db33293f4b5f8eb07d87dc9bf51e5628304f6484dd5024d4abad931a",
+    "domains": [
+      "actor",
+      "manifest",
+      "seven service states",
+      "seven live plists",
+      "private stage",
+      "queue",
+      "136-record registry",
+      "publisher state and ledger",
+      "transactions",
+      "four lane roots",
+      "content root",
+      "production root"
+    ]
+  },
+  "live_topology": {
+    "actor_manifest_head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+    "all_services_stopped": true,
+    "live_plist_actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+    "live_plist_count": 7,
+    "note": "stopped pre-activation plist cohort; not treated as active actor authority",
+    "service_count": 7
+  },
+  "mutation_counts": {
+    "activate": 0,
+    "content": 0,
+    "install": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "provider": 0,
+    "publisher": 0,
+    "queue": 0,
+    "scheduler": 0,
+    "state": 0
+  },
+  "production_mutation_plan": {
+    "authoritative_status": "NOT_GENERATED_BECAUSE_RULE24_NO_GO",
+    "conditional_exact_target": {
+      "actor_head": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+      "generation": "g72-6541693e-new-lane-current-acceptance-20260829",
+      "identity": "gate2-actor:6541693e929a20cbcffe8b070085b5f1caec7a92:new-lane-current-acceptance-20260829",
+      "manifest_digest": "3cf887f1c0bfaa09bc92e375e4dc883fadbc3fb9b1911cf64efc28a9ec0c2024",
+      "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+      "runtime_identity_digest": "ff5135b824804889aca4240c28b1e7bd9310a8b29e5f651af49af0fa86d027a3"
+    },
+    "required_authoritative_sequence_after_all_readiness_gates_pass": [
+      "official promotion plan twice with byte-identical output",
+      "promotion apply: actor bde44589 -> 6541693e",
+      "manifest write to the exact target tuple",
+      "private-stage readiness acknowledgements and activation barrier",
+      "postcheck, finalize, status",
+      "coordinator --install",
+      "publisher --install",
+      "capacity --install-recovery-stage",
+      "coordinator aggregate activation"
+    ],
+    "rollback_order_if_a_future_apply_is_authorized": [
+      "STAGE_INSTALLED",
+      "MANIFEST_WRITTEN",
+      "ACTOR_PROMOTED"
+    ],
+    "rollback_required_now": false
+  },
+  "rule24": {
+    "command_mode": "bounded-synthetic-dry-run",
+    "production_mutation": false,
+    "receipt_sha256": "d030f845a776e1018e9a82380055939fde60de7849ee7744cd0c5c329277d75b",
+    "status": "NO-GO",
+    "stop_loss_status": "STOPPED",
+    "swap_available_cycles": [
+      false,
+      false
+    ]
+  },
+  "schema_version": 1,
+  "status": "NO_GO",
+  "stop_conditions": [
+    "Rule24 is not PASS or any telemetry is unavailable",
+    "Rule25 is not READY",
+    "either official promotion plan is not READY_TO_APPLY",
+    "the two official promotion plans are not byte-identical",
+    "the plan changes anything outside the bde44589 to 6541693e actor cohort and formal manifest/stage/barrier write set",
+    "source, origin/main, actor, manifest, stage, queue, registry, publisher state, transactions, lane roots, content, plist, or stopped topology drifts"
+  ],
+  "verdict": "NO_GO"
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "REPRODUCED",
+  "mode": "isolated_temp_root_read_only_production_fixture",
+  "production_identity": {
+    "accepted_source_commit": "73180233275840b0ab0e101f246e495ee6815fc9",
+    "actor_head": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+    "generation": "g72-6541693e-new-lane-current-acceptance-20260829",
+    "run_id": "auto-i18n-en-aa637e1bf05d3ad21429"
+  },
+  "immutable_fixtures": {
+    "brief_raw_sha256": "bcd31d23f5d8455ea21fea205827afd267a29f4c4533b0064a80154fbd8d12f3",
+    "registry_raw_sha256": "9bce7b085e306515e403d511ae7611223c88531b11e1f56f867ffb36ead02d14",
+    "brief_fields": [
+      "articles",
+      "lane",
+      "mode",
+      "run_id",
+      "schema_version"
+    ],
+    "brief_lane": "i18n-rewrite"
+  },
+  "exact_fixture_reproduction": {
+    "entrypoint": "scripts.agy_gemini_outbox.run_pipeline_tick",
+    "exception_type": "ValueError",
+    "exception_message": "translation brief fields are strict",
+    "formation": "scripts/agy_multilingual_pipeline.py:249-251 validate_translation_brief",
+    "coordinator_outcome": "failed",
+    "coordinator_registry_error_type": "ValueError",
+    "coordinator_error_message_persisted": false,
+    "isolated_queue_counts": {
+      "inbox": 0,
+      "outbox": 0,
+      "processing": 0
+    }
+  },
+  "single_variable_control": {
+    "change": "remove only top-level brief.lane in the isolated copy",
+    "normalized_copy_sha256": "febaaa04f682a39a96f2ef0fa90b3e11b5e50a8c9fda96a3d9a0deca8d55e190",
+    "result_exception_type": "ExternalJobPending",
+    "result_exception_message": "external job pending: 61ca1a8d150be47b23cfa6a0bf64f87649c5e321",
+    "isolated_queue_counts": {
+      "inbox": 0,
+      "outbox": 1,
+      "processing": 0
+    },
+    "outbox_roles": [
+      "writer"
+    ]
+  },
+  "commands": {
+    "exact_fixture": "PYTHONPATH=<production-root>/actor <manifest-python> -c '<copy exact brief and registry to TemporaryDirectory; call run_pipeline_tick; call coordinator _advance with temp run_dir; emit exception and queue counts>'",
+    "single_variable_control": "PYTHONPATH=<production-root>/actor <manifest-python> -c '<copy exact brief to TemporaryDirectory; remove only top-level lane; call run_pipeline_tick; emit exception and queue counts>'"
+  },
+  "mutation_accounting": {
+    "production_files": 0,
+    "provider_calls": 0,
+    "writer_jobs_production": 0,
+    "outbox_production": 0,
+    "publishes": 0,
+    "temporary_files_after_cleanup": 0
+  }
+}

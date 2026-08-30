@@ -1,0 +1,199 @@
+{
+  "actor": {
+    "head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+    "status": ""
+  },
+  "all_services_stopped": true,
+  "content_root": {
+    "bytes": 2492759,
+    "exists": true,
+    "files": 880,
+    "sha256": "8c337255aa57f0b7e7a340de192dd39b26cd1ac1a9745a6ffdd324f7098c3cfb"
+  },
+  "four_lane_roots": {
+    "i18n-new": {
+      "bytes": 1006382,
+      "exists": true,
+      "files": 132,
+      "sha256": "31093b762e5f6d778827a1335229cfbe3f36c8611672b6f267233bfc1c2c332e"
+    },
+    "i18n-rewrite": {
+      "bytes": 410935,
+      "exists": true,
+      "files": 57,
+      "sha256": "2e6948368a4fd4be75c20545b0f64bf02c549ad1803b0008f6060153d5f8e3a0"
+    },
+    "new": {
+      "bytes": 4337539,
+      "exists": true,
+      "files": 1194,
+      "sha256": "da77d9fc746368d58d30c8d01b535ede8f727e6cd5a77d74f0ddbd3b4649d846"
+    },
+    "rewrite": {
+      "bytes": 136059,
+      "exists": true,
+      "files": 27,
+      "sha256": "7f42e8f380188020a102b957a97d41171bc7b0b1961934d8aae6e6a762a38aef"
+    }
+  },
+  "live_plists": [
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5377,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-content-publisher",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "4acf50b23652565d3f4aebd18c393e40e371436eb1a898e1833687c70733fefd"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5690,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-coordinator",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "5b5d4ac37991a98ef8da8430e06e96037f1627e693347f7c3f1d39241298876c"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5134,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-new",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5162,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-rewrite",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "373b8162c967e4bd368a5971ea238ab850b0b7b02b5b2ff79c5098041bafe530"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5169,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-i18n-new",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 5197,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.agy-gemini-i18n-rewrite",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "5aa0ebeb148bbe792f79b951bb5358893ffc9c6879d33433b0479a296c12a88b"
+    },
+    {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "bytes": 4406,
+      "exists": true,
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "label": "com.pantheon.content-capacity-guard",
+      "manifest_digest": "c2cd3cc7b63d7685f355a4426854b7f3d2c88b4e26b8e51468afdc7c49eadc53",
+      "sha256": "e0ba76e9df2124cb0d93d5ccd01ab5b460f20ef3810d2abf412f8e9d70df3c49"
+    }
+  ],
+  "manifest": {
+    "actor_head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g71-bde44589-new-lane-current-acceptance-20260829",
+    "identity": "gate2-actor:bde44589f3785aae738bb7d7b1626270ba5505d0:new-lane-current-acceptance-20260829",
+    "manifest_digest": "255c72a7234ca97d1868c278acb5a92405bef03954a1b8e5918f62a4c663a358",
+    "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+    "runtime_identity_digest": "c07b8bac68a54e9a2724e8626af47acc7b377a40403da21e71870fcb8d25650b"
+  },
+  "manifest_file": {
+    "bytes": 1469,
+    "sha256": "f595a52d5be518981bdc36c6a047f133ab2ce1a54738b85207f12fc58871b917"
+  },
+  "mutation_counts": {
+    "activate": 0,
+    "external_write": 0,
+    "install": 0,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "provider": 0,
+    "publisher": 0,
+    "reviewer": 0,
+    "scheduler": 0
+  },
+  "operation": "phase-a-read-only-snapshot",
+  "production_root": {
+    "bytes": 2034984626,
+    "exists": true,
+    "files": 33446,
+    "sha256": "7c475acd0eb2bf27e8c88bd95e8f9d89f6792bff1397478c720b62d3d9162aec"
+  },
+  "publisher_ledger": {
+    "bytes": 4652,
+    "sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37"
+  },
+  "publisher_state": {
+    "bytes": 4068836,
+    "exists": true,
+    "files": 99,
+    "sha256": "059409cf10e3bfb0e40844170af01339473d6b7a4fe46f319a66393073e45fab"
+  },
+  "queue": {
+    "bytes": 6621561,
+    "exists": true,
+    "files": 1883,
+    "sha256": "1c159174e24ad6b7bcf7c9010ea3c1644e14622842297af94d01c4c90f30ecc1"
+  },
+  "registry": {
+    "count": 136,
+    "counts": {
+      "None:complete": 32,
+      "None:failed": 82,
+      "i18n-new:complete": 1,
+      "i18n-new:failed": 2,
+      "i18n-rewrite:active": 3,
+      "i18n-rewrite:failed": 2,
+      "new:failed": 14
+    },
+    "sha256": "6635f3aac95999841b37bd5a1b9db2dfe1606fd045cae1c8187c28675a91cc91"
+  },
+  "schema_version": 1,
+  "services": {
+    "com.pantheon.agy-content-publisher": 113,
+    "com.pantheon.agy-gemini-coordinator": 113,
+    "com.pantheon.agy-gemini-i18n-new": 113,
+    "com.pantheon.agy-gemini-i18n-rewrite": 113,
+    "com.pantheon.agy-gemini-new": 113,
+    "com.pantheon.agy-gemini-rewrite": 113,
+    "com.pantheon.content-capacity-guard": 113
+  },
+  "source": {
+    "head": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+    "origin_main": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+    "remote_main": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+    "status": ""
+  },
+  "stage": {
+    "bytes": 35487,
+    "exists": true,
+    "files": 18,
+    "sha256": "3bbea426425aab9c2b122606ead17b1d43e49bce1ad87dd4d616e7e2572e8d35"
+  },
+  "transactions": {
+    "bytes": 72379,
+    "exists": true,
+    "files": 54,
+    "sha256": "455a9c7a2778878510ab86de662f5b2fa5e78e28a27dc4ed9ac95f7bc3644535"
+  }
+}

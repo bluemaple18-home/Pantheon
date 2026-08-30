@@ -1,0 +1,254 @@
+{
+  "actor_head": "99507c67e27d9e6f3af4e33c3ab0727682ed82bd",
+  "actor_status_short": "",
+  "capacity_final": {
+    "cycles": [
+      {
+        "after_bytes": 4096,
+        "after_file_count": 1,
+        "before_bytes": 0,
+        "before_file_count": 0,
+        "cycle": 1,
+        "elapsed_seconds": 0.0026274590054526925,
+        "growth_bytes": 4096,
+        "host_free_after": 37610270720,
+        "host_free_before": 37610274816,
+        "rss_after": 23429120,
+        "rss_available": true,
+        "rss_before": 23298048,
+        "swap_after": null,
+        "swap_available": false,
+        "swap_before": null
+      },
+      {
+        "after_bytes": 8192,
+        "after_file_count": 2,
+        "before_bytes": 4096,
+        "before_file_count": 1,
+        "cycle": 2,
+        "elapsed_seconds": 0.00232524995226413,
+        "growth_bytes": 4096,
+        "host_free_after": 37610266624,
+        "host_free_before": 37610270720,
+        "rss_after": 23445504,
+        "rss_available": true,
+        "rss_before": 23445504,
+        "swap_after": null,
+        "swap_available": false,
+        "swap_before": null
+      }
+    ],
+    "exercise_root": "/private/tmp/pantheon-gen06-attempt-995-capacity-final-stop-20260828",
+    "mode": "bounded-synthetic-dry-run",
+    "production_mutation": false,
+    "reclamation": {
+      "allowlist": [
+        "/private/tmp/pantheon-gen06-attempt-995-capacity-final-stop-20260828/cycle-1.bin"
+      ],
+      "bytes_after": 4096,
+      "bytes_before": 8192
+    },
+    "regression_id": "REG-PANTHEON-CAPACITY-WRITE-CYCLES-001",
+    "schema_version": 1,
+    "status": "NO-GO",
+    "stop_loss": {
+      "cross_project_deletions": [],
+      "outcomes": {
+        "com.pantheon.agy-content-publisher": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        },
+        "com.pantheon.agy-gemini-coordinator": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        },
+        "com.pantheon.agy-gemini-i18n-new": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        },
+        "com.pantheon.agy-gemini-i18n-rewrite": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        },
+        "com.pantheon.agy-gemini-new": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        },
+        "com.pantheon.agy-gemini-rewrite": {
+          "absent_after": true,
+          "controller": "bounded-synthetic",
+          "loaded_before": true
+        }
+      },
+      "registered_labels": [
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite"
+      ],
+      "remaining_loaded": [],
+      "status": "STOPPED",
+      "triggered": true
+    }
+  },
+  "gen05_deterministic_findings": [
+    {
+      "article_id": "V2-TAROT-DEATH-MONEY:ja",
+      "code": "BOUNDARY_MEANING_MISSING",
+      "message": "JA protected boundary meaning is missing from meta_description, body",
+      "missing_categories": [
+        "outcome_not_determined"
+      ],
+      "missing_fields": [
+        "meta_description",
+        "body"
+      ],
+      "present_categories": [
+        "contextual_or_general_interpretation",
+        "professional_advice_non_substitution"
+      ],
+      "reasons": [
+        {
+          "category": "outcome_not_determined",
+          "missing_fields": [
+            "meta_description",
+            "body"
+          ],
+          "reason": "omission"
+        }
+      ]
+    }
+  ],
+  "gen05_review": {
+    "articles": [
+      {
+        "article_id": "V2-TAROT-DEATH-MONEY:ja",
+        "candidate_sha256": "ab582a8871d17176d0e84736a2e94e9e293fefa3ba48472eed9a4daa2d790272",
+        "findings": [
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing from meta_description, body. The required constraint 'outcome_not_determined' is not adequately covered in the meta_description and body sections as per the deterministic findings."
+          },
+          {
+            "code": "BOUNDARY_MEANING_MISSING",
+            "message": "JA protected boundary meaning is missing from meta_description, body"
+          }
+        ],
+        "hard_failure": true,
+        "verdict": "REJECT"
+      }
+    ],
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1
+  },
+  "gen06_exists": false,
+  "manifest": {
+    "actor_head": "99507c67e27d9e6f3af4e33c3ab0727682ed82bd",
+    "actor_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor",
+    "config_version": "formal-runtime-v3-model-route-v1",
+    "generation": "g60-99507c67-gen06-boundary-meaning-production-attempt-20260828",
+    "identity": "gate2-actor:99507c67e27d9e6f3af4e33c3ab0727682ed82bd:gen06-boundary-meaning-production-attempt-20260828",
+    "log_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs",
+    "manifest_digest": "f3f0185bb35cdfe8da3602689d441ae46386682542c0be1a3364f97c10b4e4e0",
+    "owner_uid": 501,
+    "publisher_state_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state",
+    "python_executable": "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12",
+    "queue_root": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue",
+    "regression_id": "REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001",
+    "runtime_digest": "94567c23baedc97e300fc31b7c419496eee3140de3cacf2a63a42820d626d041",
+    "runtime_identity_digest": "713b0de0f53ec8217d7d93129c80a1c7d231d1fceac4daec207c53e517fcbb9a",
+    "schema_version": 2,
+    "service_labels": [
+      "com.pantheon.agy-content-publisher",
+      "com.pantheon.agy-gemini-coordinator",
+      "com.pantheon.agy-gemini-new",
+      "com.pantheon.agy-gemini-rewrite",
+      "com.pantheon.agy-gemini-i18n-new",
+      "com.pantheon.agy-gemini-i18n-rewrite",
+      "com.pantheon.content-capacity-guard"
+    ],
+    "uv_executable": "/Users/mattkuo/.local/bin/uv"
+  },
+  "manifest_sha256": "7b0bb4abbca04eb2f46e260c1e032a87347ed4e1b61634b33a2fe28b09665088",
+  "promotion_status": {
+    "audit_receipt_exists": true,
+    "correlation_id": "pantheon-gen06-production-attempt-995-20260828",
+    "plan_digest": "8e06237a2ef69a15a0a4d77cf022260f8c3761d5962ebf16f402199cbd3dd915",
+    "rollback_bundle_exists": false,
+    "rollback_required": false,
+    "state": "COMMITTED",
+    "status": "PASS"
+  },
+  "published_url": null,
+  "registry_state": {
+    "failed_external_job_replacement": {
+      "authority_digest": "d44a30713092c1721cffa1974661508a2a2d10367e7a736d77d8841e2053ce2c",
+      "correlation_id": null,
+      "decision": "lanes/i18n-new/failed-external-job-replacements/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+      "lane": "i18n-new",
+      "namespace": "f46cda9eaa9ded446bf8e6c6",
+      "replacement_job_id": "59c0a5ec749022160627e8a1f56aa7d9c0e7afc9",
+      "replacement_lineage_id": "e6ee67a605d2e5b98788723907ecf2168dce37b66f9cec77a44434e26d15dbf4",
+      "request_sha256": "61a83c341d39c882d5eed8ea23b7f805a89085e326700281a54dbc6b45f8e62b",
+      "source_job_id": "61a83c341d39c882d5eed8ea23b7f805a89085e3"
+    },
+    "identity_envelope": {
+      "article_ids": [
+        "V2-TAROT-DEATH-MONEY"
+      ],
+      "digest": "5527bccc79f7089b2e8e24d256df5ff81205b574a233e7537e314af9a19da0ef",
+      "lane": "i18n-new",
+      "mode": "translate_existing",
+      "schema_version": 1
+    },
+    "identity_replacement_receipt": "identity-replacement-receipts/61a83c341d39c882d5eed8ea23b7f805a89085e3.json",
+    "lane": "i18n-new",
+    "last_job_id": "32570d45e3dd22f0fea558c414063bd186002c0d",
+    "registered_at": "2026-08-26T23:32:41+08:00",
+    "result": {
+      "approved_by_reviewer": 0,
+      "candidate": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/candidate.json",
+      "review": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74/review.md",
+      "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+      "status": "complete"
+    },
+    "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1,
+    "status": "complete",
+    "updated_at": "2026-08-28T16:28:35+08:00"
+  },
+  "services": {
+    "returncode": 1,
+    "stderr": "",
+    "stdout": ""
+  },
+  "target_state": {
+    "abandoned_generations": [
+      4
+    ],
+    "completed_generations": [
+      5
+    ],
+    "next_generation": 6,
+    "operation_id": "42b2d14947072732654bb169c4aaf317f2d649631ea33fb655a104bce08f28c9",
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "schema_version": 1,
+    "semantic_budget": 1,
+    "source_sha256": [
+      "1088d4dfae649824b9691d260e1754e528295a2b877a79a1d8e665054fe6db23"
+    ],
+    "started_after_generation": 3,
+    "starting_review_sha256": "31b5d156a987a227adccbd3c02f37f609985983d4deca7c057fcd1c27c7155cd",
+    "status": "complete",
+    "terminal_candidate_sha256": "d70d7423ae6e0c8a5705c30ff21753705a0a3439906fbec63fbd9a67ee39540e",
+    "terminal_review_sha256": "02f7431faecfbef8178b62320243b50baa38ec03ec4fdcdc4c985dd07a4d04d6"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "exit_verdict": "APPROVE_READY_FOR_STAGING",
+  "findings": [],
+  "original_finding_codes": [
+    "SOURCE_SYNTAX_TRANSFER"
+  ],
+  "review": {
+    "articles": [
+      {
+        "article_id": "ASTRO-BASE-03:en",
+        "candidate_sha256": "7a63cb36b0dae48df870647653846b9d3e20da97f1725f232d9139c70d378314",
+        "findings": [],
+        "verdict": "APPROVE"
+      }
+    ],
+    "run_id": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
+    "schema_version": 1
+  },
+  "schema_version": 1
+}

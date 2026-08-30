@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "stage": "promotion-plan",
+  "attempt_count": 1,
+  "error": "publisher ledger identity mismatch",
+  "target_source": "55e2a78de92a6d7929da531ffc3e0dab049df142",
+  "target_runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+  "current_actor": "dfcb3c77f9404fc9ff0707cb944ad08f50a4abef",
+  "current_manifest_digest": "4eaefa54b176ca8b159a05872655066304cfa8de15fe4dbcb2c67c94cf1e0de6",
+  "exact_conflict": {
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "registry_status": "complete",
+    "registry_lane": "i18n-new",
+    "identity_mode": "translate_existing",
+    "identity_article_ids": ["V2-TAROT-DEATH-MONEY"],
+    "ledger_collection": "translation_published_runs",
+    "ledger_shape": {
+      "article_id": "V2-TAROT-DEATH-MONEY",
+      "article_ids_present": false,
+      "commit_sha": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+      "version": "0.3.374"
+    },
+    "validator_contract": "_publisher_ledger_evidence calls _validated_ledger_article_ids(entry.get('article_ids')) for every matched lifecycle"
+  },
+  "mutation_accounting": {
+    "promotion_plan_transaction_created": false,
+    "promotion_apply": 0,
+    "promotion_finalize": 0,
+    "terminalizations": 0,
+    "plist_installs": 0,
+    "activations": 0,
+    "provider_calls": 0,
+    "reviewer_calls": 0,
+    "publisher_executes": 0,
+    "pushes": 0,
+    "deploys": 0
+  },
+  "post_failure": {
+    "ledger_sha256": "4fa27434bfbff2a5344671278697bff6b94521d979083bf1227aff779e453f37",
+    "manifest_file_sha256": "2231c13d71fcfd874f3655805da8e8dcb6dc25af44c94350158547fa27597cad",
+    "stale_run_registry_sha256": "c53839bbef2293a0864651b0f4b1135560c8614049eb712b4e864c9e21a71ed9",
+    "services_stopped_count": 7
+  }
+}

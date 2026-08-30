@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "actor_head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "verdict": "publisher-exact-run-id is the only unmet field at the observed capacity edge",
+  "capacity_transition_fields": [
+    {"field": "Rule24 preflight status", "owner": "capacity preflight", "required": true, "observed": "PASS", "result": "PASS"},
+    {"field": "runtime manifest digest", "owner": "promotion manifest", "required": true, "observed": "255c72a7234ca97d1868c278acb5a92405bef03954a1b8e5918f62a4c663a358", "result": "PASS"},
+    {"field": "runtime generation", "owner": "promotion manifest", "required": true, "observed": "g71-bde44589-new-lane-current-acceptance-20260829", "result": "PASS"},
+    {"field": "activation barrier", "owner": "promotion/manifest readiness", "required": true, "observed": "same manifest digest/runtime identity/generation", "result": "PASS"},
+    {"field": "model-route digest/path", "owner": "coordinator installer", "required": true, "observed": "present and verified by formal coordinator install", "result": "PASS"},
+    {"field": "coordinator plus four lane staged plists", "owner": "coordinator installer", "required": true, "observed": 5, "result": "PASS"},
+    {"field": "publisher staged plist", "owner": "publisher installer", "required": true, "observed": 1, "result": "PASS"},
+    {"field": "publisher-max-runs", "owner": "publisher installer", "required": true, "observed": "1", "result": "PASS"},
+    {"field": "publisher-exact-run-id", "owner": "bounded publisher selection", "required_by_shared_publisher_contract": false, "required_by_capacity": true, "observed": null, "result": "RED"},
+    {"field": "six staged plist manifest tuple", "owner": "shared runtime manifest", "required": true, "observed": "one coherent tuple", "result": "PASS"},
+    {"field": "capacity candidate staged plist", "owner": "capacity installer temporary candidate", "required": true, "observed": "validated in exact-run historical replay", "result": "PASS"},
+    {"field": "old live seven-plist aggregate", "owner": "prior aggregate activation", "required": true, "observed": "g47 coherent normal cohort", "result": "PASS"},
+    {"field": "stopped service topology", "owner": "launchctl/runtime", "required": true, "observed": "7/7 stopped; recovery replay uses six absent plus capacity waiting/no PID", "result": "PASS"}
+  ],
+  "aggregate_activation_fields": [
+    {"field": "seven staged plists", "required": true, "source": "scripts/install_agy_gemini_coordinator_launchd.sh:881-893"},
+    {"field": "manifest digest/generation", "required": true, "source": "scripts/install_agy_gemini_coordinator_launchd.sh:868-872"},
+    {"field": "model-route digest/path and five Gemini plist bindings", "required": true, "source": "scripts/install_agy_gemini_coordinator_launchd.sh:856-880"},
+    {"field": "publisher-exact-run-id", "required": false, "source": "aggregate_plist_preflight validates shared receipt tuple; publisher exact selector is outside receipt_for_label"}
+  ],
+  "counterfactual": {
+    "same_fixture_without_exact_run": {"capacity_returncode": 1, "stage_plists": 6, "edge": "preactivation stage mismatch"},
+    "same_fixture_with_historical_existing_exact_run": {"capacity_returncode": 0, "stage_plists": 7, "edge": "PASS"},
+    "changed_input_count": 1,
+    "changed_input": "publisher exact-run selector"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "authorization_id": "pantheon-gen06-production-attempt-995-20260828",
+  "authorization_status": "OWNER_AUTHORIZED_CURRENT_MISSION",
+  "capacity_receipt": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule24-capacity-pre-995.json",
+  "capacity_receipt_digest": "a183f5bb098562138037a1c7bbee5b4482874f7535a588b2030797a857b9ff68",
+  "forbidden": [
+    "manual_state_edit",
+    "gen06_retry",
+    "gen07",
+    "provider_sweep",
+    "new_repair"
+  ],
+  "mutation_scope": [
+    "runtime_promotion",
+    "one_gen06_continuation_attempt",
+    "publish_if_reviewer_accepts"
+  ],
+  "previous_actor": "ac1faef520c9b79f9bb70265735d07a6ca826b7d",
+  "rule25_receipt": "artifacts/fortune_council/four_lane_runtime_execution/pantheon_acceptance_b_gen06_production_attempt_995_20260828/rule25-readiness/readiness-summary.json",
+  "schema_version": 1,
+  "source_commit": "99507c67e27d9e6f3af4e33c3ab0727682ed82bd",
+  "target_generation": 6,
+  "target_run": "auto-i18n-ja-1414b75a404721e95e74"
+}

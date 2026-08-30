@@ -1,0 +1,69 @@
+{
+  "all_services_stopped_after": true,
+  "external_calls": {
+    "provider": 0,
+    "publisher": 0,
+    "reviewer": 0
+  },
+  "intended_runtime_promotion": {
+    "actor_after": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+    "actor_before": "779fb96434c15013d82833788a6795119730daad",
+    "manifest_after": {
+      "actor_head": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+      "config_version": "formal-runtime-v3-model-route-v1",
+      "generation": "g71-bde44589-new-lane-current-acceptance-20260829",
+      "identity": "gate2-actor:bde44589f3785aae738bb7d7b1626270ba5505d0:new-lane-current-acceptance-20260829",
+      "manifest_digest": "255c72a7234ca97d1868c278acb5a92405bef03954a1b8e5918f62a4c663a358",
+      "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+      "runtime_identity_digest": "c07b8bac68a54e9a2724e8626af47acc7b377a40403da21e71870fcb8d25650b"
+    },
+    "manifest_before": {
+      "actor_head": "779fb96434c15013d82833788a6795119730daad",
+      "config_version": "formal-runtime-v3-model-route-v1",
+      "generation": "g70-779fb964-new-lane-current-acceptance-20260829",
+      "identity": "gate2-actor:779fb96434c15013d82833788a6795119730daad:new-lane-current-acceptance-20260829",
+      "manifest_digest": "937fe73ef1f5cfb2b319bc6120937584ab4455d29f7755b8c4e88b97f672a3dd",
+      "runtime_digest": "db960fb0118ac8deda7de3d1b2b7e55358ea670458dd6d08773a56110ed8faba",
+      "runtime_identity_digest": "53496711dbe1b8f5c454f66de0eedbc047e44e2207db6c08eeac16f5267a67b4"
+    },
+    "production_bytes_after": 2034984626,
+    "production_bytes_before": 2034569818
+  },
+  "protected_equal": {
+    "lane_trees": {
+      "i18n-new": true,
+      "i18n-rewrite": true,
+      "new": true,
+      "rewrite": true
+    },
+    "live_plists": true,
+    "publisher_ledger": true,
+    "queue_tree": true,
+    "registry": true
+  },
+  "scheduler_creates": 0,
+  "schema_version": 1,
+  "second_job": false,
+  "services_after": {
+    "com.pantheon.agy-content-publisher": 113,
+    "com.pantheon.agy-gemini-coordinator": 113,
+    "com.pantheon.agy-gemini-i18n-new": 113,
+    "com.pantheon.agy-gemini-i18n-rewrite": 113,
+    "com.pantheon.agy-gemini-new": 113,
+    "com.pantheon.agy-gemini-rewrite": 113,
+    "com.pantheon.content-capacity-guard": 113
+  },
+  "stage_after": {
+    "bytes": 35487,
+    "exists": true,
+    "files": 18,
+    "sha256": "3bbea426425aab9c2b122606ead17b1d43e49bce1ad87dd4d616e7e2572e8d35"
+  },
+  "stage_before": {
+    "bytes": 8637,
+    "exists": true,
+    "files": 11,
+    "sha256": "0db09092e7a10b7be4905621a681551e2bf96d66ae95366595bc727611490b0e"
+  },
+  "status": "PASS"
+}

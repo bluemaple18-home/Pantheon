@@ -1,0 +1,14 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "canary_created": false,
+  "case": "negative-probe-fixture",
+  "complete_pass_receipt_written": false,
+  "correlation_id": "corr-apf-004-readiness",
+  "execution_line_id": "exec-apf-004-readiness",
+  "mode": "synthetic-non-production",
+  "production_mutation": false,
+  "reason": "fail-closed probes are separated from the complete PASS receipt",
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1,
+  "status": "BLOCKED"
+}

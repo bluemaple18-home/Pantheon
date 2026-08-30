@@ -1,0 +1,12 @@
+{
+  "after": {
+    "gen06_tree": "0efa1cfcbf5aded634f339731205e45b839333b3a35669719a983f48d22dd944",
+    "registry": "497e9b2f7aea82f8595fe29e9358f91bd4e4a3ccd40c0a40feb37623e39eb318"
+  },
+  "before": {
+    "gen06_tree": "0efa1cfcbf5aded634f339731205e45b839333b3a35669719a983f48d22dd944",
+    "registry": "497e9b2f7aea82f8595fe29e9358f91bd4e4a3ccd40c0a40feb37623e39eb318"
+  },
+  "returncode": 0,
+  "zero_write": true
+}

@@ -1,0 +1,30 @@
+{
+  "fresh_bounded_exercise": {
+    "cycle_count": 2,
+    "production_mutation": false,
+    "rss_available_all": true,
+    "sha256": "a7b998a2b7b1365c4c93dd4e02a3f4af8e8de97bb842856c860e122a563b3620",
+    "status": "PASS",
+    "swap_available_all": true
+  },
+  "fresh_host_telemetry": {
+    "free_bytes": 36707487744,
+    "projected_free_after_retention_peak_bytes": 35096841885,
+    "projected_margin_over_reserve_bytes": 10586122295,
+    "projected_reserve_pass": true,
+    "swap_free_mib": 1013.25,
+    "swap_total_mib": 9216.0,
+    "swap_used_mib": 8202.75,
+    "total_bytes": 245107195904
+  },
+  "normalized_policy_projection_proof": {
+    "host_reserve_bytes": 24510719590,
+    "path": "pantheon_acceptance_b_gen06_final_publish_acceptance_20260829/resume-1e46-rule25-readiness/package/capacity-proof-normalized.json",
+    "retention_peak_bytes": 1610645859,
+    "sha256": "24e7e3885735988237e09ab9723765986f399e5c957fe2dd87609b5371e29333",
+    "status": "PASS"
+  },
+  "production_mutation": 0,
+  "schema_version": 1,
+  "status": "PASS"
+}

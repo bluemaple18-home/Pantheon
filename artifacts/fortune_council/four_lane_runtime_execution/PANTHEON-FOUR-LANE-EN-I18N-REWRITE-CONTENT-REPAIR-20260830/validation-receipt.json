@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "run_id": "auto-i18n-en-aa637e1bf05d3ad21429-replacement-01",
+  "candidate_json_sha256": "26dd6ccf15a37a165f2ec11f9dd0220db26b9cdbc7fc8b2641b50b551e6731d1",
+  "existing_validators": {
+    "validate_translation_candidate": "PASS",
+    "translation_findings": [],
+    "affected_tests": {
+      "status": "PASS",
+      "count": 3,
+      "tests": [
+        "test_translation_gate_rejects_source_structure_mirroring",
+        "test_edited_candidate_uses_deterministic_gate_and_independent_reviewer",
+        "test_approved_edited_stage_plan_is_read_only"
+      ],
+      "warning": "pytest cache could not be written in the read-only actor checkout; tests themselves passed."
+    }
+  },
+  "identity": {
+    "status": "PASS",
+    "unchanged_fields": [
+      "schema_version",
+      "run_id",
+      "mode",
+      "article_id",
+      "locale",
+      "source_article_id",
+      "source_path",
+      "source_sha256",
+      "tags"
+    ]
+  },
+  "fact_and_claim_coverage": {
+    "status": "PASS",
+    "source_fact_count": 22,
+    "mapped_fact_count": 22,
+    "missing_fact_ids": [],
+    "added_claims": [],
+    "receipt": "fact-coverage.json"
+  },
+  "locale_and_residue": {
+    "status": "PASS",
+    "cjk_count": 0,
+    "residue_hits": []
+  },
+  "topology": {
+    "status": "PASS",
+    "source_shape": [3, 3, 3, 3, 3],
+    "terminal_candidate_shape": [2, 2, 2, 2],
+    "repaired_candidate_shape": [2, 3, 2, 3, 2],
+    "exact_source_heading_overlap": [],
+    "authority_note": "The rejected Generation 03 locale plan remains immutable audit evidence. The edited-candidate formal review seam validates the repaired candidate directly and does not make that rejected four-H2 plan the edited candidate's section authority."
+  },
+  "duplicate_check": {
+    "status": "PASS",
+    "exact_duplicate_paragraph_count": 0
+  },
+  "seo": {
+    "status": "PASS",
+    "title_chars": 58,
+    "description_chars": 160,
+    "faq_count": 5,
+    "body_word_count": 615,
+    "native_query_alignment": [
+      "what is a moon sign in astrology",
+      "how moon signs affect emotional reactions",
+      "understanding security needs through astrology"
+    ]
+  },
+  "humanizer_gate": {
+    "status": "PASS",
+    "empty_elevation": false,
+    "generic_polish": false,
+    "formulaic_introduction": false,
+    "mechanical_transition_pattern": false,
+    "generic_conclusion": false,
+    "assistant_residue": false,
+    "invented_personal_experience": false
+  },
+  "external_calls": {
+    "provider": 0,
+    "reviewer": 0,
+    "publisher": 0
+  },
+  "production_mutation": 0
+}

@@ -1,0 +1,59 @@
+{
+  "actor_head": "831c536043d85a6cafe813c08a4f06921f0dd0e2",
+  "gen06_candidate_exists": false,
+  "gen06_review_exists": false,
+  "gen07_exists": false,
+  "manifest_digest": "0c62650249e24dba5754926ab416308f0fa1a6ad30aaa6856b497408ad3205f9",
+  "outbox_job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+  "provider_attempt_total_for_target_job": 1,
+  "registry_digest": "07ce1ac515551c502b0fc1ba381809bc3dee08102d7759c6567d5e64f2c82a61",
+  "registry_path": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/runs/f46cda9eaa9ded446bf8e6c6.json",
+  "registry_shape": {
+    "error_code": null,
+    "error_type": null,
+    "lane": "i18n-new",
+    "last_job_id": "6894ba2772dca5fd9e44938951535d8e26d39467",
+    "mode": null,
+    "routing_schema_version": null,
+    "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+    "status": "active"
+  },
+  "stopped_before_runner_provider": true,
+  "target_paths": {
+    "fresh_outbox": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+    },
+    "quarantined_archive": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "640032da1b13f797e07d98d0ee94296bd8c9f821cf2d9dc6a0fa21c09af8cc2c"
+    },
+    "quarantined_attempt": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "8220193ebb2b1b43b20c095a8481a58aa9d0757f94c559de38daab27fac9eee8"
+    },
+    "quarantined_inbox": {
+      "exists": true,
+      "regular_no_symlink": true,
+      "sha256": "de93f73901f5b4498946c1349ba9520b80570c8b19345d5e50ee13d481257226"
+    },
+    "stale_archive_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "stale_attempt_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    },
+    "stale_inbox_original": {
+      "exists": false,
+      "regular_no_symlink": false,
+      "sha256": null
+    }
+  }
+}

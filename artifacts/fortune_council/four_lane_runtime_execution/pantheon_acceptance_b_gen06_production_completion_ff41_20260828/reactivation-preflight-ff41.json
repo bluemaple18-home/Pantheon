@@ -1,0 +1,25 @@
+{
+  "gen06_exists": false,
+  "provider_artifacts_gen06": [],
+  "registry_canonical_digest": "3abccb9e33222eb036e7c1075a15dfefca0c08a864a5f790525775a6694ecd55",
+  "registry_lane": "i18n-new",
+  "registry_mode": null,
+  "registry_result_status": "complete",
+  "registry_routing_schema_version": null,
+  "registry_run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "registry_status": "complete",
+  "run_dir": "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue/translation-runs/auto-i18n-ja-1414b75a404721e95e74",
+  "run_id": "auto-i18n-ja-1414b75a404721e95e74",
+  "schema_version": 1,
+  "state_canonical_digest": "4ea3ad9c753f8e24752f804ad47e5604d7c61a308d843279363f2a6f8b99f86b",
+  "state_completed_generations": [
+    5
+  ],
+  "state_file_sha256": "f24c477862cd07e8b93068243372345438005fb13ecc774c471ab1575711232f",
+  "state_next_generation": 6,
+  "state_status": "active",
+  "transition_canonical_digest": "29ac3168bda3132cb8eb1d613000b389a3967ded2309e57e7c2ff6ed87b0dd95",
+  "transition_file_sha256": "8021405a102ba58f8d011c0e25b6b13cde164e08cbd8bf404dac23273249c8c9",
+  "transition_state_after_digest_observed": "4ea3ad9c753f8e24752f804ad47e5604d7c61a308d843279363f2a6f8b99f86b",
+  "transition_state_after_sha256": "4ea3ad9c753f8e24752f804ad47e5604d7c61a308d843279363f2a6f8b99f86b"
+}

@@ -1,0 +1,294 @@
+diff --git a/scripts/pantheon_content_capacity_guard.py b/scripts/pantheon_content_capacity_guard.py
+index 7e0a6d2bf8f5a8a30b5dcf5bfd6696182b8d8e09..2aaa89e611615de0c07834360b7d0ac76adccae0 100644
+--- a/scripts/pantheon_content_capacity_guard.py
++++ b/scripts/pantheon_content_capacity_guard.py
+@@ -668,5 +668 @@ def validate_preactivation_transition(
+-    if (
+-        manifest.get("config_version") != "formal-runtime-v2-gate2"
+-        or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", "")))
+-        is None
+-    ):
++    if ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(str(manifest.get("identity", ""))) is None:
+@@ -676,4 +672,24 @@ def validate_preactivation_transition(
+-    plist_paths = [
+-        launch_agents / f"{label}.plist" for label in formal_runtime.SERVICE_LABELS
+-    ]
+-    formal_runtime.aggregate_plist_preflight(
++    stage_dir = launch_agents / ".pantheon-four-lane-stage"
++    try:
++        stage_manifest_digest = (stage_dir / "manifest-digest").read_text(
++            encoding="utf-8"
++        ).strip()
++        stage_generation = (stage_dir / "generation").read_text(
++            encoding="utf-8"
++        ).strip()
++        publisher_max_runs = (stage_dir / "publisher-max-runs").read_text(
++            encoding="utf-8"
++        ).strip()
++        publisher_exact_run_id = (stage_dir / "publisher-exact-run-id").read_text(
++            encoding="utf-8"
++        ).strip()
++    except OSError as error:
++        raise formal_runtime.RuntimeManifestError("preactivation stage mismatch") from error
++    if (
++        stage_manifest_digest != manifest["manifest_digest"]
++        or stage_generation != manifest["generation"]
++        or publisher_max_runs != "1"
++        or not publisher_exact_run_id
++    ):
++        raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
++    formal_runtime.publisher_plist_preflight(
+@@ -681,2 +697,2 @@ def validate_preactivation_transition(
+-        plist_paths,
+-        expected_activation_mode="activation-only",
++        stage_dir / "com.pantheon.agy-content-publisher.plist",
++        expected_exact_run_id=publisher_exact_run_id,
+@@ -683,0 +700,8 @@ def validate_preactivation_transition(
++    for label in SERVICE_LABELS[1:]:
++        stage_receipt = formal_runtime.plist_receipt(
++            stage_dir / f"{label}.plist",
++            expected_activation_mode="normal",
++        )
++        expected_stage = formal_runtime.receipt_for_label(manifest, label)
++        if any(stage_receipt.get(field) != value for field, value in expected_stage.items()):
++            raise formal_runtime.RuntimeManifestError("preactivation stage mismatch")
+@@ -686 +710,42 @@ def validate_preactivation_transition(
+-    for label, plist_path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
++    for label in formal_runtime.SERVICE_LABELS:
++        plist_path = launch_agents / f"{label}.plist"
++        live_receipt = formal_runtime.plist_receipt(
++            plist_path,
++            expected_activation_mode="activation-only",
++        )
++        with plist_path.open("rb") as stream:
++            live_payload = plistlib.load(stream)
++        live_arguments = live_payload.get("ProgramArguments")
++        if not isinstance(live_arguments, list):
++            raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
++        try:
++            live_barrier = formal_runtime._single_argument_value(
++                live_arguments,
++                "--barrier",
++            )
++            live_expected_digest = formal_runtime._single_argument_value(
++                live_arguments,
++                "--expected-digest",
++            )
++            live_service_label = formal_runtime._single_argument_value(
++                live_arguments,
++                "--service-label",
++            )
++        except formal_runtime.RuntimeManifestError as error:
++            raise formal_runtime.RuntimeManifestError(
++                "preactivation live plist mismatch"
++            ) from error
++        if (
++            live_receipt.get("label") != label
++            or live_receipt.get("service_label") != label
++            or live_service_label != label
++            or live_expected_digest != live_receipt.get("manifest_digest")
++            or not str(live_barrier).endswith(
++                f"/four-lane-activation-{live_receipt.get('generation')}.barrier"
++            )
++            or ACTIVATION_ONLY_IDENTITY_PATTERN.fullmatch(
++                str(live_receipt.get("identity", ""))
++            )
++            is None
++        ):
++            raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
+diff --git a/tests/test_pantheon_content_capacity_guard.py b/tests/test_pantheon_content_capacity_guard.py
+index 9875b0e15e4c5001b45d33466d38f5ca63c61dea..50d0448a5846dffdb19ce8d9bd19c13efcc19345 100644
+--- a/tests/test_pantheon_content_capacity_guard.py
++++ b/tests/test_pantheon_content_capacity_guard.py
+@@ -685,0 +686,53 @@ def _write_activation_only_live_plists(
++def _write_normal_stage_plists(
++    stage_dir: Path,
++    *,
++    manifest: dict[str, object],
++    manifest_path: Path,
++    barrier: Path,
++    python: Path,
++    exact_run_id: str,
++) -> None:
++    stage_dir.mkdir(parents=True, exist_ok=True)
++    (stage_dir / "manifest-digest").write_text(
++        str(manifest["manifest_digest"]) + "\n",
++        encoding="utf-8",
++    )
++    (stage_dir / "generation").write_text(
++        str(manifest["generation"]) + "\n",
++        encoding="utf-8",
++    )
++    (stage_dir / "publisher-max-runs").write_text("1\n", encoding="utf-8")
++    (stage_dir / "publisher-exact-run-id").write_text(
++        exact_run_id + "\n",
++        encoding="utf-8",
++    )
++    _write_activation_only_live_plists(
++        stage_dir,
++        manifest=manifest,
++        manifest_path=manifest_path,
++        barrier=barrier,
++        python=python,
++    )
++    for plist_path in stage_dir.glob("*.plist"):
++        payload = plistlib.loads(plist_path.read_bytes())
++        payload["ProgramArguments"].remove("--activation-only")
++        if payload["Label"] == "com.pantheon.agy-content-publisher":
++            payload["ProgramArguments"].extend(
++                [
++                    "--repo-root",
++                    str(manifest["actor_root"]),
++                    "--queue-root",
++                    str(manifest["queue_root"]),
++                    "--state-root",
++                    str(manifest["publisher_state_root"]),
++                    "--max-runs",
++                    "1",
++                    "--exact-run-id",
++                    exact_run_id,
++                ]
++            )
++        with plist_path.open("wb") as stream:
++            plistlib.dump(payload, stream, sort_keys=True)
++    (stage_dir / "com.pantheon.content-capacity-guard.plist").unlink()
++
++
+@@ -719,0 +773,2 @@ def _capacity_transition_installer_env(
++    *,
++    config_version: str = "formal-runtime-v2-gate2",
+@@ -744 +799 @@ def _capacity_transition_installer_env(
+-        config_version="formal-runtime-v2-gate2",
++        config_version=config_version,
+@@ -759,0 +815,8 @@ def _capacity_transition_installer_env(
++    _write_normal_stage_plists(
++        launch_agents / ".pantheon-four-lane-stage",
++        manifest=manifest,
++        manifest_path=manifest_path,
++        barrier=barrier,
++        python=python,
++        exact_run_id="capacity-transition-run",
++    )
+@@ -789,0 +853,122 @@ def _capacity_transition_installer_env(
++def _g5_capacity_transition_fixture(
++    tmp_path: Path,
++) -> tuple[Path, dict[str, str], Path, Path, dict[str, object], Path]:
++    repo = Path(__file__).resolve().parents[1]
++    env, fake_home, mutation_log, manifest, manifest_path = (
++        _capacity_transition_installer_env(
++            tmp_path,
++            config_version="formal-runtime-v3-model-route-v1",
++        )
++    )
++    python = Path(sys.executable).resolve(strict=True)
++    old_manifest = runtime_manifest.build_manifest(
++        actor_root=repo,
++        queue_root=Path(str(manifest["queue_root"])),
++        publisher_state_root=Path(str(manifest["publisher_state_root"])),
++        log_root=Path(str(manifest["log_root"])),
++        identity=f"gate2-actor:{'8' * 40}:activation-only",
++        runtime_digest="8" * 64,
++        config_version="formal-runtime-v2-gate2",
++        generation="g8-previous-activation-only",
++        python_executable=python,
++        uv_executable=python,
++    )
++    old_manifest_path = tmp_path / "old-runtime-manifest.json"
++    runtime_manifest.write_manifest(old_manifest_path, old_manifest)
++    old_barrier = _write_capacity_transition_barrier(
++        Path(str(old_manifest["publisher_state_root"])),
++        old_manifest,
++    )
++    launch_agents = fake_home / "Library" / "LaunchAgents"
++    _write_activation_only_live_plists(
++        launch_agents,
++        manifest=old_manifest,
++        manifest_path=old_manifest_path,
++        barrier=old_barrier,
++        python=python,
++    )
++    new_barrier = Path(str(manifest["publisher_state_root"])) / (
++        f"four-lane-activation-{manifest['generation']}.barrier"
++    )
++    _write_normal_stage_plists(
++        launch_agents / ".pantheon-four-lane-stage",
++        manifest=manifest,
++        manifest_path=manifest_path,
++        barrier=new_barrier,
++        python=python,
++        exact_run_id="auto-i18n-en-614aa4dc3542ab2c5637",
++    )
++    return repo, env, fake_home, mutation_log, manifest, manifest_path
++
++
++def test_capacity_installer_accepts_g5_promoted_manifest_with_staged_six_plists(
++    tmp_path: Path,
++) -> None:
++    """G5：new promoted v3 manifest + old live no-PID + staged six exact plists。"""
++    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
++        _g5_capacity_transition_fixture(tmp_path)
++    )
++    launch_agents = fake_home / "Library" / "LaunchAgents"
++
++    completed = subprocess.run(
++        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
++        cwd=tmp_path,
++        env=env,
++        check=False,
++        capture_output=True,
++        text=True,
++    )
++
++    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
++    assert "preactivation_transition" in completed.stdout
++    staged_capacity = (
++        launch_agents
++        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
++    )
++    assert staged_capacity.is_file()
++    assert not mutation_log.exists()
++
++
++@pytest.mark.parametrize(
++    "case",
++    [
++        "stage_manifest_digest",
++        "publisher_exact_receipt_missing",
++        "staged_lane_digest",
++    ],
++)
++def test_capacity_installer_rejects_g5_preactivation_stage_drift(
++    tmp_path: Path,
++    case: str,
++) -> None:
++    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
++        _g5_capacity_transition_fixture(tmp_path)
++    )
++    stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
++    if case == "stage_manifest_digest":
++        (stage_dir / "manifest-digest").write_text("0" * 64 + "\n", encoding="utf-8")
++    elif case == "publisher_exact_receipt_missing":
++        (stage_dir / "publisher-exact-run-id").unlink()
++    elif case == "staged_lane_digest":
++        lane_plist = stage_dir / "com.pantheon.agy-gemini-new.plist"
++        payload = plistlib.loads(lane_plist.read_bytes())
++        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST_DIGEST"] = "0" * 64
++        with lane_plist.open("wb") as stream:
++            plistlib.dump(payload, stream, sort_keys=True)
++
++    completed = subprocess.run(
++        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
++        cwd=tmp_path,
++        env=env,
++        check=False,
++        capture_output=True,
++        text=True,
++    )
++
++    assert completed.returncode != 0, case
++    assert not (
++        stage_dir / "com.pantheon.content-capacity-guard.plist"
++    ).exists()
++    assert not mutation_log.exists()
++
++

@@ -1,0 +1,21 @@
+{
+  "accepted_source": "6541693e929a20cbcffe8b070085b5f1caec7a92",
+  "allowed_operation": "official promotion plan-only twice",
+  "current_actor": "bde44589f3785aae738bb7d7b1626270ba5505d0",
+  "forbidden_operations": [
+    "promotion apply",
+    "promotion finalize",
+    "install",
+    "activate",
+    "scheduler",
+    "provider",
+    "reviewer",
+    "publisher",
+    "release",
+    "deploy",
+    "tag",
+    "push"
+  ],
+  "production_mutation": 0,
+  "schema_version": 1
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-29T11:56:04+08:00",
+  "command": ".venv/bin/python artifacts/fortune_council/four_lane_runtime_execution/pantheon_public_locale_article_route_regression_rca_20260829/http_dom_contract_probe.py 'https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884?rca=20260829-red-command' --canonical 'https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884' --title 'タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方 | Pantheon' --h1 'タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方' --sentinel '金銭における死神の意味と現状の見直し'",
+  "exit_code": 1,
+  "probe_layer": "raw_http_response_dom",
+  "url": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884?rca=20260829-red-command",
+  "actual": {
+    "status": 200,
+    "canonical": "https://www.mysticpantheon.com/articles",
+    "title": "最新文章 | Pantheon",
+    "h1": "最新文章",
+    "sentinel_present": false
+  },
+  "expected": {
+    "status": 200,
+    "canonical": "https://www.mysticpantheon.com/ja/articles/tarot/tarot-1884",
+    "title": "タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方 | Pantheon",
+    "h1": "タロット死神が金銭面で示す意味とは？カードの解釈と現実への向き合い方",
+    "sentinel_present": true
+  },
+  "checks": {
+    "status": true,
+    "canonical": false,
+    "title": false,
+    "h1": false,
+    "sentinel_present": false
+  },
+  "verdict": "RED",
+  "body_bytes": 10005,
+  "body_sha256": "63683431a4ae59b880a680229385ce06b6e80f6df2f3abebe2806524816ba78a",
+  "response_headers": {
+    "cache-control": "public, max-age=0, must-revalidate",
+    "cf-cache-status": "DYNAMIC",
+    "cf-ray": "a3289fad1abf2855-SJC",
+    "date": "Sat, 29 Aug 2026 03:56:04 GMT",
+    "server": "cloudflare"
+  }
+}

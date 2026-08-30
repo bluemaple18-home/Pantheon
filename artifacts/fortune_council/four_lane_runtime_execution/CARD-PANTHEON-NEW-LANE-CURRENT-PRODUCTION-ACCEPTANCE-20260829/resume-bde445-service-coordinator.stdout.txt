@@ -1,0 +1,1 @@
+Pantheon Gemini coordinator 與四條 lane plist 已寫入 private stage；尚未 activation。

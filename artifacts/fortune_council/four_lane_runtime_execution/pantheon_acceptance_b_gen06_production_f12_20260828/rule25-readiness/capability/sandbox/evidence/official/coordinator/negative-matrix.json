@@ -1,0 +1,18 @@
+{
+  "actor_identity": "actor-apf-004-readiness",
+  "blocked_cases": [
+    "missing-brief",
+    "blank-correlation",
+    "wrong-lane",
+    "untrusted-root",
+    "runtime-missing-digest",
+    "runtime-digest-mismatch",
+    "caller-verdict",
+    "extra-runtime-key"
+  ],
+  "correlation_id": "corr-apf-004-readiness",
+  "execution_line_id": "exec-apf-004-readiness",
+  "production_mutation": false,
+  "runtime_identity_digest": "a702a55a840f29f40833edc6d9877a951b5d86811f24e98c6e3258ba58fab271",
+  "schema_version": 1
+}

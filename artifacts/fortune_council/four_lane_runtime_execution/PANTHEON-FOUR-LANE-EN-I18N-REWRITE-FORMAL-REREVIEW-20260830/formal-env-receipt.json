@@ -1,0 +1,41 @@
+{
+  "env_receipt": {
+    "AGY_GEMINI_CREDENTIAL_POOL_FILE": {
+      "absolute": true,
+      "present": true,
+      "sha256": "b8451b15e9aeb3c33462b2dcbf0bb89c57c51308b5e5149aa5a856744ab98906",
+      "size": 341
+    },
+    "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": {
+      "absolute": true,
+      "present": true
+    },
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG": {
+      "absolute": true,
+      "present": true,
+      "sha256": "493c09ce9dc1ddf5007387d7cb66be2ec88dba4acd5c24d3a19106afd3e6dd75",
+      "size": 128
+    },
+    "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST": {
+      "present": true,
+      "sha256": "f4a96b5254b511b2ca490e3dacdd5934b775de4cfcf12e42c1387f8b2cbd741d"
+    },
+    "AGY_REVIEWER_MODEL": {
+      "present": true,
+      "sha256": "0c0cf0da093cb6370bcc1111e73763207516d30d3a71afe4e0745e331736f41f"
+    },
+    "AGY_WRITER_MODEL": {
+      "present": true,
+      "sha256": "37a58c167b3b8f674049d3c259bacf074a8d47c406de12f2ca2ece97e0cf658a"
+    }
+  },
+  "extra_transport": {
+    "AGY_GEMINI_CLI": {
+      "present": true,
+      "sha256": "ce718c27ef5df9c86ae7ea5cc21b94223347fa4e6440bc4f5df2127b91ff8011"
+    },
+    "AGY_GEMINI_NEW_ONLY": "0"
+  },
+  "schema_version": 1,
+  "service_label": "com.pantheon.agy-gemini-i18n-rewrite"
+}

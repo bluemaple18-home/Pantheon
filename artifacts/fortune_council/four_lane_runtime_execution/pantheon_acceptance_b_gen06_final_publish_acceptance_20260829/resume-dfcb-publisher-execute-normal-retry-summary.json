@@ -1,0 +1,31 @@
+{
+  "status": "ok",
+  "translation": {
+    "status": "PUBLISHED_TRANSLATION",
+    "commit_sha": "22d7e21b7a3da4e8afffd58a76b2746bebad8b41",
+    "version": "0.3.374",
+    "run_ids": [
+      "auto-i18n-ja-1414b75a404721e95e74"
+    ],
+    "locales": [
+      "ja"
+    ],
+    "article_ids": [
+      "V2-TAROT-DEATH-MONEY"
+    ],
+    "pushed": true,
+    "changed": [
+      "app/web/article-admin.html",
+      "app/web/article.html",
+      "app/web/articles.html",
+      "app/web/static/app.js",
+      "app/web/static/article-admin.js",
+      "app/web/static/article-locale-auto-i18n-ja-1414b75a404721e95e74.js",
+      "app/web/static/article-locales.js",
+      "app/web/static/article-meta.js",
+      "app/web/static/article.js",
+      "app/web/static/articles.js",
+      "tests/test_web.py"
+    ]
+  }
+}

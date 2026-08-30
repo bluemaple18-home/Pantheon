@@ -1,0 +1,132 @@
+{
+  "canonical_documented_order": [
+    "coordinator --install (coordinator + four lane plists)",
+    "publisher --install (publisher plist + exact-run stage authority)",
+    "capacity --preflight/--install (seventh plist + transition validation)",
+    "coordinator --activate (aggregate replace/bootstrap/validate/barrier)"
+  ],
+  "documented_edge_source": "PANTHEON-G8-TRANSITION-EDGE-MAP-V1-20260821.md: TE-QUIESCED-TO-CAPACITY",
+  "nodes": [
+    {
+      "node": "promotion",
+      "reads": [
+        "authorization target_identity",
+        "source SHA",
+        "current actor/manifest/stage",
+        "Rule24 receipt"
+      ],
+      "writes": [
+        "actor",
+        "runtime-manifest.json",
+        "readiness acknowledgements",
+        "activation barrier",
+        "transaction receipt"
+      ]
+    },
+    {
+      "node": "coordinator installer",
+      "reads": [
+        "runtime manifest",
+        "model route source",
+        "coordinator/lane plist templates"
+      ],
+      "writes": [
+        "five staged plists",
+        "manifest-digest",
+        "generation",
+        "model-route-digest/path"
+      ]
+    },
+    {
+      "node": "publisher installer",
+      "reads": [
+        "runtime manifest",
+        "publisher plist template",
+        "queue/runs"
+      ],
+      "writes": [
+        "publisher staged plist",
+        "manifest-digest",
+        "generation",
+        "publisher-max-runs",
+        "publisher-exact-run-id"
+      ]
+    },
+    {
+      "branch": "no top-level stage authority => skip transition validator; otherwise validate full transition",
+      "node": "capacity installer",
+      "reads": [
+        "runtime manifest",
+        "Rule24 preflight stdout",
+        "stage authority presence",
+        "barrier",
+        "old live seven plists/services"
+      ],
+      "writes": [
+        "capacity staged plist only after PASS"
+      ]
+    },
+    {
+      "node": "aggregate activator",
+      "reads": [
+        "runtime manifest",
+        "seven staged plists",
+        "model route",
+        "previous live seven plists/services/barrier"
+      ],
+      "rollback": "all seven live plists/services/barrier",
+      "writes": [
+        "seven live plists",
+        "launchctl topology",
+        "readiness acks",
+        "activation barrier"
+      ]
+    }
+  ],
+  "order_sensitivity": {
+    "aggregate_activation": "requires all seven coherent staged plists; shared failure/rollback domain",
+    "capacity": "yes; top-level authority presence selects transition validator",
+    "coordinator": "not stage-presence conditional; writes five plists as one set",
+    "four_lanes": "no independent installer; atomically owned by coordinator installer",
+    "publisher": "not stage-presence conditional; writes plist and top-level authority"
+  },
+  "per_service": {
+    "com.pantheon.agy-content-publisher": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "publisher installer"
+    },
+    "com.pantheon.agy-gemini-coordinator": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "coordinator installer"
+    },
+    "com.pantheon.agy-gemini-i18n-new": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "coordinator installer"
+    },
+    "com.pantheon.agy-gemini-i18n-rewrite": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "coordinator installer"
+    },
+    "com.pantheon.agy-gemini-new": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "coordinator installer"
+    },
+    "com.pantheon.agy-gemini-rewrite": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "coordinator installer"
+    },
+    "com.pantheon.content-capacity-guard": {
+      "activator": "coordinator aggregate activator",
+      "identity_authority": "shared runtime manifest tuple",
+      "stage_writer": "capacity installer"
+    }
+  },
+  "schema_version": 1,
+  "service_count": 7
+}
