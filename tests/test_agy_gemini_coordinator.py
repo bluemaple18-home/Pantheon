@@ -2930,6 +2930,350 @@ def _exact_translation_replacement_cli(
     return coordinator.main(), json.loads(capsys.readouterr().out)
 
 
+def _production_shaped_translation_replacement_fixture(
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, Path, Path, dict[str, object], dict[str, object]]:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    queue_root = tmp_path / "queue"
+    publisher_state_root = tmp_path / "publisher-state"
+    publisher_state_root.mkdir()
+    source_run_id = "auto-i18n-en-aa637e1bf05d3ad21429"
+    target_run_id = f"{source_run_id}-replacement-01"
+    source_run_dir = queue_root / "translation-runs" / source_run_id
+    target_run_dir = queue_root / "translation-runs" / target_run_id
+    source_run_dir.mkdir(parents=True)
+    target_run_dir.mkdir(parents=True)
+    source = {"article_id": "ASTRO-BASE-03", "canonical_path": "/articles/astrology/astro-base-03", "title": "Source title", "description": "Source description", "answer": "Source answer", "tags": ["source"], "faq": [{"question": "Question?", "answer": "Answer."}], "bodySections": [{"heading": "Heading", "paragraphs": ["Paragraph."]}]}
+    brief = {
+        "schema_version": 1,
+        "run_id": target_run_id,
+        "mode": "translate_existing",
+        "lane": "i18n-rewrite",
+        "articles": [{
+            "translation_id": "ASTRO-BASE-03:en",
+            "locale": "en",
+            "source_article_id": "ASTRO-BASE-03",
+            "source_path": source["canonical_path"],
+            "source_sha256": coordinator.multilingual.source_sha256(source),
+            "source": source,
+        }],
+    }
+    coordinator.atomic_write_json(target_run_dir / "brief.json", brief)
+    root_candidate = {"run_id": target_run_id, "status": "complete"}
+    root_review = {"run_id": target_run_id, "status": "complete"}
+    coordinator.atomic_write_json(target_run_dir / "candidate.json", root_candidate)
+    coordinator.atomic_write_json(target_run_dir / "review.json", root_review)
+    attempt_files = {
+        "article-operation.json",
+        "candidate.json",
+        "deterministic-findings.json",
+        "external-candidate.json",
+        "external-plan.json",
+        "external-review.json",
+        "locale-plan.json",
+        "plan-operation.json",
+        "planning-result.json",
+        "review.json",
+        "reviewer-operation.json",
+    }
+    for generation in ("01", "02", "03"):
+        for name in attempt_files:
+            payload: dict[str, object] = {"generation": int(generation), "name": name}
+            if generation == "03" and name == "candidate.json":
+                payload = root_candidate
+            elif generation == "03" and name == "review.json":
+                payload = root_review
+            coordinator.atomic_write_json(target_run_dir / "attempts" / generation / name, payload)
+    (target_run_dir / "continuation").mkdir()
+    source_state = {
+        "schema_version": 1,
+        "run_id": source_run_id,
+        "run_dir": str(source_run_dir.resolve()),
+        "status": "failed",
+        "error_type": "LocalePlanValidationError",
+        "routing_schema_version": coordinator.ROUTING_SCHEMA_VERSION,
+        "mode": "translate_existing",
+        "lane": "i18n-rewrite",
+        "identity_envelope": coordinator._build_identity_envelope("translate_existing", "i18n-rewrite", ["ASTRO-BASE-03"]),
+        "registered_at": "2026-08-30T10:00:00+08:00",
+        "updated_at": "2026-08-30T10:00:00+08:00",
+    }
+    target_state = {
+        "schema_version": 1,
+        "run_id": target_run_id,
+        "run_dir": str(target_run_dir.resolve()),
+        "status": "complete",
+        "registered_at": "2026-08-30T10:01:00+08:00",
+        "updated_at": "2026-08-30T10:02:00+08:00",
+        "replacement_of": source_run_id,
+        "replacement_reason": "LOCALE_PLAN_VALIDATION",
+        "routing_schema_version": coordinator.ROUTING_SCHEMA_VERSION,
+        "mode": "translate_existing",
+        "lane": "i18n-rewrite",
+        "last_job_id": "job-aa637e1b",
+        "result": {
+            "approved_by_reviewer": 0,
+            "candidate": str(target_run_dir / "candidate.json"),
+            "review": str(target_run_dir / "review.md"),
+            "run_id": target_run_id,
+            "status": "complete",
+        },
+    }
+    coordinator.atomic_write_json(coordinator._state_path(source_run_id, queue_root), source_state)
+    target_state_path = coordinator._state_path(target_run_id, queue_root)
+    coordinator.atomic_write_json(target_state_path, target_state)
+    assert str(target_state_path.relative_to(queue_root)) == "runs/1bf0bbc61ff8d10e808f6923.json"
+    return repo_root, queue_root, publisher_state_root, source_run_dir, target_run_dir, source_state, target_state
+
+
+def _reconcile_translation_replacement_cli(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    repo_root: Path,
+    queue_root: Path,
+    publisher_state_root: Path,
+    target_run_dir: Path,
+    source_state: dict[str, object],
+    target_state: dict[str, object],
+    mode: str,
+) -> tuple[int, dict[str, object]]:
+    monkeypatch.setattr(coordinator, "_validate_formal_runtime", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(sys, "argv", [
+        "agy_gemini_coordinator", "--queue-root", str(queue_root), "--repo-root", str(repo_root),
+        "reconcile-translation-replacement-identity",
+        "--source-run-id", str(source_state["run_id"]),
+        "--target-run-id", str(target_state["run_id"]),
+        "--target-registry-relative-path", "runs/1bf0bbc61ff8d10e808f6923.json",
+        "--expected-target-registry-digest", coordinator._canonical_json_file_sha256(target_state),
+        "--expected-target-run-dir", str(target_run_dir.resolve()),
+        "--publisher-state-root", str(publisher_state_root),
+        "--article-id", "ASTRO-BASE-03",
+        "--lane", "i18n-rewrite",
+        "--reason", "LOCALE_PLAN_VALIDATION",
+        mode,
+    ])
+    return coordinator.main(), json.loads(capsys.readouterr().out)
+
+
+def test_reconcile_translation_replacement_identity_plan_only_accepts_production_shape_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    before = _file_snapshot(tmp_path)
+
+    returncode, receipt = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--plan-only"
+    )
+
+    assert returncode == 0
+    assert receipt["status"] == "plan_only"
+    assert receipt["missing_fields"] == ["identity_envelope"]
+    assert receipt["planned_mutation_count"] == 0
+    assert receipt["expected_write_set"] == [
+        str(coordinator._run_identity_lock_path(str(target_state["run_id"]), queue_root).relative_to(queue_root)),
+        "translation-replacement-identity-reconciliations/auto-i18n-en-aa637e1bf05d3ad21429-replacement-01.json",
+        "runs/1bf0bbc61ff8d10e808f6923.json",
+    ]
+    assert _file_snapshot(tmp_path) == before
+
+
+def test_reconcile_translation_replacement_identity_execute_only_adds_identity_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    target_state_path = coordinator._state_path(str(target_state["run_id"]), queue_root)
+    before_all = _file_snapshot(tmp_path)
+    before_tree = _file_snapshot(target_run_dir)
+    before_registry = json.loads(target_state_path.read_text())
+
+    returncode, receipt = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+
+    after_registry = json.loads(target_state_path.read_text())
+    expected_identity = coordinator._build_identity_envelope("translate_existing", "i18n-rewrite", ["ASTRO-BASE-03"])
+    receipt_path = queue_root / str(receipt["receipt"])
+    lock_path = coordinator._run_identity_lock_path(str(target_state["run_id"]), queue_root)
+    persisted_receipt = json.loads(receipt_path.read_text())
+    assert returncode == 0
+    assert receipt["status"] == "reconciled"
+    assert after_registry == {**before_registry, "identity_envelope": expected_identity}
+    assert {key: after_registry[key] for key in before_registry} == before_registry
+    assert _file_snapshot(target_run_dir) == before_tree
+    changed = {path for path, before in before_all.items() if _file_snapshot(tmp_path).get(path) != before}
+    added = set(_file_snapshot(tmp_path)) - set(before_all)
+    assert changed == {str(target_state_path.relative_to(tmp_path))}
+    assert added == {str(lock_path.relative_to(tmp_path)), str(receipt_path.relative_to(tmp_path))}
+    assert persisted_receipt["status"] == "RECONCILED"
+    assert persisted_receipt["before_digest"] == coordinator._canonical_json_file_sha256(before_registry)
+    assert persisted_receipt["after_digest"] == coordinator._canonical_json_file_sha256(after_registry)
+    assert persisted_receipt["expected_before_digest"] == persisted_receipt["before_digest"]
+    assert persisted_receipt["expected_after_digest"] == persisted_receipt["after_digest"]
+
+
+def test_reconcile_translation_replacement_identity_receipt_replay_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    plan = coordinator.reconcile_translation_replacement_identity(
+        queue_root,
+        source_run_id=str(source_state["run_id"]),
+        target_run_id=str(target_state["run_id"]),
+        target_registry_relative_path="runs/1bf0bbc61ff8d10e808f6923.json",
+        expected_target_registry_digest=coordinator._canonical_json_file_sha256(target_state),
+        expected_target_run_dir=target_run_dir,
+        publisher_state_root=publisher_state_root,
+        article_id="ASTRO-BASE-03",
+        lane="i18n-rewrite",
+        reason="LOCALE_PLAN_VALIDATION",
+        execute=False,
+    )
+    receipt_path = queue_root / str(plan["receipt"])
+    before_state = json.loads(coordinator._state_path(str(target_state["run_id"]), queue_root).read_text())
+    after_state = {**before_state, "identity_envelope": plan["expected_identity_envelope"]}
+    coordinator.atomic_write_json(receipt_path, {**plan, "status": "PREPARED", "before": before_state, "after": after_state})
+
+    completed_code, completed = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+    replay_code, replay = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+
+    assert completed_code == replay_code == 0
+    assert completed["status"] == "reconciled"
+    assert replay["status"] == "already_reconciled"
+    coordinator.atomic_write_json(receipt_path, {**plan, "status": "PREPARED", "before": before_state, "after": {**after_state, "lane": "i18n-new"}})
+    fail_code, rejected = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+    assert fail_code == 1
+    assert rejected["status"] == "rejected"
+
+
+def test_reconcile_translation_replacement_identity_rejects_registry_clobber_after_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    target_state_path = coordinator._state_path(str(target_state["run_id"]), queue_root)
+    receipt_path = queue_root / "translation-replacement-identity-reconciliations" / f"{target_state['run_id']}.json"
+    original_write_exclusive = coordinator._write_json_exclusive
+
+    def write_receipt_then_clobber(path: Path, payload: object) -> None:
+        original_write_exclusive(path, payload)
+        if path == receipt_path:
+            coordinator.atomic_write_json(target_state_path, {**target_state, "status": "active"})
+
+    monkeypatch.setattr(coordinator, "_write_json_exclusive", write_receipt_then_clobber)
+
+    returncode, receipt = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+
+    persisted_state = json.loads(target_state_path.read_text())
+    assert returncode == 1
+    assert receipt["status"] == "rejected"
+    assert persisted_state["status"] == "active"
+    assert "identity_envelope" not in persisted_state
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "duplicate-target", "target-status", "conflicting-envelope", "wrong-lane", "wrong-digest",
+        "routing-drift", "replacement-of", "result-candidate", "last-job", "attempt04",
+        "replacement02", "publish-transaction", "publisher-ledger", "result-review", "run-symlink",
+        "candidate-mirror-drift", "review-mirror-drift", "extra-result-target", "root-review-md",
+        "already-identity-wrong-digest", "external-run-dir",
+    ],
+)
+def test_reconcile_translation_replacement_identity_negative_matrix_has_zero_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    repo_root, queue_root, publisher_state_root, _source_run_dir, target_run_dir, source_state, target_state = _production_shaped_translation_replacement_fixture(tmp_path)
+    target_state_path = coordinator._state_path(str(target_state["run_id"]), queue_root)
+    if failure == "duplicate-target":
+        coordinator.atomic_write_json(queue_root / "runs" / "duplicate.json", target_state)
+    elif failure == "target-status":
+        target_state["status"] = "active"; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "conflicting-envelope":
+        target_state["identity_envelope"] = coordinator._build_identity_envelope("translate_existing", "i18n-new", ["ASTRO-BASE-03"]); coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "wrong-lane":
+        target_state["lane"] = "i18n-new"; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "wrong-digest":
+        pass
+    elif failure == "routing-drift":
+        target_state["routing_schema_version"] = 0; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "replacement-of":
+        target_state["replacement_of"] = "other-source"; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "result-candidate":
+        target_state["result"] = {**target_state["result"], "candidate": str(target_run_dir / "other.json")}; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "result-review":
+        target_state["result"] = {**target_state["result"], "review": str(target_run_dir / "other.md")}; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "extra-result-target":
+        target_state["result"] = {**target_state["result"], "target": "ASTRO-BASE-03"}; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "last-job":
+        target_state["last_job_id"] = ""; coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "attempt04":
+        coordinator.atomic_write_json(target_run_dir / "attempts" / "04" / "planning-result.json", {"generation": 4})
+    elif failure == "replacement02":
+        coordinator.atomic_write_json(target_run_dir / "auto-i18n-en-aa637e1bf05d3ad21429-replacement-02.json", {"status": "forbidden"})
+    elif failure == "publish-transaction":
+        coordinator.atomic_write_json(target_run_dir / "publish-transaction.json", {"status": "forbidden"})
+    elif failure == "publisher-ledger":
+        coordinator.atomic_write_json(publisher_state_root / "ledger.json", {"run_id": target_state["run_id"]})
+    elif failure == "run-symlink":
+        target_run_dir.rename(tmp_path / "target-real")
+        target_run_dir.symlink_to(tmp_path / "target-real", target_is_directory=True)
+    elif failure == "candidate-mirror-drift":
+        coordinator.atomic_write_json(target_run_dir / "candidate.json", {"run_id": target_state["run_id"], "status": "drift"})
+    elif failure == "review-mirror-drift":
+        coordinator.atomic_write_json(target_run_dir / "review.json", {"run_id": target_state["run_id"], "status": "drift"})
+    elif failure == "root-review-md":
+        (target_run_dir / "review.md").write_text("forbidden root file\n", encoding="utf-8")
+    elif failure == "already-identity-wrong-digest":
+        target_state["identity_envelope"] = coordinator._build_identity_envelope("translate_existing", "i18n-rewrite", ["ASTRO-BASE-03"])
+        coordinator.atomic_write_json(target_state_path, target_state)
+    elif failure == "external-run-dir":
+        external_run_dir = tmp_path / "external-translation-runs" / str(target_state["run_id"])
+        external_run_dir.parent.mkdir()
+        target_run_dir.rename(external_run_dir)
+        target_run_dir = external_run_dir
+        target_state["run_dir"] = str(target_run_dir.resolve())
+        target_state["result"] = {
+            **target_state["result"],
+            "candidate": str(target_run_dir / "candidate.json"),
+            "review": str(target_run_dir / "review.md"),
+        }
+        coordinator.atomic_write_json(target_state_path, target_state)
+    before = _file_snapshot(tmp_path)
+    if failure == "wrong-digest":
+        target_state = {**target_state, "updated_at": "2026-08-30T10:03:00+08:00"}
+
+    returncode, receipt = _reconcile_translation_replacement_cli(
+        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+    )
+
+    assert returncode == 1
+    assert receipt["status"] == "rejected"
+    after = _file_snapshot(tmp_path)
+    lock_relative = str(coordinator._run_identity_lock_path(str(target_state["run_id"]), queue_root).relative_to(tmp_path))
+    assert {path: value for path, value in after.items() if path != lock_relative} == before
+    assert set(after) - set(before) <= {lock_relative}
+
+
 @pytest.mark.parametrize("legacy", [False, True])
 def test_exact_translation_replacement_cli_plan_only_is_zero_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], legacy: bool) -> None:
     repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
@@ -2991,6 +3335,10 @@ def test_exact_translation_replacement_cli_execute_is_idempotent_and_does_not_ad
     assert second["status"] == "already_exists"
     assert first["replacement_run_id"] == second["replacement_run_id"] == replacement_id
     assert (replacement_state["status"], set(json.loads((replacement_dir / "brief.json").read_text()))) == ("active", {"schema_version", "run_id", "mode", "articles"})
+    assert replacement_state["routing_schema_version"] == coordinator.ROUTING_SCHEMA_VERSION
+    assert replacement_state["mode"] == "translate_existing"
+    assert replacement_state["lane"] == "i18n-rewrite"
+    assert replacement_state["identity_envelope"] == coordinator._build_identity_envelope("translate_existing", "i18n-rewrite", ["LEGACY-001"])
     assert replacement_state["replacement_of"] == state["run_id"]
     assert replacement_state["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
     assert not (replacement_dir / "attempts").exists()

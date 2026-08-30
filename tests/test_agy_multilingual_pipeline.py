@@ -5751,6 +5751,13 @@ def test_enqueue_translation_replacement_is_bounded_and_preserves_source_identit
     assert replacement_state["status"] == "active"
     assert replacement_state["replacement_of"] == base["run_id"]
     assert replacement_state["replacement_reason"] == "LOCALE_PLAN_VALIDATION"
+    assert replacement_state["routing_schema_version"] == multilingual.SCHEMA_VERSION
+    assert replacement_state["mode"] == "translate_existing"
+    assert replacement_state["lane"] == "i18n-new"
+    assert replacement_state["identity_envelope"] == multilingual.translation_identity_envelope(
+        "TEST-001",
+        "i18n-new",
+    )
     assert replacement_brief == {
         **base_brief,
         "run_id": first["run_id"],
