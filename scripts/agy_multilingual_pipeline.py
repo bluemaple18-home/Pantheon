@@ -2954,22 +2954,168 @@ def _approved_stage_path(
     return resolved
 
 
+@contextmanager
+def _approved_stage_run_lock(run_dir: Path) -> Any:
+    with (run_dir / ".approved-stage.lock").open("a+b") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+def _approved_stage_terminal_owner(
+    *, run_dir: Path, kind: str, queue_state: dict[str, Any],
+    root_candidate: dict[str, Any], root_review: dict[str, Any],
+    expected_root_candidate_sha256: str, expected_root_review_sha256: str,
+    terminal_generation: int | None, expected_continuation_state_sha256: str | None,
+    terminal_attempt: int | None, replacement_of: str | None,
+    replacement_reason: str | None, expected_replacement_state_sha256: str | None,
+) -> dict[str, Any]:
+    common = {
+        "kind": kind,
+        "root_candidate_sha256": expected_root_candidate_sha256,
+        "root_review_sha256": expected_root_review_sha256,
+    }
+    if kind == "continuation_generation":
+        if any(value is not None for value in (
+            terminal_attempt, replacement_of, replacement_reason, expected_replacement_state_sha256
+        )):
+            raise ValueError("approved stage terminal owner fields are mixed")
+        if type(terminal_generation) is not int or type(terminal_generation) is bool or terminal_generation < 1:
+            raise ValueError("approved edited stage terminal generation is invalid")
+        continuation_path = run_dir / "continuation" / "state.json"
+        expected_continuation = _require_sha256_digest(
+            expected_continuation_state_sha256, "continuation stage lock"
+        )
+        continuation = json.loads(continuation_path.read_text(encoding="utf-8"))
+        if (
+            _file_sha256(continuation_path) != expected_continuation
+            or continuation.get("status") != "complete"
+            or continuation.get("next_generation") != terminal_generation + 1
+            or continuation.get("terminal_candidate_sha256") != _json_sha256(root_candidate)
+            or continuation.get("terminal_review_sha256") != _json_sha256(root_review)
+            or (run_dir / "generations" / f"{terminal_generation + 1:02d}").exists()
+        ):
+            raise ValueError("terminal continuation state differs")
+        generation_dir = run_dir / "generations" / f"{terminal_generation:02d}"
+        if (
+            _file_sha256(generation_dir / "candidate.json") != expected_root_candidate_sha256
+            or _file_sha256(generation_dir / "review.json") != expected_root_review_sha256
+            or not all(item["verdict"] == "REJECT" and item.get("hard_failure") is True
+                       and item.get("findings") for item in root_review["articles"])
+        ):
+            raise ValueError("terminal generation audit differs from root audit")
+        return {
+            **common,
+            "terminal_audit_tree_sha256": _tree_sha256(generation_dir),
+            "terminal_generation": terminal_generation,
+            "continuation_state_sha256": expected_continuation,
+            "terminal_generation_candidate_sha256": expected_root_candidate_sha256,
+            "terminal_generation_review_sha256": expected_root_review_sha256,
+        }
+    if kind != "replacement_attempt":
+        raise ValueError("approved stage terminal owner kind is invalid")
+    if terminal_generation is not None or expected_continuation_state_sha256 is not None:
+        raise ValueError("approved stage terminal owner fields are mixed")
+    if terminal_attempt != 3 or not replacement_of or not replacement_reason:
+        raise ValueError("replacement attempt authority is invalid")
+    replacement_state_sha256 = _require_sha256_digest(
+        expected_replacement_state_sha256, "replacement state lock"
+    )
+    if (
+        queue_state.get("replacement_of") != replacement_of
+        or queue_state.get("replacement_reason") != replacement_reason
+        or (run_dir / "continuation").exists()
+        or (run_dir / "generations").exists()
+    ):
+        raise ValueError("replacement attempt lineage differs")
+    attempts_root = run_dir / "attempts"
+    attempt_dirs = sorted(path.name for path in attempts_root.iterdir() if path.is_dir())
+    terminal_dir = attempts_root / "03"
+    if (
+        attempt_dirs != ["01", "02", "03"]
+        or _file_sha256(terminal_dir / "candidate.json") != expected_root_candidate_sha256
+        or _file_sha256(terminal_dir / "review.json") != expected_root_review_sha256
+        or any(item.get("verdict") != "REJECT" or not item.get("findings")
+               or item.get("hard_failure") is True for item in root_review["articles"])
+    ):
+        raise ValueError("replacement attempt terminal audit differs")
+    return {
+        **common,
+        "terminal_audit_tree_sha256": _tree_sha256(attempts_root),
+        "terminal_attempt": 3,
+        "replacement_of": replacement_of,
+        "replacement_reason": replacement_reason,
+        "replacement_state_sha256": replacement_state_sha256,
+        "terminal_attempt_candidate_sha256": expected_root_candidate_sha256,
+        "terminal_attempt_review_sha256": expected_root_review_sha256,
+    }
+def _locale_replacement_plan(
+    repo_root: Path, descriptor: dict[str, Any], article: dict[str, Any], run_id: str,
+) -> tuple[Path, bytes]:
+    keys = set("contract source_article_id locale old_run_id old_source_sha256 old_record_sha256 module_path module_export record_index module_before_sha256 module_after_sha256 manifest_path manifest_sha256 replacement_run_id replacement_source_sha256 approved_article_sha256 replacement_record_sha256".split())
+    if not isinstance(descriptor, dict) or set(descriptor) != keys or descriptor.get("contract") != "approved-locale-existing-record-replacement":
+        raise ValueError("public replacement descriptor is invalid")
+    if descriptor.get("replacement_run_id") != run_id or descriptor.get("source_article_id") != article.get("source_article_id") or descriptor.get("locale") != article.get("locale") or descriptor.get("replacement_source_sha256") != article.get("source_sha256") or descriptor.get("approved_article_sha256") != pipeline.article_sha256(article):
+        raise ValueError("public replacement identity differs")
+    relative = Path(str(descriptor["module_path"])); manifest_relative = Path(str(descriptor["manifest_path"]))
+    if relative.is_absolute() or ".." in relative.parts or relative.parts[:3] != ("app", "web", "static") or manifest_relative.as_posix() != "app/web/static/article-locales.js":
+        raise ValueError("public replacement path differs")
+    module = repo_root / relative; manifest = repo_root / manifest_relative
+    for path in (module, manifest):
+        if path.is_symlink() or not path.is_file() or path.resolve(strict=True) != repo_root.resolve(strict=True).joinpath(*path.relative_to(repo_root).parts):
+            raise ValueError("public replacement path is not canonical")
+    before = module.read_bytes(); manifest_bytes = manifest.read_bytes()
+    current_module_sha = hashlib.sha256(before).hexdigest()
+    if current_module_sha not in {descriptor["module_before_sha256"], descriptor["module_after_sha256"]} or hashlib.sha256(manifest_bytes).hexdigest() != descriptor["manifest_sha256"]:
+        raise ValueError("public replacement module or manifest drift")
+    prefix = b"// AGY \xe6\xa0\xb8\xe5\x87\x86\xe5\xa4\x9a\xe8\xaa\x9e\xe6\x96\x87\xe7\xab\xa0\xef\xbc\x9b\xe7\x94\xb1 scripts/agy_multilingual_pipeline.py \xe7\x94\xa2\xe7\x94\x9f\xe3\x80\x82\n\n"
+    pattern = re.compile(rb"export const ([A-Z][A-Z0-9_]*) = (\[.*\]);\n", re.DOTALL)
+    match = pattern.fullmatch(before[len(prefix):]) if before.startswith(prefix) else None
+    if match is None or match.group(1).decode() != descriptor["module_export"]:
+        raise ValueError("public replacement module grammar differs")
+    records = json.loads(match.group(2)); rendered = prefix + f"export const {descriptor['module_export']} = {json.dumps(records, ensure_ascii=False, indent=2)};\n".encode()
+    if rendered != before or not isinstance(records, list):
+        raise ValueError("public replacement module grammar differs")
+    identity = (str(descriptor["source_article_id"]), str(descriptor["locale"])); index = descriptor["record_index"]
+    matches = [i for i, item in enumerate(records) if (str(item.get("articleId")), str(item.get("locale"))) == identity]
+    inventory = [item for item in _locale_inventory(repo_root) if (str(item.get("articleId")), str(item.get("locale"))) == identity]
+    expected_inventory_run = descriptor["replacement_run_id"] if current_module_sha == descriptor["module_after_sha256"] else descriptor["old_run_id"]
+    expected_inventory_source = descriptor["replacement_source_sha256"] if current_module_sha == descriptor["module_after_sha256"] else descriptor["old_source_sha256"]
+    if matches != [index] or len(inventory) != 1 or inventory[0].get("runId") != expected_inventory_run or inventory[0].get("sourceSha256") != expected_inventory_source:
+        raise ValueError("public replacement owner is ambiguous")
+    old = records[index]
+    replacement = {"runId": run_id, "articleId": article["source_article_id"], "locale": article["locale"], "sourcePath": article["source_path"], "sourceSha256": article["source_sha256"], **{field: article[field] for field in sorted(TRANSLATABLE_FIELDS)}}
+    expected_current_record = descriptor["replacement_record_sha256"] if current_module_sha == descriptor["module_after_sha256"] else descriptor["old_record_sha256"]
+    if hashlib.sha256(compact_json_bytes(old)).hexdigest() != expected_current_record or hashlib.sha256(compact_json_bytes(replacement)).hexdigest() != descriptor["replacement_record_sha256"]:
+        raise ValueError("public replacement record drift")
+    if current_module_sha == descriptor["module_after_sha256"]:
+        return module, before
+    records[index] = replacement
+    after = prefix + f"export const {descriptor['module_export']} = {json.dumps(records, ensure_ascii=False, indent=2)};\n".encode()
+    if hashlib.sha256(after).hexdigest() != descriptor["module_after_sha256"]:
+        raise ValueError(f"public replacement after digest differs: {hashlib.sha256(after).hexdigest()}")
+    return module, after
 def plan_approved_edited_candidate_stage(
     *,
     repo_root: Path, run_dir: Path,
     approved_candidate_path: Path, approved_review_path: Path,
     formal_review_result_path: Path, queue_state_path: Path, publisher_ledger_path: Path,
-    expected_run_id: str, terminal_generation: int,
+    expected_run_id: str, terminal_owner_kind: str,
     expected_approved_article_sha256: str, expected_root_candidate_sha256: str,
-    expected_root_review_sha256: str, expected_continuation_state_sha256: str,
+    expected_root_review_sha256: str,
     expected_queue_state_sha256: str, expected_publisher_ledger_sha256: str,
+    terminal_generation: int | None = None, expected_continuation_state_sha256: str | None = None,
+    terminal_attempt: int | None = None, replacement_of: str | None = None,
+    replacement_reason: str | None = None, expected_replacement_state_sha256: str | None = None,
+    public_replacement: dict[str, Any] | None = None,
     expected_approved_candidate_sha256: str | None = None, expected_approved_review_sha256: str | None = None,
     expected_formal_review_result_sha256: str | None = None, expected_source_sha256: str | None = None,
     expected_actor_sha: str | None = None,
 ) -> dict[str, Any]:
     run_dir = run_dir.resolve(strict=True)
-    required_hashes = (expected_approved_article_sha256, expected_root_candidate_sha256, expected_root_review_sha256,
-                       expected_continuation_state_sha256, expected_queue_state_sha256, expected_publisher_ledger_sha256)
+    required_hashes = (expected_approved_article_sha256, expected_root_candidate_sha256,
+                       expected_root_review_sha256, expected_queue_state_sha256,
+                       expected_publisher_ledger_sha256)
     optional_hashes = (expected_approved_candidate_sha256, expected_approved_review_sha256,
                        expected_formal_review_result_sha256, expected_source_sha256)
     for value in required_hashes:
@@ -2981,16 +3127,12 @@ def plan_approved_edited_candidate_stage(
         raise ValueError("actor hash is invalid")
     if expected_run_id.strip() != expected_run_id or not expected_run_id:
         raise ValueError("approved edited stage run id is invalid")
-    if type(terminal_generation) is not int or type(terminal_generation) is bool or terminal_generation < 1:
-        raise ValueError("approved edited stage terminal generation is invalid")
-
-    continuation_state_path = run_dir / "continuation" / "state.json"
     formal_job_identity_path = formal_review_result_path.parent / "formal-request-identity.json"
     input_paths = (run_dir / "brief.json", run_dir / "candidate.json", run_dir / "review.json",
                    approved_candidate_path, approved_review_path, formal_review_result_path,
-                   continuation_state_path, queue_state_path, publisher_ledger_path, formal_job_identity_path)
+                   queue_state_path, publisher_ledger_path, formal_job_identity_path)
     (brief, root_candidate, root_review, approved_candidate, approved_review, formal_result,
-     continuation_state, queue_state, publisher_ledger, formal_job_identity) = (
+     queue_state, publisher_ledger, formal_job_identity) = (
         json.loads(path.read_text(encoding="utf-8")) for path in input_paths
     )
 
@@ -3009,11 +3151,10 @@ def plan_approved_edited_candidate_stage(
         raise ValueError("approved article identity differs")
     if expected_source_sha256 is not None and brief["articles"][0]["source_sha256"] != expected_source_sha256:
         raise ValueError("source identity differs")
-    current_paths = (run_dir / "candidate.json", run_dir / "review.json", continuation_state_path,
+    current_paths = (run_dir / "candidate.json", run_dir / "review.json",
                      queue_state_path, publisher_ledger_path)
     current_expected = (expected_root_candidate_sha256, expected_root_review_sha256,
-                        expected_continuation_state_sha256, expected_queue_state_sha256,
-                        expected_publisher_ledger_sha256)
+                        expected_queue_state_sha256, expected_publisher_ledger_sha256)
     approved_paths = (approved_candidate_path, approved_review_path, formal_review_result_path)
     approved_expected = (expected_approved_candidate_sha256, expected_approved_review_sha256,
                          expected_formal_review_result_sha256)
@@ -3022,11 +3163,6 @@ def plan_approved_edited_candidate_stage(
     approved_hashes = tuple(_file_sha256(path) for path in approved_paths)
     if any(expected is not None and actual != expected for actual, expected in zip(approved_hashes, approved_expected)):
         raise ValueError("approved input lock differs")
-    if (continuation_state.get("status") != "complete"
-            or continuation_state.get("next_generation") != terminal_generation + 1
-            or continuation_state.get("terminal_candidate_sha256") != _json_sha256(root_candidate)
-            or continuation_state.get("terminal_review_sha256") != _json_sha256(root_review)):
-        raise ValueError("terminal continuation state differs")
     if (queue_state.get("run_id") != expected_run_id or queue_state.get("status") != "complete"
             or queue_state.get("run_dir") != str(run_dir)):
         raise ValueError("queue state identity differs")
@@ -3037,17 +3173,23 @@ def plan_approved_edited_candidate_stage(
         if isinstance(item, dict)
     ):
         raise ValueError("publisher ledger lifecycle is not stageable")
-    if not all(item["verdict"] == "REJECT" and item.get("hard_failure") is True
-               and item.get("findings") for item in root_review["articles"]):
-        raise ValueError("terminal root review must stay rejected")
-    if (run_dir / "generations" / f"{terminal_generation + 1:02d}").exists():
-        raise ValueError("next generation already exists")
-    generation_dir = run_dir / "generations" / f"{terminal_generation:02d}"
-    generation_candidate_path = generation_dir / "candidate.json"
-    generation_review_path = generation_dir / "review.json"
-    if (_file_sha256(generation_candidate_path) != expected_root_candidate_sha256
-            or _file_sha256(generation_review_path) != expected_root_review_sha256):
-        raise ValueError("terminal generation audit differs from root audit")
+    terminal_owner = _approved_stage_terminal_owner(
+        run_dir=run_dir, kind=terminal_owner_kind, queue_state=queue_state,
+        root_candidate=root_candidate, root_review=root_review,
+        expected_root_candidate_sha256=expected_root_candidate_sha256,
+        expected_root_review_sha256=expected_root_review_sha256,
+        terminal_generation=terminal_generation,
+        expected_continuation_state_sha256=expected_continuation_state_sha256,
+        terminal_attempt=terminal_attempt, replacement_of=replacement_of,
+        replacement_reason=replacement_reason,
+        expected_replacement_state_sha256=expected_replacement_state_sha256,
+    )
+    if terminal_owner_kind == "replacement_attempt":
+        if public_replacement is None:
+            raise ValueError("replacement stage requires public replacement descriptor")
+        _locale_replacement_plan(repo_root, public_replacement, approved_candidate["articles"][0], expected_run_id)
+    elif public_replacement is not None:
+        raise ValueError("continuation stage rejects public replacement descriptor")
 
     try:
         actor_sha = subprocess.run(
@@ -3065,19 +3207,15 @@ def plan_approved_edited_candidate_stage(
         raise ValueError("actor identity differs")
     identity = {
         "schema_version": SCHEMA_VERSION, "contract": "approved-edited-candidate-stage",
-        "run_id": expected_run_id, "terminal_generation": terminal_generation,
+        "run_id": expected_run_id, "terminal_owner": terminal_owner,
+        **({"public_replacement": public_replacement} if public_replacement is not None else {}),
         "source_sha256": brief["articles"][0]["source_sha256"], "actor_sha": actor_sha,
         "approved_article_sha256": approved_article_sha256,
-        "root_candidate_sha256": expected_root_candidate_sha256, "root_review_sha256": expected_root_review_sha256,
-        "continuation_state_sha256": expected_continuation_state_sha256,
         "queue_state_sha256": expected_queue_state_sha256, "publisher_ledger_sha256": expected_publisher_ledger_sha256,
         "approved_candidate_file_sha256": approved_hashes[0], "approved_review_file_sha256": approved_hashes[1],
         "formal_review_result_sha256": approved_hashes[2], "formal_job_identity_sha256": _file_sha256(formal_job_identity_path),
         "formal_job_identity_content_sha256": _json_sha256(formal_job_identity),
         "formal_job_id": formal_job_identity["job_id"], "formal_request_sha256": formal_job_identity["request_sha256"],
-        "terminal_generation_candidate_sha256": expected_root_candidate_sha256,
-        "terminal_generation_review_sha256": expected_root_review_sha256,
-        "terminal_generation_tree_sha256": _tree_sha256(generation_dir),
     }
     operation_id = f"approved-edit-stage-{_json_sha256(identity)[:24]}"
     operation_dir = run_dir / "editorial-staging" / operation_id
@@ -3104,17 +3242,22 @@ def apply_approved_edited_candidate_stage(
     repo_root: Path, run_dir: Path,
     approved_candidate_path: Path, approved_review_path: Path,
     formal_review_result_path: Path, queue_state_path: Path, publisher_ledger_path: Path,
-    expected_run_id: str, terminal_generation: int,
+    expected_run_id: str, terminal_owner_kind: str,
     expected_approved_article_sha256: str, expected_root_candidate_sha256: str,
-    expected_root_review_sha256: str, expected_continuation_state_sha256: str,
+    expected_root_review_sha256: str,
     expected_queue_state_sha256: str, expected_publisher_ledger_sha256: str, expected_plan_digest: str,
+    terminal_generation: int | None = None, expected_continuation_state_sha256: str | None = None,
+    terminal_attempt: int | None = None, replacement_of: str | None = None,
+    replacement_reason: str | None = None, expected_replacement_state_sha256: str | None = None,
+    public_replacement: dict[str, Any] | None = None,
     expected_approved_candidate_sha256: str | None = None, expected_approved_review_sha256: str | None = None,
     expected_formal_review_result_sha256: str | None = None, expected_source_sha256: str | None = None,
     expected_actor_sha: str | None = None,
 ) -> dict[str, Any]:
     inputs = dict(locals())
     expected_plan_digest = _require_sha256_digest(inputs.pop("expected_plan_digest"), "plan digest")
-    with _continuation_run_lock(run_dir):
+    stage_lock = _continuation_run_lock if terminal_owner_kind == "continuation_generation" else _approved_stage_run_lock
+    with stage_lock(run_dir):
         plan = plan_approved_edited_candidate_stage(**inputs)
         if plan["plan_digest"] != expected_plan_digest:
             raise ValueError("approved edited stage plan digest differs")
@@ -3172,8 +3315,9 @@ def _load_approved_edited_candidate_stage_record(
     require_current: bool,
 ) -> dict[str, Any]:
     run_dir = run_dir.resolve(strict=True)
-    required = set("schema_version contract status operation_id operation_dir payload_path receipt_path rollback_receipt_path current_seal_path plan_digest payload_sha256 rollback_receipt_sha256 run_id provider_calls root_candidate_sha256 root_review_sha256 continuation_state_sha256 terminal_generation terminal_generation_candidate_sha256 terminal_generation_review_sha256 terminal_generation_tree_sha256 formal_job_identity_sha256 formal_job_identity_content_sha256 formal_job_id formal_request_sha256".split())
-    if (not isinstance(seal, dict) or not required <= set(seal)
+    if not isinstance(seal, dict): raise ValueError("approved edited stage current seal is invalid")
+    required = set("schema_version contract status operation_id operation_dir payload_path receipt_path rollback_receipt_path current_seal_path plan_digest payload_sha256 rollback_receipt_sha256 run_id provider_calls terminal_owner formal_job_identity_sha256 formal_job_identity_content_sha256 formal_job_id formal_request_sha256".split())
+    if (set(seal) != required | set("actor_sha approved_article_sha256 approved_candidate_file_sha256 approved_review_file_sha256 created_paths current_pointer_before_sha256 formal_review_result_sha256 publisher_ledger_sha256 queue_state_sha256 source_sha256".split()) | ({"public_replacement"} if "public_replacement" in seal else set())
             or seal.get("schema_version") != SCHEMA_VERSION or seal.get("contract") != "approved-edited-candidate-stage"
             or seal.get("status") != "STAGED" or seal.get("provider_calls") != 0):
         raise ValueError("approved edited stage current seal is invalid")
@@ -3222,19 +3366,43 @@ def _load_approved_edited_candidate_stage_record(
         raise ValueError("approved edited stage formal job identity differs")
     if approved_article_sha256 != seal["approved_article_sha256"]:
         raise ValueError("approved edited stage article digest differs")
-    terminal_generation = int(seal["terminal_generation"])
-    generation_dir = run_dir / "generations" / f"{terminal_generation:02d}"
-    current_locks = (
-        (run_dir / "candidate.json", seal["root_candidate_sha256"]),
-        (run_dir / "review.json", seal["root_review_sha256"]),
-        (run_dir / "continuation" / "state.json", seal["continuation_state_sha256"]),
-        (generation_dir / "candidate.json", seal["terminal_generation_candidate_sha256"]),
-        (generation_dir / "review.json", seal["terminal_generation_review_sha256"]),
-    )
+    terminal_owner = seal.get("terminal_owner")
+    common_owner_keys = set("kind root_candidate_sha256 root_review_sha256 terminal_audit_tree_sha256".split())
+    continuation_keys = common_owner_keys | set("terminal_generation continuation_state_sha256 terminal_generation_candidate_sha256 terminal_generation_review_sha256".split())
+    replacement_keys = common_owner_keys | set("terminal_attempt replacement_of replacement_reason replacement_state_sha256 terminal_attempt_candidate_sha256 terminal_attempt_review_sha256".split())
+    if not isinstance(terminal_owner, dict):
+        raise ValueError("approved edited stage terminal owner is invalid")
+    kind = terminal_owner.get("kind")
+    expected_owner_keys = continuation_keys if kind == "continuation_generation" else replacement_keys
+    if kind not in {"continuation_generation", "replacement_attempt"} or set(terminal_owner) != expected_owner_keys:
+        raise ValueError("approved edited stage terminal owner is invalid")
+    if (kind == "replacement_attempt") != ("public_replacement" in seal):
+        raise ValueError("approved edited stage public replacement owner differs")
+    current_locks = [
+        (run_dir / "candidate.json", terminal_owner["root_candidate_sha256"]),
+        (run_dir / "review.json", terminal_owner["root_review_sha256"]),
+    ]
+    if kind == "continuation_generation":
+        terminal_number = int(terminal_owner["terminal_generation"])
+        audit_dir = run_dir / "generations" / f"{terminal_number:02d}"
+        current_locks.extend((
+            (run_dir / "continuation" / "state.json", terminal_owner["continuation_state_sha256"]),
+            (audit_dir / "candidate.json", terminal_owner["terminal_generation_candidate_sha256"]),
+            (audit_dir / "review.json", terminal_owner["terminal_generation_review_sha256"]),
+        ))
+    else:
+        if terminal_owner.get("terminal_attempt") != 3:
+            raise ValueError("approved edited stage terminal owner is invalid")
+        audit_dir = run_dir / "attempts"
+        terminal_dir = audit_dir / "03"
+        current_locks.extend((
+            (terminal_dir / "candidate.json", terminal_owner["terminal_attempt_candidate_sha256"]),
+            (terminal_dir / "review.json", terminal_owner["terminal_attempt_review_sha256"]),
+        ))
     if any(_file_sha256(path) != expected for path, expected in current_locks):
         raise ValueError("approved edited stage terminal audit drift")
-    if _tree_sha256(generation_dir) != seal["terminal_generation_tree_sha256"]:
-        raise ValueError("approved edited stage terminal generation tree drift")
+    if _tree_sha256(audit_dir) != terminal_owner["terminal_audit_tree_sha256"]:
+        raise ValueError("approved edited stage terminal audit tree drift")
     if brief.get("run_id") != seal["run_id"] or brief["articles"][0]["source_sha256"] != seal["source_sha256"]:
         raise ValueError("approved edited stage source identity differs")
     return {"seal": seal, "candidate": candidate, "review": review,
@@ -3251,7 +3419,9 @@ def load_approved_edited_candidate_stage(run_dir: Path) -> dict[str, Any]:
 
 
 def rollback_approved_edited_candidate_stage(run_dir: Path, operation_id: str) -> dict[str, Any]:
-    with _continuation_run_lock(run_dir):
+    seal = json.loads(_approved_stage_path(run_dir, "current.json").read_text(encoding="utf-8"))
+    stage_lock = _continuation_run_lock if seal.get("terminal_owner", {}).get("kind") == "continuation_generation" else _approved_stage_run_lock
+    with stage_lock(run_dir):
         run_dir = run_dir.resolve(strict=True)
         loaded = load_approved_edited_candidate_stage(run_dir)
         current = loaded["seal"]
@@ -4284,6 +4454,7 @@ def apply_approved_translations(
     approval: dict[str, Any],
     *,
     source_loader: SourceLoader = load_source_article,
+    public_replacement: dict[str, Any] | None = None,
 ) -> list[Path]:
     validate_translation_candidate(brief, candidate)
     deterministic = translation_findings(brief, candidate["articles"])
@@ -4301,6 +4472,17 @@ def apply_approved_translations(
         current = source_loader(repo_root, str(article["source_article_id"]))
         if source_sha256(current) != article["source_sha256"]:
             raise ValueError(f"translation source drift for {article['article_id']}")
+
+    if public_replacement is not None:
+        if len(approved) != 1:
+            raise ValueError("public replacement requires exactly one approved article")
+        module, after = _locale_replacement_plan(
+            repo_root, public_replacement, approved[0], run_id
+        )
+        if module.read_bytes() == after:
+            return [module]
+        _atomic_write_bytes(module, after)
+        return [module]
 
     slug, identifier = pipeline._safe_identifier(run_id)
     static = repo_root / "app/web/static"
@@ -4414,16 +4596,21 @@ def parse_args() -> argparse.Namespace:
     stage = subparsers.add_parser("stage-approved-edited-candidate")
     for name in ("run-dir", "approved-candidate", "approved-review", "formal-review-result", "queue-state", "publisher-ledger"):
         stage.add_argument(f"--{name}", type=Path, required=True)
-    stage.add_argument("--terminal-generation", type=int, required=True)
-    for name in ("run-id", "approved-article-sha256", "root-candidate-sha256", "root-review-sha256", "continuation-state-sha256", "queue-state-sha256", "publisher-ledger-sha256"):
+    stage.add_argument("--terminal-owner-kind", choices=("continuation_generation", "replacement_attempt"), required=True)
+    stage.add_argument("--terminal-generation", type=int)
+    stage.add_argument("--terminal-attempt", type=int)
+    stage.add_argument("--replacement-of")
+    stage.add_argument("--replacement-reason")
+    stage.add_argument("--public-replacement", type=Path)
+    for name in ("run-id", "approved-article-sha256", "root-candidate-sha256", "root-review-sha256", "queue-state-sha256", "publisher-ledger-sha256"):
         stage.add_argument(f"--expected-{name}", required=True)
+    stage.add_argument("--expected-continuation-state-sha256")
+    stage.add_argument("--expected-replacement-state-sha256")
     for name in ("approved-candidate-sha256", "approved-review-sha256", "formal-review-result-sha256", "source-sha256", "actor-sha"):
         stage.add_argument(f"--expected-{name}")
     stage.add_argument("--expected-plan-digest")
     stage.add_argument("--execute", action="store_true")
     return parser.parse_args()
-
-
 def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
@@ -4489,13 +4676,16 @@ def main() -> int:
             **{
                 name: getattr(args, name)
                 for name in (
-                    "expected_run_id", "terminal_generation", "expected_approved_article_sha256",
-                    "expected_root_candidate_sha256", "expected_root_review_sha256", "expected_continuation_state_sha256",
+                    "expected_run_id", "terminal_owner_kind", "terminal_generation", "terminal_attempt",
+                    "replacement_of", "replacement_reason", "expected_approved_article_sha256",
+                    "expected_root_candidate_sha256", "expected_root_review_sha256",
+                    "expected_continuation_state_sha256", "expected_replacement_state_sha256",
                     "expected_queue_state_sha256", "expected_publisher_ledger_sha256", "expected_approved_candidate_sha256",
                     "expected_approved_review_sha256", "expected_formal_review_result_sha256", "expected_source_sha256", "expected_actor_sha",
                 )
             },
             "run_dir": args.run_dir.resolve(),
+            "public_replacement": json.loads(args.public_replacement.resolve().read_text(encoding="utf-8")) if args.public_replacement else None,
         }
         if args.execute:
             if not args.expected_plan_digest:

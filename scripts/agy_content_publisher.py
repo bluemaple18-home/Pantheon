@@ -1112,8 +1112,16 @@ def _file_sha256(path: Path) -> str:
 def _atomic_write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    with temporary.open("w", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
     os.replace(temporary, path)
+    directory_fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
 
 
 def _repo_lock_path(
@@ -2394,6 +2402,145 @@ def _recover_failed_publish(
     return evidence_path
 
 
+def _resume_prepared_translation(
+    repo_root: Path, queue_root: Path, state_root: Path, git: GitRunner,
+    control: dict[str, Any],
+) -> dict[str, Any]:
+    keys = set("schema_version status phase run_id stage_receipt_sha256 approved_candidate_file_sha256 approved_article_sha256 approved_review_file_sha256 formal_review_result_sha256 formal_job_id formal_request_sha256 replacement_of replacement_reason record_before_sha256 record_after_sha256 module_before_sha256 module_after_sha256 manifest_sha256 base_sha target_commit_sha version target_tag expected_remote_main_before expected_remote_tag_before publication_plan_digest ledger_path publish_evidence_path recorded_at".split())
+    if set(control) != keys or control.get("schema_version") != SCHEMA_VERSION or control.get("status") != "PUSH_PREPARED" or control.get("phase") != "translation" or control.get("expected_remote_tag_before") is not None:
+        raise PublishBlocked("prepared translation control is invalid")
+    run_id = str(control["run_id"]); target = str(control["target_commit_sha"]); base = str(control["base_sha"])
+    version = str(control["version"]); tag = str(control["target_tag"])
+    if not re.fullmatch(r"[0-9a-f]{40}", target) or not re.fullmatch(r"[0-9a-f]{40}", base) or tag != f"v{version}" or control.get("expected_remote_main_before") != base:
+        raise PublishBlocked("prepared translation Git identity is invalid")
+    local_tag_object = git(repo_root, ["rev-parse", f"refs/tags/{tag}"], None)
+    if git(repo_root, ["rev-parse", "HEAD"], None) != target or git(repo_root, ["rev-parse", f"{tag}^{{}}"], None) != target or git(repo_root, ["rev-parse", f"{target}^"], None) != base or not re.fullmatch(r"[0-9a-f]{40}", local_tag_object) or any(_publisher_owned_path(line[3:]) for line in git(repo_root, ["status", "--porcelain"], None).splitlines()):
+        raise PublishBlocked("prepared translation local commit or tag differs")
+    ledger_path = _ledger_path(state_root); ledger = _load_ledger(state_root)
+    entries = [item for item in ledger["translation_published_runs"] if item.get("run_id") == run_id]
+    if entries:
+        state_paths = _selected_run_files(queue_root, state_root, "translation", frozenset({run_id}))
+        if len(state_paths) != 1:
+            raise PublishBlocked("prepared translation run is not uniquely sealed")
+        state = _read_json(state_paths[0]); approved = multilingual.load_approved_edited_candidate_stage(Path(str(state.get("run_dir") or "")))
+        seal = approved["seal"]
+        if state.get("run_id") != run_id or _file_sha256(state_paths[0]) != seal.get("queue_state_sha256"):
+            raise PublishBlocked("prepared translation queue identity differs")
+        candidate = approved["candidate"]
+        staged = {"receipt_sha256": approved["receipt_sha256"], **{key: seal[key] for key in ("terminal_owner", "public_replacement", "formal_job_id", "formal_request_sha256", "approved_candidate_file_sha256", "approved_article_sha256", "approved_review_file_sha256", "formal_review_result_sha256")}}
+    else:
+        ready = collect_ready_translation_runs(repo_root, queue_root, state_root, limit=1, exact_run_ids=[run_id])
+        if len(ready) != 1:
+            raise PublishBlocked("prepared translation run is not uniquely stageable")
+        state, _brief, candidate, _review = ready[0]; staged = state.get("_approved_revision_stage") or {}
+    replacement = staged.get("public_replacement") or {}
+    multilingual._locale_replacement_plan(repo_root, replacement, candidate["articles"][0], run_id)
+    expected = {
+        "stage_receipt_sha256": staged.get("receipt_sha256"),
+        "approved_candidate_file_sha256": staged.get("approved_candidate_file_sha256"),
+        "approved_article_sha256": staged.get("approved_article_sha256"),
+        "approved_review_file_sha256": staged.get("approved_review_file_sha256"),
+        "formal_review_result_sha256": staged.get("formal_review_result_sha256"),
+        "formal_job_id": staged.get("formal_job_id"), "formal_request_sha256": staged.get("formal_request_sha256"),
+        "replacement_of": replacement.get("old_run_id"),
+        "replacement_reason": (staged.get("terminal_owner") or {}).get("replacement_reason"),
+        "record_before_sha256": replacement.get("old_record_sha256"),
+        "record_after_sha256": replacement.get("replacement_record_sha256"),
+        "module_before_sha256": replacement.get("module_before_sha256"),
+        "module_after_sha256": replacement.get("module_after_sha256"),
+        "manifest_sha256": replacement.get("manifest_sha256"),
+    }
+    if any(control.get(key) != value for key, value in expected.items()):
+        raise PublishBlocked("prepared translation stage lineage differs")
+    plan_digest = hashlib.sha256(pipeline.compact_json_bytes({
+        "run_id": run_id, "stage_receipt_sha256": staged["receipt_sha256"],
+        "replacement": replacement, "base_sha": base, "version": version, "target_tag": tag,
+    })).hexdigest()
+    evidence_path = state_root / "evidence" / f"translation-{version}" / "translation-evidence.json"
+    if control.get("publication_plan_digest") != plan_digest or Path(str(control.get("ledger_path"))) != ledger_path or Path(str(control.get("publish_evidence_path"))) != evidence_path:
+        raise PublishBlocked("prepared translation publication plan differs")
+    entry, evidence = _translation_finalization_records(repo_root, git, control, candidate, replacement)
+    if entries and entries != [entry]:
+        raise PublishBlocked("prepared translation ledger differs")
+    if not entries and evidence_path.exists(): raise PublishBlocked("translation evidence exists before ledger finalization")
+    if entries:
+        canonical_bytes = json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n"
+        evidence_existed = evidence_path.is_file()
+        if evidence_existed and evidence_path.read_bytes() != canonical_bytes:
+            raise PublishBlocked("prepared translation evidence differs")
+        if not evidence_path.exists():
+            if evidence_path.is_symlink() or evidence_path.parent.is_symlink() or evidence_path.parent.resolve() != evidence_path.parent:
+                raise PublishBlocked("prepared translation evidence path is not canonical")
+            _atomic_write_json(evidence_path, evidence)
+            if evidence_path.read_bytes() != canonical_bytes:
+                raise PublishBlocked("prepared translation evidence write differs")
+        _remove_prepared_control(state_root)
+        return {**evidence, "status": "ALREADY_PUBLISHED"} if evidence_existed else evidence
+    git(repo_root, ["fetch", "origin", "main"], None)
+    remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
+    remote_text = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None)
+    tag_lines = [line.split() for line in remote_text.splitlines() if line.strip()]
+    allowed_refs = {f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"}
+    if any(len(line) != 2 or line[1] not in allowed_refs for line in tag_lines) or len(tag_lines) not in {0, 2} or (tag_lines and {line[1] for line in tag_lines} != allowed_refs):
+        raise PublishBlocked("prepared translation remote tag identity is ambiguous")
+    remote_tag = next((line[0] for line in tag_lines if line[1].endswith("^{}")), None)
+    remote_tag_object = next((line[0] for line in tag_lines if not line[1].endswith("^{}")), None)
+    if remote_main not in {base, target} or remote_tag not in {None, target} or remote_tag_object not in {None, local_tag_object}:
+        raise PublishBlocked("prepared translation remote refs diverged")
+    if entries and (remote_main != target or remote_tag != target):
+        raise PublishBlocked("finalized translation remote refs differ")
+    if not entries and remote_main == base and remote_tag is None:
+        git(repo_root, release_git_plan(version)["push"], None)
+    elif not entries and remote_main == target and remote_tag is None:
+        git(repo_root, ["push", "origin", f"refs/tags/{tag}"], None)
+    elif not entries and remote_main == base and remote_tag == target:
+        git(repo_root, ["push", "origin", "HEAD:refs/heads/main"], None)
+    if remote_main != target or remote_tag != target:
+        git(repo_root, ["fetch", "origin", "main"], None)
+        verified_main = git(repo_root, ["rev-parse", "origin/main"], None)
+        verified_tags = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None)
+        verified_lines = verified_tags.splitlines()
+        if verified_main != target or len(verified_lines) != 2 or set(verified_lines) != {f"{local_tag_object}\trefs/tags/{tag}", f"{target}\trefs/tags/{tag}^{{}}"}:
+            raise PublishBlocked("prepared translation remote convergence was not verified")
+    if not entries:
+        if evidence_path.is_file():
+            raise PublishBlocked("translation evidence exists before ledger finalization")
+        ledger["translation_published_runs"].append(entry); _atomic_write_json(ledger_path, ledger)
+    already_published = evidence_path.is_file()
+    if already_published and _read_json(evidence_path) != evidence:
+        raise PublishBlocked("prepared translation evidence differs")
+    if not evidence_path.is_file():
+        _atomic_write_json(evidence_path, evidence)
+    if evidence_path.read_bytes() != json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n": raise PublishBlocked("prepared translation evidence write differs")
+    _remove_prepared_control(state_root)
+    return {**evidence, "status": "ALREADY_PUBLISHED"} if already_published else evidence
+
+def _translation_finalization_records(repo_root: Path, git: GitRunner, control: dict[str, Any], candidate: dict[str, Any], replacement: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    run_id = str(control["run_id"]); article = candidate["articles"][0]
+    changed = sorted(line for line in git(repo_root, ["diff", "--name-only", f"{control['base_sha']}..{control['target_commit_sha']}"], None).splitlines() if line)
+    if not changed or any(not _publisher_owned_path(path) for path in changed):
+        raise PublishBlocked("prepared translation commit diff differs")
+    entry = {"run_id": run_id, "locale": article["locale"], "article_id": article["source_article_id"], "version": control["version"], "commit_sha": control["target_commit_sha"], "published_at": control["recorded_at"], "staging_receipt_sha256": control["stage_receipt_sha256"], "replaces_run_id": replacement["old_run_id"], "replaced_record_sha256": replacement["old_record_sha256"], "replacement_record_sha256": replacement["replacement_record_sha256"], "replacement_module_before_sha256": replacement["module_before_sha256"], "replacement_module_after_sha256": replacement["module_after_sha256"], "publication_plan_digest": control["publication_plan_digest"]}
+    evidence = {"schema_version": SCHEMA_VERSION, "status": "PUBLISHED_TRANSLATION", "base_sha": control["base_sha"], "commit_sha": control["target_commit_sha"], "version": control["version"], "run_ids": [run_id], "locales": [entry["locale"]], "article_ids": [entry["article_id"]], "changed": changed, "public_article_count": _public_article_count(repo_root), "pushed": True, "reconciled": True}
+    return entry, evidence
+def _remove_prepared_control(state_root: Path) -> None:
+    path = _unresolved_push_path(state_root); path.unlink()
+    directory_fd = os.open(path.parent, os.O_RDONLY)
+    try: os.fsync(directory_fd)
+    finally: os.close(directory_fd)
+
+def _translation_prepared_context(
+    published: list[tuple[str, str, str, str | None, dict[str, Any] | None]],
+    run_ids: list[str], base_sha: str, version: str, state_root: Path, evidence_dir: Path,
+) -> dict[str, Any] | None:
+    staged = published[0][4] if len(published) == 1 else None
+    replacement = staged.get("public_replacement") if isinstance(staged, dict) else None
+    if replacement is None:
+        return None
+    digest = hashlib.sha256(pipeline.compact_json_bytes({"run_id": run_ids[0], "stage_receipt_sha256": staged["receipt_sha256"], "replacement": replacement, "base_sha": base_sha, "version": version, "target_tag": f"v{version}"})).hexdigest()
+    return {"stage_receipt_sha256": staged["receipt_sha256"], **{key: staged[key] for key in ("approved_candidate_file_sha256", "approved_article_sha256", "approved_review_file_sha256", "formal_review_result_sha256", "formal_job_id", "formal_request_sha256")}, "replacement_of": replacement["old_run_id"], "replacement_reason": staged["terminal_owner"]["replacement_reason"], "record_before_sha256": replacement["old_record_sha256"], "record_after_sha256": replacement["replacement_record_sha256"], "module_before_sha256": replacement["module_before_sha256"], "module_after_sha256": replacement["module_after_sha256"], "manifest_sha256": replacement["manifest_sha256"], "base_sha": base_sha, "expected_remote_main_before": base_sha, "publication_plan_digest": digest, "ledger_path": str(_ledger_path(state_root)), "publish_evidence_path": str(evidence_dir / "translation-evidence.json"), "recorded_at": _now()}
+
+
 def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     def decorate(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         @functools.wraps(function)
@@ -2412,7 +2559,13 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
-                _assert_no_unresolved_push(state_root)
+                control_path = _unresolved_push_path(state_root)
+                if control_path.is_file():
+                    control = _read_json(control_path)
+                    selected = _normalize_exact_run_ids(kwargs.get("exact_run_ids"))
+                    if phase == "translation" and control.get("status") == "PUSH_PREPARED" and selected == frozenset({str(control.get("run_id"))}):
+                        return _resume_prepared_translation(repo_root, queue_root, state_root, git, control)
+                    _assert_no_unresolved_push(state_root)
                 base_sha = _assert_clean_origin_head(repo_root, git)
                 journal = MutationJournal(repo_root, git)
                 kwargs["_transaction_base_sha"] = base_sha
@@ -2462,6 +2615,12 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         ],
                     }
                 except Exception as error:
+                    if _unresolved_push_path(state_root).is_file() and _read_json(
+                        _unresolved_push_path(state_root)
+                    ).get("status") == "PUSH_PREPARED":
+                        raise PushOutcomeUnknown(
+                            "prepared translation requires exact reconciliation"
+                        ) from error
                     if not journal.mutation_started:
                         raise
                     evidence_path = _recover_failed_publish(
@@ -2618,7 +2777,7 @@ def _record_translation_deferred(state_root: Path, run_id: str, reason: str) -> 
     existing = {(str(item.get("run_id")), str(item.get("reason"))) for item in ledger["translation_deferred_runs"]}
     if run_id and (run_id, reason) not in existing:
         ledger["translation_deferred_runs"].append({"run_id": run_id, "reason": reason, "recorded_at": _now()})
-        _write_json(_ledger_path(state_root), ledger)
+        _atomic_write_json(_ledger_path(state_root), ledger)
 
 
 def _record_quarantine(state_root: Path, state: dict[str, Any], reason: str) -> None:
@@ -2845,12 +3004,21 @@ def collect_ready_translation_runs(
             try:
                 approved_stage = multilingual.load_approved_edited_candidate_stage(run_dir)
                 seal = approved_stage["seal"]
+                terminal_owner = seal["terminal_owner"]
                 if (
                     _file_sha256(_ledger_path(state_root)) != seal["publisher_ledger_sha256"]
                     or _file_sha256(state_path) != seal["queue_state_sha256"]
-                    or _file_sha256(run_dir / "candidate.json") != seal["root_candidate_sha256"]
-                    or _file_sha256(run_dir / "review.json") != seal["root_review_sha256"]
-                    or _file_sha256(run_dir / "continuation" / "state.json") != seal["continuation_state_sha256"]
+                    or _file_sha256(run_dir / "candidate.json") != terminal_owner["root_candidate_sha256"]
+                    or _file_sha256(run_dir / "review.json") != terminal_owner["root_review_sha256"]
+                    or (
+                        terminal_owner["kind"] == "continuation_generation"
+                        and _file_sha256(run_dir / "continuation" / "state.json")
+                        != terminal_owner["continuation_state_sha256"]
+                    )
+                    or (
+                        terminal_owner["kind"] == "replacement_attempt"
+                        and _file_sha256(state_path) != terminal_owner["replacement_state_sha256"]
+                    )
                 ):
                     raise ValueError("approved edited stage current locks differ")
                 candidate = approved_stage["candidate"]
@@ -2879,6 +3047,14 @@ def collect_ready_translation_runs(
                 **state,
                 "_approved_revision_stage": {
                     "receipt_sha256": approved_stage["receipt_sha256"],
+                    "terminal_owner": approved_stage["seal"]["terminal_owner"],
+                    "public_replacement": approved_stage["seal"].get("public_replacement"),
+                    "formal_job_id": approved_stage["seal"]["formal_job_id"],
+                    "formal_request_sha256": approved_stage["seal"]["formal_request_sha256"],
+                    "approved_candidate_file_sha256": approved_stage["seal"]["approved_candidate_file_sha256"],
+                    "approved_article_sha256": approved_stage["seal"]["approved_article_sha256"],
+                    "approved_review_file_sha256": approved_stage["seal"]["approved_review_file_sha256"],
+                    "formal_review_result_sha256": approved_stage["seal"]["formal_review_result_sha256"],
                 },
             }
         ready.append((state, brief, candidate, review))
@@ -3695,6 +3871,7 @@ def _stage_commit_tag_push(
     phase: str | None = None,
     run_ids: list[str] | None = None,
     checked_runner: Callable[[Path, list[str]], None] | None = None,
+    prepared_context: dict[str, Any] | None = None,
 ) -> str:
     if namespace_plan.selected_version != version:
         raise PublishBlocked("release version differs from frozen namespace plan")
@@ -3720,6 +3897,16 @@ def _stage_commit_tag_push(
                 "--require-head-tag",
             ],
         )
+    if prepared_context is not None and push:
+        context_keys = set("stage_receipt_sha256 approved_candidate_file_sha256 approved_article_sha256 approved_review_file_sha256 formal_review_result_sha256 formal_job_id formal_request_sha256 replacement_of replacement_reason record_before_sha256 record_after_sha256 module_before_sha256 module_after_sha256 manifest_sha256 base_sha expected_remote_main_before publication_plan_digest ledger_path publish_evidence_path recorded_at".split())
+        if state_root is None or phase != "translation" or len(run_ids or []) != 1 or set(prepared_context) != context_keys:
+            raise PublishBlocked("prepared translation context is invalid")
+        prepared = {
+            "schema_version": SCHEMA_VERSION, "status": "PUSH_PREPARED", "phase": "translation",
+            "run_id": run_ids[0], **prepared_context, "target_commit_sha": commit_sha,
+            "version": version, "target_tag": f"v{version}", "expected_remote_tag_before": None,
+        }
+        _atomic_write_json(_unresolved_push_path(state_root), prepared)
     if push:
         try:
             git(repo_root, release_plan["push"], None)
@@ -3746,6 +3933,16 @@ def _stage_commit_tag_push(
                     git(repo_root, ["update-ref", "-d", reconcile_ref], None)
             if remote_main == commit_sha and remote_tag == commit_sha:
                 return commit_sha
+            if prepared_context is not None:
+                evidence_dir = outcome_evidence_dir or repo_root / ".git"
+                evidence_path = evidence_dir / "push-outcome-unknown.json"
+                _atomic_write_json(evidence_path, {
+                    "schema_version": SCHEMA_VERSION, "status": "PUSH_OUTCOME_UNKNOWN",
+                    "version": version, "candidate_sha": commit_sha, "remote_main": remote_main,
+                    "remote_tag": remote_tag or None, "error_type": type(push_error).__name__,
+                    "error": str(push_error), "recorded_at": _now(),
+                })
+                raise PushOutcomeUnknown(f"prepared atomic push requires reconciliation; evidence: {evidence_path}") from push_error
             if remote_main != commit_sha and not remote_tag:
                 raise push_error
             evidence_dir = outcome_evidence_dir or repo_root / ".git"
@@ -4352,6 +4549,12 @@ def publish_ready_translation_runs(
         journal = _mutation_journal or MutationJournal(repo_root, git)
         journal.select_runs(ready_run_ids)
         if dry_run:
+            replacements = []
+            for state, _brief, candidate, _review in ready:
+                descriptor = (state.get("_approved_revision_stage") or {}).get("public_replacement")
+                if descriptor is not None:
+                    multilingual._locale_replacement_plan(repo_root, descriptor, candidate["articles"][0], str(state["run_id"]))
+                    replacements.append({"run_id": state["run_id"], "state": "EXACT_OLD", "record_after_sha256": descriptor["replacement_record_sha256"], "module_after_sha256": descriptor["module_after_sha256"]})
             return {
                 "schema_version": SCHEMA_VERSION,
                 "status": "dry-run",
@@ -4359,11 +4562,12 @@ def publish_ready_translation_runs(
                 "ready_runs": ready_run_ids,
                 "base_sha": base_sha,
                 "release_plan": namespace_plan.receipt(),
+                "replacement_plans": replacements,
             }
 
         journal.begin()
         changed: list[str] = []
-        published: list[tuple[str, str, str, str | None]] = []
+        published: list[tuple[str, str, str, str | None, dict[str, Any] | None]] = []
         for state, _brief, candidate, _review in ready:
             run_id = str(state["run_id"])
             locale = str(candidate["articles"][0]["locale"])
@@ -4390,6 +4594,7 @@ def publish_ready_translation_runs(
                             candidate,
                             _review,
                             approval,
+                            public_replacement=approved_stage.get("public_replacement"),
                         )
 
                     paths = journal.capture(apply_staged_translation)
@@ -4407,7 +4612,7 @@ def publish_ready_translation_runs(
                 _record_translation_deferred(state_root, run_id, f"translation apply failed: {error}")
                 continue
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
-            published.append((run_id, locale, article_id, staging_receipt_sha256))
+            published.append((run_id, locale, article_id, staging_receipt_sha256, approved_stage))
         if not published:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -4459,22 +4664,39 @@ def publish_ready_translation_runs(
             state_root=state_root,
             phase="translation",
             run_ids=run_ids,
+            prepared_context=(prepared_context := _translation_prepared_context(
+                published, run_ids, base_sha, version, state_root, evidence_dir
+            )),
         )
+        canonical_finalization = None
+        if prepared_context is not None and push:
+            control = _read_json(_unresolved_push_path(state_root))
+            canonical_finalization = _translation_finalization_records(repo_root, git, control, ready[0][2], ready[0][0]["_approved_revision_stage"]["public_replacement"])
         ledger = _load_ledger(state_root)
-        for run_id, locale, article_id, staging_receipt_sha256 in published:
-            entry = {
+        for run_id, locale, article_id, staging_receipt_sha256, approved_stage in published:
+            entry = canonical_finalization[0] if canonical_finalization is not None else {
                 "run_id": run_id,
                 "locale": locale,
                 "article_id": article_id,
                 "version": version,
                 "commit_sha": commit_sha,
-                "published_at": _now(),
+                "published_at": prepared_context["recorded_at"] if prepared_context is not None else _now(),
             }
             if staging_receipt_sha256 is not None:
                 entry["staging_receipt_sha256"] = staging_receipt_sha256
+            replacement = approved_stage.get("public_replacement") if isinstance(approved_stage, dict) else None
+            if replacement is not None:
+                entry.update({
+                    "replaces_run_id": replacement["old_run_id"],
+                    "replaced_record_sha256": replacement["old_record_sha256"],
+                    "replacement_record_sha256": replacement["replacement_record_sha256"],
+                    "replacement_module_before_sha256": replacement["module_before_sha256"],
+                    "replacement_module_after_sha256": replacement["module_after_sha256"],
+                    "publication_plan_digest": prepared_context["publication_plan_digest"],
+                })
             ledger["translation_published_runs"].append(entry)
-        _write_json(_ledger_path(state_root), ledger)
-        evidence = {
+        _atomic_write_json(_ledger_path(state_root), ledger)
+        evidence = canonical_finalization[1] if canonical_finalization is not None else {
             "schema_version": SCHEMA_VERSION,
             "status": "PUBLISHED_TRANSLATION",
             "base_sha": base_sha,
@@ -4487,7 +4709,15 @@ def publish_ready_translation_runs(
             "public_article_count": article_count,
             "pushed": push,
         }
-        _write_json(evidence_dir / "translation-evidence.json", evidence)
+        _atomic_write_json(evidence_dir / "translation-evidence.json", evidence)
+        if (evidence_dir / "translation-evidence.json").read_bytes() != json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n":
+            raise PublishBlocked("translation evidence write differs")
+        control_path = _unresolved_push_path(state_root)
+        if prepared_context is not None and control_path.is_file():
+            control = _read_json(control_path)
+            if control.get("target_commit_sha") != commit_sha or control.get("run_id") != run_ids[0]:
+                raise PublishBlocked("prepared translation control differs at finalization")
+            _remove_prepared_control(state_root)
         return evidence
 
 

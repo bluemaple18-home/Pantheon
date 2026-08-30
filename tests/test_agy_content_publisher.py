@@ -17,7 +17,7 @@ from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
-from tests.test_agy_multilingual_pipeline import approved_stage_fixture
+from tests.test_agy_multilingual_pipeline import approved_stage_fixture, replacement_approved_stage_fixture
 
 
 def make_publication_policy(
@@ -1843,6 +1843,22 @@ def _sealed_publisher_fixture(
     return fixture, receipt
 
 
+def _sealed_replacement_publisher_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, object], dict[str, object]]:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    (fixture["repo_root"] / "pyproject.toml").write_text('[project]\nversion = "0.3.998"\n', encoding="utf-8")
+    (fixture["repo_root"] / "package.json").write_text('{"version":"0.3.998","type":"module"}\n', encoding="utf-8")
+    plan = publisher.multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = publisher.multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    brief = json.loads((fixture["run_dir"] / "brief.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda _repo, _article_id: brief["articles"][0]["source"])
+    monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda _brief, _articles: [])
+    return fixture, receipt
+
+
 def _sealed_publisher_roots(fixture: dict[str, object]) -> tuple[Path, Path, Path]:
     queue_state_path = fixture["queue_state_path"]
     publisher_ledger_path = fixture["publisher_ledger_path"]
@@ -1870,9 +1886,10 @@ def test_collect_ready_translation_runs_selects_valid_approved_stage(
 
     assert len(ready) == 1
     assert ready[0][2] == fixture["candidate"]
-    assert ready[0][0]["_approved_revision_stage"] == {
-        "receipt_sha256": hashlib.sha256(Path(receipt["receipt_path"]).read_bytes()).hexdigest()
-    }
+    assert ready[0][0]["_approved_revision_stage"]["receipt_sha256"] == hashlib.sha256(
+        Path(receipt["receipt_path"]).read_bytes()
+    ).hexdigest()
+    assert ready[0][0]["_approved_revision_stage"]["terminal_owner"]["kind"] == "continuation_generation"
 
 
 @pytest.mark.parametrize("damage", ["missing_current", "tampered_payload"])
@@ -1935,6 +1952,31 @@ def test_approved_stage_publisher_dry_run_has_zero_runtime_mutation(
     assert _tree_bytes(tmp_path) == before
 
 
+def test_replacement_publisher_dry_run_recomputes_after_bytes_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
+    (repo_root / ".git").mkdir(); (repo_root / ".git/agy-content-publisher.transaction.lock").touch()
+    (state_root / "publisher.lock").touch()
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: "b" * 40)
+    fake_git = lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else ""
+    before = _tree_bytes(tmp_path)
+
+    result = publisher.publish_ready_translation_runs(
+        repo_root, queue_root, state_root, dry_run=True, git=fake_git,
+        exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
+    )
+
+    assert result["replacement_plans"] == [{
+        "run_id": fixture["kwargs"]["expected_run_id"], "state": "EXACT_OLD",
+        "record_after_sha256": fixture["public_replacement"]["replacement_record_sha256"],
+        "module_after_sha256": fixture["public_replacement"]["module_after_sha256"],
+    }]
+    assert _tree_bytes(tmp_path) == before
+
+
 def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1955,7 +1997,7 @@ def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
     monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
     monkeypatch.setattr(publisher, "_prepend_translation_changelog", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(publisher, "_stage_commit_tag_push", lambda *_args, **_kwargs: "c" * 40)
-    monkeypatch.setattr(publisher.multilingual, "apply_approved_translations", lambda *_args: [])
+    monkeypatch.setattr(publisher.multilingual, "apply_approved_translations", lambda *_args, **_kwargs: [])
     fake_git = lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else ""
     run_dir = fixture["run_dir"]
     audit_paths = [run_dir / "candidate.json", run_dir / "review.json",
@@ -1975,6 +2017,47 @@ def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
     ).hexdigest()
     assert _tree_bytes(run_dir / "editorial-staging") == stage_before
     assert {path: path.read_bytes() for path in audit_paths} == audit_before
+
+
+def test_replacement_publisher_applies_exact_module_and_binds_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    (repo_root / ".git").mkdir(); fixture_path = repo_root / "cache-fixture.txt"
+    fixture_path.write_text("stable\n", encoding="utf-8")
+    monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: "b" * 40)
+    monkeypatch.setattr(publisher, "_bump_patch_version", lambda _repo, _plan: "0.3.999")
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
+    monkeypatch.setattr(publisher.pipeline, "_bump_article_cache_queries", lambda _repo, _token: [])
+    monkeypatch.setattr(publisher, "_sync_web_test_cache_token", lambda _repo, **_kwargs: fixture_path)
+    monkeypatch.setattr(publisher, "_run_prerender", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda _repo: None)
+    monkeypatch.setattr(publisher, "_prepend_translation_changelog", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(publisher, "_stage_commit_tag_push", lambda *_args, **_kwargs: "c" * 40)
+    original_apply = publisher.multilingual.apply_approved_translations
+    source = json.loads((fixture["run_dir"] / "brief.json").read_text())["articles"][0]["source"]
+    monkeypatch.setattr(
+        publisher.multilingual, "apply_approved_translations",
+        lambda *args, **kwargs: original_apply(
+            *args, **kwargs, source_loader=lambda _repo, _article_id: source
+        ),
+    )
+    fake_git = lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else ""
+    manifest_before = fixture["manifest_path"].read_bytes()
+
+    result = publisher.publish_ready_translation_runs(
+        repo_root, queue_root, state_root, run_tests=False, release_gate=False,
+        git=fake_git, exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
+    )
+
+    entry = json.loads((state_root / "ledger.json").read_text())["translation_published_runs"][-1]
+    assert result["status"] == "PUBLISHED_TRANSLATION"
+    assert fixture["manifest_path"].read_bytes() == manifest_before
+    assert hashlib.sha256(fixture["module_path"].read_bytes()).hexdigest() == fixture["public_replacement"]["module_after_sha256"]
+    assert entry["replaces_run_id"] == fixture["public_replacement"]["old_run_id"]
+    assert entry["replacement_record_sha256"] == fixture["public_replacement"]["replacement_record_sha256"]
+    assert len(entry["publication_plan_digest"]) == 64
 
 
 def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_evidence(
@@ -4886,6 +4969,236 @@ def test_atomic_push_exception_reconciles_remote_matrix(
             release_gate=False,
             outcome_evidence_dir=evidence_dir,
         ) == candidate
+
+
+def test_replacement_publish_prepared_before_remote_push(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_root = tmp_path / "state"
+    evidence_dir = state_root / "evidence" / "translation-0.3.59"
+    candidate = "c" * 40
+    base = "b" * 40
+    namespace_plan = _release_stage_plan(tmp_path, "0.3.59")
+    context = {
+        "stage_receipt_sha256": "1" * 64, "approved_candidate_file_sha256": "2" * 64,
+        "approved_article_sha256": "3" * 64, "approved_review_file_sha256": "4" * 64,
+        "formal_review_result_sha256": "5" * 64, "formal_job_id": "6" * 40,
+        "formal_request_sha256": "6" * 64, "replacement_of": "old-run",
+        "replacement_reason": "reviewed replacement", "record_before_sha256": "7" * 64,
+        "record_after_sha256": "8" * 64, "module_before_sha256": "9" * 64,
+        "module_after_sha256": "a" * 64, "manifest_sha256": "d" * 64,
+        "base_sha": base, "expected_remote_main_before": base,
+        "publication_plan_digest": "e" * 64,
+        "ledger_path": str(state_root / "ledger.json"),
+        "publish_evidence_path": str(evidence_dir / "translation-evidence.json"),
+        "recorded_at": "2026-08-30T00:00:00+00:00",
+    }
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args == ["rev-parse", "HEAD"]:
+            return candidate
+        if args[:2] == ["push", "--atomic"]:
+            prepared = json.loads(publisher._unresolved_push_path(state_root).read_text())
+            assert prepared["status"] == "PUSH_PREPARED"
+            assert prepared["target_commit_sha"] == candidate
+        return ""
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    publisher._stage_commit_tag_push(
+        tmp_path, "0.3.59", fake_git, namespace_plan=namespace_plan,
+        push=True, release_gate=False, outcome_evidence_dir=evidence_dir,
+        state_root=state_root, phase="translation", run_ids=["replacement-01"],
+        prepared_context=context,
+    )
+
+    assert publisher._unresolved_push_path(state_root).is_file()
+
+
+def test_replacement_publish_local_commit_before_prepared_fails_closed_without_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"; queue_root = tmp_path / "queue"; state_root = tmp_path / "state"
+    (repo_root / ".git").mkdir(parents=True)
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *_args: None)
+    monkeypatch.setattr(
+        publisher, "_assert_clean_origin_head",
+        lambda _repo, _git: (_ for _ in ()).throw(publisher.PublishBlocked("local HEAD is ahead")),
+    )
+    remote_calls: list[list[str]] = []
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args == ["rev-parse", "--git-common-dir"]:
+            return ".git"
+        if args and args[0] in {"fetch", "push", "ls-remote"}:
+            remote_calls.append(args)
+        return ""
+
+    with pytest.raises(publisher.PublishBlocked, match="local HEAD is ahead"):
+        publisher.publish_ready_translation_runs(
+            repo_root, queue_root, state_root, git=fake_git,
+            exact_run_ids=["replacement-01"], push=True,
+        )
+
+    assert remote_calls == []
+    assert not publisher._unresolved_push_path(state_root).exists()
+
+
+@pytest.mark.parametrize(
+    ("initial_main", "initial_tag", "expected_second_push", "crash_after_ledger", "ledger_drift"),
+    [("target", "target", None, False, False), ("target", "target", None, True, False),
+     ("target", "target", "BLOCKED_LEDGER", True, True),
+     ("target", None, "refs/tags", False, False), ("base", "target", "HEAD:refs/heads/main", False, False),
+     ("base", None, "--atomic", False, False), ("third", "target", "BLOCKED", False, False),
+     ("target", "wrong-object", "BLOCKED_TAG", False, False),
+     ("target", "duplicate-peeled", "BLOCKED_TAG", False, False),
+     ("target", "duplicate-unpeeled", "BLOCKED_TAG", False, False),
+     ("target", "malformed", "BLOCKED_TAG", False, False),
+     ("target", "extra-line", "BLOCKED_TAG", False, False)],
+)
+def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_second_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    initial_main: str, initial_tag: str | None, expected_second_push: str | None,
+    crash_after_ledger: bool, ledger_drift: bool,
+) -> None:
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
+    ready = publisher.collect_ready_translation_runs(
+        repo_root, queue_root, state_root,
+        exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
+    )
+    state, brief, candidate, review = ready[0]
+    approval = publisher.pipeline.build_approval(
+        candidate["run_id"], candidate["articles"], review,
+        {candidate["articles"][0]["article_id"]: "APPROVE"}, publisher.PUBLISHER_ID,
+    )
+    publisher.multilingual.apply_approved_translations(
+        repo_root, candidate["run_id"], brief, candidate, review, approval,
+        public_replacement=state["_approved_revision_stage"]["public_replacement"],
+        source_loader=lambda _repo, _article_id: brief["articles"][0]["source"],
+    )
+    version = "0.3.998"; base = "b" * 40; target = "c" * 40
+    evidence_dir = state_root / "evidence" / f"translation-{version}"
+    published = [(candidate["run_id"], "en", candidate["articles"][0]["source_article_id"],
+                  state["_approved_revision_stage"]["receipt_sha256"], state["_approved_revision_stage"])]
+    context = publisher._translation_prepared_context(
+        published, [candidate["run_id"]], base, version, state_root, evidence_dir
+    )
+    namespace_plan = _release_stage_plan(tmp_path, version)
+    pushes: list[list[str]] = []
+
+    def first_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args == ["rev-parse", "HEAD"]:
+            return target
+        if args[:2] == ["push", "--atomic"]:
+            pushes.append(args)
+        return ""
+
+    monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args: None)
+    publisher._stage_commit_tag_push(
+        repo_root, version, first_git, namespace_plan=namespace_plan, push=True,
+        release_gate=False, outcome_evidence_dir=evidence_dir, state_root=state_root,
+        phase="translation", run_ids=[candidate["run_id"]], prepared_context=context,
+    )
+
+    converged = False; local_only = False
+
+    def reconcile_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        nonlocal converged
+        if local_only and args and args[0] in {"fetch", "ls-remote", "push"}:
+            raise AssertionError(f"remote call forbidden: {args}")
+        if args in (["rev-parse", "HEAD"], ["rev-parse", f"v{version}^{{}}"]):
+            return target
+        if args == ["rev-parse", f"{target}^"]:
+            return base
+        if args == ["rev-parse", f"refs/tags/v{version}"]:
+            return "d" * 40
+        if args[:2] == ["diff", "--name-only"]:
+            return fixture["module_path"].relative_to(repo_root).as_posix()
+        if args == ["rev-parse", "origin/main"]:
+            return target if converged or initial_main == "target" else ("e" * 40 if initial_main == "third" else base)
+        if args[:2] == ["ls-remote", "origin"]:
+            present = converged or initial_tag not in {None}
+            tag_object = "e" * 40 if initial_tag == "wrong-object" else "d" * 40
+            if initial_tag == "duplicate-peeled":
+                return f"{target}\trefs/tags/v{version}^{{}}\n{target}\trefs/tags/v{version}^{{}}\n"
+            if initial_tag == "duplicate-unpeeled":
+                return f"{'d' * 40}\trefs/tags/v{version}\n{'d' * 40}\trefs/tags/v{version}\n"
+            if initial_tag == "malformed":
+                return "malformed-tag-output\n"
+            if initial_tag == "extra-line":
+                return f"{'d' * 40}\trefs/tags/v{version}\n{target}\trefs/tags/v{version}^{{}}\n{'e' * 40}\trefs/tags/other\n"
+            return f"{tag_object}\trefs/tags/v{version}\n{target}\trefs/tags/v{version}^{{}}\n" if present else ""
+        if args and args[0] == "push":
+            pushes.append(args)
+            converged = True
+        return ""
+
+    if expected_second_push in {"BLOCKED", "BLOCKED_TAG"}:
+        with pytest.raises(publisher.PublishBlocked, match="remote refs diverged|tag identity"):
+            publisher._resume_prepared_translation(
+                repo_root, queue_root, state_root, reconcile_git,
+                json.loads(publisher._unresolved_push_path(state_root).read_text()),
+            )
+        assert len(pushes) == 1
+        assert publisher._unresolved_push_path(state_root).is_file()
+        return
+    if crash_after_ledger:
+        atomic_write = publisher._atomic_write_json
+        def crash_after_ledger_write(path: Path, payload: object) -> None:
+            atomic_write(path, payload)
+            if path == publisher._ledger_path(state_root):
+                raise RuntimeError("crash after ledger")
+        monkeypatch.setattr(publisher, "_atomic_write_json", crash_after_ledger_write)
+        with pytest.raises(RuntimeError, match="crash after ledger"):
+            publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+                                                   json.loads(publisher._unresolved_push_path(state_root).read_text()))
+        monkeypatch.setattr(publisher, "_atomic_write_json", atomic_write)
+        local_only = True
+        monkeypatch.setattr(publisher, "collect_ready_translation_runs", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("collector forbidden")))
+        protected_paths = [publisher._ledger_path(state_root), fixture["module_path"], fixture["queue_state_path"], fixture["run_dir"] / "editorial-staging/current.json"]
+        protected_before = {path: path.read_bytes() for path in protected_paths}
+        if ledger_drift:
+            ledger = json.loads(publisher._ledger_path(state_root).read_text())
+            ledger["translation_published_runs"][-1]["published_at"] = "drift"
+            publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
+            with pytest.raises(publisher.PublishBlocked, match="ledger differs"):
+                publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+                                                       json.loads(publisher._unresolved_push_path(state_root).read_text()))
+            assert len(pushes) == 1
+            return
+        remove_control = publisher._remove_prepared_control
+        monkeypatch.setattr(publisher, "_remove_prepared_control", lambda _state: (_ for _ in ()).throw(RuntimeError("crash before control cleanup")))
+        with pytest.raises(RuntimeError, match="crash before control cleanup"):
+            publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+                                                   json.loads(publisher._unresolved_push_path(state_root).read_text()))
+        evidence_path = state_root / "evidence" / f"translation-{version}" / "translation-evidence.json"
+        evidence_before_cleanup = evidence_path.read_bytes()
+        monkeypatch.setattr(publisher, "_remove_prepared_control", remove_control)
+    prepared_control = json.loads(publisher._unresolved_push_path(state_root).read_text())
+    canonical_entry, canonical_evidence = publisher._translation_finalization_records(repo_root, reconcile_git, prepared_control, candidate, state["_approved_revision_stage"]["public_replacement"])
+    result = publisher._resume_prepared_translation(
+        repo_root, queue_root, state_root, reconcile_git,
+        prepared_control,
+    )
+
+    ledger = json.loads((state_root / "ledger.json").read_text())
+    assert result["status"] == ("ALREADY_PUBLISHED" if crash_after_ledger else "PUBLISHED_TRANSLATION")
+    assert len(pushes) == (1 if expected_second_push is None else 2)
+    if expected_second_push is not None:
+        assert expected_second_push in " ".join(pushes[-1])
+    assert len([item for item in ledger["translation_published_runs"] if item["run_id"] == candidate["run_id"]]) == 1
+    assert [item for item in ledger["translation_published_runs"] if item["run_id"] == candidate["run_id"]] == [canonical_entry]
+    assert (state_root / "evidence" / f"translation-{version}" / "translation-evidence.json").read_bytes() == json.dumps(canonical_evidence, ensure_ascii=False, indent=2).encode() + b"\n"
+    assert not publisher._unresolved_push_path(state_root).exists()
+    if crash_after_ledger:
+        assert evidence_path.read_bytes() == evidence_before_cleanup
+        assert {path: path.read_bytes() for path in protected_paths} == protected_before
+    if initial_main == initial_tag == "target" and not crash_after_ledger:
+        publisher._atomic_write_json(publisher._unresolved_push_path(state_root), prepared_control)
+        assert publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+                                                      prepared_control)["status"] == "ALREADY_PUBLISHED"
+        assert len(pushes) == 1
 
 
 def test_unresolved_push_record_blocks_next_full_publish_before_clean_origin(

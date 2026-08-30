@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
+import subprocess
+import sys
 import threading
 from collections import Counter
 from pathlib import Path
@@ -372,6 +375,7 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
         "queue_state_path": queue_state_path,
         "publisher_ledger_path": publisher_ledger_path,
         "expected_run_id": run_id,
+        "terminal_owner_kind": "continuation_generation",
         "terminal_generation": 6,
         "expected_approved_article_sha256": article_sha256(article),
         "expected_root_candidate_sha256": hashlib.sha256((run_dir / "candidate.json").read_bytes()).hexdigest(),
@@ -394,6 +398,294 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
         "approved_review": approved_review,
         "kwargs": kwargs,
     }
+
+
+def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
+    fixture = approved_stage_fixture(tmp_path)
+    old_run_dir = fixture["run_dir"]
+    run_id = "stage-en-replacement-01"
+    run_dir = old_run_dir.parent / run_id
+    old_run_dir.rename(run_dir)
+    queue_state_path = fixture["queue_state_path"]
+
+    brief = translation_brief("en")
+    candidate = translation_candidate("en")
+    brief["run_id"] = run_id
+    candidate["run_id"] = run_id
+    root_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    approved_review = json.loads(
+        fixture["kwargs"]["approved_review_path"].read_text(encoding="utf-8")
+    )
+    for payload in (brief, candidate, root_review, approved_review):
+        payload["run_id"] = run_id
+    root_review["articles"][0].pop("hard_failure", None)
+    root_review["articles"][0]["article_id"] = candidate["articles"][0]["article_id"]
+    approved_review["articles"][0]["article_id"] = candidate["articles"][0]["article_id"]
+    root_review["articles"][0]["candidate_sha256"] = article_sha256(candidate["articles"][0])
+    approved_review["articles"][0]["candidate_sha256"] = article_sha256(candidate["articles"][0])
+    queue_state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "status": "complete",
+        "replacement_of": "stage-en",
+        "replacement_reason": "approved locale replacement",
+        "result": {"candidate": str(run_dir / "candidate.json")},
+    }
+    formal_result = {
+        "schema_version": 1,
+        "exit_verdict": "APPROVE_READY_FOR_STAGING",
+        "findings": [],
+        "review": approved_review,
+    }
+    approved_root = fixture["kwargs"]["approved_candidate_path"].parent
+    shutil.rmtree(run_dir / "continuation")
+    shutil.rmtree(run_dir / "generations")
+    for attempt in range(1, 4):
+        write_stage_json(run_dir / "attempts" / f"{attempt:02d}" / "candidate.json", candidate)
+        write_stage_json(run_dir / "attempts" / f"{attempt:02d}" / "review.json", root_review)
+    for path, payload in (
+        (run_dir / "brief.json", brief),
+        (run_dir / "candidate.json", candidate),
+        (run_dir / "review.json", root_review),
+        (queue_state_path, queue_state),
+        (approved_root / "candidate.json", candidate),
+        (approved_root / "review.json", approved_review),
+        (approved_root / "formal-review-result.json", formal_result),
+        (
+            approved_root / "formal-request-identity.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "lane": "i18n-rewrite",
+                "role": "reviewer",
+                "job_id": "b" * 40,
+                "request_sha256": "b" * 64,
+            },
+        ),
+    ):
+        write_stage_json(path, payload)
+    kwargs = {
+        **fixture["kwargs"],
+        "run_dir": run_dir,
+        "expected_run_id": run_id,
+        "terminal_owner_kind": "replacement_attempt",
+        "terminal_attempt": 3,
+        "replacement_of": queue_state["replacement_of"],
+        "replacement_reason": queue_state["replacement_reason"],
+        "expected_replacement_state_sha256": hashlib.sha256(queue_state_path.read_bytes()).hexdigest(),
+        "expected_approved_article_sha256": article_sha256(candidate["articles"][0]),
+        "expected_root_candidate_sha256": hashlib.sha256((run_dir / "candidate.json").read_bytes()).hexdigest(),
+        "expected_root_review_sha256": hashlib.sha256((run_dir / "review.json").read_bytes()).hexdigest(),
+        "expected_queue_state_sha256": hashlib.sha256(queue_state_path.read_bytes()).hexdigest(),
+        "expected_approved_candidate_sha256": hashlib.sha256((approved_root / "candidate.json").read_bytes()).hexdigest(),
+        "expected_approved_review_sha256": hashlib.sha256((approved_root / "review.json").read_bytes()).hexdigest(),
+        "expected_formal_review_result_sha256": hashlib.sha256((approved_root / "formal-review-result.json").read_bytes()).hexdigest(),
+    }
+    kwargs.pop("terminal_generation")
+    kwargs.pop("expected_continuation_state_sha256")
+    static = fixture["repo_root"] / "app/web/static"
+    static.mkdir(parents=True)
+    module_path = static / "article-locale-stage-en.js"
+    manifest_path = static / "article-locales.js"
+    article = candidate["articles"][0]
+    old_record = {
+        "runId": "stage-en",
+        "articleId": article["source_article_id"],
+        "locale": article["locale"],
+        "sourcePath": article["source_path"],
+        "sourceSha256": "0" * 64,
+        **{field: f"old-{field}" if field not in {"tags", "faq", "bodySections"} else []
+           for field in sorted(multilingual.TRANSLATABLE_FIELDS)},
+    }
+    sibling = {**old_record, "runId": "stage-ja", "locale": "ja", "sourceSha256": "1" * 64}
+    records = [old_record, sibling]
+    prefix = "// AGY 核准多語文章；由 scripts/agy_multilingual_pipeline.py 產生。\n\n"
+    export = "STAGE_EN_ARTICLE_LOCALES"
+    module_path.write_text(
+        prefix + f"export const {export} = {json.dumps(records, ensure_ascii=False, indent=2)};\n",
+        encoding="utf-8",
+    )
+    manifest_path.write_text(
+        f'import {{ {export} }} from "./{module_path.name}";\n'
+        f"export const ARTICLE_LOCALE_REGISTRY = [...{export}];\n"
+        "export function listArticleLocaleRecords() { return ARTICLE_LOCALE_REGISTRY; }\n",
+        encoding="utf-8",
+    )
+    (fixture["repo_root"] / "package.json").write_text('{"type":"module"}\n', encoding="utf-8")
+    sealed_article = json.loads((approved_root / "candidate.json").read_text(encoding="utf-8"))["articles"][0]
+    replacement_record = {
+        "runId": run_id,
+        "articleId": sealed_article["source_article_id"],
+        "locale": sealed_article["locale"],
+        "sourcePath": sealed_article["source_path"],
+        "sourceSha256": sealed_article["source_sha256"],
+        **{field: sealed_article[field] for field in sorted(multilingual.TRANSLATABLE_FIELDS)},
+    }
+    after_records = [replacement_record, sibling]
+    after_bytes = (
+        prefix + f"export const {export} = {json.dumps(after_records, ensure_ascii=False, indent=2)};\n"
+    ).encode()
+    public_replacement = {
+        "contract": "approved-locale-existing-record-replacement",
+        "source_article_id": article["source_article_id"],
+        "locale": article["locale"],
+        "old_run_id": old_record["runId"],
+        "old_source_sha256": old_record["sourceSha256"],
+        "old_record_sha256": hashlib.sha256(multilingual.compact_json_bytes(old_record)).hexdigest(),
+        "module_path": module_path.relative_to(fixture["repo_root"]).as_posix(),
+        "module_export": export,
+        "record_index": 0,
+        "module_before_sha256": hashlib.sha256(module_path.read_bytes()).hexdigest(),
+        "module_after_sha256": hashlib.sha256(after_bytes).hexdigest(),
+        "manifest_path": manifest_path.relative_to(fixture["repo_root"]).as_posix(),
+        "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "replacement_run_id": run_id,
+        "replacement_source_sha256": article["source_sha256"],
+        "approved_article_sha256": article_sha256(article),
+        "replacement_record_sha256": hashlib.sha256(multilingual.compact_json_bytes(replacement_record)).hexdigest(),
+    }
+    kwargs["public_replacement"] = public_replacement
+    return {**fixture, "run_dir": run_dir, "candidate": candidate, "root_review": root_review,
+            "approved_review": approved_review, "kwargs": kwargs,
+            "public_replacement": public_replacement, "module_path": module_path,
+            "manifest_path": manifest_path, "old_record": old_record, "sibling": sibling}
+
+
+def test_replacement_approved_stage_uses_closed_attempt_owner(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    receipt = multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    loaded = multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])
+
+    assert receipt["terminal_owner"]["kind"] == "replacement_attempt"
+    assert receipt["terminal_owner"]["terminal_attempt"] == 3
+    assert loaded["seal"]["terminal_owner"] == receipt["terminal_owner"]
+    assert not (fixture["run_dir"] / "continuation").exists()
+    assert not (fixture["run_dir"] / "generations").exists()
+    assert receipt["provider_calls"] == 0
+
+
+def replacement_stage_cli_command(fixture: dict[str, object], descriptor_path: Path | None) -> list[str]:
+    kwargs = fixture["kwargs"]
+    command = [sys.executable, "-m", "scripts.agy_multilingual_pipeline", "--repo-root", str(fixture["repo_root"]),
+               "stage-approved-edited-candidate"]
+    if descriptor_path is not None:
+        command.extend(["--public-replacement", str(descriptor_path)])
+    options = {
+        "run-dir": kwargs["run_dir"], "approved-candidate": kwargs["approved_candidate_path"],
+        "approved-review": kwargs["approved_review_path"], "formal-review-result": kwargs["formal_review_result_path"],
+        "queue-state": kwargs["queue_state_path"], "publisher-ledger": kwargs["publisher_ledger_path"],
+        **{name.replace("_", "-"): value for name, value in kwargs.items() if value is not None
+           and (name.startswith("expected_") or name in {"terminal_owner_kind", "terminal_attempt", "replacement_of", "replacement_reason"})},
+    }
+    for name, value in options.items():
+        command.extend([f"--{name}", str(value)])
+    return command
+
+
+def test_replacement_approved_stage_cli_loads_exact_descriptor_for_plan_and_execute(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    descriptor_path = tmp_path / "public-replacement.json"
+    descriptor_path.write_text(json.dumps(fixture["public_replacement"]), encoding="utf-8")
+    command = replacement_stage_cli_command(fixture, descriptor_path)
+    cwd = Path(multilingual.__file__).parent.parent
+    plan = json.loads(subprocess.run(command, cwd=cwd, check=True, text=True, capture_output=True).stdout)
+    executed = json.loads(subprocess.run(
+        [*command, "--execute", "--expected-plan-digest", plan["plan_digest"]],
+        cwd=cwd, check=True, text=True, capture_output=True,
+    ).stdout)
+
+    assert executed["status"] == "STAGED"
+    assert executed["public_replacement"] == fixture["public_replacement"]
+
+
+@pytest.mark.parametrize("mutation", ["missing", "unknown_key", "wrong_run", "wrong_source", "wrong_article"])
+def test_replacement_approved_stage_cli_rejects_descriptor_drift_before_writes(tmp_path: Path, mutation: str) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    descriptor_path = tmp_path / "public-replacement.json"
+    descriptor = dict(fixture["public_replacement"])
+    if mutation == "unknown_key": descriptor["unexpected"] = True
+    elif mutation == "wrong_run": descriptor["replacement_run_id"] = "other-run"
+    elif mutation == "wrong_source": descriptor["replacement_source_sha256"] = "f" * 64
+    elif mutation == "wrong_article": descriptor["source_article_id"] = "OTHER-001"
+    if mutation != "missing": descriptor_path.write_text(json.dumps(descriptor), encoding="utf-8")
+    before = {path.relative_to(fixture["run_dir"]): path.read_bytes() for path in fixture["run_dir"].rglob("*") if path.is_file()}
+
+    result = subprocess.run(replacement_stage_cli_command(fixture, None if mutation == "missing" else descriptor_path),
+                            cwd=Path(multilingual.__file__).parent.parent, text=True, capture_output=True)
+
+    assert result.returncode != 0
+    assert {path.relative_to(fixture["run_dir"]): path.read_bytes() for path in fixture["run_dir"].rglob("*") if path.is_file()} == before
+
+
+def test_replacement_apply_updates_exact_existing_record_in_place(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    multilingual.apply_approved_edited_candidate_stage(
+        **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
+    )
+    loaded = multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])
+    before_manifest = fixture["manifest_path"].read_bytes()
+    approval = build_approval(
+        loaded["candidate"]["run_id"], loaded["candidate"]["articles"],
+        loaded["review"],
+        {loaded["candidate"]["articles"][0]["article_id"]: "APPROVE"}, "publisher",
+    )
+
+    changed = multilingual.apply_approved_translations(
+        fixture["repo_root"], fixture["candidate"]["run_id"],
+        json.loads((fixture["run_dir"] / "brief.json").read_text(encoding="utf-8")),
+        loaded["candidate"], loaded["review"], approval,
+        public_replacement=loaded["seal"]["public_replacement"],
+        source_loader=lambda _repo, _article_id: translation_brief("en")["articles"][0]["source"],
+    )
+
+    assert changed == [fixture["module_path"]]
+    assert fixture["manifest_path"].read_bytes() == before_manifest
+    assert hashlib.sha256(fixture["module_path"].read_bytes()).hexdigest() == fixture["public_replacement"]["module_after_sha256"]
+    assert fixture["sibling"] in json.loads(
+        fixture["module_path"].read_text(encoding="utf-8").split(" = ", 1)[1][:-2]
+    )
+
+
+def test_replacement_stage_rejects_wrong_old_record_before_writes(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    fixture["kwargs"]["public_replacement"] = {
+        **fixture["public_replacement"], "old_record_sha256": "f" * 64
+    }
+    before = fixture["module_path"].read_bytes()
+
+    with pytest.raises((TypeError, ValueError)):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert fixture["module_path"].read_bytes() == before
+    assert not (fixture["run_dir"] / "editorial-staging").exists()
+
+
+@pytest.mark.parametrize("damage", ["attempt04", "mixed_generations", "root_review_drift"])
+def test_replacement_approved_stage_rejects_attempt_authority_drift(
+    tmp_path: Path, damage: str
+) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+    if damage == "attempt04":
+        write_stage_json(run_dir / "attempts" / "04" / "candidate.json", fixture["candidate"])
+    elif damage == "mixed_generations":
+        write_stage_json(run_dir / "generations" / "03" / "candidate.json", fixture["candidate"])
+    else:
+        changed = {**fixture["root_review"], "run_id": "drift"}
+        write_stage_json(run_dir / "review.json", changed)
+
+    before = {path.relative_to(run_dir): path.read_bytes() for path in run_dir.rglob("*") if path.is_file()}
+    with pytest.raises((TypeError, ValueError)):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    after = {path.relative_to(run_dir): path.read_bytes() for path in run_dir.rglob("*") if path.is_file()}
+    assert after == before
+    assert not (run_dir / "editorial-staging").exists()
 
 
 def test_approved_edited_stage_plan_is_read_only(tmp_path: Path) -> None:
