@@ -266,7 +266,9 @@ def write_stage_json(path: Path, payload: object) -> None:
     multilingual.pipeline.write_json(path, payload)
 
 
-def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
+def approved_stage_fixture(
+    tmp_path: Path, *, replacement_shape: bool = False
+) -> dict[str, object]:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     run_id = "stage-ja"
@@ -341,13 +343,16 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
         "findings": [],
         "review": approved_review,
     }
+    continuation_path = run_dir / "continuation" / "state.json"
+    generation_candidate_path = run_dir / "generations" / "06" / "candidate.json"
+    generation_review_path = run_dir / "generations" / "06" / "review.json"
     for path, payload in (
         (run_dir / "brief.json", brief),
         (run_dir / "candidate.json", candidate),
         (run_dir / "review.json", root_review),
-        (run_dir / "continuation" / "state.json", continuation),
-        (run_dir / "generations" / "06" / "candidate.json", candidate),
-        (run_dir / "generations" / "06" / "review.json", root_review),
+        (continuation_path, continuation),
+        (generation_candidate_path, candidate),
+        (generation_review_path, root_review),
         (queue_state_path, queue_state),
         (publisher_ledger_path, ledger),
         (approved_root / "candidate.json", candidate),
@@ -365,6 +370,10 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
             },
         ),
     ):
+        if replacement_shape and path in {
+            continuation_path, generation_candidate_path, generation_review_path
+        }:
+            continue
         write_stage_json(path, payload)
     kwargs = {
         "repo_root": repo_root,
@@ -380,7 +389,11 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
         "expected_approved_article_sha256": article_sha256(article),
         "expected_root_candidate_sha256": hashlib.sha256((run_dir / "candidate.json").read_bytes()).hexdigest(),
         "expected_root_review_sha256": hashlib.sha256((run_dir / "review.json").read_bytes()).hexdigest(),
-        "expected_continuation_state_sha256": hashlib.sha256((run_dir / "continuation" / "state.json").read_bytes()).hexdigest(),
+        "expected_continuation_state_sha256": (
+            None if replacement_shape else hashlib.sha256(
+                (run_dir / "continuation" / "state.json").read_bytes()
+            ).hexdigest()
+        ),
         "expected_queue_state_sha256": hashlib.sha256(queue_state_path.read_bytes()).hexdigest(),
         "expected_publisher_ledger_sha256": hashlib.sha256(publisher_ledger_path.read_bytes()).hexdigest(),
         "expected_approved_candidate_sha256": hashlib.sha256((approved_root / "candidate.json").read_bytes()).hexdigest(),
@@ -401,7 +414,7 @@ def approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
 
 
 def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
-    fixture = approved_stage_fixture(tmp_path)
+    fixture = approved_stage_fixture(tmp_path, replacement_shape=True)
     old_run_dir = fixture["run_dir"]
     run_id = "stage-en-replacement-01"
     run_dir = old_run_dir.parent / run_id
@@ -439,8 +452,7 @@ def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
         "review": approved_review,
     }
     approved_root = fixture["kwargs"]["approved_candidate_path"].parent
-    shutil.rmtree(run_dir / "continuation")
-    shutil.rmtree(run_dir / "generations")
+    (run_dir / "continuation").mkdir()
     for attempt in range(1, 4):
         write_stage_json(run_dir / "attempts" / f"{attempt:02d}" / "candidate.json", candidate)
         write_stage_json(run_dir / "attempts" / f"{attempt:02d}" / "review.json", root_review)
@@ -552,6 +564,30 @@ def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
             "manifest_path": manifest_path, "old_record": old_record, "sibling": sibling}
 
 
+def protected_stage_snapshot(fixture: dict[str, object]) -> dict[str, object]:
+    run_dir = fixture["run_dir"]
+    topology = {}
+    for path in sorted(run_dir.rglob("*")):
+        path_stat = path.lstat()
+        entry = {
+            "mode": path_stat.st_mode, "size": path_stat.st_size,
+            "type": ("symlink" if path.is_symlink() else "directory" if path.is_dir()
+                     else "file" if path.is_file() else "other"),
+        }
+        if path.is_symlink():
+            entry["target"] = path.readlink().as_posix()
+        elif path.is_file():
+            entry["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        topology[path.relative_to(run_dir).as_posix()] = entry
+    snapshot = {"run_topology": topology}
+    for label, key in (("queue", "queue_state_path"), ("ledger", "publisher_ledger_path"),
+                       ("module", "module_path"), ("manifest", "manifest_path")):
+        if key in fixture:
+            path = fixture[key]
+            snapshot[label] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return snapshot
+
+
 def test_replacement_approved_stage_uses_closed_attempt_owner(tmp_path: Path) -> None:
     fixture = replacement_approved_stage_fixture(tmp_path)
 
@@ -564,9 +600,95 @@ def test_replacement_approved_stage_uses_closed_attempt_owner(tmp_path: Path) ->
     assert receipt["terminal_owner"]["kind"] == "replacement_attempt"
     assert receipt["terminal_owner"]["terminal_attempt"] == 3
     assert loaded["seal"]["terminal_owner"] == receipt["terminal_owner"]
-    assert not (fixture["run_dir"] / "continuation").exists()
+    assert (fixture["run_dir"] / "continuation").is_dir()
+    assert list((fixture["run_dir"] / "continuation").iterdir()) == []
     assert not (fixture["run_dir"] / "generations").exists()
     assert receipt["provider_calls"] == 0
+
+
+def test_replacement_approved_stage_plan_accepts_empty_continuation_residue_read_only(
+    tmp_path: Path,
+) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+    before = protected_stage_snapshot(fixture)
+    first = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    second = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert first == second
+    assert first["provider_calls"] == 0
+    assert protected_stage_snapshot(fixture) == before
+    assert (run_dir / "continuation").is_dir()
+    assert list((run_dir / "continuation").iterdir()) == []
+    assert not (run_dir / "generations").exists()
+    assert not (run_dir / "editorial-staging").exists()
+
+
+def test_replacement_approved_stage_still_accepts_missing_continuation(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    (fixture["run_dir"] / "continuation").rmdir()
+
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert plan["terminal_owner"]["kind"] == "replacement_attempt"
+    assert plan["provider_calls"] == 0
+    assert not (fixture["run_dir"] / "editorial-staging").exists()
+
+
+@pytest.mark.parametrize(
+    "damage", ["symlink", "file", "state", "hidden", "nested", "generations"]
+)
+def test_replacement_approved_stage_rejects_nonempty_or_unsafe_continuation_residue(
+    tmp_path: Path, damage: str
+) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+    continuation = run_dir / "continuation"
+    if damage == "symlink":
+        continuation.rmdir()
+        outside = tmp_path / "outside-continuation"
+        outside.mkdir()
+        continuation.symlink_to(outside, target_is_directory=True)
+    elif damage == "file":
+        continuation.rmdir()
+        continuation.write_text("not a directory", encoding="utf-8")
+    elif damage == "state":
+        write_stage_json(continuation / "state.json", {"schema_version": 1})
+    elif damage == "hidden":
+        (continuation / ".residue").write_text("stale", encoding="utf-8")
+    elif damage == "nested":
+        (continuation / "nested").mkdir()
+    else:
+        (run_dir / "generations").mkdir()
+    before = protected_stage_snapshot(fixture)
+
+    with pytest.raises((OSError, ValueError)):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert protected_stage_snapshot(fixture) == before
+    assert not (run_dir / "editorial-staging").exists()
+
+
+def test_replacement_approved_stage_rejects_continuation_enumeration_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+    continuation = run_dir / "continuation"
+    before = protected_stage_snapshot(fixture)
+    original_iterdir = Path.iterdir
+
+    def fail_continuation_iterdir(path: Path):
+        if path == continuation:
+            raise OSError("synthetic enumeration failure")
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", fail_continuation_iterdir)
+    with pytest.raises(ValueError, match="cannot be inspected"):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    assert protected_stage_snapshot(fixture) == before
+    assert not (run_dir / "editorial-staging").exists()
 
 
 def replacement_stage_cli_command(fixture: dict[str, object], descriptor_path: Path | None) -> list[str]:
@@ -680,11 +802,10 @@ def test_replacement_approved_stage_rejects_attempt_authority_drift(
         changed = {**fixture["root_review"], "run_id": "drift"}
         write_stage_json(run_dir / "review.json", changed)
 
-    before = {path.relative_to(run_dir): path.read_bytes() for path in run_dir.rglob("*") if path.is_file()}
+    before = protected_stage_snapshot(fixture)
     with pytest.raises((TypeError, ValueError)):
         multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
-    after = {path.relative_to(run_dir): path.read_bytes() for path in run_dir.rglob("*") if path.is_file()}
-    assert after == before
+    assert protected_stage_snapshot(fixture) == before
     assert not (run_dir / "editorial-staging").exists()
 
 
@@ -699,6 +820,45 @@ def test_approved_edited_stage_plan_is_read_only(tmp_path: Path) -> None:
     assert plan["provider_calls"] == 0
     assert not (run_dir / "editorial-staging").exists()
     assert not (run_dir / "generations" / "07").exists()
+
+
+@pytest.mark.parametrize("damage", ["next_generation", "hard_failure", "replacement_fields"])
+def test_approved_edited_stage_rejects_continuation_terminal_drift(
+    tmp_path: Path, damage: str
+) -> None:
+    fixture = approved_stage_fixture(tmp_path)
+    run_dir = fixture["run_dir"]
+    kwargs = fixture["kwargs"]
+    if damage == "next_generation":
+        (run_dir / "generations" / "07").mkdir()
+    elif damage == "hard_failure":
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        review["articles"][0]["hard_failure"] = False
+        write_stage_json(run_dir / "review.json", review)
+        write_stage_json(run_dir / "generations" / "06" / "review.json", review)
+        kwargs["expected_root_review_sha256"] = hashlib.sha256((run_dir / "review.json").read_bytes()).hexdigest()
+        state_path = run_dir / "continuation" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["terminal_review_sha256"] = multilingual._json_sha256(review)
+        write_stage_json(state_path, state)
+        kwargs["expected_continuation_state_sha256"] = hashlib.sha256(state_path.read_bytes()).hexdigest()
+    else:
+        kwargs["terminal_attempt"] = 3
+    before = protected_stage_snapshot(fixture)
+    with pytest.raises(ValueError, match={"next_generation": "terminal continuation state differs", "hard_failure": "terminal generation audit differs", "replacement_fields": "fields are mixed"}[damage]):
+        multilingual.plan_approved_edited_candidate_stage(**kwargs)
+    assert protected_stage_snapshot(fixture) == before
+    assert not (run_dir / "editorial-staging").exists()
+
+
+def test_replacement_approved_stage_rejects_continuation_fields(tmp_path: Path) -> None:
+    fixture = replacement_approved_stage_fixture(tmp_path)
+    fixture["kwargs"]["terminal_generation"] = 3
+    before = protected_stage_snapshot(fixture)
+    with pytest.raises(ValueError, match="fields are mixed"):
+        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    assert protected_stage_snapshot(fixture) == before
+    assert not (fixture["run_dir"] / "editorial-staging").exists()
 
 
 def test_approved_edited_stage_execute_is_idempotent_and_rollback_scoped(tmp_path: Path) -> None:

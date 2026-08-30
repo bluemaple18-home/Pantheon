@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from typing import Any, Callable
@@ -3021,10 +3022,29 @@ def _approved_stage_terminal_owner(
     replacement_state_sha256 = _require_sha256_digest(
         expected_replacement_state_sha256, "replacement state lock"
     )
+    continuation_path = run_dir / "continuation"
+    try:
+        continuation_stat = os.lstat(continuation_path)
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        raise ValueError("replacement continuation residue cannot be inspected") from error
+    else:
+        if (
+            stat.S_ISLNK(continuation_stat.st_mode)
+            or not stat.S_ISDIR(continuation_stat.st_mode)
+            or continuation_path.resolve(strict=True) != continuation_path
+        ):
+            raise ValueError("replacement attempt lineage differs")
+        try:
+            continuation_entries = list(continuation_path.iterdir())
+        except OSError as error:
+            raise ValueError("replacement continuation residue cannot be inspected") from error
+        if continuation_entries:
+            raise ValueError("replacement attempt lineage differs")
     if (
         queue_state.get("replacement_of") != replacement_of
         or queue_state.get("replacement_reason") != replacement_reason
-        or (run_dir / "continuation").exists()
         or (run_dir / "generations").exists()
     ):
         raise ValueError("replacement attempt lineage differs")
