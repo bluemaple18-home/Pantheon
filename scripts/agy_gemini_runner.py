@@ -1012,9 +1012,29 @@ def _load_exact_pending_bundle_request(
     if len(matches) != 1:
         raise ValueError("sealed replay bundle has ambiguous pending entry")
     matches[0].validate_request(pending[0])
-    if _trusted_bundle_entry_used(queue_root, matches[0]):
-        raise ValueError("sealed replay bundle pending request was already used")
+    _assert_bundle_entry_claimable_from_pending_outbox(queue_root, matches[0])
     return pending[0], matches[0]
+
+
+def _assert_bundle_entry_claimable_from_pending_outbox(
+    queue_root: Path,
+    entry: AcceptanceSealedReplayEntry,
+) -> None:
+    state = _classify_bundle_entry_delivery(queue_root, entry)
+    if state["state"] == "DELIVERED":
+        raise ValueError("sealed replay bundle pending request was already used")
+    if state["state"] != "INCOMPLETE" or state["reason"] != "pending_outbox_present":
+        raise ValueError(f"sealed replay bundle pending request is not claimable: {state['reason']}")
+    paths = state["paths"]
+    if (
+        paths.get("archive")
+        or paths.get("inbox")
+        or paths.get("ledger")
+        or paths.get("anchor")
+        or paths.get("processing")
+        or paths.get("failed")
+    ):
+        raise ValueError("sealed replay bundle pending request has prior delivery evidence")
 
 
 def _trusted_bundle_entry_used(
@@ -1030,9 +1050,23 @@ def _trusted_bundle_entry_used(
 
 
 def _sealed_bundle_attempt_id(entry: AcceptanceSealedReplayEntry) -> str:
-    suffix = hashlib.sha256(
-        f"{entry.session_id}:{entry.entry_id}".encode("utf-8")
-    ).hexdigest()[:32]
+    binding = {
+        "entry_id": entry.entry_id,
+        "executable_path": str(entry.executable_path),
+        "executable_sha256": entry.executable_sha256,
+        "job_id": entry.job_id,
+        "lane": entry.lane,
+        "model": entry.model,
+        "namespace": entry.namespace,
+        "request_sha256": entry.request_sha256,
+        "required": entry.required,
+        "role": entry.role,
+        "run_id": entry.run_id,
+        "schema_sha256": entry.schema_sha256,
+        "sealed_result_sha256": entry.sealed_result_sha256,
+        "session_id": entry.session_id,
+    }
+    suffix = hashlib.sha256(_canonical_json_bytes(binding)).hexdigest()[:32]
     return f"sr2-{suffix}"
 
 
@@ -1040,6 +1074,7 @@ def _classify_bundle_entry_delivery(
     queue_root: Path,
     entry: AcceptanceSealedReplayEntry,
 ) -> dict[str, object]:
+    outbox_path = queue_root / "outbox" / f"{entry.job_id}.json"
     archive_path = queue_root / "archive" / f"{entry.job_id}.json"
     inbox_path = queue_root / "inbox" / f"{entry.job_id}.json"
     ledger_path = queue_root / "v4" / "ledger" / f"{entry.job_id}.jsonl"
@@ -1056,11 +1091,14 @@ def _classify_bundle_entry_delivery(
         "inbox": inbox_path.exists(),
         "ledger": ledger_path.exists(),
         "anchor": anchor_path.exists(),
+        "outbox": outbox_path.exists(),
         "processing": processing_path.exists(),
         "failed": failed_path.exists(),
     }
     if not any(existing.values()):
         return {"state": "UNUSED", "reason": "no_delivery_evidence", "paths": existing}
+    if existing["outbox"]:
+        return {"state": "INCOMPLETE", "reason": "pending_outbox_present", "paths": existing}
     if existing["processing"] or existing["failed"]:
         return {"state": "INCOMPLETE", "reason": "active_or_failed_path_present", "paths": existing}
     if not (existing["archive"] and existing["inbox"] and existing["ledger"] and existing["anchor"]):
@@ -1143,10 +1181,20 @@ def _classify_bundle_entry_delivery(
 def _trusted_bundle_usage_count(
     queue_root: Path,
     bundle: AcceptanceSealedReplayBundle,
+    *,
+    pending_entry: AcceptanceSealedReplayEntry | None = None,
 ) -> int:
     used = 0
     for entry in bundle.entries:
-        if _trusted_bundle_entry_used(queue_root, entry):
+        try:
+            entry_used = _trusted_bundle_entry_used(queue_root, entry)
+        except ValueError:
+            if pending_entry is not None and entry.entry_id == pending_entry.entry_id:
+                _assert_bundle_entry_claimable_from_pending_outbox(queue_root, entry)
+                entry_used = False
+            else:
+                raise
+        if entry_used:
             used += 1
     return used
 
@@ -2656,7 +2704,11 @@ def sealed_replay_bundle_process_once(
     )
     _assert_acceptance_sealed_replay_environment()
     pending_request, entry = _load_exact_pending_bundle_request(queue_root, bundle)
-    used_provider_calls = _trusted_bundle_usage_count(queue_root, bundle)
+    used_provider_calls = _trusted_bundle_usage_count(
+        queue_root,
+        bundle,
+        pending_entry=entry,
+    )
     if used_provider_calls >= bundle.provider_call_budget:
         raise ValueError("sealed replay bundle provider call budget exhausted")
 

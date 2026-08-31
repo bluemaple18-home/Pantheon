@@ -3,16 +3,17 @@ id: RESULT-PANTHEON-SLICE-R2-IMMUTABLE-SESSION-AUTHORITY-CLOSEOUT
 card: PANTHEON-FOUR-LANE-SEALED-COHORT-ACCEPTANCE-CAPABILITY
 parent: PANTHEON-FOUR-LANE-CURRENT-ACTOR-OPERABILITY-ACCEPTANCE
 slice: R2
-status: READY_FOR_INDEPENDENT_R2_REVIEW
+status: READY_FOR_INDEPENDENT_R2_REREVIEW
 accepted_base_sha: b13bc765e9f694b3d9eeefc65335a5410cf5d898
-current_head: b13bc765e9f694b3d9eeefc65335a5410cf5d898
+reviewed_no_go_candidate: e0d50a661af60ac03480aa54d0391af8d1387508
+candidate_parent_sha: e0d50a661af60ac03480aa54d0391af8d1387508
 candidate_commit: THIS_COMMIT
 candidate_commit_authorized: true
-candidate_commit_marker: THIS_COMMIT_RESOLVES_TO_GIT_COMMIT_IDENTITY_AFTER_COMMIT
-independent_r2_review_verdict: NOT_RUN
+final_candidate: THIS_COMMIT
+independent_r2_review_verdict: NOT_RUN_REREVIEW
+previous_independent_r2_review_verdict: SLICE_R_R2_REVIEW_NO_GO
 independent_review_authorized: true
-independent_review_scope: FRESH_ZERO_WRITE_REVIEW_THIS_COMMIT_VS_B13
-next_legal_status: READY_FOR_INDEPENDENT_R2_REVIEW
+next_legal_status: READY_FOR_INDEPENDENT_R2_REREVIEW
 production_activation_authorized: false
 acceptance_launchctl_authorized: false
 shadow_execution_authorized: false
@@ -26,7 +27,7 @@ commit_authorized: true
 
 ## Scope
 
-本次 bounded implementation 只修補 Runner 的 sealed bundle/session acceptance authority，並更新本 receipt 與 raw output。Repair/test evidence is GREEN in the working tree, and Owner has authorized exact six-file candidate commit creation. `THIS_COMMIT` is a non-self-referential marker resolved by git commit identity after commit. 沒有執行 Slice C、activation、shadow、provider、production 或 public mutation。
+本次 bounded implementation 修補 fresh zero-write review 對 Runner sealed bundle/session acceptance authority 退回的兩個 finding，並更新本 receipt 與 raw output。Repair/test evidence is GREEN in the working tree, and Owner has authorized the second R2 repair candidate commit. `THIS_COMMIT` is the containing commit marker and resolves only after that commit exists. 沒有執行 Slice C、activation、shadow、provider、production 或 public mutation。
 
 Changed files:
 
@@ -34,23 +35,21 @@ Changed files:
 | --- | --- |
 | `scripts/agy_gemini_runner.py` | allowlisted R2 implementation |
 | `tests/test_agy_gemini_runner.py` | allowlisted R2 regression tests |
-| `tests/test_agy_gemini_v4_broker.py` | allowlisted test-only Slice R2A timing assertion drift fix |
 | `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-test-output.txt` | bounded raw verification output |
 | `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-result.md` | bounded result receipt |
 
-No Gate A-C receipt, installer, controller, coordinator, publisher, manifest, model route, queue registry, production artifact, public content, push, tag, deploy, or launchctl scope was changed by this slice.
+No Gate A-C receipt, V4 broker source/test, installer, controller, coordinator, publisher, manifest, model route, queue registry, production artifact, public content, push, tag, deploy, or launchctl scope was changed by this repair.
 
 ## Candidate Authority Boundary
 
-Current status is `READY_FOR_INDEPENDENT_R2_REVIEW`.
+Current status is `READY_FOR_INDEPENDENT_R2_REREVIEW`.
 
-The 88 passed evidence below is implementation/test evidence only. It is not an independent review verdict. Owner has authorized exact frozen candidate commit creation. A fresh zero-write independent review is authorized only for exact `THIS_COMMIT` versus accepted base `b13bc765e9f694b3d9eeefc65335a5410cf5d898` after the git commit identity exists.
+Reviewed candidate `e0d50a661af60ac03480aa54d0391af8d1387508` returned `SLICE_R_R2_REVIEW_NO_GO`. The 91 passed evidence below is implementation/test evidence only. It is not an independent rereview verdict. Owner has authorized the second repair candidate commit; fresh zero-write rereview is authorized only for exact `THIS_COMMIT` versus accepted base `b13bc765e9f694b3d9eeefc65335a5410cf5d898` after the containing commit identity exists.
 
-Exact proposed R/R2 candidate commit allowlist:
+Exact proposed repair candidate commit allowlist:
 
 - `scripts/agy_gemini_runner.py`
 - `tests/test_agy_gemini_runner.py`
-- `tests/test_agy_gemini_v4_broker.py`
 - `artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-FOUR-LANE-SEALED-COHORT-ACCEPTANCE-CAPABILITY-20260831.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-result.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-test-output.txt`
@@ -58,13 +57,14 @@ Exact proposed R/R2 candidate commit allowlist:
 Explicitly excluded:
 
 - tracked Gate A-C receipt diffs
+- `tests/test_agy_gemini_v4_broker.py` in this repair step; any existing broker-test diff belongs to the reviewed parent candidate, not to this bounded repair allowlist
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/forensics/reviewer-overreach-20260831/`
 - authority reconciliation, D/E discovery, Gate A/A1, capacity recovery, seven-service projection, and other untracked discovery artifacts outside the allowlist
 - production/public artifacts, queue state, Publisher state, launchctl state, provider state, tag, push, or deploy
 
 Legal transition:
 
-exact candidate commit resolving `THIS_COMMIT` → fresh zero-write independent review of `THIS_COMMIT` vs `b13bc765e9f694b3d9eeefc65335a5410cf5d898` → `R2_REVIEW_GO` → Slice C implementation.
+exact repair candidate commit resolving `THIS_COMMIT` → fresh zero-write independent rereview of `THIS_COMMIT` vs `b13bc765e9f694b3d9eeefc65335a5410cf5d898` → `R2_REVIEW_GO` → Slice C implementation.
 
 ## Slice R2A Baseline Test Timing Assertion Drift
 
@@ -96,7 +96,7 @@ Minimal fix:
 R2 uses existing V4 broker ledger/anchor plus normal Runner inbox/archive identities as the durable delivery seam:
 
 - V4 broker ledger and anchor bind `operation_id`, `item_id`, `attempt_id`, request SHA, model, target profile, and executable digest.
-- R2 derives the broker `attempt_id` from `session_id + entry_id`, so a different session cannot reuse a prior session's ledger as valid delivery.
+- R2 derives the broker `attempt_id` from a canonical digest of the full immutable entry binding: session, entry, namespace, job, request SHA, lane, run, role, model, schema SHA, sealed result SHA, canonical executable path, executable SHA, and required flag. Rebinding any of those authorities cannot reuse a prior ledger/anchor as valid delivery.
 - Normal Runner `archive/<job_id>.json` remains the durable request identity.
 - Normal Runner `inbox/<job_id>.json` remains the durable response identity.
 - Session close is read-only and classifies delivery from these existing artifacts; it does not create a second FSM, registry, database, usage ledger, or controller-owned state.
@@ -173,6 +173,8 @@ Session close rejects if there is unknown/unauthorized state, incomplete evidenc
 
 F1/F2 bounded repair notes:
 
+- P1-A repair: `_sealed_bundle_attempt_id` no longer hashes only `session_id:entry_id`; restart classification and closeout reject a same-session/same-entry rebinding with changed executable/result authority.
+- P1-B repair: delivery classification now treats any bundle entry still present in `outbox` as `INCOMPLETE`; closeout rejects delivered+replayed outbox and optional pending outbox states.
 - Session close now also scans isolated `v4/ledger/*.jsonl` and `v4/anchors/*.json` for unknown delivery evidence. Legal bundle evidence is identified by bundle job IDs and session-derived attempt IDs; anything else blocks closeout as unauthorized state.
 - Bundle loading now rejects `provider_call_budget < required_entry_count`. Optional entries may still allow `provider_call_budget < len(entries)`.
 
@@ -195,6 +197,9 @@ Runner regression coverage includes:
 - RED: claim-time authority drift restores outbox and exits nonzero.
 - RED: sealed result digest mismatch fails before inbox.
 - RED: cross-session reuse is not accepted as delivery.
+- RED: same-session/same-entry/job rebound authority with changed executable/result digest is not accepted as delivery.
+- RED: delivered entry replayed back into outbox blocks session close.
+- RED: optional entry pending in outbox blocks session close.
 - RED: session close rejects unused required, unauthorized pipeline state, unknown V4 ledger/anchor evidence, and partial crash states.
 - GREEN: public `process_once()` signature remains unchanged and cannot bypass formal transport block with a fixture.
 
@@ -208,7 +213,9 @@ Raw output:
 | --- | --- |
 | exact timeout node repeated 10 times | PASS: `10/10` |
 | `for i in 1 2; do env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py \|\| exit 1; done` | PASS: `42 passed in 10.77s`; `42 passed in 9.74s` |
-| `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py` | PASS: `46 passed in 7.43s` |
+| targeted P1-A/P1-B runner regressions | PASS: `5 passed in 2.55s` |
+| `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py` | PASS: `49 passed in 8.51s` |
+| `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py` | PASS: `42 passed in 9.86s` |
 | `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py` | PASS |
 | `git diff --check` | PASS |
 | `rg -n "DBG\|DEBUG_THIS\|console\\.log\|pdb\\.set_trace" tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py` | PASS: no matches, exit `1` |
@@ -220,6 +227,6 @@ Raw output:
 
 ## Verdict
 
-`READY_FOR_INDEPENDENT_R2_REVIEW`
+`READY_FOR_INDEPENDENT_R2_REREVIEW`
 
-This is not `R2_REVIEW_GO`, not `READY_FOR_SLICE_C_IMPLEMENTATION`, and not D/E-ready. The only next legal action is exact candidate commit creation using the six-file allowlist. Only after `THIS_COMMIT` resolves to the actual git commit identity may the fresh zero-write R2 review run; only after that review returns `R2_REVIEW_GO` may the program move to `READY_FOR_SLICE_C_IMPLEMENTATION`.
+This is not `R2_REVIEW_GO`, not `READY_FOR_SLICE_C_IMPLEMENTATION`, and not D/E-ready. The only next legal action is exact repair candidate commit creation using the repair allowlist above, then fresh zero-write rereview of `THIS_COMMIT` versus accepted base. Only after that rereview returns `R2_REVIEW_GO` may the program move to `READY_FOR_SLICE_C_IMPLEMENTATION`.

@@ -707,7 +707,7 @@ def test_sealed_bundle_rejects_replayed_used_entry_before_queue_mutation(
 
     assert exit_code == 64
     assert payload["status"] == "rejected"
-    assert "pending request was already used" in payload["error"]
+    assert "prior delivery evidence" in payload["error"]
     assert _queue_snapshot(queue) == before
 
 
@@ -749,8 +749,57 @@ def test_sealed_bundle_rejects_cross_session_reuse_before_queue_mutation(
 
     assert exit_code == 64
     assert payload["status"] == "rejected"
-    assert "usage evidence is incomplete" in payload["error"]
+    assert "prior delivery evidence" in payload["error"]
     assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_close_rejects_rebound_entry_authority_after_delivery(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    executable_a = _write_sealed_executable(tmp_path / "a")
+    bundle_a = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(request, executable_a, session_id="session-a", entry_id="writer")],
+        session_id="session-a",
+    )
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_a)[0] == 0
+    executable_b = _write_sealed_executable(tmp_path / "b", {"ok": False})
+    bundle_b = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [
+            _bundle_entry(
+                request,
+                executable_b,
+                session_id="session-a",
+                entry_id="writer",
+                result={"ok": False},
+            )
+        ],
+        session_id="session-a",
+    )
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_b)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "unauthorized state" in payload["error"]
 
 
 def test_sealed_bundle_forbids_live_provider_env_before_queue_mutation(
@@ -930,6 +979,86 @@ def test_sealed_bundle_close_rejects_unknown_v4_delivery_evidence(
     assert exit_code == 64
     assert payload["status"] == "rejected"
     assert "unauthorized state" in payload["error"]
+
+
+def test_sealed_bundle_close_rejects_delivered_entry_replayed_in_outbox(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    (queue / "outbox" / f"{request['job_id']}.json").write_bytes(
+        (queue / "archive" / f"{request['job_id']}.json").read_bytes()
+    )
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "incomplete entries" in payload["error"]
+
+
+def test_sealed_bundle_close_rejects_optional_entry_pending_in_outbox(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    required = create_external_request(
+        queue,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="required",
+        response_schema=SCHEMA,
+    )
+    optional = build_external_request(
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="optional",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [
+            _bundle_entry(required, executable, entry_id="required"),
+            _bundle_entry(optional, executable, entry_id="optional", required=False),
+        ],
+    )
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    create_external_request(
+        queue,
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="optional",
+        response_schema=SCHEMA,
+    )
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "incomplete entries" in payload["error"]
 
 
 @pytest.mark.parametrize(

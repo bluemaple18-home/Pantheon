@@ -71,3 +71,141 @@ EXIT
 0
 
 OUTPUT
+
+FINAL REPAIR VERIFICATION AFTER SOURCE STYLE MICRO-FIX
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 8.51s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 9.86s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+FINAL REPAIR VERIFICATION AFTER DOCS UPDATE
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 8.80s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.00s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+---
+
+REPAIR REVIEW_NO_GO P1-A/P1-B VERIFICATION
+
+AUTHORITY
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+reviewed_no_go_candidate=e0d50a661af60ac03480aa54d0391af8d1387508
+candidate_parent_sha=e0d50a661af60ac03480aa54d0391af8d1387508
+final_candidate=NOT_CREATED
+commit_authorized=false
+independent_review_authorized=false
+
+REVIEW FINDINGS REPAIRED
+P1-A: broker attempt_id must bind full immutable entry authority, not only session_id:entry_id.
+P1-B: delivery classification must treat any entry still present in outbox as INCOMPLETE; session close must reject.
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_rejects_replayed_used_entry_before_queue_mutation tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_rebound_entry_authority_after_delivery tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_delivered_entry_replayed_in_outbox tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_optional_entry_pending_in_outbox
+
+EXIT
+0
+
+OUTPUT
+.....                                                                    [100%]
+5 passed in 2.55s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 5.60s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.00s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT

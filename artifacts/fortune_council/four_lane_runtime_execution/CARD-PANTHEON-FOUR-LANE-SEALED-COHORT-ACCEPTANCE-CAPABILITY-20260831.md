@@ -2,15 +2,16 @@
 id: PANTHEON-FOUR-LANE-SEALED-COHORT-ACCEPTANCE-CAPABILITY
 parent: PANTHEON-FOUR-LANE-CURRENT-ACTOR-OPERABILITY-ACCEPTANCE
 type: domain-capability-repair
-status: READY_FOR_INDEPENDENT_R2_REVIEW
-implementation_status: READY_FOR_INDEPENDENT_R2_REVIEW
+status: READY_FOR_INDEPENDENT_R2_REREVIEW
+implementation_status: READY_FOR_INDEPENDENT_R2_REREVIEW
 root_blocker: BLOCKED_D_E_NO_EXISTING_SEALED_PROVIDER_OUTBOX_REPLAY_SEAM
 current_remote_release: main
 canonical_actor_sha: 0f61545f8c6b561742b27792b8fef11ae8b1ccc5
 canonical_release: v0.3.375
 accepted_base_status: ACCEPTED_BASE_COMMITTED
 accepted_base_sha: b13bc765e9f694b3d9eeefc65335a5410cf5d898
-current_head: b13bc765e9f694b3d9eeefc65335a5410cf5d898
+reviewed_no_go_candidate: e0d50a661af60ac03480aa54d0391af8d1387508
+candidate_parent_sha: e0d50a661af60ac03480aa54d0391af8d1387508
 accepted_base_parent_sha: 0f61545f8c6b561742b27792b8fef11ae8b1ccc5
 production_activation_authorized: false
 acceptance_launchctl_authorized: false
@@ -20,14 +21,14 @@ public_publish_authorized: false
 commit_authorized: true
 candidate_commit: THIS_COMMIT
 candidate_commit_authorized: true
-candidate_commit_marker: THIS_COMMIT_RESOLVES_TO_GIT_COMMIT_IDENTITY_AFTER_COMMIT
+final_candidate: THIS_COMMIT
 independent_review_authorized: true
-independent_review_verdict: NOT_RUN
-independent_review_scope: FRESH_ZERO_WRITE_REVIEW_THIS_COMMIT_VS_B13
-target_after_repair: READY_FOR_INDEPENDENT_R2_REVIEW
+independent_review_verdict: NOT_RUN_REREVIEW
+previous_independent_review_verdict: SLICE_R_R2_REVIEW_NO_GO
+target_after_repair: READY_FOR_INDEPENDENT_R2_REREVIEW
 target_not_this_card: GO_FOUR_LANE_RUNTIME_CURRENT
 slice_r1_review: SLICE_R_RE_REVIEW_GO
-slice_r2_status: READY_FOR_INDEPENDENT_R2_REVIEW
+slice_r2_status: READY_FOR_INDEPENDENT_R2_REREVIEW
 quarantine_ref: quarantine/slice-r2-unauthorized-3112b
 ---
 
@@ -51,9 +52,10 @@ Integration compatibility audit has since narrowed Slice R:
 
 - Slice R1 single-job sealed replay has `SLICE_R_RE_REVIEW_GO`.
 - R1 is not cohort-usable because its authority is single-job scoped.
-- Slice R2 candidate code exists in the working tree and Owner has authorized creation of the exact six-file candidate commit.
+- Slice R2 reviewed candidate `e0d50a661af60ac03480aa54d0391af8d1387508` returned `SLICE_R_R2_REVIEW_NO_GO`.
+- Owner has authorized the second R2 repair candidate commit; `THIS_COMMIT` is the containing commit marker and resolves only after that commit exists.
 - `3112b` / `3c2f` are quarantined observations, not accepted Slice R2 authority.
-- Slice C must not start until the exact frozen candidate commit resolves `THIS_COMMIT`, and a fresh zero-write independent review of `THIS_COMMIT` versus `b13bc765e9f694b3d9eeefc65335a5410cf5d898` returns `R2_REVIEW_GO`.
+- Slice C must not start until a fresh zero-write independent rereview of exact `THIS_COMMIT` versus `b13bc765e9f694b3d9eeefc65335a5410cf5d898` returns `R2_REVIEW_GO`.
 
 本卡只定義 Pantheon-local 的 bounded capability repair，讓後續可以在同一 isolated 七服務 cohort 裡證明四線 runtime operability。它不是 AI Core 卡，不新增第二套 runtime，不重新定義 Writer/Reviewer/Publisher domain 邏輯，也不公開發布文章。
 
@@ -65,14 +67,14 @@ Integration compatibility audit has since narrowed Slice R:
 | release | `v0.3.375` | 必須保持版本線正確，不得誤寫成其他 tag。 |
 | Gate A-C closeout | `ACCEPTED_BASE_COMMITTED` | Gate A-C accepted-base commit 已存在，可作為 Slice R 實作底座。 |
 | accepted base SHA | `b13bc765e9f694b3d9eeefc65335a5410cf5d898` | Slice R 必須以此 exact SHA 為 base，不得隱式吸收其他 dirty diff。 |
-| current HEAD | `b13bc765e9f694b3d9eeefc65335a5410cf5d898` | Current actor authority 與 accepted base 目前一致。 |
+| current HEAD | `e0d50a661af60ac03480aa54d0391af8d1387508` plus bounded uncommitted repair diff | Current working tree is not accepted authority and must not be represented as accepted base。 |
 | accepted base parent | `0f61545f8c6b561742b27792b8fef11ae8b1ccc5` | 遠端 release actor 仍是 `v0.3.375`，未 push/tag/deploy。 |
 | Slice R1 | `SLICE_R_RE_REVIEW_GO` | single-job sealed replay 可接受，但不足以進入 cohort Slice C。 |
-| Slice R2 | `READY_FOR_INDEPENDENT_R2_REVIEW` | Owner authorized exact candidate commit creation; `THIS_COMMIT` is a non-self-referential marker resolved by git commit identity after commit。 |
+| Slice R2 | `READY_FOR_INDEPENDENT_R2_REREVIEW` | Owner authorized the second repair candidate commit; rereview is authorized only for exact `THIS_COMMIT` after it exists。 |
 | quarantine ref | `quarantine/slice-r2-unauthorized-3112b` | 保存未接受 commit；`3112b` / `3c2f` 不構成 accepted authority。 |
 | umbrella blocker | `BLOCKED_D_E_NO_EXISTING_SEALED_PROVIDER_OUTBOX_REPLAY_SEAM` | 阻塞點是 acceptance execution capability 缺口，不是四線 routing 未知。 |
 
-本卡不得把其他 dirty working tree、遠端 `0f61545f`、未提交變更、或未授權 commit 冒充為 accepted authority。Slice R/R2 frozen candidate commit 只能包含本卡列出的 exact six-file allowlist；`THIS_COMMIT` 不預填未存在 SHA，必須由實際 git commit identity 解析。
+本卡不得把其他 dirty working tree、遠端 `0f61545f`、未提交變更、或未授權 commit 冒充為 accepted authority。下一個 Slice R2 repair candidate commit 只能包含本卡列出的 exact repair allowlist；`THIS_COMMIT` 是 containing commit marker，必須由實際 git commit identity 解析。
 
 ## Confirmed Existing Boundaries
 
@@ -183,9 +185,9 @@ Goal: 將 R1 single-job sealed replay 擴為 cohort-usable 的 sealed authority 
 
 Current R2 closeout status:
 
-`READY_FOR_INDEPENDENT_R2_REVIEW`
+`READY_FOR_INDEPENDENT_R2_REREVIEW`
 
-R2 candidate code remains unstaged until the authorized exact candidate commit is created. Repair/test evidence is GREEN and Owner has authorized exact candidate commit creation. `THIS_COMMIT` is a non-self-referential marker resolved by git commit identity after commit; no SHA is prefilled before the commit exists. This does not authorize Slice C, activation, shadow execution, provider calls, public publishing, push, tag, or deploy.
+Reviewed candidate `e0d50a661af60ac03480aa54d0391af8d1387508` returned `SLICE_R_R2_REVIEW_NO_GO`. The bounded repair/test evidence is GREEN and Owner has authorized the second repair candidate commit. Independent rereview is authorized only for exact `THIS_COMMIT` after it exists; verdict is currently `NOT_RUN_REREVIEW`. This does not authorize Slice C, activation, shadow execution, provider calls, public publishing, push, tag, or deploy.
 
 Session-level authority must bind:
 
@@ -254,15 +256,15 @@ Acceptance gates:
 - GREEN: multiple strict unique entries in one sealed bundle can authorize sequential real runner ticks for the same session/lane/run。
 - GREEN: public `process_once()` callers without sealed acceptance env observe the original contract。
 - GREEN: session-close validator proves exact required consumption and no unauthorized/unused/incomplete entries。
-- GREEN: R/R2 repair and test evidence is sufficient for Owner to authorize exact frozen candidate commit creation。
-- GREEN: after exact candidate commit exists, fresh read-only R2 independent review returns `R2_REVIEW_GO`。
+- GREEN: R/R2 repair and test evidence is sufficient to request Owner authorization for exact repair candidate commit creation。
+- NOT RUN: fresh read-only R2 independent review; it is blocked until Owner authorizes and creates the exact repair candidate commit。
 - `git diff --check` PASS。
 
 Stop condition:
 
 - 若 R2 需要新增 queue registry、FSM、database、dynamic controller queue monitor、direct state writer、或改 public process_once contract，立即 `BLOCKED_R2_SCOPE_EXPANSION_REQUIRED`。
 
-Only after the exact frozen candidate commit exists and fresh zero-write independent review of `THIS_COMMIT` versus `b13bc765e9f694b3d9eeefc65335a5410cf5d898` returns `R2_REVIEW_GO` may this card transition to `READY_FOR_SLICE_C_IMPLEMENTATION`。
+Only after Owner authorizes the exact repair candidate commit, that commit exists, and fresh zero-write independent review of that exact commit versus `b13bc765e9f694b3d9eeefc65335a5410cf5d898` returns `R2_REVIEW_GO` may this card transition to `READY_FOR_SLICE_C_IMPLEMENTATION`。
 
 ### Slice C: Exact Four-Lane Cohort Shadow Consumption
 
@@ -360,7 +362,7 @@ Any `IMPACT_UNKNOWN` blocks D/E; it does not authorize full rerun。
 - The measured gap is acceptance execution capability, not a need for second runtime, new scheduler, new registry/FSM, or Publisher rewrite。
 - GO_FOUR_LANE_PRODUCTION_CURRENT is outside this card。
 - R2 must reuse V4 broker ledger/anchor plus normal inbox/archive durable identities unless a measured seam proves they cannot express exact single-use authority。
-- This card correction authorizes only exact six-file candidate commit creation. It does not authorize Slice C, launchd activation, shadow execution, provider calls, public publishing, push, tag, or deploy。
+- This card correction authorizes only exact repair candidate commit creation and subsequent fresh zero-write rereview of that exact commit. It does not authorize Slice C, launchd activation, shadow execution, provider calls, public publishing, push, tag, or deploy。
 
 `do_not_absorb`:
 
@@ -374,15 +376,22 @@ Any `IMPACT_UNKNOWN` blocks D/E; it does not authorize full rerun。
 - New queue registry、FSM、database、usage ledger、or second runtime。
 - Any path where R1 single-job formal CLI remains the Slice C authority instead of being removed/deprecated behind the single cohort-session formal path。
 
-## Authorized Candidate Creation Boundary
+## Repair Candidate Creation Boundary
 
-R/R2 repair and test evidence is GREEN in the working tree, including the Slice R2A `BASELINE_TEST_TIMING_ASSERTION_DRIFT` test-only closeout and the current 88 passed evidence. That evidence is not an independent review verdict. Owner has authorized creation of the exact frozen candidate commit; after that commit exists, independent review is authorized for exact `THIS_COMMIT` versus accepted base `b13bc765e9f694b3d9eeefc65335a5410cf5d898`.
+R/R2 repair and test evidence is GREEN in the working tree, including the Slice R2A `BASELINE_TEST_TIMING_ASSERTION_DRIFT` test-only closeout and the current runner/broker evidence. That evidence is not an independent review verdict. Owner has authorized the second R2 repair candidate commit; `THIS_COMMIT` is resolved by the containing git commit identity.
 
-Exact proposed R/R2 candidate commit allowlist:
+Reviewed NO_GO candidate:
+
+- `e0d50a661af60ac03480aa54d0391af8d1387508`
+
+Next repair candidate parent:
+
+- `e0d50a661af60ac03480aa54d0391af8d1387508`
+
+Exact proposed repair candidate commit allowlist:
 
 - `scripts/agy_gemini_runner.py`
 - `tests/test_agy_gemini_runner.py`
-- `tests/test_agy_gemini_v4_broker.py`
 - `artifacts/fortune_council/four_lane_runtime_execution/CARD-PANTHEON-FOUR-LANE-SEALED-COHORT-ACCEPTANCE-CAPABILITY-20260831.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-result.md`
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/slice-r-sealed-replay-test-output.txt`
@@ -390,13 +399,14 @@ Exact proposed R/R2 candidate commit allowlist:
 Explicitly excluded from that candidate commit:
 
 - tracked Gate A-C receipt diffs
+- `tests/test_agy_gemini_v4_broker.py` in this repair step; any existing broker-test diff belongs to the reviewed parent candidate, not to this bounded repair allowlist
 - `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_current_actor_operability_acceptance_20260831/forensics/reviewer-overreach-20260831/`
 - authority reconciliation, D/E discovery, Gate A/A1, capacity recovery, seven-service projection, and other untracked discovery artifacts outside the allowlist
 - any production/public artifact, queue state, Publisher state, launchctl state, tag, push, deploy, or external provider mutation
 
 Legal transition:
 
-exact candidate commit resolving `THIS_COMMIT` → fresh zero-write independent review of `THIS_COMMIT` vs `b13bc765e9f694b3d9eeefc65335a5410cf5d898` → `R2_REVIEW_GO` → Slice C implementation.
+exact repair candidate commit resolving `THIS_COMMIT` → fresh zero-write independent rereview of `THIS_COMMIT` vs `b13bc765e9f694b3d9eeefc65335a5410cf5d898` → `R2_REVIEW_GO` → Slice C implementation.
 
 ## Required Result Receipt
 
@@ -416,7 +426,7 @@ Required fields:
 - before/after production fingerprints。
 - teardown receipt。
 - independent review verdict。
-- final result: `READY_FOR_AUTHORIZED_CANDIDATE_CREATION`, `READY_FOR_INDEPENDENT_R2_REVIEW`, `READY_FOR_SLICE_C_IMPLEMENTATION`, or `BLOCKED_<exact_reason>`。
+- final result: `READY_FOR_AUTHORIZED_REPAIR_CANDIDATE_CREATION`, `READY_FOR_INDEPENDENT_R2_REREVIEW`, `READY_FOR_SLICE_C_IMPLEMENTATION`, or `BLOCKED_<exact_reason>`。
 
 ## Rollback / Removal
 
@@ -434,7 +444,8 @@ For future implementation:
 This card can only produce:
 
 - `READY_FOR_AUTHORIZED_CANDIDATE_CREATION`
-- `READY_FOR_INDEPENDENT_R2_REVIEW`
+- `READY_FOR_AUTHORIZED_REPAIR_CANDIDATE_CREATION`
+- `READY_FOR_INDEPENDENT_R2_REREVIEW`
 - `READY_FOR_SLICE_C_IMPLEMENTATION`
 - `BLOCKED_R2_IMMUTABLE_SESSION_AUTHORITY_INCOMPLETE`
 - `BLOCKED_R_SINGLE_JOB_AUTHORITY_NOT_COHORT_USABLE`
@@ -455,6 +466,6 @@ It must not produce:
 
 Current result:
 
-`READY_FOR_INDEPENDENT_R2_REVIEW`
+`READY_FOR_INDEPENDENT_R2_REREVIEW`
 
-Slice R1 single-job sealed replay has `SLICE_R_RE_REVIEW_GO`, but it is not cohort authority. Slice R2 repair/test evidence is GREEN in the working tree, including Slice R2A test-only timing drift closeout. Owner has authorized exact six-file candidate commit creation; `candidate_commit` is `THIS_COMMIT` and must resolve to the actual git commit identity after commit. `3112b` / `3c2f` are not accepted authority; quarantine ref `quarantine/slice-r2-unauthorized-3112b` preserves the unauthorized candidate. No Slice C, activation, shadow execution, provider calls, public publishing, push, tag, or deploy is authorized.
+Slice R1 single-job sealed replay has `SLICE_R_RE_REVIEW_GO`, but it is not cohort authority. Slice R2 reviewed candidate `e0d50a661af60ac03480aa54d0391af8d1387508` returned `SLICE_R_R2_REVIEW_NO_GO`; the current bounded repair/test evidence is GREEN and Owner has authorized the second repair candidate commit. `candidate_commit` / `final_candidate` are `THIS_COMMIT`, to be resolved by the containing git commit identity. Rereview verdict is `NOT_RUN_REREVIEW`. `3112b` / `3c2f` are not accepted authority; quarantine ref `quarantine/slice-r2-unauthorized-3112b` preserves the unauthorized candidate. No Slice C, activation, shadow execution, provider calls, public publishing, push, tag, or deploy is authorized.
