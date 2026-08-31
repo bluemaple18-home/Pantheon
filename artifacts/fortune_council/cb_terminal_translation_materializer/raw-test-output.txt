@@ -1,0 +1,37 @@
+Command: cd <repo-root> && .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q -k materializer_cli
+Result: 3 passed, 466 deselected in 0.38s
+Nodes:
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_requires_one_exact_selector
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_main_dispatches_one_exact_selector
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_main_emits_rejected_json
+
+Command: cd <repo-root> && .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q -k 'materializ or materializer'
+Result: 17 passed, 454 deselected in 144.29s (CB_REVIEW_NO_GO P1 repair)
+Nodes:
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializes_one_exact_terminal_source_and_is_idempotent
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializes_rewrite_from_bound_brief_not_public_record
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[incomplete]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[failed]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[candidate]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[review]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[envelope]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[dependency]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[payload]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_rejects_drift_before_translation_registration[plan]
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_final_receipt_cas_keeps_recoverable_registration
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_enqueue_or_terminalization_failure_is_recoverable
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_requires_one_exact_selector
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_main_dispatches_one_exact_selector
+- tests/test_agy_gemini_coordinator.py::test_materializer_cli_main_emits_rejected_json
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materialized_replay_rejects_rewrite_immutable_brief_drift
+- tests/test_agy_gemini_coordinator.py::test_apf_004_materializer_final_source_snapshot_cas_rejects_rewrite_brief_drift
+
+Command: cd <repo-root> && .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -q -k test_apf_004_create_run_adapter_plan_only_is_deterministic
+Result: 1 passed, 470 deselected in 20.87s
+Node: tests/test_agy_gemini_coordinator.py::test_apf_004_create_run_adapter_plan_only_is_deterministic_and_zero_write
+
+Command: cd <repo-root> && .venv/bin/python -m py_compile scripts/agy_gemini_coordinator.py tests/test_agy_gemini_coordinator.py
+Result: PASS
+
+Command: cd <repo-root> && git diff --check
+Result: PASS

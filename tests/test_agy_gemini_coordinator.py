@@ -17,6 +17,12 @@ from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
+from tests.test_agy_seo_copy_pipeline import (
+    make_deterministic_green_create_article,
+    make_external_create_article,
+    make_rewrite_publication_policy,
+    make_rewrite_sections,
+)
 
 
 def _article_brief_v2(run_id: str, article_id: str) -> dict[str, object]:
@@ -1141,6 +1147,422 @@ def test_apf_004_create_run_adapter_rejects_root_overlap_and_state_collision(
 
     with pytest.raises(ValueError, match="run identity collision"):
         coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+
+
+def _cb_terminal_source_pending(
+    tmp_path: Path,
+    lane: str = "new",
+) -> tuple[dict[str, object], Path, dict[str, object], Path]:
+    """建立 adapter receipt 後，以既有 source contract 模擬 exact terminal run。"""
+    kwargs = _apf_004_kwargs(tmp_path)
+    applied = coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+    source = next(item for item in applied["runs"] if item["lane"] == lane)
+    source_run_id = str(source["run_id"])
+    run_dir = Path(str(source["run_dir"]))
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    if lane == "new":
+        generated = make_deterministic_green_create_article()
+        generated["primaryKeyword"] = brief["articles"][0]["target"]["primaryKeyword"]
+        generated["title"] = f"{generated['primaryKeyword']}是什麼？用情境理解限制與選擇"
+        generated["bodySections"][0]["paragraphs"][0] = _long_paragraph(
+            f"{generated['primaryKeyword']}先核對情境與限制，再決定下一步。"
+        )
+        candidate = pipeline.hydrate_candidate(
+            brief,
+            {"articles": [make_external_create_article(generated)]},
+        )
+    else:
+        source_article = brief["articles"][0]
+        sections = make_rewrite_sections()
+        sections[0]["paragraphs"][0] = _long_paragraph(
+            f"{source_article['identity']['primaryKeyword']}先核對情境與限制，再決定下一步。"
+        )
+        candidate = pipeline.hydrate_candidate(
+            brief,
+            {
+                "articles": [{
+                    "slot": "article-01",
+                    "bodySections": sections,
+                    "publicationPolicy": make_rewrite_publication_policy(source_article),
+                }]
+            },
+        )
+    pipeline.validate_candidate(candidate)
+    review = _clean_review(brief, candidate)
+    coordinator.atomic_write_json(run_dir / "candidate.json", candidate)
+    coordinator.atomic_write_json(run_dir / "review.json", review)
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    state_path = coordinator._state_path(source_run_id, queue_root)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(
+        {
+            "status": "complete",
+            "result": {
+                "status": "complete",
+                "run_id": source_run_id,
+                "candidate_sha256": coordinator.editorial_contracts.artifact_sha256(candidate),
+                "review_sha256": coordinator.editorial_contracts.artifact_sha256(review),
+            },
+        }
+    )
+    coordinator.atomic_write_json(state_path, state)
+    pending = next(
+        path
+        for path in (queue_root / "translation-pending-dependencies").glob("*.json")
+        if json.loads(path.read_text(encoding="utf-8"))["depends_on"] == [source_run_id]
+    )
+    return kwargs, pending, state, run_dir
+
+
+def test_apf_004_materializes_one_exact_terminal_source_and_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    calls: list[dict[str, object]] = []
+    original = coordinator.multilingual.enqueue_article_translations
+
+    def tracked_enqueue(*args: object, **call_kwargs: object) -> list[dict[str, str]]:
+        calls.append(dict(call_kwargs))
+        return original(*args, **call_kwargs)
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", tracked_enqueue)
+    first = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])),
+        Path(str(kwargs["queue_root"])),
+        source_run_id=str(receipt["depends_on"][0]),
+        pending_receipt=pending,
+    )
+    second = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])),
+        Path(str(kwargs["queue_root"])),
+        source_run_id=str(receipt["depends_on"][0]),
+        pending_receipt=pending,
+    )
+
+    terminal = json.loads(pending.read_text(encoding="utf-8"))
+    assert first["status"] == "materialized"
+    assert second["status"] == "already_materialized"
+    assert len(calls) == 1
+    assert terminal["materialized"]["run_id"] == receipt["run_id"]
+    assert terminal["materialized"]["source_run_id"] == receipt["depends_on"][0]
+    assert terminal["materialized"]["lane"] == receipt["lane"]
+
+
+def test_apf_004_materializes_rewrite_from_bound_brief_not_public_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path, "rewrite")
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "load_source_article",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("must not read public record")),
+    )
+
+    result = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), Path(str(kwargs["queue_root"])),
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending,
+    )
+
+    assert result["status"] == "materialized"
+    assert result["lane"] == "i18n-rewrite"
+
+
+def test_apf_004_materialized_replay_rejects_rewrite_immutable_brief_drift(
+    tmp_path: Path,
+) -> None:
+    kwargs, pending, _state, source_run_dir = _cb_terminal_source_pending(tmp_path, "rewrite")
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    source_run_id = str(receipt["depends_on"][0])
+    assert coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=source_run_id, pending_receipt=pending,
+    )["status"] == "materialized"
+    source_brief = json.loads((source_run_dir / "brief.json").read_text(encoding="utf-8"))
+    source_brief["articles"][0]["immutable_fields"]["title"] = "drifted immutable title"
+    coordinator.atomic_write_json(source_run_dir / "brief.json", source_brief)
+
+    with pytest.raises(ValueError, match="registered translation run source, locale, or identity drift"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=source_run_id, pending_receipt=pending,
+        )
+
+
+def test_apf_004_materializer_final_source_snapshot_cas_rejects_rewrite_brief_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs, pending, _state, source_run_dir = _cb_terminal_source_pending(tmp_path, "rewrite")
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    source_run_id = str(receipt["depends_on"][0])
+    original_brief = json.loads((source_run_dir / "brief.json").read_text(encoding="utf-8"))
+    original_enqueue = coordinator.multilingual.enqueue_article_translations
+
+    def enqueue_then_drift(*args: object, **call_kwargs: object) -> list[dict[str, str]]:
+        records = original_enqueue(*args, **call_kwargs)
+        drifted = json.loads(json.dumps(original_brief, ensure_ascii=False))
+        drifted["articles"][0]["immutable_fields"]["title"] = "drifted during enqueue"
+        coordinator.atomic_write_json(source_run_dir / "brief.json", drifted)
+        return records
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", enqueue_then_drift)
+    with pytest.raises(ValueError, match="CAS differs before terminalization"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=source_run_id, pending_receipt=pending,
+        )
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+    assert coordinator._state_path(str(receipt["run_id"]), queue_root).exists()
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", original_enqueue)
+    coordinator.atomic_write_json(source_run_dir / "brief.json", original_brief)
+    assert coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=source_run_id, pending_receipt=pending,
+    )["status"] == "materialized"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["incomplete", "failed", "candidate", "review", "envelope", "dependency", "payload", "plan"],
+)
+def test_apf_004_materializer_rejects_drift_before_translation_registration(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    kwargs, pending, _state, run_dir = _cb_terminal_source_pending(tmp_path)
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    source_run_id = str(receipt["depends_on"][0])
+    state_path = coordinator._state_path(source_run_id, queue_root)
+    if mutation in {"incomplete", "failed", "envelope"}:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if mutation == "incomplete":
+            state["status"] = "active"
+        elif mutation == "failed":
+            state["status"] = "failed"
+        else:
+            state["identity_envelope"] = {"drift": True}
+        coordinator.atomic_write_json(state_path, state)
+    elif mutation == "candidate":
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        candidate["run_id"] = "candidate-drift"
+        coordinator.atomic_write_json(run_dir / "candidate.json", candidate)
+    elif mutation == "review":
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        review["articles"][0]["hard_failure"] = True
+        coordinator.atomic_write_json(run_dir / "review.json", review)
+    elif mutation == "dependency":
+        receipt["depends_on"] = ["wrong-source-run"]
+        receipt["payload_digest"] = _apf_004_digest(
+            {key: value for key, value in receipt.items() if key != "payload_digest"}
+        )
+        coordinator.atomic_write_json(pending, receipt)
+    elif mutation == "payload":
+        receipt["payload_digest"] = "0" * 64
+        coordinator.atomic_write_json(pending, receipt)
+    else:
+        receipt["plan_digest"] = "0" * 64
+        receipt["payload_digest"] = _apf_004_digest(
+            {key: value for key, value in receipt.items() if key != "payload_digest"}
+        )
+        coordinator.atomic_write_json(pending, receipt)
+    before_translation = _tree_bytes(queue_root / "translation-runs")
+
+    with pytest.raises(ValueError):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])),
+            queue_root,
+            source_run_id=source_run_id,
+            pending_receipt=pending,
+        )
+
+    assert _tree_bytes(queue_root / "translation-runs") == before_translation
+    assert not coordinator._state_path(str(receipt["run_id"]), queue_root).exists()
+
+
+def test_apf_004_materializer_final_receipt_cas_keeps_recoverable_registration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    original_receipt = json.loads(pending.read_text(encoding="utf-8"))
+    original_enqueue = coordinator.multilingual.enqueue_article_translations
+
+    def tampering_enqueue(*args: object, **call_kwargs: object) -> list[dict[str, str]]:
+        records = original_enqueue(*args, **call_kwargs)
+        tampered = {**original_receipt, "work_id": "tampered-work-id"}
+        tampered["payload_digest"] = _apf_004_digest(
+            {key: value for key, value in tampered.items() if key != "payload_digest"}
+        )
+        coordinator.atomic_write_json(pending, tampered)
+        return records
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", tampering_enqueue)
+    with pytest.raises(ValueError, match="CAS"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(original_receipt["depends_on"][0]), pending_receipt=pending,
+        )
+    assert coordinator._state_path(str(original_receipt["run_id"]), queue_root).exists()
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", original_enqueue)
+    coordinator.atomic_write_json(pending, original_receipt)
+    recovered = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(original_receipt["depends_on"][0]), pending_receipt=pending,
+    )
+    assert recovered["status"] == "materialized"
+
+
+def test_apf_004_materializer_enqueue_or_terminalization_failure_is_recoverable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    source_run_id = str(receipt["depends_on"][0])
+    original_enqueue = coordinator.multilingual.enqueue_article_translations
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "enqueue_article_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("before registration")),
+    )
+    with pytest.raises(RuntimeError, match="before registration"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=source_run_id, pending_receipt=pending,
+        )
+    assert not coordinator._state_path(str(receipt["run_id"]), queue_root).exists()
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", original_enqueue)
+    original_write = coordinator.atomic_write_json
+
+    def fail_terminal_write(path: Path, payload: object) -> None:
+        if path == pending and isinstance(payload, dict) and payload.get("status") == "materialized":
+            raise OSError("after registration")
+        original_write(path, payload)
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_terminal_write)
+    with pytest.raises(OSError, match="after registration"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=source_run_id, pending_receipt=pending,
+        )
+    assert coordinator._state_path(str(receipt["run_id"]), queue_root).exists()
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+
+    monkeypatch.setattr(coordinator, "atomic_write_json", original_write)
+    assert coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=source_run_id, pending_receipt=pending,
+    )["status"] == "materialized"
+
+
+def test_materializer_cli_requires_one_exact_selector(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["coordinator", "materialize-translation-pending", "--source-run-id", "source-001", "--pending-receipt", "/tmp/pending.json"],
+    )
+    args = coordinator.parse_args()
+    assert args.source_run_id == ["source-001"]
+    assert args.pending_receipt == [Path("/tmp/pending.json")]
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["coordinator", "materialize-translation-pending", "--source-run-id", "source-001", "--source-run-id", "source-002", "--pending-receipt", "/tmp/pending.json"],
+    )
+    with pytest.raises(SystemExit):
+        coordinator.parse_args()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["coordinator", "materialize-translation-pending", "--source-run-id", "source-001", "--pending-receipt", "/tmp/one.json", "--pending-receipt", "/tmp/two.json"],
+    )
+    with pytest.raises(SystemExit):
+        coordinator.parse_args()
+
+
+def test_materializer_cli_main_dispatches_one_exact_selector(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    pending = tmp_path / "pending.json"
+    calls: list[tuple[Path, Path, str, Path]] = []
+
+    def materialize(
+        repo: Path,
+        queue: Path,
+        *,
+        source_run_id: str,
+        pending_receipt: Path,
+    ) -> dict[str, object]:
+        calls.append((repo, queue, source_run_id, pending_receipt))
+        return {"status": "materialized", "run_id": "translation-001"}
+
+    monkeypatch.setattr(coordinator, "materialize_translation_pending_dependency", materialize)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "coordinator",
+            "--repo-root", str(repo_root),
+            "--queue-root", str(queue_root),
+            "materialize-translation-pending",
+            "--source-run-id", "source-001",
+            "--pending-receipt", str(pending),
+        ],
+    )
+
+    assert coordinator.main() == 0
+    assert calls == [
+        (repo_root.resolve(), queue_root.resolve(), "source-001", pending.resolve())
+    ]
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "materialized", "run_id": "translation-001"
+    }
+
+
+def test_materializer_cli_main_emits_rejected_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pending = tmp_path / "pending.json"
+    monkeypatch.setattr(
+        coordinator,
+        "materialize_translation_pending_dependency",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("exact receipt drift")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "coordinator", "--repo-root", str(tmp_path / "repo"),
+            "--queue-root", str(tmp_path / "queue"),
+            "materialize-translation-pending", "--source-run-id", "source-001",
+            "--pending-receipt", str(pending),
+        ],
+    )
+
+    assert coordinator.main() == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "rejected", "error": "exact receipt drift"
+    }
 
 
 @pytest.mark.parametrize(

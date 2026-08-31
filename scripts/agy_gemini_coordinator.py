@@ -5425,6 +5425,349 @@ def _create_run_adapter_pending_payloads(
     return payloads
 
 
+# 👉 [假設與目標確認] 目標：只將一份已完成 source 的既有 pending receipt materialize；邊界：沿用 multilingual enqueue 與既有 registration；驗收：receipt CAS 失敗即不轉移新的 authority。
+_TRANSLATION_PENDING_FIELDS = frozenset({
+    "schema_version", "status", "owner", "plan_digest", "campaign_version",
+    "lane", "run_id", "work_id", "source_article_id", "locale", "depends_on",
+    "source_completion_required", "payload_digest",
+})
+_TRANSLATION_PENDING_MATERIALIZED_FIELDS = (
+    _TRANSLATION_PENDING_FIELDS | {"materialized"}
+)
+
+
+def _translation_pending_payload(
+    value: object,
+    *,
+    expected_source_run_id: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """驗證 adapter 所寫的單筆 pending authority，不補任何欄位。"""
+    if not isinstance(value, dict) or set(value) not in {
+        _TRANSLATION_PENDING_FIELDS,
+        _TRANSLATION_PENDING_MATERIALIZED_FIELDS,
+    }:
+        raise ValueError("translation pending receipt schema is invalid")
+    materialized = value.get("materialized")
+    status = value.get("status")
+    if status == "pending_source_completion":
+        if set(value) != _TRANSLATION_PENDING_FIELDS or materialized is not None:
+            raise ValueError("translation pending receipt status is invalid")
+        pending = dict(value)
+    elif status == "materialized":
+        if set(value) != _TRANSLATION_PENDING_MATERIALIZED_FIELDS or not isinstance(materialized, dict):
+            raise ValueError("translation materialized receipt schema is invalid")
+        pending = {key: item for key, item in value.items() if key != "materialized"}
+        pending["status"] = "pending_source_completion"
+    else:
+        raise ValueError("translation pending receipt status is invalid")
+    if (
+        pending.get("schema_version") != 1
+        or pending.get("owner")
+        != "scripts.agy_gemini_coordinator:create_campaign_run_adapter"
+        or not isinstance(pending.get("plan_digest"), str)
+        or SHA256_PATTERN.fullmatch(str(pending["plan_digest"])) is None
+        or not isinstance(pending.get("payload_digest"), str)
+        or SHA256_PATTERN.fullmatch(str(pending["payload_digest"])) is None
+        or pending.get("lane") not in {"i18n-new", "i18n-rewrite"}
+        or not isinstance(pending.get("run_id"), str)
+        or not isinstance(pending.get("source_article_id"), str)
+        or not isinstance(pending.get("locale"), str)
+        or pending["locale"] not in multilingual.SUPPORTED_LOCALES
+        or not isinstance(pending.get("work_id"), str)
+        or not isinstance(pending.get("campaign_version"), str)
+        or pending.get("source_completion_required") is not True
+        or not isinstance(pending.get("depends_on"), list)
+        or len(pending["depends_on"]) != 1
+        or not isinstance(pending["depends_on"][0], str)
+    ):
+        raise ValueError("translation pending receipt identity is invalid")
+    source_run_id = str(pending["depends_on"][0])
+    if expected_source_run_id is not None and source_run_id != expected_source_run_id:
+        raise ValueError("translation pending source run selector differs")
+    expected_run_id = multilingual.translation_run_id(
+        source_run_id,
+        str(pending["source_article_id"]),
+        str(pending["locale"]),
+    )
+    if pending["run_id"] != expected_run_id:
+        raise ValueError("translation pending run identity differs")
+    canonical = {key: item for key, item in pending.items() if key != "payload_digest"}
+    if _create_run_adapter_digest(canonical) != pending["payload_digest"]:
+        raise ValueError("translation pending payload digest drift")
+    if materialized is not None:
+        required = {"run_id", "source_run_id", "lane", "brief_sha256"}
+        if (
+            set(materialized) != required
+            or materialized.get("run_id") != pending["run_id"]
+            or materialized.get("source_run_id") != source_run_id
+            or materialized.get("lane") != pending["lane"]
+            or not isinstance(materialized.get("brief_sha256"), str)
+            or SHA256_PATTERN.fullmatch(str(materialized["brief_sha256"])) is None
+        ):
+            raise ValueError("translation materialized receipt binding is invalid")
+    return pending, materialized
+
+
+def _translation_pending_transaction(
+    queue_root: Path,
+    pending: Mapping[str, Any],
+    source_run_id: str,
+) -> None:
+    """只接受原 adapter 的 exact four-lane transaction receipt。"""
+    path = _create_run_adapter_transaction_path(queue_root, str(pending["plan_digest"]))
+    transaction = _create_run_adapter_existing_json(path, "create-run adapter transaction")
+    exact_run_ids = transaction.get("exact_run_ids") if isinstance(transaction, dict) else None
+    if (
+        not isinstance(transaction, dict)
+        or transaction.get("schema_version") != 1
+        or transaction.get("status") != "applied"
+        or transaction.get("plan_digest") != pending["plan_digest"]
+        or not isinstance(exact_run_ids, list)
+        or len(exact_run_ids) != 4
+        or any(not isinstance(item, str) for item in exact_run_ids)
+        or len(set(exact_run_ids)) != 4
+        or source_run_id not in exact_run_ids
+        or pending["run_id"] not in exact_run_ids
+    ):
+        raise ValueError("translation pending plan or exact run binding differs")
+
+
+def _translation_pending_source(
+    queue_root: Path,
+    pending: Mapping[str, Any],
+    source_run_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """從已綁定 source brief/state 取 source snapshot，絕不讀公開 article record。"""
+    source_lane = "new" if pending["lane"] == "i18n-new" else "rewrite"
+    state = _read_run_state_by_id(source_run_id, queue_root)
+    run_dir_value = state.get("run_dir")
+    if not isinstance(run_dir_value, str):
+        raise ValueError("translation pending source state identity differs")
+    run_dir = Path(run_dir_value)
+    if not run_dir.is_absolute() or run_dir != run_dir.resolve(strict=False):
+        raise ValueError("translation pending source run directory is invalid")
+    brief = _read_editorial_artifact(run_dir / "brief.json")
+    expected_envelope = _identity_envelope_from_brief(brief)
+    if (
+        state.get("status") != "complete"
+        or state.get("run_id") != source_run_id
+        or state.get("run_dir") != str(run_dir)
+        or brief.get("run_id") != source_run_id
+        or _validate_identity_envelope(state.get("identity_envelope")) != expected_envelope
+        or expected_envelope.get("lane") != source_lane
+    ):
+        raise ValueError("translation pending source state is not exact terminal completion")
+    candidate = _read_editorial_artifact(run_dir / "candidate.json")
+    review = _read_editorial_artifact(run_dir / "review.json")
+    pipeline.validate_candidate(candidate)
+    pipeline.validate_review(review, candidate["articles"])
+    article_id = _editorial_candidate_id(candidate)
+    if (
+        candidate.get("run_id") != source_run_id
+        or candidate.get("mode") != expected_envelope.get("mode")
+        or article_id != pending["source_article_id"]
+        or review.get("run_id") != source_run_id
+        or any(
+            item.get("verdict") != "APPROVE"
+            or item.get("hard_failure") is True
+            or item.get("findings")
+            for item in review["articles"]
+        )
+    ):
+        raise ValueError("translation pending source candidate or review binding differs")
+    result = state.get("result")
+    if (
+        not isinstance(result, dict)
+        or result.get("status") != "complete"
+        or result.get("run_id") != source_run_id
+        or result.get("candidate_sha256") != editorial_contracts.artifact_sha256(candidate)
+        or result.get("review_sha256") != editorial_contracts.artifact_sha256(review)
+    ):
+        raise ValueError("translation pending source terminal digest differs")
+    item = {
+        "lane": source_lane,
+        "run_id": source_run_id,
+        "article_id": article_id,
+        "candidate": candidate,
+        "brief": brief,
+    }
+    source = _campaign_translation_source(item)
+    return state, brief, candidate, review, source
+
+
+def _translation_pending_source_snapshot_digest(
+    state: Mapping[str, Any],
+    brief: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    review: Mapping[str, Any],
+    source: Mapping[str, Any],
+) -> str:
+    """把 enqueue 前後已驗證 source authority 作單一 CAS 比較。"""
+    return _canonical_json_file_sha256(
+        {
+            "state": state,
+            "brief": brief,
+            "candidate": candidate,
+            "review": review,
+            "source": source,
+        }
+    )
+
+
+def _translation_pending_expected_brief(
+    pending: Mapping[str, Any],
+    source_run_id: str,
+    source: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected = _campaign_translation_brief(
+        {
+            "run_id": source_run_id,
+            "article_id": pending["source_article_id"],
+        },
+        dict(source),
+        str(pending["locale"]),
+    )
+    if expected["run_id"] != pending["run_id"]:
+        raise ValueError("translation pending expected brief run identity differs")
+    return expected
+
+
+def _translation_pending_registration_preflight(
+    queue_root: Path,
+    expected_brief: dict[str, Any],
+) -> None:
+    """只容許 existing enqueue 的「brief 已落盤、state 未落盤」可重入窗口。"""
+    run_id = str(expected_brief["run_id"])
+    run_dir = (queue_root / "translation-runs" / run_id).resolve()
+    state_path = _state_path(run_id, queue_root)
+    if run_dir.exists() and not state_path.exists():
+        files = [path for path in run_dir.rglob("*") if path.is_file()]
+        expected_bytes = json.dumps(
+            expected_brief, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8") + b"\n"
+        if files != [run_dir / "brief.json"] or (run_dir / "brief.json").read_bytes() != expected_bytes:
+            raise ValueError("translation registration partial brief is not exact")
+        return
+    _preflight_translation_registration(queue_root, expected_brief)
+
+
+def materialize_translation_pending_dependency(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    source_run_id: str,
+    pending_receipt: Path,
+) -> dict[str, Any]:
+    """materialize 一筆 exact terminal source 的 translation pending receipt；不做 sweep。"""
+    root = queue_root.resolve()
+    selected = pending_receipt.resolve(strict=True)
+    initial = _create_run_adapter_existing_json(selected, "translation pending")
+    if initial is None:
+        raise ValueError("translation pending receipt is missing")
+    pending, _materialized = _translation_pending_payload(
+        initial, expected_source_run_id=source_run_id
+    )
+    expected_path = _create_run_adapter_pending_path(root, str(pending["run_id"])).resolve()
+    if selected != expected_path:
+        raise ValueError("translation pending receipt selector is not exact")
+    initial_digest = _canonical_json_file_sha256(initial)
+    with _run_identity_lock(str(pending["run_id"]), root):
+        current = _create_run_adapter_existing_json(selected, "translation pending")
+        if current is None or _canonical_json_file_sha256(current) != initial_digest:
+            raise ValueError("translation pending receipt CAS differs before materialization")
+        pending, materialized = _translation_pending_payload(
+            current, expected_source_run_id=source_run_id
+        )
+        _translation_pending_transaction(root, pending, source_run_id)
+        if materialized is not None:
+            source_state, source_brief, candidate, review, source = _translation_pending_source(
+                root, pending, source_run_id
+            )
+            expected_brief = _translation_pending_expected_brief(
+                pending, source_run_id, source
+            )
+            state, run_dir = _preflight_translation_registration(
+                root,
+                expected_brief,
+            )
+            if (
+                state is None
+                or state.get("lane") != pending["lane"]
+                or materialized["brief_sha256"]
+                != editorial_contracts.artifact_sha256(expected_brief)
+            ):
+                raise ValueError("translation materialized registration drift")
+            return {
+                "status": "already_materialized",
+                "run_id": pending["run_id"],
+                "source_run_id": source_run_id,
+                "lane": pending["lane"],
+                "queue_mutation": False,
+                "public_mutation": False,
+            }
+        source_state, source_brief, candidate, review, source = _translation_pending_source(
+            root, pending, source_run_id
+        )
+        source_snapshot_digest = _translation_pending_source_snapshot_digest(
+            source_state, source_brief, candidate, review, source
+        )
+        expected_brief = _translation_pending_expected_brief(
+            pending, source_run_id, source
+        )
+        _translation_pending_registration_preflight(root, expected_brief)
+        records = multilingual.enqueue_article_translations(
+            repo_root,
+            root,
+            source_run_id=source_run_id,
+            article_id=str(pending["source_article_id"]),
+            locales=[str(pending["locale"])],
+            lane=str(pending["lane"]),
+            source_loader=lambda _repo_root, article_id: source
+            if article_id == pending["source_article_id"]
+            else (_ for _ in ()).throw(ValueError("translation pending source selector differs")),
+        )
+        if records != [{
+            "run_id": pending["run_id"],
+            "locale": pending["locale"],
+            "run_dir": str((root / "translation-runs" / str(pending["run_id"])).resolve()),
+        }]:
+            raise ValueError("translation enqueue registration identity differs")
+        registration, run_dir = _preflight_translation_registration(root, expected_brief)
+        if registration is None or registration.get("lane") != pending["lane"]:
+            raise ValueError("translation enqueue did not register state")
+        after_state, after_brief, after_candidate, after_review, after_source = _translation_pending_source(
+            root, pending, source_run_id
+        )
+        final_current = _create_run_adapter_existing_json(selected, "translation pending")
+        if (
+            final_current is None
+            or _canonical_json_file_sha256(final_current) != initial_digest
+            or _translation_pending_source_snapshot_digest(
+                after_state, after_brief, after_candidate, after_review, after_source
+            ) != source_snapshot_digest
+        ):
+            raise ValueError("translation pending receipt or source CAS differs before terminalization")
+        terminal = {
+            **pending,
+            "status": "materialized",
+            "materialized": {
+                "run_id": pending["run_id"],
+                "source_run_id": source_run_id,
+                "lane": pending["lane"],
+                "brief_sha256": editorial_contracts.artifact_sha256(expected_brief),
+            },
+        }
+        atomic_write_json(selected, terminal)
+    return {
+        "status": "materialized",
+        "run_id": pending["run_id"],
+        "source_run_id": source_run_id,
+        "lane": pending["lane"],
+        "queue_mutation": True,
+        "public_mutation": False,
+    }
+
+
 def create_campaign_run_adapter(
     *,
     repo_root: Path,
@@ -6600,6 +6943,9 @@ def parse_args() -> argparse.Namespace:
     reconcile_mode = reconcile_identity.add_mutually_exclusive_group(required=True)
     reconcile_mode.add_argument("--plan-only", action="store_true")
     reconcile_mode.add_argument("--execute", action="store_true")
+    materialize_pending = subparsers.add_parser("materialize-translation-pending")
+    materialize_pending.add_argument("--source-run-id", action="append", required=True)
+    materialize_pending.add_argument("--pending-receipt", type=Path, action="append", required=True)
     campaign = subparsers.add_parser("dry-run-campaign")
     campaign.add_argument("--campaign-version", required=True)
     campaign.add_argument("--state-root", type=Path, default=Path(".work/content-publisher"))
@@ -6607,7 +6953,12 @@ def parse_args() -> argparse.Namespace:
     campaign.add_argument("--output", type=Path)
     cycle = subparsers.add_parser("cycle")
     cycle.add_argument("--exact-run-id", action="append")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.command == "materialize-translation-pending" and (
+        len(args.source_run_id) != 1 or len(args.pending_receipt) != 1
+    ):
+        parser.error("materialize-translation-pending requires exactly one source run and pending receipt")
+    return args
 
 
 def main() -> int:
@@ -6746,6 +7097,17 @@ def main() -> int:
             )
             print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             return 0
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
+            return 1
+    elif args.command == "materialize-translation-pending":
+        try:
+            result = materialize_translation_pending_dependency(
+                args.repo_root.resolve(),
+                queue_root,
+                source_run_id=args.source_run_id[0],
+                pending_receipt=args.pending_receipt[0],
+            )
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
             print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
             return 1
