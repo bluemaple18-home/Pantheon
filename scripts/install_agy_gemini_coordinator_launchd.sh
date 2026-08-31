@@ -23,6 +23,7 @@ REQUESTED_WRITER_MODEL="${AGY_WRITER_MODEL:-}"
 REQUESTED_REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"
 NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"
 RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"
+SEALED_ACCEPTANCE_MODE="${PANTHEON_SEALED_ACCEPTANCE_MODE:-0}"
 REQUESTED_GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
@@ -80,8 +81,19 @@ if [[ -n "${PANTHEON_RELEASE_NEXT_EDGE:-}" ]]; then
       --action="${ACTION}"
   ) || exit 1
 fi
-if [[ ! -x "${AGY_CLI_PATH}" ]]; then
+if [[ "${SEALED_ACCEPTANCE_MODE}" != "0" && "${SEALED_ACCEPTANCE_MODE}" != "1" ]]; then
+  echo "PANTHEON_SEALED_ACCEPTANCE_MODE 只能是 0 或 1。" >&2
+  exit 1
+fi
+if [[ "${SEALED_ACCEPTANCE_MODE}" == "0" && ! -x "${AGY_CLI_PATH}" ]]; then
   echo "找不到 Gemini CLI：${AGY_CLI_PATH}" >&2
+  exit 1
+fi
+if [[ "${SEALED_ACCEPTANCE_MODE}" == "1" \
+  && ( "${ACTION}" == "--activate" || "${ACTION}" == "--activate-only" \
+    || "${ACTION}" == "--activate-publisher-only" \
+    || "${ACTION}" == "--reset-publisher-activation-only" ) ]]; then
+  echo "sealed acceptance mode 只允許 preflight 或 install，不可 activation。" >&2
   exit 1
 fi
 if [[ "${NEW_ONLY}" != "0" && "${NEW_ONLY}" != "1" ]]; then
@@ -99,6 +111,11 @@ fi
 if [[ -n "${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-}" \
   && "${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE}" != /* ]]; then
   echo "Production Gemini allocator state path 必須使用 absolute path。" >&2
+  exit 1
+fi
+if [[ "${SEALED_ACCEPTANCE_MODE}" == "1" \
+  && ( -n "${PRODUCTION_POOL_FILE}" || -n "${AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE:-}" ) ]]; then
+  echo "sealed acceptance mode 禁止 production credential pool/state。" >&2
   exit 1
 fi
 if [[ ! "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
@@ -231,6 +248,74 @@ fi
 if [[ "${QUEUE_ROOT}" != /* || "${GSC_COPY_ROOT}" != /* || "${CONTENT_PUBLISHER_ROOT}" != /* ]]; then
   echo "Pantheon queue、GSC copy 與 publisher state root 必須使用 absolute path。" >&2
   exit 1
+fi
+if [[ "${SEALED_ACCEPTANCE_MODE}" == "1" ]]; then
+  SEALED_LANES=(new rewrite i18n-new i18n-rewrite)
+  SEALED_RUN_IDS=(
+    "${PANTHEON_SEALED_ACCEPTANCE_RUN_ID_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_RUN_ID_REWRITE:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_RUN_ID_I18N_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_RUN_ID_I18N_REWRITE:-}"
+  )
+  SEALED_BUNDLES=(
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_REWRITE:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_I18N_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_I18N_REWRITE:-}"
+  )
+  SEALED_BUNDLE_SHA256S=(
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_SHA256_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_SHA256_REWRITE:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_SHA256_I18N_NEW:-}"
+    "${PANTHEON_SEALED_ACCEPTANCE_BUNDLE_SHA256_I18N_REWRITE:-}"
+  )
+  SEALED_LANE_ROOTS=()
+  SEALED_BUNDLE_REALPATHS=()
+  for INDEX in 0 1 2 3; do
+    LANE="${SEALED_LANES[${INDEX}]}"
+    RUN_ID="${SEALED_RUN_IDS[${INDEX}]}"
+    BUNDLE_PATH="${SEALED_BUNDLES[${INDEX}]}"
+    BUNDLE_SHA256="${SEALED_BUNDLE_SHA256S[${INDEX}]}"
+    LANE_ROOT="${QUEUE_ROOT}/lanes/${LANE}"
+    if [[ -z "${RUN_ID}" || ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ \
+      || "${BUNDLE_PATH}" != /* || ! -f "${BUNDLE_PATH}" || -L "${BUNDLE_PATH}" \
+      || ! "${BUNDLE_SHA256}" =~ ^[0-9a-f]{64}$ \
+      || ! -d "${LANE_ROOT}" || -L "${LANE_ROOT}" ]]; then
+      echo "sealed acceptance ${LANE} input 無效。" >&2
+      exit 1
+    fi
+    BUNDLE_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${BUNDLE_PATH}")"
+    LANE_ROOT_REALPATH="$(/usr/bin/perl -MCwd=realpath -e 'print realpath($ARGV[0]) // ""' "${LANE_ROOT}")"
+    if [[ -z "${BUNDLE_REALPATH}" || -z "${LANE_ROOT_REALPATH}" \
+      || "${BUNDLE_REALPATH}" != "${BUNDLE_PATH}" || "${LANE_ROOT_REALPATH}" != "${LANE_ROOT}" ]]; then
+      echo "sealed acceptance ${LANE} path 必須是 canonical path。" >&2
+      exit 1
+    fi
+    SEALED_BUNDLE_REALPATHS+=("${BUNDLE_REALPATH}")
+    SEALED_LANE_ROOTS+=("${LANE_ROOT_REALPATH}")
+    if ! (
+      cd "${REPO_ROOT}"
+      "${PYTHON_BIN}" -c '
+from pathlib import Path
+import sys
+from scripts.agy_gemini_runner import _load_acceptance_sealed_replay_bundle
+bundle = _load_acceptance_sealed_replay_bundle(
+    Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4]), sys.argv[5], sys.argv[6],
+)
+if bundle.generation != sys.argv[7]:
+    raise ValueError("sealed replay bundle generation mismatch")
+' "${BUNDLE_REALPATH}" "${BUNDLE_SHA256}" "${ACTOR_ROOT}" "${LANE_ROOT_REALPATH}" "${LANE}" "${RUN_ID}" "${RUNTIME_GENERATION}"
+    ) >/dev/null; then
+      echo "sealed acceptance ${LANE} bundle authority 無效。" >&2
+      exit 1
+    fi
+  done
+  if [[ "$(printf '%s\n' "${SEALED_RUN_IDS[@]}" | sort -u | wc -l | tr -d ' ')" != "4" \
+    || "$(printf '%s\n' "${SEALED_BUNDLE_REALPATHS[@]}" | sort -u | wc -l | tr -d ' ')" != "4" \
+    || "$(printf '%s\n' "${SEALED_LANE_ROOTS[@]}" | sort -u | wc -l | tr -d ' ')" != "4" ]]; then
+    echo "sealed acceptance four lane run、bundle、queue root 必須各自唯一。" >&2
+    exit 1
+  fi
 fi
 if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
   if [[ "${PRODUCTION_POOL_FILE}" != /* ]]; then

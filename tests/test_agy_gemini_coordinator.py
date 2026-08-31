@@ -61,7 +61,7 @@ def _valid_campaign_candidate(brief: dict[str, object]) -> dict[str, object]:
     run_id = str(brief["run_id"])
     keyword = "測試關鍵字" if article_id.startswith("NEW") else "舊文測試"
     paragraphs = [_long_paragraph(f"{keyword}在第{index + 1}個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。") for index in range(15)]
-    if article_id.startswith("NEW"):
+    if brief.get("mode") == "create" or article_id.startswith("NEW"):
         article = {
             "id": article_id, "section": "mbti", "product": "personality", "slug": article_id.lower(),
             "serial": "personality-9999", "urlSlug": f"{article_id.lower()}-9999", "primaryKeyword": "測試關鍵字",
@@ -823,6 +823,55 @@ def _apf_004_kwargs(tmp_path: Path, workset: dict[str, object] | None = None) ->
     }
 
 
+def _apf_004_complete_new_source(tmp_path: Path) -> tuple[dict[str, object], dict[str, object]]:
+    created = coordinator.create_campaign_run_adapter(
+        **_apf_004_kwargs(tmp_path), plan_only=False
+    )
+    source_record = next(item for item in created["runs"] if item["lane"] == "new")
+    target_record = next(item for item in created["runs"] if item["lane"] == "i18n-new")
+    source_run_id = str(source_record["run_id"])
+    source_run_dir = Path(str(source_record["run_dir"]))
+    candidate_fixture_brief = {
+        "article_identity": {"id": "ASTRO-SCENARIO-BIG-THREE"},
+        "run_id": source_run_id,
+        "mode": "create",
+    }
+    candidate = _valid_campaign_candidate(candidate_fixture_brief)
+    article = candidate["articles"][0]
+    assert isinstance(article, dict)
+    article.update({
+        "section": "astro",
+        "product": "astro",
+        "slug": "astro-scenario-big-three",
+        "serial": "astrology-0198",
+        "urlSlug": "astrology-0198",
+        "primaryKeyword": "太陽月亮上升怎麼看",
+        "title": "太陽月亮上升怎麼看？性格矛盾時先分三個層次",
+        "publicationPolicy": _publication_policy(
+            canonical="https://www.mysticpantheon.com/articles/astrology/astrology-0198",
+            change_type="created",
+        ),
+    })
+    article["bodySections"][0]["paragraphs"][0] = (
+        "太陽月亮上升怎麼看時，先把三個層次放回日常情境，不把描述當成固定標籤；"
+        "仍要核對實際經驗、限制與下一步。"
+    )
+    review = _clean_review(candidate_fixture_brief, candidate)
+    coordinator.atomic_write_json(source_run_dir / "candidate.json", candidate)
+    coordinator.atomic_write_json(source_run_dir / "review.json", review)
+    source_state_path = coordinator._state_path(source_run_id, tmp_path / "queue")
+    source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
+    source_state.update({
+        "status": "complete",
+        "result": {
+            "candidate_sha256": coordinator.editorial_contracts.artifact_sha256(candidate),
+            "review_sha256": coordinator.editorial_contracts.artifact_sha256(review),
+        },
+    })
+    coordinator.atomic_write_json(source_state_path, source_state)
+    return source_record, target_record
+
+
 def _apf_004_single_workset(lane: str = "new") -> dict[str, object]:
     if lane == "new":
         item = _apf_004_item("matrix", "ASTRO-SCENARIO-BIG-THREE", "zh-TW", "new")
@@ -1028,6 +1077,277 @@ def test_apf_004_create_run_adapter_apply_is_idempotent_and_resume_safe(
         first["runs"][0]["run_id"],
         first["runs"][1]["run_id"],
     }
+
+
+def test_apf_004_materializes_exact_terminal_new_translation_dependency(
+    tmp_path: Path,
+) -> None:
+    source_record, target_record = _apf_004_complete_new_source(tmp_path)
+    source_run_id = str(source_record["run_id"])
+    pending = coordinator._create_run_adapter_pending_path(
+        tmp_path / "queue", str(target_record["run_id"])
+    )
+    result = coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=str(target_record["run_id"]),
+    )
+
+    assert result["status"] == "materialized"
+    assert result["run_id"] == target_record["run_id"]
+    materialized = json.loads(pending.read_text(encoding="utf-8"))
+    assert materialized["status"] == "materialized"
+    assert materialized["registration"]["run_id"] == target_record["run_id"]
+    records = result["records"]
+    assert isinstance(records, list) and [record["run_id"] for record in records] == [target_record["run_id"]]
+    state = coordinator._read_run_state_by_id(str(target_record["run_id"]), tmp_path / "queue")
+    assert state["lane"] == "i18n-new"
+    before_retry = _tree_bytes(tmp_path / "queue")
+    retry = coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=str(target_record["run_id"]),
+    )
+    assert retry["status"] == "already_materialized"
+    assert _tree_bytes(tmp_path / "queue") == before_retry
+    resumed_adapter = coordinator.create_campaign_run_adapter(
+        **_apf_004_kwargs(tmp_path), plan_only=False
+    )
+    assert resumed_adapter["created"] == {"registered": 0, "pending_dependencies": 0}
+
+
+def test_apf_004_materializer_rejects_hard_failure_before_translation_write(
+    tmp_path: Path,
+) -> None:
+    source_record, target_record = _apf_004_complete_new_source(tmp_path)
+    source_run_id = str(source_record["run_id"])
+    source_run_dir = Path(str(source_record["run_dir"]))
+    review_path = source_run_dir / "review.json"
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    review["articles"][0]["hard_failure"] = True
+    coordinator.atomic_write_json(review_path, review)
+    state_path = coordinator._state_path(source_run_id, tmp_path / "queue")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["result"]["review_sha256"] = coordinator.editorial_contracts.artifact_sha256(review)
+    coordinator.atomic_write_json(state_path, state)
+    before = _tree_bytes(tmp_path / "queue")
+
+    with pytest.raises(ValueError, match="review is not approved"):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=str(target_record["run_id"]),
+        )
+
+    assert _tree_bytes(tmp_path / "queue") == before
+
+
+def test_apf_004_adapter_rejects_materialized_registration_drift_without_write(
+    tmp_path: Path,
+) -> None:
+    _source_record, target_record = _apf_004_complete_new_source(tmp_path)
+    target_run_id = str(target_record["run_id"])
+    coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=target_run_id,
+    )
+    pending_path = coordinator._create_run_adapter_pending_path(tmp_path / "queue", target_run_id)
+    receipt = json.loads(pending_path.read_text(encoding="utf-8"))
+    receipt["registration"]["source_run_id"] = "other-source-run"
+    receipt["payload_digest"] = coordinator._create_run_adapter_digest({
+        key: value for key, value in receipt.items() if key != "payload_digest"
+    })
+    coordinator.atomic_write_json(pending_path, receipt)
+    before = _tree_bytes(tmp_path / "queue")
+
+    with pytest.raises(ValueError, match="pending dependency collision"):
+        coordinator.create_campaign_run_adapter(**_apf_004_kwargs(tmp_path), plan_only=False)
+
+    assert _tree_bytes(tmp_path / "queue") == before
+
+
+def test_apf_004_materializer_uses_bound_rewrite_brief_not_current_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = coordinator.create_campaign_run_adapter(
+        **_apf_004_kwargs(tmp_path), plan_only=False
+    )
+    source_record = next(item for item in created["runs"] if item["lane"] == "rewrite")
+    target_record = next(item for item in created["runs"] if item["lane"] == "i18n-rewrite")
+    source_run_id = str(source_record["run_id"])
+    source_run_dir = Path(str(source_record["run_dir"]))
+    candidate = _valid_campaign_candidate({
+        "article_identity": {"id": "ASC-AQUARIUS"},
+        "run_id": source_run_id,
+        "mode": "rewrite_existing_body",
+    })
+    review = _clean_review({"run_id": source_run_id}, candidate)
+    coordinator.atomic_write_json(source_run_dir / "candidate.json", candidate)
+    coordinator.atomic_write_json(source_run_dir / "review.json", review)
+    source_state_path = coordinator._state_path(source_run_id, tmp_path / "queue")
+    source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
+    source_state.update({
+        "status": "complete",
+        "result": {
+            "candidate_sha256": coordinator.editorial_contracts.artifact_sha256(candidate),
+            "review_sha256": coordinator.editorial_contracts.artifact_sha256(review),
+        },
+    })
+    coordinator.atomic_write_json(source_state_path, source_state)
+
+    def forbidden_current_source(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("materializer must use the bound source brief")
+
+    monkeypatch.setattr(coordinator.multilingual, "load_source_article", forbidden_current_source)
+    result = coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=str(target_record["run_id"]),
+    )
+
+    assert result["status"] == "materialized"
+    brief = json.loads((Path(result["records"][0]["run_dir"]) / "brief.json").read_text())
+    assert brief["articles"][0]["source_article_id"] == "ASC-AQUARIUS"
+    source_brief = json.loads((source_run_dir / "brief.json").read_text())
+    immutable = source_brief["articles"][0]["immutable_fields"]
+    assert brief["articles"][0]["source"]["title"] == immutable["title"]
+    assert brief["articles"][0]["source"]["bodySections"] == candidate["articles"][0]["bodySections"]
+    before_retry = _tree_bytes(tmp_path / "queue")
+    retry = coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=str(target_record["run_id"]),
+    )
+    assert retry["status"] == "already_materialized"
+    assert _tree_bytes(tmp_path / "queue") == before_retry
+
+
+def test_apf_004_materializer_rejects_source_identity_envelope_drift_before_write(
+    tmp_path: Path,
+) -> None:
+    source_record, target_record = _apf_004_complete_new_source(tmp_path)
+    source_state_path = coordinator._state_path(str(source_record["run_id"]), tmp_path / "queue")
+    source_state = json.loads(source_state_path.read_text(encoding="utf-8"))
+    source_state["identity_envelope"] = coordinator._build_identity_envelope(
+        "rewrite_existing_body", "rewrite", ["ASTRO-SCENARIO-BIG-THREE"],
+    )
+    coordinator.atomic_write_json(source_state_path, source_state)
+    before = _tree_bytes(tmp_path / "queue")
+
+    with pytest.raises(ValueError, match="source identity envelope drift"):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=str(target_record["run_id"]),
+        )
+
+    assert _tree_bytes(tmp_path / "queue") == before
+
+
+def test_apf_004_materializer_recovers_only_exact_brief_without_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _source_record, target_record = _apf_004_complete_new_source(tmp_path)
+    target_run_id = str(target_record["run_id"])
+    state_path = coordinator._state_path(target_run_id, tmp_path / "queue")
+    original_write = coordinator.multilingual._atomic_write_json
+
+    def crash_state_write(path: Path, payload: object) -> None:
+        if path == state_path:
+            raise OSError("synthetic translation registry interruption")
+        original_write(path, payload)
+
+    monkeypatch.setattr(coordinator.multilingual, "_atomic_write_json", crash_state_write)
+    with pytest.raises(OSError, match="synthetic translation registry interruption"):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=target_run_id,
+        )
+
+    brief_path = tmp_path / "queue" / "translation-runs" / target_run_id / "brief.json"
+    expected_bytes = brief_path.read_bytes()
+    assert not state_path.exists()
+    assert sorted(path.name for path in brief_path.parent.iterdir()) == ["brief.json"]
+    brief_path.write_bytes(b"{}\n")
+    before_drift_rejection = _tree_bytes(tmp_path / "queue")
+    with pytest.raises(ValueError, match="translation registration is incomplete"):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=target_run_id,
+        )
+    assert _tree_bytes(tmp_path / "queue") == before_drift_rejection
+    brief_path.write_bytes(expected_bytes)
+    extra_path = brief_path.parent / "unexpected.txt"
+    extra_path.write_text("no", encoding="utf-8")
+    before_extra_rejection = _tree_bytes(tmp_path / "queue")
+    with pytest.raises(ValueError, match="translation registration is incomplete"):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=target_run_id,
+        )
+    assert _tree_bytes(tmp_path / "queue") == before_extra_rejection
+    extra_path.unlink()
+    monkeypatch.setattr(coordinator.multilingual, "_atomic_write_json", original_write)
+
+    recovered = coordinator.materialize_exact_translation_pending_dependency(
+        Path(__file__).resolve().parents[1], tmp_path / "queue",
+        expected_run_id=target_run_id,
+    )
+
+    assert recovered["status"] == "materialized"
+    assert state_path.exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "source-active", "pending-digest", "wrong-depends-on", "duplicate-transaction",
+        "missing-transaction-id", "extra-transaction-id",
+    ],
+)
+def test_apf_004_materializer_rejects_before_translation_write(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    created = coordinator.create_campaign_run_adapter(
+        **_apf_004_kwargs(tmp_path), plan_only=False
+    )
+    target_record = next(item for item in created["runs"] if item["lane"] == "i18n-new")
+    target_run_id = str(target_record["run_id"])
+    pending = coordinator._create_run_adapter_pending_path(tmp_path / "queue", target_run_id)
+    payload = json.loads(pending.read_text(encoding="utf-8"))
+    if mutation == "pending-digest":
+        payload["payload_digest"] = "0" * 64
+    elif mutation == "wrong-depends-on":
+        payload["depends_on"] = ["other-source-run"]
+        body = {key: value for key, value in payload.items() if key != "payload_digest"}
+        payload["payload_digest"] = coordinator._create_run_adapter_digest(body)
+    elif mutation == "duplicate-transaction":
+        transaction_path = coordinator._create_run_adapter_transaction_path(
+            tmp_path / "queue", str(payload["plan_digest"]),
+        )
+        transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+        transaction["exact_run_ids"].append(str(payload["run_id"]))
+        coordinator.atomic_write_json(transaction_path, transaction)
+    elif mutation in {"missing-transaction-id", "extra-transaction-id"}:
+        transaction_path = coordinator._create_run_adapter_transaction_path(
+            tmp_path / "queue", str(payload["plan_digest"]),
+        )
+        transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+        if mutation == "missing-transaction-id":
+            transaction["exact_run_ids"].pop()
+        else:
+            transaction["exact_run_ids"].append("unrelated-exact-run")
+        coordinator.atomic_write_json(transaction_path, transaction)
+    else:
+        # adapter source state remains active; this is the expected RED boundary.
+        pass
+    coordinator.atomic_write_json(pending, payload)
+    before = _tree_bytes(tmp_path / "queue")
+
+    with pytest.raises(ValueError):
+        coordinator.materialize_exact_translation_pending_dependency(
+            Path(__file__).resolve().parents[1], tmp_path / "queue",
+            expected_run_id=target_run_id,
+        )
+
+    assert _tree_bytes(tmp_path / "queue") == before
 
 
 @pytest.mark.parametrize(

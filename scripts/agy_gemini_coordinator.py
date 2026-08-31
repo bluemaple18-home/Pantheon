@@ -5381,7 +5381,31 @@ def _create_run_adapter_preflight_apply(
             "pending dependency",
         )
         if existing_pending is not None and existing_pending != pending:
-            raise ValueError("create-run adapter pending dependency collision")
+            # materialized 是同一份 immutable pending receipt 的終態，不應被 adapter
+            # 重建成新的 pending work；其餘任何差異一律視為 identity collision。
+            stored_base = {
+                key: value
+                for key, value in existing_pending.items()
+                if key not in {"registration", "payload_digest"}
+            }
+            stored_base["status"] = "pending_source_completion"
+            registration = existing_pending.get("registration")
+            if (
+                existing_pending.get("status") != "materialized"
+                or stored_base != {key: value for key, value in pending.items() if key != "payload_digest"}
+                or existing_pending.get("payload_digest")
+                != _create_run_adapter_digest({
+                    key: value for key, value in existing_pending.items()
+                    if key != "payload_digest"
+                })
+                or not isinstance(registration, dict)
+                or set(registration) != {"run_id", "source_run_id", "lane", "brief_sha256"}
+                or registration.get("run_id") != run_id
+                or registration.get("source_run_id") != pending["depends_on"][0]
+                or registration.get("lane") != pending["lane"]
+                or SHA256_PATTERN.fullmatch(str(registration.get("brief_sha256") or "")) is None
+            ):
+                raise ValueError("create-run adapter pending dependency collision")
     transaction_path = _create_run_adapter_transaction_path(
         queue_root,
         str(plan["plan_digest"]),
@@ -5423,6 +5447,247 @@ def _create_run_adapter_pending_payloads(
         payload["payload_digest"] = _create_run_adapter_digest(payload)
         payloads[str(record["run_id"])] = payload
     return payloads
+
+
+def materialize_exact_translation_pending_dependency(
+    repo_root: Path,
+    queue_root: Path,
+    *,
+    expected_run_id: str,
+) -> dict[str, Any]:
+    """將一筆已完成 source run 的 APF translation dependency 交給既有 enqueue seam。"""
+    if EXACT_RUN_ID_PATTERN.fullmatch(expected_run_id) is None:
+        raise ValueError("translation dependency run id is invalid")
+    root = queue_root.resolve()
+    pending_path = _create_run_adapter_pending_path(root, expected_run_id)
+    pending = _create_run_adapter_existing_json(pending_path, "translation dependency")
+    if pending is None:
+        raise ValueError("translation dependency is missing")
+    pending_required = {
+        "schema_version", "status", "owner", "plan_digest", "campaign_version",
+        "lane", "run_id", "work_id", "source_article_id", "locale", "depends_on",
+        "source_completion_required", "payload_digest",
+    }
+    materialized_required = pending_required | {"registration"}
+    if set(pending) != pending_required and set(pending) != materialized_required:
+        raise ValueError("translation dependency fields are strict")
+    payload = {key: value for key, value in pending.items() if key != "payload_digest"}
+    if (
+        pending.get("schema_version") != 1
+        or pending.get("status") not in {"pending_source_completion", "materialized"}
+        or pending.get("owner") != "scripts.agy_gemini_coordinator:create_campaign_run_adapter"
+        or pending.get("run_id") != expected_run_id
+        or type(pending.get("plan_digest")) is not str
+        or SHA256_PATTERN.fullmatch(str(pending["plan_digest"])) is None
+        or pending.get("payload_digest") != _create_run_adapter_digest(payload)
+        or pending.get("lane") not in APF_CREATE_RUN_ADAPTER_TRANSLATION_LANES
+        or type(pending.get("source_article_id")) is not str
+        or not str(pending["source_article_id"])
+        or pending.get("locale") not in multilingual.SUPPORTED_LOCALES
+        or pending.get("source_completion_required") is not True
+        or not isinstance(pending.get("depends_on"), list)
+        or len(pending["depends_on"]) != 1
+        or not isinstance(pending["depends_on"][0], str)
+        or EXACT_RUN_ID_PATTERN.fullmatch(pending["depends_on"][0]) is None
+    ):
+        raise ValueError("translation dependency identity is invalid")
+    if pending["status"] == "pending_source_completion" and set(pending) != pending_required:
+        raise ValueError("translation dependency pending receipt is invalid")
+    if pending["status"] == "materialized":
+        registration = pending.get("registration")
+        if (
+            not isinstance(registration, dict)
+            or set(registration) != {"run_id", "source_run_id", "lane", "brief_sha256"}
+            or registration.get("run_id") != expected_run_id
+            or registration.get("lane") != pending["lane"]
+            or not isinstance(registration.get("source_run_id"), str)
+            or SHA256_PATTERN.fullmatch(str(registration.get("brief_sha256") or "")) is None
+        ):
+            raise ValueError("translation dependency materialized receipt is invalid")
+    transaction = _create_run_adapter_existing_json(
+        _create_run_adapter_transaction_path(root, str(pending["plan_digest"])),
+        "create-run transaction",
+    )
+    if (
+        transaction is None
+        or transaction.get("schema_version") != 1
+        or transaction.get("status") != "applied"
+        or transaction.get("plan_digest") != pending["plan_digest"]
+        or not isinstance(transaction.get("exact_run_ids"), list)
+    ):
+        raise ValueError("translation dependency plan transaction drift")
+    source_run_id = pending["depends_on"][0]
+    exact_run_ids = transaction["exact_run_ids"]
+    if (
+        len(exact_run_ids) != 4
+        or len(exact_run_ids) != len(set(exact_run_ids))
+        or any(
+            not isinstance(run_id, str) or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+            for run_id in exact_run_ids
+        )
+        or expected_run_id not in exact_run_ids
+        or source_run_id not in exact_run_ids
+    ):
+        raise ValueError("translation dependency plan transaction identity drift")
+    expected_translation_id = multilingual.translation_run_id(
+        source_run_id, str(pending["source_article_id"]), str(pending["locale"])
+    )
+    if expected_translation_id != expected_run_id:
+        raise ValueError("translation dependency run identity drift")
+    source_state = _read_editorial_artifact(_state_path(source_run_id, root))
+    source_run_dir = Path(str(source_state.get("run_dir") or ""))
+    if (
+        source_state.get("run_id") != source_run_id
+        or not source_run_dir.is_absolute()
+        or source_run_dir.resolve() != source_run_dir
+        or source_state.get("status") != "complete"
+    ):
+        raise ValueError("translation dependency source is not terminal")
+    candidate = _read_editorial_artifact(source_run_dir / "candidate.json")
+    review = _read_editorial_artifact(source_run_dir / "review.json")
+    source_brief = _read_editorial_artifact(source_run_dir / "brief.json")
+    if candidate.get("run_id") != source_run_id or review.get("run_id") != source_run_id:
+        raise ValueError("translation dependency source artifact identity drift")
+    source_lane = source_state.get("lane")
+    expected_source_lane = "new" if pending["lane"] == "i18n-new" else "rewrite"
+    if source_lane != expected_source_lane:
+        raise ValueError("translation dependency source lane drift")
+    if source_lane == "new":
+        pipeline.validate_new_brief(source_brief)
+        brief_article_id = (
+            source_brief["articles"][0].get("target", {}).get("id")
+            if len(source_brief["articles"]) == 1 and isinstance(source_brief["articles"][0], dict)
+            else None
+        )
+    else:
+        pipeline.validate_rewrite_brief(source_brief)
+        brief_article_id = (
+            source_brief["articles"][0].get("article_id")
+            if len(source_brief["articles"]) == 1 and isinstance(source_brief["articles"][0], dict)
+            else None
+        )
+    if (
+        source_brief.get("run_id") != source_run_id
+        or brief_article_id != pending["source_article_id"]
+    ):
+        raise ValueError("translation dependency source brief identity drift")
+    expected_envelope = _identity_envelope_from_brief(source_brief)
+    if (
+        _validate_identity_envelope(source_state.get("identity_envelope"))
+        != expected_envelope
+    ):
+        raise ValueError("translation dependency source identity envelope drift")
+    pipeline.validate_candidate(candidate)
+    pipeline.validate_review(review, candidate.get("articles", []))
+    if any(
+        item.get("verdict") != "APPROVE"
+        or item.get("hard_failure") is True
+        or item.get("findings")
+        for item in review["articles"]
+    ):
+        raise ValueError("translation dependency source review is not approved")
+    result = source_state.get("result")
+    if (
+        not isinstance(result, dict)
+        or result.get("candidate_sha256") != editorial_contracts.artifact_sha256(candidate)
+        or result.get("review_sha256") != editorial_contracts.artifact_sha256(review)
+    ):
+        raise ValueError("translation dependency source result binding drift")
+    article = candidate.get("articles", [None])[0]
+    if not isinstance(article, dict):
+        raise ValueError("translation dependency source candidate is invalid")
+    article_id = str(pending["source_article_id"])
+    candidate_id = str(article.get("id") or article.get("article_id") or "")
+    if candidate_id != article_id:
+        raise ValueError("translation dependency source article drift")
+    source = _campaign_translation_source({
+        "candidate": candidate,
+        "lane": source_lane,
+        "article_id": article_id,
+        "brief": source_brief,
+    })
+    translation_brief = _campaign_translation_brief(
+        {"run_id": source_run_id, "article_id": article_id},
+        source,
+        str(pending["locale"]),
+    )
+    try:
+        existing_registration, _existing_run_dir = _preflight_translation_registration(
+            root, translation_brief,
+        )
+    except ValueError as error:
+        expected_run_dir = (root / "translation-runs" / expected_run_id).resolve()
+        state_path = _state_path(expected_run_id, root)
+        expected_brief_bytes = multilingual.compact_json_bytes(translation_brief) + b"\n"
+        entries = (
+            sorted(expected_run_dir.iterdir())
+            if expected_run_dir.is_dir() and not expected_run_dir.is_symlink()
+            else []
+        )
+        if (
+            pending["status"] != "pending_source_completion"
+            or str(error) != "translation registration is incomplete"
+            or state_path.exists()
+            or entries != [expected_run_dir / "brief.json"]
+            or entries[0].is_symlink()
+            or not entries[0].is_file()
+            or entries[0].read_bytes() != expected_brief_bytes
+        ):
+            raise
+        # enqueue 既有 owner-path 會以同一 brief 重放，再補尚未寫入的 registry。
+        # 此 bounded crash recovery 不接受其他檔案、不同 bytes 或終態 receipt。
+        existing_registration = None
+    if pending["status"] == "materialized":
+        registration = pending["registration"]
+        if (
+            existing_registration is None
+            or registration["source_run_id"] != source_run_id
+            or registration["brief_sha256"]
+            != editorial_contracts.artifact_sha256(translation_brief)
+        ):
+            raise ValueError("translation dependency materialized registration drift")
+        return {
+            "status": "already_materialized",
+            "run_id": expected_run_id,
+            "source_run_id": source_run_id,
+            "lane": pending["lane"],
+            "locale": pending["locale"],
+            "registration": registration,
+            "queue_mutation": False,
+            "public_mutation": False,
+        }
+    records = multilingual.enqueue_article_translations(
+        repo_root.resolve(), root,
+        source_run_id=source_run_id,
+        article_id=article_id,
+        locales=[str(pending["locale"])],
+        lane=str(pending["lane"]),
+        source_loader=lambda _root, loaded_id: source if loaded_id == article_id else (_ for _ in ()).throw(ValueError("translation dependency source article drift")),
+    )
+    if [record.get("run_id") for record in records] != [expected_run_id]:
+        raise ValueError("translation dependency enqueue identity drift")
+    materialized = {
+        **{key: value for key, value in pending.items() if key != "payload_digest"},
+        "status": "materialized",
+        "registration": {
+            "run_id": expected_run_id,
+            "source_run_id": source_run_id,
+            "lane": pending["lane"],
+            "brief_sha256": editorial_contracts.artifact_sha256(translation_brief),
+        },
+    }
+    materialized["payload_digest"] = _create_run_adapter_digest(materialized)
+    atomic_write_json(pending_path, materialized)
+    return {
+        "status": "materialized",
+        "run_id": expected_run_id,
+        "source_run_id": source_run_id,
+        "lane": pending["lane"],
+        "locale": pending["locale"],
+        "records": records,
+        "queue_mutation": True,
+        "public_mutation": False,
+    }
 
 
 def create_campaign_run_adapter(

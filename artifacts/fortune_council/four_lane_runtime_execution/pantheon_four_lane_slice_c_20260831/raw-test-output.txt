@@ -1,0 +1,55 @@
+Command: .venv/bin/python -m pytest tests/test_pantheon_four_lane_acceptance_controller.py tests/test_agy_gemini_runner.py -q
+
+........................................................................ [ 93%]
+.....                                                                    [100%]
+77 passed in 12.85s
+
+Command: .venv/bin/python -m py_compile scripts/pantheon_four_lane_acceptance_controller.py
+Result: PASS
+
+Command: git diff --check
+Result: PASS
+
+Command: .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k apf_004 -q
+..................................                                       [100%]
+34 passed, 428 deselected in 210.62s (0:03:30)
+
+Command: .venv/bin/python -m pytest tests/test_pantheon_four_lane_acceptance_controller.py -q
+..........                                                               [100%]
+10 passed in 0.64s
+
+Command: C-B R1 focused materializer regressions
+Result: PASS
+- transaction exact_run_ids missing / extra identity both reject before translation queue mutation.
+- source identity envelope drift rejects before translation queue mutation.
+- i18n-rewrite materializes and replays idempotently from bound immutable brief metadata plus reviewed candidate bodySections while load_source_article is forbidden.
+
+Command: .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k apf_004 -q
+.....................................                                    [100%]
+37 passed, 428 deselected in 244.28s (0:04:04)
+
+Command: C-B R2 adapter materialized registration-drift regression
+Result: PASS
+- changing registration source_run_id and recomputing payload digest makes adapter rerun reject before any write.
+
+Command: .venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py -k apf_004 -q
+......................................                                   [100%]
+38 passed, 428 deselected in 263.31s (0:04:23)
+
+Command: C-B focused materializer regressions (8 named cases; bounded individual/pair invocations)
+Result: PASS
+- terminal new dependency materializes one exact i18n-new registration; second call is byte-idempotent `already_materialized`; adapter resume accepts the terminal receipt.
+- reviewer `hard_failure=True` rejects before translation queue mutation.
+- rewrite path reads the run-bound immutable brief and succeeds with `multilingual.load_source_article` forbidden.
+- injected multilingual state-write interruption leaves exact brief/no state; only an exact sole brief can resume; drift or extra file rejects without materializer writes.
+- source-active, pending digest, wrong dependency, and duplicate transaction exact-run id all reject before translation queue mutation.
+
+Command: .venv/bin/python -m pytest tests/test_agy_gemini_runner.py -q
+...................................................................      [100%]
+67 passed in 13.29s
+
+Command: .venv/bin/python -m py_compile scripts/agy_gemini_coordinator.py tests/test_agy_gemini_coordinator.py scripts/pantheon_four_lane_acceptance_controller.py tests/test_pantheon_four_lane_acceptance_controller.py
+Result: PASS
+
+Command: git diff --check
+Result: PASS

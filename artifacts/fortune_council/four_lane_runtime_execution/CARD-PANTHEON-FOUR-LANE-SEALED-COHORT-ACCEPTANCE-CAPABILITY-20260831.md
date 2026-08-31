@@ -300,6 +300,36 @@ Stop condition:
 
 - 若 controller 需要直接寫 queue/inbox/candidate/review/terminal 才能過，立即 `BLOCKED_C_CONTROLLER_BYPASS_REQUIRED`。
 
+#### Slice C source seam audit — 2026-08-31
+
+狀態：`BLOCKED_C_NO_EXISTING_FIXED_COHORT_SCHEDULE_SEAM`
+
+本次 audit 發現目前 seam 無法安全組成 controller。`create_campaign_run_adapter` 只註冊 source run 與 i18n pending dependency，沒有產生 Runner pending outbox。既有 `cycle_once(..., exact_run_ids=...)` 雖可限定 run，但只要產生 pending job，就會在同一函式內呼叫既有 `process(...)`；CLI 沒有 sealed-bundle、no-runner 或 per-lane callback mapping，因此會落到非 sealed Runner transport。現有 `sealed-replay-bundle-process-once` 只能消費一個已存在的 pending request，且每 lane bundle 可以有多個 Writer/Reviewer required entries，故一次 process → close 不能到達 terminal。
+
+要在不讀 queue、不動態切 authority、也不改 Coordinator/installer 的限制下決定多 entry 的 Coordinator/Runner 交錯序列，目前沒有正式 fixed schedule seam。任何只產出 invocation plan、或以 injected `cycle_once` callback 跳過既有 Runner 的做法，都不能作為 true owner-path cohort proof。已撤回未交付 controller/test 草稿；沒有新增 runtime、FSM、registry、ledger、queue writer 或其他 production-facing 改動。完整 audit receipt 位於 `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_slice_c_20260831/`。
+
+#### Option C / C-A trace compiler receipt — 2026-08-31
+
+狀態：`C_A_TRACE_COMPILER_GREEN`
+
+Owner 已另行授權的 C-A 僅新增 `scripts/pantheon_four_lane_acceptance_controller.py` 的 compiler contracts。它把 caller 封存的 role/model/payload/executable identity 交給既有 editorial 或 translation `run_writer_reviewer`，只在 disposable staging copy 錄取真實 prompt/schema/request identity，再輸出 single lane-local R2 bundle 至明示 evidence path。compiler 先驗 actor root 的實際 HEAD、accepted-base ancestry、generation、lane-kind pair、根目錄隔離與 source 無 resume artifacts；不得寫 runtime queue/inbox/state。bundle 的 result digest 採用 Runner canonical JSON 算法，測試已交給既有 R2 loader 與 entry result validator 驗證。
+
+本 slice 未改任何 Coordinator、Runner、installer、manifest、Publisher 或 domain logic，也沒有進入 C-B/C-C/C-D。C-A 只提供固定 trace input；原本 cohort schedule seam 的整體 blocker 仍不因本 receipt 自動解除。
+
+#### Option C / C-B exact materializer receipt — 2026-08-31
+
+狀態：`C_B_R2_GREEN`
+
+Owner 已另行授權 C-B 於既有 Coordinator seam 新增最小 `materialize_exact_translation_pending_dependency`。它只讀 adapter 既有 `translation-pending-dependencies` receipt，先 strict 驗證 source terminal candidate/review/result SHA、run-bound brief、source/translation lane pairing、pending/plan digest 與 transaction exact-run membership，然後唯一地呼叫既有 `multilingual.enqueue_article_translations`。rewrite source 僅從該 source run 的 `brief.json` immutable fields 取得，未讀 current public record、未複製 multilingual pipeline。
+
+同一 pending receipt 以 atomic write terminalize 為 `materialized`（exact registration binding）；重跑只驗 existing registration 後回 `already_materialized`。enqueue 的 brief→state 間 crash 僅允許既有 run directory 僅含 byte-identical expected brief 的 bounded recovery，extra file 或 brief drift 一律 fail closed；沒有新增 transaction database、FSM 或 ledger。queue mutation 只由既有 multilingual owner path 產生，public mutation 固定為 false。focused 8 cases、Runner regression 67、`py_compile`、`git diff --check` 均 PASS；結果見 `artifacts/fortune_council/four_lane_runtime_execution/pantheon_four_lane_slice_c_20260831/`。
+
+R1 另鎖 transaction `exact_run_ids` 為 unique 的 four-lane cardinality 4，missing/extra id 均在 I/O 前 RED；source state identity envelope 必須由 existing `_identity_envelope_from_brief` / `_validate_identity_envelope` 取得並 exact match。i18n-rewrite 成功＋idempotent regression 證明 metadata 來自 bound rewrite brief immutable fields、bodySections 來自 reviewed candidate，且禁止讀 current public record。focused 11 cases 與 APF-004 regression 37 PASS。
+
+R2 另要求 adapter rerun 對 materialized receipt 的 registration 同時驗 exact keys、target run id、source dependency run id、lane 及 SHA-256 shape；registration identity drift 即使重算 payload digest 亦在任何 write 前拒絕。focused 12 cases 與 APF-004 regression 38 PASS。
+
+本 receipt 不解除 fixed cohort schedule 的原 blocker，亦不授權 C-C/C-D、activation、provider、public/push 或 production。
+
 ### Slice T: Successful Teardown Owner
 
 Owner: acceptance controller plus existing launchd/runtime lifecycle helpers。
