@@ -1,0 +1,14 @@
+Command: /Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest tests/test_pantheon_sealed_trace_compiler.py -q
+..................                                                       [100%]
+18 passed in 1.09s
+
+Command: /Users/mattkuo/Documents/Pantheon/.venv/bin/python -m py_compile scripts/pantheon_sealed_trace_compiler.py tests/test_pantheon_sealed_trace_compiler.py
+Result: PASS
+
+Command: git diff --check
+Result: PASS
+
+Command: /Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pantheon_sealed_trace_compiler.py tests/test_agy_gemini_runner.py
+........................................................................ [ 84%]
+.............                                                            [100%]
+85 passed in 14.08s
