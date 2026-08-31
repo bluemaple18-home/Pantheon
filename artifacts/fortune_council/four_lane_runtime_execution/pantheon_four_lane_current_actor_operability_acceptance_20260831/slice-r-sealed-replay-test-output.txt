@@ -1,0 +1,73 @@
+COMMAND
+for i in 1 2 3 4 5 6 7 8 9 10; do env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider 'tests/test_agy_gemini_v4_broker.py::test_single_shot_nonzero_and_timeout_are_one_without_caller_result[timeout-COMPLETE-1-CLI_TIMEOUT]' || exit 1; done
+
+EXIT
+0
+
+OUTPUT
+.                                                                        [100%]
+1 passed in 0.60s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.58s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+..............................................                           [100%]
+46 passed in 7.43s
+
+COMMAND
+for i in 1 2; do env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py || exit 1; done
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.77s
+..........................................                               [100%]
+42 passed in 9.74s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+rg -n "DBG|DEBUG_THIS|console\\.log|pdb\\.set_trace" tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py
+
+EXIT
+1
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT

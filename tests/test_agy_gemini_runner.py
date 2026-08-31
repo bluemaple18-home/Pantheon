@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import plistlib
@@ -10,8 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from scripts.agy_gemini_outbox import create_external_request
-from scripts.agy_gemini_runner import process_once
+from scripts.agy_gemini_outbox import build_external_request, create_external_request
+from scripts.agy_gemini_runner import (
+    ACCEPTANCE_SEALED_REPLAY_BUNDLE_MODE,
+    ACCEPTANCE_SEALED_REPLAY_MODE,
+    process_once,
+)
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
 
@@ -21,6 +26,1025 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+
+
+ACCEPTED_BASE_SHA = "b13bc765e9f694b3d9eeefc65335a5410cf5d898"
+
+
+def _repo_head() -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _namespace_for_run_id(run_id: str) -> str:
+    return hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
+
+
+def _canonical_json_bytes(payload: dict[str, object]) -> bytes:
+    return json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _sha256_json(payload: dict[str, object]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
+def _write_sealed_executable(tmp_path: Path, result: dict[str, object] | None = None) -> Path:
+    payload = json.dumps(result or {"ok": True}, ensure_ascii=False, sort_keys=True)
+    executable = tmp_path / "sealed-provider.py"
+    executable.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "sys.stdin.buffer.read()\n"
+        f"print({payload!r})\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    return executable
+
+
+def _write_sealed_authority(
+    tmp_path: Path,
+    request: dict[str, object],
+    executable: Path,
+    *,
+    lane: str = "new",
+    run_id: str = "target-run",
+    overrides: dict[str, object] | None = None,
+) -> Path:
+    executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
+    body: dict[str, object] = {
+        "schema_version": 1,
+        "mode": ACCEPTANCE_SEALED_REPLAY_MODE,
+        "accepted_base_sha": ACCEPTED_BASE_SHA,
+        "actor_sha": _repo_head(),
+        "lane": lane,
+        "run_id": run_id,
+        "namespace": _namespace_for_run_id(run_id),
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "role": request["role"],
+        "model": request["model"],
+        "schema_sha256": request["schema_sha256"],
+        "executable_path": str(executable.resolve()),
+        "executable_sha256": executable_sha256,
+        "live_provider_disabled": True,
+        "production_allocator_disabled": True,
+    }
+    if overrides:
+        body.update(overrides)
+    authority = {
+        **body,
+        "authority_digest": hashlib.sha256(_canonical_json_bytes(body)).hexdigest(),
+    }
+    authority_path = tmp_path / "sealed-authority.json"
+    authority_path.write_text(
+        json.dumps(authority, ensure_ascii=False, sort_keys=True),
+        encoding="utf-8",
+    )
+    return authority_path
+
+
+def _bundle_entry(
+    request: dict[str, object],
+    executable: Path,
+    *,
+    session_id: str = "session-r2",
+    entry_id: str | None = None,
+    lane: str = "new",
+    run_id: str = "target-run",
+    result: dict[str, object] | None = None,
+    required: bool = True,
+) -> dict[str, object]:
+    return {
+        "session_id": session_id,
+        "entry_id": entry_id or str(request["role"]),
+        "job_id": request["job_id"],
+        "request_sha256": request["request_sha256"],
+        "namespace": request["namespace"],
+        "lane": lane,
+        "run_id": run_id,
+        "role": request["role"],
+        "model": request["model"],
+        "schema_sha256": request["schema_sha256"],
+        "sealed_result_sha256": _sha256_json(result or {"ok": True}),
+        "executable_path": str(executable.resolve()),
+        "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "required": required,
+    }
+
+
+def _write_sealed_bundle(
+    tmp_path: Path,
+    queue: Path,
+    entries: list[dict[str, object]],
+    *,
+    lane: str = "new",
+    run_id: str = "target-run",
+    generation: str = "generation-r2",
+    session_id: str = "session-r2",
+    provider_call_budget: int | None = None,
+    overrides: dict[str, object] | None = None,
+) -> Path:
+    body: dict[str, object] = {
+        "schema_version": 1,
+        "mode": ACCEPTANCE_SEALED_REPLAY_BUNDLE_MODE,
+        "session_id": session_id,
+        "accepted_base_sha": ACCEPTED_BASE_SHA,
+        "actor_sha": _repo_head(),
+        "generation": generation,
+        "queue_root": str(queue.resolve()),
+        "lane": lane,
+        "run_id": run_id,
+        "namespace": _namespace_for_run_id(run_id),
+        "provider_call_budget": provider_call_budget or len(entries),
+        "entries": entries,
+    }
+    if overrides:
+        body.update(overrides)
+    bundle = {
+        **body,
+        "bundle_digest": hashlib.sha256(_canonical_json_bytes(body)).hexdigest(),
+    }
+    bundle_path = tmp_path / "sealed-bundle.json"
+    bundle_path.write_text(
+        json.dumps(bundle, ensure_ascii=False, sort_keys=True),
+        encoding="utf-8",
+    )
+    return bundle_path
+
+
+def _run_sealed_bundle_cli(
+    capsys: pytest.CaptureFixture[str],
+    queue: Path,
+    bundle_path: Path,
+    *,
+    lane: str = "new",
+    run_id: str = "target-run",
+    expected_bundle_digest: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    from scripts import agy_gemini_runner as runner
+
+    old_argv = sys.argv
+    try:
+        sys.argv = [
+            "agy_gemini_runner.py",
+            "--queue-root",
+            str(queue),
+            "--lane",
+            lane,
+            "--exact-run-id",
+            run_id,
+            "sealed-replay-bundle-process-once",
+            "--bundle",
+            str(bundle_path),
+            "--expected-bundle-digest",
+            expected_bundle_digest or hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+        ]
+        exit_code = runner.main()
+    finally:
+        sys.argv = old_argv
+    return exit_code, json.loads(capsys.readouterr().out)
+
+
+def _run_sealed_bundle_close_cli(
+    capsys: pytest.CaptureFixture[str],
+    queue: Path,
+    bundle_path: Path,
+    *,
+    lane: str = "new",
+    run_id: str = "target-run",
+    expected_bundle_digest: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    from scripts import agy_gemini_runner as runner
+
+    old_argv = sys.argv
+    try:
+        sys.argv = [
+            "agy_gemini_runner.py",
+            "--queue-root",
+            str(queue),
+            "--lane",
+            lane,
+            "--exact-run-id",
+            run_id,
+            "sealed-replay-bundle-close",
+            "--bundle",
+            str(bundle_path),
+            "--expected-bundle-digest",
+            expected_bundle_digest or hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+        ]
+        exit_code = runner.main()
+    finally:
+        sys.argv = old_argv
+    return exit_code, json.loads(capsys.readouterr().out)
+
+
+def _queue_snapshot(queue: Path) -> dict[str, bytes]:
+    if not queue.exists():
+        return {}
+    return {
+        str(path.relative_to(queue)): path.read_bytes()
+        for path in sorted(queue.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    writer_request = create_external_request(
+        queue,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    reviewer_request = build_external_request(
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(writer_request, executable), _bundle_entry(reviewer_request, executable)],
+    )
+
+    first_exit, first_payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+    create_external_request(
+        queue,
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    second_exit, second_payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+    close_exit, close_payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert first_exit == 0
+    assert second_exit == 0
+    assert close_exit == 0
+    assert first_payload["status"] == "processed"
+    assert second_payload["status"] == "processed"
+    assert close_payload["status"] == "closed"
+    assert first_payload["job_id"] == writer_request["job_id"]
+    assert second_payload["job_id"] == reviewer_request["job_id"]
+    assert first_payload["sealed_replay_bundle"]["session_id"] == "session-r2"
+    assert first_payload["sealed_replay_bundle"]["used_provider_calls_before_tick"] == 0
+    assert second_payload["sealed_replay_bundle"]["used_provider_calls_before_tick"] == 1
+    assert first_payload["sealed_replay_bundle"]["bundle_digest"] == second_payload["sealed_replay_bundle"]["bundle_digest"]
+    assert close_payload["sealed_replay_bundle_session"]["delivered_entries"] == [
+        "writer",
+        "reviewer",
+    ]
+    assert (queue / "inbox" / f"{writer_request['job_id']}.json").is_file()
+    assert (queue / "archive" / f"{writer_request['job_id']}.json").is_file()
+    assert (queue / "inbox" / f"{reviewer_request['job_id']}.json").is_file()
+    assert (queue / "archive" / f"{reviewer_request['job_id']}.json").is_file()
+    assert not (queue / "failed").exists()
+    assert not (queue / "production-attempts").exists()
+
+
+def test_single_job_authority_cannot_authorize_bundle_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    authority_path = _write_sealed_authority(tmp_path, request, executable)
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, authority_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "bundle fields are strict" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+@pytest.mark.parametrize(
+    ("case", "bundle_overrides", "entry_overrides", "pending", "expected_error"),
+    [
+        ("unknown", {}, {"request_sha256": "f" * 64}, "one", "unknown pending request"),
+        ("zero", {}, {}, "zero", "zero pending request"),
+        ("many", {}, {}, "many", "many pending requests"),
+        ("duplicate", {}, "duplicate-entry", "one", "entries are ambiguous"),
+        ("wrong_actor", {"actor_sha": "1" * 40}, {}, "one", "actor head mismatch"),
+        ("non_ancestor", {"accepted_base_sha": "0" * 40}, {}, "one", "accepted base is not actor ancestor"),
+        ("wrong_generation", {"generation": "generation-other"}, {}, "one", "generation mismatch"),
+        ("wrong_root", {"queue_root": "/tmp/not-the-queue-root"}, {}, "one", "queue root mismatch"),
+        ("wrong_executable", {}, {"executable_sha256": "d" * 64}, "one", "executable digest mismatch"),
+        ("missing_session", {}, {"__delete__": "session_id"}, "one", "entry fields are strict"),
+        ("missing_entry", {}, {"__delete__": "entry_id"}, "one", "entry fields are strict"),
+        ("missing_result", {}, {"__delete__": "sealed_result_sha256"}, "one", "entry fields are strict"),
+        ("missing_required", {}, {"__delete__": "required"}, "one", "entry fields are strict"),
+        ("wrong_lane", {}, {"lane": "rewrite"}, "one", "identity is invalid"),
+        ("wrong_run", {}, {"run_id": "other-run"}, "one", "identity is invalid"),
+    ],
+)
+def test_sealed_bundle_rejects_invalid_authority_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    bundle_overrides: dict[str, object],
+    entry_overrides: dict[str, object] | str,
+    pending: str,
+    expected_error: str,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    if pending == "zero":
+        request = build_external_request(
+            namespace=namespace,
+            role="writer",
+            model="gemini-test-writer",
+            prompt=f"目標 run {case}",
+            response_schema=SCHEMA,
+        )
+    else:
+        request = create_external_request(
+            queue,
+            namespace=namespace,
+            role="writer",
+            model="gemini-test-writer",
+            prompt=f"目標 run {case}",
+            response_schema=SCHEMA,
+        )
+    if pending == "many":
+        create_external_request(
+            queue,
+            namespace=namespace,
+            role="reviewer",
+            model="gemini-test-reviewer",
+            prompt=f"review run {case}",
+            response_schema=SCHEMA,
+        )
+    executable = _write_sealed_executable(tmp_path)
+    entry = _bundle_entry(request, executable)
+    if isinstance(entry_overrides, dict):
+        if "__delete__" in entry_overrides:
+            entry.pop(str(entry_overrides["__delete__"]))
+            entry_overrides = {
+                key: value
+                for key, value in entry_overrides.items()
+                if key != "__delete__"
+            }
+        entry.update(entry_overrides)
+        entries = [entry]
+    else:
+        entries = [entry, dict(entry)]
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        entries,
+        overrides=bundle_overrides,
+    )
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert expected_error in payload["error"]
+    assert _queue_snapshot(queue) == before
+    assert not (queue / "processing").exists()
+    assert not (queue / "inbox").exists()
+    assert not (queue / "archive").exists()
+    assert not (queue / "failed").exists()
+
+
+@pytest.mark.parametrize(
+    ("case", "path_mode", "expected_digest", "expected_error"),
+    [
+        ("digest_mismatch", "normal", "0" * 64, "expected digest mismatch"),
+        ("symlink", "symlink", None, "pinned identity is invalid"),
+        ("noncanonical", "noncanonical", None, "pinned identity is invalid"),
+    ],
+)
+def test_sealed_bundle_rejects_unpinned_or_swapped_bundle_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    path_mode: str,
+    expected_digest: str | None,
+    expected_error: str,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt=f"目標 run {case}",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    selected_path = bundle_path
+    if path_mode == "symlink":
+        selected_path = tmp_path / "bundle-link.json"
+        selected_path.symlink_to(bundle_path)
+    elif path_mode == "noncanonical":
+        (tmp_path / "sub").mkdir()
+        selected_path = Path(f"{tmp_path}/sub/../{bundle_path.name}")
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(
+        capsys,
+        queue,
+        selected_path,
+        expected_bundle_digest=expected_digest,
+    )
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert expected_error in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_rejects_bundle_swap_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    expected_digest = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["provider_call_budget"] = 2
+    bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(
+        capsys,
+        queue,
+        bundle_path,
+        expected_bundle_digest=expected_digest,
+    )
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "expected digest mismatch" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_provider_budget_rejects_before_second_tick_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    writer_request = create_external_request(
+        queue,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    reviewer_request = build_external_request(
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [
+            _bundle_entry(writer_request, executable),
+            _bundle_entry(reviewer_request, executable, required=False),
+        ],
+        provider_call_budget=1,
+    )
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    create_external_request(
+        queue,
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "provider call budget exhausted" in payload["error"]
+    assert _queue_snapshot(queue) == before
+    assert not (queue / "processing" / f"{reviewer_request['job_id']}.json").exists()
+
+
+def test_sealed_bundle_rejects_budget_below_required_count_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    writer_request = create_external_request(
+        queue,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    reviewer_request = build_external_request(
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(writer_request, executable), _bundle_entry(reviewer_request, executable)],
+        provider_call_budget=1,
+    )
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "bundle identity is invalid" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_result_digest_mismatch_fails_without_inbox(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path, {"ok": False})
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(request, executable, result={"ok": True})],
+    )
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 1
+    assert payload["status"] == "failed"
+    assert payload["job_id"] == request["job_id"]
+    assert payload["error_type"] == "ValueError"
+    assert (queue / "archive" / f"{request['job_id']}.json").is_file()
+    assert (queue / "failed" / f"{request['job_id']}.json").is_file()
+    assert not (queue / "inbox" / f"{request['job_id']}.json").exists()
+
+
+def test_sealed_bundle_rejects_replayed_used_entry_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    namespace = _namespace_for_run_id("target-run")
+    writer_request = create_external_request(
+        queue,
+        namespace=namespace,
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    reviewer_request = build_external_request(
+        namespace=namespace,
+        role="reviewer",
+        model="gemini-test-reviewer",
+        prompt="reviewer tick",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(writer_request, executable), _bundle_entry(reviewer_request, executable)],
+        provider_call_budget=2,
+    )
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    archived_writer = queue / "archive" / f"{writer_request['job_id']}.json"
+    replayed_writer = queue / "outbox" / f"{writer_request['job_id']}.json"
+    replayed_writer.write_bytes(archived_writer.read_bytes())
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "pending request was already used" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_rejects_cross_session_reuse_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="writer tick",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(request, executable, session_id="session-a")],
+        session_id="session-a",
+    )
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    replayed = queue / "outbox" / f"{request['job_id']}.json"
+    replayed.write_bytes((queue / "archive" / f"{request['job_id']}.json").read_bytes())
+    other_session_bundle = _write_sealed_bundle(
+        tmp_path,
+        queue,
+        [_bundle_entry(request, executable, session_id="session-b")],
+        session_id="session-b",
+    )
+    before = _queue_snapshot(queue)
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, other_session_bundle)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "usage evidence is incomplete" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_forbids_live_provider_env_before_queue_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    before = _queue_snapshot(queue)
+    monkeypatch.setenv("GEMINI_API_KEY", "present-but-forbidden")
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "forbids live provider" in payload["error"]
+    assert _queue_snapshot(queue) == before
+
+
+def test_sealed_bundle_claim_time_rejection_returns_nonzero_and_restores_outbox(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import agy_gemini_runner as runner
+
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    calls = 0
+    original_validate_request = runner.AcceptanceSealedReplayEntry.validate_request
+
+    def reject_after_preflight(
+        entry: object,
+        selected_request: dict[str, object],
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        original_validate_request(entry, selected_request)
+        if calls == 2:
+            raise ValueError("sealed replay bundle claim-time drift")
+
+    monkeypatch.setattr(
+        runner.AcceptanceSealedReplayEntry,
+        "validate_request",
+        reject_after_preflight,
+    )
+
+    exit_code, payload = _run_sealed_bundle_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload == {
+        "status": "rejected",
+        "reason": "claimed_request_validation_failed",
+    }
+    assert calls == 2
+    assert (queue / "outbox" / f"{request['job_id']}.json").is_file()
+    assert not (queue / "processing" / f"{request['job_id']}.json").exists()
+    assert not (queue / "inbox").exists()
+    assert not (queue / "archive").exists()
+    assert not (queue / "failed").exists()
+
+
+def test_sealed_bundle_close_rejects_unused_required_entry(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = build_external_request(
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "unused required entries" in payload["error"]
+
+
+def test_sealed_bundle_close_rejects_unauthorized_state(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = build_external_request(
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("other-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="unauthorized",
+        response_schema=SCHEMA,
+    )
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "unauthorized state" in payload["error"]
+
+
+@pytest.mark.parametrize(
+    ("case", "relative_path"),
+    [
+        ("unknown_ledger", "v4/ledger/unknown-job.jsonl"),
+        ("unknown_anchor", "v4/anchors/unknown-job.sr2-unknown.json"),
+    ],
+)
+def test_sealed_bundle_close_rejects_unknown_v4_delivery_evidence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    relative_path: str,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt=f"目標 run {case}",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    unknown_path = queue / relative_path
+    unknown_path.parent.mkdir(parents=True, exist_ok=True)
+    unknown_path.write_text("forensic stray evidence\n", encoding="utf-8")
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "unauthorized state" in payload["error"]
+
+
+@pytest.mark.parametrize(
+    ("case", "remove_directory"),
+    [
+        ("missing_archive", "archive"),
+        ("missing_inbox", "inbox"),
+        ("missing_ledger", "v4/ledger"),
+        ("missing_anchor", "v4/anchors"),
+    ],
+)
+def test_sealed_bundle_close_rejects_partial_crash_state(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    remove_directory: str,
+) -> None:
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setenv("PANTHEON_RUNTIME_GENERATION", "generation-r2")
+    queue = tmp_path / "queue"
+    request = create_external_request(
+        queue,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt=f"目標 run {case}",
+        response_schema=SCHEMA,
+    )
+    executable = _write_sealed_executable(tmp_path)
+    bundle_path = _write_sealed_bundle(tmp_path, queue, [_bundle_entry(request, executable)])
+    assert _run_sealed_bundle_cli(capsys, queue, bundle_path)[0] == 0
+    root = queue
+    for part in remove_directory.split("/"):
+        root = root / part
+    for path in root.glob("*.json*"):
+        path.unlink()
+
+    exit_code, payload = _run_sealed_bundle_close_cli(capsys, queue, bundle_path)
+
+    assert exit_code == 64
+    assert payload["status"] == "rejected"
+    assert "incomplete entries" in payload["error"] or "unused required entries" in payload["error"]
+
+
+def test_single_job_sealed_replay_cli_is_not_a_formal_command() -> None:
+    from scripts import agy_gemini_runner as runner
+
+    old_argv = sys.argv
+    try:
+        sys.argv = ["agy_gemini_runner.py", "sealed-replay-process-once"]
+        with pytest.raises(SystemExit):
+            runner.parse_args()
+    finally:
+        sys.argv = old_argv
+
+
+def test_process_once_public_signature_does_not_expose_sealed_bypass() -> None:
+    signature = inspect.signature(process_once)
+
+    assert "acceptance_sealed_replay" not in signature.parameters
+    assert "claimed_request_validator" not in signature.parameters
+
+
+def test_public_process_once_fixture_cannot_skip_formal_transport_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    lane_root = queue / "lanes" / "rewrite"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    for path in (actor, lane_root, state, logs):
+        path.mkdir(parents=True)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-public-api",
+        runtime_digest="a" * 64,
+        generation="generation-public-api",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    barrier = tmp_path / "activation.barrier"
+    _activate_formal_runtime(tmp_path / "ready", barrier, manifest)
+    _set_formal_runner_env(
+        monkeypatch,
+        manifest_path,
+        manifest,
+        "com.pantheon.agy-gemini-rewrite",
+        activation_token=barrier,
+    )
+    create_external_request(
+        lane_root,
+        namespace=_namespace_for_run_id("target-run"),
+        role="writer",
+        model="gemini-test-writer",
+        prompt="目標 run",
+        response_schema=SCHEMA,
+    )
+    before = _queue_snapshot(lane_root)
+
+    result = process_once(
+        lane_root,
+        lane="rewrite",
+        exact_run_ids=["target-run"],
+        generate_json=lambda *_args: {"ok": True},
+    )
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "formal_production_transport_env_missing"
+    assert _queue_snapshot(lane_root) == before
 
 
 def test_runner_exact_run_ids_claims_only_matching_namespace(tmp_path: Path) -> None:
