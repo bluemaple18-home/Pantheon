@@ -1,0 +1,469 @@
+COMMAND
+for i in 1 2 3 4 5 6 7 8 9 10; do env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider 'tests/test_agy_gemini_v4_broker.py::test_single_shot_nonzero_and_timeout_are_one_without_caller_result[timeout-COMPLETE-1-CLI_TIMEOUT]' || exit 1; done
+
+EXIT
+0
+
+OUTPUT
+.                                                                        [100%]
+1 passed in 0.60s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.58s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.59s
+.                                                                        [100%]
+1 passed in 0.58s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+..............................................                           [100%]
+46 passed in 7.43s
+
+COMMAND
+for i in 1 2; do env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py || exit 1; done
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.77s
+..........................................                               [100%]
+42 passed in 9.74s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+rg -n "DBG|DEBUG_THIS|console\\.log|pdb\\.set_trace" tests/test_agy_gemini_v4_broker.py scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py
+
+EXIT
+1
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+---
+
+FINAL AUTHORITY STATE AFTER OWNER COHERENT CANDIDATE AUTHORIZATION
+
+AUTHORITY
+owner_authorized_coherent_candidate_commit_creation=true
+candidate_commit=THIS_COMMIT
+final_candidate=THIS_COMMIT
+candidate_commit_authorized=true
+commit_authorized=true
+independent_review_authorized=true
+independent_review_verdict=NOT_RUN_REREVIEW
+status=READY_FOR_INDEPENDENT_R2_REREVIEW
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+coherent_candidate_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+
+MAINLINE INDEPENDENT RERUN EVIDENCE
+runner+broker+manifest=160 passed
+
+NO MUTATION
+git_commit=not_run
+git_push=not_run
+slice_c=not_run
+launchctl_activation=not_run
+provider_calls=0
+production_mutation=0
+public_publish=0
+
+---
+
+PANTHEON-R2-SESSION-AUTHORITY-TRANSITIVE-CLOSURE
+
+WORKTREE
+/private/tmp/pantheon-sealed-r2-final-candidate-20260831.mfNDfx/worktree
+
+AUTHORITY
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+worktree_head=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+candidate_commit=THIS_COMMIT
+commit_authorized=true
+independent_review_authorized=true
+target_status=READY_FOR_INDEPENDENT_R2_REREVIEW
+provider_calls=0
+launchctl_mutation=0
+production_mutation=0
+public_mutation=0
+
+S1 TOKEN-RECEIPT
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token
+
+EXIT
+0
+
+OUTPUT
+..                                                                       [100%]
+2 passed in 0.04s
+
+S2 SESSION-ROOT TARGETED
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_requires_formal_runtime_before_pending_scan tests/test_agy_gemini_runner.py::test_sealed_bundle_claim_time_runtime_token_drift_restores_outbox tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_generation_rebound_delivery_evidence tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_same_semantics_different_raw_digest_reuse tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_bundle_body_rebound_delivery_evidence
+
+EXIT
+0
+
+OUTPUT
+.......                                                                  [100%]
+7 passed in 2.29s
+
+S3 PURE-CLASSIFIER MATRIX
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_sealed_bundle_close_classifier_is_zero_write_for_delivery_matrix
+
+EXIT
+0
+
+OUTPUT
+............                                                             [100%]
+12 passed in 7.20s
+
+REPAIRED HELPER REGRESSION NODES
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_single_job_authority_cannot_authorize_bundle_cli tests/test_agy_gemini_runner.py::test_sealed_bundle_rejects_invalid_authority_before_queue_mutation[wrong_generation-bundle_overrides6-entry_overrides6-one-generation mismatch] tests/test_agy_gemini_runner.py::test_sealed_bundle_rejects_unpinned_or_swapped_bundle_before_queue_mutation[noncanonical-noncanonical-None-pinned identity is invalid]
+
+EXIT
+0
+
+OUTPUT
+...                                                                      [100%]
+3 passed in 0.13s
+
+RUNNER FULL
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+...................................................................      [100%]
+67 passed in 12.97s
+
+BROKER FULL
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 9.20s
+
+MANIFEST / ACTIVATION AFFECTED
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_rejects_drift_before_queue_mutation tests/test_pantheon_runtime_activation.py
+
+EXIT
+0
+
+OUTPUT
+.........                                                                [100%]
+9 passed in 0.11s
+
+PY_COMPILE
+
+COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m py_compile scripts/agy_gemini_runner.py scripts/pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py tests/test_pantheon_content_runtime_manifest.py tests/test_pantheon_runtime_activation.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+DIFF CHECK
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+DEBUG GREP
+
+COMMAND
+rg -n 'DBG|DEBUG_THIS|console\.log|pdb\.set_trace' scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+1
+
+OUTPUT
+no matches
+
+---
+
+COHERENT CANDIDATE COMMIT AUTHORIZATION FINALIZATION
+
+AUTHORITY
+owner_authorized_coherent_candidate_commit_creation=true
+candidate_commit=THIS_COMMIT
+final_candidate=THIS_COMMIT
+candidate_commit_authorized=true
+commit_authorized=true
+independent_review_authorized=true
+independent_review_verdict=NOT_RUN_REREVIEW
+status=READY_FOR_INDEPENDENT_R2_REREVIEW
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+coherent_candidate_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+
+NOTE
+THIS_COMMIT is a self-reference marker. It resolves only to the containing commit identity after the authorized coherent candidate commit is created. This finalization step did not run git commit, push, Slice C, launchctl activation, provider calls, production mutation, or public publishing.
+
+MAINLINE INDEPENDENT RERUN EVIDENCE
+runner+broker+manifest=160 passed
+
+OUTPUT CLASSIFICATION
+implementation/test evidence only
+independent_r2_rereview=NOT_RUN
+
+---
+
+SECOND REREVIEW NO_GO BUNDLE AUTHORITY ROOT REPAIR
+
+AUTHORITY
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+previous_reviewed_no_go_candidate=e0d50a661af60ac03480aa54d0391af8d1387508
+reviewed_no_go_candidate=38819d03055
+candidate_parent_sha=38819d03055
+historical_final_candidate_absent_before_owner_finalization=true
+historical_commit_permission_before_owner_finalization=false
+historical_independent_review_permission_before_owner_finalization=false
+
+REVIEW FINDING REPAIRED
+P1 root: bundle-level authority was not durably bound into the V4 delivery attempt seam. Broker attempt id, anchor path/allowlist, delivery classification, usage counting, and replay validation now derive from one canonical delivery authority digest over bundle semantic digest, externally pinned raw bundle digest, and full immutable entry binding.
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_rebound_entry_authority_after_delivery tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_generation_rebound_delivery_evidence tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_same_semantics_different_raw_digest_reuse tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_bundle_body_rebound_delivery_evidence tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_delivered_entry_replayed_in_outbox tests/test_agy_gemini_runner.py::test_sealed_bundle_rejects_replayed_used_entry_before_queue_mutation
+
+EXIT
+0
+
+OUTPUT
+........                                                                 [100%]
+8 passed in 4.15s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.....................................................                    [100%]
+53 passed in 6.32s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 9.24s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+rg -n 'DBG|DEBUG_THIS|console\\.log|pdb\\.set_trace' scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+1
+
+OUTPUT
+
+FINAL REPAIR VERIFICATION AFTER SOURCE STYLE MICRO-FIX
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 8.51s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 9.86s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+FINAL REPAIR VERIFICATION AFTER DOCS UPDATE
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 8.80s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.00s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT
+
+---
+
+REPAIR REVIEW_NO_GO P1-A/P1-B VERIFICATION
+
+AUTHORITY
+accepted_base_sha=b13bc765e9f694b3d9eeefc65335a5410cf5d898
+reviewed_no_go_candidate=e0d50a661af60ac03480aa54d0391af8d1387508
+candidate_parent_sha=e0d50a661af60ac03480aa54d0391af8d1387508
+historical_final_candidate_absent_before_owner_finalization=true
+historical_commit_permission_before_owner_finalization=false
+historical_independent_review_permission_before_owner_finalization=false
+
+REVIEW FINDINGS REPAIRED
+P1-A: broker attempt_id must bind full immutable entry authority, not only session_id:entry_id.
+P1-B: delivery classification must treat any entry still present in outbox as INCOMPLETE; session close must reject.
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_rejects_replayed_used_entry_before_queue_mutation tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_rebound_entry_authority_after_delivery tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_delivered_entry_replayed_in_outbox tests/test_agy_gemini_runner.py::test_sealed_bundle_close_rejects_optional_entry_pending_in_outbox
+
+EXIT
+0
+
+OUTPUT
+.....                                                                    [100%]
+5 passed in 2.55s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_runner.py
+
+EXIT
+0
+
+OUTPUT
+.................................................                        [100%]
+49 passed in 5.60s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+..........................................                               [100%]
+42 passed in 10.00s
+
+COMMAND
+env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile scripts/agy_gemini_runner.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+
+EXIT
+0
+
+OUTPUT
+
+COMMAND
+git diff --check
+
+EXIT
+0
+
+OUTPUT

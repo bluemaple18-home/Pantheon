@@ -644,13 +644,17 @@ def validate_runtime_tick(
     from scripts import pantheon_runtime_activation
 
     try:
-        pantheon_runtime_activation.validate_token_payload(
+        token_receipt = pantheon_runtime_activation.validate_token_payload(
             token_path,
             manifest,
         )
     except pantheon_runtime_activation.RuntimeActivationError as error:
         raise RuntimeManifestError(str(error)) from error
-    return {"status": "PASS", **receipt_for_label(manifest, service_label)}
+    return {
+        "status": "PASS",
+        **receipt_for_label(manifest, service_label),
+        "activation_token_digest": token_receipt["activation_token_digest"],
+    }
 
 
 def _read_private_json(path: Path, message: str) -> dict[str, Any]:
@@ -767,6 +771,7 @@ def validate_barrier(path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeManifestError("activation barrier acknowledgements are incomplete")
     return {
         "status": "PASS",
+        "activation_token_digest": _manifest_digest(payload),
         "manifest_digest": manifest["manifest_digest"],
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],

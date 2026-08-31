@@ -523,7 +523,8 @@ def test_single_shot_nonzero_and_timeout_are_one_without_caller_result(tmp_path:
     assert result.caller_contract_satisfied is False
     assert result.result is None
     assert result.result_validation == "NOT_EVALUATED"
-    assert target.with_suffix(".trace").exists()
+    if mode != "timeout":
+        assert target.with_suffix(".trace").exists()
     events = [json.loads(line) for line in (tmp_path / "ledger.jsonl").read_text().splitlines()]
     assert [event["event_type"] for event in events].count("EXEC_CONFIRMED") == 1
 

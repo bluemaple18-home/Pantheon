@@ -913,10 +913,78 @@ def test_seven_service_barrier_requires_complete_matching_acknowledgements(
 
     runtime.write_readiness_ack(ready, manifest, runtime.SERVICE_LABELS[-1])
     activation = runtime.activate_barrier(barrier, ready, manifest)
+    expected_token_digest = runtime._manifest_digest(
+        json.loads(barrier.read_text(encoding="utf-8"))
+    )
+    barrier_receipt = runtime.validate_barrier(barrier, manifest)
 
     assert activation["status"] == "PASS"
-    assert runtime.validate_barrier(barrier, manifest)["status"] == "PASS"
+    assert barrier_receipt["status"] == "PASS"
+    assert barrier_receipt["activation_token_digest"] == expected_token_digest
     assert len(activation["acknowledgements"]) == 7
+
+
+def test_runtime_tick_returns_activation_token_digest_after_valid_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    logs = tmp_path / "logs"
+    ready = tmp_path / "ready"
+    barrier = tmp_path / "activation.barrier"
+    for path in (actor, queue, state, logs, ready):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor,
+        queue_root=queue,
+        publisher_state_root=state,
+        log_root=logs,
+        identity="formal-runtime:token-digest",
+        runtime_digest="e" * 64,
+        config_version="runtime-v2",
+        generation="generation-token-digest",
+        uv_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    for label in runtime.SERVICE_LABELS:
+        runtime.write_readiness_ack(ready, manifest, label)
+    runtime.activate_barrier(barrier, ready, manifest)
+    expected_token_digest = runtime._manifest_digest(
+        json.loads(barrier.read_text(encoding="utf-8"))
+    )
+    environment = {
+        "PANTHEON_FORMAL_RUNTIME": "1",
+        "PANTHEON_RUNTIME_MANIFEST": str(manifest_path),
+        "PANTHEON_RUNTIME_MANIFEST_DIGEST": manifest["manifest_digest"],
+        "PANTHEON_RUNTIME_IDENTITY": manifest["identity"],
+        "PANTHEON_RUNTIME_IDENTITY_DIGEST": manifest["runtime_identity_digest"],
+        "PANTHEON_RUNTIME_CODE_DIGEST": manifest["runtime_digest"],
+        "PANTHEON_RUNTIME_CONFIG_VERSION": manifest["config_version"],
+        "PANTHEON_RUNTIME_GENERATION": manifest["generation"],
+        "PANTHEON_RUNTIME_SERVICE_LABEL": runtime.SERVICE_LABELS[0],
+        "PANTHEON_RUNTIME_ACTOR_ROOT": manifest["actor_root"],
+        "PANTHEON_RUNTIME_QUEUE_ROOT": manifest["queue_root"],
+        "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": manifest["publisher_state_root"],
+        "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
+        "PANTHEON_RUNTIME_UV_EXECUTABLE": manifest["uv_executable"],
+        "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(barrier),
+    }
+    for key, value in environment.items():
+        monkeypatch.setenv(key, str(value))
+
+    receipt = runtime.validate_runtime_tick(
+        runtime.SERVICE_LABELS[0],
+        queue_root=queue,
+        state_root=state,
+        actor_root=actor,
+        log_root=logs,
+    )
+
+    assert receipt["status"] == "PASS"
+    assert receipt["activation_token_digest"] == expected_token_digest
 
 
 def test_runtime_tick_rejects_drift_before_queue_mutation(
