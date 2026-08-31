@@ -1,0 +1,36 @@
+Corrected C-A verification record
+
+Focused nodes:
+- tests/test_pantheon_sealed_trace_compiler.py::test_compiles_actual_editorial_trace_and_r2_loader_without_queue_write
+- tests/test_pantheon_sealed_trace_compiler.py::test_compiles_actual_translation_trace_and_validates_r2_entries
+- tests/test_pantheon_sealed_trace_compiler.py::test_deterministic_rejection_records_writer_only_required_trace
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_bad_output_before_artifact_publish[exit_zero]
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_bad_output_before_artifact_publish[invalid_json]
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_bad_output_before_artifact_publish[multiple_json]
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_bad_output_before_artifact_publish[schema_invalid]
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_bad_output_before_artifact_publish[nonzero]
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_valid_payload_mismatch_before_publish
+- tests/test_pantheon_sealed_trace_compiler.py::test_executable_preflight_rejects_timeout_and_digest_drift_before_publish
+- tests/test_pantheon_sealed_trace_compiler.py::test_preflight_unique_bindings_allow_same_executable_for_two_records
+- tests/test_pantheon_sealed_trace_compiler.py::test_publish_fsync_failure_closes_fds_and_cleans_claim[directory]
+- tests/test_pantheon_sealed_trace_compiler.py::test_publish_fsync_failure_closes_fds_and_cleans_claim[parent]
+- tests/test_pantheon_sealed_trace_compiler.py::test_post_preflight_authority_barrier_rejects_source_or_queue_drift[source]
+- tests/test_pantheon_sealed_trace_compiler.py::test_post_preflight_authority_barrier_rejects_source_or_queue_drift[queue]
+- tests/test_pantheon_sealed_trace_compiler.py::test_post_preflight_actor_barrier_is_reinvoked_before_publish
+- tests/test_pantheon_sealed_trace_compiler.py::test_post_preflight_actor_barrier_rejects_executable_dirty_actor
+- tests/test_pantheon_sealed_trace_compiler.py::test_parent_fsync_failure_quarantines_noncanonical_artifact_when_removal_fails
+
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_sealed_trace_compiler.py
+.................................                                        [100%]
+33 passed in 6.80s
+
+Command: <repo-root>/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pantheon_sealed_trace_compiler.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_v4_broker.py
+........................................................................ [ 50%]
+......................................................................   [100%]
+142 passed in 26.87s
+
+Command: <repo-root>/.venv/bin/python -m py_compile scripts/pantheon_sealed_trace_compiler.py tests/test_pantheon_sealed_trace_compiler.py
+Result: PASS
+
+Command: git diff --check
+Result: PASS
