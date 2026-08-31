@@ -1,0 +1,33 @@
+{
+  "id": "PANTHEON-FOUR-LANE-GATE-C-COVERAGE-AUDIT-20260831",
+  "mode": "audit-only",
+  "pytest_executed": false,
+  "source_changed": false,
+  "review_response": ["P1-case-level-negative-evidence", "P1-raw-execution-receipt-not-sufficient"],
+  "qualification_rule": "QUALIFIED requires an exact existing node, an exact rejection assertion, a case-local I/O boundary assertion, and an explicit before/after mutation assertion. Host aggregate fingerprints never qualify a case.",
+  "cases": [
+    {"requirement":"wrong_worker","exact_node":"tests/test_agy_multilingual_pipeline.py::test_approved_edited_stage_rejects_formal_job_identity_tamper[wrong_lane]","rejection_assertion":"tests/test_agy_multilingual_pipeline.py:1020: ValueError / formal review identity","io_boundary_assertion":"none; fixture writes occur before invocation","mutation_assertion":"none","disposition":"NOT_QUALIFIED"},
+    {"requirement":"wrong_lane","exact_node":"tests/test_agy_gemini_coordinator.py::test_apf_004_create_run_adapter_negative_matrix_fails_before_write[duplicate_lane-lane is duplicated]","rejection_assertion":"tests/test_agy_gemini_coordinator.py:1090: ValueError / lane is duplicated","io_boundary_assertion":"tests/test_agy_gemini_coordinator.py:1091: adapter returns through exception before persistence","mutation_assertion":"tests/test_agy_gemini_coordinator.py:1093: _tree_bytes(tmp_path) == {}","disposition":"QUALIFIED"},
+    {"requirement":"wrong_mode","exact_node":"tests/test_agy_gemini_coordinator.py::test_reconcile_translation_replacement_identity_negative_matrix_has_zero_mutation[brief-wrong-mode]","rejection_assertion":"tests/test_agy_gemini_coordinator.py:3364-3365: returncode == 1 and receipt status rejected","io_boundary_assertion":"tests/test_agy_gemini_coordinator.py:3368: no changed fixture path except lock","mutation_assertion":"tests/test_agy_gemini_coordinator.py:3368-3369: snapshot equality permits a newly-created lock","disposition":"NOT_QUALIFIED"},
+    {"requirement":"wrong_identity_actor","exact_node":"tests/test_agy_gemini_coordinator.py::test_apf_004_create_run_adapter_negative_matrix_fails_before_write[work_id-work identity differs] and [runtime_digest-runtime identity digest]","rejection_assertion":"tests/test_agy_gemini_coordinator.py:1090: ValueError / work identity differs or runtime identity digest","io_boundary_assertion":"tests/test_agy_gemini_coordinator.py:1091: adapter returns through exception before persistence","mutation_assertion":"tests/test_agy_gemini_coordinator.py:1093: _tree_bytes(tmp_path) == {}","disposition":"QUALIFIED"},
+    {"requirement":"wrong_manifest","exact_node":"tests/test_agy_gemini_coordinator.py::test_formal_coordinator_rejects_manifest_drift_before_lock_mutation","rejection_assertion":"tests/test_agy_gemini_coordinator.py:1426-1427: RuntimeManifestError","io_boundary_assertion":"tests/test_agy_gemini_coordinator.py:1429: coordinator lock absent","mutation_assertion":"tests/test_agy_gemini_coordinator.py:1429: only postcondition, not a before/after snapshot","disposition":"NOT_QUALIFIED"},
+    {"requirement":"wrong_generation","exact_node":"tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[gen07]","rejection_assertion":"tests/test_agy_gemini_coordinator.py:1615-1616: ValueError","io_boundary_assertion":"none; test injects generations/07 at tests/test_agy_gemini_coordinator.py:1608-1610","mutation_assertion":"tests/test_agy_gemini_coordinator.py:1617: state status == failed","disposition":"NOT_QUALIFIED"},
+    {"requirement":"selector_zero","exact_node":"tests/test_agy_content_publisher.py::test_exact_fresh_ja_selector_requires_one_existing_fresh_run","rejection_assertion":"tests/test_agy_content_publisher.py:727-735: PublishBlocked / must name exactly one; not found","io_boundary_assertion":"none","mutation_assertion":"none","disposition":"NOT_QUALIFIED"},
+    {"requirement":"selector_many","exact_node":"tests/test_agy_content_publisher.py::test_exact_fresh_ja_selector_requires_one_existing_fresh_run","rejection_assertion":"tests/test_agy_content_publisher.py:737-743: PublishBlocked / must name exactly one","io_boundary_assertion":"none","mutation_assertion":"none","disposition":"NOT_QUALIFIED"},
+    {"requirement":"duplicate_locale","exact_node":"tests/test_agy_multilingual_pipeline.py::test_locale_plan_rejects_incomplete_or_duplicate_coverage[duplicate]","rejection_assertion":"tests/test_agy_multilingual_pipeline.py:3278-3284: ValueError / coverage","io_boundary_assertion":"direct in-memory _hydrate_locale_plan call; no root is supplied","mutation_assertion":"none","disposition":"NOT_QUALIFIED"},
+    {"requirement":"ledger_lifecycle_conflict","exact_node":"tests/test_agy_content_publisher.py::test_collect_ready_runs_superseded_conflict_with_published_fails_closed","rejection_assertion":"tests/test_agy_content_publisher.py:624-625: PublishBlocked / ledger lifecycle conflict","io_boundary_assertion":"none","mutation_assertion":"none","disposition":"NOT_QUALIFIED"}
+  ],
+  "qualified_requirements": ["wrong_lane", "wrong_identity_actor"],
+  "not_qualified_requirements": ["wrong_worker", "wrong_mode", "wrong_manifest", "wrong_generation", "selector_zero", "selector_many", "duplicate_locale", "ledger_lifecycle_conflict"],
+  "verdict": "BLOCKED_MISSING_TEST_WRONG_WORKER_WRONG_MODE_WRONG_MANIFEST_WRONG_GENERATION_SELECTOR_ZERO_SELECTOR_MANY_DUPLICATE_LOCALE_LEDGER_LIFECYCLE_CONFLICT",
+  "minimal_test_only_gaps": [
+    "一個 wrong-worker formal identity negative，需明確 pre-I/O 與 fixture before/after equality。",
+    "一個 wrong-mode negative，需不建立 lock 或將 lock 排除後仍明確證明無應用 I/O。",
+    "一個 manifest-drift negative，需 fixture before/after equality而非僅 coordinator.lock 不存在。",
+    "一個 generation-drift negative，需 fail-closed 且不將 run state terminalize 為 failed。",
+    "selector zero 與 selector many 各一個 case-local snapshot equality test。",
+    "一個 duplicate-locale negative，需明確 immutable input/output or fixture snapshot assertion。",
+    "一個 ledger lifecycle conflict negative，需 ledger、queue、state before/after equality。"
+  ],
+  "execution_receipt_repair": "raw pytest stdout/stderr may only be repaired by a rerun after every required case is QUALIFIED; no rerun is authorized in this audit."
+}

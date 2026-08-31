@@ -1016,9 +1016,30 @@ def test_approved_edited_stage_rejects_formal_job_identity_tamper(
     else:
         identity["request_sha256"] = "b" * 64
     write_stage_json(identity_path, identity)
+    before = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    persistence_calls: list[str] = []
 
-    with pytest.raises(ValueError, match="formal review identity"):
-        multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+    def unexpected_persistence(*_args: object, **_kwargs: object) -> None:
+        persistence_calls.append("atomic_json")
+        pytest.fail("formal job identity must reject before stage persistence")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(multilingual, "_atomic_write_json", unexpected_persistence)
+        with pytest.raises(ValueError, match="formal review identity"):
+            multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
+
+    after = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    assert persistence_calls == []
+    assert after == before
+    assert not (fixture["run_dir"] / "editorial-staging").exists()
 
 
 def test_approved_edited_stage_recovers_verified_operation_before_current(
@@ -3266,6 +3287,8 @@ def test_candidate_outline_mismatch_enters_semantic_repair(tmp_path: Path) -> No
 @pytest.mark.parametrize("mutation", ["missing", "duplicate"])
 def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
     mutation: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     brief = non_tarot_translation_brief()
     external = external_locale_plan(brief)
@@ -3274,6 +3297,20 @@ def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
         mappings.pop()
     else:
         mappings[-1] = json.loads(json.dumps(mappings[0]))
+    before = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    persistence_calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        persistence_calls.append("persistence")
+        pytest.fail("duplicate locale coverage must reject before local persistence")
+
+    monkeypatch.setattr(multilingual, "_atomic_write_json", forbidden)
+    monkeypatch.setattr(multilingual, "_atomic_write_bytes", forbidden)
+    monkeypatch.setattr(multilingual.subprocess, "run", forbidden)
 
     with pytest.raises(ValueError, match="coverage"):
         multilingual._hydrate_locale_plan(
@@ -3282,6 +3319,13 @@ def test_locale_plan_rejects_incomplete_or_duplicate_coverage(
             generation=1,
             rebuild_by_slot={"article-01": False},
         )
+    after = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    assert persistence_calls == []
+    assert after == before
 
 
 def test_locale_plan_canonicalizes_complete_coverage_mapping_order_drift() -> None:

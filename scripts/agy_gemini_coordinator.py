@@ -3243,8 +3243,8 @@ def reconcile_translation_replacement_identity(
         }
         return receipt, target_state, after_state
 
+    receipt, _before_state, _after_state = build_plan()
     if not execute:
-        receipt, _before_state, _after_state = build_plan()
         return receipt
     with _run_identity_lock(target_run_id, root):
         locked, before_state, after_state = build_plan()

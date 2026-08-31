@@ -324,6 +324,29 @@ class _CampaignTranslationClient:
         brief = self.briefs[self.index]
         if "native_search_intent" in json.dumps(schema):
             target = coordinator.multilingual._source_fact_package(brief)["articles"][0]
+            articles_schema = schema.get("properties", {}).get("articles", {})
+            item_schema = articles_schema.get("items", {})
+            coverage_schema = item_schema.get("properties", {}).get(
+                "coverage_mapping", {}
+            ).get("items", {})
+            assert coverage_schema.get("additionalProperties") is False
+            coverage_properties = coverage_schema.get("properties", {})
+            coverage_required = coverage_schema.get("required", [])
+            assert "safety_boundary" not in coverage_properties
+            assert "safety_boundary" not in coverage_required
+            identity_fields = {
+                field
+                for field in ("source_fact_id", "source_ref")
+                if field in coverage_properties and field in coverage_required
+            }
+            assert len(identity_fields) == 1
+            identity_field = identity_fields.pop()
+            identity_values = coverage_properties[identity_field].get("enum")
+            assert isinstance(identity_values, list)
+            assert len(identity_values) == len(set(identity_values)) == len(
+                target["facts"]
+            )
+            assert all(isinstance(value, str) for value in identity_values)
             self.outline = [
                 "判断の前に確認する情報",
                 "事実と推測を分ける方法",
@@ -341,12 +364,15 @@ class _CampaignTranslationClient:
                     "ordered_h2_outline": self.outline,
                     "coverage_mapping": [
                         {
-                            "source_fact_id": fact["fact_id"],
+                            identity_field: (
+                                identity_value
+                            ),
                             "planned_h2_slot": f"h2-{index % 4 + 1}",
                             "coverage_note": "この事実と制限を該当する節で説明する",
-                            "safety_boundary": fact["safety_boundary"],
                         }
-                        for index, fact in enumerate(target["facts"])
+                        for index, (fact, identity_value) in enumerate(
+                            zip(target["facts"], identity_values)
+                        )
                     ],
                     "source_structure_not_copied": [
                         section["heading"]
@@ -1396,10 +1422,20 @@ def test_formal_coordinator_rejects_manifest_drift_before_lock_mutation(
         "com.pantheon.agy-gemini-coordinator",
     )
     manifest_path.write_text("{}\n", encoding="utf-8")
+    before = _tree_bytes(tmp_path)
+    persistence_calls: list[str] = []
 
-    with pytest.raises(runtime_manifest.RuntimeManifestError):
-        cycle_once(queue, repo_root=actor)
+    def unexpected_persistence(*_args: object, **_kwargs: object) -> None:
+        persistence_calls.append("atomic_json")
+        pytest.fail("manifest drift must reject before coordinator persistence")
 
+    with pytest.MonkeyPatch.context() as persistence_patch:
+        persistence_patch.setattr(coordinator, "atomic_write_json", unexpected_persistence)
+        with pytest.raises(runtime_manifest.RuntimeManifestError):
+            cycle_once(queue, repo_root=actor)
+
+    assert persistence_calls == []
+    assert _tree_bytes(tmp_path) == before
     assert not (queue / "coordinator.lock").exists()
 
 
@@ -1571,6 +1607,17 @@ def test_same_generation_locale_plan_retry_execute_enqueues_fresh_gen06(tmp_path
 def test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock(tmp_path: Path, drift: str) -> None:
     run_dir, queue_root, expected = _write_same_gen_locale_plan_retry_fixture(tmp_path)
     real_lock = coordinator._run_identity_lock
+    state_path = coordinator._state_path(expected["run_id"], queue_root)
+    def topology() -> dict[str, bytes | str]:
+        return {
+            str(path.relative_to(tmp_path)): "<dir>" if path.is_dir() else path.read_bytes()
+            for path in sorted(tmp_path.rglob("*"))
+            if path.is_dir() or path.is_file()
+        }
+
+    before = topology()
+    before_state = state_path.read_bytes()
+    persistence_calls: list[str] = []
 
     @coordinator.contextmanager
     def drifting_lock(run_id: str, root: Path):
@@ -1584,10 +1631,35 @@ def test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_l
                 path.write_text("{}", encoding="utf-8") if drift == "candidate" else path.mkdir()
             yield
 
+    def unexpected_persistence(*_args: object, **_kwargs: object) -> None:
+        persistence_calls.append("persistence")
+        pytest.fail("generation boundary must reject before application persistence")
+
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(coordinator, "_run_identity_lock", drifting_lock)
-        with pytest.raises(ValueError):
+        patch.setattr(coordinator, "atomic_write_json", unexpected_persistence)
+        patch.setattr(coordinator, "_write_state", unexpected_persistence)
+        with pytest.raises(ValueError, match="generation boundary"):
             coordinator.retry_same_generation_locale_plan(run_dir, queue_root, **_retry_kwargs(expected), execute=True)
+    after = topology()
+    lock_relative = str(coordinator._run_identity_lock_path(expected["run_id"], queue_root).relative_to(tmp_path))
+    lock_parent_relative = str(coordinator._run_identity_lock_path(expected["run_id"], queue_root).parent.relative_to(tmp_path))
+    injected_path = (
+        queue_root / "lanes/i18n-new/inbox" / f"{expected['job_id']}.json"
+        if drift == "lane_residue"
+        else run_dir / ("generations/06/candidate.json" if drift == "candidate" else "generations/07")
+    )
+    injected_relative = str(injected_path.relative_to(tmp_path))
+    assert persistence_calls == []
+    assert state_path.read_bytes() == before_state
+    excluded = {lock_relative, lock_parent_relative, injected_relative}
+    assert {path: value for path, value in after.items() if path not in excluded} == before
+    assert set(after) - set(before) <= excluded
+    if drift == "gen07":
+        assert injected_path.is_dir()
+        assert list(injected_path.iterdir()) == []
+    else:
+        assert injected_path.read_text(encoding="utf-8") == "{}"
     assert read_run_state(run_dir, queue_root)["status"] == "failed"
 
 
@@ -3331,16 +3403,26 @@ def test_reconcile_translation_replacement_identity_negative_matrix_has_zero_mut
     if failure == "wrong-digest":
         target_state = {**target_state, "updated_at": "2026-08-30T10:03:00+08:00"}
 
-    returncode, receipt = _reconcile_translation_replacement_cli(
-        monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
-    )
+    persistence_calls: list[str] = []
+
+    def unexpected_persistence(*_args: object, **_kwargs: object) -> None:
+        persistence_calls.append("atomic_json")
+        pytest.fail("wrong mode must reject before replacement persistence")
+
+    with pytest.MonkeyPatch.context() as persistence_patch:
+        if failure == "brief-wrong-mode":
+            persistence_patch.setattr(coordinator, "atomic_write_json", unexpected_persistence)
+        returncode, receipt = _reconcile_translation_replacement_cli(
+            monkeypatch, capsys, repo_root, queue_root, publisher_state_root, target_run_dir, source_state, target_state, "--execute"
+        )
 
     assert returncode == 1
     assert receipt["status"] == "rejected"
     after = _file_snapshot(tmp_path)
     lock_relative = str(coordinator._run_identity_lock_path(str(target_state["run_id"]), queue_root).relative_to(tmp_path))
-    assert {path: value for path, value in after.items() if path != lock_relative} == before
-    assert set(after) - set(before) <= {lock_relative}
+    assert after == before
+    if failure == "brief-wrong-mode":
+        assert persistence_calls == []
 
 
 @pytest.mark.parametrize("legacy", [False, True])

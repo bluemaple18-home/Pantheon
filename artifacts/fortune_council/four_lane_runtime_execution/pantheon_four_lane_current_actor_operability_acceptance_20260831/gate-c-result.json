@@ -1,0 +1,20 @@
+{
+  "id": "PANTHEON-FOUR-LANE-IMPACT-MATRIX-AND-CROSS-LANE-NEGATIVE-GATE",
+  "verdict": "GATE_C_PASS",
+  "technical_execution": "HISTORICAL_16_PASS_RETAINED_NOT_CASE_LEVEL_QUALIFIED",
+  "independent_review": "FINAL_REVIEW_GO",
+  "canonical_actor_sha": "0f61545f8c6b561742b27792b8fef11ae8b1ccc5",
+  "preconditions": {"gate_a1":"GATE_A1_PASS","baseline":"BASELINE_GREEN"},
+  "codegraph": "CODEGRAPH_IRRELEVANT_FALLBACK_BOUNDED_RG",
+  "frozen_nodes": 16,
+  "collect_only": {"exit_code":0,"summary":"16 tests collected in 0.19s"},
+  "fresh_pytest": {"exit_code":0,"summary":"16 passed in 0.26s","network":0,"provider_calls":0,"service_launches":0,"production_mutation":0},
+  "coverage": {"wrong_worker":"QUALIFIED","wrong_mode":"QUALIFIED_AFTER_REPAIR","wrong_lane":"QUALIFIED","wrong_identity_actor":"QUALIFIED","wrong_manifest":"QUALIFIED","wrong_generation":"QUALIFIED_EXTERNAL_DRIFT_APPLICATION_PERSISTENCE_ZERO","selector_zero_many":"QUALIFIED","duplicate_locale":"QUALIFIED","ledger_conflict":"QUALIFIED","capacity_reject":"QUALIFIED","translation_rollback":"QUALIFIED","resume_idempotency":"QUALIFIED"},
+  "historical_audit": {"wrong_worker":"NOT_QUALIFIED","wrong_mode":"NOT_QUALIFIED","wrong_manifest":"NOT_QUALIFIED","wrong_generation":"NOT_QUALIFIED_STATE_FAILED","selector_zero_many":"NOT_QUALIFIED_NO_CASE_MUTATION_ASSERTION","duplicate_locale":"NOT_QUALIFIED_NO_CASE_MUTATION_ASSERTION","ledger_conflict":"NOT_QUALIFIED_NO_CASE_MUTATION_ASSERTION","capacity_reject":"HISTORICAL_ONLY_NOT_REAUDITED","translation_rollback":"HISTORICAL_ONLY_NOT_REAUDITED","resume_idempotency":"HISTORICAL_ONLY_NOT_REAUDITED"},
+  "production_fingerprints": {"before":{"production_queue":{"files":2000,"sha256":"219363d10153f0912208ff6ce65dd038052176fb218c0f75e224dc067ab30fd7"},"publisher_ledger_sha256":"5d04d0b6a33967da074428c3d169480b290c18e868fe4a52558d9985b8b73ab9","registry_sha256":"1f797da66b4b232e8b9fb717f2dec0d6f98891ab2fe8abb13e96ab0578c25b1d","public_tree":"e0d2ce1b49d616101c81fae32bead12e0ff424ec","seven_service_loaded":"0/7"},"after":{"production_queue":{"files":2000,"sha256":"219363d10153f0912208ff6ce65dd038052176fb218c0f75e224dc067ab30fd7"},"publisher_ledger_sha256":"5d04d0b6a33967da074428c3d169480b290c18e868fe4a52558d9985b8b73ab9","registry_sha256":"1f797da66b4b232e8b9fb717f2dec0d6f98891ab2fe8abb13e96ab0578c25b1d","public_tree":"e0d2ce1b49d616101c81fae32bead12e0ff424ec","seven_service_loaded":"0/7"},"equal":true},
+  "coverage_audit":"gate-c-coverage-audit.json",
+  "current_source_execution":{"manifest":"gate-c-current-source-final-20260831/gate-c-test-manifest.txt","quoted_array":true,"exit_code":0,"summary":"13 passed in 0.78s","raw_evidence":["gate-c-current-source-final-20260831/stdout.txt","gate-c-current-source-final-20260831/stderr.txt","gate-c-current-source-final-20260831/exit-code.txt"],"git_diff_sha256_before":"77bb84d27c63bd668502735f1501d4bedd19cc94a7289809ef1415b5c40d9ce2","git_diff_sha256_after":"77bb84d27c63bd668502735f1501d4bedd19cc94a7289809ef1415b5c40d9ce2","production_fingerprints_equal":true},
+  "impact_matrix":"ACCEPTED_PENDING_SAME_REVIEW",
+  "receipts":{"G1":"gate-c-g1-wrong-generation-20260831/result.json","G2":"gate-c-g2-wrong-worker-20260831/result.json","G3":"gate-c-g3-wrong-mode-20260831/result.json","G4":"gate-c-g4-wrong-manifest-20260831/result.json","G5":"gate-c-g5-selector-zero-20260831","G6":"gate-c-g6-selector-many-20260831","G7":"gate-c-g7-duplicate-locale-20260831","G8":"gate-c-g8-ledger-conflict-20260831"},
+  "next_frontier":"conditional D/E discovery; activation and shadow not executed"
+}

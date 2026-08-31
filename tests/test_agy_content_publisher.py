@@ -620,9 +620,26 @@ def test_collect_ready_runs_superseded_conflict_with_published_fails_closed(
     ledger["published_runs"] = [{"run_id": target_run.name, "article_ids": ["TARGET-001"]}]
     ledger["superseded_runs"] = [{"run_id": target_run.name, "article_ids": ["TARGET-001"]}]
     _write_json(publisher._ledger_path(state_root), ledger)
+    before = _tree_bytes(tmp_path)
+    calls: list[str] = []
 
-    with pytest.raises(publisher.PublishBlocked, match="ledger lifecycle conflict"):
-        publisher.collect_ready_runs(queue_root, state_root, limit=10)
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("forbidden")
+        pytest.fail("ledger lifecycle conflict must reject before publisher write, git, network, or publish")
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(publisher, "_atomic_write_json", forbidden)
+    monkeypatch.setattr(publisher, "publish_ready_runs", forbidden)
+    monkeypatch.setattr(publisher, "publish_ready_translation_runs", forbidden)
+    monkeypatch.setattr(publisher.subprocess, "run", forbidden)
+
+    try:
+        with pytest.raises(publisher.PublishBlocked, match="ledger lifecycle conflict"):
+            publisher.collect_ready_runs(queue_root, state_root, limit=10)
+    finally:
+        monkeypatch.undo()
+    assert calls == []
+    assert _tree_bytes(tmp_path) == before
 
 
 def _write_exact_fresh_ja_translation_run(
@@ -718,29 +735,43 @@ def test_exact_fresh_ja_selector_rejects_non_fresh_or_wrong_lane(
         )
 
 
+@pytest.mark.parametrize(
+    ("case", "exact_run_ids", "expected"),
+    [
+        ("zero", "auto-i18n-ja-missing-001", "not found"),
+        ("many", ["auto-i18n-ja-first-001", "auto-i18n-ja-second-001"], "must name exactly one"),
+    ],
+)
 def test_exact_fresh_ja_selector_requires_one_existing_fresh_run(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    exact_run_ids: object,
+    expected: str,
 ) -> None:
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
+    before = _tree_bytes(tmp_path)
+    calls: list[str] = []
 
-    with pytest.raises(publisher.PublishBlocked, match="must name exactly one"):
-        publisher.publish_exact_fresh_ja_translation_run(
-            tmp_path, queue_root, state_root, None
-        )
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("forbidden")
+        pytest.fail("exact selector must reject before publisher write, git, network, or publish")
 
-    with pytest.raises(publisher.PublishBlocked, match="not found"):
-        publisher.publish_exact_fresh_ja_translation_run(
-            tmp_path, queue_root, state_root, "auto-i18n-ja-missing-001"
-        )
+    monkeypatch.setattr(publisher, "_atomic_write_json", forbidden)
+    monkeypatch.setattr(publisher, "publish_ready_translation_runs", forbidden)
+    monkeypatch.setattr(publisher.subprocess, "run", forbidden)
 
-    with pytest.raises(publisher.PublishBlocked, match="must name exactly one"):
+    with pytest.raises(publisher.PublishBlocked, match=expected):
         publisher.publish_exact_fresh_ja_translation_run(
             tmp_path,
             queue_root,
             state_root,
-            ["auto-i18n-ja-first-001", "auto-i18n-ja-second-001"],  # type: ignore[arg-type]
+            exact_run_ids,  # type: ignore[arg-type]
         )
+    assert case in {"zero", "many"}
+    assert calls == []
+    assert _tree_bytes(tmp_path) == before
 
 
 def test_exact_fresh_ja_selector_rejects_old_retry_run(

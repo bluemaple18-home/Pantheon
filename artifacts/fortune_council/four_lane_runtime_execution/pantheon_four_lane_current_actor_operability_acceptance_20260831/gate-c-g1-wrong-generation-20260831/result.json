@@ -1,0 +1,27 @@
+{
+  "id": "PANTHEON-FOUR-LANE-GATE-C-G1-WRONG-GENERATION-20260831",
+  "slice": "G1",
+  "verdict": "G1_GREEN",
+  "scope": {"allowed_source":["tests/test_agy_gemini_coordinator.py"],"receipt_root":"gate-c-g1-wrong-generation-20260831","scripts_changed":false,"other_gap_slices_started":false},
+  "codegraph":"CODEGRAPH_IRRELEVANT_FALLBACK_BOUNDED_RG",
+  "fallback_search_scope":["tests/test_agy_gemini_coordinator.py","scripts/agy_gemini_coordinator.py"],
+  "exact_node":"tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[gen07]",
+  "commands": {
+    "baseline":"env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u OPENAI_API_KEY -u ANTHROPIC_API_KEY PYTHONDONTWRITEBYTECODE=1 <repo-root>/.venv/bin/pytest -q -p no:cacheprovider <exact-node>",
+    "target":"env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u OPENAI_API_KEY -u ANTHROPIC_API_KEY PYTHONDONTWRITEBYTECODE=1 <repo-root>/.venv/bin/pytest -q -p no:cacheprovider <exact-node>"
+  },
+  "baseline":{"exit_code":0,"stdout":"baseline.stdout.txt","stderr":"","summary":"1 passed in 0.05s"},
+  "target":{"exit_code":0,"stdout":"target.stdout.txt","stderr":"","summary":"1 passed in 0.35s"},
+  "case_local_evidence": {
+    "rejection":"ValueError matching generation boundary",
+    "injection":"test-only generations/07 directory is injected inside the lock to model boundary drift",
+    "snapshot_roots":"tmp_path recursively covers run state, queue/lane artifacts, generation plan, quarantine receipt and lock root",
+    "lock_exclusion":"execute=True necessarily opens the existing production lock seam; the empty lock file is excluded by one exact relative path and application persistence is independently blocked by spies",
+    "io_spy":"coordinator.atomic_write_json and coordinator._write_state fail if called; persistence_calls == []",
+    "state":"state file bytes before == after; status remains pre-existing failed fixture state and is not transitioned by this rejection",
+    "mutation":"all captured files before == after except at most the unavoidable empty lock file"
+  },
+  "red_condition":"not observed: no transition from nonfailed to failed and no application persistence call",
+  "production":{"provider_calls":0,"service_launches":0,"network":0,"production_mutation":0,"reason":"exact pytest node uses pytest tmp_path only; no runtime/control-plane command was invoked"},
+  "next_frontier":"STOP_AFTER_G1_GREEN; request separate authorization before any other gap slice"
+}
