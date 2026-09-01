@@ -1,0 +1,82 @@
+C-C/T Repair-2 raw test output
+Status: REPAIR_2_READY_FOR_REVIEW
+
+RED command:
+.venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback
+
+RED output:
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback _
+
+tmp_path = PosixPath('/private/var/folders/ws/gs_gm3yd45z88y29wk5kzff00000gn/T/pytest-of-mattkuo/pytest-426/test_formal_run_once_rejects_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1057a5310>
+
+    def test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rendered, _acceptance = _render(tmp_path, monkeypatch)
+
+>       with pytest.raises(cohort.AcceptanceBlocked, match="owner provenance"):
+E       Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:796: Failed
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback
+1 failed in 0.08s
+
+Focused GREEN command:
+.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+
+Focused GREEN output:
+...........................                                              [100%]
+27 passed in 11.70s
+
+Coordinator affected command:
+.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_requires_exact_selector_before_io tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_rejects_automatic_sweep_before_io tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_advances_exact_pending_without_process tests/test_agy_gemini_coordinator.py::test_materializer_cli_requires_exact_external_pins tests/test_agy_gemini_coordinator.py::test_materializer_external_pin_mismatch_rejects_before_translation_write
+
+Coordinator/runtime/Runner affected combined output:
+...............                                                          [100%]
+15 passed in 32.37s
+
+Runtime/Runner affected command:
+.venv/bin/python -m pytest -q tests/test_pantheon_content_runtime_manifest.py::test_stale_or_malformed_activation_barrier_fails_closed tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_rejects_drift_before_queue_mutation tests/test_pantheon_content_runtime_manifest.py::test_barrier_exec_normal_propagates_activation_token_to_child tests/test_pantheon_content_runtime_manifest.py::test_early_service_acknowledges_but_cannot_run_before_barrier tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_requires_formal_runtime_before_pending_scan
+
+Targeted provenance regressions output:
+.....                                                                    [100%]
+5 passed, 22 deselected in 5.37s
+
+py_compile command:
+.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py scripts/agy_gemini_coordinator.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py
+
+py_compile output:
+PASS
+
+diff check command:
+git diff --check
+
+diff check output:
+PASS
+
+Public callback seam scan command:
+rg -n "def _callbacks|coordinator_cycle:|runner_once:|materialize_translation:|bundle_close:|publisher_plan_only:|drain_counts:|production_service_state:|launch=|bootout=|print_service" scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+
+Public callback seam scan output:
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:820:        "print_service": never_called,
+
+Interpretation:
+- Source has no formal public owner receipt callback seam.
+- The remaining test hit is the negative forged-callback TypeError fixture.
+- Production manifest/plist/registry state is derived from controller-owned plist convention and actual file digests, not caller env/self-reported receipt fields.
+- Positive flow calls real Publisher owner functions with only lower-level deterministic seams replaced.
+- Coordinator terminal result is cross-checked against canonical exact-run state files.
+- No real launchctl/provider/production/public/Gate D/E/commit/push was executed by this worker.
+
+Local independent targeted re-review:
+GO
+No P0/P1/P2/P3 findings.
+
+Reviewer rerun:
+27 passed in 11.69s
+7 coordinator affected tests passed in 31.50s
+git diff --check PASS

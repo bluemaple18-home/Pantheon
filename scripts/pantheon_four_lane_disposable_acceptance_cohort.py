@@ -2,7 +2,7 @@
 """渲染並驗證一次性、可完全 teardown 的四軌 acceptance cohort。"""
 from __future__ import annotations
 
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 import hashlib
 import json
 import os
@@ -10,10 +10,12 @@ from pathlib import Path
 import plistlib
 import re
 import stat
+import subprocess
 import time
 from typing import Any, Callable, Iterable, Mapping
 
 from scripts import agy_content_publisher as publisher
+from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import pantheon_content_runtime_manifest as runtime
 
@@ -27,6 +29,9 @@ SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 ACCEPTED_PARENT_SHA = "836d5f0d1d62b58ad886aa37863c15ce41d233ec"
 SOURCE_LANES = ("new", "rewrite")
 TRANSLATION_LANES = ("i18n-new", "i18n-rewrite")
+LAUNCHCTL = "/bin/launchctl"
+PRODUCTION_LAUNCH_PLIST_ROOT = Path.home() / "Library/LaunchAgents"
+PRODUCTION_ARTICLE_REGISTRY_RELATIVE_PATH = Path("app/web/static/article-registry.js")
 PLAN_FIELDS = {
     "schema_version", "accepted_parent_sha", "actor_sha", "session_id",
     "session_nonce_digest", "generation", "manifest_path", "manifest_digest",
@@ -590,6 +595,210 @@ def _expect(receipt: Mapping[str, Any], expected: Mapping[str, Any], label: str)
     return dict(receipt)
 
 
+def _run_process(command: list[str]) -> subprocess.CompletedProcess[str]:
+    if command[:1] == [LAUNCHCTL]:
+        return subprocess.CompletedProcess(
+            command,
+            78,
+            "",
+            "real launchctl execution is not authorized for disposable acceptance\n",
+        )
+    return subprocess.run(
+        command,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=120,
+    )
+
+
+@contextmanager
+def _formal_env(rendered: Mapping[str, Any], service_label: str):
+    manifest = rendered["manifest"]
+    previous = os.environ.copy()
+    os.environ.update(_env(manifest, service_label, Path(rendered["barrier"])))
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(previous)
+
+
+def _stdout_json(completed: subprocess.CompletedProcess[str], label: str) -> dict[str, Any]:
+    if completed.returncode != 0:
+        raise AcceptanceBlocked(f"{label} owner command failed")
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise AcceptanceBlocked(f"{label} owner stdout is not json") from error
+    if not isinstance(payload, dict):
+        raise AcceptanceBlocked(f"{label} owner stdout is not an object")
+    if payload.get("status") == "rejected":
+        raise AcceptanceBlocked(f"{label} owner command rejected")
+    return payload
+
+
+def _process_owner_receipt(
+    rendered: Mapping[str, Any],
+    *,
+    service_label: str,
+    command: list[str],
+    owner: str,
+    key: str,
+    label: str,
+) -> dict[str, Any]:
+    with _formal_env(rendered, service_label):
+        native = _stdout_json(_run_process(command), label)
+    return {"owner": owner, "command": command, key: native}
+
+
+def _launchctl_completed(command: list[str], expected_returncode: int, label: str) -> subprocess.CompletedProcess[str]:
+    completed = _run_process(command)
+    if completed.returncode != expected_returncode:
+        raise AcceptanceBlocked(f"{label} receipt differs")
+    return completed
+
+
+def _launchctl_print_absent(label: str, phase: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    command = [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"]
+    _launchctl_completed(command, 113, "launchctl print")
+    return _expect(
+        {**_print_not_found_expectation(label, phase, plist_path, manifest), "command": command},
+        _print_not_found_expectation(label, phase, plist_path, manifest),
+        "launchctl print",
+    )
+
+
+def _launchctl_launch(label: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    bootstrap = [LAUNCHCTL, "bootstrap", f"gui/{os.getuid()}", str(plist_path)]
+    _launchctl_completed(bootstrap, 0, "launchctl bootstrap")
+    try:
+        loaded_print = [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"]
+        loaded = _launchctl_completed(loaded_print, 0, "launchctl loaded print")
+        if label not in loaded.stdout:
+            raise AcceptanceBlocked("launchctl loaded identity differs")
+        kickstart = [LAUNCHCTL, "kickstart", "-k", f"gui/{os.getuid()}/{label}"]
+        _launchctl_completed(kickstart, 0, "launchctl kickstart")
+    except Exception:
+        with suppress(Exception):
+            _launchctl_bootout(label, plist_path, manifest)
+        raise
+    receipt = {
+        **_launch_expectation(label, plist_path, manifest),
+        "command": bootstrap,
+        "loaded_identity": {
+            "label": label,
+            "plist_path": str(plist_path),
+            "plist_digest": _sha(plist_path),
+            "actor_root": str(manifest["actor_root"]),
+            "manifest_digest": str(manifest["manifest_digest"]),
+            "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
+            "generation": str(manifest["generation"]),
+        },
+        "kickstart": {"command": kickstart, "returncode": 0, "label": label},
+    }
+    return _expect(receipt, _launch_expectation(label, plist_path, manifest), "launchctl bootstrap")
+
+
+def _launchctl_bootout(label: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    command = [LAUNCHCTL, "bootout", f"gui/{os.getuid()}/{label}"]
+    _launchctl_completed(command, 0, "launchctl bootout")
+    return _expect(
+        {**_bootout_expectation(label, plist_path, manifest), "command": command},
+        _bootout_expectation(label, plist_path, manifest),
+        "bootout",
+    )
+
+
+def _production_file(path: Path, label: str) -> Path:
+    if not path.is_absolute() or not path.is_file() or path.is_symlink():
+        raise AcceptanceBlocked(f"{label} is not available")
+    return path.resolve(strict=True)
+
+
+def _production_service_state() -> dict[str, Any]:
+    plist_paths = [
+        _production_file(
+            PRODUCTION_LAUNCH_PLIST_ROOT / f"{label}.plist",
+            "production launch plist",
+        )
+        for label in SERVICE_LABELS
+    ]
+    manifest_identities: set[tuple[str, str]] = set()
+    plist_receipts: list[dict[str, Any]] = []
+    production_plists: list[dict[str, str]] = []
+    for label, plist_path in zip(SERVICE_LABELS, plist_paths, strict=True):
+        try:
+            with plist_path.open("rb") as stream:
+                payload = plistlib.load(stream)
+        except (OSError, plistlib.InvalidFileException) as error:
+            raise AcceptanceBlocked("production launch plist is invalid") from error
+        environment = payload.get("EnvironmentVariables")
+        if not isinstance(environment, dict):
+            raise AcceptanceBlocked("production launch plist is invalid")
+        manifest_identities.add(
+            (
+                str(environment.get("PANTHEON_RUNTIME_MANIFEST", "")),
+                str(environment.get("PANTHEON_RUNTIME_MANIFEST_DIGEST", "")),
+            )
+        )
+        try:
+            receipt = runtime.plist_receipt(plist_path)
+        except runtime.RuntimeManifestError as error:
+            raise AcceptanceBlocked("production launch plist is invalid") from error
+        if receipt.get("label") != label:
+            raise AcceptanceBlocked("production launch plist is invalid")
+        plist_receipts.append(receipt)
+        production_plists.append(
+            {
+                "label": label,
+                "plist_path": str(plist_path),
+                "plist_digest": _sha(plist_path),
+            }
+        )
+    if len(manifest_identities) != 1:
+        raise AcceptanceBlocked("production runtime manifest identity differs")
+    manifest_name, expected_manifest_digest = manifest_identities.pop()
+    if not manifest_name or SHA256_PATTERN.fullmatch(expected_manifest_digest) is None:
+        raise AcceptanceBlocked("production runtime manifest is invalid")
+    manifest_path = _production_file(Path(manifest_name), "production runtime manifest")
+    try:
+        manifest = runtime.load_manifest(manifest_path, expected_manifest_digest)
+        runtime.validate_receipts(manifest, plist_receipts)
+    except runtime.RuntimeManifestError as error:
+        raise AcceptanceBlocked("production runtime manifest is invalid") from error
+    registry_path = _production_file(
+        Path(str(manifest["actor_root"])) / PRODUCTION_ARTICLE_REGISTRY_RELATIVE_PATH,
+        "production article registry",
+    )
+    registry_body = registry_path.read_bytes()
+    registry = {
+        "identity": str(registry_path),
+        "count": registry_body.count(b"publicationPolicy"),
+        "digest": hashlib.sha256(registry_body).hexdigest(),
+    }
+    loaded: list[str] = []
+    for label in SERVICE_LABELS:
+        completed = _run_process([LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"])
+        if completed.returncode == 113:
+            continue
+        if completed.returncode == 0 and label in completed.stdout:
+            loaded.append(label)
+            continue
+        raise AcceptanceBlocked("production service state is invalid")
+    return {
+        "runtime_manifest_identity": {
+            "manifest_path": str(manifest_path),
+            "manifest_digest": _sha(manifest_path),
+            "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
+            "generation": str(manifest["generation"]),
+        },
+        "production_launch_plists": production_plists,
+        "loaded_service_snapshot": sorted(loaded),
+        "registry": registry,
+    }
+
+
 def _launch_side_effect_proven(receipt: Mapping[str, Any], label: str, plist_path: Path, manifest: Mapping[str, Any]) -> bool:
     loaded = receipt.get("loaded_identity") if isinstance(receipt, Mapping) else None
     return (
@@ -615,7 +824,7 @@ def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any
         "schema_version": 1,
         "status": "bootstrapped",
         "phase": "bootstrap",
-        "command": ["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist_path)],
+        "command": [LAUNCHCTL, "bootstrap", f"gui/{os.getuid()}", str(plist_path)],
         "returncode": 0,
         "label": label,
         "plist_path": str(plist_path),
@@ -634,7 +843,7 @@ def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any
             "generation": str(manifest["generation"]),
         },
         "kickstart": {
-            "command": ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{label}"],
+            "command": [LAUNCHCTL, "kickstart", "-k", f"gui/{os.getuid()}/{label}"],
             "returncode": 0,
             "label": label,
         },
@@ -646,7 +855,7 @@ def _bootout_expectation(label: str, plist_path: Path, manifest: Mapping[str, An
         "schema_version": 1,
         "status": "booted_out",
         "phase": "bootout",
-        "command": ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
+        "command": [LAUNCHCTL, "bootout", f"gui/{os.getuid()}/{label}"],
         "returncode": 0,
         "label": label,
         "plist_path": str(plist_path),
@@ -663,7 +872,7 @@ def _print_not_found_expectation(label: str, phase: str, plist_path: Path, manif
         "schema_version": 1,
         "status": "not_found",
         "phase": phase,
-        "command": ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+        "command": [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"],
         "returncode": 113,
         "label": label,
         "plist_path": str(plist_path),
@@ -789,7 +998,32 @@ def _expect_coordinator_receipt(receipt: Mapping[str, Any], step: Mapping[str, A
         or (terminal and (native.get("active") != 0 or native.get("complete") != len(step["run_ids"])))
     ):
         raise AcceptanceBlocked("coordinator receipt differs")
-    result = {"status": "terminal" if terminal else "ok", "action": "coordinator-cycle", "phase": step["phase"], "lanes": step["lanes"], "run_ids": step["run_ids"], "terminal": terminal, "command": command, "owner": receipt["owner"], "owner_receipt": dict(native)}
+    owner_readback: list[dict[str, Any]] = []
+    if terminal:
+        queue_root = Path(str(manifest["queue_root"]))
+        for run_id, lane in zip(step["run_ids"], step["lanes"], strict=True):
+            state_path = coordinator._state_path(str(run_id), queue_root)
+            try:
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise AcceptanceBlocked("coordinator owner read-back differs") from error
+            if (
+                not isinstance(state, dict)
+                or state.get("run_id") != run_id
+                or state.get("lane") != lane
+                or state.get("status") != "complete"
+            ):
+                raise AcceptanceBlocked("coordinator owner read-back differs")
+            owner_readback.append(
+                {
+                    "run_id": run_id,
+                    "lane": lane,
+                    "status": "complete",
+                    "state_path": str(state_path),
+                    "state_digest": _sha(state_path),
+                }
+            )
+    result = {"status": "terminal" if terminal else "ok", "action": "coordinator-cycle", "phase": step["phase"], "lanes": step["lanes"], "run_ids": step["run_ids"], "terminal": terminal, "command": command, "owner": receipt["owner"], "owner_receipt": dict(native), "owner_readback": owner_readback}
     if terminal:
         result["terminal_run_ids"] = step["run_ids"]
     return result
@@ -809,7 +1043,34 @@ def _expect_runner_receipt(receipt: Mapping[str, Any], step: Mapping[str, Any], 
         or bundle.get("expected_bundle_digest") != binding["bundle_digest"]
     ):
         raise AcceptanceBlocked("runner receipt differs")
-    return {"status": "processed", "action": "runner-process-once", "lane": step["lane"], "run_id": step["run_id"], "entry_id": step["entry_id"], "command": command, "owner": receipt["owner"], "owner_receipt": dict(native)}
+    loaded = runner._load_acceptance_sealed_replay_bundle(
+        Path(str(binding["bundle"])),
+        str(binding["bundle_digest"]),
+        Path(str(manifest["actor_root"])),
+        Path(str(manifest["queue_root"])) / "lanes" / str(binding["lane"]),
+        str(binding["lane"]),
+        str(binding["run_id"]),
+    ).with_activation_token_digest(str(bundle["activation_token_digest"]))
+    entry = next(
+        (candidate for candidate in loaded.entries if candidate.entry_id == step["entry_id"]),
+        None,
+    )
+    if entry is None:
+        raise AcceptanceBlocked("runner owner provenance read-back differs")
+    readback = runner._classify_bundle_entry_delivery(
+        Path(str(manifest["queue_root"])) / "lanes" / str(binding["lane"]),
+        loaded,
+        entry,
+    )
+    paths = readback.get("paths") if isinstance(readback, Mapping) else None
+    if (
+        readback.get("state") != "DELIVERED"
+        or not isinstance(paths, Mapping)
+        or paths.get("ledger") is not True
+        or paths.get("anchor") is not True
+    ):
+        raise AcceptanceBlocked("runner owner provenance read-back differs")
+    return {"status": "processed", "action": "runner-process-once", "lane": step["lane"], "run_id": step["run_id"], "entry_id": step["entry_id"], "command": command, "owner": receipt["owner"], "owner_receipt": dict(native), "owner_readback": dict(readback)}
 
 
 def _expect_materialization_receipt(receipt: Mapping[str, Any], step: Mapping[str, Any], manifest: Mapping[str, Any], pins: Mapping[str, Any]) -> dict[str, Any]:
@@ -847,7 +1108,19 @@ def _expect_materialization_receipt(receipt: Mapping[str, Any], step: Mapping[st
         or native.get("public_mutation") is not False
     ):
         raise AcceptanceBlocked("c-b materialization receipt differs")
-    return {"status": "materialized", "action": "c-b-materialize", "source_run_id": step["source_run_id"], "target_run_id": step["target_run_id"], "pending_receipt": pins["pending_receipt"], "pending_digest": pins["pending_digest"], "plan_digest": pins["plan_digest"], "command": command, "owner": receipt["owner"], "owner_receipt": dict(native)}
+    current = json.loads(Path(str(pins["pending_receipt"])).read_text(encoding="utf-8"))
+    _pending, materialized = coordinator._translation_pending_payload(
+        current,
+        expected_source_run_id=str(step["source_run_id"]),
+    )
+    if (
+        materialized is None
+        or materialized.get("pending_digest_after") != native["pending_digest_after"]
+        or materialized.get("brief_sha256") != native["brief_sha256"]
+        or materialized.get("registration_identity_digest") != native["registration_identity_digest"]
+    ):
+        raise AcceptanceBlocked("c-b materialization owner read-back differs")
+    return {"status": "materialized", "action": "c-b-materialize", "source_run_id": step["source_run_id"], "target_run_id": step["target_run_id"], "pending_receipt": pins["pending_receipt"], "pending_digest": pins["pending_digest"], "plan_digest": pins["plan_digest"], "command": command, "owner": receipt["owner"], "owner_receipt": dict(native), "owner_readback": dict(materialized)}
 
 
 def _expect_bundle_close_receipt(receipt: Mapping[str, Any], step: Mapping[str, Any], manifest: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
@@ -895,15 +1168,51 @@ def _expect_publisher_receipt(receipt: Mapping[str, Any], step: Mapping[str, Any
     return {"status": "dry-run", "action": "publisher-plan-only", "lane": step["lane"], "run_id": step["run_id"], "selector_cardinality": 1, "max_runs": 1, "command": command, "owner": receipt["owner"], "owner_receipt": dict(native)}
 
 
+def _queue_drain_readback(rendered: Mapping[str, Any]) -> dict[str, Any]:
+    queue_root = Path(str(rendered["manifest"]["queue_root"]))
+    pending = 0
+    processing = 0
+    failed = 0
+    for lane in LANES:
+        lane_root = queue_root / "lanes" / lane
+        pending += len(list((lane_root / "outbox").glob("*.json"))) if (lane_root / "outbox").exists() else 0
+        processing += len(list((lane_root / "processing").glob("*.json"))) if (lane_root / "processing").exists() else 0
+        failed += len(list((lane_root / "failed").glob("*.json"))) if (lane_root / "failed").exists() else 0
+    if failed:
+        raise AcceptanceBlocked("queue drain owner read-back differs")
+    return _expect(
+        {"status": "drained", "pending": pending, "processing": processing},
+        {"status": "drained", "pending": 0, "processing": 0},
+        "queue drain",
+    )
+
+
+def _publisher_owner_receipt(rendered: Mapping[str, Any], step: Mapping[str, Any]) -> dict[str, Any]:
+    lane = str(step["lane"])
+    owner_function, _count_field, _fields = _publisher_owner_for_lane(lane)
+    command = _publisher_command(rendered["manifest"], str(step["run_id"]), lane)
+    functions = {
+        "new": publisher.publish_ready_runs,
+        "rewrite": publisher.publish_ready_rewrite_runs,
+        "i18n-new": publisher.publish_ready_translation_runs,
+        "i18n-rewrite": publisher.publish_ready_translation_runs,
+    }
+    with _formal_env(rendered, PUBLISHER):
+        native = functions[lane](
+            Path(str(rendered["manifest"]["actor_root"])),
+            Path(str(rendered["manifest"]["queue_root"])),
+            Path(str(rendered["manifest"]["publisher_state_root"])),
+            max_runs=1,
+            dry_run=True,
+            push=False,
+            exact_run_ids=[str(step["run_id"])],
+            _transaction_base_sha=str(rendered["session_plan"]["actor_sha"]),
+        )
+    return {"owner": f"scripts.agy_content_publisher:{owner_function}", "command": command, owner_function: native}
+
+
 def _execute_schedule(
     rendered: Mapping[str, Any],
-    *,
-    coordinator_cycle: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    runner_once: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    materialize_translation: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    bundle_close: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    publisher_plan_only: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    drain_counts: Callable[[], Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     manifest = rendered["manifest"]
     by_lane = {item["lane"]: item for item in rendered["bindings"]}
@@ -913,20 +1222,79 @@ def _execute_schedule(
         _revalidate_rendered_plan(rendered)
         action = step["action"]
         if action == "coordinator-cycle":
-            receipts.append(_expect_coordinator_receipt(coordinator_cycle(step), step, manifest))
+            command = _coordinator_command(manifest, list(step["run_ids"]))
+            receipts.append(
+                _expect_coordinator_receipt(
+                    _process_owner_receipt(
+                        rendered,
+                        service_label=COORDINATOR,
+                        command=command,
+                        owner="scripts.agy_gemini_coordinator:cycle_once",
+                        key="cycle_once",
+                        label="coordinator",
+                    ),
+                    step,
+                    manifest,
+                )
+            )
         elif action == "runner-process-once":
             binding = by_lane[step["lane"]]
-            receipts.append(_expect_runner_receipt(runner_once(step), step, manifest, binding))
+            command = _runner_command(manifest, binding)
+            receipts.append(
+                _expect_runner_receipt(
+                    _process_owner_receipt(
+                        rendered,
+                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
+                        command=command,
+                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_process_once",
+                        key="sealed_replay_bundle_process_once",
+                        label="runner",
+                    ),
+                    step,
+                    manifest,
+                    binding,
+                )
+            )
         elif action == "c-b-materialize":
             pins = cb_by_target[step["target_run_id"]]
-            receipts.append(_expect_materialization_receipt(materialize_translation(step), step, manifest, pins))
+            command = _materializer_command(manifest, step, pins)
+            receipts.append(
+                _expect_materialization_receipt(
+                    _process_owner_receipt(
+                        rendered,
+                        service_label=COORDINATOR,
+                        command=command,
+                        owner="scripts.agy_gemini_coordinator:materialize_translation_pending_dependency",
+                        key="materialize_translation_pending_dependency",
+                        label="c-b materialization",
+                    ),
+                    step,
+                    manifest,
+                    pins,
+                )
+            )
         elif action == "bundle-close":
             binding = by_lane[step["lane"]]
-            receipts.append(_expect_bundle_close_receipt(bundle_close(step), step, manifest, binding))
+            command = [*_runner_command(manifest, binding)[:-5], "sealed-replay-bundle-close", "--bundle", str(binding["bundle"]), "--expected-bundle-digest", str(binding["bundle_digest"])]
+            receipts.append(
+                _expect_bundle_close_receipt(
+                    _process_owner_receipt(
+                        rendered,
+                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
+                        command=command,
+                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_close",
+                        key="sealed_replay_bundle_close",
+                        label="bundle closeout",
+                    ),
+                    step,
+                    manifest,
+                    binding,
+                )
+            )
         elif action == "publisher-plan-only":
-            receipts.append(_expect_publisher_receipt(publisher_plan_only(step), step, manifest))
+            receipts.append(_expect_publisher_receipt(_publisher_owner_receipt(rendered, step), step, manifest))
         elif action == "queue-drain":
-            receipts.append(_expect(drain_counts(), {"status": "drained", "pending": 0, "processing": 0}, "queue drain"))
+            receipts.append(_queue_drain_readback(rendered))
         else:
             raise AcceptanceBlocked("acceptance schedule action differs")
     return receipts
@@ -935,16 +1303,6 @@ def _execute_schedule(
 def run_once(
     rendered: Mapping[str, Any],
     *,
-    launch: Callable[[str,Path],Mapping[str,Any]],
-    bootout: Callable[[str],Mapping[str,Any]],
-    print_service: Callable[[str],Mapping[str,Any]],
-    production_service_state: Callable[[],Mapping[str,Any]],
-    coordinator_cycle: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    runner_once: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    materialize_translation: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    bundle_close: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    publisher_plan_only: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    drain_counts: Callable[[], Mapping[str, Any]],
     monotonic: Callable[[],float]=time.monotonic,
     sleep: Callable[[float],None]=time.sleep,
 ) -> dict[str, Any]:
@@ -959,20 +1317,16 @@ def run_once(
     if ready.exists() or barrier.exists() or lock.exists() or evidence.exists():
         raise AcceptanceBlocked("acceptance generation residue exists before launch")
     preflight_prints = [
-        _expect(
-            print_service(label),
-            _print_not_found_expectation(label, "preflight-print", plist_by_label[label], rendered["manifest"]),
-            "preflight print",
-        )
+        _launchctl_print_absent(label, "preflight-print", plist_by_label[label], rendered["manifest"])
         for label in SERVICE_LABELS
     ]
-    before = production_fingerprint(rendered["production_paths"], production_service_state)
+    before = production_fingerprint(rendered["production_paths"], _production_service_state)
     os.close(os.open(lock, os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)); launched: list[str]=[]; primary: Exception|None=None; teardown: list[str]=[]; result: dict[str,Any]|None=None
     try:
         launch_receipts = []
         for path in rendered["plist_paths"]:
             _revalidate_rendered_plan(rendered)
-            launch_receipt = launch(path.stem, path)
+            launch_receipt = _launchctl_launch(path.stem, path, rendered["manifest"])
             if _launch_side_effect_proven(launch_receipt, path.stem, path, rendered["manifest"]):
                 launched.append(path.stem)
             launch_receipts.append(_expect(launch_receipt, _launch_expectation(path.stem, path, rendered["manifest"]), "launchctl bootstrap"))
@@ -984,21 +1338,13 @@ def run_once(
             raise AcceptanceBlocked("readiness acknowledgement set differs")
         _revalidate_rendered_plan(rendered)
         activation=runtime.activate_barrier(barrier,ready,dict(rendered["manifest"]))
-        workload_receipts = _execute_schedule(
-            rendered,
-            coordinator_cycle=coordinator_cycle,
-            runner_once=runner_once,
-            materialize_translation=materialize_translation,
-            bundle_close=bundle_close,
-            publisher_plan_only=publisher_plan_only,
-            drain_counts=drain_counts,
-        )
+        workload_receipts = _execute_schedule(rendered)
         result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(launched),"bootouts":[],"final_prints":[]}
     except Exception as error: primary=error
     for label in reversed(launched):
         try:
             receipt = _expect(
-                bootout(label),
+                _launchctl_bootout(label, plist_by_label[label], rendered["manifest"]),
                 _bootout_expectation(label, plist_by_label[label], rendered["manifest"]),
                 "bootout",
             )
@@ -1009,7 +1355,7 @@ def run_once(
         try:
             final_prints.append(
                 _expect(
-                    print_service(label),
+                    _launchctl_print_absent(label, "final-print", plist_by_label[label], rendered["manifest"]),
                     _print_not_found_expectation(label, "final-print", plist_by_label[label], rendered["manifest"]),
                     "final print",
                 )
@@ -1031,7 +1377,12 @@ def run_once(
         for path in plist_root.iterdir(): path.unlink()
         plist_root.rmdir()
     else: unknown.append("plists")
-    after=production_fingerprint(rendered["production_paths"],production_service_state)
+    try:
+        after=production_fingerprint(rendered["production_paths"],_production_service_state)
+    except Exception as error:
+        if teardown:
+            raise AcceptanceBlocked("acceptance bootout proof failed: " + ",".join(teardown)) from error
+        raise
     if primary is not None:
         if teardown or unknown: raise AcceptanceBlocked(f"acceptance failed after {primary}: teardown residue: "+",".join([*teardown,*unknown])) from primary
         raise primary

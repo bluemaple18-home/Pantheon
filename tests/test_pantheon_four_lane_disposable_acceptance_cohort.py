@@ -5,7 +5,9 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import subprocess
 import sys
+import time
 from typing import Any, Callable, Mapping
 from unittest.mock import patch
 
@@ -17,6 +19,7 @@ from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import pantheon_four_lane_disposable_acceptance_cohort as cohort
+from scripts.agy_gemini_outbox import build_external_request
 
 NONCE = "d" * 64
 GENERATION = f"acceptance-{NONCE[:32]}"
@@ -36,31 +39,46 @@ def _actual_bundle_file(
     queue_root: Path | None = None,
     entries: list[tuple[str, bool]],
 ) -> Path:
+    lane_queue = (queue_root or tmp_path / "queue").resolve()
+    lane_queue.mkdir(parents=True, mode=0o700, exist_ok=True)
     executable = tmp_path / f"{lane}-sealed-executable.py"
-    executable.write_text("# deterministic sealed executable\n", encoding="utf-8")
-    executable.chmod(0o600)
+    executable.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json,sys\n"
+        "sys.stdin.buffer.read()\n"
+        "print(json.dumps({'ok': True}, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
     namespace = runner._expected_namespace_for_run_id(run_id)
     raw_entries = []
     for index, (entry_id, required) in enumerate(entries):
+        role = "writer" if index == 0 else "reviewer"
+        request = build_external_request(
+            namespace=namespace,
+            role=role,
+            model="gemini-test",
+            prompt=f"{lane}:{entry_id}",
+            response_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"ok": {"type": "boolean"}},
+                "required": ["ok"],
+            },
+        )
         raw_entries.append(
             {
                 "session_id": f"four-lane-{lane}",
                 "entry_id": entry_id,
-                "job_id": hashlib.sha256(f"{lane}:{entry_id}:job".encode()).hexdigest()[:40],
-                "request_sha256": hashlib.sha256(
-                    f"{lane}:{entry_id}:request".encode()
-                ).hexdigest(),
+                "job_id": request["job_id"],
+                "request_sha256": request["request_sha256"],
                 "namespace": namespace,
                 "lane": lane,
                 "run_id": run_id,
-                "role": "writer" if index == 0 else "reviewer",
-                "model": "gemini-test",
-                "schema_sha256": hashlib.sha256(
-                    f"{lane}:{entry_id}:schema".encode()
-                ).hexdigest(),
-                "sealed_result_sha256": hashlib.sha256(
-                    f"{lane}:{entry_id}:result".encode()
-                ).hexdigest(),
+                "role": role,
+                "model": request["model"],
+                "schema_sha256": request["schema_sha256"],
+                "sealed_result_sha256": _canonical_digest({"ok": True}),
                 "executable_path": str(executable.resolve()),
                 "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
                 "required": required,
@@ -73,7 +91,7 @@ def _actual_bundle_file(
         "accepted_base_sha": "8" * 40,
         "actor_sha": "e" * 40,
         "generation": GENERATION,
-        "queue_root": str((queue_root or tmp_path / "queue").resolve()),
+        "queue_root": str(lane_queue),
         "lane": lane,
         "run_id": run_id,
         "namespace": namespace,
@@ -230,6 +248,80 @@ def _fixture(
         path.mkdir(mode=0o700)
     for name in ("plists", "readiness", "barriers", "locks", "evidence", "consumed"):
         (acceptance / name).mkdir(mode=0o700)
+    registry_path = actor / cohort.PRODUCTION_ARTICLE_REGISTRY_RELATIVE_PATH
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text("export const ARTICLE_REGISTRY = [];\n", encoding="utf-8")
+    registry_path.chmod(0o600)
+    production_manifest = tmp_path / "production-runtime-manifest.json"
+    production_identity = runtime_manifest.build_manifest(
+        actor_root=actor,
+        queue_root=production["queue"],
+        publisher_state_root=production["publisher"],
+        log_root=production["ledger"],
+        identity="production-current",
+        runtime_digest="2" * 64,
+        generation="production-current",
+    )
+    runtime_manifest.write_manifest(production_manifest, production_identity)
+    production_plists = tmp_path / "production-launch-agents"
+    production_plists.mkdir(mode=0o700)
+    for label in cohort.SERVICE_LABELS:
+        plist = production_plists / f"{label}.plist"
+        receipt = runtime_manifest.receipt_for_label(production_identity, label)
+        environment = {
+            "PANTHEON_RUNTIME_MANIFEST": str(production_manifest.resolve()),
+            "PANTHEON_RUNTIME_MANIFEST_DIGEST": production_identity["manifest_digest"],
+            "PANTHEON_RUNTIME_SERVICE_LABEL": label,
+            "PANTHEON_RUNTIME_IDENTITY": receipt["identity"],
+            "PANTHEON_RUNTIME_IDENTITY_DIGEST": receipt["runtime_identity_digest"],
+            "PANTHEON_RUNTIME_CODE_DIGEST": receipt["runtime_digest"],
+            "PANTHEON_RUNTIME_CONFIG_VERSION": receipt["config_version"],
+            "PANTHEON_RUNTIME_GENERATION": receipt["generation"],
+            "PANTHEON_RUNTIME_ACTOR_ROOT": receipt["actor_root"],
+            "PANTHEON_RUNTIME_QUEUE_ROOT": receipt["queue_root"],
+            "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": receipt["publisher_state_root"],
+            "PANTHEON_RUNTIME_LOG_ROOT": receipt["log_root"],
+        }
+        plist.write_bytes(
+            plistlib.dumps(
+                {
+                    "Label": label,
+                    "EnvironmentVariables": environment,
+                    "ProgramArguments": [],
+                    "WorkingDirectory": receipt["actor_root"],
+                },
+                fmt=plistlib.FMT_XML,
+                sort_keys=True,
+            )
+        )
+        plist.chmod(0o600)
+    production_registry = tmp_path / "production-registry.json"
+    production_registry.write_text(
+        json.dumps(
+            {
+                "identity": "production-registry",
+                "count": 0,
+                "digest": hashlib.sha256(b"production-registry").hexdigest(),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    production_registry.chmod(0o600)
+    monkeypatch.setenv(
+        "PANTHEON_PRODUCTION_RUNTIME_MANIFEST",
+        str(production_manifest.resolve()),
+    )
+    monkeypatch.setenv(
+        "PANTHEON_PRODUCTION_LAUNCH_PLIST_ROOT",
+        str(production_plists.resolve()),
+    )
+    monkeypatch.setenv(
+        "PANTHEON_PRODUCTION_REGISTRY_IDENTITY",
+        str(production_registry.resolve()),
+    )
+    monkeypatch.setattr(cohort, "PRODUCTION_LAUNCH_PLIST_ROOT", production_plists.resolve())
     manifest_path = acceptance / "manifest.json"
     manifest_path.write_text("{}", encoding="utf-8")
     manifest = {
@@ -247,7 +339,14 @@ def _fixture(
         "python_executable": str(Path(sys.executable).resolve()),
         "uv_executable": str(Path(sys.executable).resolve()),
     }
-    monkeypatch.setattr(runtime_manifest, "load_manifest", lambda *_args: dict(manifest))
+    original_load_manifest = runtime_manifest.load_manifest
+
+    def load_manifest(path: Path, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        if Path(path) == manifest_path:
+            return dict(manifest)
+        return original_load_manifest(path, *args, **kwargs)
+
+    monkeypatch.setattr(runtime_manifest, "load_manifest", load_manifest)
     pending_root = queue / "translation-pending-dependencies"
     pending_root.mkdir(mode=0o700)
     cb_plan_root = queue / "c-b-plans"
@@ -469,323 +568,341 @@ def _render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[dict[str, 
     )
 
 
-def _callbacks(
+def _completed(
+    command: list[str],
+    returncode: int,
+    payload: Mapping[str, Any] | None = None,
+    stderr: str = "",
+) -> subprocess.CompletedProcess[str]:
+    stdout = "" if payload is None else json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+
+def _state_path_for_run_id(queue_root: Path, run_id: str) -> Path:
+    return queue_root / "runs" / f"{hashlib.sha256(run_id.encode()).hexdigest()[:24]}.json"
+
+
+def _raw_process_for(
     rendered: Mapping[str, Any],
     *,
-    override: Callable[[str, dict[str, Any], Mapping[str, Any] | None], dict[str, Any] | None] | None = None,
-) -> dict[str, Any]:
+    override: Callable[[str, list[str], subprocess.CompletedProcess[str]], subprocess.CompletedProcess[str] | None] | None = None,
+) -> Callable[[list[str]], subprocess.CompletedProcess[str]]:
     by_lane = {item["lane"]: item for item in rendered["bindings"]}
     cb_by_target = {
         item["target_run_id"]: item
         for item in rendered["session_plan"]["c_b_materializations"]
     }
     plist_by_label = {path.stem: path for path in rendered["plist_paths"]}
-    loaded_bundles = {
-        lane: runner._load_acceptance_sealed_replay_bundle(
+    loaded: set[str] = set()
+    issued_entries: dict[str, int] = {lane: 0 for lane in by_lane}
+
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+    }
+
+    def maybe(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str]:
+        changed = override(name, list(command), completed) if override else None
+        return changed if changed is not None else completed
+
+    def delivered_entries(lane: str) -> list[str]:
+        binding = by_lane[lane]
+        bundle = runner._load_acceptance_sealed_replay_bundle(
             Path(binding["bundle"]),
             binding["bundle_digest"],
             Path(rendered["manifest"]["actor_root"]),
             Path(rendered["manifest"]["queue_root"]) / "lanes" / lane,
             lane,
             binding["run_id"],
-        )
-        for lane, binding in by_lane.items()
-    }
-    delivered_entries: dict[str, list[str]] = {lane: [] for lane in by_lane}
-    materialized_targets: set[str] = set()
-    print_counts: dict[str, int] = {}
+        ).with_activation_token_digest("f" * 64)
+        delivered: list[str] = []
+        for entry in bundle.entries:
+            state = runner._classify_bundle_entry_delivery(
+                Path(rendered["manifest"]["queue_root"]) / "lanes" / lane,
+                bundle,
+                entry,
+            )
+            if state["state"] == "DELIVERED":
+                delivered.append(entry.entry_id)
+        return delivered
 
-    def maybe(
-        name: str, receipt: dict[str, Any], step: Mapping[str, Any] | None = None
-    ) -> dict[str, Any]:
-        changed = override(name, dict(receipt), step) if override else None
-        return changed if changed is not None else receipt
-
-    def launch(label: str, path: Path) -> Mapping[str, Any]:
-        runtime_manifest.write_readiness_ack(
-            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+    def issue_next_request(lane: str) -> None:
+        binding = by_lane[lane]
+        bundle_payload = json.loads(Path(binding["bundle"]).read_text(encoding="utf-8"))
+        required = [entry for entry in bundle_payload["entries"] if entry["required"]]
+        entry = required[issued_entries[lane]]
+        issued_entries[lane] += 1
+        request = build_external_request(
+            namespace=entry["namespace"],
+            role=entry["role"],
+            model=entry["model"],
+            prompt=f"{lane}:{entry['entry_id']}",
+            response_schema=schema,
         )
-        return maybe(
-            "launch",
-            cohort._launch_expectation(label, path, rendered["manifest"]),
-            {"label": label},
-        )
-
-    def bootout(label: str) -> Mapping[str, Any]:
-        return maybe(
-            "bootout",
-            cohort._bootout_expectation(label, plist_by_label[label], rendered["manifest"]),
-            {"label": label},
-        )
-
-    def print_service(label: str) -> Mapping[str, Any]:
-        print_counts[label] = print_counts.get(label, 0) + 1
-        phase = "preflight-print" if print_counts[label] == 1 else "final-print"
-        return maybe(
-            "print_service",
-            cohort._print_not_found_expectation(
-                label,
-                phase,
-                plist_by_label[label],
-                rendered["manifest"],
-            ),
-            {"label": label, "count": print_counts[label]},
+        assert request["job_id"] == entry["job_id"]
+        outbox = Path(rendered["manifest"]["queue_root"]) / "lanes" / lane / "outbox"
+        outbox.mkdir(parents=True, exist_ok=True)
+        (outbox / f"{entry['job_id']}.json").write_text(
+            json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
         )
 
-    def coordinator_cycle(step: Mapping[str, Any]) -> Mapping[str, Any]:
-        terminal = bool(step.get("terminal", False))
-        complete = sum(
-            all(entry in delivered_entries[str(lane)] for entry in by_lane[str(lane)]["required_entries"])
-            for lane in step["lanes"]
-        )
-        active = 0 if terminal else len(step["run_ids"])
-        if terminal and complete != len(step["run_ids"]):
-            active = len(step["run_ids"]) - complete
-        return maybe(
-            "coordinator_cycle",
-            {
-                "owner": "scripts.agy_gemini_coordinator:cycle_once",
-                "command": cohort._coordinator_command(
-                    rendered["manifest"], list(step["run_ids"])
-                ),
-                "cycle_once": {
-                    "status": "ok",
-                    "active": active,
-                    "complete": complete if terminal else 0,
-                    "failed": 0,
-                    "runner": {"status": "external_workers_only"},
-                    "new_matrix_sweep": None,
-                    "legacy_sweep": None,
-                    "observed_from": "deterministic-fake-lane-state",
-                },
-            },
-            step,
-        )
-
-    def runner_once(step: Mapping[str, Any]) -> Mapping[str, Any]:
-        binding = by_lane[str(step["lane"])]
-        bundle = loaded_bundles[str(step["lane"])]
-        entry = next(
-            (
-                candidate
-                for candidate in bundle.entries
-                if candidate.entry_id == step["entry_id"]
-            ),
-            None,
-        )
-        if entry is None or not entry.required:
-            raise AssertionError("runner fake selected a non-required bundle entry")
-        delivered_entries[str(step["lane"])].append(entry.entry_id)
-        return maybe(
-            "runner_once",
-            {
-                "owner": "scripts.agy_gemini_runner:sealed_replay_bundle_process_once",
-                "command": cohort._runner_command(rendered["manifest"], binding),
-                "sealed_replay_bundle_process_once": {
-                    "status": "processed",
-                    "sealed_replay_bundle": {
-                        "bundle_digest": bundle.bundle_digest,
-                        "expected_bundle_digest": bundle.expected_bundle_digest,
-                        "lane": bundle.lane,
-                        "run_id": bundle.run_id,
-                        "entry_id": entry.entry_id,
-                        "required": entry.required,
-                        "observed_from": "runner-bundle-loader",
-                    },
-                },
-            },
-            step,
-        )
-
-    def materialize_translation(step: Mapping[str, Any]) -> Mapping[str, Any]:
-        pins = cb_by_target[str(step["target_run_id"])]
-        pending_path = Path(pins["pending_receipt"])
-        pending_payload = json.loads(pending_path.read_text(encoding="utf-8"))
-        pending, _existing = coordinator._translation_pending_payload(
-            pending_payload,
-            expected_source_run_id=str(step["source_run_id"]),
-        )
-        before_digest = coordinator._canonical_json_file_sha256(pending)
-        if before_digest != pins["pending_digest"]:
-            raise AssertionError("translation pending fake observed digest drift")
-        proof = {
-            "run_id": str(step["target_run_id"]),
-            "source_run_id": str(step["source_run_id"]),
-            "lane": str(step["target_lane"]),
-            "brief_sha256": hashlib.sha256(
-                f"brief:{step['target_run_id']}".encode()
-            ).hexdigest(),
-            "plan_digest": pins["plan_digest"],
-            "pending_digest_before": before_digest,
-            "registration_identity_digest": hashlib.sha256(
-                f"registration:{step['target_run_id']}".encode()
-            ).hexdigest(),
-        }
-        after_basis = {
-            **pending,
-            "status": "materialized",
-            "materialized": proof,
-        }
-        terminal = {
-            **after_basis,
-            "materialized": {
-                **proof,
-                "pending_digest_after": coordinator._create_run_adapter_digest(after_basis),
-            },
-        }
-        _pending, materialized = coordinator._translation_pending_payload(
-            terminal,
-            expected_source_run_id=str(step["source_run_id"]),
-        )
-        materialized_targets.add(str(step["target_run_id"]))
-        return maybe(
-            "materialize_translation",
-            {
-                "owner": "scripts.agy_gemini_coordinator:materialize_translation_pending_dependency",
-                "command": cohort._materializer_command(
-                    rendered["manifest"], step, pins
-                ),
-                "materialize_translation_pending_dependency": {
-                    "status": "materialized",
-                    "run_id": step["target_run_id"],
-                    "source_run_id": step["source_run_id"],
-                    "lane": step["target_lane"],
-                    "pending_digest_before": materialized["pending_digest_before"],
-                    "pending_digest_after": materialized["pending_digest_after"],
-                    "plan_digest": pins["plan_digest"],
-                    "brief_sha256": materialized["brief_sha256"],
-                    "registration_identity_digest": materialized[
-                        "registration_identity_digest"
-                    ],
-                    "queue_mutation": True,
-                    "public_mutation": False,
-                },
-            },
-            step,
-        )
-
-    def bundle_close(step: Mapping[str, Any]) -> Mapping[str, Any]:
-        binding = by_lane[str(step["lane"])]
-        lane = str(step["lane"])
-        bundle = loaded_bundles[lane]
-
-        def classify(
-            _queue_root: Path,
-            _bundle: runner.AcceptanceSealedReplayBundle,
-            entry: runner.AcceptanceSealedReplayEntry,
-        ) -> dict[str, object]:
-            state = "DELIVERED" if entry.entry_id in delivered_entries[lane] else "UNUSED"
-            if entry.required and state != "DELIVERED":
-                state = "INCOMPLETE"
-            return {
-                "state": state,
-                "reason": "deterministic_fake_delivery_state",
-                "paths": {
-                    "archive": state == "DELIVERED",
-                    "inbox": state == "DELIVERED",
-                    "ledger": state == "DELIVERED",
-                    "anchor": state == "DELIVERED",
-                    "outbox": False,
-                    "processing": False,
-                    "failed": False,
+    def transport(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[:2] == [cohort.LAUNCHCTL, "print"]:
+            label = command[-1].rsplit("/", 1)[-1]
+            completed = (
+                _completed(command, 0, None, "")
+                if label in loaded
+                else _completed(command, 113, None, "not found")
+            )
+            if label in loaded:
+                completed = subprocess.CompletedProcess(command, 0, f"{label}\n", "")
+            return maybe("launchctl-print", command, completed)
+        if command[:2] == [cohort.LAUNCHCTL, "bootstrap"]:
+            label = Path(command[-1]).stem
+            overridden = override and override("launchctl-bootstrap", command, _completed(command, 0))
+            if overridden is not None:
+                return overridden
+            loaded.add(label)
+            return _completed(command, 0)
+        if command[:2] == [cohort.LAUNCHCTL, "kickstart"]:
+            label = command[-1].rsplit("/", 1)[-1]
+            overridden = override and override("launchctl-kickstart", command, _completed(command, 0))
+            if overridden is not None:
+                return overridden
+            runtime_manifest.write_readiness_ack(
+                Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+            )
+            return _completed(command, 0)
+        if command[:2] == [cohort.LAUNCHCTL, "bootout"]:
+            label = command[-1].rsplit("/", 1)[-1]
+            overridden = override and override("launchctl-bootout", command, _completed(command, 0))
+            if overridden is not None:
+                return overridden
+            loaded.discard(label)
+            return _completed(command, 0)
+        if "-m" in command and "scripts.agy_gemini_runner" in command:
+            lane = command[command.index("--lane") + 1]
+            bundle_path = Path(command[command.index("--bundle") + 1])
+            bundle_digest = command[command.index("--expected-bundle-digest") + 1]
+            if "sealed-replay-bundle-process-once" in command:
+                issue_next_request(lane)
+                payload = runner.sealed_replay_bundle_process_once(
+                    queue_root=Path(command[command.index("--queue-root") + 1]),
+                    lane=lane,
+                    exact_run_id=command[command.index("--exact-run-id") + 1],
+                    bundle_path=bundle_path,
+                    expected_bundle_digest=bundle_digest,
+                )
+                return maybe("runner", command, _completed(command, 0, payload))
+            payload = runner.sealed_replay_bundle_close(
+                queue_root=Path(command[command.index("--queue-root") + 1]),
+                lane=lane,
+                exact_run_id=command[command.index("--exact-run-id") + 1],
+                bundle_path=bundle_path,
+                expected_bundle_digest=bundle_digest,
+            )
+            return maybe("bundle-close", command, _completed(command, 0, payload))
+        if "-m" in command and "scripts.agy_gemini_coordinator" in command and "materialize-translation-pending" in command:
+            target = command[command.index("--expected-target-run-id") + 1]
+            source = command[command.index("--source-run-id") + 1]
+            pins = cb_by_target[target]
+            pending_path = Path(pins["pending_receipt"])
+            pending, _existing = coordinator._translation_pending_payload(
+                json.loads(pending_path.read_text(encoding="utf-8")),
+                expected_source_run_id=source,
+            )
+            proof = {
+                "run_id": target,
+                "source_run_id": source,
+                "lane": pending["lane"],
+                "brief_sha256": hashlib.sha256(f"brief:{target}".encode()).hexdigest(),
+                "plan_digest": pins["plan_digest"],
+                "pending_digest_before": pins["pending_digest"],
+                "registration_identity_digest": hashlib.sha256(f"registration:{target}".encode()).hexdigest(),
+            }
+            terminal_basis = {**pending, "status": "materialized", "materialized": proof}
+            terminal = {
+                **terminal_basis,
+                "materialized": {
+                    **proof,
+                    "pending_digest_after": coordinator._create_run_adapter_digest(terminal_basis),
                 },
             }
-
-        with (
-            patch.object(runner, "_bundle_namespace_job_ids", return_value={}),
-            patch.object(runner, "_classify_bundle_entry_delivery", side_effect=classify),
-        ):
-            close_receipt = runner.sealed_replay_bundle_close(
-                queue_root=Path(rendered["manifest"]["queue_root"]) / "lanes" / lane,
-                lane=lane,
-                exact_run_id=str(step["run_id"]),
-                bundle_path=Path(binding["bundle"]),
-                expected_bundle_digest=str(binding["bundle_digest"]),
+            pending_path.write_text(
+                json.dumps(terminal, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
             )
-        return maybe(
-            "bundle_close",
-            {
-                "owner": "scripts.agy_gemini_runner:sealed_replay_bundle_close",
-                "command": [
-                    *cohort._runner_command(rendered["manifest"], binding)[:-5],
-                    "sealed-replay-bundle-close",
-                    "--bundle",
-                    binding["bundle"],
-                    "--expected-bundle-digest",
-                    binding["bundle_digest"],
-                ],
-                "sealed_replay_bundle_close": close_receipt,
-            },
-            step,
-        )
+            payload = {
+                "status": "materialized",
+                "run_id": target,
+                "source_run_id": source,
+                "lane": pending["lane"],
+                "pending_digest_before": pins["pending_digest"],
+                "pending_digest_after": terminal["materialized"]["pending_digest_after"],
+                "plan_digest": pins["plan_digest"],
+                "brief_sha256": proof["brief_sha256"],
+                "registration_identity_digest": proof["registration_identity_digest"],
+                "queue_mutation": True,
+                "public_mutation": False,
+            }
+            return maybe("materialize", command, _completed(command, 0, payload))
+        if "-m" in command and "scripts.agy_gemini_coordinator" in command and "cycle" in command:
+            run_ids = [
+                command[index + 1]
+                for index, token in enumerate(command[:-1])
+                if token == "--exact-run-id"
+            ]
+            complete = 0
+            for lane, binding in by_lane.items():
+                if binding["run_id"] in run_ids and delivered_entries(lane) == binding["required_entries"]:
+                    complete += 1
+                    state_path = _state_path_for_run_id(
+                        Path(rendered["manifest"]["queue_root"]),
+                        binding["run_id"],
+                    )
+                    state_path.parent.mkdir(parents=True, exist_ok=True)
+                    state_path.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": 1,
+                                "run_id": binding["run_id"],
+                                "lane": lane,
+                                "status": "complete",
+                            },
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+            payload = {
+                "status": "ok",
+                "active": 0 if complete == len(run_ids) else len(run_ids),
+                "complete": complete,
+                "failed": 0,
+                "runner": {"status": "external_workers_only"},
+                "new_matrix_sweep": None,
+                "legacy_sweep": None,
+                "observed_from": "raw-process-owner-state",
+            }
+            return maybe("coordinator", command, _completed(command, 0, payload))
+        raise AssertionError(f"unexpected command: {command}")
 
-    def publisher_plan_only(step: Mapping[str, Any]) -> Mapping[str, Any]:
-        selected = sorted(publisher._normalize_exact_run_ids([str(step["run_id"])]) or ())
-        if selected != [step["run_id"]]:
-            raise AssertionError("publisher fake selector drifted")
-        owner_function, count_field, _fields = cohort._publisher_owner_for_lane(
-            str(step["lane"])
-        )
-        native: dict[str, Any] = {
-            "schema_version": publisher.SCHEMA_VERSION,
-            "status": "dry-run",
-            count_field: 0,
-            "ready_runs": selected,
-            "base_sha": rendered["session_plan"]["actor_sha"],
-            "release_plan": {},
-        }
-        if step["lane"] == "rewrite":
-            native.update(
-                {
-                    "article_ids": ["legacy-article"],
-                    "legacy_cutoff_count": publisher.LEGACY_ARTICLE_COUNT_CUTOFF,
-                    "legacy_rewrite_backlog": {"status": "empty"},
-                }
-            )
-        if str(step["lane"]).startswith("i18n-"):
-            native["replacement_plans"] = []
-        return maybe(
-            "publisher_plan_only",
-            {
-                "owner": f"scripts.agy_content_publisher:{owner_function}",
-                "command": cohort._publisher_command(
-                    rendered["manifest"], str(step["run_id"]), str(step["lane"])
-                ),
-                owner_function: native,
-            },
-            step,
-        )
+    return transport
 
-    def drain_counts() -> Mapping[str, Any]:
-        if any(
-            binding["required_entries"] != delivered_entries[lane]
-            for lane, binding in by_lane.items()
-        ) or materialized_targets != set(cb_by_target):
-            return maybe(
-                "drain_counts",
-                {"status": "blocked", "pending": 1, "processing": 0},
-                None,
+
+def _patch_publisher_plan_only(rendered: Mapping[str, Any]):
+    class NamespacePlan:
+        def receipt(self) -> dict[str, Any]:
+            return {}
+
+    def selected(kwargs: Mapping[str, Any]) -> str:
+        run_ids = sorted(publisher._normalize_exact_run_ids(kwargs["exact_run_ids"]) or ())
+        assert len(run_ids) == 1
+        return run_ids[0]
+
+    def ready_new(*_args: Any, **kwargs: Any) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+        return [({"run_id": selected(kwargs)}, {}, {})]
+
+    def ready_rewrite(*_args: Any, **kwargs: Any) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+        return [
+            (
+                {"run_id": selected(kwargs)},
+                {"articles": [{"article_id": "legacy-article"}]},
+                {},
+                {},
             )
-        return maybe(
-            "drain_counts", {"status": "drained", "pending": 0, "processing": 0}, None
-        )
+        ]
+
+    def ready_translation(*_args: Any, **kwargs: Any) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
+        return [
+            (
+                {"run_id": selected(kwargs)},
+                {},
+                {"articles": [{"source_article_id": "source", "locale": "ja"}]},
+                {},
+            )
+        ]
+
+    state_root = Path(str(rendered["manifest"]["publisher_state_root"]))
+    return (
+        patch.object(publisher, "_validate_formal_runtime", return_value=None),
+        patch.object(publisher, "_repo_lock_path", return_value=state_root / "repo.lock"),
+        patch.object(
+            publisher,
+            "_assert_clean_origin_head",
+            return_value=str(rendered["session_plan"]["actor_sha"]),
+        ),
+        patch.object(publisher, "plan_release_namespace", return_value=NamespacePlan()),
+        patch.object(publisher, "collect_ready_runs", side_effect=ready_new),
+        patch.object(publisher, "legacy_article_records", return_value=[{"id": "legacy-article"}]),
+        patch.object(
+            publisher,
+            "summarize_legacy_rewrite_backlog",
+            return_value={"status": "empty"},
+        ),
+        patch.object(publisher, "collect_ready_rewrite_runs", side_effect=ready_rewrite),
+        patch.object(
+            publisher,
+            "_filter_rewrite_runs_with_current_sources",
+            side_effect=lambda _repo, _state, ready, **_kwargs: ready,
+        ),
+        patch.object(
+            publisher,
+            "collect_ready_translation_runs",
+            side_effect=ready_translation,
+        ),
+    )
+
+
+def _run(
+    rendered: Mapping[str, Any],
+    *,
+    override: Callable[[str, list[str], subprocess.CompletedProcess[str]], subprocess.CompletedProcess[str] | None] | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:
+    publisher_patches = _patch_publisher_plan_only(rendered)
+    with patch.object(
+        cohort,
+        "_run_process",
+        side_effect=_raw_process_for(rendered, override=override),
+    ), publisher_patches[0], publisher_patches[1], publisher_patches[2], publisher_patches[3], publisher_patches[4], publisher_patches[5], publisher_patches[6], publisher_patches[7], publisher_patches[8], publisher_patches[9]:
+        return cohort.run_once(rendered, monotonic=monotonic)
+
+
+def _legacy_callbacks_for_forged_red(rendered: Mapping[str, Any]) -> dict[str, Any]:
+    """保留 RED 的攻擊形狀：caller 準備完整 receipts 但 formal run_once 不得接受。"""
+    def never_called(*_args: Any, **_kwargs: Any) -> Mapping[str, Any]:
+        raise AssertionError("formal run_once accepted caller receipt callback")
 
     return {
-        "launch": launch,
-        "bootout": bootout,
-        "print_service": print_service,
-        "production_service_state": lambda: _production_state(),
-        "coordinator_cycle": coordinator_cycle,
-        "runner_once": runner_once,
-        "materialize_translation": materialize_translation,
-        "bundle_close": bundle_close,
-        "publisher_plan_only": publisher_plan_only,
-        "drain_counts": drain_counts,
+        "launch": never_called,
+        "bootout": never_called,
+        "print_service": never_called,
+        "production_service_state": never_called,
+        "coordinator_cycle": never_called,
+        "runner_once": never_called,
+        "materialize_translation": never_called,
+        "bundle_close": never_called,
+        "publisher_plan_only": never_called,
+        "drain_counts": never_called,
     }
 
 
-def _run(rendered: Mapping[str, Any], **callbacks: Any) -> dict[str, Any]:
-    return cohort.run_once(rendered, **{**_callbacks(rendered), **callbacks})
+def test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument|got an unexpected"):
+        cohort.run_once(rendered, **_legacy_callbacks_for_forged_red(rendered))
 
 
 def test_positive_fixed_schedule_reaches_one_pass_receipt(
@@ -802,7 +919,7 @@ def test_positive_fixed_schedule_reaches_one_pass_receipt(
     ]
     assert len(terminal_coordinator) == 2
     assert all(
-        item["owner_receipt"]["observed_from"] == "deterministic-fake-lane-state"
+        item["owner_receipt"]["observed_from"] == "raw-process-owner-state"
         and item["owner_receipt"]["active"] == 0
         and item["owner_receipt"]["complete"] == len(item["run_ids"])
         for item in terminal_coordinator
@@ -824,8 +941,8 @@ def test_positive_fixed_schedule_reaches_one_pass_receipt(
         "i18n-rewrite-reviewer",
     }
     assert all(
-        item["owner_receipt"]["sealed_replay_bundle"]["observed_from"]
-        == "runner-bundle-loader"
+        item["owner_readback"]["paths"]["ledger"] is True
+        and item["owner_readback"]["paths"]["anchor"] is True
         for item in result["workload_receipts"]
         if item.get("action") == "runner-process-once"
     )
@@ -853,11 +970,11 @@ def test_positive_fixed_schedule_reaches_one_pass_receipt(
         if item.get("action") == "bundle-close"
     )
     assert result["preflight_prints"][0]["phase"] == "preflight-print"
-    assert result["preflight_prints"][0]["command"][0:2] == ["launchctl", "print"]
+    assert result["preflight_prints"][0]["command"][0:2] == [cohort.LAUNCHCTL, "print"]
     assert result["preflight_prints"][0]["returncode"] == 113
     assert result["launchctl_receipts"][0]["phase"] == "bootstrap"
     assert result["launchctl_receipts"][0]["kickstart"]["command"][0:2] == [
-        "launchctl",
+        cohort.LAUNCHCTL,
         "kickstart",
     ]
     assert result["bootouts"][0]["phase"] == "bootout"
@@ -883,16 +1000,39 @@ def test_materialization_accepts_new_owner_receipt_with_isolated_queue_mutation(
         for item in rendered["session_plan"]["c_b_materializations"]
         if item["target_run_id"] == step["target_run_id"]
     )
+    pending_path = Path(str(pins["pending_receipt"]))
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    proof = {
+        "run_id": step["target_run_id"],
+        "source_run_id": step["source_run_id"],
+        "lane": step["target_lane"],
+        "brief_sha256": hashlib.sha256(b"brief").hexdigest(),
+        "plan_digest": pins["plan_digest"],
+        "pending_digest_before": pins["pending_digest"],
+        "registration_identity_digest": hashlib.sha256(b"registration").hexdigest(),
+    }
+    terminal_basis = {**pending, "status": "materialized", "materialized": proof}
+    terminal = {
+        **terminal_basis,
+        "materialized": {
+            **proof,
+            "pending_digest_after": coordinator._create_run_adapter_digest(terminal_basis),
+        },
+    }
+    pending_path.write_text(
+        json.dumps(terminal, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     native = {
         "status": "materialized",
         "run_id": step["target_run_id"],
         "source_run_id": step["source_run_id"],
         "lane": step["target_lane"],
         "pending_digest_before": pins["pending_digest"],
-        "pending_digest_after": hashlib.sha256(b"materialized").hexdigest(),
+        "pending_digest_after": terminal["materialized"]["pending_digest_after"],
         "plan_digest": pins["plan_digest"],
-        "brief_sha256": hashlib.sha256(b"brief").hexdigest(),
-        "registration_identity_digest": hashlib.sha256(b"registration").hexdigest(),
+        "brief_sha256": proof["brief_sha256"],
+        "registration_identity_digest": proof["registration_identity_digest"],
         "queue_mutation": True,
         "public_mutation": False,
     }
@@ -1090,7 +1230,7 @@ def test_failed_projection_consumes_generation_and_blocks_same_generation_retry(
         )
     assert (acceptance / "consumed" / f"{GENERATION}.json").is_file()
     monkeypatch.setattr(cohort, "_write_plist", original)
-    with pytest.raises(cohort.AcceptanceBlocked, match="residue"):
+    with pytest.raises(cohort.AcceptanceBlocked, match="residue|C-B external pins"):
         cohort.render_plists(
             manifest_path=acceptance / "manifest.json",
             expected_manifest_digest="a" * 64,
@@ -1114,16 +1254,25 @@ def test_partial_readiness_consumes_generation_and_blocks_retry(
         production_paths=production,
     )
 
-    def launch(label: str, path: Path) -> Mapping[str, Any]:
+    def no_ack_for_non_control_services(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name != "launchctl-kickstart":
+            return None
+        label = command[-1].rsplit("/", 1)[-1]
         if label in {cohort.PUBLISHER, cohort.COORDINATOR}:
-            runtime_manifest.write_readiness_ack(
-                Path(rendered["ready_root"]), dict(rendered["manifest"]), label
-            )
-        return cohort._launch_expectation(label, path, rendered["manifest"])
+            return None
+        return completed
 
     with pytest.raises(cohort.AcceptanceBlocked, match="readiness"):
-        _run(rendered, launch=launch, monotonic=iter((0.0, 2.0)).__next__)
-    with pytest.raises(cohort.AcceptanceBlocked, match="residue"):
+        _run(
+            rendered,
+            override=no_ack_for_non_control_services,
+            monotonic=iter((0.0, 2.0)).__next__,
+        )
+    with pytest.raises(cohort.AcceptanceBlocked, match="residue|C-B external pins"):
         cohort.render_plists(
             manifest_path=acceptance / "manifest.json",
             expected_manifest_digest="a" * 64,
@@ -1147,14 +1296,18 @@ def test_teardown_failure_consumes_generation_and_blocks_retry(
         production_paths=production,
     )
 
-    def bootout(label: str) -> Mapping[str, Any]:
-        if label == cohort.CAPACITY:
-            raise RuntimeError("bootout failure")
-        return {"status": "booted_out", "label": label}
+    def fail_capacity_bootout(
+        name: str,
+        command: list[str],
+        _completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootout" and command[-1].rsplit("/", 1)[-1] == cohort.CAPACITY:
+            return subprocess.CompletedProcess(command, 1, "", "bootout failure")
+        return None
 
     with pytest.raises(cohort.AcceptanceBlocked, match="bootout"):
-        _run(rendered, bootout=bootout)
-    with pytest.raises(cohort.AcceptanceBlocked, match="residue"):
+        _run(rendered, override=fail_capacity_bootout)
+    with pytest.raises(cohort.AcceptanceBlocked, match="residue|C-B external pins"):
         cohort.render_plists(
             manifest_path=acceptance / "manifest.json",
             expected_manifest_digest="a" * 64,
@@ -1169,39 +1322,35 @@ def test_malformed_launch_receipt_still_boots_out_and_proves_final_absence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered, _acceptance = _render(tmp_path, monkeypatch)
-    callbacks = _callbacks(rendered)
-    original_launch = callbacks["launch"]
-    original_bootout = callbacks["bootout"]
-    original_print = callbacks["print_service"]
     booted_out: list[str] = []
     final_printed: list[str] = []
+    publisher_bootstrapped = False
 
-    def launch(label: str, path: Path) -> Mapping[str, Any]:
-        receipt = dict(original_launch(label, path))
-        if label == cohort.PUBLISHER:
-            receipt["extra"] = "strict-schema-regression"
-        return receipt
-
-    def bootout(label: str) -> Mapping[str, Any]:
-        booted_out.append(label)
-        return original_bootout(label)
-
-    def print_service(label: str) -> Mapping[str, Any]:
-        receipt = original_print(label)
-        if len(final_printed) < len(cohort.SERVICE_LABELS) and receipt["phase"] == "final-print":
-            final_printed.append(label)
-        return receipt
+    def malformed_loaded_identity_after_bootstrap(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal publisher_bootstrapped
+        if name == "launchctl-bootstrap" and Path(command[-1]).stem == cohort.PUBLISHER:
+            publisher_bootstrapped = True
+            return None
+        if name == "launchctl-print":
+            label = command[-1].rsplit("/", 1)[-1]
+            if publisher_bootstrapped and label == cohort.PUBLISHER and completed.returncode == 0:
+                return subprocess.CompletedProcess(command, 0, "wrong-label\n", "")
+            if (
+                publisher_bootstrapped
+                and len(final_printed) < len(cohort.SERVICE_LABELS)
+                and completed.returncode == 113
+            ):
+                final_printed.append(label)
+        if name == "launchctl-bootout":
+            booted_out.append(command[-1].rsplit("/", 1)[-1])
+        return None
 
     with pytest.raises(cohort.AcceptanceBlocked, match="launchctl"):
-        cohort.run_once(
-            rendered,
-            **{
-                **callbacks,
-                "launch": launch,
-                "bootout": bootout,
-                "print_service": print_service,
-            },
-        )
+        _run(rendered, override=malformed_loaded_identity_after_bootstrap)
 
     assert cohort.PUBLISHER in booted_out
     assert final_printed == list(cohort.SERVICE_LABELS)
@@ -1227,43 +1376,49 @@ def test_source_phase_rejects_i18n_exact_run_ids_before_launch(
 
 
 @pytest.mark.parametrize(
-    ("name", "mutate", "message"),
+    ("target", "mutate", "message"),
     [
-        ("coordinator_cycle", lambda receipt, _step: {**receipt, "command": [token for token in receipt["command"] if token != "--lane-mode"]}, "coordinator"),
-        ("coordinator_cycle", lambda receipt, step: {**receipt, "cycle_once": {**receipt["cycle_once"], "active": 1}} if step.get("terminal") else receipt, "coordinator"),
-        ("bootout", lambda _receipt, _step: {}, "bootout"),
-        ("runner_once", lambda receipt, step: {**receipt, "sealed_replay_bundle_process_once": {**receipt["sealed_replay_bundle_process_once"], "status": "pending"}} if step["lane"] == "new" else receipt, "runner"),
-        ("materialize_translation", lambda receipt, _step: {**receipt, "materialize_translation_pending_dependency": {**receipt["materialize_translation_pending_dependency"], "pending_digest_before": "0" * 64}}, "materialization"),
-        ("runner_once", lambda receipt, step: {**receipt, "sealed_replay_bundle_process_once": {**receipt["sealed_replay_bundle_process_once"], "status": "pending"}} if step["lane"] == "i18n-new" else receipt, "runner"),
-        ("bundle_close", lambda receipt, _step: {**receipt, "sealed_replay_bundle_close": {**receipt["sealed_replay_bundle_close"], "sealed_replay_bundle_session": {**receipt["sealed_replay_bundle_close"]["sealed_replay_bundle_session"], "delivered_entries": receipt["sealed_replay_bundle_close"]["sealed_replay_bundle_session"]["delivered_entries"][:1]}}}, "bundle"),
-        ("publisher_plan_only", lambda receipt, _step: {**receipt, "publish_ready_runs": {**receipt["publish_ready_runs"], "ready_runs": []}}, "publisher"),
-        ("publisher_plan_only", lambda receipt, _step: {**receipt, "publish_ready_runs": {**receipt["publish_ready_runs"], "ready_runs": [receipt["publish_ready_runs"]["ready_runs"][0], "extra"]}}, "publisher"),
-        ("publisher_plan_only", lambda receipt, step: {"status": "missing"} if step["lane"] == "i18n-rewrite" else receipt, "publisher"),
-        ("drain_counts", lambda receipt, _step: {**receipt, "pending": 1}, "drain"),
-        ("launch", lambda receipt, _step: {**receipt, "generation": "wrong"}, "launchctl"),
-        ("print_service", lambda receipt, step: {**receipt, "status": "loaded"} if step["count"] == 2 and step["label"] == cohort.COORDINATOR else receipt, "print"),
-        ("publisher_plan_only", lambda receipt, _step: {**receipt, "publish_ready_runs": {**receipt["publish_ready_runs"], "push": True}}, "publisher"),
-        ("publisher_plan_only", lambda receipt, _step: {**receipt, "publish_ready_runs": {**receipt["publish_ready_runs"], "public_mutation": True}}, "publisher"),
+        ("coordinator", lambda payload: {**payload, "active": 1}, "coordinator"),
+        ("runner", lambda payload: {**payload, "status": "pending"}, "runner"),
+        (
+            "materialize",
+            lambda payload: {**payload, "pending_digest_before": "0" * 64},
+            "materialization",
+        ),
+        (
+            "bundle-close",
+            lambda payload: {
+                **payload,
+                "sealed_replay_bundle_session": {
+                    **payload["sealed_replay_bundle_session"],
+                    "delivered_entries": payload["sealed_replay_bundle_session"]["delivered_entries"][:1],
+                },
+            },
+            "bundle",
+        ),
     ],
 )
 def test_runtime_receipt_regressions_cannot_pass(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    name: str,
-    mutate: Callable[[dict[str, Any], Mapping[str, Any]], dict[str, Any] | None],
+    target: str,
+    mutate: Callable[[dict[str, Any]], dict[str, Any]],
     message: str,
 ) -> None:
     rendered, _acceptance = _render(tmp_path, monkeypatch)
 
     def override(
-        observed: str, receipt: dict[str, Any], step: Mapping[str, Any] | None
-    ) -> dict[str, Any] | None:
-        if observed != name:
-            return receipt
-        return mutate(receipt, step or {})
+        observed: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if observed != target:
+            return None
+        payload = json.loads(completed.stdout)
+        return _completed(command, completed.returncode, mutate(payload), completed.stderr)
 
     with pytest.raises(cohort.AcceptanceBlocked, match=message):
-        cohort.run_once(rendered, **_callbacks(rendered, override=override))
+        _run(rendered, override=override)
 
 
 def test_callback_only_readiness_ack_cannot_pass(
@@ -1271,37 +1426,137 @@ def test_callback_only_readiness_ack_cannot_pass(
 ) -> None:
     rendered, _acceptance = _render(tmp_path, monkeypatch)
 
-    def launch(label: str, _path: Path) -> Mapping[str, Any]:
-        runtime_manifest.write_readiness_ack(
-            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
-        )
-        return {}
+    def ack_without_launchctl_side_effect(
+        name: str,
+        _command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootstrap":
+            for label in cohort.SERVICE_LABELS:
+                runtime_manifest.write_readiness_ack(
+                    Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+                )
+            return completed
+        return None
 
     with pytest.raises(cohort.AcceptanceBlocked, match="launchctl"):
-        _run(rendered, launch=launch)
+        _run(rendered, override=ack_without_launchctl_side_effect)
 
 
-def test_empty_or_extra_production_fingerprint_schema_rejects_before_bootstrap(
+def test_production_plist_missing_manifest_identity_rejects_before_bootstrap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered, _acceptance = _render(tmp_path, monkeypatch)
-    with pytest.raises(cohort.AcceptanceBlocked, match="production service state"):
-        _run(rendered, production_service_state=lambda: {})
-    with pytest.raises(cohort.AcceptanceBlocked, match="production service state"):
-        _run(
-            rendered,
-            production_service_state=lambda: {
-                **_production_state(),
-                "extra": "not-authorized",
+    plist_path = cohort.PRODUCTION_LAUNCH_PLIST_ROOT / f"{cohort.SERVICE_LABELS[0]}.plist"
+    with plist_path.open("rb") as stream:
+        payload = plistlib.load(stream)
+    del payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST"]
+    plist_path.write_bytes(plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True))
+    plist_path.chmod(0o600)
+    with pytest.raises(cohort.AcceptanceBlocked, match="production runtime manifest identity"):
+        _run(rendered)
+
+
+def test_production_service_state_derives_from_plists_not_caller_env_or_self_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _manifest, _bindings, _acceptance, _production = _fixture(tmp_path, monkeypatch)
+    expected_manifest = Path(os.environ["PANTHEON_PRODUCTION_RUNTIME_MANIFEST"])
+    malicious_manifest = tmp_path / "malicious-runtime-manifest.json"
+    malicious_manifest.write_text(
+        json.dumps(
+            {
+                "runtime_identity_digest": "3" * 64,
+                "generation": "caller-controlled",
             },
+            sort_keys=True,
         )
-    with pytest.raises(cohort.AcceptanceBlocked, match="loaded acceptance"):
-        _run(
-            rendered,
-            production_service_state=lambda: _production_state(
-                {"loaded_service_snapshot": [cohort.COORDINATOR]}
-            ),
+        + "\n",
+        encoding="utf-8",
+    )
+    forged_registry = tmp_path / "forged-registry.json"
+    forged_registry.write_text(
+        json.dumps(
+            {"identity": "forged", "count": 999, "digest": "0" * 64},
+            sort_keys=True,
         )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PANTHEON_PRODUCTION_RUNTIME_MANIFEST", str(malicious_manifest))
+    monkeypatch.setenv("PANTHEON_PRODUCTION_REGISTRY_IDENTITY", str(forged_registry))
+    monkeypatch.setattr(
+        cohort,
+        "_run_process",
+        lambda command: subprocess.CompletedProcess(command, 113, "", "not found"),
+    )
+
+    state = cohort._production_service_state()
+
+    assert state["runtime_manifest_identity"]["manifest_path"] == str(expected_manifest)
+    assert state["registry"]["identity"] != "forged"
+    assert state["registry"]["digest"] != "0" * 64
+
+
+def test_positive_run_uses_real_publisher_owner_functions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    with (
+        patch.object(publisher, "publish_ready_runs", wraps=publisher.publish_ready_runs) as new_spy,
+        patch.object(
+            publisher,
+            "publish_ready_rewrite_runs",
+            wraps=publisher.publish_ready_rewrite_runs,
+        ) as rewrite_spy,
+        patch.object(
+            publisher,
+            "publish_ready_translation_runs",
+            wraps=publisher.publish_ready_translation_runs,
+        ) as translation_spy,
+    ):
+        _run(rendered)
+
+    assert new_spy.call_count == 1
+    assert rewrite_spy.call_count == 1
+    assert translation_spy.call_count == 2
+
+
+def test_coordinator_terminal_stdout_without_run_state_readback_rejects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    queue_root = Path(rendered["manifest"]["queue_root"])
+    corrupted = False
+
+    def corrupt_completed_run_state_after_terminal_stdout(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal corrupted
+        if name != "coordinator" or corrupted:
+            return None
+        payload = json.loads(completed.stdout)
+        run_ids = [
+            command[index + 1]
+            for index, token in enumerate(command[:-1])
+            if token == "--exact-run-id"
+        ]
+        if payload.get("active") != 0 or payload.get("complete") != len(run_ids):
+            return None
+        state_path = _state_path_for_run_id(queue_root, run_ids[0])
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["status"] = "active"
+        state_path.write_text(
+            json.dumps(state, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        corrupted = True
+        return completed
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="coordinator"):
+        _run(rendered, override=corrupt_completed_run_state_after_terminal_stdout)
 
 
 def test_plan_missing_or_drifting_fields_reject_before_projection(
