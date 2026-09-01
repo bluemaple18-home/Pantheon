@@ -13562,3 +13562,69 @@ def test_materializer_final_pending_cas_rejects_before_terminal_replacement(
     assert tampered_receipts == [tampered_receipts[0]]
     assert pending.read_bytes() == tampered_receipts[0]
     assert coordinator._state_path(str(receipt["run_id"]), queue_root).exists()
+
+
+def test_cycle_external_workers_only_requires_exact_selector_before_io(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="external workers only requires exact"):
+        coordinator.cycle_once(
+            tmp_path / "queue",
+            external_workers_only=True,
+            tick=lambda *_args: pytest.fail("tick must not run"),
+            process=lambda *_args, **_kwargs: pytest.fail("process must not run"),
+        )
+    assert not (tmp_path / "queue").exists()
+
+
+def test_cycle_external_workers_only_rejects_automatic_sweep_before_io(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="automatic sweeps"):
+        coordinator.cycle_once(
+            tmp_path / "queue",
+            exact_run_ids=["exact-run"],
+            new_matrix_sweep=True,
+            external_workers_only=True,
+            tick=lambda *_args: pytest.fail("tick must not run"),
+            process=lambda *_args, **_kwargs: pytest.fail("process must not run"),
+        )
+    assert not (tmp_path / "queue").exists()
+
+
+def test_cycle_external_workers_only_advances_exact_pending_without_process(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "exact-run"
+    _write_brief(run_dir, "exact-run")
+    register_run(run_dir, queue_root)
+    ticks: list[Path] = []
+
+    def pending_tick(path: Path, _job_root: Path) -> dict[str, object]:
+        ticks.append(path)
+        raise ExternalJobPending("external-worker-job")
+
+    summary = coordinator.cycle_once(
+        queue_root,
+        exact_run_ids=["exact-run"],
+        external_workers_only=True,
+        tick=pending_tick,
+        process=lambda *_args, **_kwargs: pytest.fail("external mode must not process"),
+    )
+    assert ticks == [run_dir.resolve()]
+    assert summary["runner"] == {"status": "external_workers_only"}
+
+
+def test_cycle_default_pending_still_calls_process(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    run_dir = tmp_path / "runs" / "exact-run"
+    _write_brief(run_dir, "exact-run")
+    register_run(run_dir, queue_root)
+    calls: list[Path] = []
+
+    def pending_tick(_path: Path, _job_root: Path) -> dict[str, object]:
+        raise ExternalJobPending("default-process-job")
+
+    summary = coordinator.cycle_once(
+        queue_root,
+        exact_run_ids=["exact-run"],
+        tick=pending_tick,
+        process=lambda path, **_kwargs: calls.append(path) or {"status": "idle"},
+    )
+    assert calls == [queue_root.resolve()]
+    assert summary["runner"] == {"status": "idle"}

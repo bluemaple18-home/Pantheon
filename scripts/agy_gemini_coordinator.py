@@ -6398,10 +6398,15 @@ def cycle_once(
     lane_mode: bool = False,
     new_only: bool = False,
     exact_run_ids: Iterable[str] | None = None,
+    external_workers_only: bool = False,
 ) -> dict[str, Any]:
     """推進 run 狀態；lane mode 每輪讓四類內容各推進一個 run。"""
-    _validate_formal_runtime(queue_root, repo_root)
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    if external_workers_only and selected_run_ids is None:
+        raise ValueError("external workers only requires exact run ids")
+    if external_workers_only and (new_matrix_sweep or legacy_sweep):
+        raise ValueError("external workers only cannot be combined with automatic sweeps")
+    _validate_formal_runtime(queue_root, repo_root)
     if selected_run_ids is not None and (new_matrix_sweep or legacy_sweep):
         raise ValueError("exact run ids cannot be combined with automatic sweeps")
     root = queue_root.resolve()
@@ -6514,7 +6519,9 @@ def cycle_once(
             failed += outcome == "failed"
 
         runner: dict[str, str] = {"status": "idle"}
-        if pending and not new_only:
+        if external_workers_only:
+            runner = {"status": "external_workers_only"}
+        elif pending and not new_only:
             try:
                 if selected_run_ids is None:
                     runner = process(root)
@@ -7041,6 +7048,7 @@ def parse_args() -> argparse.Namespace:
     campaign.add_argument("--output", type=Path)
     cycle = subparsers.add_parser("cycle")
     cycle.add_argument("--exact-run-id", action="append")
+    cycle.add_argument("--external-workers-only", action="store_true")
     args = parser.parse_args()
     if args.command == "materialize-translation-pending" and (len(args.source_run_id) != 1 or len(args.pending_receipt) != 1):
         parser.error("materialize-translation-pending requires exactly one source run and pending receipt")
@@ -7231,6 +7239,7 @@ def main() -> int:
             lane_mode=args.lane_mode,
             new_only=_new_only_enabled(),
             exact_run_ids=args.exact_run_id,
+            external_workers_only=args.external_workers_only,
         )
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result.get("status") == "failed" else 0

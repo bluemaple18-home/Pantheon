@@ -1,0 +1,24 @@
+C-C/T pre-freeze repair verification
+
+Audit finding status: `BLOCKED_C_C_SESSION_FRESHNESS_CONTRACT` owner-selected generation/immutable-plan repair covered locally; this receipt is repair evidence only, not independent review acceptance.
+
+Focused renderer/orchestration matrix:
+Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+Final exit: 0
+32 passed in 0.20s
+
+Final C-C/T + Coordinator external-workers-only aggregate:
+Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py -k 'pantheon_four_lane_disposable_acceptance_cohort or external_workers_only or default_pending_still_calls_process'
+Final exit: 0
+36 passed, 481 deselected in 0.28s
+
+Affected existing manifest/Runner/runtime-tick regressions:
+Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_content_runtime_manifest.py::test_stale_or_malformed_activation_barrier_fails_closed tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_rejects_drift_before_queue_mutation tests/test_pantheon_content_runtime_manifest.py::test_barrier_exec_normal_propagates_activation_token_to_child tests/test_pantheon_content_runtime_manifest.py::test_early_service_acknowledges_but_cannot_run_before_barrier tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_requires_formal_runtime_before_pending_scan
+Final exit: 0
+8 passed in 2.10s
+
+Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py scripts/agy_gemini_coordinator.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py
+Final exit: 0
+
+Command: git diff --check
+Final exit: 0
