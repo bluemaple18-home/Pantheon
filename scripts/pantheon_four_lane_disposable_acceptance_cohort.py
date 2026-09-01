@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import pwd
 import re
 import stat
 import subprocess
@@ -30,8 +31,16 @@ ACCEPTED_PARENT_SHA = "836d5f0d1d62b58ad886aa37863c15ce41d233ec"
 SOURCE_LANES = ("new", "rewrite")
 TRANSLATION_LANES = ("i18n-new", "i18n-rewrite")
 LAUNCHCTL = "/bin/launchctl"
-PRODUCTION_LAUNCH_PLIST_ROOT = Path.home() / "Library/LaunchAgents"
+
+
+def _os_uid_home() -> Path:
+    return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+
+
+PRODUCTION_LAUNCH_PLIST_ROOT = _os_uid_home() / "Library/LaunchAgents"
 PRODUCTION_ARTICLE_REGISTRY_RELATIVE_PATH = Path("app/web/static/article-registry.js")
+READINESS_TIMEOUT_SECONDS = max(7, len(SERVICE_LABELS))
+STEP_STDOUT_TIMEOUT_SECONDS = READINESS_TIMEOUT_SECONDS
 PLAN_FIELDS = {
     "schema_version", "accepted_parent_sha", "actor_sha", "session_id",
     "session_nonce_digest", "generation", "manifest_path", "manifest_digest",
@@ -331,7 +340,7 @@ def _env(manifest: Mapping[str, Any], label: str, barrier: Path) -> dict[str, st
 
 
 def _prefix(python: str, manifest: Mapping[str, Any], label: str, barrier: Path, ready: Path, activation_only: bool) -> list[str]:
-    value = [python, "-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec", "--barrier", str(barrier), "--expected-digest", str(manifest["manifest_digest"]), "--manifest", str(manifest["manifest_path"]), "--service-label", label, "--ready-root", str(ready), "--timeout", "1"]
+    value = [python, "-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec", "--barrier", str(barrier), "--expected-digest", str(manifest["manifest_digest"]), "--manifest", str(manifest["manifest_path"]), "--service-label", label, "--ready-root", str(ready), "--timeout", str(READINESS_TIMEOUT_SECONDS)]
     return [*value, *( ["--activation-only"] if activation_only else [])]
 
 
@@ -542,11 +551,11 @@ def render_plists(*, manifest_path: Path, expected_manifest_digest: str, accepta
     paths: list[Path] = []
     try:
         for label in SERVICE_LABELS:
-            activation_only = label == PUBLISHER
+            activation_only = True
             path = staging / f"{label}.plist"
             _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(python,manifest,label,barrier,ready,activation_only),"--",*children[label]], "EnvironmentVariables": _env(manifest,label,barrier), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False})
             paths.append(path)
-        receipts = [runtime.plist_receipt(path, expected_activation_mode="activation-only" if path.stem == PUBLISHER else "normal") for path in paths]
+        receipts = [runtime.plist_receipt(path, expected_activation_mode="activation-only") for path in paths]
         runtime.validate_receipts(manifest, [{key:value for key,value in item.items() if key != "plist_realpath"} for item in receipts])
         runtime.publisher_plist_receipt(staging / f"{PUBLISHER}.plist", expected_activation_mode="activation-only")
         _validate_children(paths, parsed, manifest, publisher_run_id)
@@ -1211,6 +1220,125 @@ def _publisher_owner_receipt(rendered: Mapping[str, Any], step: Mapping[str, Any
     return {"owner": f"scripts.agy_content_publisher:{owner_function}", "command": command, owner_function: native}
 
 
+def _step_service_label(step: Mapping[str, Any]) -> str:
+    if step["action"] in {"coordinator-cycle", "c-b-materialize"}:
+        return COORDINATOR
+    if step["action"] in {"runner-process-once", "bundle-close"}:
+        return f"com.pantheon.agy-gemini-{step['lane']}"
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _step_child_command(rendered: Mapping[str, Any], step: Mapping[str, Any]) -> list[str]:
+    manifest = rendered["manifest"]
+    by_lane = {item["lane"]: item for item in rendered["bindings"]}
+    cb_by_target = {item["target_run_id"]: item for item in rendered["session_plan"]["c_b_materializations"]}
+    if step["action"] == "coordinator-cycle":
+        return _coordinator_command(manifest, list(step["run_ids"]))
+    if step["action"] == "runner-process-once":
+        return _runner_command(manifest, by_lane[step["lane"]])
+    if step["action"] == "c-b-materialize":
+        return _materializer_command(manifest, step, cb_by_target[step["target_run_id"]])
+    if step["action"] == "bundle-close":
+        binding = by_lane[step["lane"]]
+        return [*_runner_command(manifest, binding)[:-5], "sealed-replay-bundle-close", "--bundle", str(binding["bundle"]), "--expected-bundle-digest", str(binding["bundle_digest"])]
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _step_plist(rendered: Mapping[str, Any], step_index: int, label: str, command: list[str]) -> Path:
+    manifest = rendered["manifest"]
+    generation = str(rendered["session_plan"]["generation"])
+    root = Path(rendered["acceptance_root"]) / "plists" / generation / "steps"
+    try:
+        root.mkdir(mode=0o700, exist_ok=False)
+        _descendant(root, Path(rendered["acceptance_root"]), "step plist root")
+    except Exception as error:
+        raise AcceptanceBlocked("step plist root is unsafe") from error
+    path = root / f"{step_index:02d}-{label}.plist"
+    _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(str(manifest.get("python_executable") or os.sys.executable), manifest, label, Path(rendered["barrier"]), Path(rendered["ready_root"]), False), "--", *command], "EnvironmentVariables": _env(manifest, label, Path(rendered["barrier"])), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(path.with_suffix(".stdout.json")), "StandardErrorPath": str(path.with_suffix(".stderr.log"))})
+    runtime.plist_receipt(path, expected_activation_mode="normal")
+    _fsync_directory(root)
+    return path
+
+
+def _step_stdout_receipt(path: Path, *, owner: str, command: list[str], key: str, label: str, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+    deadline = monotonic() + STEP_STDOUT_TIMEOUT_SECONDS
+    last_error: Exception | None = None
+    while True:
+        try:
+            native = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(native, dict) and native.get("status") != "rejected":
+                break
+            last_error = AcceptanceBlocked(f"{label} owner stdout read-back differs")
+        except (OSError, json.JSONDecodeError) as error:
+            last_error = error
+        if monotonic() >= deadline:
+            raise AcceptanceBlocked(f"{label} owner stdout read-back timeout") from last_error
+        sleep(0.01)
+    return {"owner": owner, "command": command, key: native}
+
+
+def _readback_owner_receipt(rendered: Mapping[str, Any], step: Mapping[str, Any], stdout_path: Path, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+    manifest = rendered["manifest"]
+    by_lane = {item["lane"]: item for item in rendered["bindings"]}
+    cb_by_target = {item["target_run_id"]: item for item in rendered["session_plan"]["c_b_materializations"]}
+    action = step["action"]
+    if action == "coordinator-cycle":
+        return _expect_coordinator_receipt(_step_stdout_receipt(stdout_path, owner="scripts.agy_gemini_coordinator:cycle_once", command=_coordinator_command(manifest, list(step["run_ids"])), key="cycle_once", label="coordinator", monotonic=monotonic, sleep=sleep), step, manifest)
+    if action == "runner-process-once":
+        binding = by_lane[step["lane"]]
+        return _expect_runner_receipt(_step_stdout_receipt(stdout_path, owner="scripts.agy_gemini_runner:sealed_replay_bundle_process_once", command=_runner_command(manifest, binding), key="sealed_replay_bundle_process_once", label="runner", monotonic=monotonic, sleep=sleep), step, manifest, binding)
+    if action == "c-b-materialize":
+        pins = cb_by_target[step["target_run_id"]]
+        return _expect_materialization_receipt(_step_stdout_receipt(stdout_path, owner="scripts.agy_gemini_coordinator:materialize_translation_pending_dependency", command=_materializer_command(manifest, step, pins), key="materialize_translation_pending_dependency", label="c-b materialization", monotonic=monotonic, sleep=sleep), step, manifest, pins)
+    if action == "bundle-close":
+        binding = by_lane[step["lane"]]
+        return _expect_bundle_close_receipt(_step_stdout_receipt(stdout_path, owner="scripts.agy_gemini_runner:sealed_replay_bundle_close", command=_step_child_command(rendered, step), key="sealed_replay_bundle_close", label="bundle closeout", monotonic=monotonic, sleep=sleep), step, manifest, binding)
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _launchd_step_readback(rendered: Mapping[str, Any], step_index: int, step: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+    label, command = _step_service_label(step), _step_child_command(rendered, step)
+    path = _step_plist(rendered, step_index, label, command)
+    launched = False
+    bootout: dict[str, Any] | None = None
+    try:
+        _launchctl_print_absent(label, "step-preflight-print", path, rendered["manifest"])
+        launch = _launchctl_launch(label, path, rendered["manifest"])
+        launched = True
+        receipt = _readback_owner_receipt(rendered, step, path.with_suffix(".stdout.json"), monotonic, sleep)
+        bootout = _expect(_launchctl_bootout(label, path, rendered["manifest"]), _bootout_expectation(label, path, rendered["manifest"]), "step bootout")
+        launched = False
+        _launchctl_print_absent(label, "step-final-print", path, rendered["manifest"])
+        receipt["launchd_invocation"] = {"service_label": label, "plist_path": str(path), "plist_digest": _sha(path), "launch": launch, "bootout": bootout}
+        return receipt
+    finally:
+        if launched:
+            with suppress(Exception):
+                _launchctl_bootout(label, path, rendered["manifest"])
+                _launchctl_print_absent(label, "step-final-print", path, rendered["manifest"])
+        with suppress(FileNotFoundError):
+            path.unlink()
+        with suppress(FileNotFoundError):
+            path.with_suffix(".stdout.json").unlink()
+        with suppress(FileNotFoundError):
+            path.with_suffix(".stderr.log").unlink()
+        with suppress(OSError):
+            path.parent.rmdir()
+
+
+def _read_back_schedule(rendered: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None]) -> list[dict[str, Any]]:
+    receipts: list[dict[str, Any]] = []
+    for index, step in enumerate(rendered["session_plan"]["phase_schedule"]):
+        _revalidate_rendered_plan(rendered)
+        if step["action"] == "publisher-plan-only":
+            receipts.append(_expect_publisher_receipt(_publisher_owner_receipt(rendered, step), step, rendered["manifest"]))
+        elif step["action"] == "queue-drain":
+            receipts.append(_queue_drain_readback(rendered))
+        else:
+            receipts.append(_launchd_step_readback(rendered, index, step, monotonic, sleep))
+    return receipts
+
+
 def _execute_schedule(
     rendered: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -1330,7 +1458,7 @@ def run_once(
             if _launch_side_effect_proven(launch_receipt, path.stem, path, rendered["manifest"]):
                 launched.append(path.stem)
             launch_receipts.append(_expect(launch_receipt, _launch_expectation(path.stem, path, rendered["manifest"]), "launchctl bootstrap"))
-        deadline=monotonic()+1
+        deadline=monotonic()+READINESS_TIMEOUT_SECONDS
         while any(not (ready/f"{label}.json").is_file() for label in SERVICE_LABELS):
             if monotonic()>=deadline: raise AcceptanceBlocked("readiness timeout")
             sleep(0.01)
@@ -1338,8 +1466,12 @@ def run_once(
             raise AcceptanceBlocked("readiness acknowledgement set differs")
         _revalidate_rendered_plan(rendered)
         activation=runtime.activate_barrier(barrier,ready,dict(rendered["manifest"]))
-        workload_receipts = _execute_schedule(rendered)
-        result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(launched),"bootouts":[],"final_prints":[]}
+        baseline_bootouts: list[dict[str, Any]] = []
+        for label in list(reversed(launched)):
+            baseline_bootouts.append(_expect(_launchctl_bootout(label, plist_by_label[label], rendered["manifest"]), _bootout_expectation(label, plist_by_label[label], rendered["manifest"]), "bootout"))
+            launched.remove(label)
+        workload_receipts = _read_back_schedule(rendered, monotonic, sleep)
+        result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(SERVICE_LABELS),"bootouts":baseline_bootouts,"final_prints":[]}
     except Exception as error: primary=error
     for label in reversed(launched):
         try:
@@ -1388,7 +1520,7 @@ def run_once(
         raise primary
     if teardown:
         raise AcceptanceBlocked("acceptance bootout proof failed: " + ",".join(teardown))
-    if len(launched)!=7 or not result or len(result["bootouts"])!=7 or len(result["final_prints"])!=7 or unknown or before!=after or evidence.exists():
+    if not result or len(result["launched"])!=7 or len(result["bootouts"])!=7 or len(result["final_prints"])!=7 or unknown or before!=after or evidence.exists():
         raise AcceptanceBlocked("acceptance teardown or fingerprint proof failed")
     _revalidate_rendered_plan(rendered)
     receipt={**result,"session_id":plan["session_id"],"session_nonce_digest":plan["session_nonce_digest"],"session_plan_path":str(rendered["session_plan_path"]),"session_plan_digest":plan_digest,"actor_sha":plan["actor_sha"],"exact_runs":plan["exact_runs"],"publisher_activation_run_id":plan["publisher_activation_run_id"],"publisher_plan_only":plan["publisher_plan_only"],"service_labels":list(SERVICE_LABELS),"before_fingerprint":before,"after_fingerprint":after,"production_root_identities":before["root_identities"],"production_root_identities_digest":before["root_identities_digest"],"teardown_terminal":True,"residue_free":True,"manifest_digest":rendered["manifest"]["manifest_digest"],"generation":rendered["manifest"]["generation"],"runtime_identity_digest":rendered["manifest"]["runtime_identity_digest"]}

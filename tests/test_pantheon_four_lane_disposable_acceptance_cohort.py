@@ -592,8 +592,7 @@ def _raw_process_for(
         item["target_run_id"]: item
         for item in rendered["session_plan"]["c_b_materializations"]
     }
-    plist_by_label = {path.stem: path for path in rendered["plist_paths"]}
-    loaded: set[str] = set()
+    loaded: dict[str, Path] = {}
     issued_entries: dict[str, int] = {lane: 0 for lane in by_lane}
 
     schema = {
@@ -665,27 +664,50 @@ def _raw_process_for(
                 completed = subprocess.CompletedProcess(command, 0, f"{label}\n", "")
             return maybe("launchctl-print", command, completed)
         if command[:2] == [cohort.LAUNCHCTL, "bootstrap"]:
-            label = Path(command[-1]).stem
+            plist_path = Path(command[-1])
+            label = plistlib.loads(plist_path.read_bytes())["Label"]
             overridden = override and override("launchctl-bootstrap", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            loaded.add(label)
+            loaded[label] = plist_path
             return _completed(command, 0)
         if command[:2] == [cohort.LAUNCHCTL, "kickstart"]:
             label = command[-1].rsplit("/", 1)[-1]
             overridden = override and override("launchctl-kickstart", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            runtime_manifest.write_readiness_ack(
-                Path(rendered["ready_root"]), dict(rendered["manifest"]), label
-            )
+            plist_path = loaded.get(label)
+            if plist_path is not None and plist_path.parent.name == "steps":
+                payload = plistlib.loads(plist_path.read_bytes())
+                arguments = payload["ProgramArguments"]
+                child = arguments[arguments.index("--") + 1 :]
+                previous = os.environ.copy()
+                os.environ.update(payload["EnvironmentVariables"])
+                os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(rendered["barrier"])
+                try:
+                    child_completed = transport(child)
+                    Path(payload["StandardOutPath"]).write_text(
+                        child_completed.stdout,
+                        encoding="utf-8",
+                    )
+                    Path(payload["StandardErrorPath"]).write_text(
+                        child_completed.stderr,
+                        encoding="utf-8",
+                    )
+                finally:
+                    os.environ.clear()
+                    os.environ.update(previous)
+            else:
+                runtime_manifest.write_readiness_ack(
+                    Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+                )
             return _completed(command, 0)
         if command[:2] == [cohort.LAUNCHCTL, "bootout"]:
             label = command[-1].rsplit("/", 1)[-1]
             overridden = override and override("launchctl-bootout", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            loaded.discard(label)
+            loaded.pop(label, None)
             return _completed(command, 0)
         if "-m" in command and "scripts.agy_gemini_runner" in command:
             lane = command[command.index("--lane") + 1]
@@ -867,6 +889,7 @@ def _run(
     *,
     override: Callable[[str, list[str], subprocess.CompletedProcess[str]], subprocess.CompletedProcess[str] | None] | None = None,
     monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     publisher_patches = _patch_publisher_plan_only(rendered)
     with patch.object(
@@ -874,7 +897,7 @@ def _run(
         "_run_process",
         side_effect=_raw_process_for(rendered, override=override),
     ), publisher_patches[0], publisher_patches[1], publisher_patches[2], publisher_patches[3], publisher_patches[4], publisher_patches[5], publisher_patches[6], publisher_patches[7], publisher_patches[8], publisher_patches[9]:
-        return cohort.run_once(rendered, monotonic=monotonic)
+        return cohort.run_once(rendered, monotonic=monotonic, sleep=sleep)
 
 
 def _legacy_callbacks_for_forged_red(rendered: Mapping[str, Any]) -> dict[str, Any]:
@@ -1270,7 +1293,7 @@ def test_partial_readiness_consumes_generation_and_blocks_retry(
         _run(
             rendered,
             override=no_ack_for_non_control_services,
-            monotonic=iter((0.0, 2.0)).__next__,
+            monotonic=iter((0.0, 8.0)).__next__,
         )
     with pytest.raises(cohort.AcceptanceBlocked, match="residue|C-B external pins"):
         cohort.render_plists(
@@ -1498,6 +1521,29 @@ def test_production_service_state_derives_from_plists_not_caller_env_or_self_dig
     assert state["registry"]["digest"] != "0" * 64
 
 
+def test_production_launch_agents_home_uses_os_uid_record_not_home_env() -> None:
+    script = (
+        "import json, os, pwd; "
+        "from pathlib import Path; "
+        "os.environ['HOME'] = '/tmp/forged-pantheon-home'; "
+        "from scripts import pantheon_four_lane_disposable_acceptance_cohort as cohort; "
+        "expected = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / 'Library' / 'LaunchAgents'; "
+        "print(json.dumps({'actual': str(cohort.PRODUCTION_LAUNCH_PLIST_ROOT), 'expected': str(expected)}))"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path.cwd(),
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["actual"] == payload["expected"]
+
+
 def test_positive_run_uses_real_publisher_owner_functions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1520,6 +1566,162 @@ def test_positive_run_uses_real_publisher_owner_functions(
     assert new_spy.call_count == 1
     assert rewrite_spy.call_count == 1
     assert translation_spy.call_count == 2
+
+
+def test_run_once_uses_launchd_child_schedule_without_controller_second_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    step_plists: list[Path] = []
+    owner_calls: list[str] = []
+
+    def record_launchd_owned_step(
+        name: str,
+        command: list[str],
+        _completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            step_plists.append(Path(command[-1]))
+        if name in {"coordinator", "runner", "materialize", "bundle-close"}:
+            owner_calls.append(name)
+        return None
+
+    result = _run(rendered, override=record_launchd_owned_step)
+
+    expected_steps = [
+        step
+        for step in rendered["session_plan"]["phase_schedule"]
+        if step["action"] in {"coordinator-cycle", "runner-process-once", "c-b-materialize", "bundle-close"}
+    ]
+    assert result["status"] == "PASS"
+    assert len(step_plists) == len(expected_steps)
+    assert len(owner_calls) == len(expected_steps)
+    assert all(
+        Path(item["launchd_invocation"]["plist_path"]).parent.name == "steps"
+        for item in result["workload_receipts"]
+        if item.get("action") in {"coordinator-cycle", "runner-process-once", "c-b-materialize", "bundle-close"}
+    )
+
+
+def test_run_once_waits_for_asynchronous_step_stdout_before_readback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    child_transport = _raw_process_for(rendered)
+    delayed: list[Path] = []
+    released = False
+
+    def delay_first_step_stdout(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            delayed.append(Path(command[-1]))
+            return None
+        if (
+            name == "launchctl-kickstart"
+            and delayed
+            and Path(command[-1]).name == cohort.COORDINATOR
+            and not released
+        ):
+            return completed
+        return None
+
+    def release_delayed_stdout(_seconds: float) -> None:
+        nonlocal released
+        if released or not delayed:
+            return
+        released = True
+        path = delayed[-1]
+        payload = plistlib.loads(path.read_bytes())
+        child = payload["ProgramArguments"][payload["ProgramArguments"].index("--") + 1 :]
+        previous = os.environ.copy()
+        os.environ.update(payload["EnvironmentVariables"])
+        os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(rendered["barrier"])
+        try:
+            completed = child_transport(child)
+            Path(payload["StandardOutPath"]).write_text(completed.stdout, encoding="utf-8")
+            Path(payload["StandardErrorPath"]).write_text(completed.stderr, encoding="utf-8")
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+
+    result = _run(
+        rendered,
+        override=delay_first_step_stdout,
+        monotonic=lambda: 0.0,
+        sleep=release_delayed_stdout,
+    )
+
+    assert result["status"] == "PASS"
+
+
+def test_run_once_times_out_when_step_stdout_never_becomes_complete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    first_step_label: str | None = None
+
+    def suppress_first_step_stdout(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal first_step_label
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            first_step_label = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
+            return None
+        if (
+            first_step_label is not None
+            and name == "launchctl-kickstart"
+            and command[-1].rsplit("/", 1)[-1] == first_step_label
+        ):
+            return completed
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="stdout"):
+        _run(
+            rendered,
+            override=suppress_first_step_stdout,
+            monotonic=iter((0.0, 0.0, 8.0)).__next__,
+            sleep=lambda _seconds: None,
+        )
+
+
+def test_run_once_rejects_preexisting_step_symlink_before_step_launchctl_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    external = tmp_path / "external-step-plists"
+    external.mkdir(mode=0o700)
+    sentinel = external / "sentinel.txt"
+    sentinel.write_text("unchanged", encoding="utf-8")
+    steps = (
+        Path(rendered["acceptance_root"])
+        / "plists"
+        / rendered["session_plan"]["generation"]
+        / "steps"
+    )
+    steps.symlink_to(external, target_is_directory=True)
+    step_bootstraps: list[list[str]] = []
+
+    def record_step_bootstrap(
+        name: str,
+        command: list[str],
+        _completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            step_bootstraps.append(command)
+        return None
+
+    before = sorted(path.name for path in external.iterdir())
+    with pytest.raises(cohort.AcceptanceBlocked, match="step plist"):
+        _run(rendered, override=record_step_bootstrap)
+
+    assert step_bootstraps == []
+    assert sorted(path.name for path in external.iterdir()) == before
+    assert sentinel.read_text(encoding="utf-8") == "unchanged"
 
 
 def test_coordinator_terminal_stdout_without_run_state_readback_rejects(

@@ -1,0 +1,94 @@
+C-C/T Single Workload Owner Architecture Root raw evidence
+Status: CANDIDATE_READY_FOR_INDEPENDENT_REVIEW
+Internal read-only pre-freeze review: GO. This is a Mainline internal read-only pre-freeze judgment, not external C-C_T_REVIEW_GO.
+LOCAL_ONLY_WORKTREE_PATH: /private/tmp/pantheon-cct-single-owner-20260901.wFYyq6/worktree
+LOCAL_ONLY_EXECUTION_PATH: /Users/mattkuo/Documents/Pantheon/.venv/bin/python
+Portable command prefix: <repo-root>/.venv/bin/python
+
+Baseline focused before architecture-root changes:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+...........................                                              [100%]
+27 passed in 10.58s
+
+Initial S1/S2 RED after adding tests:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launch_agents_home_uses_os_uid_record_not_home_env tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_uses_launchd_child_schedule_without_controller_second_owner -q
+OUTPUT:
+FF                                                                       [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launch_agents_home_uses_os_uid_record_not_home_env
+AssertionError: assert '/tmp/forged-pantheon-home/Library/LaunchAgents' == '/Users/mattkuo/Library/LaunchAgents'
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_uses_launchd_child_schedule_without_controller_second_owner
+AssertionError: controller invoked coordinator after launchd child
+
+Mainline re-review RED after adding async stdout/symlink tests:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_waits_for_asynchronous_step_stdout_before_readback tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_times_out_when_step_stdout_never_becomes_complete tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_step_symlink_before_step_launchctl_mutation -q
+OUTPUT:
+FFF                                                                      [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_waits_for_asynchronous_step_stdout_before_readback
+AcceptanceBlocked: coordinator owner stdout read-back differs
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_times_out_when_step_stdout_never_becomes_complete
+Actual message before GREEN: readiness timeout / missing step stdout not yet bounded at step read-back
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_step_symlink_before_step_launchctl_mutation
+Actual message before GREEN: acceptance failed after plist canonical realpath or owner mismatch: teardown residue: plists
+
+Mainline re-review GREEN:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_waits_for_asynchronous_step_stdout_before_readback tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_times_out_when_step_stdout_never_becomes_complete tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_step_symlink_before_step_launchctl_mutation -q
+OUTPUT:
+...                                                                      [100%]
+3 passed in 2.17s
+
+Focused C-C/T:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+................................                                         [100%]
+32 passed in 11.90s
+
+Runtime/Runner affected:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py -q
+OUTPUT:
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 15.74s
+
+Coordinator targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_never_advances_unlisted_active_run tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_reject_duplicates_before_advancing tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_advances_one_run_per_content_lane tests/test_agy_gemini_coordinator.py::test_lane_mode_continues_oldest_registered_run_until_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_migrates_shared_pending_jobs_by_run_namespace -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.08s
+
+Compile and diff check:
+COMMAND:
+<repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py && git diff --check && git status --short
+OUTPUT:
+ M scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+ M tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+?? artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-SINGLE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md
+
+Final diff check after evidence update:
+COMMAND:
+git diff --check && git status --short && git diff --stat
+OUTPUT:
+ M scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+ M tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+?? artifacts/fortune_council/disposable_acceptance_cohort/C-C-T-SINGLE-OWNER-RESULT.md
+?? artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-SINGLE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md
+?? artifacts/fortune_council/disposable_acceptance_cohort/c-c-t-single-owner-raw-test-output.txt
+ ...theon_four_lane_disposable_acceptance_cohort.py | 148 +++++++++++++-
+ ...theon_four_lane_disposable_acceptance_cohort.py | 222 ++++++++++++++++++++-
+ 2 files changed, 352 insertions(+), 18 deletions(-)
+
+Known broad aggregate note:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py tests/test_agy_gemini_coordinator.py -q
+OUTPUT:
+Interrupted after 388.19s with 550 passed / 2 failed. Failures were allowlist-outside coordinator tests:
+- tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[candidate]
+- tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[lane_residue]
+These were not modified under this architecture-root card.
