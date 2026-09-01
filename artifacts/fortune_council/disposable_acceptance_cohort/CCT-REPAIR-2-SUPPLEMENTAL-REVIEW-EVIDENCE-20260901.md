@@ -1,6 +1,7 @@
 ---
 id: PANTHEON-C-C-T-REPAIR-2-SUPPLEMENTAL-REVIEW-EVIDENCE
-status: SUPPLEMENTAL_EVIDENCE_ONLY
+status: RELEASE_TO_EXTERNAL_REVIEW
+receipt_role: SUPPLEMENTAL_EVIDENCE_ONLY
 date: 2026-09-01
 ---
 
@@ -13,6 +14,14 @@ date: 2026-09-01
 - Code review range：`b5d934dda7d32343fbf62ceff7f35869d9a20745..4e68b28ed031bddafa898905880c68982944730b`
 - 本文件是 `4e68b28...` 的 supplemental evidence child，不是 code candidate、Repair-3或 `C-C_T_REVIEW_GO`。
 - 本文件不改 C-C/T source、tests或 candidate branch，也不增加／重置 Repair 額度；Repair budget維持 `2/2`。
+
+## Review conclusion
+
+```text
+RELEASE_TO_EXTERNAL_REVIEW
+```
+
+此結論只表示`4e68b28...`可送Final Independent Targeted Re-review，不等於`C-C_T_REVIEW_GO`，也不授權Gate D/E或任何production mutation。
 
 ## F-1：34 → 27 test migration
 
@@ -43,7 +52,7 @@ Repair-2新增的4個 provenance regressions：
 
 因此test count下降代表受測public callback interface被刪除並以private raw transport／authoritative read-back測試取代，不是coverage靜默下降。
 
-## F-2：launchctl authorization fuse
+## F-2：`LAUNCHCTL_HARD_DISABLE_FUSE`
 
 `scripts/pantheon_four_lane_disposable_acceptance_cohort.py::_run_process()` 對任何以 `/bin/launchctl` 開頭的command固定回傳return code `78`，不會呼叫`subprocess.run()`。
 
@@ -55,6 +64,11 @@ Repair-2新增的4個 provenance regressions：
 - activation-unlock不是Repair-3；只能改變launchctl允許條件，不得夾帶C-C/T邏輯修補。
 - 後續worker不得把return code `78`短路當作bug順手刪除。
 - 若治理契約改為要求`C-C_T_REVIEW_GO`的exact actor必須不改code即可執行Gate D/E，則目前狀態應回`BLOCKED_C_C_LAUNCHCTL_AUTHORIZATION_SEAM_REQUIRED`交Owner裁決，不得默示解除。
+
+External reviewer必須保留以下條件式語意，不得自行假定：
+
+- 若`C-C_T_REVIEW_GO`只代表C-C/T bounded implementation通過，而Gate D/E另有activation-unlock authorization slice，則`LAUNCHCTL_HARD_DISABLE_FUSE`是本輪非阻塞安全邊界。
+- 若`C-C_T_REVIEW_GO`要求同一exact reviewed actor不改code即可直接執行Gate D/E，則`4e68b28...`不是最終executable actor，必須回`BLOCKED_C_C_LAUNCHCTL_AUTHORIZATION_SEAM_REQUIRED`交Owner裁決。
 
 本輪未執行真實launchctl、provider、production/public mutation、Gate D/E、tag、deploy或merge。
 
@@ -83,4 +97,12 @@ Final Independent Targeted Re-review必須由reviewer自行：
 6. 執行`py_compile`、`git diff --check`與`git status --short`；
 7. 不得只採信committed RESULT／raw evidence。
 
-只有真正external targeted re-review無P0/P1時，才能輸出`C-C_T_REVIEW_GO`。若再出現任何P0/P1，狀態為`BLOCKED_REVIEW_REPAIR_LIMIT`，停止且不得建立Repair-3。
+Reviewer receipt必須分開標記：
+
+- `personally executed evidence`
+- `committed candidate evidence`
+- `historical Repair-1 evidence`
+
+後兩者不得冒充personally executed evidence。
+
+Repair budget為`2/2 EXHAUSTED`。只有真正external targeted re-review無P0/P1時，才能輸出`C-C_T_REVIEW_GO`。若再出現任何P0/P1，狀態為`BLOCKED_REVIEW_REPAIR_LIMIT`，停止且不得建立Repair-3；不得以finding改名、降級或在evidence child偷改source來重置額度。
