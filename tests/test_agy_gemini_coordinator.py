@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,12 @@ from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
+from tests.test_agy_seo_copy_pipeline import (
+    make_deterministic_green_create_article,
+    make_external_create_article,
+    make_rewrite_publication_policy,
+    make_rewrite_sections,
+)
 
 
 def _article_brief_v2(run_id: str, article_id: str) -> dict[str, object]:
@@ -13045,3 +13052,513 @@ def test_installer_pool_opt_out_preserves_compatibility_without_pool_requirement
         assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in variables
         assert "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE" not in variables
         assert variables["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"] == "300"
+
+
+def test_materializer_cli_requires_exact_external_pins(monkeypatch: pytest.MonkeyPatch) -> None:
+    digest = "a" * 64
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "coordinator", "materialize-translation-pending", "--source-run-id", "source-001",
+            "--pending-receipt", "/tmp/pending.json", "--expected-target-run-id", "target-001",
+            "--expected-pending-digest", digest, "--expected-plan-digest", digest,
+        ],
+    )
+    args = coordinator.parse_args()
+    assert args.expected_target_run_id == "target-001"
+    assert args.expected_pending_digest == digest
+    assert args.expected_plan_digest == digest
+
+
+def test_materializer_cli_dispatches_external_pins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    repo_root.mkdir()
+    queue_root.mkdir()
+    pending = tmp_path / "pending.json"
+    digest = "b" * 64
+    calls: list[dict[str, object]] = []
+
+    def materialize(*_args: object, **kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"status": "materialized", "run_id": "target-001"}
+
+    monkeypatch.setattr(coordinator, "materialize_translation_pending_dependency", materialize)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "coordinator", "--repo-root", str(repo_root), "--queue-root", str(queue_root),
+            "materialize-translation-pending", "--source-run-id", "source-001",
+            "--pending-receipt", str(pending), "--expected-target-run-id", "target-001",
+            "--expected-pending-digest", digest, "--expected-plan-digest", digest,
+        ],
+    )
+
+    assert coordinator.main() == 0
+    assert calls == [{
+        "source_run_id": "source-001", "pending_receipt": pending,
+        "expected_target_run_id": "target-001", "expected_pending_digest": digest,
+        "expected_plan_digest": digest,
+    }]
+    assert json.loads(capsys.readouterr().out) == {"run_id": "target-001", "status": "materialized"}
+
+def _cb_terminal_source_pending(
+    tmp_path: Path,
+    lane: str = "new",
+) -> tuple[dict[str, object], Path, dict[str, object], Path]:
+    """建立 adapter receipt 後，以既有 source contract 模擬 exact terminal run。"""
+    kwargs = _apf_004_kwargs(tmp_path)
+    applied = coordinator.create_campaign_run_adapter(**kwargs, plan_only=False)
+    source = next(item for item in applied["runs"] if item["lane"] == lane)
+    source_run_id = str(source["run_id"])
+    run_dir = Path(str(source["run_dir"]))
+    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    if lane == "new":
+        generated = make_deterministic_green_create_article()
+        generated["primaryKeyword"] = brief["articles"][0]["target"]["primaryKeyword"]
+        generated["title"] = f"{generated['primaryKeyword']}是什麼？用情境理解限制與選擇"
+        generated["bodySections"][0]["paragraphs"][0] = _long_paragraph(
+            f"{generated['primaryKeyword']}先核對情境與限制，再決定下一步。"
+        )
+        candidate = pipeline.hydrate_candidate(
+            brief,
+            {"articles": [make_external_create_article(generated)]},
+        )
+    else:
+        source_article = brief["articles"][0]
+        sections = make_rewrite_sections()
+        sections[0]["paragraphs"][0] = _long_paragraph(
+            f"{source_article['identity']['primaryKeyword']}先核對情境與限制，再決定下一步。"
+        )
+        candidate = pipeline.hydrate_candidate(
+            brief,
+            {
+                "articles": [{
+                    "slot": "article-01",
+                    "bodySections": sections,
+                    "publicationPolicy": make_rewrite_publication_policy(source_article),
+                }]
+            },
+        )
+    pipeline.validate_candidate(candidate)
+    review = _clean_review(brief, candidate)
+    coordinator.atomic_write_json(run_dir / "candidate.json", candidate)
+    coordinator.atomic_write_json(run_dir / "review.json", review)
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    state_path = coordinator._state_path(source_run_id, queue_root)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(
+        {
+            "status": "complete",
+            "result": {
+                "status": "complete",
+                "run_id": source_run_id,
+                "candidate_sha256": coordinator.editorial_contracts.artifact_sha256(candidate),
+                "review_sha256": coordinator.editorial_contracts.artifact_sha256(review),
+            },
+        }
+    )
+    coordinator.atomic_write_json(state_path, state)
+    pending = next(
+        path
+        for path in (queue_root / "translation-pending-dependencies").glob("*.json")
+        if json.loads(path.read_text(encoding="utf-8"))["depends_on"] == [source_run_id]
+    )
+    return kwargs, pending, state, run_dir
+
+
+@pytest.mark.parametrize("lane", ["new", "rewrite"])
+def test_materializer_external_pins_proof_graph_and_idempotent_replay(
+    tmp_path: Path, lane: str
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path, lane=lane)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    first = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), Path(str(kwargs["queue_root"])),
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    second = coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), Path(str(kwargs["queue_root"])),
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    for result in (first, second):
+        assert result["run_id"] == receipt["run_id"]
+        assert result["source_run_id"] == receipt["depends_on"][0]
+        assert result["plan_digest"] == receipt["plan_digest"]
+        assert len(str(result["brief_sha256"])) == 64
+        assert len(str(result["registration_identity_digest"])) == 64
+    assert first["status"] == "materialized"
+    assert second["status"] == "already_materialized"
+
+
+def test_materialized_replay_rejects_tampered_proof_graph_without_writes(tmp_path: Path) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    terminal = json.loads(pending.read_text(encoding="utf-8"))
+    terminal["materialized"]["registration_identity_digest"] = "0" * 64
+    coordinator.atomic_write_json(pending, terminal)
+    before_pending = pending.read_bytes()
+    state_path = coordinator._state_path(str(receipt["run_id"]), queue_root)
+    before_state = state_path.read_bytes()
+    with pytest.raises(ValueError, match="terminal digest|materialized registration drift"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert pending.read_bytes() == before_pending
+    assert state_path.read_bytes() == before_state
+
+
+def test_materialized_replay_rejects_tampered_pending_digest_after_without_writes(
+    tmp_path: Path,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    terminal = json.loads(pending.read_text(encoding="utf-8"))
+    terminal["materialized"]["pending_digest_after"] = "0" * 64
+    coordinator.atomic_write_json(pending, terminal)
+    before_pending = pending.read_bytes()
+    state_path = coordinator._state_path(str(receipt["run_id"]), queue_root)
+    before_state = state_path.read_bytes()
+    with pytest.raises(ValueError, match="terminal digest"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert pending.read_bytes() == before_pending
+    assert state_path.read_bytes() == before_state
+
+
+def test_materialized_replay_rejects_rebuilt_nonrouting_pending_body_without_writes(
+    tmp_path: Path,
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    terminal = json.loads(pending.read_text(encoding="utf-8"))
+    terminal["work_id"] = "tampered-nonrouting-work"
+    reconstructed = {key: value for key, value in terminal.items() if key != "materialized"}
+    reconstructed["status"] = "pending_source_completion"
+    reconstructed["payload_digest"] = coordinator._create_run_adapter_digest(
+        {key: value for key, value in reconstructed.items() if key != "payload_digest"}
+    )
+    terminal["payload_digest"] = reconstructed["payload_digest"]
+    proof = {
+        key: value
+        for key, value in terminal["materialized"].items()
+        if key != "pending_digest_after"
+    }
+    terminal["materialized"]["pending_digest_after"] = coordinator._create_run_adapter_digest({
+        **reconstructed,
+        "status": "materialized",
+        "materialized": proof,
+    })
+    coordinator.atomic_write_json(pending, terminal)
+    before_pending = pending.read_bytes()
+    state_path = coordinator._state_path(str(receipt["run_id"]), queue_root)
+    before_state = state_path.read_bytes()
+    with pytest.raises(ValueError, match="pre-terminal digest"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert pending.read_bytes() == before_pending
+    assert state_path.read_bytes() == before_state
+
+
+def test_materializer_revalidates_selector_identity_under_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    before_pending = pending.read_bytes()
+    replacement = pending.with_name("replacement.json")
+    replacement.write_bytes(before_pending)
+    replacement.chmod(0o600)
+    original_lock = coordinator._run_identity_lock
+
+    @contextmanager
+    def replace_before_locked_read(*args: object, **call_kwargs: object) -> object:
+        with original_lock(*args, **call_kwargs):
+            os.replace(replacement, pending)
+            yield
+
+    monkeypatch.setattr(coordinator, "_run_identity_lock", replace_before_locked_read)
+    with pytest.raises(ValueError, match="selector identity changed"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert pending.read_bytes() == before_pending
+    assert not (queue_root / "translation-runs" / str(receipt["run_id"])).exists()
+
+
+@pytest.mark.parametrize("pin", ["expected_target_run_id", "expected_pending_digest", "expected_plan_digest"])
+def test_materializer_external_pin_mismatch_rejects_before_translation_write(
+    tmp_path: Path, pin: str
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    pins[pin] = "wrong" if pin == "expected_target_run_id" else "0" * 64
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    with pytest.raises(ValueError, match="external pin"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert not (queue_root / "translation-runs" / str(receipt["run_id"])).exists()
+
+
+@pytest.mark.parametrize("mutation", ["relative", "alias", "symlink", "nonowner", "unsafe_mode"])
+def test_materializer_selector_rejects_unsafe_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    parent = tmp_path / "pending"
+    parent.mkdir(mode=0o700)
+    receipt = parent / "receipt.json"
+    receipt.write_text("{}", encoding="utf-8")
+    receipt.chmod(0o600)
+    selected: Path = receipt
+    if mutation == "relative":
+        selected = Path("receipt.json")
+    elif mutation == "alias":
+        selected = parent / "unused" / ".." / "receipt.json"
+    elif mutation == "symlink":
+        selected = parent / "alias.json"
+        selected.symlink_to(receipt)
+    elif mutation == "nonowner":
+        monkeypatch.setattr(coordinator.os, "getuid", lambda: receipt.stat().st_uid + 1)
+    else:
+        receipt.chmod(0o666)
+    with pytest.raises(ValueError, match="selector"):
+        coordinator._translation_pending_selector(selected)
+
+
+def test_materializer_detects_normalized_source_drift_during_enqueue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kwargs, pending, state, run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    original = coordinator.multilingual.enqueue_article_translations
+
+    def mutate_source(*args: object, **call_kwargs: object) -> list[dict[str, str]]:
+        records = original(*args, **call_kwargs)
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        # 保持 candidate policy 合法，僅改變會進入 multilingual source 的內容，
+        # 讓最後一次 source snapshot CAS 而非前置 policy gate 抓到漂移。
+        candidate["articles"][0]["answer"] += " 已在 enqueue 後漂移。"
+        coordinator.atomic_write_json(run_dir / "candidate.json", candidate)
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        review["articles"][0]["candidate_sha256"] = pipeline.article_sha256(candidate["articles"][0])
+        coordinator.atomic_write_json(run_dir / "review.json", review)
+        state["result"]["candidate_sha256"] = coordinator.editorial_contracts.artifact_sha256(candidate)
+        state["result"]["review_sha256"] = coordinator.editorial_contracts.artifact_sha256(review)
+        coordinator.atomic_write_json(
+            coordinator._state_path(str(receipt["depends_on"][0]), queue_root), state
+        )
+        return records
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", mutate_source)
+    with pytest.raises(ValueError, match="source CAS"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+
+
+@pytest.mark.parametrize("mutation", ["run_dir", "lane", "brief", "envelope"])
+def test_materialized_replay_revalidates_target_registration(
+    tmp_path: Path, mutation: str
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    state_path = coordinator._state_path(str(receipt["run_id"]), queue_root)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    run_dir = queue_root / "translation-runs" / str(receipt["run_id"])
+    if mutation == "run_dir":
+        state["run_dir"] = "/tmp/wrong-run-dir"
+        coordinator.atomic_write_json(state_path, state)
+    elif mutation == "lane":
+        state["lane"] = "i18n-rewrite"
+        coordinator.atomic_write_json(state_path, state)
+    elif mutation == "envelope":
+        state["identity_envelope"] = {"drift": True}
+        coordinator.atomic_write_json(state_path, state)
+    else:
+        brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+        brief["run_id"] = "wrong-target"
+        coordinator.atomic_write_json(run_dir / "brief.json", brief)
+    with pytest.raises(ValueError):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+
+
+@pytest.mark.parametrize("mutation", ["state", "brief", "candidate", "review"])
+def test_materialized_replay_revalidates_source_authority(
+    tmp_path: Path, mutation: str
+) -> None:
+    kwargs, pending, state, run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )
+    if mutation == "state":
+        state["status"] = "active"
+        coordinator.atomic_write_json(coordinator._state_path(str(receipt["depends_on"][0]), queue_root), state)
+    elif mutation == "brief":
+        brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+        brief["run_id"] = "drift"
+        coordinator.atomic_write_json(run_dir / "brief.json", brief)
+    elif mutation == "candidate":
+        candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+        candidate["run_id"] = "drift"
+        coordinator.atomic_write_json(run_dir / "candidate.json", candidate)
+    else:
+        review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+        review["articles"][0]["hard_failure"] = True
+        coordinator.atomic_write_json(run_dir / "review.json", review)
+    with pytest.raises(ValueError):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+
+
+def test_materializer_enqueue_failure_keeps_pending_for_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    original = coordinator.multilingual.enqueue_article_translations
+    monkeypatch.setattr(
+        coordinator.multilingual, "enqueue_article_translations",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("injected enqueue failure")),
+    )
+    with pytest.raises(RuntimeError, match="injected enqueue failure"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", original)
+    assert coordinator.materialize_translation_pending_dependency(
+        Path(str(kwargs["repo_root"])), queue_root,
+        source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+    )["status"] == "materialized"
+
+
+def test_materializer_final_pending_cas_rejects_before_terminal_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kwargs, pending, _state, _run_dir = _cb_terminal_source_pending(tmp_path)
+    receipt = json.loads(pending.read_text(encoding="utf-8"))
+    pins = {
+        "expected_target_run_id": str(receipt["run_id"]),
+        "expected_pending_digest": coordinator._canonical_json_file_sha256(receipt),
+        "expected_plan_digest": str(receipt["plan_digest"]),
+    }
+    queue_root = Path(str(kwargs["queue_root"])).resolve()
+    original = coordinator.multilingual.enqueue_article_translations
+    tampered_receipts: list[bytes] = []
+
+    def tamper(*args: object, **call_kwargs: object) -> list[dict[str, str]]:
+        records = original(*args, **call_kwargs)
+        changed = {**receipt, "work_id": "tampered"}
+        changed["payload_digest"] = coordinator._create_run_adapter_digest(
+            {key: value for key, value in changed.items() if key != "payload_digest"}
+        )
+        coordinator.atomic_write_json(pending, changed)
+        tampered_receipts.append(pending.read_bytes())
+        return records
+
+    monkeypatch.setattr(coordinator.multilingual, "enqueue_article_translations", tamper)
+    with pytest.raises(ValueError, match="CAS|selector identity"):
+        coordinator.materialize_translation_pending_dependency(
+            Path(str(kwargs["repo_root"])), queue_root,
+            source_run_id=str(receipt["depends_on"][0]), pending_receipt=pending, **pins,
+        )
+    assert json.loads(pending.read_text(encoding="utf-8"))["status"] == "pending_source_completion"
+    assert tampered_receipts == [tampered_receipts[0]]
+    assert pending.read_bytes() == tampered_receipts[0]
+    assert coordinator._state_path(str(receipt["run_id"]), queue_root).exists()

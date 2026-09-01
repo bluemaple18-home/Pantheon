@@ -1,0 +1,67 @@
+C-B verification record
+
+Formal review repair for forensics/cb-review-no-go-71d3e8-20260901:
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_rebuilt_nonrouting_pending_body_without_writes
+Final exit: 0
+1 passed in 10.02s
+
+Untampered materialized replay confirmation:
+Command: <repo-root>/.venv/bin/python -m pytest -q 'tests/test_agy_gemini_coordinator.py::test_materializer_external_pins_proof_graph_and_idempotent_replay[new]' 'tests/test_agy_gemini_coordinator.py::test_materializer_external_pins_proof_graph_and_idempotent_replay[rewrite]'
+Final exit: 0
+2 passed in 20.06s
+
+Pre-freeze repair RED→GREEN nodes:
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_tampered_proof_graph_without_writes tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_tampered_pending_digest_after_without_writes
+Final exit: 0
+2 passed in 20.71s
+
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_materializer_revalidates_selector_identity_under_lock tests/test_agy_gemini_coordinator.py::test_materializer_final_pending_cas_rejects_before_terminal_replacement
+Final exit: 0
+2 passed in 20.75s
+
+Focused exact C-B node set:
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k 'materializer_external or materializer_selector or materializer_revalidates_selector_identity or materializer_detects_normalized_source_drift or materialized_replay or materializer_enqueue_failure or materializer_final_pending_cas'
+Exact selected node IDs:
+- tests/test_agy_gemini_coordinator.py::test_materializer_external_pins_proof_graph_and_idempotent_replay[new]
+- tests/test_agy_gemini_coordinator.py::test_materializer_external_pins_proof_graph_and_idempotent_replay[rewrite]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_tampered_proof_graph_without_writes
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_tampered_pending_digest_after_without_writes
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_rejects_rebuilt_nonrouting_pending_body_without_writes
+- tests/test_agy_gemini_coordinator.py::test_materializer_external_pin_mismatch_rejects_before_translation_write[expected_target_run_id]
+- tests/test_agy_gemini_coordinator.py::test_materializer_external_pin_mismatch_rejects_before_translation_write[expected_pending_digest]
+- tests/test_agy_gemini_coordinator.py::test_materializer_external_pin_mismatch_rejects_before_translation_write[expected_plan_digest]
+- tests/test_agy_gemini_coordinator.py::test_materializer_selector_rejects_unsafe_receipts[relative]
+- tests/test_agy_gemini_coordinator.py::test_materializer_selector_rejects_unsafe_receipts[alias]
+- tests/test_agy_gemini_coordinator.py::test_materializer_selector_rejects_unsafe_receipts[symlink]
+- tests/test_agy_gemini_coordinator.py::test_materializer_selector_rejects_unsafe_receipts[nonowner]
+- tests/test_agy_gemini_coordinator.py::test_materializer_selector_rejects_unsafe_receipts[unsafe_mode]
+- tests/test_agy_gemini_coordinator.py::test_materializer_revalidates_selector_identity_under_lock
+- tests/test_agy_gemini_coordinator.py::test_materializer_detects_normalized_source_drift_during_enqueue
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_target_registration[run_dir]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_target_registration[lane]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_target_registration[brief]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_target_registration[envelope]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_source_authority[state]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_source_authority[brief]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_source_authority[candidate]
+- tests/test_agy_gemini_coordinator.py::test_materialized_replay_revalidates_source_authority[review]
+- tests/test_agy_gemini_coordinator.py::test_materializer_enqueue_failure_keeps_pending_for_recovery
+- tests/test_agy_gemini_coordinator.py::test_materializer_final_pending_cas_rejects_before_terminal_replacement
+Final exit: 0
+25 passed, 456 deselected in 202.66s (0:03:22)
+
+Affected CLI/APF regressions:
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_materializer_cli_requires_exact_external_pins tests/test_agy_gemini_coordinator.py::test_materializer_cli_dispatches_external_pins tests/test_agy_gemini_coordinator.py::test_apf_004_create_run_adapter_plan_only_is_deterministic_and_zero_write
+Final exit: 0
+3 passed in 20.67s
+
+Static checks:
+Command: <repo-root>/.venv/bin/python -m py_compile scripts/agy_gemini_coordinator.py tests/test_agy_gemini_coordinator.py
+Final exit: 0
+
+Command: git diff --check
+Final exit: 0
+
+Earlier partial invocation (not used as evidence):
+Command: <repo-root>/.venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py -k materializer_external
+Output: `..`; no final exit status was obtained.
