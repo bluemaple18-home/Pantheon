@@ -70,6 +70,15 @@ External reviewer必須保留以下條件式語意，不得自行假定：
 - 若`C-C_T_REVIEW_GO`只代表C-C/T bounded implementation通過，而Gate D/E另有activation-unlock authorization slice，則`LAUNCHCTL_HARD_DISABLE_FUSE`是本輪非阻塞安全邊界。
 - 若`C-C_T_REVIEW_GO`要求同一exact reviewed actor不改code即可直接執行Gate D/E，則`4e68b28...`不是最終executable actor，必須回`BLOCKED_C_C_LAUNCHCTL_AUTHORIZATION_SEAM_REQUIRED`交Owner裁決。
 
+### Owner decision（2026-09-01）
+
+Owner已明示採用第一種契約：
+
+- `C-C_T_REVIEW_GO`只代表bounded C-C/T implementation通過。
+- Gate D/E不得由`4e68b28...`直接執行。
+- Gate D/E前必須另立Owner-authorized activation-unlock card、產生新exact actor並接受fresh independent review。
+- 因此`LAUNCHCTL_HARD_DISABLE_FUSE`在本輪是非阻塞安全邊界，不是`4e68b28...`的P1 executable-authority blocker。
+
 本輪未執行真實launchctl、provider、production/public mutation、Gate D/E、tag、deploy或merge。
 
 ## F-3：superseded branch lineage
