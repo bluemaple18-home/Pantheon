@@ -525,6 +525,53 @@ def _fixture(
     return manifest, bindings, root, production
 
 
+def _render_with_real_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], Path]:
+    original_load_manifest = runtime_manifest.load_manifest
+    _fake_manifest, bindings, acceptance, production = _fixture(tmp_path, monkeypatch)
+    manifest = runtime_manifest.build_manifest(
+        actor_root=tmp_path / "actor",
+        queue_root=acceptance / "queue",
+        publisher_state_root=acceptance / "state",
+        log_root=acceptance / "logs",
+        identity="cohort-barrier-exec-regression",
+        runtime_digest="c" * 64,
+        generation=GENERATION,
+        python_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = acceptance / "manifest.json"
+    runtime_manifest.write_manifest(manifest_path, manifest)
+    for binding in bindings:
+        binding["actor_digest"] = manifest["runtime_digest"]
+        binding["identity_digest"] = manifest["runtime_identity_digest"]
+    plan_path = acceptance / "session-plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["actor_sha"] = None
+    plan["manifest_digest"] = manifest["manifest_digest"]
+    plan["runtime_identity_digest"] = manifest["runtime_identity_digest"]
+    plan["roots"]["actor_root"] = manifest["actor_root"]
+    plan["roots"]["queue_root"] = manifest["queue_root"]
+    plan["roots"]["publisher_state_root"] = manifest["publisher_state_root"]
+    plan["roots"]["log_root"] = manifest["log_root"]
+    plan_path.write_text(
+        json.dumps(plan, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runtime_manifest, "load_manifest", original_load_manifest)
+    rendered = cohort.render_plists(
+        manifest_path=manifest_path,
+        expected_manifest_digest=manifest["manifest_digest"],
+        acceptance_root=acceptance,
+        bindings=bindings,
+        publisher_run_id="exact-publisher-run",
+        production_paths=production,
+    )
+    return rendered, acceptance
+
+
 def _production_state(extra: Mapping[str, Any] | None = None) -> dict[str, Any]:
     state: dict[str, Any] = {
         "runtime_manifest_identity": {
@@ -1466,6 +1513,72 @@ def test_callback_only_readiness_ack_cannot_pass(
         _run(rendered, override=ack_without_launchctl_side_effect)
 
 
+def test_baseline_activation_only_plist_acknowledges_without_preexisting_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render_with_real_manifest(tmp_path, monkeypatch)
+    label = cohort.COORDINATOR
+    plist_path = next(path for path in rendered["plist_paths"] if path.stem == label)
+    payload = plistlib.loads(plist_path.read_bytes())
+    arguments = payload["ProgramArguments"]
+    environment = dict(payload["EnvironmentVariables"])
+    ready = Path(rendered["ready_root"])
+    barrier = Path(rendered["barrier"])
+
+    process = subprocess.Popen(
+        arguments,
+        cwd=Path.cwd(),
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        ack = ready / f"{label}.json"
+        deadline = time.monotonic() + 2
+        while not ack.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert ack.exists()
+        assert "PANTHEON_RUNTIME_ACTIVATION_TOKEN" not in environment
+        for other_label in cohort.SERVICE_LABELS:
+            if other_label != label:
+                runtime_manifest.write_readiness_ack(ready, rendered["manifest"], other_label)
+        runtime_manifest.activate_barrier(barrier, ready, rendered["manifest"])
+        stdout, stderr = process.communicate(timeout=3)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+
+    assert process.returncode == 0, stderr
+    assert json.loads(stdout)["activation_only"] is True
+
+
+def test_baseline_activation_only_plist_rejects_preinjected_missing_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render_with_real_manifest(tmp_path, monkeypatch)
+    label = cohort.COORDINATOR
+    plist_path = next(path for path in rendered["plist_paths"] if path.stem == label)
+    payload = plistlib.loads(plist_path.read_bytes())
+    environment = dict(payload["EnvironmentVariables"])
+    environment["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(
+        Path(rendered["acceptance_root"]) / "missing-preactivation-token.json"
+    )
+    completed = subprocess.run(
+        payload["ProgramArguments"],
+        cwd=Path.cwd(),
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=3,
+    )
+
+    assert completed.returncode == 78
+    assert not (Path(rendered["ready_root"]) / f"{label}.json").exists()
+
+
 def test_production_plist_missing_manifest_identity_rejects_before_bootstrap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1601,6 +1714,15 @@ def test_run_once_uses_launchd_child_schedule_without_controller_second_owner(
         for item in result["workload_receipts"]
         if item.get("action") in {"coordinator-cycle", "runner-process-once", "c-b-materialize", "bundle-close"}
     )
+
+
+def test_direct_workload_schedule_executor_is_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="direct workload schedule is disabled"):
+        cohort._execute_schedule(rendered)
 
 
 def test_run_once_waits_for_asynchronous_step_stdout_before_readback(

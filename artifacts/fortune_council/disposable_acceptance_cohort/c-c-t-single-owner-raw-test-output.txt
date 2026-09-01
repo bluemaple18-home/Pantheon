@@ -92,3 +92,81 @@ Interrupted after 388.19s with 550 passed / 2 failed. Failures were allowlist-ou
 - tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[candidate]
 - tests/test_agy_gemini_coordinator.py::test_same_generation_locale_plan_retry_rechecks_generation_boundary_inside_lock[lane_residue]
 These were not modified under this architecture-root card.
+
+External finding closeout: CCT-AR-P1-PREACTIVATION-TOKEN-DEADLOCK
+Finding: baseline activation-only plist env must not carry a preexisting activation token. Post-activation step plist env must keep the activation token.
+P2-1: old direct workload schedule executor must fail closed and not remain as a reconnectable alternate executor.
+P2-2 residual: C-C/T four-lane single workload owner scope only requires Capacity Guard readiness operability; full seven-service runtime acceptance child operability awaits Owner/Gate D/E decision.
+
+Preactivation RED:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_baseline_activation_only_plist_acknowledges_without_preexisting_token tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_baseline_activation_only_plist_rejects_preinjected_missing_token -q
+OUTPUT:
+F.                                                                       [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_baseline_activation_only_plist_acknowledges_without_preexisting_token
+AssertionError: barrier-exec should write activation ACK before barrier activation
+Negative pre-injected missing token case passed, proving return 78 / no ACK is still caught.
+
+Direct schedule alternate executor RED:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_direct_workload_schedule_executor_is_fail_closed -q
+OUTPUT:
+F                                                                        [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_direct_workload_schedule_executor_is_fail_closed
+AcceptanceBlocked: coordinator owner command failed
+
+Preactivation + direct schedule GREEN:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_baseline_activation_only_plist_acknowledges_without_preexisting_token tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_baseline_activation_only_plist_rejects_preinjected_missing_token tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_direct_workload_schedule_executor_is_fail_closed -q
+OUTPUT:
+...                                                                      [100%]
+3 passed in 0.38s
+
+Focused C-C/T after preactivation repair:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+...................................                                      [100%]
+35 passed in 12.76s
+
+Runtime/Runner affected after preactivation repair:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py -q
+OUTPUT:
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 15.98s
+
+Coordinator targeted after preactivation repair:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_never_advances_unlisted_active_run tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_reject_duplicates_before_advancing tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_advances_one_run_per_content_lane tests/test_agy_gemini_coordinator.py::test_lane_mode_continues_oldest_registered_run_until_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_migrates_shared_pending_jobs_by_run_namespace -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.08s
+
+Compile and diff check after preactivation repair:
+COMMAND:
+<repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+exit code 0
+
+COMMAND:
+git diff --check
+OUTPUT:
+exit code 0
+
+Final diff check/status after evidence update:
+COMMAND:
+git diff --check && git status --short && git diff --stat
+OUTPUT:
+ M artifacts/fortune_council/disposable_acceptance_cohort/C-C-T-SINGLE-OWNER-RESULT.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-SINGLE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/c-c-t-single-owner-raw-test-output.txt
+ M scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+ M tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+ .../C-C-T-SINGLE-OWNER-RESULT.md                   |  13 ++-
+ ...LE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md |  19 +++-
+ .../c-c-t-single-owner-raw-test-output.txt         |  78 +++++++++++++
+ ...theon_four_lane_disposable_acceptance_cohort.py |  95 ++--------------
+ ...theon_four_lane_disposable_acceptance_cohort.py | 122 +++++++++++++++++++++
+ 5 files changed, 233 insertions(+), 94 deletions(-)

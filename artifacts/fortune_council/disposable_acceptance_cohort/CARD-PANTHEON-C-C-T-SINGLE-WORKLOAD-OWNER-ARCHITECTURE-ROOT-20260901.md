@@ -22,8 +22,10 @@ gate_d_e: NOT_AUTHORIZED
 
 - 結論：`CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`。
 - RED evidence：已新增並執行 S1 forged `HOME` subprocess test；已新增並執行 S2 public `run_once()` launchd-child single-owner test；Mainline 退件後另補 async stdout bounded wait 與 preexisting `steps` symlink fail-closed RED。
-- GREEN summary：production LaunchAgents authority 改由 OS UID record；baseline disposable services 改 activation-only；非 Publisher workload 改為 immutable schedule 派生的 acceptance-local step plist serial launch/read-back；Controller 不再 direct subprocess 執行 Coordinator/Runner/C-B/bundle-close；Publisher plan-only dry-run 保留且測試證明單次 owner function 呼叫。
-- 驗證：focused C-C/T `32 passed`；runtime/runner affected `118 passed`；coordinator targeted `7 passed`；`py_compile` 通過；`git diff --check` 通過。
+- Additional external finding：`CCT-AR-P1-PREACTIVATION-TOKEN-DEADLOCK` RED 證明 baseline plist 若在 activation ACK 前注入不存在的 activation token，真 `barrier-exec` subprocess 會回 `78` 且不寫 ACK；GREEN 改為 baseline activation-only plist 不帶 token，barrier activation 後的 step plist 才帶 token。
+- Additional P2-1：舊 `_execute_schedule()` direct workload executor 已固定 fail-closed，避免日後重新接回 Controller direct schedule alternate executor。
+- GREEN summary：production LaunchAgents authority 改由 OS UID record；baseline disposable services 改 activation-only且 pre-activation 不帶 token；非 Publisher workload 改為 immutable schedule 派生的 acceptance-local step plist serial launch/read-back；Controller 不再 direct subprocess 執行 Coordinator/Runner/C-B/bundle-close；Publisher plan-only dry-run保留且測試證明單次 owner function呼叫。
+- 驗證：focused C-C/T `35 passed`；runtime/runner affected `118 passed`；coordinator targeted `7 passed`；`py_compile` 通過；`git diff --check` 通過。
 - Internal read-only pre-freeze review：`GO`；此為 Mainline 內部唯讀 pre-freeze 判定，不等同 external `C-C_T_REVIEW_GO`。
 - 未授權／未執行：真 launchctl、production、Gate D/E、provider、public mutation、commit、push 均未執行。
 - Evidence files：`C-C-T-SINGLE-OWNER-RESULT.md`、`c-c-t-single-owner-raw-test-output.txt`。
@@ -52,6 +54,14 @@ gate_d_e: NOT_AUTHORIZED
 ### `CCT-AR-P2-ONE-SECOND-BARRIER`
 
 七服務 sequential bootstrap 下固定一秒 readiness/barrier timeout 不足以證明 deterministic operability。本卡只做最小 bounded timeout 修正與測試，不建立可配置 timeout subsystem。
+
+### `CCT-AR-P1-PREACTIVATION-TOKEN-DEADLOCK`
+
+candidate `97e871` 的 baseline plist env 在 activation ACK 前帶入尚不存在的 `PANTHEON_RUNTIME_ACTIVATION_TOKEN`。`barrier-exec` 即使以 `require_activation_token=False` 啟動，仍會因非空 token 指向 missing barrier 而回 `78`，導致 activation-only ACK 永遠不出現。Shared runtime 既有 invariant 是 pre-activation env 不帶 token，ACK 後才由 activated step 使用 token。
+
+### `CCT-AR-P2-DIRECT-SCHEDULE-ALTERNATE-EXECUTOR`
+
+舊 `_execute_schedule()` 仍保留 Controller direct workload executor 入口；即使 public `run_once()` 已改 launchd step ownership，該 alternate executor 仍可能被重新接回。此入口必須 fail closed。
 
 ## Allowlist
 
@@ -119,8 +129,9 @@ S1與S2 RED完成後先停下核對：兩個測試必須分別命中 `HOME` auth
 ## Minimum sufficient
 
 - why_not_less：只改 `Path.home()`不能關閉雙重 owner；只移除 Controller direct schedule又沒有 launchd step attribution，會失去正式 service consumption evidence。
-- why_not_more：不修改 shared runtime、manifest、owner modules或 production installer；新 root只處理兩個 P1與直接相依的 timeout P2。
-- do_not_absorb：production fingerprint欄位擴張、release identity、Cloudflare preview、Gate D/E activation unlock。
+- why_not_less：只改 `_env()`不夠，因為舊 `_execute_schedule()` 仍會保留可重新接回的 direct workload schedule；只改測試也無法證明真 `barrier-exec` pre-activation ACK 行為。
+- why_not_more：不修改 shared runtime、manifest、owner modules、production installer或新增 capacity workload step；新 root只處理兩個原 P1、直接相依 timeout P2、preactivation token deadlock與 direct schedule alternate executor。
+- do_not_absorb：production fingerprint欄位擴張、release identity、Cloudflare preview、Gate D/E activation unlock；C-C/T 四-lane single workload owner scope只要求 Capacity Guard readiness operability，完整七服務 runtime acceptance child operability另待 Owner/Gate D/E 決策。
 
 ## Acceptance 與交付
 

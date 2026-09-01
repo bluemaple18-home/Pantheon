@@ -330,10 +330,12 @@ def production_fingerprint(
     }
 
 
-def _env(manifest: Mapping[str, Any], label: str, barrier: Path) -> dict[str, str]:
+def _env(manifest: Mapping[str, Any], label: str, barrier: Path, *, include_activation_token: bool = False) -> dict[str, str]:
     fields = {"PANTHEON_RUNTIME_MANIFEST": "manifest_path", "PANTHEON_RUNTIME_MANIFEST_DIGEST": "manifest_digest", "PANTHEON_RUNTIME_IDENTITY": "identity", "PANTHEON_RUNTIME_IDENTITY_DIGEST": "runtime_identity_digest", "PANTHEON_RUNTIME_CODE_DIGEST": "runtime_digest", "PANTHEON_RUNTIME_CONFIG_VERSION": "config_version", "PANTHEON_RUNTIME_GENERATION": "generation", "PANTHEON_RUNTIME_ACTOR_ROOT": "actor_root", "PANTHEON_RUNTIME_QUEUE_ROOT": "queue_root", "PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT": "publisher_state_root", "PANTHEON_RUNTIME_LOG_ROOT": "log_root"}
     result = {key: str(manifest[value]) for key, value in fields.items()}
-    result.update({"PANTHEON_FORMAL_RUNTIME": "1", "PANTHEON_RUNTIME_SERVICE_LABEL": label, "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(barrier)})
+    result.update({"PANTHEON_FORMAL_RUNTIME": "1", "PANTHEON_RUNTIME_SERVICE_LABEL": label})
+    if include_activation_token:
+        result["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(barrier)
     for key in ("actor_head", "python_executable", "uv_executable"):
         if key in manifest: result["PANTHEON_RUNTIME_" + key.upper()] = str(manifest[key])
     return result
@@ -625,7 +627,7 @@ def _run_process(command: list[str]) -> subprocess.CompletedProcess[str]:
 def _formal_env(rendered: Mapping[str, Any], service_label: str):
     manifest = rendered["manifest"]
     previous = os.environ.copy()
-    os.environ.update(_env(manifest, service_label, Path(rendered["barrier"])))
+    os.environ.update(_env(manifest, service_label, Path(rendered["barrier"]), include_activation_token=True))
     try:
         yield
     finally:
@@ -1254,7 +1256,7 @@ def _step_plist(rendered: Mapping[str, Any], step_index: int, label: str, comman
     except Exception as error:
         raise AcceptanceBlocked("step plist root is unsafe") from error
     path = root / f"{step_index:02d}-{label}.plist"
-    _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(str(manifest.get("python_executable") or os.sys.executable), manifest, label, Path(rendered["barrier"]), Path(rendered["ready_root"]), False), "--", *command], "EnvironmentVariables": _env(manifest, label, Path(rendered["barrier"])), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(path.with_suffix(".stdout.json")), "StandardErrorPath": str(path.with_suffix(".stderr.log"))})
+    _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(str(manifest.get("python_executable") or os.sys.executable), manifest, label, Path(rendered["barrier"]), Path(rendered["ready_root"]), False), "--", *command], "EnvironmentVariables": _env(manifest, label, Path(rendered["barrier"]), include_activation_token=True), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(path.with_suffix(".stdout.json")), "StandardErrorPath": str(path.with_suffix(".stderr.log"))})
     runtime.plist_receipt(path, expected_activation_mode="normal")
     _fsync_directory(root)
     return path
@@ -1342,90 +1344,7 @@ def _read_back_schedule(rendered: Mapping[str, Any], monotonic: Callable[[], flo
 def _execute_schedule(
     rendered: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    manifest = rendered["manifest"]
-    by_lane = {item["lane"]: item for item in rendered["bindings"]}
-    cb_by_target = {item["target_run_id"]: item for item in rendered["session_plan"]["c_b_materializations"]}
-    receipts: list[dict[str, Any]] = []
-    for step in rendered["session_plan"]["phase_schedule"]:
-        _revalidate_rendered_plan(rendered)
-        action = step["action"]
-        if action == "coordinator-cycle":
-            command = _coordinator_command(manifest, list(step["run_ids"]))
-            receipts.append(
-                _expect_coordinator_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=COORDINATOR,
-                        command=command,
-                        owner="scripts.agy_gemini_coordinator:cycle_once",
-                        key="cycle_once",
-                        label="coordinator",
-                    ),
-                    step,
-                    manifest,
-                )
-            )
-        elif action == "runner-process-once":
-            binding = by_lane[step["lane"]]
-            command = _runner_command(manifest, binding)
-            receipts.append(
-                _expect_runner_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
-                        command=command,
-                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_process_once",
-                        key="sealed_replay_bundle_process_once",
-                        label="runner",
-                    ),
-                    step,
-                    manifest,
-                    binding,
-                )
-            )
-        elif action == "c-b-materialize":
-            pins = cb_by_target[step["target_run_id"]]
-            command = _materializer_command(manifest, step, pins)
-            receipts.append(
-                _expect_materialization_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=COORDINATOR,
-                        command=command,
-                        owner="scripts.agy_gemini_coordinator:materialize_translation_pending_dependency",
-                        key="materialize_translation_pending_dependency",
-                        label="c-b materialization",
-                    ),
-                    step,
-                    manifest,
-                    pins,
-                )
-            )
-        elif action == "bundle-close":
-            binding = by_lane[step["lane"]]
-            command = [*_runner_command(manifest, binding)[:-5], "sealed-replay-bundle-close", "--bundle", str(binding["bundle"]), "--expected-bundle-digest", str(binding["bundle_digest"])]
-            receipts.append(
-                _expect_bundle_close_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
-                        command=command,
-                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_close",
-                        key="sealed_replay_bundle_close",
-                        label="bundle closeout",
-                    ),
-                    step,
-                    manifest,
-                    binding,
-                )
-            )
-        elif action == "publisher-plan-only":
-            receipts.append(_expect_publisher_receipt(_publisher_owner_receipt(rendered, step), step, manifest))
-        elif action == "queue-drain":
-            receipts.append(_queue_drain_readback(rendered))
-        else:
-            raise AcceptanceBlocked("acceptance schedule action differs")
-    return receipts
+    raise AcceptanceBlocked("direct workload schedule is disabled; launchd step ownership required")
 
 
 def run_once(
