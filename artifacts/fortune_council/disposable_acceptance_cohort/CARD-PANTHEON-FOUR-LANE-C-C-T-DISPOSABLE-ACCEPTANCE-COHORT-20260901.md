@@ -1,6 +1,8 @@
 # C-C/T disposable acceptance cohort
 
-狀態：`PRE_FREEZE_REPAIR_READY`
+狀態：`REJECTED_SUPERSEDED_BY_AUTHORITY_REPAIR`
+
+目前 commit/push authority 以 `artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-EXECUTABLE-COHORT-AUTHORITY-REPAIR-20260901.md` 為準。
 
 ## 目標
 
@@ -12,7 +14,7 @@
 - C-A：`1ea615ad4096077a2b82af86a2effb0c487c582d`
 - C-B：`fa2e6cb65d5f57209fd3aebb3020246549ce2bc6`
 
-## 邊界
+## 原始 candidate 當時邊界
 
 - 僅 local implementation/tests；禁止 commit、push、launchctl、provider、production/public 或 Gate D-E execution。
 - 不得改 shared installer、R2/C-A/C-B、pipeline、Publisher production behavior、manifest/routes、queue/registry/public artifacts。

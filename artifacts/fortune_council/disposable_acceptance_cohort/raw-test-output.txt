@@ -1,24 +1,95 @@
-C-C/T pre-freeze repair verification
+C-C/T executable cohort authority repair verification
+Date: 2026-09-01
+Worktree: /private/tmp/pantheon-slice-cct-20260901.Q8L4w/worktree
+Base candidate: 7821adb901d6c23059fecfd33e7b3de03fce8024
+Accepted parent for external review range: 836d5f0d1d62b58ad886aa37863c15ce41d233ec
+Status: FREEZE_AUTHORIZED
 
-Audit finding status: `BLOCKED_C_C_SESSION_FRESHNESS_CONTRACT` owner-selected generation/immutable-plan repair covered locally; this receipt is repair evidence only, not independent review acceptance.
+Owner option:
+- Owner selected option 2 and explicitly authorized commit and push for the freeze path.
+- Commit/push has not been executed by this worker.
+- Final candidate SHA and remote branch/status are not self-certified by this artifact and must be verified by external git evidence.
 
-Focused renderer/orchestration matrix:
-Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
-Final exit: 0
-32 passed in 0.20s
+RED-capable loop evidence:
+- Initial repair RED:
+  Command: .venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bundle_authority_required_entries_follow_actual_runner_schema
+  Result: FAILED with AcceptanceBlocked: sealed bundle required entries differ
+  Resolution: bundle authority now parses actual Runner sealed replay entries[] schema and schedules only required=true entry_id values.
+- First Repair state-machine RED:
+  Command: .venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+  Result: 11 failed, 15 passed; first failure was runner receipt differs because raw pinned bundle digest and sealed bundle body authority digest were conflated.
+  Resolution: C-C/T binding now tracks both raw bundle file digest and sealed bundle authority digest; fake workload derives receipts from deterministic owner-observed state.
+- Exact C-B schema RED:
+  Command: .venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_materialization_accepts_new_owner_receipt_with_isolated_queue_mutation
+  Result: FAILED with AcceptanceBlocked: c-b materialization receipt differs
+  Resolution: materialized C-B receipt now accepts queue_mutation=True/public_mutation=False; already_materialized remains queue_mutation=False.
+- Exact Publisher schema RED:
+  Command: .venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_publisher_plan_only_accepts_lane_specific_owner_schema
+  Result: FAILED because publisher command/validator did not support lane-specific owner schema.
+  Resolution: Publisher plan-only now validates lane-specific owner/key/count schema for publish_ready_runs/publish_ready_rewrite_runs/publish_ready_translation_runs.
 
-Final C-C/T + Coordinator external-workers-only aggregate:
-Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py -k 'pantheon_four_lane_disposable_acceptance_cohort or external_workers_only or default_pending_still_calls_process'
-Final exit: 0
-36 passed, 481 deselected in 0.28s
+Re-review record:
+- First Repair re-review: original P1 findings closed; no unresolved P0/P1 after replacement review.
+- replacement READ_ONLY re-review focused suite: 23 passed.
+- This re-review evidence is not external REVIEW_GO. Commit/push are Owner-authorized but were not executed by this worker. Final candidate SHA and remote status must come from external git evidence. No external REVIEW_GO, runtime, provider, production/public mutation, launchctl execution, or Gate D/E was executed.
 
-Affected existing manifest/Runner/runtime-tick regressions:
-Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m pytest -q tests/test_pantheon_content_runtime_manifest.py::test_stale_or_malformed_activation_barrier_fails_closed tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_rejects_drift_before_queue_mutation tests/test_pantheon_content_runtime_manifest.py::test_barrier_exec_normal_propagates_activation_token_to_child tests/test_pantheon_content_runtime_manifest.py::test_early_service_acknowledges_but_cannot_run_before_barrier tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_requires_formal_runtime_before_pending_scan
-Final exit: 0
-8 passed in 2.10s
+Focused C-C/T suite:
+Command: .venv/bin/python -m pytest -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+Result:
+..................................                                       [100%]
+34 passed in 0.58s
 
-Command: PYTHONPATH=. <repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py scripts/agy_gemini_coordinator.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py
-Final exit: 0
+Coordinator affected seam regressions:
+Command: .venv/bin/python -m pytest -q tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_requires_exact_selector_before_io tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_rejects_automatic_sweep_before_io tests/test_agy_gemini_coordinator.py::test_cycle_external_workers_only_advances_exact_pending_without_process tests/test_agy_gemini_coordinator.py::test_materializer_cli_requires_exact_external_pins tests/test_agy_gemini_coordinator.py::test_materializer_external_pin_mismatch_rejects_before_translation_write
+Result:
+.......                                                                  [100%]
+7 passed in 30.64s
 
+Runtime manifest and sealed bundle affected regressions:
+Command: .venv/bin/python -m pytest -q tests/test_pantheon_content_runtime_manifest.py::test_stale_or_malformed_activation_barrier_fails_closed tests/test_pantheon_content_runtime_manifest.py::test_seven_service_barrier_requires_complete_matching_acknowledgements tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_returns_activation_token_digest_after_valid_token tests/test_pantheon_content_runtime_manifest.py::test_runtime_tick_rejects_drift_before_queue_mutation tests/test_pantheon_content_runtime_manifest.py::test_barrier_exec_normal_propagates_activation_token_to_child tests/test_pantheon_content_runtime_manifest.py::test_early_service_acknowledges_but_cannot_run_before_barrier tests/test_agy_gemini_runner.py::test_sealed_bundle_cli_processes_writer_then_reviewer_with_one_bundle tests/test_agy_gemini_runner.py::test_sealed_bundle_requires_formal_runtime_before_pending_scan
+Result:
+........                                                                 [100%]
+8 passed in 2.13s
+
+Compile gate:
+Command: .venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py scripts/agy_gemini_coordinator.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py tests/test_agy_gemini_coordinator.py
+Result: passed
+
+Whitespace/diff gate:
 Command: git diff --check
-Final exit: 0
+Result: passed
+
+Exact focused test node families:
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bundle_authority_required_entries_follow_actual_runner_schema
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_positive_fixed_schedule_reaches_one_pass_receipt
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_materialization_accepts_new_owner_receipt_with_isolated_queue_mutation
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_publisher_plan_only_accepts_lane_specific_owner_schema
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_publisher_plan_only_rejects_wrong_owner_selector_or_extra_fields
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_rendered_cohort_binds_source_only_coordinator_lane_mode_and_dry_run_publisher
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_failed_projection_consumes_generation_and_blocks_same_generation_retry
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_partial_readiness_consumes_generation_and_blocks_retry
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_teardown_failure_consumes_generation_and_blocks_retry
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_malformed_launch_receipt_still_boots_out_and_proves_final_absence
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_source_phase_rejects_i18n_exact_run_ids_before_launch
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_runtime_receipt_regressions_cannot_pass
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_callback_only_readiness_ack_cannot_pass
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_empty_or_extra_production_fingerprint_schema_rejects_before_bootstrap
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_plan_missing_or_drifting_fields_reject_before_projection
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_local_child_validator_rejects_missing_lane_mode_or_i18n_source_selector
+
+Execution authority:
+- launchctl execution: 0
+- provider calls: 0
+- production/public/tag/push/deploy mutation: 0
+- Gate D/E: NOT_RUN
+- commit: FREEZE_AUTHORIZED
+- push: FREEZE_AUTHORIZED
+- candidate SHA: POST_FREEZE_GIT_EVIDENCE_REQUIRED
+- remote branch/status: POST_FREEZE_GIT_EVIDENCE_REQUIRED
+
+Final diff allowlist observed:
+- scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+- artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-EXECUTABLE-COHORT-AUTHORITY-REPAIR-20260901.md
+- artifacts/fortune_council/disposable_acceptance_cohort/RESULT.md
+- artifacts/fortune_council/disposable_acceptance_cohort/raw-test-output.txt
