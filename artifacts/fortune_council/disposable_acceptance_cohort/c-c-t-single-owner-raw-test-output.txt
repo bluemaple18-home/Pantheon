@@ -5,6 +5,12 @@ LOCAL_ONLY_WORKTREE_PATH: /private/tmp/pantheon-cct-single-owner-20260901.wFYyq6
 LOCAL_ONLY_EXECUTION_PATH: /Users/mattkuo/Documents/Pantheon/.venv/bin/python
 Portable command prefix: <repo-root>/.venv/bin/python
 
+Second-NO_GO Repair RCA evidence recorded before new implementation:
+- C-C/T cohort has no known successful version.
+- Known-good seams: shared barrier-exec ACK -> barrier -> activation-only completion, and scripts/pantheon_runtime_fs_authority.py dirfd/no-follow authority.
+- Fault origins: public callbacks from 7821adb/b5d formal API lineage; immediate baseline bootout and step parent path handling from 97e candidate lineage.
+- Durable invariant: formal Controller only owns wait primitives, must collect 7/7 post-barrier PASS completions before bootout, and must perform step filesystem operations relative to pinned/non-symlink acceptance authority before any mutation.
+
 Baseline focused before architecture-root changes:
 COMMAND:
 <repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
@@ -170,3 +176,261 @@ OUTPUT:
  ...theon_four_lane_disposable_acceptance_cohort.py |  95 ++--------------
  ...theon_four_lane_disposable_acceptance_cohort.py | 122 +++++++++++++++++++++
  5 files changed, 233 insertions(+), 94 deletions(-)
+
+Second-NO_GO Repair RED 1: CCT-AR-P1-PUBLIC-WAIT-CALLBACK-OWNER-INJECTION
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_formal_run_once_rejects_public_wait_primitive_callbacks -q
+OUTPUT:
+F                                                                        [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_formal_run_once_rejects_public_wait_primitive_callbacks
+AcceptanceBlocked: launchctl print receipt differs
+
+Second-NO_GO Repair GREEN 1 + async wait integration:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_formal_run_once_rejects_public_wait_primitive_callbacks tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_waits_for_asynchronous_step_stdout_before_readback tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_times_out_when_step_stdout_never_becomes_complete -q
+OUTPUT:
+...                                                                      [100%]
+3 passed in 2.10s
+
+Second-NO_GO Repair RED 2: CCT-AR-P1-SEVEN-SERVICE-POST-BARRIER-AUTHORITY-INCOMPLETE
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_requires_all_seven_post_barrier_activation_completions_before_pass -q
+OUTPUT:
+FFFF                                                                     [100%]
+FAILED ...[missing-None]: Failed: DID NOT RAISE AcceptanceBlocked
+FAILED ...[wrong_label-override_payload1]: Failed: DID NOT RAISE AcceptanceBlocked
+FAILED ...[wrong_digest-override_payload2]: Failed: DID NOT RAISE AcceptanceBlocked
+FAILED ...[not_pass-override_payload3]: Failed: DID NOT RAISE AcceptanceBlocked
+
+Second-NO_GO Repair GREEN 2:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_requires_all_seven_post_barrier_activation_completions_before_pass -q
+OUTPUT:
+....                                                                     [100%]
+4 passed in 7.26s
+
+Second-NO_GO Repair RED 3: CCT-AR-P1-STEP-PARENT-SYMLINK-PATH-ESCAPE
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_generation_parent_escape_before_step_mutation -q
+OUTPUT:
+FFF                                                                      [100%]
+FAILED ...[generation_parent_symlink_external]: external steps directory was created before block
+FAILED ...[generation_inode_replacement]: Failed: DID NOT RAISE AcceptanceBlocked
+FAILED ...[generation_parent_symlink_production]: production steps directory was created before block
+
+Second-NO_GO Repair GREEN 3:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_generation_parent_escape_before_step_mutation -q
+OUTPUT:
+...                                                                      [100%]
+3 passed in 0.09s
+
+Second-NO_GO Repair P2-1 safe integration:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_plist_outer_barrier_exec_hands_off_to_child_after_activation -q
+OUTPUT:
+.                                                                        [100%]
+1 passed in 0.12s
+
+Second-NO_GO Repair focused C-C/T:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+............................................                             [100%]
+44 passed in 28.72s
+
+Second-NO_GO Repair runtime/runner affected:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py -q
+OUTPUT:
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 16.79s
+
+Second-NO_GO Repair coordinator targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_never_advances_unlisted_active_run tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_reject_duplicates_before_advancing tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_advances_one_run_per_content_lane tests/test_agy_gemini_coordinator.py::test_lane_mode_continues_oldest_registered_run_until_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_migrates_shared_pending_jobs_by_run_namespace -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.09s
+
+Second-NO_GO Repair py_compile:
+COMMAND:
+<repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+exit code 0
+
+Second-NO_GO Repair diff check:
+COMMAND:
+git diff --check
+OUTPUT:
+exit code 0
+
+Second-NO_GO Repair DBG scan:
+COMMAND:
+rg -n "breakpoint\(|pdb\.|TODO-DBG|DEBUG|DBG|print\(" scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+No debugger/debug residue. Hits are legitimate test child print snippets and production_fingerprint symbol name.
+
+Follow-up Repair final diff check/status/stat after evidence update:
+COMMAND:
+git diff --check && git status --short && git diff --stat
+OUTPUT:
+ M artifacts/fortune_council/disposable_acceptance_cohort/C-C-T-SINGLE-OWNER-RESULT.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-SINGLE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/c-c-t-single-owner-raw-test-output.txt
+ M scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+ M tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+ .../C-C-T-SINGLE-OWNER-RESULT.md                   |  21 +-
+ ...LE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md |  20 +-
+ .../c-c-t-single-owner-raw-test-output.txt         | 248 +++++++++++
+ ...theon_four_lane_disposable_acceptance_cohort.py | 259 ++++++++++--
+ ...theon_four_lane_disposable_acceptance_cohort.py | 458 +++++++++++++++++++--
+ 5 files changed, 945 insertions(+), 61 deletions(-)
+
+Second-NO_GO Repair final status/stat after evidence update:
+COMMAND:
+git diff --check && git status --short && git diff --stat
+OUTPUT:
+ M artifacts/fortune_council/disposable_acceptance_cohort/C-C-T-SINGLE-OWNER-RESULT.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/CARD-PANTHEON-C-C-T-SINGLE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md
+ M artifacts/fortune_council/disposable_acceptance_cohort/c-c-t-single-owner-raw-test-output.txt
+ M scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+ M tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+ .../C-C-T-SINGLE-OWNER-RESULT.md                   |  18 +-
+ ...LE-WORKLOAD-OWNER-ARCHITECTURE-ROOT-20260901.md |  15 +-
+ .../c-c-t-single-owner-raw-test-output.txt         | 101 ++++++++
+ ...theon_four_lane_disposable_acceptance_cohort.py | 133 ++++++++--
+ ...theon_four_lane_disposable_acceptance_cohort.py | 274 +++++++++++++++++++--
+ 5 files changed, 495 insertions(+), 46 deletions(-)
+
+Internal zero-write Repair RED A: preseed/prebarrier baseline activation completion
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_or_prebarrier_baseline_activation_completion -q
+OUTPUT:
+FF                                                                       [100%]
+FAILED ...[preseed]: baseline authority did not reject preseeded exact PASS stdout; later failed at coordinator owner stdout timeout
+FAILED ...[prebarrier]: baseline authority did not reject pre-barrier exact PASS stdout; later failed at coordinator owner stdout timeout
+
+Internal zero-write Repair RED B: forged rendered generation identity
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_plist_rejects_forged_rendered_generation_identity -q
+OUTPUT:
+F                                                                        [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_plist_rejects_forged_rendered_generation_identity
+Failed: DID NOT RAISE AcceptanceBlocked
+
+Internal zero-write Repair RED C: cleanup followed generation symlink
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_failure_cleanup_does_not_follow_generation_symlink_to_external_allowed_names -q
+OUTPUT:
+F                                                                        [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_failure_cleanup_does_not_follow_generation_symlink_to_external_allowed_names
+FileNotFoundError reading external victim after cleanup followed symlink and deleted it.
+
+Internal zero-write Repair GREEN A/B/C targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_or_prebarrier_baseline_activation_completion tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_plist_rejects_forged_rendered_generation_identity tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_failure_cleanup_does_not_follow_generation_symlink_to_external_allowed_names tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_generation_parent_escape_before_step_mutation -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.20s
+
+Internal zero-write Repair focused C-C/T:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+................................................                         [100%]
+48 passed in 28.72s
+
+Internal zero-write Repair runtime/runner affected:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py -q
+OUTPUT:
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 16.55s
+
+Internal zero-write Repair coordinator targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_never_advances_unlisted_active_run tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_reject_duplicates_before_advancing tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_advances_one_run_per_content_lane tests/test_agy_gemini_coordinator.py::test_lane_mode_continues_oldest_registered_run_until_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_migrates_shared_pending_jobs_by_run_namespace -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.09s
+
+Internal zero-write Repair py_compile/diff/DBG/status:
+COMMAND:
+<repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+exit code 0
+
+COMMAND:
+git diff --check
+OUTPUT:
+exit code 0
+
+COMMAND:
+rg -n "breakpoint\(|pdb\.|TODO-DBG|DEBUG|DBG|print\(" scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+No debugger/debug residue. Hits are legitimate test child print snippets and production_fingerprint symbol name.
+
+Follow-up Repair RED: prebarrier empty stderr should not block postbarrier stdout proof, and broken output symlink must not bypass prelaunch absence
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_accepts_prebarrier_empty_stderr_with_postbarrier_stdout tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_broken_baseline_output_symlink_before_launch -q
+OUTPUT:
+FF                                                                       [100%]
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_accepts_prebarrier_empty_stderr_with_postbarrier_stdout
+AcceptanceBlocked: baseline activation completion predates barrier
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_broken_baseline_output_symlink_before_launch
+AcceptanceBlocked: baseline activation completion timeout
+
+Follow-up Repair GREEN targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_accepts_prebarrier_empty_stderr_with_postbarrier_stdout tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_broken_baseline_output_symlink_before_launch -q
+OUTPUT:
+..                                                                       [100%]
+2 passed in 2.30s
+
+Follow-up Repair retained A/B/C targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_preexisting_or_prebarrier_baseline_activation_completion tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_plist_rejects_forged_rendered_generation_identity tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_failure_cleanup_does_not_follow_generation_symlink_to_external_allowed_names tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_run_once_rejects_generation_parent_escape_before_step_mutation -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.17s
+
+Follow-up Repair focused C-C/T:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -q
+OUTPUT:
+..................................................                       [100%]
+50 passed in 29.81s
+
+Follow-up Repair runtime/runner affected:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py -q
+OUTPUT:
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 16.33s
+
+Follow-up Repair coordinator targeted:
+COMMAND:
+<repo-root>/.venv/bin/python -m pytest tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_never_advances_unlisted_active_run tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_processed_runner_keeps_unlisted_run_unchanged tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_reject_duplicates_before_advancing tests/test_agy_gemini_coordinator.py::test_cycle_exact_run_ids_continue_after_one_selected_run_is_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_advances_one_run_per_content_lane tests/test_agy_gemini_coordinator.py::test_lane_mode_continues_oldest_registered_run_until_terminal tests/test_agy_gemini_coordinator.py::test_lane_mode_migrates_shared_pending_jobs_by_run_namespace -q
+OUTPUT:
+.......                                                                  [100%]
+7 passed in 0.08s
+
+Follow-up Repair py_compile/diff/DBG/status:
+COMMAND:
+<repo-root>/.venv/bin/python -m py_compile scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+exit code 0
+
+COMMAND:
+git diff --check
+OUTPUT:
+exit code 0
+
+COMMAND:
+rg -n "breakpoint\(|pdb\.|TODO-DBG|DEBUG|DBG|print\(" scripts/pantheon_four_lane_disposable_acceptance_cohort.py tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+OUTPUT:
+No debugger/debug residue. Hits are legitimate test child print snippets and production_fingerprint symbol name.

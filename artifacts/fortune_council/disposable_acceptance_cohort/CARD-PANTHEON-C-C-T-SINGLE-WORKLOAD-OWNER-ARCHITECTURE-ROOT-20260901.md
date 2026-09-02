@@ -24,8 +24,16 @@ gate_d_e: NOT_AUTHORIZED
 - RED evidence：已新增並執行 S1 forged `HOME` subprocess test；已新增並執行 S2 public `run_once()` launchd-child single-owner test；Mainline 退件後另補 async stdout bounded wait 與 preexisting `steps` symlink fail-closed RED。
 - Additional external finding：`CCT-AR-P1-PREACTIVATION-TOKEN-DEADLOCK` RED 證明 baseline plist 若在 activation ACK 前注入不存在的 activation token，真 `barrier-exec` subprocess 會回 `78` 且不寫 ACK；GREEN 改為 baseline activation-only plist 不帶 token，barrier activation 後的 step plist 才帶 token。
 - Additional P2-1：舊 `_execute_schedule()` direct workload executor 已固定 fail-closed，避免日後重新接回 Controller direct schedule alternate executor。
-- GREEN summary：production LaunchAgents authority 改由 OS UID record；baseline disposable services 改 activation-only且 pre-activation 不帶 token；非 Publisher workload 改為 immutable schedule 派生的 acceptance-local step plist serial launch/read-back；Controller 不再 direct subprocess 執行 Coordinator/Runner/C-B/bundle-close；Publisher plan-only dry-run保留且測試證明單次 owner function呼叫。
-- 驗證：focused C-C/T `35 passed`；runtime/runner affected `118 passed`；coordinator targeted `7 passed`；`py_compile` 通過；`git diff --check` 通過。
+- Second-NO_GO Repair：`CCT-AR-P1-PUBLIC-WAIT-CALLBACK-OWNER-INJECTION` RED 證明 public `run_once(..., monotonic/sleep=...)` 仍可進入 formal launch path；GREEN 移除 formal public wait callback 參數，內部等待只走 module-private `_monotonic()` / `_sleep()`。
+- Second-NO_GO Repair：`CCT-AR-P1-SEVEN-SERVICE-POST-BARRIER-AUTHORITY-INCOMPLETE` RED 證明缺一份、錯 label、錯 digest、未完成 baseline activation completion 都可 PASS；GREEN 要求 post-barrier 7/7 exact activation-only `PASS` stdout 後才進入 baseline bootout。
+- Second-NO_GO Repair：`CCT-AR-P1-STEP-PARENT-SYMLINK-PATH-ESCAPE` RED 證明 generation parent symlink/external、inode replacement、production symlink 會在 block 前造成 step mutation；GREEN 沿用 `TrustedSandboxDirectoryAuthority` / `path_identity`，render pin generation dir identity，step filesystem mutation 以 dirfd/no-follow relative write 完成。
+- Internal zero-write Repair：A RED 證明 preseeded/prebarrier exact baseline `PASS` stdout 可越過 baseline authority；GREEN 在任何 launch 前要求 baseline stdout/stderr 不存在，且 completion stdout/stderr 必須是 canonical owner-safe regular file、strict generation descendant、ctime/mtime 晚於 barrier。
+- Internal zero-write Repair：B RED 證明 caller 可同步偽造 mutable `rendered['plist_generation_identity']` 後寫 step；GREEN 移除 formal rendered identity authority，由 `run_once` 自行 capture generation identity 並以 local variable 傳入 schedule/step。
+- Internal zero-write Repair：C RED 證明 step failure cleanup 會 follow generation symlink 刪除 external allowed filename；GREEN 將 step/run final cleanup 改為 pinned identity + acceptance-root/generation-root anchored `TrustedSandboxDirectoryAuthority` no-follow relative cleanup，identity drift 時不 follow，只記 residue/teardown failure。
+- Follow-up Repair：RED 證明真 launchd 於 pre-barrier 建立空 `StandardErrorPath` 時，過嚴 timestamp rule 會誤擋；GREEN 改為只要求 stdout content ctime/mtime 晚於 barrier，stderr 只驗 canonical owner-safe regular + exact empty。
+- Follow-up Repair：RED 證明 broken baseline output symlink 會被 `Path.exists()` 視為不存在而越過 prelaunch absence；GREEN 改為以 `fs_authority.path_identity()` / lstat 語意檢查，任何 regular/symlink/broken symlink/other prelaunch output 都 fail closed。
+- GREEN summary：production LaunchAgents authority 改由 OS UID record；baseline disposable services 改 activation-only且 pre-activation 不帶 token；formal Controller 僅持有 private wait primitives；baseline 七服務 post-barrier completion 收齊且 stdout 具 barrier 後 filesystem provenance、stderr canonical empty 才 bootout；非 Publisher workload 改為 immutable schedule 派生的 acceptance-local step plist serial launch/read-back；step plist I/O 與 cleanup 由 pinned generation directory authority 保護；Publisher plan-only dry-run保留且測試證明單次 owner function呼叫。
+- 驗證：focused C-C/T `50 passed`；runtime/runner affected `118 passed`；coordinator targeted `7 passed`；`py_compile` 通過；`git diff --check` 通過；DBG scan 無 debugger/debug residue，僅命中合法測試 child `print(...)` snippets 與 `production_fingerprint` 名稱。
 - Internal read-only pre-freeze review：`GO`；此為 Mainline 內部唯讀 pre-freeze 判定，不等同 external `C-C_T_REVIEW_GO`。
 - 未授權／未執行：真 launchctl、production、Gate D/E、provider、public mutation、commit、push 均未執行。
 - Evidence files：`C-C-T-SINGLE-OWNER-RESULT.md`、`c-c-t-single-owner-raw-test-output.txt`。
@@ -33,9 +41,17 @@ gate_d_e: NOT_AUTHORIZED
 ## Authority 與 lineage
 
 - 固定來源：`4e68b28ed031bddafa898905880c68982944730b`。
+- Second-NO_GO Repair base：`b74c1099f7f50d6b620a829d23862722f3f35044`。
 - Final external verdict：`C-C_T_REVIEW_NO_GO / BLOCKED_REVIEW_REPAIR_LIMIT`。
 - 舊 Repair 額度：`2/2 EXHAUSTED`；本卡是 Owner 明示同意的新 architecture root，不是 Repair-3，也不得改寫舊 finding／review evidence。
 - Owner 裁決：允許本卡 bounded offline implementation；不授權真 launchctl、Gate D/E、provider、production/public mutation、merge 或 push。
+
+## Second-NO_GO RCA 四證據
+
+1. 成功版本：C-C/T cohort 本身沒有已知 successful candidate；可作為 known-good seam 的是 shared `barrier-exec` ACK → barrier → activation-only completion invariant，以及 `scripts/pantheon_runtime_fs_authority.py` 的 dirfd／no-follow filesystem authority。
+2. fault origins：public callbacks 由 `7821adb`／`b5d` formal API lineage 引入；immediate baseline bootout 與 step parent path handling 由 `97e` candidate lineage 引入。
+3. durable invariant：formal Controller 只能擁有 wait primitives，不得讓 public wait callback 成為 owner workload injection seam。
+4. durable invariant：Controller 必須收齊七個 baseline service post-barrier `PASS` activation-only completion 後才 bootout，且 step filesystem mutation 必須在 pinned、non-symlink acceptance authority 下，以 relative no-follow semantics 完成。
 
 ## Root question
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from contextlib import suppress
 import hashlib
 import json
 import os
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import sys
+import threading
 import time
 from typing import Any, Callable, Mapping
 from unittest.mock import patch
@@ -748,6 +751,7 @@ def _raw_process_for(
                 runtime_manifest.write_readiness_ack(
                     Path(rendered["ready_root"]), dict(rendered["manifest"]), label
                 )
+                _write_baseline_completion_after_barrier(rendered, label)
             return _completed(command, 0)
         if command[:2] == [cohort.LAUNCHCTL, "bootout"]:
             label = command[-1].rsplit("/", 1)[-1]
@@ -943,8 +947,10 @@ def _run(
         cohort,
         "_run_process",
         side_effect=_raw_process_for(rendered, override=override),
+    ), patch.object(cohort, "_monotonic", side_effect=monotonic), patch.object(
+        cohort, "_sleep", side_effect=sleep
     ), publisher_patches[0], publisher_patches[1], publisher_patches[2], publisher_patches[3], publisher_patches[4], publisher_patches[5], publisher_patches[6], publisher_patches[7], publisher_patches[8], publisher_patches[9]:
-        return cohort.run_once(rendered, monotonic=monotonic, sleep=sleep)
+        return cohort.run_once(rendered)
 
 
 def _legacy_callbacks_for_forged_red(rendered: Mapping[str, Any]) -> dict[str, Any]:
@@ -973,6 +979,17 @@ def test_formal_run_once_rejects_caller_supplied_owner_receipts_without_readback
 
     with pytest.raises(TypeError, match="unexpected keyword argument|got an unexpected"):
         cohort.run_once(rendered, **_legacy_callbacks_for_forged_red(rendered))
+
+
+def test_formal_run_once_rejects_public_wait_primitive_callbacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument|got an unexpected"):
+        cohort.run_once(rendered, monotonic=time.monotonic)
+    with pytest.raises(TypeError, match="unexpected keyword argument|got an unexpected"):
+        cohort.run_once(rendered, sleep=time.sleep)
 
 
 def test_positive_fixed_schedule_reaches_one_pass_receipt(
@@ -1579,6 +1596,274 @@ def test_baseline_activation_only_plist_rejects_preinjected_missing_token(
     assert not (Path(rendered["ready_root"]) / f"{label}.json").exists()
 
 
+def test_step_plist_outer_barrier_exec_hands_off_to_child_after_activation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render_with_real_manifest(tmp_path, monkeypatch)
+    stub = tmp_path / "step-child-stub.py"
+    stub.write_text(
+        "import json, os, sys\n"
+        "print(json.dumps({"
+        "'status': 'child-ran', "
+        "'argv': sys.argv[1:], "
+        "'python': sys.executable, "
+        "'token': os.environ.get('PANTHEON_RUNTIME_ACTIVATION_TOKEN')"
+        "}, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    for label in cohort.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(
+            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+        )
+    runtime_manifest.activate_barrier(
+        Path(rendered["barrier"]),
+        Path(rendered["ready_root"]),
+        dict(rendered["manifest"]),
+    )
+    generation_identity = cohort._capture_plist_generation_authority(
+        rendered,
+        require_outputs_absent=True,
+    )
+    plist_path = cohort._step_plist(
+        rendered,
+        0,
+        cohort.COORDINATOR,
+        [sys.executable, str(stub), "handoff-ok"],
+        generation_identity,
+    )
+    payload = plistlib.loads(plist_path.read_bytes())
+
+    completed = subprocess.run(
+        payload["ProgramArguments"],
+        cwd=Path.cwd(),
+        env=dict(payload["EnvironmentVariables"]),
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=3,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    outer = payload["ProgramArguments"]
+    expected_python = str(rendered["manifest"]["python_executable"])
+    assert outer[:4] == [
+        expected_python,
+        "-m",
+        "scripts.pantheon_content_runtime_manifest",
+        "barrier-exec",
+    ]
+    assert "--activation-only" not in outer[: outer.index("--")]
+    assert payload["EnvironmentVariables"]["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] == str(
+        rendered["barrier"]
+    )
+    observed = json.loads(completed.stdout)
+    assert observed["argv"] == ["handoff-ok"]
+    assert Path(observed["python"]).resolve(strict=True) == Path(expected_python).resolve(strict=True)
+    assert observed["status"] == "child-ran"
+    assert observed["token"] == str(rendered["barrier"])
+
+
+def _write_baseline_completion_after_barrier(
+    rendered: Mapping[str, Any],
+    label: str,
+    *,
+    override_payload: Mapping[str, Any] | None = None,
+    write_stderr: bool = True,
+) -> threading.Thread | None:
+    plist_path = next(path for path in rendered["plist_paths"] if path.stem == label)
+    payload = plistlib.loads(plist_path.read_bytes())
+    if "StandardOutPath" not in payload:
+        return None
+
+    def complete() -> None:
+        barrier = Path(rendered["barrier"])
+        deadline = time.monotonic() + 2
+        while not barrier.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        native = {
+            "status": "PASS",
+            "activation_only": True,
+            "service_label": label,
+            "manifest_digest": rendered["manifest"]["manifest_digest"],
+            "generation": rendered["manifest"]["generation"],
+        }
+        if override_payload is not None:
+            native.update(override_payload)
+        with suppress(FileNotFoundError):
+            Path(payload["StandardOutPath"]).write_text(
+                json.dumps(native, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            if write_stderr:
+                Path(payload["StandardErrorPath"]).write_text("", encoding="utf-8")
+
+    thread = threading.Thread(target=complete, daemon=True)
+    thread.start()
+    return thread
+
+
+@pytest.mark.parametrize(
+    ("mode", "override_payload"),
+    [
+        ("missing", None),
+        ("wrong_label", {"service_label": "com.pantheon.wrong-label"}),
+        ("wrong_digest", {"manifest_digest": "0" * 64}),
+        ("not_pass", {"status": "WAITING"}),
+    ],
+)
+def test_run_once_requires_all_seven_post_barrier_activation_completions_before_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    override_payload: Mapping[str, Any] | None,
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    target = cohort.SERVICE_LABELS[0]
+    threads: list[threading.Thread] = []
+
+    def malformed_baseline_completion(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name != "launchctl-kickstart":
+            return None
+        label = command[-1].rsplit("/", 1)[-1]
+        if label != target:
+            return None
+        runtime_manifest.write_readiness_ack(
+            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+        )
+        if mode != "missing":
+            thread = _write_baseline_completion_after_barrier(
+                rendered,
+                label,
+                override_payload=override_payload,
+            )
+            if thread is not None:
+                threads.append(thread)
+        return completed
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="baseline activation"):
+        _run(rendered, override=malformed_baseline_completion)
+    for thread in threads:
+        thread.join(timeout=1)
+
+
+@pytest.mark.parametrize("mode", ["preseed", "prebarrier"])
+def test_run_once_rejects_preexisting_or_prebarrier_baseline_activation_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+
+    def write_exact_completion(label: str) -> None:
+        plist_path = next(path for path in rendered["plist_paths"] if path.stem == label)
+        payload = plistlib.loads(plist_path.read_bytes())
+        Path(payload["StandardOutPath"]).write_text(
+            json.dumps(
+                {
+                    "status": "PASS",
+                    "activation_only": True,
+                    "service_label": label,
+                    "manifest_digest": rendered["manifest"]["manifest_digest"],
+                    "generation": rendered["manifest"]["generation"],
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        Path(payload["StandardErrorPath"]).write_text("", encoding="utf-8")
+
+    if mode == "preseed":
+        for label in cohort.SERVICE_LABELS:
+            write_exact_completion(label)
+
+    def ack_only_or_prebarrier_completion(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name != "launchctl-kickstart":
+            return None
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in cohort.SERVICE_LABELS:
+            return None
+        if Path(rendered["barrier"]).exists():
+            return None
+        runtime_manifest.write_readiness_ack(
+            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+        )
+        if mode == "prebarrier":
+            write_exact_completion(label)
+        return completed
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="baseline activation"):
+        _run(rendered, override=ack_only_or_prebarrier_completion)
+
+
+def test_run_once_accepts_prebarrier_empty_stderr_with_postbarrier_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    threads: list[threading.Thread] = []
+
+    def launchd_creates_stderr_before_barrier_then_stdout_after(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name != "launchctl-kickstart":
+            return None
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in cohort.SERVICE_LABELS:
+            return None
+        if Path(rendered["barrier"]).exists():
+            return None
+        runtime_manifest.write_readiness_ack(
+            Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+        )
+        plist_path = next(path for path in rendered["plist_paths"] if path.stem == label)
+        payload = plistlib.loads(plist_path.read_bytes())
+        Path(payload["StandardErrorPath"]).write_text("", encoding="utf-8")
+        thread = _write_baseline_completion_after_barrier(rendered, label, write_stderr=False)
+        if thread is not None:
+            threads.append(thread)
+        return completed
+
+    result = _run(rendered, override=launchd_creates_stderr_before_barrier_then_stdout_after)
+    for thread in threads:
+        thread.join(timeout=1)
+
+    assert result["status"] == "PASS"
+
+
+def test_run_once_rejects_broken_baseline_output_symlink_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    plist_path = next(path for path in rendered["plist_paths"] if path.stem == cohort.SERVICE_LABELS[0])
+    payload = plistlib.loads(plist_path.read_bytes())
+    broken_target = tmp_path / "external" / "missing-output.json"
+    Path(payload["StandardOutPath"]).symlink_to(broken_target)
+    launch_attempts: list[list[str]] = []
+
+    def record_launch(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if name == "launchctl-bootstrap":
+            launch_attempts.append(command)
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="baseline activation output"):
+        _run(rendered, override=record_launch)
+
+    assert launch_attempts == []
+    assert not broken_target.exists()
+
+
 def test_production_plist_missing_manifest_identity_rejects_before_bootstrap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1731,7 +2016,26 @@ def test_run_once_waits_for_asynchronous_step_stdout_before_readback(
     rendered, _acceptance = _render(tmp_path, monkeypatch)
     child_transport = _raw_process_for(rendered)
     delayed: list[Path] = []
-    released = False
+    child_errors: list[BaseException] = []
+    threads: list[threading.Thread] = []
+
+    def delayed_child(path: Path) -> None:
+        time.sleep(0.05)
+        try:
+            payload = plistlib.loads(path.read_bytes())
+            child = payload["ProgramArguments"][payload["ProgramArguments"].index("--") + 1 :]
+            previous = os.environ.copy()
+            os.environ.clear()
+            os.environ.update(payload["EnvironmentVariables"])
+            try:
+                completed = child_transport(child)
+                Path(payload["StandardOutPath"]).write_text(completed.stdout, encoding="utf-8")
+                Path(payload["StandardErrorPath"]).write_text(completed.stderr, encoding="utf-8")
+            finally:
+                os.environ.clear()
+                os.environ.update(previous)
+        except BaseException as error:
+            child_errors.append(error)
 
     def delay_first_step_stdout(
         name: str,
@@ -1745,38 +2049,22 @@ def test_run_once_waits_for_asynchronous_step_stdout_before_readback(
             name == "launchctl-kickstart"
             and delayed
             and Path(command[-1]).name == cohort.COORDINATOR
-            and not released
         ):
+            thread = threading.Thread(target=delayed_child, args=(delayed[-1],), daemon=True)
+            threads.append(thread)
+            thread.start()
             return completed
         return None
-
-    def release_delayed_stdout(_seconds: float) -> None:
-        nonlocal released
-        if released or not delayed:
-            return
-        released = True
-        path = delayed[-1]
-        payload = plistlib.loads(path.read_bytes())
-        child = payload["ProgramArguments"][payload["ProgramArguments"].index("--") + 1 :]
-        previous = os.environ.copy()
-        os.environ.update(payload["EnvironmentVariables"])
-        os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(rendered["barrier"])
-        try:
-            completed = child_transport(child)
-            Path(payload["StandardOutPath"]).write_text(completed.stdout, encoding="utf-8")
-            Path(payload["StandardErrorPath"]).write_text(completed.stderr, encoding="utf-8")
-        finally:
-            os.environ.clear()
-            os.environ.update(previous)
 
     result = _run(
         rendered,
         override=delay_first_step_stdout,
-        monotonic=lambda: 0.0,
-        sleep=release_delayed_stdout,
     )
+    for thread in threads:
+        thread.join(timeout=1)
 
     assert result["status"] == "PASS"
+    assert child_errors == []
 
 
 def test_run_once_times_out_when_step_stdout_never_becomes_complete(
@@ -1806,8 +2094,6 @@ def test_run_once_times_out_when_step_stdout_never_becomes_complete(
         _run(
             rendered,
             override=suppress_first_step_stdout,
-            monotonic=iter((0.0, 0.0, 8.0)).__next__,
-            sleep=lambda _seconds: None,
         )
 
 
@@ -1844,6 +2130,126 @@ def test_run_once_rejects_preexisting_step_symlink_before_step_launchctl_mutatio
     assert step_bootstraps == []
     assert sorted(path.name for path in external.iterdir()) == before
     assert sentinel.read_text(encoding="utf-8") == "unchanged"
+
+
+def _replace_generation_root(
+    rendered: Mapping[str, Any],
+    replacement: Path,
+    *,
+    symlink: bool,
+) -> None:
+    generation_root = Path(rendered["plist_paths"][0]).parent
+    shutil.rmtree(generation_root)
+    if symlink:
+        generation_root.symlink_to(replacement, target_is_directory=True)
+    else:
+        generation_root.mkdir(mode=0o700)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "generation_parent_symlink_external",
+        "generation_inode_replacement",
+        "generation_parent_symlink_production",
+    ],
+)
+def test_run_once_rejects_generation_parent_escape_before_step_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation_identity = cohort._capture_plist_generation_authority(
+        rendered,
+        require_outputs_absent=True,
+    )
+    external = tmp_path / f"{case}-external"
+    external.mkdir(mode=0o700)
+    sentinel = external / "sentinel.txt"
+    sentinel.write_text("unchanged", encoding="utf-8")
+    production_sentinel = Path(rendered["production_paths"]["queue"]) / "sentinel.txt"
+    production_sentinel.write_text("production-unchanged", encoding="utf-8")
+    if case == "generation_parent_symlink_external":
+        _replace_generation_root(rendered, external, symlink=True)
+    elif case == "generation_inode_replacement":
+        _replace_generation_root(rendered, external, symlink=False)
+    else:
+        _replace_generation_root(
+            rendered,
+            Path(rendered["production_paths"]["queue"]),
+            symlink=True,
+        )
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="step plist root is unsafe"):
+        cohort._step_plist(
+            rendered,
+            0,
+            cohort.COORDINATOR,
+            [sys.executable, "-c", "print('no side effect')"],
+            generation_identity,
+        )
+
+    assert not (external / "steps").exists()
+    assert not (Path(rendered["production_paths"]["queue"]) / "steps").exists()
+    assert sentinel.read_text(encoding="utf-8") == "unchanged"
+    assert production_sentinel.read_text(encoding="utf-8") == "production-unchanged"
+
+
+def test_step_plist_rejects_forged_rendered_generation_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation_root = Path(rendered["plist_paths"][0]).parent
+    generation_identity = cohort._capture_plist_generation_authority(
+        rendered,
+        require_outputs_absent=True,
+    )
+    shutil.rmtree(generation_root)
+    generation_root.mkdir(mode=0o700)
+    rendered["plist_generation_identity"] = cohort.fs_authority.path_identity(generation_root)
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="step plist root is unsafe"):
+        cohort._step_plist(
+            rendered,
+            0,
+            cohort.COORDINATOR,
+            [sys.executable, "-c", "print('no side effect')"],
+            generation_identity,
+        )
+
+    assert not (generation_root / "steps").exists()
+
+
+def test_step_failure_cleanup_does_not_follow_generation_symlink_to_external_allowed_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    external = tmp_path / "external-generation"
+    external_steps = external / "steps"
+    external_steps.mkdir(parents=True, mode=0o700)
+    victim = external_steps / f"00-{cohort.COORDINATOR}.plist"
+    victim.write_text("external victim must survive", encoding="utf-8")
+    corrupted = False
+
+    def replace_generation_root_after_step_bootstrap(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal corrupted
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            generation_root = Path(rendered["plist_paths"][0]).parent
+            shutil.rmtree(generation_root)
+            generation_root.symlink_to(external, target_is_directory=True)
+            corrupted = True
+            return completed
+        if corrupted and name == "launchctl-kickstart":
+            return completed
+        return None
+
+    with pytest.raises(Exception):
+        _run(rendered, override=replace_generation_root_after_step_bootstrap)
+
+    assert victim.read_text(encoding="utf-8") == "external victim must survive"
 
 
 def test_coordinator_terminal_stdout_without_run_state_readback_rejects(

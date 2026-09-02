@@ -19,6 +19,7 @@ from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import pantheon_content_runtime_manifest as runtime
+from scripts import pantheon_runtime_fs_authority as fs_authority
 
 LANES = ("new", "rewrite", "i18n-new", "i18n-rewrite")
 PUBLISHER = "com.pantheon.agy-content-publisher"
@@ -50,6 +51,14 @@ PLAN_FIELDS = {
     "bundle_closeouts", "phase_schedule", "publisher_plan_only",
     "budgets", "teardown", "production_fingerprint_contract",
 }
+
+
+def _monotonic() -> float:
+    return time.monotonic()
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
 
 
 class AcceptanceBlocked(ValueError):
@@ -93,6 +102,26 @@ def _overlap(left: Path, right: Path) -> bool:
 
 def _write_plist(path: Path, payload: dict[str, Any]) -> None:
     descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        data = plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True)
+        view = memoryview(data)
+        while view:
+            view = view[os.write(descriptor, view):]
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _write_plist_relative(
+    authority: fs_authority.TrustedSandboxDirectoryAuthority,
+    relative: Path,
+    payload: dict[str, Any],
+) -> None:
+    descriptor = authority.open_file(
+        relative,
+        flags=os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+        mode=0o600,
+    )
     try:
         data = plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True)
         view = memoryview(data)
@@ -555,7 +584,8 @@ def render_plists(*, manifest_path: Path, expected_manifest_digest: str, accepta
         for label in SERVICE_LABELS:
             activation_only = True
             path = staging / f"{label}.plist"
-            _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(python,manifest,label,barrier,ready,activation_only),"--",*children[label]], "EnvironmentVariables": _env(manifest,label,barrier), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False})
+            final_path = final / f"{label}.plist"
+            _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(python,manifest,label,barrier,ready,activation_only),"--",*children[label]], "EnvironmentVariables": _env(manifest,label,barrier), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(final_path.with_suffix(".stdout.json")), "StandardErrorPath": str(final_path.with_suffix(".stderr.log"))})
             paths.append(path)
         receipts = [runtime.plist_receipt(path, expected_activation_mode="activation-only") for path in paths]
         runtime.validate_receipts(manifest, [{key:value for key,value in item.items() if key != "plist_realpath"} for item in receipts])
@@ -1246,17 +1276,101 @@ def _step_child_command(rendered: Mapping[str, Any], step: Mapping[str, Any]) ->
     raise AcceptanceBlocked("acceptance schedule action differs")
 
 
-def _step_plist(rendered: Mapping[str, Any], step_index: int, label: str, command: list[str]) -> Path:
+def _plist_generation_root(rendered: Mapping[str, Any]) -> Path:
+    return (
+        _canonical_dir(Path(rendered["acceptance_root"]), "acceptance root")
+        / "plists"
+        / str(rendered["session_plan"]["generation"])
+    )
+
+
+def _same_directory_identity(path: Path, identity: Mapping[str, Any]) -> bool:
+    current = fs_authority.path_identity(path)
+    return (
+        isinstance(current, dict)
+        and current.get("kind") == "directory"
+        and current.get("device") == identity.get("device")
+        and current.get("inode") == identity.get("inode")
+    )
+
+
+def _baseline_output_paths(plist_path: Path) -> tuple[Path, Path]:
+    payload = plistlib.loads(plist_path.read_bytes())
+    stdout = Path(payload.get("StandardOutPath", ""))
+    stderr = Path(payload.get("StandardErrorPath", ""))
+    if not stdout.is_absolute() or not stderr.is_absolute():
+        raise AcceptanceBlocked("baseline activation output path differs")
+    return stdout, stderr
+
+
+def _capture_plist_generation_authority(rendered: Mapping[str, Any], *, require_outputs_absent: bool) -> dict[str, Any]:
+    acceptance_root = _canonical_dir(Path(rendered["acceptance_root"]), "acceptance root")
+    generation_root = _descendant(
+        acceptance_root / "plists" / str(rendered["session_plan"]["generation"]),
+        acceptance_root,
+        "plist generation root",
+    )
+    identity = fs_authority.path_identity(generation_root)
+    if not isinstance(identity, dict) or identity.get("kind") != "directory":
+        raise AcceptanceBlocked("plist generation authority differs")
+    plist_by_label = {Path(path).stem: Path(path) for path in rendered["plist_paths"]}
+    if set(plist_by_label) != set(SERVICE_LABELS):
+        raise AcceptanceBlocked("baseline plist set differs")
+    for label in SERVICE_LABELS:
+        plist_path = _canonical_file(plist_by_label[label], "baseline plist")
+        if plist_path.parent != generation_root or plist_path.name != f"{label}.plist":
+            raise AcceptanceBlocked("baseline plist path differs")
+        stdout, stderr = _baseline_output_paths(plist_path)
+        for output_path in (stdout, stderr):
+            if output_path.parent != generation_root:
+                raise AcceptanceBlocked("baseline activation output path differs")
+            if fs_authority.path_identity(output_path) is not None:
+                if require_outputs_absent:
+                    raise AcceptanceBlocked("baseline activation output exists before launch")
+                _canonical_file(output_path, "baseline activation output")
+    return identity
+
+
+def _step_plist(
+    rendered: Mapping[str, Any],
+    step_index: int,
+    label: str,
+    command: list[str],
+    generation_identity: Mapping[str, Any],
+) -> Path:
     manifest = rendered["manifest"]
     generation = str(rendered["session_plan"]["generation"])
-    root = Path(rendered["acceptance_root"]) / "plists" / generation / "steps"
+    acceptance_root = _canonical_dir(Path(rendered["acceptance_root"]), "acceptance root")
+    generation_root = acceptance_root / "plists" / generation
+    root = generation_root / "steps"
     try:
-        root.mkdir(mode=0o700, exist_ok=False)
+        if (
+            not isinstance(generation_identity, Mapping)
+            or not _same_directory_identity(generation_root, generation_identity)
+        ):
+            raise AcceptanceBlocked("plist generation authority differs")
+        with fs_authority.TrustedSandboxDirectoryAuthority(generation_root) as authority:
+            if authority.identity.as_dict() != {
+                "device": generation_identity["device"],
+                "inode": generation_identity["inode"],
+            }:
+                raise AcceptanceBlocked("plist generation authority differs")
+            if authority.exists("steps"):
+                raise AcceptanceBlocked("step plist root already exists")
+            authority.makedirs("steps", mode=0o700)
+            if not _same_directory_identity(generation_root, generation_identity):
+                raise AcceptanceBlocked("plist generation authority drift")
+            path = root / f"{step_index:02d}-{label}.plist"
+            _write_plist_relative(
+                authority,
+                Path("steps") / path.name,
+                {"Label": label, "ProgramArguments": [*_prefix(str(manifest.get("python_executable") or os.sys.executable), manifest, label, Path(rendered["barrier"]), Path(rendered["ready_root"]), False), "--", *command], "EnvironmentVariables": _env(manifest, label, Path(rendered["barrier"]), include_activation_token=True), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(path.with_suffix(".stdout.json")), "StandardErrorPath": str(path.with_suffix(".stderr.log"))},
+            )
+            if not _same_directory_identity(generation_root, generation_identity):
+                raise AcceptanceBlocked("plist generation authority drift")
         _descendant(root, Path(rendered["acceptance_root"]), "step plist root")
     except Exception as error:
         raise AcceptanceBlocked("step plist root is unsafe") from error
-    path = root / f"{step_index:02d}-{label}.plist"
-    _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(str(manifest.get("python_executable") or os.sys.executable), manifest, label, Path(rendered["barrier"]), Path(rendered["ready_root"]), False), "--", *command], "EnvironmentVariables": _env(manifest, label, Path(rendered["barrier"]), include_activation_token=True), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(path.with_suffix(".stdout.json")), "StandardErrorPath": str(path.with_suffix(".stderr.log"))})
     runtime.plist_receipt(path, expected_activation_mode="normal")
     _fsync_directory(root)
     return path
@@ -1298,9 +1412,39 @@ def _readback_owner_receipt(rendered: Mapping[str, Any], step: Mapping[str, Any]
     raise AcceptanceBlocked("acceptance schedule action differs")
 
 
-def _launchd_step_readback(rendered: Mapping[str, Any], step_index: int, step: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+def _cleanup_step_root(rendered: Mapping[str, Any], generation_identity: Mapping[str, Any]) -> bool:
+    generation_root = _plist_generation_root(rendered)
+    if not _same_directory_identity(generation_root, generation_identity):
+        return False
+    try:
+        with fs_authority.TrustedSandboxDirectoryAuthority(generation_root) as authority:
+            if authority.identity.as_dict() != {
+                "device": generation_identity["device"],
+                "inode": generation_identity["inode"],
+            }:
+                return False
+            authority.remove_tree("steps")
+        return True
+    except fs_authority.FilesystemAuthorityError:
+        return False
+
+
+def _cleanup_plist_generation_tree(rendered: Mapping[str, Any], generation_identity: Mapping[str, Any]) -> bool:
+    acceptance_root = _canonical_dir(Path(rendered["acceptance_root"]), "acceptance root")
+    generation_root = acceptance_root / "plists" / str(rendered["session_plan"]["generation"])
+    if not _same_directory_identity(generation_root, generation_identity):
+        return False
+    try:
+        with fs_authority.TrustedSandboxDirectoryAuthority(acceptance_root) as authority:
+            authority.remove_tree(Path("plists") / str(rendered["session_plan"]["generation"]))
+        return True
+    except fs_authority.FilesystemAuthorityError:
+        return False
+
+
+def _launchd_step_readback(rendered: Mapping[str, Any], step_index: int, step: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None], generation_identity: Mapping[str, Any]) -> dict[str, Any]:
     label, command = _step_service_label(step), _step_child_command(rendered, step)
-    path = _step_plist(rendered, step_index, label, command)
+    path = _step_plist(rendered, step_index, label, command, generation_identity)
     launched = False
     bootout: dict[str, Any] | None = None
     try:
@@ -1318,17 +1462,70 @@ def _launchd_step_readback(rendered: Mapping[str, Any], step_index: int, step: M
             with suppress(Exception):
                 _launchctl_bootout(label, path, rendered["manifest"])
                 _launchctl_print_absent(label, "step-final-print", path, rendered["manifest"])
-        with suppress(FileNotFoundError):
-            path.unlink()
-        with suppress(FileNotFoundError):
-            path.with_suffix(".stdout.json").unlink()
-        with suppress(FileNotFoundError):
-            path.with_suffix(".stderr.log").unlink()
-        with suppress(OSError):
-            path.parent.rmdir()
+        _cleanup_step_root(rendered, generation_identity)
 
 
-def _read_back_schedule(rendered: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None]) -> list[dict[str, Any]]:
+def _baseline_activation_completion_receipt(path: Path, label: str, manifest: Mapping[str, Any], barrier_stat: os.stat_result, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+    deadline = monotonic() + READINESS_TIMEOUT_SECONDS
+    expected = {
+        "status": "PASS",
+        "activation_only": True,
+        "service_label": label,
+        "manifest_digest": manifest["manifest_digest"],
+        "generation": manifest["generation"],
+    }
+    last_error: Exception | None = None
+    while True:
+        try:
+            native = json.loads(path.read_text(encoding="utf-8"))
+            if set(native) != set(expected) or any(native[key] != value for key, value in expected.items()):
+                raise AcceptanceBlocked("baseline activation completion differs")
+            output_file = _canonical_file(path, "baseline activation stdout")
+            stderr_file = _canonical_file(
+                path.with_name(path.name.removesuffix(".stdout.json") + ".stderr.log"),
+                "baseline activation stderr",
+            )
+            generation_root = path.parent
+            if output_file.parent != generation_root or stderr_file.parent != generation_root:
+                raise AcceptanceBlocked("baseline activation output path differs")
+            output_stat = output_file.stat()
+            if (
+                output_stat.st_ctime_ns <= barrier_stat.st_ctime_ns
+                or output_stat.st_mtime_ns <= barrier_stat.st_mtime_ns
+            ):
+                raise AcceptanceBlocked("baseline activation completion predates barrier")
+            if stderr_file.read_text(encoding="utf-8") != "":
+                raise AcceptanceBlocked("baseline activation stderr differs")
+            return {
+                "label": label,
+                "stdout_path": str(path),
+                "stdout_digest": _sha(path),
+                **expected,
+            }
+        except AcceptanceBlocked:
+            raise
+        except (OSError, json.JSONDecodeError) as error:
+            last_error = error
+        if monotonic() >= deadline:
+            raise AcceptanceBlocked("baseline activation completion timeout") from last_error
+        sleep(0.01)
+
+
+def _wait_baseline_activation_completions(rendered: Mapping[str, Any], plist_by_label: Mapping[str, Path], barrier_stat: os.stat_result, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> list[dict[str, Any]]:
+    return [
+        _baseline_activation_completion_receipt(
+            plist_by_label[label].with_suffix(".stdout.json"),
+            label,
+            rendered["manifest"],
+            barrier_stat,
+            monotonic,
+            sleep,
+        )
+        for label in SERVICE_LABELS
+    ]
+
+
+def _read_back_schedule(rendered: Mapping[str, Any], monotonic: Callable[[], float], sleep: Callable[[float], None], generation_identity: Mapping[str, Any]) -> list[dict[str, Any]]:
     receipts: list[dict[str, Any]] = []
     for index, step in enumerate(rendered["session_plan"]["phase_schedule"]):
         _revalidate_rendered_plan(rendered)
@@ -1337,7 +1534,7 @@ def _read_back_schedule(rendered: Mapping[str, Any], monotonic: Callable[[], flo
         elif step["action"] == "queue-drain":
             receipts.append(_queue_drain_readback(rendered))
         else:
-            receipts.append(_launchd_step_readback(rendered, index, step, monotonic, sleep))
+            receipts.append(_launchd_step_readback(rendered, index, step, monotonic, sleep, generation_identity))
     return receipts
 
 
@@ -1349,9 +1546,6 @@ def _execute_schedule(
 
 def run_once(
     rendered: Mapping[str, Any],
-    *,
-    monotonic: Callable[[],float]=time.monotonic,
-    sleep: Callable[[float],None]=time.sleep,
 ) -> dict[str, Any]:
     root = _canonical_dir(Path(rendered["acceptance_root"]), "acceptance root")
     plan, plan_digest = _revalidate_rendered_plan(rendered)
@@ -1363,6 +1557,10 @@ def run_once(
     _consumed_marker(rendered, plan)
     if ready.exists() or barrier.exists() or lock.exists() or evidence.exists():
         raise AcceptanceBlocked("acceptance generation residue exists before launch")
+    plist_generation_identity = _capture_plist_generation_authority(
+        rendered,
+        require_outputs_absent=True,
+    )
     preflight_prints = [
         _launchctl_print_absent(label, "preflight-print", plist_by_label[label], rendered["manifest"])
         for label in SERVICE_LABELS
@@ -1377,20 +1575,22 @@ def run_once(
             if _launch_side_effect_proven(launch_receipt, path.stem, path, rendered["manifest"]):
                 launched.append(path.stem)
             launch_receipts.append(_expect(launch_receipt, _launch_expectation(path.stem, path, rendered["manifest"]), "launchctl bootstrap"))
-        deadline=monotonic()+READINESS_TIMEOUT_SECONDS
+        deadline=_monotonic()+READINESS_TIMEOUT_SECONDS
         while any(not (ready/f"{label}.json").is_file() for label in SERVICE_LABELS):
-            if monotonic()>=deadline: raise AcceptanceBlocked("readiness timeout")
-            sleep(0.01)
+            if _monotonic()>=deadline: raise AcceptanceBlocked("readiness timeout")
+            _sleep(0.01)
         if {path.name for path in ready.iterdir()} != {f"{label}.json" for label in SERVICE_LABELS}:
             raise AcceptanceBlocked("readiness acknowledgement set differs")
         _revalidate_rendered_plan(rendered)
         activation=runtime.activate_barrier(barrier,ready,dict(rendered["manifest"]))
+        barrier_stat = barrier.stat()
+        baseline_completions = _wait_baseline_activation_completions(rendered, plist_by_label, barrier_stat, _monotonic, _sleep)
         baseline_bootouts: list[dict[str, Any]] = []
         for label in list(reversed(launched)):
             baseline_bootouts.append(_expect(_launchctl_bootout(label, plist_by_label[label], rendered["manifest"]), _bootout_expectation(label, plist_by_label[label], rendered["manifest"]), "bootout"))
             launched.remove(label)
-        workload_receipts = _read_back_schedule(rendered, monotonic, sleep)
-        result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(SERVICE_LABELS),"bootouts":baseline_bootouts,"final_prints":[]}
+        workload_receipts = _read_back_schedule(rendered, _monotonic, _sleep, plist_generation_identity)
+        result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"baseline_activation_completions":baseline_completions,"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(SERVICE_LABELS),"bootouts":baseline_bootouts,"final_prints":[]}
     except Exception as error: primary=error
     for label in reversed(launched):
         try:
@@ -1423,11 +1623,8 @@ def run_once(
         with suppress(OSError): ready.rmdir()
     for path in (barrier,lock):
         with suppress(FileNotFoundError): path.unlink()
-    plist_root=Path(rendered["plist_paths"][0]).parent
-    if plist_root.exists() and {path.name for path in plist_root.iterdir()}=={f"{label}.plist" for label in SERVICE_LABELS}:
-        for path in plist_root.iterdir(): path.unlink()
-        plist_root.rmdir()
-    else: unknown.append("plists")
+    if not _cleanup_plist_generation_tree(rendered, plist_generation_identity):
+        unknown.append("plists")
     try:
         after=production_fingerprint(rendered["production_paths"],_production_service_state)
     except Exception as error:
