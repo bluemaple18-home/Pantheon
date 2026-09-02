@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
 
 import scripts.agy_gemini_allocator as allocator
 
@@ -19,6 +23,109 @@ def _allocate(state: Path, now: float) -> tuple[int, str]:
     ) as admission:
         assert admission.allowed is True
         return admission.commit()
+
+
+def _cap_allocate(
+    state: Path,
+    now: float,
+) -> tuple[int, str]:
+    with allocator.production_slot_admission(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+        provider_admission=True,
+        clock=lambda: now,
+    ) as admission:
+        assert admission.allowed is True
+        return admission.commit()
+
+
+def test_provider_admission_cap_allows_102_and_denies_103(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+    now = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+
+    for index in range(102):
+        assert _cap_allocate(state, now)[0] == index + 1
+
+    with allocator.production_slot_admission(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+        provider_admission=True,
+        clock=lambda: now,
+    ) as admission:
+        assert admission.allowed is False
+        assert admission.receipt == {"reason": "DAILY_PROVIDER_ADMISSION_CAP"}
+
+    payload = json.loads(state.read_text(encoding="utf-8"))
+    assert payload["cost_date"] == "2026-09-02"
+    assert payload["daily_provider_admission_count"] == 102
+
+
+def test_provider_admission_cap_resets_at_asia_taipei_midnight_and_rejects_future_state(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+    before_midnight = datetime(2026, 9, 2, 23, 59, 59, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+    after_midnight = datetime(2026, 9, 3, 0, 0, 0, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+
+    assert _cap_allocate(state, before_midnight) == (1, "account-1")
+    assert _cap_allocate(state, after_midnight) == (2, "account-2")
+    payload = json.loads(state.read_text(encoding="utf-8"))
+    assert payload["cost_date"] == "2026-09-03"
+    assert payload["daily_provider_admission_count"] == 1
+    payload["cost_date"] = "9999-12-31"
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+
+    with pytest.raises(ValueError, match="provider admission cost date"):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=POOL_ID,
+            manifest_sha256=MANIFEST_SHA256,
+            provider_admission=True,
+            clock=lambda: after_midnight,
+        ):
+            pass
+    payload["schema_version"] = 5
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+
+    with pytest.raises(ValueError, match="state schema"):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=POOL_ID,
+            manifest_sha256=MANIFEST_SHA256,
+            provider_admission=True,
+            clock=lambda: after_midnight,
+        ):
+            pass
+
+
+@pytest.mark.parametrize("bad_count", [-1, "1", 103])
+def test_provider_admission_state_rejects_malformed_count(
+    tmp_path: Path,
+    bad_count: object,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+    now = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+    _cap_allocate(state, now)
+    payload = json.loads(state.read_text(encoding="utf-8"))
+    payload["daily_provider_admission_count"] = bad_count
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+
+    with pytest.raises(ValueError, match="state schema"):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=POOL_ID,
+            manifest_sha256=MANIFEST_SHA256,
+            provider_admission=True,
+            clock=lambda: now,
+        ):
+            pass
 
 
 def _cool(

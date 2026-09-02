@@ -9,7 +9,9 @@ import stat
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 import scripts.agy_gemini_allocator as allocator
@@ -53,6 +55,11 @@ NORMALIZED_TRACE_KEYS = frozenset(
         "automatic_resend_allowed",
     }
 )
+
+
+@pytest.fixture(autouse=True)
+def _provider_admission_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "102")
 
 
 def _assert_normalized_trace_schema(trace: dict[str, object]) -> None:
@@ -2548,9 +2555,229 @@ def test_runner_requeues_stale_processing_job_after_interrupted_worker(tmp_path:
     assert (tmp_path / "archive" / processing_path.name).exists()
 
 
+def test_production_provider_admission_cap_denies_before_provider_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-cap",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    now = 1_788_220_800.0
+    _pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP")
+    missing_cap = process_once(
+        queue_root,
+        generate_json=lambda *_args: pytest.fail("provider must not run without cap"),
+        clock=lambda: now,
+    )
+    assert missing_cap["error_type"] == "ValueError"
+    assert (queue_root / "outbox" / f"{request['job_id']}.json").is_file()
+    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "102")
+    for index in range(102):
+        with allocator.production_slot_admission(
+            state,
+            pool_id="pantheon-production-v1",
+            manifest_sha256=manifest_sha256,
+            provider_admission=True,
+            clock=lambda: now,
+        ) as admission:
+            assert admission.allowed is True
+            admission.commit()
+
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    result = process_once(
+        queue_root,
+        generate_json=lambda *_args: pytest.fail("provider must not run after cap"),
+        clock=lambda: now,
+    )
+
+    assert result == {
+        "status": "provider_admission_cap",
+        "admission": {"reason": "DAILY_PROVIDER_ADMISSION_CAP"},
+    }
+    assert (queue_root / "outbox" / f"{request['job_id']}.json").is_file()
+    assert not (queue_root / "processing" / f"{request['job_id']}.json").exists()
+
+
+def test_v4_broker_with_production_pool_denies_103_before_broker_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-v4-cap",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    now = 1_788_220_800.0
+    pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
+    for _index in range(102):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=str(pool_payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            provider_admission=True,
+            clock=lambda: now,
+        ) as admission:
+            assert admission.allowed is True
+            admission.commit()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL",
+        "com.pantheon.agy-gemini-coordinator",
+    )
+    monkeypatch.setenv("AGY_GEMINI_MODEL_ROUTE_CONFIG", "/approved/model-routes.json")
+    monkeypatch.setenv("AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST", "a" * 64)
+    monkeypatch.setenv("AGY_WRITER_MODEL", "gemini-test-writer")
+    monkeypatch.setenv("AGY_REVIEWER_MODEL", "gemini-test-reviewer")
+    monkeypatch.setattr(runner.formal_runtime, "validate_runtime_tick", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner,
+        "run_single_shot",
+        lambda **_kwargs: pytest.fail("V4 broker must not run after cap"),
+    )
+
+    assert process_once(queue_root, clock=lambda: now) == {
+        "status": "provider_admission_cap",
+        "admission": {"reason": "DAILY_PROVIDER_ADMISSION_CAP"},
+    }
+    assert (queue_root / "outbox" / f"{request['job_id']}.json").is_file()
+
+
+def test_formal_coordinator_without_transport_blocks_before_all_providers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = create_external_request(
+        tmp_path,
+        namespace="formal-coordinator-transport",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    calls: list[str] = []
+
+    def forbidden(name: str) -> object:
+        def call(*_args: object, **_kwargs: object) -> object:
+            calls.append(name)
+            raise AssertionError(f"{name} must not run")
+
+        return call
+
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL",
+        "com.pantheon.agy-gemini-coordinator",
+    )
+    monkeypatch.setenv("AGY_GEMINI_V4_BROKER", "1")
+    for name in runner.FORMAL_PRODUCTION_TRANSPORT_ENV:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(runner.formal_runtime, "validate_runtime_tick", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(runner, "run_single_shot", forbidden("broker"))
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", forbidden("provider"))
+
+    result = process_once(
+        tmp_path,
+        generate_json=forbidden("cli"),
+    )
+
+    assert result == {
+        "status": "blocked",
+        "reason": "formal_production_transport_env_missing",
+        "service_label": "com.pantheon.agy-gemini-coordinator",
+        "missing_env": list(runner.FORMAL_PRODUCTION_TRANSPORT_ENV),
+    }
+    assert calls == []
+    assert (tmp_path / "outbox" / f"{request['job_id']}.json").is_file()
+
+
+def test_four_lanes_compete_for_last_provider_admission(
+    tmp_path: Path,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
+    state = tmp_path / "round-robin-state.json"
+    now = 1_788_220_800.0
+    for _index in range(101):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=str(pool_payload["pool_id"]),
+            manifest_sha256=manifest_sha256,
+            provider_admission=True,
+            clock=lambda: now,
+        ) as admission:
+            assert admission.allowed is True
+            admission.commit()
+    lane_roots = [tmp_path / "lanes" / lane for lane in runner.CONTENT_LANES]
+    for lane_root, lane in zip(lane_roots, runner.CONTENT_LANES, strict=True):
+        create_external_request(
+            lane_root,
+            namespace=f"provider-cap-{lane}",
+            role="writer",
+            model="gemini-test-writer",
+            prompt="公開 prompt",
+            response_schema=SCHEMA,
+        )
+    worker = (
+        "import json,pathlib,sys\n"
+        "from scripts import agy_gemini_runner as r\n"
+        "class C:\n"
+        " def __init__(self,*_args,**_kwargs): pass\n"
+        " def _single_request_http_transport(self,*_args,**_kwargs): return None\n"
+        " def generate_json(self,*_args,**_kwargs): return {'ok':True}\n"
+        "r.GeminiClient=C\n"
+        "print(json.dumps(r.process_once(pathlib.Path(sys.argv[1]),lane=sys.argv[2],clock=lambda:1788220800.0)))\n"
+    )
+    environment = os.environ.copy()
+    environment["AGY_GEMINI_CREDENTIAL_POOL_FILE"] = str(manifest)
+    environment["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] = str(state)
+    environment["AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP"] = "102"
+    environment.pop("AGY_GEMINI_V4_BROKER", None)
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", worker, str(root), lane],
+            cwd=Path(__file__).resolve().parents[1],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for root, lane in zip(lane_roots, runner.CONTENT_LANES, strict=True)
+    ]
+    results: list[dict[str, object]] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=15)
+        assert process.returncode == 0, stdout + stderr
+        results.append(json.loads(stdout))
+
+    assert [result["status"] for result in results].count("processed") == 1
+    assert [result["status"] for result in results].count("provider_admission_cap") == 3
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 102
+
+
 @pytest.mark.parametrize(
     "crash_point",
-    ["before-provider", "during-provider", "after-response"],
+    ["after-marker", "before-provider", "during-provider", "after-response"],
 )
 def test_production_pool_stale_recovery_never_retries_consumed_job(
     tmp_path: Path,
@@ -2571,6 +2798,12 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
         response_schema=SCHEMA,
     )
     state = tmp_path / "round-robin-state.json"
+    before_midnight = datetime(
+        2026, 9, 2, 23, 59, 59, tzinfo=ZoneInfo("Asia/Taipei")
+    ).timestamp()
+    after_midnight = datetime(
+        2026, 9, 3, 0, 0, 0, tzinfo=ZoneInfo("Asia/Taipei")
+    ).timestamp()
     provider_calls = 0
     crash_enabled = True
 
@@ -2592,12 +2825,18 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
         return FakeResponse()
 
     real_read_api_key = runner._read_production_api_key
+    real_credential_from_admission = runner._credential_from_admission
     real_atomic_write = runner.atomic_write_json
 
     def read_api_key(descriptor: int) -> str:
         if crash_enabled and crash_point == "before-provider":
             raise SimulatedCrash
         return real_read_api_key(descriptor)
+
+    def credential_from_admission(*args: object, **kwargs: object) -> tuple[str, dict[str, str]]:
+        if crash_enabled and crash_point == "after-marker":
+            raise SimulatedCrash
+        return real_credential_from_admission(*args, **kwargs)
 
     def atomic_write(path: Path, payload: dict[str, object]) -> None:
         real_atomic_write(path, payload)
@@ -2612,11 +2851,12 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
     monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
     monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
     monkeypatch.setattr(runner, "_read_production_api_key", read_api_key)
+    monkeypatch.setattr(runner, "_credential_from_admission", credential_from_admission)
     monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
     monkeypatch.setattr(runner, "atomic_write_json", atomic_write)
 
     with pytest.raises(SimulatedCrash):
-        process_once(queue_root)
+        process_once(queue_root, clock=lambda: before_midnight)
 
     processing_path = queue_root / "processing" / f"{request['job_id']}.json"
     stale_time = time.time() - runner.STALE_PROCESSING_SECONDS - 1
@@ -2625,8 +2865,9 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
 
     crash_enabled = False
     monkeypatch.setattr(runner, "_read_production_api_key", real_read_api_key)
+    monkeypatch.setattr(runner, "_credential_from_admission", real_credential_from_admission)
     monkeypatch.setattr(runner, "atomic_write_json", real_atomic_write)
-    result = process_once(queue_root)
+    result = process_once(queue_root, clock=lambda: after_midnight)
 
     assert result == {"status": "idle"}
     assert provider_calls == calls_after_crash
@@ -2649,6 +2890,12 @@ def test_production_pool_stale_recovery_never_retries_consumed_job(
     assert attempt_record["attempt_status"] == (
         "succeeded" if crash_point == "after-response" else "failed"
     )
+    if crash_point == "after-marker":
+        assert not state.exists()
+    else:
+        allocator_state = json.loads(state.read_text(encoding="utf-8"))
+        assert allocator_state["cost_date"] == "2026-09-02"
+        assert allocator_state["daily_provider_admission_count"] == 1
 
 
 @pytest.mark.parametrize("provider_outcome", ["success", "failure"])
@@ -2705,6 +2952,7 @@ def test_production_attempt_evidence_blocks_terminal_same_job_replay(
         "succeeded" if provider_outcome == "success" else "failed"
     )
     assert provider_calls == 1
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 1
 
     archive = queue_root / "archive" / f"{request['job_id']}.json"
     replay = queue_root / "outbox" / archive.name
@@ -2718,12 +2966,63 @@ def test_production_attempt_evidence_blocks_terminal_same_job_replay(
     assert second["status"] == "failed"
     assert second["error_type"] == "ProductionAttemptReplay"
     assert provider_calls == 1
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 1
     assert json.loads(marker.read_text(encoding="utf-8")) == first_record
     if provider_outcome == "success":
         assert (queue_root / "inbox" / archive.name).exists()
         assert not (queue_root / "failed" / archive.name).exists()
     else:
         assert (queue_root / "failed" / archive.name).exists()
+
+
+def test_deleted_production_attempt_marker_retries_same_job_and_counts_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, _credentials = _write_production_pool(tmp_path)
+    queue_root = tmp_path / "queue"
+    request = create_external_request(
+        queue_root,
+        namespace="production-marker-deleted-retry",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 prompt",
+        response_schema=SCHEMA,
+    )
+    state = tmp_path / "round-robin-state.json"
+    provider_calls = 0
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"candidates":[{"content":{"parts":[{"text":"{\\"ok\\":true}"}]}}]}'
+
+    def provider(*_args: object, **_kwargs: object) -> FakeResponse:
+        nonlocal provider_calls
+        provider_calls += 1
+        return FakeResponse()
+
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(state))
+    monkeypatch.delenv("AGY_GEMINI_V4_BROKER", raising=False)
+    monkeypatch.setattr(pipeline, "_single_request_urlopen", provider)
+
+    assert process_once(queue_root)["status"] == "processed"
+    archive = queue_root / "archive" / f"{request['job_id']}.json"
+    marker = queue_root / "production-attempts" / f"{request['job_id']}.attempt"
+    marker.unlink()
+    replay = queue_root / "outbox" / archive.name
+    replay.parent.mkdir(parents=True, exist_ok=True)
+    replay.write_bytes(archive.read_bytes())
+
+    assert process_once(queue_root)["status"] == "processed"
+    assert provider_calls == 2
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 2
 
 
 @pytest.mark.parametrize(

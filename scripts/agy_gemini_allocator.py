@@ -28,6 +28,9 @@ SAFE_MODEL_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 PRODUCTION_SLOT_IDS = ("account-1", "account-2", "account-3")
 RATE_LIMIT_REASON = "API_RATE_LIMITED"
 QUOTA_REASON = "API_QUOTA"
+DAILY_PROVIDER_ADMISSION_CAP = 102
+DAILY_PROVIDER_ADMISSION_CAP_REASON = "DAILY_PROVIDER_ADMISSION_CAP"
+TAIPEI_ZONE = ZoneInfo("Asia/Taipei")
 
 
 @dataclass(frozen=True)
@@ -76,12 +79,15 @@ class _QuotaBlock:
             "blocked_until_ms": self.blocked_until_ms,
         }
 
+
 @dataclass(frozen=True)
 class _AllocatorState:
     last_ordinal: int
     last_slot_id: str | None
     cooldowns: tuple[_Cooldown, ...]
     quota_blocks: tuple[_QuotaBlock, ...]
+    cost_date: str | None
+    daily_provider_admission_count: int
     state_identity: tuple[int, int] | None
     expected_lock_identity: tuple[int, int] | None
 
@@ -302,7 +308,7 @@ def _read_state(
     try:
         path.lstat()
     except FileNotFoundError:
-        return _AllocatorState(0, None, (), (), None, None)
+        return _AllocatorState(0, None, (), (), None, (), None, None)
     except OSError as error:
         raise ValueError("production allocator state file is unavailable") from error
     descriptor = _open_private_state(path)
@@ -345,6 +351,15 @@ def _read_state(
     elif schema_version == 3:
         if set(payload) != common_keys | {"cooldowns", "last_slot_id", "quota_blocks"}:
             raise ValueError("production allocator state schema is invalid")
+    elif schema_version == 4:
+        if set(payload) != common_keys | {
+            "cooldowns",
+            "last_slot_id",
+            "quota_blocks",
+            "cost_date",
+            "daily_provider_admission_count",
+        }:
+            raise ValueError("production allocator state schema is invalid")
     else:
         raise ValueError("production allocator state schema is invalid")
     last_ordinal = payload.get("last_ordinal")
@@ -370,7 +385,7 @@ def _read_state(
         raise ValueError("production allocator state manifest mismatch")
     last_slot_id = PRODUCTION_SLOT_IDS[(last_ordinal - 1) % len(PRODUCTION_SLOT_IDS)]
     cooldowns: tuple[_Cooldown, ...] = ()
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         if (
             type(payload.get("last_slot_id")) is not str
             or payload["last_slot_id"] not in PRODUCTION_SLOT_IDS
@@ -409,7 +424,7 @@ def _read_state(
             sorted(parsed, key=lambda item: PRODUCTION_SLOT_IDS.index(item.slot_id))
         )
     quota_blocks: tuple[_QuotaBlock, ...] = ()
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         raw_blocks = payload.get("quota_blocks")
         if not isinstance(raw_blocks, list) or len(raw_blocks) > 24:
             raise ValueError("production allocator state schema is invalid")
@@ -449,11 +464,32 @@ def _read_state(
                 key=lambda item: (item.model, PRODUCTION_SLOT_IDS.index(item.slot_id)),
             )
         )
+    cost_date: str | None = None
+    daily_provider_admission_count = 0
+    if schema_version == 4:
+        raw_date = payload.get("cost_date")
+        raw_count = payload.get("daily_provider_admission_count")
+        if (
+            type(raw_date) is not str
+            or type(raw_count) is not int
+            or not 0 <= raw_count <= DAILY_PROVIDER_ADMISSION_CAP
+        ):
+            raise ValueError("production allocator state schema is invalid")
+        try:
+            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError as error:
+            raise ValueError("production allocator state schema is invalid") from error
+        if parsed_date.isoformat() != raw_date:
+            raise ValueError("production allocator state schema is invalid")
+        cost_date = raw_date
+        daily_provider_admission_count = raw_count
     return _AllocatorState(
         last_ordinal,
         last_slot_id,
         cooldowns,
         quota_blocks,
+        cost_date,
+        daily_provider_admission_count,
         (current.st_dev, current.st_ino),
         (lock_device, lock_inode),
     )
@@ -476,22 +512,33 @@ def _commit_state(
     last_slot_id: str,
     cooldowns: tuple[_Cooldown, ...],
     quota_blocks: tuple[_QuotaBlock, ...],
+    cost_date: str | None,
+    daily_provider_admission_count: int,
     previous_identity: tuple[int, int] | None,
     lock_identity: tuple[int, int],
 ) -> None:
+    payload: dict[str, object] = {
+        "schema_version": 3,
+        "pool_id": pool_id,
+        "manifest_sha256": manifest_sha256,
+        "last_ordinal": ordinal,
+        "last_slot_id": last_slot_id,
+        "cooldowns": [cooldown.state_payload() for cooldown in cooldowns],
+        "quota_blocks": [block.state_payload() for block in quota_blocks],
+        "lock_device": lock_identity[0],
+        "lock_inode": lock_identity[1],
+    }
+    if cost_date is not None:
+        payload.update(
+            {
+                "schema_version": 4,
+                "cost_date": cost_date,
+                "daily_provider_admission_count": daily_provider_admission_count,
+            }
+        )
     encoded = (
         json.dumps(
-            {
-                "schema_version": 3,
-                "pool_id": pool_id,
-                "manifest_sha256": manifest_sha256,
-                "last_ordinal": ordinal,
-                "last_slot_id": last_slot_id,
-                "cooldowns": [cooldown.state_payload() for cooldown in cooldowns],
-                "quota_blocks": [block.state_payload() for block in quota_blocks],
-                "lock_device": lock_identity[0],
-                "lock_inode": lock_identity[1],
-            },
+            payload,
             allow_nan=False,
             ensure_ascii=False,
             sort_keys=True,
@@ -597,6 +644,9 @@ class ProductionSlotAdmission:
     quota_blocks: tuple[_QuotaBlock, ...]
     model: str | None
     denial_reason: str | None
+    provider_admission: bool
+    cost_date: str | None
+    daily_provider_admission_count: int
     state: _AllocatorState
     directory_descriptor: int
     lock_path: Path
@@ -622,6 +672,8 @@ class ProductionSlotAdmission:
                     if block.model == self.model
                 ],
             }
+        if self.denial_reason == DAILY_PROVIDER_ADMISSION_CAP_REASON:
+            return {"reason": DAILY_PROVIDER_ADMISSION_CAP_REASON}
         return {
             "reason": RATE_LIMIT_REASON,
             "cooldowns": [
@@ -638,6 +690,11 @@ class ProductionSlotAdmission:
             raise ValueError("production allocator ordinal is exhausted")
         ordinal = self.state.last_ordinal + 1
         selected_slot = str(self.slot_id)
+        updated_count = self.daily_provider_admission_count
+        if self.provider_admission:
+            if self.cost_date is None:
+                raise ValueError("production provider admission date is missing")
+            updated_count += 1
         _commit_state(
             self.state_path,
             pool_id=self.pool_id,
@@ -646,6 +703,8 @@ class ProductionSlotAdmission:
             last_slot_id=selected_slot,
             cooldowns=self.cooldowns,
             quota_blocks=self.quota_blocks,
+            cost_date=self.cost_date,
+            daily_provider_admission_count=updated_count,
             previous_identity=self.state.state_identity,
             lock_identity=self.lock_identity,
         )
@@ -698,6 +757,8 @@ class ProductionSlotAdmission:
             last_slot_id=self.state.last_slot_id,
             cooldowns=updated,
             quota_blocks=self.quota_blocks,
+            cost_date=self.state.cost_date,
+            daily_provider_admission_count=self.state.daily_provider_admission_count,
             previous_identity=self.state.state_identity,
             lock_identity=self.lock_identity,
         )
@@ -750,6 +811,8 @@ class ProductionSlotAdmission:
             last_slot_id=self.state.last_slot_id,
             cooldowns=self.cooldowns,
             quota_blocks=updated,
+            cost_date=self.state.cost_date,
+            daily_provider_admission_count=self.state.daily_provider_admission_count,
             previous_identity=self.state.state_identity,
             lock_identity=self.lock_identity,
         )
@@ -766,6 +829,7 @@ def production_slot_admission(
     pool_id: str,
     manifest_sha256: str,
     model: str | None = None,
+    provider_admission: bool = False,
     clock: Callable[[], float] | None = None,
 ) -> Iterator[ProductionSlotAdmission]:
     """鎖住 durable state，先判 eligibility，再由 caller 決定是否 commit ordinal。"""
@@ -774,6 +838,7 @@ def production_slot_admission(
     if model is not None and SAFE_MODEL_ID.fullmatch(model) is None:
         raise ValueError("production allocator model is invalid")
     now_ms = _clock_milliseconds(clock)
+    cost_date = datetime.fromtimestamp(now_ms / 1000, TAIPEI_ZONE).date().isoformat()
     lock_path = state_path.with_name(f"{state_path.name}.lock")
     directory_descriptor = _open_allocator_directory(state_path.parent)
     try:
@@ -801,6 +866,17 @@ def production_slot_admission(
                 raise ValueError(
                     "production allocator lock file changed during allocation"
                 )
+            if state.cost_date is not None and state.cost_date > cost_date:
+                raise ValueError("production provider admission cost date is in the future")
+            daily_provider_admission_count = (
+                state.daily_provider_admission_count
+                if state.cost_date == cost_date
+                else 0
+            )
+            provider_cap_exhausted = (
+                provider_admission
+                and daily_provider_admission_count >= DAILY_PROVIDER_ADMISSION_CAP
+            )
             active_cooldowns = tuple(
                 cooldown
                 for cooldown in state.cooldowns
@@ -832,6 +908,8 @@ def production_slot_admission(
                 ),
                 None,
             )
+            if provider_cap_exhausted:
+                selected_slot = None
             admission = ProductionSlotAdmission(
                 state_path=state_path,
                 pool_id=pool_id,
@@ -842,12 +920,17 @@ def production_slot_admission(
                 quota_blocks=active_quota_blocks,
                 model=model,
                 denial_reason=(
-                    QUOTA_REASON
+                    DAILY_PROVIDER_ADMISSION_CAP_REASON
+                    if provider_cap_exhausted
+                    else QUOTA_REASON
                     if model is not None
                     and quota_slots == set(PRODUCTION_SLOT_IDS)
                     and not cooling_slots
                     else RATE_LIMIT_REASON
                 ),
+                provider_admission=provider_admission,
+                cost_date=cost_date if provider_admission else state.cost_date,
+                daily_provider_admission_count=daily_provider_admission_count,
                 state=state,
                 directory_descriptor=directory_descriptor,
                 lock_path=lock_path,

@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from scripts.agy_gemini_outbox import create_external_request
+import scripts.agy_gemini_runner as runner
 from scripts.agy_gemini_runner import process_once
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 
@@ -21,6 +22,34 @@ SCHEMA = {
     "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
 }
+
+
+def test_formal_operator_rejects_coordinator_as_lane_service(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="service label"):
+        runner.operator_exact_process_once(
+            manifest_path=tmp_path / "manifest.json",
+            expected_digest="0" * 64,
+            barrier=tmp_path / "barrier",
+            service_label="com.pantheon.agy-gemini-coordinator",
+            ready_root=tmp_path / "ready",
+            plist=tmp_path / "coordinator.plist",
+            exact_run_id="target-run",
+            timeout=30,
+        )
+
+
+@pytest.mark.parametrize("value", [None, "one-oh-two", "101"])
+def test_production_provider_admission_cap_configuration_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str | None,
+) -> None:
+    if value is None:
+        monkeypatch.delenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", raising=False)
+    else:
+        monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", value)
+
+    with pytest.raises(ValueError, match="provider admission cap"):
+        runner._production_daily_provider_admission_cap()
 
 
 def test_runner_exact_run_ids_claims_only_matching_namespace(tmp_path: Path) -> None:

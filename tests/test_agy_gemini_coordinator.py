@@ -12626,6 +12626,7 @@ def test_installer_injects_one_shared_allocator_contract_into_coordinator_and_al
     shared_contract = {
         "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(pool_file),
         "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(state_file),
+        "AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP": "102",
         "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS": "600",
     }
     assert coordinator_variables["AGY_GEMINI_NEW_ONLY"] == "0"

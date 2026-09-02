@@ -23,6 +23,7 @@ REQUESTED_WRITER_MODEL="${AGY_WRITER_MODEL:-}"
 REQUESTED_REVIEWER_MODEL="${AGY_REVIEWER_MODEL:-}"
 NEW_ONLY="${AGY_GEMINI_NEW_ONLY:-0}"
 RATE_LIMIT_COOLDOWN_SECONDS="${AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS:-300}"
+PROVIDER_ADMISSION_CAP="${AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP:-102}"
 REQUESTED_GSC_COPY_ROOT="${PANTHEON_GSC_COPY_ROOT:-}"
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
@@ -228,6 +229,10 @@ if [[ ! "${RATE_LIMIT_COOLDOWN_SECONDS}" =~ ^[1-9][0-9]{0,3}$ ]] \
   echo "AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS 必須介於 1 與 3600。" >&2
   exit 1
 fi
+if [[ "${PROVIDER_ADMISSION_CAP}" != "102" ]]; then
+  echo "AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP 必須為 102。" >&2
+  exit 1
+fi
 if [[ "${QUEUE_ROOT}" != /* || "${GSC_COPY_ROOT}" != /* || "${CONTENT_PUBLISHER_ROOT}" != /* ]]; then
   echo "Pantheon queue、GSC copy 與 publisher state root 必須使用 absolute path。" >&2
   exit 1
@@ -284,6 +289,7 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_NEW_ONLY ${NEW_ONLY}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS ${RATE_LIMIT_COOLDOWN_SECONDS}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP string ${PROVIDER_ADMISSION_CAP}" "${TEMP_PLIST}"
 if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string ${PRODUCTION_POOL_FILE}" "${TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE string ${PRODUCTION_STATE_FILE}" "${TEMP_PLIST}"
@@ -329,6 +335,7 @@ for LANE in new rewrite i18n-new i18n-rewrite; do
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_CLI ${AGY_CLI_PATH}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_NEW_ONLY ${NEW_ONLY}" "${LANE_TEMP_PLIST}"
   /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS ${RATE_LIMIT_COOLDOWN_SECONDS}" "${LANE_TEMP_PLIST}"
+  /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP string ${PROVIDER_ADMISSION_CAP}" "${LANE_TEMP_PLIST}"
   if [[ -n "${PRODUCTION_POOL_FILE}" ]]; then
     /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_FILE string ${PRODUCTION_POOL_FILE}" "${LANE_TEMP_PLIST}"
     /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE string ${PRODUCTION_STATE_FILE}" "${LANE_TEMP_PLIST}"

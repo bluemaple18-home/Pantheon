@@ -28,6 +28,8 @@ from scripts.agy_gemini_outbox import (
     validate_external_request,
 )
 from scripts.agy_gemini_allocator import (
+    DAILY_PROVIDER_ADMISSION_CAP,
+    DAILY_PROVIDER_ADMISSION_CAP_REASON,
     MAX_RATE_LIMIT_COOLDOWN_SECONDS,
     ProductionSlotAdmission,
     QUOTA_REASON,
@@ -394,6 +396,13 @@ def _production_cooldown_seconds() -> int:
     return seconds
 
 
+def _production_daily_provider_admission_cap() -> int:
+    raw = os.environ.get("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "")
+    if raw != str(DAILY_PROVIDER_ADMISSION_CAP):
+        raise ValueError("production provider admission cap is invalid")
+    return DAILY_PROVIDER_ADMISSION_CAP
+
+
 def _new_only_enabled() -> bool:
     raw = os.environ.get("AGY_GEMINI_NEW_ONLY", "0")
     if raw not in {"0", "1"}:
@@ -409,13 +418,19 @@ def _is_formal_production_gemini_service(service_label: str) -> bool:
     )
 
 
+def _is_formal_gemini_transport_service(service_label: str) -> bool:
+    return service_label == "com.pantheon.agy-gemini-coordinator" or (
+        _is_formal_production_gemini_service(service_label)
+    )
+
+
 def _formal_production_transport_block(
     service_label: str,
     environment: dict[str, str] | os._Environ[str] = os.environ,
 ) -> dict[str, Any] | None:
     if environment.get("PANTHEON_FORMAL_RUNTIME") != "1":
         return None
-    if not _is_formal_production_gemini_service(service_label):
+    if not _is_formal_gemini_transport_service(service_label):
         return None
     missing = [
         name
@@ -807,8 +822,8 @@ def _claim_next(
 def _peek_next_model(
     queue_root: Path,
     exact_run_ids: Iterable[str] | None = None,
-) -> str | None:
-    """不 claim 工作，只讀取與 `_claim_next` 相同優先序的下一個 model。"""
+) -> tuple[str, str] | None:
+    """不 claim 工作，只讀取與 `_claim_next` 相同優先序的 model 與 job id。"""
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     exact_namespaces = (
         frozenset(
@@ -835,7 +850,10 @@ def _peek_next_model(
         candidates.append(
             (0 if request["role"] == "reviewer" else 1, source.name, str(request["model"]))
         )
-    return min(candidates)[2] if candidates else None
+    if not candidates:
+        return None
+    _priority, name, model = min(candidates)
+    return model, Path(name).stem
 
 
 def _restore_unattempted_claim(queue_root: Path, processing_path: Path) -> None:
@@ -1393,11 +1411,12 @@ def process_once(
         if transport_block is not None:
             return transport_block
         pool_file = os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip()
-        production_enabled = (
-            os.environ.get("AGY_GEMINI_V4_BROKER") != "1"
-            and bool(pool_file)
+        provider_admission_enabled = bool(pool_file)
+        credential_pool_transport = (
+            provider_admission_enabled
+            and os.environ.get("AGY_GEMINI_V4_BROKER") != "1"
         )
-        if production_enabled:
+        if provider_admission_enabled:
             state_file = os.environ.get(
                 "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE",
                 "",
@@ -1409,9 +1428,11 @@ def process_once(
                 Path(pool_file)
             )
             cooldown_seconds = _production_cooldown_seconds()
-            selected_model = _peek_next_model(queue_root, selected_run_ids)
-            if selected_model is None:
+            _production_daily_provider_admission_cap()
+            selected = _peek_next_model(queue_root, selected_run_ids)
+            if selected is None:
                 return {"status": "idle"}
+            selected_model, selected_job_id = selected
             if selected_model == "":
                 processing_path = _claim_next(queue_root, selected_run_ids)
                 if processing_path is None:
@@ -1426,6 +1447,7 @@ def process_once(
                 pool_id=str(pool_payload["pool_id"]),
                 manifest_sha256=production_manifest_sha256,
                 model=selected_model,
+                provider_admission=True,
                 clock=clock_function,
             ) as admission:
                 if not admission.allowed:
@@ -1433,23 +1455,48 @@ def process_once(
                         "status": (
                             "quota_blocked"
                             if admission.receipt.get("reason") == QUOTA_REASON
+                            else "provider_admission_cap"
+                            if admission.receipt.get("reason")
+                            == DAILY_PROVIDER_ADMISSION_CAP_REASON
                             else "cooldown"
                         ),
                         "admission": admission.receipt,
                     }
-                processing_path = _claim_next(queue_root, selected_run_ids)
-                if processing_path is None:
-                    return {"status": "idle"}
-                job_id = processing_path.stem
-                archive_path = queue_root / "archive" / f"{job_id}.json"
-                request = json.loads(processing_path.read_text(encoding="utf-8"))
-                validate_external_request(request)
-                if request["job_id"] != job_id:
-                    raise ValueError("request job id differs from queue filename")
-                if request["model"] != selected_model:
+            processing_path = _claim_next(queue_root, selected_run_ids)
+            if processing_path is None:
+                return {"status": "idle"}
+            job_id = processing_path.stem
+            archive_path = queue_root / "archive" / f"{job_id}.json"
+            request = json.loads(processing_path.read_text(encoding="utf-8"))
+            validate_external_request(request)
+            if request["job_id"] != job_id:
+                raise ValueError("request job id differs from queue filename")
+            if job_id != selected_job_id or request["model"] != selected_model:
+                _restore_unattempted_claim(queue_root, processing_path)
+                processing_path = None
+                return {"status": "selection_changed"}
+            with production_slot_admission(
+                production_state_path,
+                pool_id=str(pool_payload["pool_id"]),
+                manifest_sha256=production_manifest_sha256,
+                model=selected_model,
+                provider_admission=True,
+                clock=clock_function,
+            ) as admission:
+                if not admission.allowed:
                     _restore_unattempted_claim(queue_root, processing_path)
                     processing_path = None
-                    return {"status": "selection_changed"}
+                    return {
+                        "status": (
+                            "quota_blocked"
+                            if admission.receipt.get("reason") == QUOTA_REASON
+                            else "provider_admission_cap"
+                            if admission.receipt.get("reason")
+                            == DAILY_PROVIDER_ADMISSION_CAP_REASON
+                            else "cooldown"
+                        ),
+                        "admission": admission.receipt,
+                    }
                 production_attempt_evidence = _begin_production_attempt(
                     queue_root,
                     request,
@@ -1458,11 +1505,14 @@ def process_once(
                     raise ProductionAttemptReplay(
                         "production job already has attempt evidence"
                     )
-                production_api_key, credential_pool = _credential_from_admission(
-                    pool_payload,
-                    production_manifest_sha256,
-                    admission,
-                )
+                if credential_pool_transport:
+                    production_api_key, credential_pool = _credential_from_admission(
+                        pool_payload,
+                        production_manifest_sha256,
+                        admission,
+                    )
+                else:
+                    admission.commit()
         else:
             processing_path = _claim_next(queue_root, selected_run_ids)
             if processing_path is None:
