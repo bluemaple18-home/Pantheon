@@ -2456,6 +2456,59 @@ def _prepare_publication_control(
     return control
 
 
+def _prepare_publication_intent(
+    state_root: Path, phase: str, run_ids: list[str], base_sha: str, version: str,
+    publication_context: dict[str, Any],
+) -> None:
+    entries = publication_context.get("ledger_entries")
+    evidence = publication_context.get("publish_evidence")
+    if (
+        phase not in PUBLICATION_PHASES or len(run_ids) != 1
+        or not isinstance(entries, list) or not isinstance(evidence, dict)
+        or [entry.get("run_id") for entry in entries] != run_ids
+    ):
+        raise PublishBlocked("publication intent is invalid")
+    intent = {
+        "schema_version": SCHEMA_VERSION, "status": "COMMIT_INTENT", "phase": phase,
+        "run_ids": list(run_ids), "base_sha": base_sha, "version": version,
+        "target_tag": f"v{version}", "recorded_at": _now(),
+        "ledger_entries": entries, "publish_evidence": evidence,
+    }
+    intent["publication_plan_digest"] = hashlib.sha256(
+        pipeline.compact_json_bytes(intent)
+    ).hexdigest()
+    _atomic_write_json(_unresolved_push_path(state_root), intent)
+
+
+def _promote_commit_intent(
+    repo_root: Path, state_root: Path, git: GitRunner, control: dict[str, Any],
+) -> dict[str, Any]:
+    keys = set("schema_version status phase run_ids base_sha version target_tag recorded_at ledger_entries publish_evidence publication_plan_digest".split())
+    if set(control) != keys or control.get("schema_version") != SCHEMA_VERSION or control.get("status") != "COMMIT_INTENT":
+        raise PublishBlocked("commit intent control is invalid")
+    phase = str(control["phase"]); run_ids = control["run_ids"]
+    base = str(control["base_sha"]); version = str(control["version"]); tag = str(control["target_tag"])
+    if phase not in PUBLICATION_PHASES or not isinstance(run_ids, list) or len(run_ids) != 1 or not EXACT_RUN_ID_PATTERN.fullmatch(str(run_ids[0])) or not re.fullmatch(r"[0-9a-f]{40}", base) or tag != f"v{version}":
+        raise PublishBlocked("commit intent identity is invalid")
+    digest = {key: value for key, value in control.items() if key != "publication_plan_digest"}
+    if control["publication_plan_digest"] != hashlib.sha256(pipeline.compact_json_bytes(digest)).hexdigest():
+        raise PublishBlocked("commit intent plan differs")
+    try:
+        target = git(repo_root, ["rev-parse", f"{tag}^{{}}"], None)
+        tag_object = git(repo_root, ["rev-parse", f"refs/tags/{tag}"], None)
+        parent = git(repo_root, ["rev-parse", f"{target}^"], None)
+    except subprocess.CalledProcessError as error:
+        raise PublishBlocked("commit intent cannot reconstruct local target") from error
+    if not re.fullmatch(r"[0-9a-f]{40}", target) or not re.fullmatch(r"[0-9a-f]{40}", tag_object) or parent != base:
+        raise PublishBlocked("commit intent local target differs")
+    return _prepare_publication_control(
+        state_root, phase=phase, run_ids=run_ids, base_sha=base,
+        target_commit_sha=target, version=version,
+        ledger_entries=control["ledger_entries"],
+        publish_evidence=control["publish_evidence"],
+    )
+
+
 def _publication_terminal_matches(
     ledger: dict[str, Any], phase: str, run_ids: list[str],
     entries: list[dict[str, Any]], target: str, version: str,
@@ -2509,8 +2562,12 @@ def _record_publication_result(
     else:
         ledger = _load_ledger(state_root)
         ledger[PUBLICATION_PHASES[phase][1]].extend(entries)
+        reservations = {item["run_id"]: item for item in _publication_success_reservations(ledger)}
+        for entry in entries:
+            reservation = reservations.get(str(entry["run_id"]))
+            if reservation is not None and reservation["phase"] == phase and reservation["status"] == "reserved":
+                reservation["status"] = "released"
         _atomic_write_json(_ledger_path(state_root), ledger)
-        _release_publication_success(state_root, phase, [str(item["run_id"]) for item in entries])
     _atomic_write_json(evidence_path, evidence)
     if pushed:
         _remove_prepared_control(state_root)
@@ -2518,6 +2575,7 @@ def _record_publication_result(
 
 def _resume_prepared_publication(
     repo_root: Path, state_root: Path, git: GitRunner, control: dict[str, Any],
+    queue_root: Path | None = None,
 ) -> dict[str, Any]:
     keys = set("schema_version status phase run_ids base_sha target_commit_sha version target_tag expected_remote_main_before expected_remote_tag_before ledger_path publish_evidence_path ledger_entries publish_evidence publication_plan_digest".split())
     if set(control) != keys or control.get("schema_version") != SCHEMA_VERSION or control.get("status") != "PUSH_PREPARED":
@@ -2535,8 +2593,45 @@ def _resume_prepared_publication(
     entries = control["ledger_entries"]; evidence = control["publish_evidence"]
     if Path(str(control["ledger_path"])) != _ledger_path(state_root) or Path(str(control["publish_evidence_path"])) != evidence_path or not isinstance(entries, list) or [entry.get("run_id") for entry in entries] != run_ids or any(entry.get("commit_sha") != target or entry.get("version") != version for entry in entries) or not isinstance(evidence, dict) or evidence.get("status") != expected_status or evidence.get("base_sha") != base or evidence.get("commit_sha") != target or evidence.get("version") != version or evidence.get("run_ids") != run_ids:
         raise PublishBlocked("prepared publication payload differs")
+    if phase == "translation" and queue_root is not None and entries[0].get("sealed_lineage") is not None:
+        paths = _selected_run_files(queue_root, state_root, "translation", frozenset({str(run_ids[0])}))
+        if len(paths) != 1:
+            raise PublishBlocked("prepared translation state is not unique")
+        state = _read_json(paths[0])
+        try:
+            staged = multilingual.load_approved_edited_candidate_stage(Path(str(state["run_dir"])))
+            seal = staged["seal"]
+        except (KeyError, OSError, ValueError, json.JSONDecodeError) as error:
+            raise PublishBlocked("prepared translation sealed stage is invalid") from error
+        if _file_sha256(paths[0]) != seal.get("queue_state_sha256"):
+            raise PublishBlocked("prepared translation queue state differs")
+        lineage = entries[0].get("sealed_lineage")
+        if not isinstance(lineage, dict) or lineage != {
+            "receipt_sha256": staged["receipt_sha256"],
+            **{key: seal.get(key) for key in (
+                "formal_job_id", "formal_request_sha256",
+                "approved_candidate_file_sha256", "approved_article_sha256",
+                "approved_review_file_sha256", "formal_review_result_sha256",
+            )},
+            "queue_state_sha256": seal.get("queue_state_sha256"),
+        }:
+            raise PublishBlocked("prepared translation sealed lineage differs")
+        replacement = seal.get("public_replacement")
+        if replacement is not None and any(entries[0].get(key) != value for key, value in {
+            "replaces_run_id": replacement["old_run_id"],
+            "replaced_record_sha256": replacement["old_record_sha256"],
+            "replacement_record_sha256": replacement["replacement_record_sha256"],
+            "replacement_module_before_sha256": replacement["module_before_sha256"],
+            "replacement_module_after_sha256": replacement["module_after_sha256"],
+            "publication_plan_digest": hashlib.sha256(
+                pipeline.compact_json_bytes(replacement)
+            ).hexdigest(),
+        }.items()):
+            raise PublishBlocked("prepared translation replacement lineage differs")
+    if git(repo_root, ["rev-parse", "HEAD"], None) != target:
+        git(repo_root, ["checkout", "--detach", target], None)
     local_tag_object = git(repo_root, ["rev-parse", f"refs/tags/{tag}"], None)
-    if git(repo_root, ["rev-parse", "HEAD"], None) != target or git(repo_root, ["rev-parse", f"{tag}^{{}}"], None) != target or git(repo_root, ["rev-parse", f"{target}^"], None) != base or not re.fullmatch(r"[0-9a-f]{40}", local_tag_object) or any(_publisher_owned_path(line[3:]) for line in git(repo_root, ["status", "--porcelain"], None).splitlines()):
+    if git(repo_root, ["rev-parse", f"{tag}^{{}}"], None) != target or git(repo_root, ["rev-parse", f"{target}^"], None) != base or not re.fullmatch(r"[0-9a-f]{40}", local_tag_object) or any(_publisher_owned_path(line[3:]) for line in git(repo_root, ["status", "--porcelain"], None).splitlines()):
         raise PublishBlocked("prepared publication local commit or tag differs")
     ledger = _load_ledger(state_root)
     terminal = _publication_terminal_matches(ledger, phase, run_ids, entries, target, version)
@@ -2583,6 +2678,8 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
             *args: Any,
             **kwargs: Any,
         ) -> dict[str, Any]:
+            if not kwargs.get("dry_run", False):
+                _require_publication_success_quota()
             _validate_formal_runtime(repo_root, queue_root, state_root)
             git = kwargs.get("git", run_git)
             state_root.mkdir(parents=True, exist_ok=True)
@@ -2595,6 +2692,16 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                 if control_path.is_file():
                     control = _read_json(control_path)
                     selected = _normalize_exact_run_ids(kwargs.get("exact_run_ids"))
+                    if control.get("status") == "COMMIT_INTENT":
+                        control_runs = _normalize_exact_run_ids(control.get("run_ids"))
+                        if selected is not None and selected != control_runs:
+                            raise PublishBlocked("commit intent requires matching exact run ids")
+                        with (state_root / "publisher.lock").open("a+") as publisher_lock:
+                            try:
+                                fcntl.flock(publisher_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            except BlockingIOError:
+                                return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
+                            control = _promote_commit_intent(repo_root, state_root, git, control)
                     if control.get("status") == "PUSH_PREPARED":
                         control_runs = _normalize_exact_run_ids(control.get("run_ids"))
                         if selected is not None and selected != control_runs:
@@ -2605,7 +2712,10 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                             except BlockingIOError:
                                 return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
                             _require_publication_success_quota()
-                            return _resume_prepared_publication(repo_root, state_root, git, control)
+                            result = _resume_prepared_publication(repo_root, state_root, git, control, queue_root)
+                            if control.get("phase") in {"create", "rewrite"}:
+                                result["seeded_translation_runs"] = _seed_pending_translations(repo_root, queue_root, state_root)
+                            return result
                     _assert_no_unresolved_push(state_root)
                 base_sha = _assert_clean_origin_head(repo_root, git)
                 journal = MutationJournal(repo_root, git)
@@ -3175,6 +3285,7 @@ def collect_ready_translation_runs(
                     "receipt_sha256": approved_stage["receipt_sha256"],
                     "terminal_owner": approved_stage["seal"]["terminal_owner"],
                     "public_replacement": approved_stage["seal"].get("public_replacement"),
+                    "queue_state_sha256": approved_stage["seal"]["queue_state_sha256"],
                     "formal_job_id": approved_stage["seal"]["formal_job_id"],
                     "formal_request_sha256": approved_stage["seal"]["formal_request_sha256"],
                     "approved_candidate_file_sha256": approved_stage["seal"]["approved_candidate_file_sha256"],
@@ -4006,6 +4117,14 @@ def _stage_commit_tag_push(
     run_checked = checked_runner or _run_checked
     if push:
         run_checked(repo_root, [*PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"])
+    if publication_context is not None and push:
+        if state_root is None or phase not in PUBLICATION_PHASES or len(run_ids or []) != 1:
+            raise PublishBlocked("prepared publication context is invalid")
+        _prepare_publication_intent(
+            state_root, phase, list(run_ids),
+            str(publication_context["publish_evidence"]["base_sha"]), version,
+            publication_context,
+        )
     git(repo_root, ["add", "app/web", "tests/test_web.py", "pyproject.toml", "package.json", "CHANGELOG.md"], None)
     if extra_add_paths:
         git(repo_root, ["add", *extra_add_paths], None)
@@ -4311,11 +4430,13 @@ def publish_ready_runs(
         ready = collect_ready_runs(
             queue_root,
             state_root,
-            limit=max_runs,
+            limit=10_000 if dry_run else max_runs,
             repo_root=repo_root,
             exact_run_ids=selected_run_ids,
         )
         if not ready:
+            if selected_run_ids is None and seed_translations:
+                recovered_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
             return {
                 "schema_version": SCHEMA_VERSION,
                 "status": "idle",
@@ -4490,7 +4611,7 @@ def publish_ready_rewrite_runs(
         ready = collect_ready_rewrite_runs(
             queue_root,
             state_root,
-            limit=max_runs,
+            limit=10_000 if dry_run else max_runs,
             allowed_article_ids=allowed_article_ids,
             repo_root=repo_root,
             exact_run_ids=selected_run_ids,
@@ -4668,7 +4789,7 @@ def publish_ready_translation_runs(
             repo_root,
             queue_root,
             state_root,
-            limit=max_runs,
+            limit=10_000 if dry_run else max_runs,
             exact_run_ids=selected_run_ids,
         )
         if not ready:
@@ -4795,6 +4916,21 @@ def publish_ready_translation_runs(
             }
             if staging_receipt_sha256 is not None:
                 entry["staging_receipt_sha256"] = staging_receipt_sha256
+            if isinstance(approved_stage, dict):
+                paths = _selected_run_files(queue_root, state_root, "translation", frozenset({run_id}))
+                if len(paths) != 1:
+                    raise PublishBlocked("translation sealed state is not unique")
+                if _file_sha256(paths[0]) != approved_stage.get("queue_state_sha256"):
+                    raise PublishBlocked("translation sealed queue state differs")
+                entry["sealed_lineage"] = {
+                    key: approved_stage.get(key) for key in (
+                        "receipt_sha256",
+                        "formal_job_id", "formal_request_sha256",
+                        "approved_candidate_file_sha256", "approved_article_sha256",
+                        "approved_review_file_sha256", "formal_review_result_sha256",
+                        "queue_state_sha256",
+                    )
+                }
             replacement = approved_stage.get("public_replacement") if isinstance(approved_stage, dict) else None
             if replacement is not None:
                 entry.update({
