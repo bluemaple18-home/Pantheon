@@ -69,6 +69,21 @@ quota date 在 transaction admission 時固定為 Asia/Taipei 日期；同一 `r
 跨午夜仍歸入原 admission date。成功只扣一次；失敗釋放 success reservation，
 但仍計入成本上限。
 
+## 後續 evidence 裁決（2026-09-02）
+
+- `OPEN-1`：由既有真實 production chain
+  `auto-new-v1-20260817-060-01 → auto-new-v1-20260817-061-01` 結案；結論只涵蓋
+  Coordinator transport-failure isolation，不涵蓋 Publisher retry 或全面 resident
+  operability。證據見
+  `artifacts/fortune_council/four_lane_runtime_execution/RESULT-PANTHEON-OPEN1-HISTORICAL-EVIDENCE-MAPPING-20260902.md`。
+- `OPEN-2` cost cap：鎖定為 Asia/Taipei 每日最多 `102` 次 provider admission。
+  依現行四 lane 各一 run 的最壞既有語意預算，logical operations 為
+  `8 + 8 + 9 + 9 = 34`，每個 operation 最多三個 transport jobs，故為
+  `34 × 3 = 102`。不採 `75`，因其需先新增「延後其中一條 i18n lane」的 scheduler
+  政策，超出本輪 minimum sufficient scope。
+- `102` 是 provider-call count hard cap，不是 token 或貨幣上限；本輪不新增價格服務、
+  token estimator 或第二套 budget system。
+
 ## 固定 go-live preflight
 
 這是必要的非 program gate；清單固定只有四項，不得增加第五項：

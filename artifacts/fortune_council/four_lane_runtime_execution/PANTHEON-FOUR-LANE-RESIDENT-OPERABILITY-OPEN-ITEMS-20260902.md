@@ -12,7 +12,7 @@ status: open
 
 - `PER_RUN_CORRECTNESS = CLOSED`
 - `RESIDENT_OPERABILITY = UNPROVEN`
-- `ACTIVE_BEHAVIORAL_GAPS = OPEN-1 + OPEN-2`
+- `ACTIVE_BEHAVIORAL_GAPS = OPEN-2`
 - `C_C_T_ACCEPTANCE_PROGRAM = TERMINATED`
 
 本清單不得重新加入 C-C/T 模擬器問題，也不得以 code inference、fixture 或單次
@@ -50,8 +50,12 @@ exit 1 時，同一 cycle 仍能 seed/dispatch，亦即單篇失敗沒有停止�
 
 ### 目前狀態
 
-`OPEN-1_UNPROVEN`。若唯讀歷史 mapping 找不到完整鏈，只能維持此狀態；不得用
-推論補足。
+`OPEN-1_CLOSED_BY_EXISTING_REAL_EVIDENCE`。真實 production chain
+`auto-new-v1-20260817-060-01 → auto-new-v1-20260817-061-01` 已同鏈證明三次
+transport failure、terminal failed、active slot 釋放／補位與不同 item 後續 provider
+execution。此結論只關閉 Coordinator transport-failure isolation；不得延伸為
+Publisher retry 或全面 resident operability 已結案。完整 identity、digest 與時間序見
+`artifacts/fortune_council/four_lane_runtime_execution/RESULT-PANTHEON-OPEN1-HISTORICAL-EVIDENCE-MAPPING-20260902.md`。
 
 ## OPEN-2 — 每日 publication 與成本硬上限
 
@@ -86,13 +90,17 @@ success quota 不限制失敗重試的 provider 成本。`OPEN-2` 另須 daily
 admitted-attempt 或 provider-call hard cap；失敗也必須計入。實作前先從既有
 call/retry authority 推導最小安全數值並交 Mainline 鎖定。
 
-目前沒有 Owner 核准的數字，因此狀態為
-`OPEN-2_COST_CAP_NUMERIC_POLICY_REQUIRED`。在數值、既有持久化 authority 與
+Mainline 依唯讀 mapping 鎖定 `102 provider admissions / Asia/Taipei day`；推導為
+四 lane 各一個 run 的最壞 `34` logical operations 乘上每 operation 最多 `3`
+transport jobs。狀態為 `OPEN-2_IMPLEMENTATION_REQUIRED`。在既有持久化 authority 與
 fail-closed 測試閉合以前：
 
 - `OPEN-2` 不得標為完成；
 - 不得 activation；
 - 不得把成本無上限記成 Owner 已接受的 known risk。
+
+`102` 只限制 provider admissions，不宣稱 token 或貨幣硬上限；本輪不得因此新增
+pricing API、token estimator 或 per-model 第二套 budget。
 
 ### 最小驗證矩陣
 
@@ -110,4 +118,3 @@ activation、provider call 或 production mutation。
 固定 go-live preflight 只引用 Owner decision 中已鎖定的四項，不在本清單新增或
 派生任何第五項：
 `artifacts/fortune_council/four_lane_runtime_execution/OWNER-RESCOPE-DECISION-PANTHEON-FOUR-LANE-GO-LIVE-20260902.md`。
-
