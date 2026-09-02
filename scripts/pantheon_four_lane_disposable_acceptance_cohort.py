@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 import hashlib
 import json
 import os
 from pathlib import Path
 import plistlib
+import pwd
 import re
 import stat
 import subprocess
@@ -30,8 +32,17 @@ ACCEPTED_PARENT_SHA = "836d5f0d1d62b58ad886aa37863c15ce41d233ec"
 SOURCE_LANES = ("new", "rewrite")
 TRANSLATION_LANES = ("i18n-new", "i18n-rewrite")
 LAUNCHCTL = "/bin/launchctl"
-PRODUCTION_LAUNCH_PLIST_ROOT = Path.home() / "Library/LaunchAgents"
+
+
+def _os_uid_home() -> Path:
+    """以 OS account database 為 HOME authority，不信任 caller environment。"""
+    return Path(pwd.getpwuid(os.getuid()).pw_dir)
+
+
+PRODUCTION_LAUNCH_PLIST_ROOT = _os_uid_home() / "Library/LaunchAgents"
 PRODUCTION_ARTICLE_REGISTRY_RELATIVE_PATH = Path("app/web/static/article-registry.js")
+READINESS_TIMEOUT_SECONDS = max(7, len(SERVICE_LABELS))
+TEARDOWN_ATTEMPTS = 3
 PLAN_FIELDS = {
     "schema_version", "accepted_parent_sha", "actor_sha", "session_id",
     "session_nonce_digest", "generation", "manifest_path", "manifest_digest",
@@ -45,6 +56,398 @@ PLAN_FIELDS = {
 
 class AcceptanceBlocked(ValueError):
     """disposable acceptance 契約不成立。"""
+
+
+def _identity(value: os.stat_result) -> tuple[int, int]:
+    return value.st_dev, value.st_ino
+
+
+def _read_descriptor(descriptor: int) -> bytes:
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    chunks: list[bytes] = []
+    while True:
+        chunk = os.read(descriptor, 65536)
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+
+
+@dataclass
+class RetainedDirectory:
+    """單一 run_once 內 retained directory fd 與首次 identity。"""
+
+    path: Path
+    descriptor: int
+    device: int
+    inode: int
+    parent: RetainedDirectory | None = None
+    entry_name: str | None = None
+
+    @classmethod
+    def open_absolute(cls, path: Path, label: str) -> RetainedDirectory:
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(path, flags)
+            info = os.fstat(descriptor)
+        except OSError as error:
+            raise AcceptanceBlocked(f"{label} authority cannot be opened") from error
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+            os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority is not owner-safe")
+        value = cls(path, descriptor, info.st_dev, info.st_ino)
+        value.verify(label)
+        return value
+
+    def open_directory(self, name: str, label: str) -> RetainedDirectory:
+        self.verify(label)
+        if not name or "/" in name or name in {".", ".."}:
+            raise AcceptanceBlocked(f"{label} authority name differs")
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(name, flags, dir_fd=self.descriptor)
+            info = os.fstat(descriptor)
+        except OSError as error:
+            raise AcceptanceBlocked(f"{label} authority cannot be opened") from error
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+            os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority is not owner-safe")
+        value = RetainedDirectory(self.path / name, descriptor, info.st_dev, info.st_ino, self, name)
+        value.verify(label)
+        return value
+
+    def verify(self, label: str) -> None:
+        try:
+            current = os.fstat(self.descriptor)
+            visible = (
+                os.stat(self.entry_name, dir_fd=self.parent.descriptor, follow_symlinks=False)
+                if self.parent is not None and self.entry_name is not None
+                else os.lstat(self.path)
+            )
+        except OSError as error:
+            raise AcceptanceBlocked(f"{label} authority drift") from error
+        if (
+            not stat.S_ISDIR(current.st_mode)
+            or not stat.S_ISDIR(visible.st_mode)
+            or _identity(current) != (self.device, self.inode)
+            or _identity(visible) != (self.device, self.inode)
+        ):
+            raise AcceptanceBlocked(f"{label} authority drift")
+        if self.parent is not None:
+            self.parent.verify(label)
+
+    def close(self) -> None:
+        if self.descriptor >= 0:
+            os.close(self.descriptor)
+            self.descriptor = -1
+
+
+@dataclass
+class RetainedFile:
+    """只從 pinned parent fd 開啟，後續 digest/read-back 不重開 path。"""
+
+    parent: RetainedDirectory
+    name: str
+    path: Path
+    descriptor: int
+    device: int
+    inode: int
+    digest: str
+    immutable: bool
+
+    @classmethod
+    def open(cls, parent: RetainedDirectory, name: str, label: str, *, writable: bool = False) -> RetainedFile:
+        parent.verify(label)
+        flags = (os.O_RDWR if writable else os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(name, flags, dir_fd=parent.descriptor)
+            info = os.fstat(descriptor)
+        except OSError as error:
+            raise AcceptanceBlocked(f"{label} authority cannot be opened") from error
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+            os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority is not owner-safe")
+        return cls.adopt(parent, name, descriptor, label, immutable=not writable)
+
+    @classmethod
+    def adopt(
+        cls,
+        parent: RetainedDirectory,
+        name: str,
+        descriptor: int,
+        label: str,
+        *,
+        immutable: bool,
+    ) -> RetainedFile:
+        """直接接管 create fd，禁止 create→close→path reopen。"""
+        try:
+            info = os.fstat(descriptor)
+        except OSError as error:
+            os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority cannot be adopted") from error
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+            os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority is not owner-safe")
+        digest = hashlib.sha256(_read_descriptor(descriptor)).hexdigest()
+        value = cls(parent, name, parent.path / name, descriptor, info.st_dev, info.st_ino, digest, immutable)
+        value.verify(label)
+        return value
+
+    def verify(self, label: str) -> None:
+        self.parent.verify(label)
+        try:
+            visible = os.stat(self.name, dir_fd=self.parent.descriptor, follow_symlinks=False)
+            current = os.fstat(self.descriptor)
+        except OSError as error:
+            raise AcceptanceBlocked(f"{label} authority drift") from error
+        if (
+            not stat.S_ISREG(visible.st_mode)
+            or not stat.S_ISREG(current.st_mode)
+            or _identity(visible) != (self.device, self.inode)
+            or _identity(current) != (self.device, self.inode)
+        ):
+            raise AcceptanceBlocked(f"{label} authority drift")
+        if self.immutable and hashlib.sha256(_read_descriptor(self.descriptor)).hexdigest() != self.digest:
+            raise AcceptanceBlocked(f"{label} pinned digest drift")
+
+    def read(self, label: str) -> bytes:
+        self.verify(label)
+        return _read_descriptor(self.descriptor)
+
+    def content_digest(self, label: str) -> str:
+        self.verify(label)
+        return hashlib.sha256(_read_descriptor(self.descriptor)).hexdigest()
+
+    def close(self) -> None:
+        if self.descriptor >= 0:
+            os.close(self.descriptor)
+            self.descriptor = -1
+
+
+@dataclass
+class LoadedAuthority:
+    label: str
+    artifact: RetainedFile
+    kind: str
+    attempts: list[str] = field(default_factory=list)
+
+
+class ContinuousAuthority:
+    """run_once 唯一 transient authority aggregate；不跨執行持久化。"""
+
+    def __init__(self, rendered: Mapping[str, Any]) -> None:
+        self.rendered = rendered
+        self.directories: list[RetainedDirectory] = []
+        self.files: list[RetainedFile] = []
+        self.loaded: dict[str, LoadedAuthority] = {}
+        self.drift_evidence: list[dict[str, Any]] = []
+        root = self._directory_absolute(Path(rendered["acceptance_root"]), "acceptance root")
+        self.acceptance_root = root
+        self.plists = self._directory(root, "plists", "plist parent")
+        self.generation = self._directory(self.plists, str(rendered["session_plan"]["generation"]), "plist generation")
+        self.baseline: dict[str, RetainedFile] = {}
+        self.baseline_outputs: dict[str, tuple[RetainedFile, RetainedFile]] = {}
+        expected = {f"{label}.plist" for label in SERVICE_LABELS}
+        if {Path(path).name for path in rendered["plist_paths"]} != expected:
+            raise AcceptanceBlocked("baseline plist set differs")
+        for label in SERVICE_LABELS:
+            self.baseline[label] = self._file(self.generation, f"{label}.plist", "baseline plist")
+            self.baseline_outputs[label] = (
+                self._create_empty(self.generation, f"{label}.stdout.json", "baseline stdout"),
+                self._create_empty(self.generation, f"{label}.stderr.log", "baseline stderr"),
+            )
+        try:
+            os.mkdir("steps", 0o700, dir_fd=self.generation.descriptor)
+        except OSError as error:
+            raise AcceptanceBlocked("step authority cannot be created") from error
+        self.steps = self._directory(self.generation, "steps", "step directory")
+        self.production_home = self._directory_absolute(_os_uid_home(), "production uid home")
+        self.production_library = self._directory(self.production_home, "Library", "production Library")
+        self.production_launch_agents = self._directory(self.production_library, "LaunchAgents", "production LaunchAgents")
+        if self.production_launch_agents.path != PRODUCTION_LAUNCH_PLIST_ROOT:
+            raise AcceptanceBlocked("production LaunchAgents authority differs")
+        self.production_plists = {
+            label: self._file(self.production_launch_agents, f"{label}.plist", "production launch plist")
+            for label in SERVICE_LABELS
+        }
+
+    def __enter__(self) -> ContinuousAuthority:
+        return self
+
+    def __exit__(self, _kind: object, _value: object, _traceback: object) -> None:
+        for item in reversed(self.files):
+            item.close()
+        for item in reversed(self.directories):
+            item.close()
+
+    def _directory_absolute(self, path: Path, label: str) -> RetainedDirectory:
+        value = RetainedDirectory.open_absolute(path, label)
+        self.directories.append(value)
+        return value
+
+    def _directory(self, parent: RetainedDirectory, name: str, label: str) -> RetainedDirectory:
+        value = parent.open_directory(name, label)
+        self.directories.append(value)
+        return value
+
+    def _file(self, parent: RetainedDirectory, name: str, label: str, *, writable: bool = False) -> RetainedFile:
+        value = RetainedFile.open(parent, name, label, writable=writable)
+        self.files.append(value)
+        return value
+
+    def _create_empty(self, parent: RetainedDirectory, name: str, label: str) -> RetainedFile:
+        parent.verify(label)
+        descriptor = -1
+        try:
+            descriptor = os.open(name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=parent.descriptor)
+            os.fsync(descriptor)
+        except OSError as error:
+            if descriptor >= 0:
+                os.close(descriptor)
+            raise AcceptanceBlocked(f"{label} authority cannot be created") from error
+        value = RetainedFile.adopt(parent, name, descriptor, label, immutable=False)
+        self.files.append(value)
+        return value
+
+    def verify_baseline(self) -> None:
+        self.generation.verify("plist generation")
+        for label in SERVICE_LABELS:
+            self.baseline[label].verify("baseline plist")
+            for output in self.baseline_outputs[label]:
+                output.verify("baseline output")
+
+    def create_step(self, index: int, label: str, command: list[str]) -> tuple[RetainedFile, RetainedFile, RetainedFile]:
+        self.verify_baseline()
+        stem = f"{index:02d}-{label}"
+        stdout = self._create_empty(self.steps, f"{stem}.stdout.json", "step stdout")
+        stderr = self._create_empty(self.steps, f"{stem}.stderr.log", "step stderr")
+        payload = {
+            "Label": label,
+            "ProgramArguments": [
+                *_prefix(str(self.rendered["manifest"].get("python_executable") or os.sys.executable), self.rendered["manifest"], label, Path(self.rendered["barrier"]), Path(self.rendered["ready_root"]), False),
+                "--",
+                *command,
+            ],
+            "EnvironmentVariables": _env(self.rendered["manifest"], label, Path(self.rendered["barrier"])),
+            "WorkingDirectory": str(self.rendered["manifest"]["actor_root"]),
+            "RunAtLoad": False,
+            "StandardOutPath": str(stdout.path),
+            "StandardErrorPath": str(stderr.path),
+        }
+        data = plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True)
+        name = f"{stem}.plist"
+        descriptor = -1
+        try:
+            descriptor = os.open(name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=self.steps.descriptor)
+            view = memoryview(data)
+            while view:
+                view = view[os.write(descriptor, view):]
+            os.fsync(descriptor)
+        except OSError as error:
+            if descriptor >= 0:
+                os.close(descriptor)
+            raise AcceptanceBlocked("step plist authority cannot be created") from error
+        plist = RetainedFile.adopt(self.steps, name, descriptor, "step plist", immutable=True)
+        self.files.append(plist)
+        return plist, stdout, stderr
+
+    def claim_loaded(self, label: str, artifact: RetainedFile, kind: str) -> None:
+        """bootstrap 0 後的不可失敗 ownership transition；禁止任何 verify。"""
+        self.loaded[label] = LoadedAuthority(label, artifact, kind)
+
+    def _record_drift(self, owned: LoadedAuthority, message: str) -> dict[str, Any]:
+        for evidence in self.drift_evidence:
+            if evidence["label"] == owned.label and evidence["device"] == owned.artifact.device and evidence["inode"] == owned.artifact.inode:
+                evidence["message"] = message
+                return evidence
+        evidence = {
+            "label": owned.label,
+            "kind": owned.kind,
+            "device": owned.artifact.device,
+            "inode": owned.artifact.inode,
+            "captured_digest": owned.artifact.digest,
+            "message": message,
+            "teardown_attempts": [],
+            "terminal_not_found": False,
+        }
+        self.drift_evidence.append(evidence)
+        return evidence
+
+    def release(self, label: str, *, attempts: int) -> dict[str, Any] | None:
+        owned = self.loaded.get(label)
+        if owned is None:
+            return None
+        manifest = self.rendered["manifest"]
+        command = [LAUNCHCTL, "bootout", f"gui/{os.getuid()}/{label}"]
+        for _index in range(attempts):
+            drift = ""
+            drift_evidence: dict[str, Any] | None = None
+            try:
+                owned.artifact.verify(f"{owned.kind} plist")
+            except AcceptanceBlocked as error:
+                drift = f"authority:{error};"
+                drift_evidence = self._record_drift(owned, str(error))
+            completed = _run_process(command)
+            try:
+                owned.artifact.verify(f"{owned.kind} plist")
+            except AcceptanceBlocked as error:
+                drift = f"{drift}post-bootout-authority:{error};"
+                drift_evidence = self._record_drift(owned, str(error))
+            if completed.returncode != 0:
+                owned.attempts.append(f"{drift}bootout:{completed.returncode}:{completed.stderr.strip()}")
+                if drift_evidence is not None:
+                    drift_evidence["teardown_attempts"] = list(owned.attempts)
+                continue
+            printed = _run_process([LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"])
+            try:
+                owned.artifact.verify(f"{owned.kind} plist")
+            except AcceptanceBlocked as error:
+                drift = f"{drift}post-print-authority:{error};"
+                drift_evidence = self._record_drift(owned, str(error))
+            if printed.returncode == 113:
+                owned.attempts.append(f"{drift}bootout:0;print:113")
+                if drift_evidence is not None:
+                    drift_evidence["teardown_attempts"] = list(owned.attempts)
+                    drift_evidence["terminal_not_found"] = True
+                receipt = _bootout_expectation(label, owned.artifact.path, manifest, owned.artifact.digest)
+                del self.loaded[label]
+                return receipt
+            owned.attempts.append(f"{drift}bootout:0;print:{printed.returncode}:{printed.stdout.strip()}:{printed.stderr.strip()}")
+            if drift_evidence is not None:
+                drift_evidence["teardown_attempts"] = list(owned.attempts)
+        return None
+
+    def loaded_evidence(self) -> str:
+        return ";".join(
+            f"{label}[dev={item.artifact.device},ino={item.artifact.inode}]:{'|'.join(item.attempts)}"
+            for label, item in sorted(self.loaded.items())
+        )
+
+    def cleanup_generation(self) -> bool:
+        if self.loaded:
+            return False
+        try:
+            self.verify_baseline()
+            self.steps.verify("step directory")
+            generation_name = str(self.rendered["session_plan"]["generation"])
+            quarantine = f".continuous-cleanup-{os.urandom(16).hex()}"
+            os.rename(generation_name, quarantine, src_dir_fd=self.plists.descriptor, dst_dir_fd=self.plists.descriptor)
+            visible = os.stat(quarantine, dir_fd=self.plists.descriptor, follow_symlinks=False)
+            if not stat.S_ISDIR(visible.st_mode) or _identity(visible) != (self.generation.device, self.generation.inode):
+                if not os.path.lexists(self.plists.path / generation_name):
+                    os.rename(quarantine, generation_name, src_dir_fd=self.plists.descriptor, dst_dir_fd=self.plists.descriptor)
+                return False
+            self.generation.entry_name = quarantine
+            self.generation.path = self.plists.path / quarantine
+            for name in os.listdir(self.steps.descriptor):
+                os.unlink(name, dir_fd=self.steps.descriptor)
+            os.rmdir("steps", dir_fd=self.generation.descriptor)
+            for label in SERVICE_LABELS:
+                for name in (f"{label}.stdout.json", f"{label}.stderr.log", f"{label}.plist"):
+                    os.unlink(name, dir_fd=self.generation.descriptor)
+            os.rmdir(quarantine, dir_fd=self.plists.descriptor)
+            return not os.path.lexists(self.plists.path / generation_name)
+        except OSError:
+            return False
 
 
 def _sha(path: Path) -> str:
@@ -542,11 +945,12 @@ def render_plists(*, manifest_path: Path, expected_manifest_digest: str, accepta
     paths: list[Path] = []
     try:
         for label in SERVICE_LABELS:
-            activation_only = label == PUBLISHER
+            activation_only = True
             path = staging / f"{label}.plist"
-            _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(python,manifest,label,barrier,ready,activation_only),"--",*children[label]], "EnvironmentVariables": _env(manifest,label,barrier), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False})
+            final_path = final / f"{label}.plist"
+            _write_plist(path, {"Label": label, "ProgramArguments": [*_prefix(python,manifest,label,barrier,ready,activation_only),"--",*children[label]], "EnvironmentVariables": _env(manifest,label,barrier), "WorkingDirectory": str(manifest["actor_root"]), "RunAtLoad": False, "StandardOutPath": str(final_path.with_suffix(".stdout.json")), "StandardErrorPath": str(final_path.with_suffix(".stderr.log"))})
             paths.append(path)
-        receipts = [runtime.plist_receipt(path, expected_activation_mode="activation-only" if path.stem == PUBLISHER else "normal") for path in paths]
+        receipts = [runtime.plist_receipt(path, expected_activation_mode="activation-only") for path in paths]
         runtime.validate_receipts(manifest, [{key:value for key,value in item.items() if key != "plist_realpath"} for item in receipts])
         runtime.publisher_plist_receipt(staging / f"{PUBLISHER}.plist", expected_activation_mode="activation-only")
         _validate_children(paths, parsed, manifest, publisher_run_id)
@@ -710,29 +1114,100 @@ def _launchctl_bootout(label: str, plist_path: Path, manifest: Mapping[str, Any]
     )
 
 
+def _launch_retained(
+    authority: ContinuousAuthority,
+    label: str,
+    artifact: RetainedFile,
+    kind: str,
+) -> dict[str, Any]:
+    """bootstrap 0 的同一控制點立即轉移 teardown ownership。"""
+    artifact.verify(f"{kind} plist")
+    manifest = authority.rendered["manifest"]
+    bootstrap = [LAUNCHCTL, "bootstrap", f"gui/{os.getuid()}", str(artifact.path)]
+    completed = _run_process(bootstrap)
+    if completed.returncode != 0:
+        raise AcceptanceBlocked("launchctl bootstrap receipt differs")
+    authority.claim_loaded(label, artifact, kind)
+    artifact.verify(f"{kind} plist")
+    loaded_command = [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"]
+    loaded = _run_process(loaded_command)
+    if loaded.returncode != 0 or label not in loaded.stdout:
+        raise AcceptanceBlocked("launchctl loaded identity differs")
+    artifact.verify(f"{kind} plist")
+    kickstart = [LAUNCHCTL, "kickstart", "-k", f"gui/{os.getuid()}/{label}"]
+    kicked = _run_process(kickstart)
+    if kicked.returncode != 0:
+        raise AcceptanceBlocked("launchctl kickstart receipt differs")
+    artifact.verify(f"{kind} plist")
+    return _launch_expectation(label, artifact.path, manifest, artifact.digest)
+
+
 def _production_file(path: Path, label: str) -> Path:
     if not path.is_absolute() or not path.is_file() or path.is_symlink():
         raise AcceptanceBlocked(f"{label} is not available")
     return path.resolve(strict=True)
 
 
-def _production_service_state() -> dict[str, Any]:
-    plist_paths = [
-        _production_file(
-            PRODUCTION_LAUNCH_PLIST_ROOT / f"{label}.plist",
-            "production launch plist",
-        )
-        for label in SERVICE_LABELS
-    ]
+def _plist_receipt_from_bytes(body: bytes, path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    try:
+        payload = plistlib.loads(body)
+    except plistlib.InvalidFileException as error:
+        raise AcceptanceBlocked("production launch plist is invalid") from error
+    environment = payload.get("EnvironmentVariables")
+    if not isinstance(environment, dict):
+        raise AcceptanceBlocked("production launch plist is invalid")
+    receipt = {
+        "label": payload.get("Label"),
+        "service_label": environment.get("PANTHEON_RUNTIME_SERVICE_LABEL"),
+        "identity": environment.get("PANTHEON_RUNTIME_IDENTITY"),
+        "manifest_digest": environment.get("PANTHEON_RUNTIME_MANIFEST_DIGEST"),
+        "runtime_identity_digest": environment.get("PANTHEON_RUNTIME_IDENTITY_DIGEST"),
+        "runtime_digest": environment.get("PANTHEON_RUNTIME_CODE_DIGEST"),
+        "config_version": environment.get("PANTHEON_RUNTIME_CONFIG_VERSION"),
+        "generation": environment.get("PANTHEON_RUNTIME_GENERATION"),
+        "actor_root": environment.get("PANTHEON_RUNTIME_ACTOR_ROOT"),
+        "queue_root": environment.get("PANTHEON_RUNTIME_QUEUE_ROOT"),
+        "publisher_state_root": environment.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"),
+        "log_root": environment.get("PANTHEON_RUNTIME_LOG_ROOT"),
+        "plist_realpath": str(path),
+    }
+    for field, key in (("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD"), ("python_executable", "PANTHEON_RUNTIME_PYTHON_EXECUTABLE"), ("uv_executable", "PANTHEON_RUNTIME_UV_EXECUTABLE")):
+        if key in environment:
+            receipt[field] = environment[key]
+    return payload, receipt
+
+
+def _production_service_state(authority: ContinuousAuthority | None = None) -> dict[str, Any]:
+    owned = authority
+    if owned is None:
+        rendered = {"acceptance_root": Path.cwd()}  # direct callers use the narrow production aggregate below
+        home = RetainedDirectory.open_absolute(_os_uid_home(), "production uid home")
+        directories = [home]
+        files: list[RetainedFile] = []
+        try:
+            library = home.open_directory("Library", "production Library")
+            directories.append(library)
+            launch_agents = library.open_directory("LaunchAgents", "production LaunchAgents")
+            directories.append(launch_agents)
+            if launch_agents.path != PRODUCTION_LAUNCH_PLIST_ROOT:
+                raise AcceptanceBlocked("production LaunchAgents authority differs")
+            production_plists = {label: RetainedFile.open(launch_agents, f"{label}.plist", "production launch plist") for label in SERVICE_LABELS}
+            files.extend(production_plists.values())
+            return _production_service_state_from_retained(production_plists)
+        finally:
+            for item in reversed(files): item.close()
+            for item in reversed(directories): item.close()
+    return _production_service_state_from_retained(owned.production_plists)
+
+
+def _production_service_state_from_retained(plist_files: Mapping[str, RetainedFile]) -> dict[str, Any]:
     manifest_identities: set[tuple[str, str]] = set()
     plist_receipts: list[dict[str, Any]] = []
     production_plists: list[dict[str, str]] = []
-    for label, plist_path in zip(SERVICE_LABELS, plist_paths, strict=True):
-        try:
-            with plist_path.open("rb") as stream:
-                payload = plistlib.load(stream)
-        except (OSError, plistlib.InvalidFileException) as error:
-            raise AcceptanceBlocked("production launch plist is invalid") from error
+    for label in SERVICE_LABELS:
+        retained = plist_files[label]
+        body = retained.read("production launch plist")
+        payload, receipt = _plist_receipt_from_bytes(body, retained.path)
         environment = payload.get("EnvironmentVariables")
         if not isinstance(environment, dict):
             raise AcceptanceBlocked("production launch plist is invalid")
@@ -742,18 +1217,14 @@ def _production_service_state() -> dict[str, Any]:
                 str(environment.get("PANTHEON_RUNTIME_MANIFEST_DIGEST", "")),
             )
         )
-        try:
-            receipt = runtime.plist_receipt(plist_path)
-        except runtime.RuntimeManifestError as error:
-            raise AcceptanceBlocked("production launch plist is invalid") from error
         if receipt.get("label") != label:
             raise AcceptanceBlocked("production launch plist is invalid")
         plist_receipts.append(receipt)
         production_plists.append(
             {
                 "label": label,
-                "plist_path": str(plist_path),
-                "plist_digest": _sha(plist_path),
+                "plist_path": str(retained.path),
+                "plist_digest": hashlib.sha256(body).hexdigest(),
             }
         )
     if len(manifest_identities) != 1:
@@ -819,7 +1290,8 @@ def _launch_side_effect_proven(receipt: Mapping[str, Any], label: str, plist_pat
     )
 
 
-def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any], plist_digest: str | None = None) -> dict[str, Any]:
+    digest = plist_digest if plist_digest is not None else _sha(plist_path)
     return {
         "schema_version": 1,
         "status": "bootstrapped",
@@ -828,7 +1300,7 @@ def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any
         "returncode": 0,
         "label": label,
         "plist_path": str(plist_path),
-        "plist_digest": _sha(plist_path),
+        "plist_digest": digest,
         "actor_root": str(manifest["actor_root"]),
         "manifest_digest": str(manifest["manifest_digest"]),
         "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
@@ -836,7 +1308,7 @@ def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any
         "loaded_identity": {
             "label": label,
             "plist_path": str(plist_path),
-            "plist_digest": _sha(plist_path),
+            "plist_digest": digest,
             "actor_root": str(manifest["actor_root"]),
             "manifest_digest": str(manifest["manifest_digest"]),
             "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
@@ -850,7 +1322,7 @@ def _launch_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any
     }
 
 
-def _bootout_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+def _bootout_expectation(label: str, plist_path: Path, manifest: Mapping[str, Any], plist_digest: str | None = None) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "status": "booted_out",
@@ -859,7 +1331,7 @@ def _bootout_expectation(label: str, plist_path: Path, manifest: Mapping[str, An
         "returncode": 0,
         "label": label,
         "plist_path": str(plist_path),
-        "plist_digest": _sha(plist_path),
+        "plist_digest": plist_digest if plist_digest is not None else _sha(plist_path),
         "actor_root": str(manifest["actor_root"]),
         "manifest_digest": str(manifest["manifest_digest"]),
         "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
@@ -867,7 +1339,7 @@ def _bootout_expectation(label: str, plist_path: Path, manifest: Mapping[str, An
     }
 
 
-def _print_not_found_expectation(label: str, phase: str, plist_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+def _print_not_found_expectation(label: str, phase: str, plist_path: Path, manifest: Mapping[str, Any], plist_digest: str | None = None) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "status": "not_found",
@@ -876,7 +1348,7 @@ def _print_not_found_expectation(label: str, phase: str, plist_path: Path, manif
         "returncode": 113,
         "label": label,
         "plist_path": str(plist_path),
-        "plist_digest": _sha(plist_path),
+        "plist_digest": plist_digest if plist_digest is not None else _sha(plist_path),
         "actor_root": str(manifest["actor_root"]),
         "manifest_digest": str(manifest["manifest_digest"]),
         "runtime_identity_digest": str(manifest["runtime_identity_digest"]),
@@ -1211,93 +1683,124 @@ def _publisher_owner_receipt(rendered: Mapping[str, Any], step: Mapping[str, Any
     return {"owner": f"scripts.agy_content_publisher:{owner_function}", "command": command, owner_function: native}
 
 
-def _execute_schedule(
-    rendered: Mapping[str, Any],
-) -> list[dict[str, Any]]:
+def _step_service_label(step: Mapping[str, Any]) -> str:
+    if step["action"] in {"coordinator-cycle", "c-b-materialize"}:
+        return COORDINATOR
+    if step["action"] in {"runner-process-once", "bundle-close"}:
+        return f"com.pantheon.agy-gemini-{step['lane']}"
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _step_child_command(rendered: Mapping[str, Any], step: Mapping[str, Any]) -> list[str]:
     manifest = rendered["manifest"]
     by_lane = {item["lane"]: item for item in rendered["bindings"]}
     cb_by_target = {item["target_run_id"]: item for item in rendered["session_plan"]["c_b_materializations"]}
+    action = step["action"]
+    if action == "coordinator-cycle": return _coordinator_command(manifest, list(step["run_ids"]))
+    if action == "runner-process-once": return _runner_command(manifest, by_lane[step["lane"]])
+    if action == "c-b-materialize": return _materializer_command(manifest, step, cb_by_target[step["target_run_id"]])
+    if action == "bundle-close":
+        binding = by_lane[step["lane"]]
+        return [*_runner_command(manifest, binding)[:-5], "sealed-replay-bundle-close", "--bundle", str(binding["bundle"]), "--expected-bundle-digest", str(binding["bundle_digest"])]
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _wait_json(retained: RetainedFile, label: str, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> dict[str, Any]:
+    deadline = monotonic() + READINESS_TIMEOUT_SECONDS
+    last: Exception | None = None
+    while True:
+        try:
+            payload = json.loads(retained.read(label).decode())
+            if isinstance(payload, dict) and payload.get("status") != "rejected":
+                return payload
+            last = AcceptanceBlocked(f"{label} owner stdout read-back differs")
+        except (UnicodeDecodeError, json.JSONDecodeError, OSError) as error:
+            last = error
+        if monotonic() >= deadline:
+            raise AcceptanceBlocked(f"{label} owner stdout read-back timeout") from last
+        sleep(0.01)
+
+
+def _validate_step_stdout(rendered: Mapping[str, Any], step: Mapping[str, Any], command: list[str], native: dict[str, Any]) -> dict[str, Any]:
+    manifest = rendered["manifest"]
+    by_lane = {item["lane"]: item for item in rendered["bindings"]}
+    cb_by_target = {item["target_run_id"]: item for item in rendered["session_plan"]["c_b_materializations"]}
+    action = step["action"]
+    if action == "coordinator-cycle": return _expect_coordinator_receipt({"owner":"scripts.agy_gemini_coordinator:cycle_once","command":command,"cycle_once":native}, step, manifest)
+    if action == "runner-process-once":
+        binding = by_lane[step["lane"]]
+        return _expect_runner_receipt({"owner":"scripts.agy_gemini_runner:sealed_replay_bundle_process_once","command":command,"sealed_replay_bundle_process_once":native}, step, manifest, binding)
+    if action == "c-b-materialize":
+        pins = cb_by_target[step["target_run_id"]]
+        return _expect_materialization_receipt({"owner":"scripts.agy_gemini_coordinator:materialize_translation_pending_dependency","command":command,"materialize_translation_pending_dependency":native}, step, manifest, pins)
+    if action == "bundle-close":
+        binding = by_lane[step["lane"]]
+        return _expect_bundle_close_receipt({"owner":"scripts.agy_gemini_runner:sealed_replay_bundle_close","command":command,"sealed_replay_bundle_close":native}, step, manifest, binding)
+    raise AcceptanceBlocked("acceptance schedule action differs")
+
+
+def _execute_schedule(rendered: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raise AcceptanceBlocked("direct workload schedule is disabled; launchd step ownership required")
+
+
+def _read_back_schedule(authority: ContinuousAuthority, monotonic: Callable[[], float], sleep: Callable[[float], None]) -> list[dict[str, Any]]:
+    rendered = authority.rendered
     receipts: list[dict[str, Any]] = []
-    for step in rendered["session_plan"]["phase_schedule"]:
+    for index, step in enumerate(rendered["session_plan"]["phase_schedule"]):
+        authority.verify_baseline()
         _revalidate_rendered_plan(rendered)
-        action = step["action"]
-        if action == "coordinator-cycle":
-            command = _coordinator_command(manifest, list(step["run_ids"]))
-            receipts.append(
-                _expect_coordinator_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=COORDINATOR,
-                        command=command,
-                        owner="scripts.agy_gemini_coordinator:cycle_once",
-                        key="cycle_once",
-                        label="coordinator",
-                    ),
-                    step,
-                    manifest,
-                )
-            )
-        elif action == "runner-process-once":
-            binding = by_lane[step["lane"]]
-            command = _runner_command(manifest, binding)
-            receipts.append(
-                _expect_runner_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
-                        command=command,
-                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_process_once",
-                        key="sealed_replay_bundle_process_once",
-                        label="runner",
-                    ),
-                    step,
-                    manifest,
-                    binding,
-                )
-            )
-        elif action == "c-b-materialize":
-            pins = cb_by_target[step["target_run_id"]]
-            command = _materializer_command(manifest, step, pins)
-            receipts.append(
-                _expect_materialization_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=COORDINATOR,
-                        command=command,
-                        owner="scripts.agy_gemini_coordinator:materialize_translation_pending_dependency",
-                        key="materialize_translation_pending_dependency",
-                        label="c-b materialization",
-                    ),
-                    step,
-                    manifest,
-                    pins,
-                )
-            )
-        elif action == "bundle-close":
-            binding = by_lane[step["lane"]]
-            command = [*_runner_command(manifest, binding)[:-5], "sealed-replay-bundle-close", "--bundle", str(binding["bundle"]), "--expected-bundle-digest", str(binding["bundle_digest"])]
-            receipts.append(
-                _expect_bundle_close_receipt(
-                    _process_owner_receipt(
-                        rendered,
-                        service_label=f"com.pantheon.agy-gemini-{step['lane']}",
-                        command=command,
-                        owner="scripts.agy_gemini_runner:sealed_replay_bundle_close",
-                        key="sealed_replay_bundle_close",
-                        label="bundle closeout",
-                    ),
-                    step,
-                    manifest,
-                    binding,
-                )
-            )
-        elif action == "publisher-plan-only":
-            receipts.append(_expect_publisher_receipt(_publisher_owner_receipt(rendered, step), step, manifest))
-        elif action == "queue-drain":
+        if step["action"] == "publisher-plan-only":
+            receipts.append(_expect_publisher_receipt(_publisher_owner_receipt(rendered, step), step, rendered["manifest"]))
+            continue
+        if step["action"] == "queue-drain":
             receipts.append(_queue_drain_readback(rendered))
-        else:
-            raise AcceptanceBlocked("acceptance schedule action differs")
+            continue
+        label = _step_service_label(step)
+        command = _step_child_command(rendered, step)
+        plist, stdout, stderr = authority.create_step(index, label, command)
+        _launchctl_print_absent(label, "step-preflight-print", plist.path, rendered["manifest"])
+        launch = _launch_retained(authority, label, plist, "step")
+        native = _wait_json(stdout, "step stdout", monotonic, sleep)
+        stdout.verify("step stdout")
+        stderr.verify("step stderr")
+        receipt = _validate_step_stdout(rendered, step, command, native)
+        drift_count = len(authority.drift_evidence)
+        bootout = authority.release(label, attempts=TEARDOWN_ATTEMPTS)
+        if bootout is None:
+            raise AcceptanceBlocked("step bootout terminal proof failed")
+        if len(authority.drift_evidence) != drift_count:
+            raise AcceptanceBlocked("step teardown authority drift")
+        receipt["launchd_invocation"] = {"service_label":label,"plist_path":str(plist.path),"plist_digest":plist.digest,"launch":launch,"bootout":bootout}
+        receipts.append(receipt)
     return receipts
+
+
+def _print_retained_absent(label: str, phase: str, artifact: RetainedFile, manifest: Mapping[str, Any], *, verify_artifact: bool = True) -> dict[str, Any]:
+    if verify_artifact:
+        artifact.verify("launch plist")
+    command = [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"]
+    completed = _run_process(command)
+    if completed.returncode != 113:
+        raise AcceptanceBlocked("launchctl print receipt differs")
+    return _print_not_found_expectation(label, phase, artifact.path, manifest, artifact.digest)
+
+
+def _baseline_completion(
+    authority: ContinuousAuthority,
+    label: str,
+    barrier_stat: os.stat_result,
+    monotonic: Callable[[], float],
+    sleep: Callable[[float], None],
+) -> dict[str, Any]:
+    stdout, stderr = authority.baseline_outputs[label]
+    native = _wait_json(stdout, "baseline activation stdout", monotonic, sleep)
+    expected = {"status":"PASS","activation_only":True,"service_label":label,"manifest_digest":authority.rendered["manifest"]["manifest_digest"],"generation":authority.rendered["manifest"]["generation"]}
+    if native != expected or stderr.read("baseline activation stderr") != b"":
+        raise AcceptanceBlocked("baseline activation completion differs")
+    info = os.fstat(stdout.descriptor)
+    if info.st_mtime_ns <= barrier_stat.st_mtime_ns:
+        raise AcceptanceBlocked("baseline activation completion predates barrier")
+    return {"label":label,"stdout_path":str(stdout.path),"stdout_digest":stdout.content_digest("baseline activation stdout"),**expected}
 
 
 def run_once(
@@ -1310,86 +1813,67 @@ def run_once(
     plan, plan_digest = _revalidate_rendered_plan(rendered)
     generation = str(plan["generation"])
     ready, barrier, lock, evidence = Path(rendered["ready_root"]), Path(rendered["barrier"]), Path(rendered["lock"]), Path(rendered["evidence_root"])
-    plist_by_label = {path.stem: path for path in rendered["plist_paths"]}
     if ready != root / "readiness" / generation or barrier != root / "barriers" / f"{generation}.json" or lock != root / "locks" / f"{generation}.lock" or evidence != root / "evidence" / generation:
         raise AcceptanceBlocked("acceptance session authority differs")
     _consumed_marker(rendered, plan)
     if ready.exists() or barrier.exists() or lock.exists() or evidence.exists():
         raise AcceptanceBlocked("acceptance generation residue exists before launch")
-    preflight_prints = [
-        _launchctl_print_absent(label, "preflight-print", plist_by_label[label], rendered["manifest"])
-        for label in SERVICE_LABELS
-    ]
-    before = production_fingerprint(rendered["production_paths"], _production_service_state)
-    os.close(os.open(lock, os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)); launched: list[str]=[]; primary: Exception|None=None; teardown: list[str]=[]; result: dict[str,Any]|None=None
-    try:
-        launch_receipts = []
-        for path in rendered["plist_paths"]:
-            _revalidate_rendered_plan(rendered)
-            launch_receipt = _launchctl_launch(path.stem, path, rendered["manifest"])
-            if _launch_side_effect_proven(launch_receipt, path.stem, path, rendered["manifest"]):
-                launched.append(path.stem)
-            launch_receipts.append(_expect(launch_receipt, _launch_expectation(path.stem, path, rendered["manifest"]), "launchctl bootstrap"))
-        deadline=monotonic()+1
-        while any(not (ready/f"{label}.json").is_file() for label in SERVICE_LABELS):
-            if monotonic()>=deadline: raise AcceptanceBlocked("readiness timeout")
-            sleep(0.01)
-        if {path.name for path in ready.iterdir()} != {f"{label}.json" for label in SERVICE_LABELS}:
-            raise AcceptanceBlocked("readiness acknowledgement set differs")
-        _revalidate_rendered_plan(rendered)
-        activation=runtime.activate_barrier(barrier,ready,dict(rendered["manifest"]))
-        workload_receipts = _execute_schedule(rendered)
-        result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(launched),"bootouts":[],"final_prints":[]}
-    except Exception as error: primary=error
-    for label in reversed(launched):
+    primary: Exception | None = None
+    result: dict[str, Any] | None = None
+    unknown: list[str] = []
+    with ContinuousAuthority(rendered) as authority:
+        preflight_prints = [_print_retained_absent(label, "preflight-print", authority.baseline[label], rendered["manifest"]) for label in SERVICE_LABELS]
+        before = production_fingerprint(rendered["production_paths"], lambda: _production_service_state(authority))
+        os.close(os.open(lock, os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600))
+        launch_receipts: list[dict[str, Any]] = []
+        bootouts: list[dict[str, Any]] = []
         try:
-            receipt = _expect(
-                _launchctl_bootout(label, plist_by_label[label], rendered["manifest"]),
-                _bootout_expectation(label, plist_by_label[label], rendered["manifest"]),
-                "bootout",
-            )
-            result and result["bootouts"].append(receipt)
-        except Exception as error: teardown.append(f"{label}:{error}")
-    final_prints: list[dict[str, Any]] = []
-    for label in SERVICE_LABELS:
-        try:
-            final_prints.append(
-                _expect(
-                    _launchctl_print_absent(label, "final-print", plist_by_label[label], rendered["manifest"]),
-                    _print_not_found_expectation(label, "final-print", plist_by_label[label], rendered["manifest"]),
-                    "final print",
-                )
-            )
+            for label in SERVICE_LABELS:
+                authority.verify_baseline()
+                _revalidate_rendered_plan(rendered)
+                launch_receipts.append(_launch_retained(authority, label, authority.baseline[label], "baseline"))
+            deadline = monotonic() + READINESS_TIMEOUT_SECONDS
+            while any(not (ready/f"{label}.json").is_file() for label in SERVICE_LABELS):
+                authority.verify_baseline()
+                if monotonic() >= deadline: raise AcceptanceBlocked("readiness timeout")
+                sleep(0.01)
+            if {path.name for path in ready.iterdir()} != {f"{label}.json" for label in SERVICE_LABELS}:
+                raise AcceptanceBlocked("readiness acknowledgement set differs")
+            authority.verify_baseline()
+            activation = runtime.activate_barrier(barrier,ready,dict(rendered["manifest"]))
+            barrier_stat = barrier.stat()
+            baseline_completions = [_baseline_completion(authority, label, barrier_stat, monotonic, sleep) for label in SERVICE_LABELS]
+            for label in reversed(SERVICE_LABELS):
+                receipt = authority.release(label, attempts=TEARDOWN_ATTEMPTS)
+                if receipt is None: raise AcceptanceBlocked("baseline bootout terminal proof failed")
+                bootouts.append(receipt)
+            workload_receipts = _read_back_schedule(authority, monotonic, sleep)
+            result={"status":"PASS","activation_token_digest":runtime.validate_barrier(barrier,dict(rendered["manifest"]))["activation_token_digest"],"ack_digests":[item["ack_digest"] for item in activation["acknowledgements"]],"baseline_activation_completions":baseline_completions,"preflight_prints":preflight_prints,"launchctl_receipts":launch_receipts,"workload_receipts":workload_receipts,"launched":list(SERVICE_LABELS),"bootouts":bootouts,"final_prints":[]}
         except Exception as error:
-            teardown.append(f"{label}:final-print:{error}")
-    if result is not None:
-        result["final_prints"].extend(final_prints)
-    known_ready={f"{label}.json" for label in SERVICE_LABELS}
-    unknown=[] if not ready.exists() else [path.name for path in ready.iterdir() if path.name not in known_ready]
-    for name in known_ready:
-        with suppress(FileNotFoundError): (ready/name).unlink()
-    if ready.exists() and not unknown:
-        with suppress(OSError): ready.rmdir()
-    for path in (barrier,lock):
-        with suppress(FileNotFoundError): path.unlink()
-    plist_root=Path(rendered["plist_paths"][0]).parent
-    if plist_root.exists() and {path.name for path in plist_root.iterdir()}=={f"{label}.plist" for label in SERVICE_LABELS}:
-        for path in plist_root.iterdir(): path.unlink()
-        plist_root.rmdir()
-    else: unknown.append("plists")
-    try:
-        after=production_fingerprint(rendered["production_paths"],_production_service_state)
-    except Exception as error:
-        if teardown:
-            raise AcceptanceBlocked("acceptance bootout proof failed: " + ",".join(teardown)) from error
-        raise
-    if primary is not None:
-        if teardown or unknown: raise AcceptanceBlocked(f"acceptance failed after {primary}: teardown residue: "+",".join([*teardown,*unknown])) from primary
-        raise primary
-    if teardown:
-        raise AcceptanceBlocked("acceptance bootout proof failed: " + ",".join(teardown))
-    if len(launched)!=7 or not result or len(result["bootouts"])!=7 or len(result["final_prints"])!=7 or unknown or before!=after or evidence.exists():
-        raise AcceptanceBlocked("acceptance teardown or fingerprint proof failed")
+            primary = error
+        for label in list(reversed(tuple(authority.loaded))):
+            authority.release(label, attempts=TEARDOWN_ATTEMPTS)
+        if authority.loaded:
+            raise AcceptanceBlocked("acceptance bootout proof failed: " + authority.loaded_evidence()) from primary
+        final_prints = [_print_retained_absent(label, "final-print", authority.baseline[label], rendered["manifest"], verify_artifact=False) for label in SERVICE_LABELS]
+        if result is not None: result["final_prints"].extend(final_prints)
+        known_ready={f"{label}.json" for label in SERVICE_LABELS}
+        unknown=[] if not ready.exists() else [path.name for path in ready.iterdir() if path.name not in known_ready]
+        if primary is None and not authority.drift_evidence:
+            for name in known_ready:
+                with suppress(FileNotFoundError): (ready/name).unlink()
+            if ready.exists() and not unknown:
+                with suppress(OSError): ready.rmdir()
+            for path in (barrier,lock):
+                with suppress(FileNotFoundError): path.unlink()
+            if not authority.cleanup_generation(): unknown.append("plists")
+        after=production_fingerprint(rendered["production_paths"],lambda: _production_service_state(authority))
+        if authority.drift_evidence:
+            raise AcceptanceBlocked("acceptance authority drift evidence: " + json.dumps(authority.drift_evidence, sort_keys=True)) from primary
+        if primary is not None:
+            raise primary
+        if not result or len(result["bootouts"])!=7 or len(result["final_prints"])!=7 or unknown or before!=after or evidence.exists():
+            raise AcceptanceBlocked("acceptance teardown or fingerprint proof failed")
     _revalidate_rendered_plan(rendered)
     receipt={**result,"session_id":plan["session_id"],"session_nonce_digest":plan["session_nonce_digest"],"session_plan_path":str(rendered["session_plan_path"]),"session_plan_digest":plan_digest,"actor_sha":plan["actor_sha"],"exact_runs":plan["exact_runs"],"publisher_activation_run_id":plan["publisher_activation_run_id"],"publisher_plan_only":plan["publisher_plan_only"],"service_labels":list(SERVICE_LABELS),"before_fingerprint":before,"after_fingerprint":after,"production_root_identities":before["root_identities"],"production_root_identities_digest":before["root_identities_digest"],"teardown_terminal":True,"residue_free":True,"manifest_digest":rendered["manifest"]["manifest_digest"],"generation":rendered["manifest"]["generation"],"runtime_identity_digest":rendered["manifest"]["runtime_identity_digest"]}
     evidence.mkdir(mode=0o700)

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import sys
 import time
@@ -263,8 +264,11 @@ def _fixture(
         generation="production-current",
     )
     runtime_manifest.write_manifest(production_manifest, production_identity)
-    production_plists = tmp_path / "production-launch-agents"
-    production_plists.mkdir(mode=0o700)
+    uid_home = tmp_path / "uid-home"
+    production_plists = uid_home / "Library" / "LaunchAgents"
+    production_plists.mkdir(parents=True, mode=0o700)
+    (uid_home / "Library").chmod(0o700)
+    uid_home.chmod(0o700)
     for label in cohort.SERVICE_LABELS:
         plist = production_plists / f"{label}.plist"
         receipt = runtime_manifest.receipt_for_label(production_identity, label)
@@ -322,6 +326,7 @@ def _fixture(
         str(production_registry.resolve()),
     )
     monkeypatch.setattr(cohort, "PRODUCTION_LAUNCH_PLIST_ROOT", production_plists.resolve())
+    monkeypatch.setattr(cohort, "_os_uid_home", lambda: uid_home.resolve())
     manifest_path = acceptance / "manifest.json"
     manifest_path.write_text("{}", encoding="utf-8")
     manifest = {
@@ -593,7 +598,7 @@ def _raw_process_for(
         for item in rendered["session_plan"]["c_b_materializations"]
     }
     plist_by_label = {path.stem: path for path in rendered["plist_paths"]}
-    loaded: set[str] = set()
+    loaded: dict[str, Path] = {}
     issued_entries: dict[str, int] = {lane: 0 for lane in by_lane}
 
     schema = {
@@ -665,27 +670,37 @@ def _raw_process_for(
                 completed = subprocess.CompletedProcess(command, 0, f"{label}\n", "")
             return maybe("launchctl-print", command, completed)
         if command[:2] == [cohort.LAUNCHCTL, "bootstrap"]:
-            label = Path(command[-1]).stem
+            plist_path = Path(command[-1])
+            label = plistlib.loads(plist_path.read_bytes())["Label"]
             overridden = override and override("launchctl-bootstrap", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            loaded.add(label)
+            loaded[label] = plist_path
             return _completed(command, 0)
         if command[:2] == [cohort.LAUNCHCTL, "kickstart"]:
             label = command[-1].rsplit("/", 1)[-1]
             overridden = override and override("launchctl-kickstart", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            runtime_manifest.write_readiness_ack(
-                Path(rendered["ready_root"]), dict(rendered["manifest"]), label
-            )
+            plist_path = loaded.get(label)
+            if plist_path is not None and plist_path.parent.name == "steps":
+                payload = plistlib.loads(plist_path.read_bytes())
+                arguments = payload["ProgramArguments"]
+                child = arguments[arguments.index("--") + 1 :]
+                completed_child = transport(child)
+                Path(payload["StandardOutPath"]).write_text(completed_child.stdout, encoding="utf-8")
+                Path(payload["StandardErrorPath"]).write_text(completed_child.stderr, encoding="utf-8")
+            else:
+                runtime_manifest.write_readiness_ack(
+                    Path(rendered["ready_root"]), dict(rendered["manifest"]), label
+                )
             return _completed(command, 0)
         if command[:2] == [cohort.LAUNCHCTL, "bootout"]:
             label = command[-1].rsplit("/", 1)[-1]
             overridden = override and override("launchctl-bootout", command, _completed(command, 0))
             if overridden is not None:
                 return overridden
-            loaded.discard(label)
+            loaded.pop(label, None)
             return _completed(command, 0)
         if "-m" in command and "scripts.agy_gemini_runner" in command:
             lane = command[command.index("--lane") + 1]
@@ -869,11 +884,24 @@ def _run(
     monotonic: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
     publisher_patches = _patch_publisher_plan_only(rendered)
+    activate = runtime_manifest.activate_barrier
+
+    def activate_with_launchd_outputs(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        receipt = activate(*args, **kwargs)
+        for label in cohort.SERVICE_LABELS:
+            plist = Path(rendered["acceptance_root"]) / "plists" / rendered["session_plan"]["generation"] / f"{label}.plist"
+            payload = plistlib.loads(plist.read_bytes())
+            Path(payload["StandardOutPath"]).write_text(
+                json.dumps({"status":"PASS","activation_only":True,"service_label":label,"manifest_digest":rendered["manifest"]["manifest_digest"],"generation":rendered["manifest"]["generation"]}, sort_keys=True),
+                encoding="utf-8",
+            )
+        return receipt
+
     with patch.object(
         cohort,
         "_run_process",
         side_effect=_raw_process_for(rendered, override=override),
-    ), publisher_patches[0], publisher_patches[1], publisher_patches[2], publisher_patches[3], publisher_patches[4], publisher_patches[5], publisher_patches[6], publisher_patches[7], publisher_patches[8], publisher_patches[9]:
+    ), patch.object(runtime_manifest, "activate_barrier", side_effect=activate_with_launchd_outputs), publisher_patches[0], publisher_patches[1], publisher_patches[2], publisher_patches[3], publisher_patches[4], publisher_patches[5], publisher_patches[6], publisher_patches[7], publisher_patches[8], publisher_patches[9]:
         return cohort.run_once(rendered, monotonic=monotonic)
 
 
@@ -1270,7 +1298,7 @@ def test_partial_readiness_consumes_generation_and_blocks_retry(
         _run(
             rendered,
             override=no_ack_for_non_control_services,
-            monotonic=iter((0.0, 2.0)).__next__,
+            monotonic=iter((0.0, 8.0)).__next__,
         )
     with pytest.raises(cohort.AcceptanceBlocked, match="residue|C-B external pins"):
         cohort.render_plists(
@@ -1341,7 +1369,7 @@ def test_malformed_launch_receipt_still_boots_out_and_proves_final_absence(
                 return subprocess.CompletedProcess(command, 0, "wrong-label\n", "")
             if (
                 publisher_bootstrapped
-                and len(final_printed) < len(cohort.SERVICE_LABELS)
+                and label not in final_printed
                 and completed.returncode == 113
             ):
                 final_printed.append(label)
@@ -1353,7 +1381,7 @@ def test_malformed_launch_receipt_still_boots_out_and_proves_final_absence(
         _run(rendered, override=malformed_loaded_identity_after_bootstrap)
 
     assert cohort.PUBLISHER in booted_out
-    assert final_printed == list(cohort.SERVICE_LABELS)
+    assert set(final_printed) == set(cohort.SERVICE_LABELS)
 
 
 def test_source_phase_rejects_i18n_exact_run_ids_before_launch(
@@ -1607,3 +1635,569 @@ def test_local_child_validator_rejects_missing_lane_mode_or_i18n_source_selector
             rendered["manifest"],
             "exact-publisher-run",
         )
+
+
+@pytest.mark.parametrize("replacement_kind", ["directory", "symlink"])
+def test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement_kind: str
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation = Path(rendered["plist_paths"][0]).parent
+    retained = tmp_path / "retained-generation"
+    external = tmp_path / "external-generation"
+    sentinel = external / "sentinel.txt"
+    external.mkdir(mode=0o700)
+    sentinel.write_text("external-unchanged", encoding="utf-8")
+    bootstraps: list[list[str]] = []
+    prints = 0
+
+    def rebind_after_preflight(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal prints
+        if name == "launchctl-print" and command[-1].rsplit("/", 1)[-1] in cohort.SERVICE_LABELS:
+            prints += 1
+            if prints == len(cohort.SERVICE_LABELS):
+                generation.rename(retained)
+                if replacement_kind == "symlink":
+                    generation.symlink_to(external, target_is_directory=True)
+                else:
+                    generation.mkdir(mode=0o700)
+                    for label in cohort.SERVICE_LABELS:
+                        os.link(retained / f"{label}.plist", generation / f"{label}.plist")
+        if name == "launchctl-bootstrap":
+            bootstraps.append(list(command))
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
+        _run(rendered, override=rebind_after_preflight)
+    assert bootstraps == []
+    assert sentinel.read_text(encoding="utf-8") == "external-unchanged"
+
+
+def test_generation_rebind_after_bootstrap_fails_before_kickstart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation = Path(rendered["plist_paths"][0]).parent
+    retained = tmp_path / "retained-generation-after-bootstrap"
+    replacement = tmp_path / "replacement-generation-after-bootstrap"
+    shutil.copytree(generation, replacement)
+    kickstarts: list[list[str]] = []
+    rebound = False
+
+    def rebind_after_bootstrap(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal rebound
+        if name == "launchctl-bootstrap" and not rebound:
+            generation.rename(retained)
+            replacement.rename(generation)
+            rebound = True
+        if name == "launchctl-kickstart":
+            kickstarts.append(list(command))
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
+        _run(rendered, override=rebind_after_bootstrap)
+    assert rebound is True
+    assert kickstarts == []
+
+
+def test_bootout_zero_but_print_loaded_retries_until_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    target = cohort.CAPACITY
+    attempts = 0
+
+    def stale_first_bootout(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal attempts
+        if name == "launchctl-bootout" and command[-1].rsplit("/", 1)[-1] == target:
+            attempts += 1
+            if attempts == 1:
+                return subprocess.CompletedProcess(command, 0, "", "")
+        return None
+
+    result = _run(rendered, override=stale_first_bootout)
+    assert result["status"] == "PASS"
+    assert attempts == 2
+
+
+def test_step_capture_does_not_adopt_same_content_new_stdout_inode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    original = cohort.RetainedFile.read
+    replaced = False
+    bootouts: list[str] = []
+
+    def replace_before_first_step_capture(self: cohort.RetainedFile, label: str) -> bytes:
+        nonlocal replaced
+        if not replaced and self.parent.path.name == "steps" and self.name.endswith(".stdout.json"):
+            body = self.path.read_bytes()
+            replacement = self.path.with_suffix(self.path.suffix + ".replacement")
+            replacement.write_bytes(body)
+            replacement.chmod(0o600)
+            os.replace(replacement, self.path)
+            replaced = True
+        return original(self, label)
+
+    def record_bootout(name: str, command: list[str], _completed_result: subprocess.CompletedProcess[str]) -> None:
+        if name == "launchctl-bootout":
+            bootouts.append(command[-1].rsplit("/", 1)[-1])
+        return None
+
+    monkeypatch.setattr(cohort.RetainedFile, "read", replace_before_first_step_capture)
+    with pytest.raises(cohort.AcceptanceBlocked, match="step stdout authority drift"):
+        _run(rendered, override=record_bootout)
+    assert replaced is True
+    assert cohort.COORDINATOR in bootouts
+
+
+def test_production_launchagents_regular_directory_replacement_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fixture(tmp_path, monkeypatch)
+    original = cohort.RetainedFile.read
+    launch_agents = cohort.PRODUCTION_LAUNCH_PLIST_ROOT
+    retained = tmp_path / "retained-launch-agents"
+    replacement = tmp_path / "replacement-launch-agents"
+    shutil.copytree(launch_agents, replacement)
+    sentinel = replacement / "sentinel.txt"
+    sentinel.write_text("replacement-unchanged", encoding="utf-8")
+    replaced = False
+
+    def replace_ancestor(self: cohort.RetainedFile, label: str) -> bytes:
+        nonlocal replaced
+        if not replaced and self.parent.path == launch_agents:
+            launch_agents.rename(retained)
+            replacement.rename(launch_agents)
+            replaced = True
+        return original(self, label)
+
+    monkeypatch.setattr(cohort.RetainedFile, "read", replace_ancestor)
+    with pytest.raises(cohort.AcceptanceBlocked, match="production launch plist authority drift"):
+        cohort._production_service_state()
+    assert (launch_agents / "sentinel.txt").read_text(encoding="utf-8") == "replacement-unchanged"
+
+
+def test_production_library_symlink_alias_is_rejected_before_plist_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fixture(tmp_path, monkeypatch)
+    uid_home = cohort._os_uid_home()
+    library = uid_home / "Library"
+    retained = tmp_path / "retained-library"
+    external = tmp_path / "external-library"
+    library.rename(retained)
+    shutil.copytree(retained, external)
+    library.symlink_to(external, target_is_directory=True)
+    reads = 0
+    original = cohort.RetainedFile.read
+
+    def record_read(self: cohort.RetainedFile, label: str) -> bytes:
+        nonlocal reads
+        reads += 1
+        return original(self, label)
+
+    monkeypatch.setattr(cohort.RetainedFile, "read", record_read)
+    with pytest.raises(cohort.AcceptanceBlocked, match="production Library authority"):
+        cohort._production_service_state()
+    assert reads == 0
+
+
+def test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    target: str | None = None
+    attempts = 0
+    replaced = False
+
+    def replace_and_exhaust_local(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal target, attempts, replaced
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps" and target is None:
+            target = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
+        if name == "launchctl-bootout" and target is not None and command[-1].rsplit("/", 1)[-1] == target:
+            attempts += 1
+            if not replaced:
+                plist_path = next((Path(rendered["plist_paths"][0]).parent / "steps").glob("*.plist"))
+                replacement = plist_path.with_suffix(".replacement")
+                replacement.write_bytes(plist_path.read_bytes())
+                replacement.chmod(0o600)
+                os.replace(replacement, plist_path)
+                replaced = True
+            if attempts <= cohort.TEARDOWN_ATTEMPTS:
+                return subprocess.CompletedProcess(command, 1, "", "local teardown failure")
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="step bootout terminal proof failed|authority drift"):
+        _run(rendered, override=replace_and_exhaust_local)
+    assert replaced is True
+    assert attempts == cohort.TEARDOWN_ATTEMPTS + 1
+
+
+def test_bootstrap_claim_precedes_post_bootstrap_generation_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation = Path(rendered["plist_paths"][0]).parent
+    retained = tmp_path / "post-bootstrap-retained"
+    replacement = tmp_path / "post-bootstrap-replacement"
+    shutil.copytree(generation, replacement)
+    target = cohort.SERVICE_LABELS[0]
+    bootouts: list[str] = []
+    terminal_prints: list[str] = []
+    rebound = False
+
+    def rebind_after_fake_bootstrap_loaded(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal rebound
+        label = command[-1].rsplit("/", 1)[-1]
+        if name == "launchctl-bootstrap" and Path(command[-1]).stem == target and not rebound:
+            generation.rename(retained)
+            replacement.rename(generation)
+            rebound = True
+        elif name == "launchctl-bootout":
+            bootouts.append(label)
+        elif name == "launchctl-print" and completed.returncode == 113:
+            terminal_prints.append(label)
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
+        _run(rendered, override=rebind_after_fake_bootstrap_loaded)
+    assert rebound is True
+    assert target in bootouts
+    assert target in terminal_prints
+
+
+def test_post_bootstrap_drift_teardown_exhaustion_retains_identity_and_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation = Path(rendered["plist_paths"][0]).parent
+    retained = tmp_path / "exhausted-retained"
+    replacement = tmp_path / "exhausted-replacement"
+    shutil.copytree(generation, replacement)
+    captured: list[cohort.ContinuousAuthority] = []
+    original_init = cohort.ContinuousAuthority.__init__
+    target = cohort.SERVICE_LABELS[0]
+    rebound = False
+
+    def capture(self: cohort.ContinuousAuthority, value: Mapping[str, Any]) -> None:
+        original_init(self, value)
+        captured.append(self)
+
+    def rebind_and_exhaust(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal rebound
+        label = command[-1].rsplit("/", 1)[-1]
+        if name == "launchctl-bootstrap" and Path(command[-1]).stem == target and not rebound:
+            generation.rename(retained)
+            replacement.rename(generation)
+            rebound = True
+        if name == "launchctl-bootout" and label == target:
+            return subprocess.CompletedProcess(command, 1, "", "forced exhaustion")
+        return None
+
+    monkeypatch.setattr(cohort.ContinuousAuthority, "__init__", capture)
+    with pytest.raises(cohort.AcceptanceBlocked, match="dev=.*ino=.*forced exhaustion"):
+        _run(rendered, override=rebind_and_exhaust)
+    owned = captured[0].loaded[target]
+    assert rebound is True
+    assert owned.artifact.device > 0 and owned.artifact.inode > 0
+    assert len(owned.attempts) == cohort.TEARDOWN_ATTEMPTS
+
+
+def test_production_plist_same_inode_content_mutation_rejects_pinned_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fixture(tmp_path, monkeypatch)
+    original = cohort.RetainedFile.read
+    mutated = False
+
+    def mutate_before_read(self: cohort.RetainedFile, label: str) -> bytes:
+        nonlocal mutated
+        if not mutated and self.parent.path == cohort.PRODUCTION_LAUNCH_PLIST_ROOT:
+            with self.path.open("ab") as stream:
+                stream.write(b"\n")
+            mutated = True
+        return original(self, label)
+
+    monkeypatch.setattr(cohort.RetainedFile, "read", mutate_before_read)
+    monkeypatch.setattr(cohort, "_run_process", lambda command: _completed(command, 113))
+    with pytest.raises(cohort.AcceptanceBlocked, match="digest"):
+        cohort._production_service_state()
+    assert mutated is True
+
+
+def test_baseline_plist_same_inode_mutation_rejects_before_bootstrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    target = cohort.SERVICE_LABELS[0]
+    preflight = 0
+    bootstraps: list[str] = []
+
+    def mutate_after_preflight(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal preflight
+        if name == "launchctl-print":
+            preflight += 1
+            if preflight == len(cohort.SERVICE_LABELS):
+                with Path(rendered["plist_paths"][0]).open("ab") as stream:
+                    stream.write(b"\n")
+        elif name == "launchctl-bootstrap":
+            bootstraps.append(Path(command[-1]).stem)
+        return None
+
+    with pytest.raises(cohort.AcceptanceBlocked, match="digest"):
+        _run(rendered, override=mutate_after_preflight)
+    assert target not in bootstraps
+
+
+def test_step_plist_same_inode_mutation_rejects_before_step_bootstrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    original = cohort._launch_retained
+    mutated = False
+    step_bootstraps: list[Path] = []
+
+    def mutate_before_launch(
+        authority: cohort.ContinuousAuthority,
+        label: str,
+        artifact: cohort.RetainedFile,
+        kind: str,
+    ) -> dict[str, Any]:
+        nonlocal mutated
+        if kind == "step" and not mutated:
+            with artifact.path.open("ab") as stream:
+                stream.write(b"\n")
+            mutated = True
+        return original(authority, label, artifact, kind)
+
+    def record_bootstrap(name: str, command: list[str], _completed_result: subprocess.CompletedProcess[str]) -> None:
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps":
+            step_bootstraps.append(Path(command[-1]))
+        return None
+
+    monkeypatch.setattr(cohort, "_launch_retained", mutate_before_launch)
+    with pytest.raises(cohort.AcceptanceBlocked, match="digest"):
+        _run(rendered, override=record_bootstrap)
+    assert mutated is True
+    assert step_bootstraps == []
+
+
+@pytest.mark.parametrize("scope", ["baseline", "step"])
+def test_terminal_teardown_keeps_structured_drift_evidence_and_preserves_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scope: str
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    captured: list[cohort.ContinuousAuthority] = []
+    original_init = cohort.ContinuousAuthority.__init__
+    step_target: str | None = None
+    replaced = False
+    booted_out: list[str] = []
+    absent_after_bootout: list[str] = []
+    external = tmp_path / f"{scope}-external"
+    external.mkdir(mode=0o700)
+    sentinel = external / "sentinel.txt"
+    sentinel.write_text("unchanged", encoding="utf-8")
+
+    def capture(self: cohort.ContinuousAuthority, value: Mapping[str, Any]) -> None:
+        original_init(self, value)
+        captured.append(self)
+
+    def replace_before_terminal_teardown(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal step_target, replaced
+        label = command[-1].rsplit("/", 1)[-1]
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps" and step_target is None:
+            step_target = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
+        target = cohort.SERVICE_LABELS[-1] if scope == "baseline" else step_target
+        if name == "launchctl-bootout" and target is not None and label == target and not replaced:
+            artifact = captured[0].baseline[label] if scope == "baseline" else captured[0].loaded[label].artifact
+            replacement = artifact.path.with_suffix(artifact.path.suffix + ".replacement")
+            replacement.write_bytes(artifact.path.read_bytes())
+            replacement.chmod(0o600)
+            os.replace(replacement, artifact.path)
+            replaced = True
+        if name == "launchctl-bootout":
+            booted_out.append(label)
+        if name == "launchctl-print" and completed.returncode == 113 and label in booted_out:
+            absent_after_bootout.append(label)
+        return None
+
+    monkeypatch.setattr(cohort.ContinuousAuthority, "__init__", capture)
+    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
+        _run(rendered, override=replace_before_terminal_teardown)
+    assert replaced is True
+    assert captured[0].drift_evidence
+    drift_label = str(captured[0].drift_evidence[0]["label"])
+    assert drift_label in booted_out
+    assert drift_label in absent_after_bootout
+    assert sentinel.read_text(encoding="utf-8") == "unchanged"
+
+
+def test_teardown_detects_same_inode_baseline_digest_drift_after_bootout_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    captured: list[cohort.ContinuousAuthority] = []
+    original_init = cohort.ContinuousAuthority.__init__
+    target = cohort.SERVICE_LABELS[-1]
+    mutated = False
+
+    def capture(self: cohort.ContinuousAuthority, value: Mapping[str, Any]) -> None:
+        original_init(self, value)
+        captured.append(self)
+
+    def mutate_during_bootout(
+        name: str,
+        command: list[str],
+        _completed_result: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal mutated
+        if name == "launchctl-bootout" and command[-1].rsplit("/", 1)[-1] == target and not mutated:
+            with captured[0].baseline[target].path.open("ab") as stream:
+                stream.write(b"\n")
+            mutated = True
+        return None
+
+    monkeypatch.setattr(cohort.ContinuousAuthority, "__init__", capture)
+    with pytest.raises(cohort.AcceptanceBlocked, match="pinned digest drift"):
+        _run(rendered, override=mutate_during_bootout)
+    assert mutated is True
+    assert captured[0].drift_evidence[0]["terminal_not_found"] is True
+
+
+def test_step_terminal_print_revalidates_plist_before_releasing_ownership(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    captured: list[cohort.ContinuousAuthority] = []
+    original_init = cohort.ContinuousAuthority.__init__
+    step_target: str | None = None
+    replaced = False
+    replacement_inode: int | None = None
+    terminal_absent: list[str] = []
+    external = tmp_path / "repair2-external"
+    external.mkdir(mode=0o700)
+    sentinel = external / "sentinel.txt"
+    sentinel.write_text("unchanged", encoding="utf-8")
+
+    def capture(self: cohort.ContinuousAuthority, value: Mapping[str, Any]) -> None:
+        original_init(self, value)
+        captured.append(self)
+
+    def replace_during_terminal_print(
+        name: str,
+        command: list[str],
+        completed: subprocess.CompletedProcess[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        nonlocal step_target, replaced, replacement_inode
+        label = command[-1].rsplit("/", 1)[-1]
+        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps" and step_target is None:
+            step_target = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
+        if name == "launchctl-print" and completed.returncode == 113 and label == step_target and not replaced:
+            artifact = captured[0].loaded[label].artifact
+            replacement = external / "same-content-step.plist"
+            replacement.write_bytes(artifact.path.read_bytes())
+            replacement.chmod(0o600)
+            replacement_inode = replacement.stat().st_ino
+            os.replace(replacement, artifact.path)
+            replaced = True
+            terminal_absent.append(label)
+        return None
+
+    monkeypatch.setattr(cohort.ContinuousAuthority, "__init__", capture)
+    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
+        _run(rendered, override=replace_during_terminal_print)
+    assert replaced is True
+    assert step_target in terminal_absent
+    assert step_target not in captured[0].loaded
+    assert any(item["label"] == step_target and item["terminal_not_found"] for item in captured[0].drift_evidence)
+    assert replacement_inode is not None
+    assert sentinel.read_text(encoding="utf-8") == "unchanged"
+    replacement_path = Path(rendered["acceptance_root"]) / "plists" / rendered["session_plan"]["generation"] / "steps"
+    assert any(path.stat().st_ino == replacement_inode for path in replacement_path.glob("*.plist"))
+
+
+def test_created_authority_files_are_adopted_without_path_reopen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    reopened: list[str] = []
+    original = cohort.RetainedFile.open.__func__
+
+    def record_open(
+        cls: type[cohort.RetainedFile],
+        parent: cohort.RetainedDirectory,
+        name: str,
+        label: str,
+        *,
+        writable: bool = False,
+    ) -> cohort.RetainedFile:
+        if writable or parent.path.name == "steps":
+            reopened.append(name)
+        return original(cls, parent, name, label, writable=writable)
+
+    monkeypatch.setattr(cohort.RetainedFile, "open", classmethod(record_open))
+    result = _run(rendered)
+    assert result["status"] == "PASS"
+    assert reopened == []
+
+
+def test_cleanup_quarantines_owned_generation_before_rebound_entry_appears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered, _acceptance = _render(tmp_path, monkeypatch)
+    generation = Path(rendered["plist_paths"][0]).parent
+    original = os.rename
+    injected = False
+
+    def inject_after_quarantine(
+        source: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        target: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        nonlocal injected
+        original(source, target, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+        if str(source) == generation.name and str(target).startswith(".continuous-cleanup-"):
+            generation.mkdir(mode=0o700)
+            (generation / "sentinel.txt").write_text("rebound-unchanged", encoding="utf-8")
+            injected = True
+
+    monkeypatch.setattr(cohort.os, "rename", inject_after_quarantine)
+    with pytest.raises(cohort.AcceptanceBlocked, match="teardown|residue"):
+        _run(rendered)
+    assert injected is True
+    assert (generation / "sentinel.txt").read_text(encoding="utf-8") == "rebound-unchanged"

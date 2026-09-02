@@ -1,0 +1,719 @@
+PANTHEON C-C/T CONTINUOUS AUTHORITY ROOT RAW EVIDENCE
+====================================================
+
+BASE
+HEAD=4e68b28ed031bddafa898905880c68982944730b
+BRANCH=codex/pantheon-cct-continuous-authority-root-20260902
+
+PRE-GREEN SNAPSHOT
+source_sha256=105f89d2e274ec1e3bd34652027b219aaedcb07df434fc31414703df3806f458
+test_sha256=2888c6267067d242ca75cac89c78d235c31b40f043179a79fd215c9748a278ac
+
+PRE-GREEN -> GREEN REPLAYABLE UNIFIED DIFF
+--- scripts/pantheon_four_lane_disposable_acceptance_cohort.py.pre-green
++++ scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+@@ -127,7 +127,9 @@
+             raise AcceptanceBlocked(f"{label} authority drift") from error
+         if (
+             not stat.S_ISDIR(current.st_mode)
++            or not stat.S_ISDIR(visible.st_mode)
+             or _identity(current) != (self.device, self.inode)
++            or _identity(visible) != (self.device, self.inode)
+         ):
+             raise AcceptanceBlocked(f"{label} authority drift")
+         if self.parent is not None:
+@@ -176,7 +178,9 @@
+         except OSError as error:
+             raise AcceptanceBlocked(f"{label} authority drift") from error
+         if (
+-            not stat.S_ISREG(current.st_mode)
++            not stat.S_ISREG(visible.st_mode)
++            or not stat.S_ISREG(current.st_mode)
++            or _identity(visible) != (self.device, self.inode)
+             or _identity(current) != (self.device, self.inode)
+         ):
+             raise AcceptanceBlocked(f"{label} authority drift")
+@@ -328,10 +332,12 @@
+             if completed.returncode != 0:
+                 owned.attempts.append(f"{drift}bootout:{completed.returncode}:{completed.stderr.strip()}")
+                 continue
+-            receipt = _bootout_expectation(label, owned.artifact.path, manifest, owned.artifact.digest)
+-            del self.loaded[label]
+-            return receipt
+-        del self.loaded[label]
++            printed = _run_process([LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"])
++            if printed.returncode == 113:
++                receipt = _bootout_expectation(label, owned.artifact.path, manifest, owned.artifact.digest)
++                del self.loaded[label]
++                return receipt
++            owned.attempts.append(f"{drift}bootout:0;print:{printed.returncode}:{printed.stdout.strip()}:{printed.stderr.strip()}")
+         return None
+
+RED-1A generation directory rebind before baseline bootstrap
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short 'tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect[directory]'
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect[directory] _
+scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1628: AcceptanceBlocked: baseline activation stdout owner stdout read-back timeout
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1674: AssertionError: Regex pattern did not match.
+Expected regex: 'authority drift'
+Actual message: 'baseline activation stdout owner stdout read-back timeout'
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect[directory]
+1 failed in 7.20s
+TARGET SYMPTOM=pre-green crossed the rebind and reached post-barrier stdout wait instead of failing before bootstrap.
+
+RED-1B generation rebind after bootstrap, before kickstart
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_after_bootstrap_fails_before_kickstart
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_generation_rebind_after_bootstrap_fails_before_kickstart _________
+scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1628: AcceptanceBlocked: baseline activation stdout owner stdout read-back timeout
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1705: AssertionError: Regex pattern did not match.
+Expected regex: 'authority drift'
+Actual message: 'baseline activation stdout owner stdout read-back timeout'
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_after_bootstrap_fails_before_kickstart
+1 failed in 7.18s
+TARGET SYMPTOM=pre-green crossed post-bootstrap generation replacement and executed beyond the required pre-kickstart boundary.
+
+RED-2 bootout return 0 while print remains loaded
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bootout_zero_but_print_loaded_retries_until_not_found
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_bootout_zero_but_print_loaded_retries_until_not_found __________
+scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1688: AcceptanceBlocked: launchctl print receipt differs
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bootout_zero_but_print_loaded_retries_until_not_found
+1 failed in 2.24s
+TARGET SYMPTOM=pre-green treated bootout 0 as terminal and did not retry after loaded print.
+
+RED-3 step stdout same-content new inode
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_capture_does_not_adopt_same_content_new_stdout_inode
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_step_capture_does_not_adopt_same_content_new_stdout_inode ________
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1760: Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_capture_does_not_adopt_same_content_new_stdout_inode
+1 failed in 2.26s
+TARGET SYMPTOM=pre-green accepted the observable step result after same-content visible inode replacement.
+
+RED-4 production LaunchAgents regular-directory replacement
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launchagents_regular_directory_replacement_fails_closed
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_production_launchagents_regular_directory_replacement_fails_closed ____
+scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1167: AcceptanceBlocked: production service state is invalid
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1788: AssertionError: Regex pattern did not match.
+Expected regex: 'production launch plist authority drift'
+Actual message: 'production service state is invalid'
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launchagents_regular_directory_replacement_fails_closed
+1 failed in 0.08s
+TARGET SYMPTOM=pre-green crossed LaunchAgents replacement, read all pinned bytes, and failed only later at unrelated real-launchctl guard instead of ancestor identity boundary.
+
+RED-5 step readback→bootout replacement, local exhaustion, outer reclaim
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=short tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims ______
+scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1688: AcceptanceBlocked: launchctl print receipt differs
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1847: AssertionError: Regex pattern did not match.
+Expected regex: 'step bootout terminal proof failed'
+Actual message: 'launchctl print receipt differs'
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims
+1 failed in 0.11s
+TARGET SYMPTOM=pre-green discarded ownership after local exhaustion; outer did not issue the fourth reclaim bootout and only discovered the still-loaded job at final print.
+
+CANONICAL COMPLETE RED OUTPUTS (`--tb=line`; exact replay of the same pre-green/test SHA pair)
+----------------------------------------------------------------------------------------
+RED-1A COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line 'tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect[directory]'
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: baseline activation stdout owner stdout read-back timeout
+
+During handling of the above exception, another exception occurred:
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'authority drift'
+      Actual message: 'baseline activation stdout owner stdout read-back timeout'
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1674: AssertionError: Regex pattern did not match.
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_before_baseline_bootstrap_fails_before_side_effect[directory]
+1 failed in 7.10s
+
+RED-1B COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_after_bootstrap_fails_before_kickstart
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: baseline activation stdout owner stdout read-back timeout
+
+During handling of the above exception, another exception occurred:
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'authority drift'
+      Actual message: 'baseline activation stdout owner stdout read-back timeout'
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1705: AssertionError: Regex pattern did not match.
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_generation_rebind_after_bootstrap_fails_before_kickstart
+1 failed in 7.07s
+
+RED-2 COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bootout_zero_but_print_loaded_retries_until_not_found
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: launchctl print receipt differs
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/scripts/pantheon_four_lane_disposable_acceptance_cohort.py:1688: scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: launchctl print receipt differs
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_bootout_zero_but_print_loaded_retries_until_not_found
+1 failed in 2.43s
+
+RED-3 COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_capture_does_not_adopt_same_content_new_stdout_inode
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1760: Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_capture_does_not_adopt_same_content_new_stdout_inode
+1 failed in 1.98s
+
+RED-4 COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launchagents_regular_directory_replacement_fails_closed
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: production service state is invalid
+
+During handling of the above exception, another exception occurred:
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'production launch plist authority drift'
+      Actual message: 'production service state is invalid'
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1788: AssertionError: Regex pattern did not match.
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_production_launchagents_regular_directory_replacement_fails_closed
+1 failed in 0.04s
+
+RED-5 COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: launchctl print receipt differs
+
+During handling of the above exception, another exception occurred:
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'step bootout terminal proof failed'
+      Actual message: 'launchctl print receipt differs'
+/private/tmp/pantheon-cct-continuous-authority-root-20260902/worktree/tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1847: AssertionError: Regex pattern did not match.
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_rebind_before_bootout_exhausts_local_then_outer_reclaims
+1 failed in 0.06s
+
+GREEN SNAPSHOT
+source_sha256=0acff65380d2a0ba5b2a0cd825677838a556610ee4e09dfbfc092c88e2f922bf
+test_sha256=2888c6267067d242ca75cac89c78d235c31b40f043179a79fd215c9748a278ac
+
+GREEN TARGETED ACTUAL OUTPUTS
+1) generation directory rebind: exit=0; 1 passed in 0.08s
+2) generation post-bootstrap/pre-kickstart: exit=0; 1 passed in 0.06s
+3) bootout 0 but loaded retry: exit=0; 1 passed in 2.14s
+4) step same-content stdout inode: exit=0; 1 passed in 0.07s
+5) production regular-directory replacement: exit=0; 1 passed in 0.05s
+6) step local exhaustion/outer reclaim: exit=0; 1 passed in 0.07s
+
+GREEN FOCUSED
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+EXIT=0
+...................................                                      [100%]
+35 passed in 13.10s
+
+GREEN AFFECTED
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py
+EXIT=0
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 17.16s
+
+MUTATION BOUNDARY
+real_launchctl=NOT_RUN
+provider=NOT_RUN
+Gate_D_E=NOT_RUN
+production_public_mutation=0
+deploy_merge_commit_push=NOT_RUN
+
+
+BOUNDED REPAIR-1 (1/2)
+======================
+
+CLOSURE REVIEWER INPUT
+zero-write native review; no artifact was created. Authoritative findings transcribed by Mainline:
+P1-1 bootstrap 0後第一個不可失敗動作必須無條件寫入teardown ownership；claim不得verify。
+P1-2 immutable production/baseline/step plist須在retained fd持續重算captured digest；mutable outputs只維持inode並在完成後另算content digest。
+P1-3 teardown drift即使bootout 0＋print 113也不得吞掉；需structured evidence＋整體NO_GO，且不得cleanup rebound entry。
+Reviewer additional checks: create→close→path reopen and cleanup verify→rmdir rebind window.
+
+REPAIR-1 PRE-FIX SNAPSHOT
+source_sha256=0acff65380d2a0ba5b2a0cd825677838a556610ee4e09dfbfc092c88e2f922bf
+test_sha256=ba1a6f0c0e38abf95fee68f90b259572b0101a2f2e9f680b76e998c6af07213c
+
+REPAIR-1 TARGETED RED COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -c '<load pre-fix source as scripts.pantheon_four_lane_disposable_acceptance_cohort; pytest.main(...)>'
+pytest args=-p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -k 'bootstrap_claim_precedes or post_bootstrap_drift_teardown_exhaustion or same_inode_content or baseline_plist_same_inode or step_plist_same_inode or terminal_teardown_keeps or teardown_detects_same_inode or created_authority_files or cleanup_quarantines'
+EXIT=1
+FFFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+E   AssertionError: assert 'com.pantheon.agy-content-publisher' in []
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1886: AssertionError
+E   scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked: launch plist authority drift
+During handling of the above exception, another exception occurred:
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'dev=.*ino=.*forced exhaustion'
+      Actual message: 'launch plist authority drift'
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1923: AssertionError
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1948: Failed
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:1976: Failed
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2008: Failed
+E   AttributeError: 'ContinuousAuthority' object has no attribute 'drift_evidence'
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2061: AttributeError
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2058: Failed
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2094: Failed
+E   AssertionError: assert ['com.pantheon...err.log', ...] == []
+      Left contains 74 more items, first extra item: 'com.pantheon.agy-content-publisher.stdout.json'
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2122: AssertionError
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2148: Failed
+=========================== short test summary info ============================
+FAILED test_bootstrap_claim_precedes_post_bootstrap_generation_drift
+FAILED test_post_bootstrap_drift_teardown_exhaustion_retains_identity_and_attempts
+FAILED test_production_plist_same_inode_content_mutation_rejects_pinned_digest
+FAILED test_baseline_plist_same_inode_mutation_rejects_before_bootstrap
+FAILED test_step_plist_same_inode_mutation_rejects_before_step_bootstrap
+FAILED test_terminal_teardown_keeps_structured_drift_evidence_and_preserves_replacement[baseline]
+FAILED test_terminal_teardown_keeps_structured_drift_evidence_and_preserves_replacement[step]
+FAILED test_teardown_detects_same_inode_baseline_digest_drift_after_bootout_call
+FAILED test_created_authority_files_are_adopted_without_path_reopen
+FAILED test_cleanup_quarantines_owned_generation_before_rebound_entry_appears
+10 failed, 35 deselected in 12.84s
+
+REPAIR-1 PRE-FIX -> GREEN REPLAYABLE UNIFIED DIFF
+COMMAND=diff -u --label scripts/pantheon_four_lane_disposable_acceptance_cohort.py.repair1-pre-fix --label scripts/pantheon_four_lane_disposable_acceptance_cohort.py /private/tmp/PANTHEON-C-C-T-CONTINUOUS-AUTHORITY-ROOT-pre-green.py scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+The exact pre-fix snapshot is retained at the command path above; its SHA256 is recorded in REPAIR-1 PRE-FIX SNAPSHOT. The complete command output follows without elision.
+--- scripts/pantheon_four_lane_disposable_acceptance_cohort.py.repair1-pre-fix
++++ scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+@@ -152,6 +152,7 @@
+     device: int
+     inode: int
+     digest: str
++    immutable: bool
+ 
+     @classmethod
+     def open(cls, parent: RetainedDirectory, name: str, label: str, *, writable: bool = False) -> RetainedFile:
+@@ -165,8 +166,29 @@
+         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+             os.close(descriptor)
+             raise AcceptanceBlocked(f"{label} authority is not owner-safe")
++        return cls.adopt(parent, name, descriptor, label, immutable=not writable)
++
++    @classmethod
++    def adopt(
++        cls,
++        parent: RetainedDirectory,
++        name: str,
++        descriptor: int,
++        label: str,
++        *,
++        immutable: bool,
++    ) -> RetainedFile:
++        """直接接管 create fd，禁止 create→close→path reopen。"""
++        try:
++            info = os.fstat(descriptor)
++        except OSError as error:
++            os.close(descriptor)
++            raise AcceptanceBlocked(f"{label} authority cannot be adopted") from error
++        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
++            os.close(descriptor)
++            raise AcceptanceBlocked(f"{label} authority is not owner-safe")
+         digest = hashlib.sha256(_read_descriptor(descriptor)).hexdigest()
+-        value = cls(parent, name, parent.path / name, descriptor, info.st_dev, info.st_ino, digest)
++        value = cls(parent, name, parent.path / name, descriptor, info.st_dev, info.st_ino, digest, immutable)
+         value.verify(label)
+         return value
+ 
+@@ -184,10 +206,16 @@
+             or _identity(current) != (self.device, self.inode)
+         ):
+             raise AcceptanceBlocked(f"{label} authority drift")
++        if self.immutable and hashlib.sha256(_read_descriptor(self.descriptor)).hexdigest() != self.digest:
++            raise AcceptanceBlocked(f"{label} pinned digest drift")
+ 
+     def read(self, label: str) -> bytes:
+         self.verify(label)
+         return _read_descriptor(self.descriptor)
++
++    def content_digest(self, label: str) -> str:
++        self.verify(label)
++        return hashlib.sha256(_read_descriptor(self.descriptor)).hexdigest()
+ 
+     def close(self) -> None:
+         if self.descriptor >= 0:
+@@ -211,6 +239,7 @@
+         self.directories: list[RetainedDirectory] = []
+         self.files: list[RetainedFile] = []
+         self.loaded: dict[str, LoadedAuthority] = {}
++        self.drift_evidence: list[dict[str, Any]] = []
+         root = self._directory_absolute(Path(rendered["acceptance_root"]), "acceptance root")
+         self.acceptance_root = root
+         self.plists = self._directory(root, "plists", "plist parent")
+@@ -267,13 +296,17 @@
+ 
+     def _create_empty(self, parent: RetainedDirectory, name: str, label: str) -> RetainedFile:
+         parent.verify(label)
++        descriptor = -1
+         try:
+             descriptor = os.open(name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=parent.descriptor)
+             os.fsync(descriptor)
+-            os.close(descriptor)
+         except OSError as error:
++            if descriptor >= 0:
++                os.close(descriptor)
+             raise AcceptanceBlocked(f"{label} authority cannot be created") from error
+-        return self._file(parent, name, label, writable=True)
++        value = RetainedFile.adopt(parent, name, descriptor, label, immutable=False)
++        self.files.append(value)
++        return value
+ 
+     def verify_baseline(self) -> None:
+         self.generation.verify("plist generation")
+@@ -302,20 +335,43 @@
+         }
+         data = plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True)
+         name = f"{stem}.plist"
++        descriptor = -1
+         try:
+-            descriptor = os.open(name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=self.steps.descriptor)
+-            os.write(descriptor, data)
++            descriptor = os.open(name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=self.steps.descriptor)
++            view = memoryview(data)
++            while view:
++                view = view[os.write(descriptor, view):]
+             os.fsync(descriptor)
+-            os.close(descriptor)
+         except OSError as error:
++            if descriptor >= 0:
++                os.close(descriptor)
+             raise AcceptanceBlocked("step plist authority cannot be created") from error
+-        plist = self._file(self.steps, name, "step plist")
++        plist = RetainedFile.adopt(self.steps, name, descriptor, "step plist", immutable=True)
++        self.files.append(plist)
+         return plist, stdout, stderr
+ 
+     def claim_loaded(self, label: str, artifact: RetainedFile, kind: str) -> None:
+-        artifact.verify(f"{kind} plist")
++        """bootstrap 0 後的不可失敗 ownership transition；禁止任何 verify。"""
+         self.loaded[label] = LoadedAuthority(label, artifact, kind)
+ 
++    def _record_drift(self, owned: LoadedAuthority, message: str) -> dict[str, Any]:
++        for evidence in self.drift_evidence:
++            if evidence["label"] == owned.label and evidence["device"] == owned.artifact.device and evidence["inode"] == owned.artifact.inode:
++                evidence["message"] = message
++                return evidence
++        evidence = {
++            "label": owned.label,
++            "kind": owned.kind,
++            "device": owned.artifact.device,
++            "inode": owned.artifact.inode,
++            "captured_digest": owned.artifact.digest,
++            "message": message,
++            "teardown_attempts": [],
++            "terminal_not_found": False,
++        }
++        self.drift_evidence.append(evidence)
++        return evidence
++
+     def release(self, label: str, *, attempts: int) -> dict[str, Any] | None:
+         owned = self.loaded.get(label)
+         if owned is None:
+@@ -324,20 +380,35 @@
+         command = [LAUNCHCTL, "bootout", f"gui/{os.getuid()}/{label}"]
+         for _index in range(attempts):
+             drift = ""
++            drift_evidence: dict[str, Any] | None = None
+             try:
+                 owned.artifact.verify(f"{owned.kind} plist")
+             except AcceptanceBlocked as error:
+                 drift = f"authority:{error};"
++                drift_evidence = self._record_drift(owned, str(error))
+             completed = _run_process(command)
++            try:
++                owned.artifact.verify(f"{owned.kind} plist")
++            except AcceptanceBlocked as error:
++                drift = f"{drift}post-bootout-authority:{error};"
++                drift_evidence = self._record_drift(owned, str(error))
+             if completed.returncode != 0:
+                 owned.attempts.append(f"{drift}bootout:{completed.returncode}:{completed.stderr.strip()}")
++                if drift_evidence is not None:
++                    drift_evidence["teardown_attempts"] = list(owned.attempts)
+                 continue
+             printed = _run_process([LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"])
+             if printed.returncode == 113:
++                owned.attempts.append(f"{drift}bootout:0;print:113")
++                if drift_evidence is not None:
++                    drift_evidence["teardown_attempts"] = list(owned.attempts)
++                    drift_evidence["terminal_not_found"] = True
+                 receipt = _bootout_expectation(label, owned.artifact.path, manifest, owned.artifact.digest)
+                 del self.loaded[label]
+                 return receipt
+             owned.attempts.append(f"{drift}bootout:0;print:{printed.returncode}:{printed.stdout.strip()}:{printed.stderr.strip()}")
++            if drift_evidence is not None:
++                drift_evidence["teardown_attempts"] = list(owned.attempts)
+         return None
+ 
+     def loaded_evidence(self) -> str:
+@@ -352,14 +423,24 @@
+         try:
+             self.verify_baseline()
+             self.steps.verify("step directory")
++            generation_name = str(self.rendered["session_plan"]["generation"])
++            quarantine = f".continuous-cleanup-{os.urandom(16).hex()}"
++            os.rename(generation_name, quarantine, src_dir_fd=self.plists.descriptor, dst_dir_fd=self.plists.descriptor)
++            visible = os.stat(quarantine, dir_fd=self.plists.descriptor, follow_symlinks=False)
++            if not stat.S_ISDIR(visible.st_mode) or _identity(visible) != (self.generation.device, self.generation.inode):
++                if not os.path.lexists(self.plists.path / generation_name):
++                    os.rename(quarantine, generation_name, src_dir_fd=self.plists.descriptor, dst_dir_fd=self.plists.descriptor)
++                return False
++            self.generation.entry_name = quarantine
++            self.generation.path = self.plists.path / quarantine
+             for name in os.listdir(self.steps.descriptor):
+                 os.unlink(name, dir_fd=self.steps.descriptor)
+             os.rmdir("steps", dir_fd=self.generation.descriptor)
+             for label in SERVICE_LABELS:
+                 for name in (f"{label}.stdout.json", f"{label}.stderr.log", f"{label}.plist"):
+                     os.unlink(name, dir_fd=self.generation.descriptor)
+-            os.rmdir(str(self.rendered["session_plan"]["generation"]), dir_fd=self.plists.descriptor)
+-            return True
++            os.rmdir(quarantine, dir_fd=self.plists.descriptor)
++            return not os.path.lexists(self.plists.path / generation_name)
+         except OSError:
+             return False
+ 
+@@ -1678,16 +1759,20 @@
+         stdout.verify("step stdout")
+         stderr.verify("step stderr")
+         receipt = _validate_step_stdout(rendered, step, command, native)
++        drift_count = len(authority.drift_evidence)
+         bootout = authority.release(label, attempts=TEARDOWN_ATTEMPTS)
+         if bootout is None:
+             raise AcceptanceBlocked("step bootout terminal proof failed")
++        if len(authority.drift_evidence) != drift_count:
++            raise AcceptanceBlocked("step teardown authority drift")
+         receipt["launchd_invocation"] = {"service_label":label,"plist_path":str(plist.path),"plist_digest":plist.digest,"launch":launch,"bootout":bootout}
+         receipts.append(receipt)
+     return receipts
+ 
+ 
+-def _print_retained_absent(label: str, phase: str, artifact: RetainedFile, manifest: Mapping[str, Any]) -> dict[str, Any]:
+-    artifact.verify("launch plist")
++def _print_retained_absent(label: str, phase: str, artifact: RetainedFile, manifest: Mapping[str, Any], *, verify_artifact: bool = True) -> dict[str, Any]:
++    if verify_artifact:
++        artifact.verify("launch plist")
+     command = [LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"]
+     completed = _run_process(command)
+     if completed.returncode != 113:
+@@ -1710,7 +1795,7 @@
+     info = os.fstat(stdout.descriptor)
+     if info.st_mtime_ns <= barrier_stat.st_mtime_ns:
+         raise AcceptanceBlocked("baseline activation completion predates barrier")
+-    return {"label":label,"stdout_path":str(stdout.path),"stdout_digest":hashlib.sha256(stdout.read("baseline activation stdout")).hexdigest(),**expected}
++    return {"label":label,"stdout_path":str(stdout.path),"stdout_digest":stdout.content_digest("baseline activation stdout"),**expected}
+ 
+ 
+ def run_once(
+@@ -1765,11 +1850,11 @@
+             authority.release(label, attempts=TEARDOWN_ATTEMPTS)
+         if authority.loaded:
+             raise AcceptanceBlocked("acceptance bootout proof failed: " + authority.loaded_evidence()) from primary
+-        final_prints = [_print_retained_absent(label, "final-print", authority.baseline[label], rendered["manifest"]) for label in SERVICE_LABELS]
++        final_prints = [_print_retained_absent(label, "final-print", authority.baseline[label], rendered["manifest"], verify_artifact=False) for label in SERVICE_LABELS]
+         if result is not None: result["final_prints"].extend(final_prints)
+         known_ready={f"{label}.json" for label in SERVICE_LABELS}
+         unknown=[] if not ready.exists() else [path.name for path in ready.iterdir() if path.name not in known_ready]
+-        if primary is None:
++        if primary is None and not authority.drift_evidence:
+             for name in known_ready:
+                 with suppress(FileNotFoundError): (ready/name).unlink()
+             if ready.exists() and not unknown:
+@@ -1778,6 +1863,8 @@
+                 with suppress(FileNotFoundError): path.unlink()
+             if not authority.cleanup_generation(): unknown.append("plists")
+         after=production_fingerprint(rendered["production_paths"],lambda: _production_service_state(authority))
++        if authority.drift_evidence:
++            raise AcceptanceBlocked("acceptance authority drift evidence: " + json.dumps(authority.drift_evidence, sort_keys=True)) from primary
+         if primary is not None:
+             raise primary
+         if not result or len(result["bootouts"])!=7 or len(result["final_prints"])!=7 or unknown or before!=after or evidence.exists():
+
+REPAIR-1 TARGETED GREEN
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -k 'bootstrap_claim_precedes or post_bootstrap_drift_teardown_exhaustion or same_inode_content or baseline_plist_same_inode or step_plist_same_inode or terminal_teardown_keeps or teardown_detects_same_inode or created_authority_files or cleanup_quarantines'
+EXIT=0
+..........                                                               [100%]
+10 passed, 35 deselected in 4.27s
+
+REPAIR-1 GREEN SNAPSHOT
+source_sha256=1c9cf3bf209f22d227cd60caab39a1cf86d87108863e0eadf60a295861e15a2d
+test_sha256=ba1a6f0c0e38abf95fee68f90b259572b0101a2f2e9f680b76e998c6af07213c
+status=CANDIDATE_READY_FOR_REREVIEW
+
+REPAIR-1 FINAL FREEZE VALIDATION
+FOCUSED_COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+FOCUSED_EXIT=0
+.............................................                            [100%]
+45 passed in 17.91s
+
+AFFECTED_COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py
+AFFECTED_EXIT=0
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 19.02s
+
+
+BOUNDED REPAIR-2 (2/2)
+======================
+
+RE-REVIEW AUTHORITATIVE FINDING
+release() bootout後的terminal print期間若step plist被同內容新inode替換，既有驗證不會捕捉；print 113會移除ownership並讓run錯誤PASS。
+
+REPAIR-2 PRE-FIX SNAPSHOT
+source_sha256=1c9cf3bf209f22d227cd60caab39a1cf86d87108863e0eadf60a295861e15a2d
+test_sha256=ba1a6f0c0e38abf95fee68f90b259572b0101a2f2e9f680b76e998c6af07213c
+source_snapshot=/private/tmp/PANTHEON-C-C-T-CONTINUOUS-AUTHORITY-ROOT-repair2-pre-fix.py
+test_snapshot=/private/tmp/PANTHEON-C-C-T-CONTINUOUS-AUTHORITY-ROOT-repair2-tests.py
+
+REPAIR-2 TARGETED RED COMMAND
+/Users/mattkuo/Documents/Pantheon/.venv/bin/python -c 'import importlib.util,sys,pytest; name="scripts.pantheon_four_lane_disposable_acceptance_cohort"; spec=importlib.util.spec_from_file_location(name,"/private/tmp/PANTHEON-C-C-T-CONTINUOUS-AUTHORITY-ROOT-repair2-pre-fix.py"); module=importlib.util.module_from_spec(spec); sys.modules[name]=module; spec.loader.exec_module(module); raise SystemExit(pytest.main(["-p","no:cacheprovider","-q","--tb=line","tests/test_pantheon_four_lane_disposable_acceptance_cohort.py","-k","step_terminal_print_revalidates_plist_before_releasing_ownership"]))'
+EXIT=1
+F                                                                        [100%]
+=================================== FAILURES ===================================
+E   Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+tests/test_pantheon_four_lane_disposable_acceptance_cohort.py:2140: Failed: DID NOT RAISE <class 'scripts.pantheon_four_lane_disposable_acceptance_cohort.AcceptanceBlocked'>
+=========================== short test summary info ============================
+FAILED tests/test_pantheon_four_lane_disposable_acceptance_cohort.py::test_step_terminal_print_revalidates_plist_before_releasing_ownership
+1 failed, 45 deselected in 2.51s
+
+REPAIR-2 COMPLETE REPLAYABLE PATCH
+--- scripts/pantheon_four_lane_disposable_acceptance_cohort.py.repair2-pre-fix
++++ scripts/pantheon_four_lane_disposable_acceptance_cohort.py
+@@ -398,6 +398,11 @@
+                     drift_evidence["teardown_attempts"] = list(owned.attempts)
+                 continue
+             printed = _run_process([LAUNCHCTL, "print", f"gui/{os.getuid()}/{label}"])
++            try:
++                owned.artifact.verify(f"{owned.kind} plist")
++            except AcceptanceBlocked as error:
++                drift = f"{drift}post-print-authority:{error};"
++                drift_evidence = self._record_drift(owned, str(error))
+             if printed.returncode == 113:
+                 owned.attempts.append(f"{drift}bootout:0;print:113")
+                 if drift_evidence is not None:
+--- tests/test_pantheon_four_lane_disposable_acceptance_cohort.py.repair2-pre-fix
++++ tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+@@ -2095,8 +2095,60 @@
+         _run(rendered, override=mutate_during_bootout)
+     assert mutated is True
+     assert captured[0].drift_evidence[0]["terminal_not_found"] is True
++
++
++def test_step_terminal_print_revalidates_plist_before_releasing_ownership(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    rendered, _acceptance = _render(tmp_path, monkeypatch)
++    captured: list[cohort.ContinuousAuthority] = []
++    original_init = cohort.ContinuousAuthority.__init__
++    step_target: str | None = None
++    replaced = False
++    replacement_inode: int | None = None
++    terminal_absent: list[str] = []
++    external = tmp_path / "repair2-external"
++    external.mkdir(mode=0o700)
++    sentinel = external / "sentinel.txt"
++    sentinel.write_text("unchanged", encoding="utf-8")
++
++    def capture(self: cohort.ContinuousAuthority, value: Mapping[str, Any]) -> None:
++        original_init(self, value)
++        captured.append(self)
++
++    def replace_during_terminal_print(
++        name: str,
++        command: list[str],
++        completed: subprocess.CompletedProcess[str],
++    ) -> subprocess.CompletedProcess[str] | None:
++        nonlocal step_target, replaced, replacement_inode
++        label = command[-1].rsplit("/", 1)[-1]
++        if name == "launchctl-bootstrap" and Path(command[-1]).parent.name == "steps" and step_target is None:
++            step_target = plistlib.loads(Path(command[-1]).read_bytes())["Label"]
++        if name == "launchctl-print" and completed.returncode == 113 and label == step_target and not replaced:
++            artifact = captured[0].loaded[label].artifact
++            replacement = external / "same-content-step.plist"
++            replacement.write_bytes(artifact.path.read_bytes())
++            replacement.chmod(0o600)
++            replacement_inode = replacement.stat().st_ino
++            os.replace(replacement, artifact.path)
++            replaced = True
++            terminal_absent.append(label)
++        return None
+ 
++    monkeypatch.setattr(cohort.ContinuousAuthority, "__init__", capture)
++    with pytest.raises(cohort.AcceptanceBlocked, match="authority drift"):
++        _run(rendered, override=replace_during_terminal_print)
++    assert replaced is True
++    assert step_target in terminal_absent
++    assert step_target not in captured[0].loaded
++    assert any(item["label"] == step_target and item["terminal_not_found"] for item in captured[0].drift_evidence)
++    assert replacement_inode is not None
++    assert sentinel.read_text(encoding="utf-8") == "unchanged"
++    replacement_path = Path(rendered["acceptance_root"]) / "plists" / rendered["session_plan"]["generation"] / "steps"
++    assert any(path.stat().st_ino == replacement_inode for path in replacement_path.glob("*.plist"))
+ 
++
+ def test_created_authority_files_are_adopted_without_path_reopen(
+     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+ ) -> None:
+
+REPAIR-2 TARGETED GREEN
+COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q --tb=line tests/test_pantheon_four_lane_disposable_acceptance_cohort.py -k step_terminal_print_revalidates_plist_before_releasing_ownership
+EXIT=0
+.                                                                        [100%]
+1 passed, 45 deselected in 0.07s
+
+REPAIR-2 GREEN SNAPSHOT
+source_sha256=51fef38e8a91a3b81223a850428239b0f7fd7f95fb19401bd4cd51cff0886951
+test_sha256=97730e399a964e8e7dd47139b99254207a13ad8344ed3a2106d8efb4637d68fa
+status=CANDIDATE_READY_FOR_REREVIEW
+
+REPAIR-2 FINAL FREEZE VALIDATION
+FOCUSED_COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_four_lane_disposable_acceptance_cohort.py
+FOCUSED_EXIT=0
+..............................................                           [100%]
+46 passed in 16.93s
+
+AFFECTED_COMMAND=/Users/mattkuo/Documents/Pantheon/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_pantheon_content_runtime_manifest.py tests/test_agy_gemini_runner.py
+AFFECTED_EXIT=0
+........................................................................ [ 61%]
+..............................................                           [100%]
+118 passed in 17.64s
