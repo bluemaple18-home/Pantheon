@@ -40,6 +40,21 @@ def _cap_allocate(
         return admission.commit()
 
 
+def test_missing_allocator_state_initializes_provider_count_as_int(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+
+    fresh_state = allocator._read_state(
+        state,
+        pool_id=POOL_ID,
+        manifest_sha256=MANIFEST_SHA256,
+    )
+
+    assert type(fresh_state.daily_provider_admission_count) is int
+    assert fresh_state.daily_provider_admission_count == 0
+
+
 def test_provider_admission_cap_allows_102_and_denies_103(
     tmp_path: Path,
 ) -> None:

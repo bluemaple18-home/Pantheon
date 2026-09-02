@@ -308,7 +308,7 @@ def _read_state(
     try:
         path.lstat()
     except FileNotFoundError:
-        return _AllocatorState(0, None, (), (), None, (), None, None)
+        return _AllocatorState(0, None, (), (), None, 0, None, None)
     except OSError as error:
         raise ValueError("production allocator state file is unavailable") from error
     descriptor = _open_private_state(path)
