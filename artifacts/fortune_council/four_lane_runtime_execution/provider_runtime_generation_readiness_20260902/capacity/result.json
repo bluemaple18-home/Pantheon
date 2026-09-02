@@ -1,0 +1,307 @@
+{
+  "budget": {
+    "cleanup_allowlist": [
+      "/private/tmp/pantheon-provider-readiness-capacity-<random>/cycle-1",
+      "/private/tmp/pantheon-provider-readiness-capacity-<random>/cycle-2",
+      "/private/tmp/pantheon-provider-readiness-capacity-<random> (final cleanup only after ownership marker validation)"
+    ],
+    "max_bytes": 4194304,
+    "max_file_count": 32,
+    "monitoring_interval_seconds": 300,
+    "normal_growth_bytes_per_hour_after_cleanup": 0,
+    "retention_seconds": 0,
+    "rotation_or_compression": "\u6bcf cycle \u5b8c\u6210\u5373\u522a\u9664 exact owned cycle root\uff1b\u4e0d\u4fdd\u7559\u539f\u6a94",
+    "spike_window_seconds": 300,
+    "stable_or_cleanup_within_seconds": 30
+  },
+  "cleanup": {
+    "actual_cleanup": true,
+    "control_sentinel_survived_cycle_cleanup": true,
+    "session_root_removed": true
+  },
+  "commands": [
+    "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 artifacts/fortune_council/four_lane_runtime_execution/provider_runtime_generation_readiness_20260902/capacity/capacity_harness.py",
+    "git diff --check -- artifacts/.../identity artifacts/.../capacity"
+  ],
+  "cycles": [
+    {
+      "after_cleanup": {
+        "cycle_root_exists": false,
+        "host": {
+          "free_bytes": 45389885440,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717310464
+        },
+        "rss_bytes": 23920640,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 33,
+          "file_count": 2
+        }
+      },
+      "before": {
+        "host": {
+          "free_bytes": 45389885440,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717310464
+        },
+        "rss_bytes": 23887872,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 33,
+          "file_count": 2
+        }
+      },
+      "cleanup_reclaimed_bytes": 9921,
+      "cleanup_reclaimed_files": 5,
+      "cycle": 1,
+      "peak": {
+        "host": {
+          "free_bytes": 45389860864,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717335040
+        },
+        "rss_bytes": 23920640,
+        "rss_peak_raw": 23920640,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 9954,
+          "file_count": 7
+        }
+      }
+    },
+    {
+      "after_cleanup": {
+        "cycle_root_exists": false,
+        "host": {
+          "free_bytes": 45389885440,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717310464
+        },
+        "rss_bytes": 23920640,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 33,
+          "file_count": 2
+        }
+      },
+      "before": {
+        "host": {
+          "free_bytes": 45389885440,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717310464
+        },
+        "rss_bytes": 23920640,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 33,
+          "file_count": 2
+        }
+      },
+      "cleanup_reclaimed_bytes": 9921,
+      "cleanup_reclaimed_files": 5,
+      "cycle": 2,
+      "peak": {
+        "host": {
+          "free_bytes": 45389860864,
+          "total_bytes": 245107195904,
+          "used_bytes": 199717335040
+        },
+        "rss_bytes": 23920640,
+        "rss_peak_raw": 23920640,
+        "swap": {
+          "available": true,
+          "swapins": 1473112,
+          "swapouts": 2269729
+        },
+        "usage": {
+          "bytes": 9954,
+          "file_count": 7
+        }
+      }
+    }
+  ],
+  "execution_attempts": [
+    {
+      "owned_temp_session_cleanup": "PASS",
+      "production_mutation": 0,
+      "reason": "sandbox denied /bin/ps RSS inspection",
+      "status": "BLOCKED_BEFORE_CYCLE_WRITE"
+    },
+    {
+      "status": "PASS",
+      "telemetry": "in-process ru_maxrss plus vm_stat swap counters"
+    }
+  ],
+  "host_after": {
+    "free_bytes": 45389848576,
+    "total_bytes": 245107195904,
+    "used_bytes": 199717347328
+  },
+  "host_before": {
+    "free_bytes": 45389905920,
+    "total_bytes": 245107195904,
+    "used_bytes": 199717289984
+  },
+  "immutability": {
+    "after": {
+      "production_roots_metadata_only": {
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor": {
+          "bytes": 643494771,
+          "exists": true,
+          "file_count": 9645,
+          "metadata_sha256": "60d894c1c10945561664f2fadca00e304ec05a326006f4e35b5bd34afbf12c7d"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs": {
+          "bytes": 7660430,
+          "exists": true,
+          "file_count": 14,
+          "metadata_sha256": "50388d48c044f751e0007cc052bca7a14482ee8e1038ba57b30d74c31d53966f"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue": {
+          "bytes": 7126976,
+          "exists": true,
+          "file_count": 2000,
+          "metadata_sha256": "64438d75f9a6e20c12fb03c635c916a84f591bede6dc0ae78c1c194ef3dd4889"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state": {
+          "bytes": 4077556,
+          "exists": true,
+          "file_count": 105,
+          "metadata_sha256": "bcb4b3cb2c080b29a013146d9db6222fdc6a0b206f50bd0aeec835aa73c11ded"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions": {
+          "bytes": 79076,
+          "exists": true,
+          "file_count": 59,
+          "metadata_sha256": "01262992e8ffbe18a7d755c3231c916cf84907f08f7bbbbc04adeae13b1ff871"
+        }
+      },
+      "selected_non_secret_files": {
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json": {
+          "bytes": 1469,
+          "exists": true,
+          "sha256": "74d0f654644d5fc4ecf26e896ab9612583d9be64ef0498e0a45c20401a4b2977"
+        },
+        "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist": {
+          "bytes": 5169,
+          "exists": true,
+          "sha256": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc"
+        }
+      }
+    },
+    "before": {
+      "production_roots_metadata_only": {
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/actor": {
+          "bytes": 643494771,
+          "exists": true,
+          "file_count": 9645,
+          "metadata_sha256": "60d894c1c10945561664f2fadca00e304ec05a326006f4e35b5bd34afbf12c7d"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/logs": {
+          "bytes": 7660430,
+          "exists": true,
+          "file_count": 14,
+          "metadata_sha256": "50388d48c044f751e0007cc052bca7a14482ee8e1038ba57b30d74c31d53966f"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/queue": {
+          "bytes": 7126976,
+          "exists": true,
+          "file_count": 2000,
+          "metadata_sha256": "64438d75f9a6e20c12fb03c635c916a84f591bede6dc0ae78c1c194ef3dd4889"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state": {
+          "bytes": 4077556,
+          "exists": true,
+          "file_count": 105,
+          "metadata_sha256": "bcb4b3cb2c080b29a013146d9db6222fdc6a0b206f50bd0aeec835aa73c11ded"
+        },
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/transactions": {
+          "bytes": 79076,
+          "exists": true,
+          "file_count": 59,
+          "metadata_sha256": "01262992e8ffbe18a7d755c3231c916cf84907f08f7bbbbc04adeae13b1ff871"
+        }
+      },
+      "selected_non_secret_files": {
+        "/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/runtime-manifest.json": {
+          "bytes": 1469,
+          "exists": true,
+          "sha256": "74d0f654644d5fc4ecf26e896ab9612583d9be64ef0498e0a45c20401a4b2977"
+        },
+        "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist": {
+          "bytes": 5169,
+          "exists": true,
+          "sha256": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc"
+        }
+      }
+    },
+    "production_mutation": 0,
+    "production_root_metadata_hashes_equal": true,
+    "selected_file_hashes_equal": true
+  },
+  "launchctl_mutation": 0,
+  "network_calls": 0,
+  "projection": {
+    "free_after_one_day_projection_bytes": 45387039168,
+    "free_after_one_hour_projection_bytes": 45389786472,
+    "host_reserve_bytes": 24510719590,
+    "measured_peak_bytes": 9954,
+    "one_day_worst_bytes_if_cleanup_fails": 2866752,
+    "one_hour_worst_bytes_if_cleanup_fails": 119448,
+    "retention_peak_bytes": 9954
+  },
+  "provider_calls": 0,
+  "reasons": [],
+  "schema": "pantheon.provider_runtime_rule24_readiness.v1",
+  "scope": "isolated Rule 24 generation readiness only; no activation claim",
+  "status": "PASS",
+  "stop_loss_negative": {
+    "attempted_bytes": 4194305,
+    "automatic_restart_enabled": false,
+    "launchctl_mutation": 0,
+    "max_bytes": 4194304,
+    "other_project_processes_stopped": 0,
+    "target_created": false,
+    "trigger": "projected_bytes_exceeds_max_bytes",
+    "write_accepted": false,
+    "writes_stopped": true
+  },
+  "task": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902",
+  "write_root_inventory": {
+    "archives": null,
+    "build_artifacts": null,
+    "cache": "cycle-N/cache/bounded.cache",
+    "checkpoint": "cycle-N/checkpoint/cycle.json",
+    "container_data": null,
+    "database_or_wal": null,
+    "downloads": null,
+    "log": "cycle-N/logs/provider-generation.log",
+    "models": null,
+    "output": "cycle-N/output/provider-output.bin",
+    "production_roots_written": [],
+    "screenshots": null,
+    "tmp": "cycle-N/tmp/ephemeral.tmp",
+    "write_root": "/private/tmp/pantheon-provider-readiness-capacity-<random>"
+  }
+}

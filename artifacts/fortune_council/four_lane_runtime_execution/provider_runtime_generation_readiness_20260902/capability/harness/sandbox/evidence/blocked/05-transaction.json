@@ -1,0 +1,15 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "capability": "transaction",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "f0f13c87354fa469d5038bf0c7bf2601f9c4754c277d32e4aa6d01124b1e6776",
+  "outcome": "BLOCKED",
+  "output_digest": "38ef4b26a57e3aa3c15a257ece3346d713fdb375d9c9788dab17d8e767672696",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "stable_reason": "publisher queue and state roots must not overlap"
+}

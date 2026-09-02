@@ -1,0 +1,147 @@
+{
+  "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "canary_created": false,
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "generation": "provider-readiness-4a3dfeac1943-20260902",
+  "production_target": "pantheon-provider-runtime-generation",
+  "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+  "receipt_binding_verification": true,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "steps": {
+    "create": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:8e165e537dc406fdf162d4e19837b7a1b7fb60c3e1ff49bb7bcf442d033ab454"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/01-create.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:d103c37da6900fa32d7008feba1c2e9321cf09d61060583f058874bba664305c"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/01-create.json",
+        "outcome": "PASS"
+      }
+    },
+    "publish": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:525178fdaca86ba99251db4716979c326795e6405005187320d7d875a0d085c9"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/04-publish.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:f0f13c87354fa469d5038bf0c7bf2601f9c4754c277d32e4aa6d01124b1e6776"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/04-publish.json",
+        "outcome": "PASS"
+      }
+    },
+    "push": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:10532a7388f1ab05088be79cbe5f47cd5526f2b8d02061f0ce35141b02d8cd4d"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/07-push.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:d3ce5f908500a85175dcf06ae17c79886022062a06a40ac8ae3eaadf9dc0029c"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/07-push.json",
+        "outcome": "PASS"
+      }
+    },
+    "run": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:d103c37da6900fa32d7008feba1c2e9321cf09d61060583f058874bba664305c"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/02-run.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:796111b7f7327d385ab3bc94a6e397cfde12af60e50f2d65dc8c9da69dbf8ce0"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/02-run.json",
+        "outcome": "PASS"
+      }
+    },
+    "select": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:796111b7f7327d385ab3bc94a6e397cfde12af60e50f2d65dc8c9da69dbf8ce0"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/03-select.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:525178fdaca86ba99251db4716979c326795e6405005187320d7d875a0d085c9"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/03-select.json",
+        "outcome": "PASS"
+      }
+    },
+    "tag": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:a3ff99285bb04207fbd1216fe4cbf0a28bdd20c0095c76263e2d45445f31cea7"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/06-tag.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:10532a7388f1ab05088be79cbe5f47cd5526f2b8d02061f0ce35141b02d8cd4d"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/06-tag.json",
+        "outcome": "PASS"
+      }
+    },
+    "transaction": {
+      "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+      "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+      "identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0/runtime-a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+      "inputs": [
+        "sha256:f0f13c87354fa469d5038bf0c7bf2601f9c4754c277d32e4aa6d01124b1e6776"
+      ],
+      "negative_evidence": {
+        "artifact": "harness/sandbox/evidence/blocked/05-transaction.json",
+        "outcome": "BLOCKED"
+      },
+      "outputs": [
+        "sha256:a3ff99285bb04207fbd1216fe4cbf0a28bdd20c0095c76263e2d45445f31cea7"
+      ],
+      "positive_evidence": {
+        "artifact": "harness/sandbox/evidence/positive/05-transaction.json",
+        "outcome": "PASS"
+      }
+    }
+  }
+}

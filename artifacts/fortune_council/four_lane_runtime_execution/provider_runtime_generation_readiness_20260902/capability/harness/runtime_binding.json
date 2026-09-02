@@ -1,0 +1,20 @@
+{
+  "canonicalization": "json(sort_keys=true,separators=[comma,colon],utf8)",
+  "digest_algorithm": "sha256",
+  "payload": {
+    "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+    "formal_harness": "scripts.pantheon_writer_vnext_runtime_activation_e2e:run_runtime_activation_e2e",
+    "generation": "provider-readiness-4a3dfeac1943-20260902",
+    "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+    "provider_mode": "deterministic-local-fake-provider",
+    "push_sink": "sandbox-local-fake-git",
+    "schema_version": 1,
+    "task_id": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902"
+  },
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "runtime_receipt": {
+    "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+    "status": "PASS"
+  },
+  "schema_version": 1
+}

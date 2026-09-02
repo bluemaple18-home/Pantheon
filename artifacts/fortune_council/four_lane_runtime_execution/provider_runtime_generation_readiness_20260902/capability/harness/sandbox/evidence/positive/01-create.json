@@ -1,0 +1,16 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_gemini_coordinator:register_run",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "8e165e537dc406fdf162d4e19837b7a1b7fb60c3e1ff49bb7bcf442d033ab454",
+  "outcome": "PASS",
+  "output_digest": "d103c37da6900fa32d7008feba1c2e9321cf09d61060583f058874bba664305c",
+  "production_mutation": false,
+  "run_id": "ra-slice-002-synthetic-create-run",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/positive-create.json",
+  "state_digest": "d103c37da6900fa32d7008feba1c2e9321cf09d61060583f058874bba664305c",
+  "step": "create"
+}

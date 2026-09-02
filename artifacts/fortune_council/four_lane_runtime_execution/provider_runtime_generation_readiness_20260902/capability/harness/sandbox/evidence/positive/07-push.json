@@ -1,0 +1,80 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "capability": "push",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids",
+      "scripts.agy_content_publisher:_stage_commit_tag_push"
+    ],
+    "git_trace": [
+      [
+        "for-each-ref",
+        "--format=%(refname:short)",
+        "refs/tags"
+      ],
+      [
+        "ls-remote",
+        "--tags",
+        "origin",
+        "refs/tags/v*"
+      ],
+      [
+        "for-each-ref",
+        "--format=%(refname:short)",
+        "refs/tags"
+      ],
+      [
+        "ls-remote",
+        "--tags",
+        "origin",
+        "refs/tags/v*"
+      ],
+      [
+        "add",
+        "app/web",
+        "tests/test_web.py",
+        "pyproject.toml",
+        "package.json",
+        "CHANGELOG.md"
+      ],
+      [
+        "commit",
+        "-m",
+        "chore(content): publish Gemini approved articles v0.3.375"
+      ],
+      [
+        "tag",
+        "-a",
+        "v0.3.375",
+        "-m",
+        "Pantheon content release v0.3.375"
+      ],
+      [
+        "rev-parse",
+        "HEAD"
+      ],
+      [
+        "push",
+        "--atomic",
+        "origin",
+        "HEAD:main",
+        "v0.3.375"
+      ]
+    ],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "10532a7388f1ab05088be79cbe5f47cd5526f2b8d02061f0ce35141b02d8cd4d",
+  "operation_trace_digest": "43e0ee8a3dd21d75f0f024f05bd12175fe46209872326ff241572c8b5ca42ef7",
+  "outcome": "PASS",
+  "output_digest": "d3ce5f908500a85175dcf06ae17c79886022062a06a40ac8ae3eaadf9dc0029c",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

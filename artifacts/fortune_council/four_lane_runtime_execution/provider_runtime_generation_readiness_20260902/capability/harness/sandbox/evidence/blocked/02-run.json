@@ -1,0 +1,14 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "case": "run-boundary",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_gemini_coordinator:cycle_once",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "outcome": "BLOCKED",
+  "production_mutation": false,
+  "reason": "exact run ids not found: ra-slice-002-missing-negative-probe",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/blocked-run.json",
+  "step": "run"
+}

@@ -1,0 +1,15 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "capability": "tag",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "d3ce5f908500a85175dcf06ae17c79886022062a06a40ac8ae3eaadf9dc0029c",
+  "outcome": "BLOCKED",
+  "output_digest": "ae44a10edc0a83282dbf6e62691250ac9e78d25add4f38a5d12e341e5802f7ac",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt tag mode must be dry-run"
+}

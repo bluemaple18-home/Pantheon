@@ -1,0 +1,68 @@
+{
+  "commands": [
+    "git rev-parse HEAD origin/main main",
+    "/Users/mattkuo/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12 artifacts/fortune_council/four_lane_runtime_execution/provider_runtime_generation_readiness_20260902/identity/identity_harness.py"
+  ],
+  "context": {
+    "codegraph": "confirmed_uninitialized_by_dispatch",
+    "head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+    "local_main": "0f61545f8c6b561742b27792b8fef11ae8b1ccc5",
+    "local_main_is_authority": false,
+    "mode": "CONTEXT_DEGRADED",
+    "origin_main": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0"
+  },
+  "execution_attempts": [
+    {
+      "external_mutation": 0,
+      "reason": "sandbox system-configuration NULL object panic",
+      "runner": "uv run --offline --no-project",
+      "status": "BLOCKED_BEFORE_HARNESS"
+    },
+    {
+      "runner": "existing uv-managed python3.12",
+      "status": "PASS"
+    }
+  ],
+  "immutability": {
+    "equal": true,
+    "installed_plist": "/Users/mattkuo/Library/LaunchAgents/com.pantheon.agy-gemini-i18n-new.plist",
+    "sha256_after": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc",
+    "sha256_before": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc"
+  },
+  "installed_g47": {
+    "tuple": {
+      "actor_head": "6477ab815e8aecca7d1e8e1588e6e5eba0fab001",
+      "generation": "g47-6477ab81-activation-only-20260826",
+      "identity": "gate2-actor:6477ab815e8aecca7d1e8e1588e6e5eba0fab001:activation-only",
+      "tuple_digest": "ec154cec2b7302374363ba4ad833715b65434390827e17181d9c535ef723f0e2"
+    },
+    "verdict": {
+      "expected_current_actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+      "reasons": [
+        "actor_head_not_current"
+      ],
+      "status": "BLOCKED"
+    }
+  },
+  "installed_plist_mutation": 0,
+  "isolated_current_actor": {
+    "tuple": {
+      "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+      "generation": "provider-readiness-4a3dfeac1943-20260902",
+      "identity": "provider-runtime-readiness:4a3dfeac1943061edfce5350cb6bb25e35ff64c0:isolated",
+      "tuple_digest": "8c81f085e6aeb0f849c6aaf9b62fe8b8e36d652d6ce18155be78792736dfe47c"
+    },
+    "verdict": {
+      "expected_current_actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+      "reasons": [],
+      "status": "PASS"
+    }
+  },
+  "launchctl_mutation": 0,
+  "network_calls": 0,
+  "provider_calls": 0,
+  "reasons": [],
+  "schema": "pantheon.provider_runtime_identity_readiness.v1",
+  "status": "PASS",
+  "task": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902"
+}

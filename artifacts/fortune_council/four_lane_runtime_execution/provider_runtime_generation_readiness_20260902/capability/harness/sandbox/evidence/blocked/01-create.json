@@ -1,0 +1,14 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "case": "missing-brief",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_gemini_coordinator:coordinator_create_run_receipt_preflight",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "outcome": "BLOCKED",
+  "production_mutation": false,
+  "reason": "brief is required",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "source_evidence": "evidence/official/coordinator/blocked-create.json",
+  "step": "create"
+}

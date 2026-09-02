@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902",
+  "status": "ISOLATED_READINESS_READY_FOR_OWNER_ACTIVATION_REVIEW",
+  "production_authorization": false,
+  "base_sha": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+  "generation": "provider-readiness-4a3dfeac1943-20260902",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "gates": {
+    "identity": "PASS",
+    "rule24_capacity": "PASS",
+    "rule25_capability": "READY",
+    "generation_binding": "PASS",
+    "legacy_identity_regression": "RED_EXPECTED"
+  },
+  "evidence": {
+    "identity": "../identity/result.json",
+    "capacity": "../capacity/result.json",
+    "capability": "../capability/result.json",
+    "generation_binding": "../capability/finding_closure.json",
+    "rule25_gate": "../capability/gate_result.json"
+  },
+  "verification": {
+    "identity_harness": "PASS",
+    "capacity_harness": "PASS",
+    "capability_verify_only": "PASS",
+    "official_rule25_gate": "READY",
+    "runtime_activation_regression": "4 passed"
+  },
+  "mutation_counters": {
+    "network_calls": 0,
+    "provider_calls": 0,
+    "launchctl_mutation": 0,
+    "production_mutation": 0,
+    "canary_created": false
+  },
+  "remaining_boundary": "Owner must separately authorize any staging into installed runtime, activation, reload, deploy, canary, provider call, or production mutation.",
+  "success_quota": "REVIEW_NO_GO"
+}

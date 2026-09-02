@@ -1,0 +1,108 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "canary_created": false,
+  "cases": [
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "identity-drift",
+      "code": "identity_mismatch",
+      "outcome": "BLOCKED",
+      "reason": "actor_identity drifted across receipt steps"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "digest-discontinuity",
+      "code": "digest_continuity",
+      "outcome": "BLOCKED",
+      "reason": "step input digest must match previous output"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "missing-step",
+      "code": "step_sequence",
+      "outcome": "BLOCKED",
+      "reason": "receipt must contain exactly seven steps"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "duplicate-step",
+      "code": "step_sequence",
+      "outcome": "BLOCKED",
+      "reason": "receipt steps must match the fixed sequence"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "caller-supplied-verdict",
+      "code": "caller_verdict",
+      "outcome": "BLOCKED",
+      "reason": "receipt contains caller-supplied verdict"
+    },
+    {
+      "authority": "scripts.pantheon_content_capability_receipt:validate_capability_receipt",
+      "case": "production-mutation",
+      "code": "production_boundary",
+      "outcome": "BLOCKED",
+      "reason": "production_mutation must be false"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-runtime-drift",
+      "negative_evidence": "blocked/71-probe-publisher-runtime-drift.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt runtime identity drift"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-caller-verdict",
+      "negative_evidence": "blocked/72-probe-publisher-caller-verdict.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt context contains caller verdict"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-overlapping-roots",
+      "negative_evidence": "blocked/73-probe-publisher-overlapping-roots.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher queue and state roots must not overlap"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-real-tag-mode",
+      "negative_evidence": "blocked/74-probe-publisher-real-tag-mode.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt tag mode must be dry-run"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-real-push-mode",
+      "negative_evidence": "blocked/75-probe-publisher-real-push-mode.json",
+      "outcome": "BLOCKED",
+      "reason": "publisher receipt push mode must be dry-run"
+    },
+    {
+      "authority": "scripts.agy_content_publisher:formal_capability_preflight",
+      "case": "publisher-empty-run-selection",
+      "negative_evidence": "blocked/76-probe-publisher-empty-run-selection.json",
+      "outcome": "BLOCKED",
+      "reason": "exact run ids must not be empty"
+    },
+    {
+      "authority": "scripts.pantheon_writer_vnext_runtime_activation_e2e:run_runtime_activation_e2e",
+      "case": "untrusted-root",
+      "outcome": "BLOCKED",
+      "reason": "trusted sandbox root must be canonical absolute"
+    },
+    {
+      "authority": "scripts.pantheon_writer_vnext_runtime_activation_e2e:run_runtime_activation_e2e",
+      "case": "symlink-escape",
+      "outcome": "BLOCKED",
+      "reason": "symlink probe must be a strict sandbox descendant"
+    }
+  ],
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "mode": "synthetic-non-production",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1
+}

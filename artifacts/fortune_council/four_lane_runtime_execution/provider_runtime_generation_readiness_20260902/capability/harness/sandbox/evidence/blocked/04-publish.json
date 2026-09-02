@@ -1,0 +1,15 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "capability": "publish",
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "error_type": "PublishBlocked",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "525178fdaca86ba99251db4716979c326795e6405005187320d7d875a0d085c9",
+  "outcome": "BLOCKED",
+  "output_digest": "52a99162914b20aaecf793778e0c1187d770b81388fa37dc307d2c7bc27e2095",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "stable_reason": "publisher receipt runtime identity drift"
+}

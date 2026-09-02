@@ -1,0 +1,6 @@
+{
+  "case": "legacy-ra-slice-004-identity-regression",
+  "outcome": "BLOCKED",
+  "reason": "execution line is not generation-bound",
+  "status": "RED_EXPECTED"
+}

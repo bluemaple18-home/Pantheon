@@ -1,0 +1,31 @@
+{
+  "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "canary_created": false,
+  "cases": [
+    {
+      "artifact": "harness/sandbox/evidence/blocked/74-probe-publisher-real-tag-mode.json",
+      "case": "publisher-real-tag-mode",
+      "outcome": "BLOCKED"
+    },
+    {
+      "artifact": "harness/sandbox/evidence/blocked/75-probe-publisher-real-push-mode.json",
+      "case": "publisher-real-push-mode",
+      "outcome": "BLOCKED"
+    }
+  ],
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "generation": "provider-readiness-4a3dfeac1943-20260902",
+  "launchctl_mutation": 0,
+  "legacy_identity_red": "harness/legacy_identity_red.json",
+  "network_calls": 0,
+  "production_mutation": 0,
+  "provider_calls": 0,
+  "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+  "reason": "Real tag and production push modes fail closed.",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "task_id": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902"
+}

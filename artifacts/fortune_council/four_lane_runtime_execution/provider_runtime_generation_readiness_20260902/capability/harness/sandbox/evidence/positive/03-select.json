@@ -1,0 +1,25 @@
+{
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "capability": "select",
+  "capability_boundary": {
+    "boundary_status": "PASS",
+    "called_entrypoints": [
+      "scripts.agy_content_publisher:_normalize_exact_run_ids"
+    ],
+    "git_trace": [],
+    "run_ids": [
+      "ra-slice-002-synthetic-create-run"
+    ]
+  },
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "entrypoint": "scripts.agy_content_publisher:formal_capability_preflight",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "input_digest": "796111b7f7327d385ab3bc94a6e397cfde12af60e50f2d65dc8c9da69dbf8ce0",
+  "operation_trace_digest": "205c56898a857d2c359a9a26854eaa3543e7325f4d2fa72d28141d3e20e9deac",
+  "outcome": "PASS",
+  "output_digest": "525178fdaca86ba99251db4716979c326795e6405005187320d7d875a0d085c9",
+  "production_mutation": false,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "schema_version": 1,
+  "stable_reason": "publisher_capability_passed"
+}

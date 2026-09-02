@@ -1,0 +1,12 @@
+{
+  "status": "READY",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "failures": [],
+  "validator": "<ai-core-root>/scripts/production_canary_readiness_gate.py",
+  "receipt": "positive_receipt.json",
+  "generation": "provider-readiness-4a3dfeac1943-20260902",
+  "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "receipt_binding_verification": true
+}

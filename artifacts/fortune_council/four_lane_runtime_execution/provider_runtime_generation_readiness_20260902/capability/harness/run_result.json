@@ -1,0 +1,29 @@
+{
+  "actor_head": "4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "actor_identity": "pantheon-provider-runtime@provider-readiness-4a3dfeac1943-20260902:4a3dfeac1943061edfce5350cb6bb25e35ff64c0",
+  "canary_created": false,
+  "correlation_id": "corr-provider-readiness-4a3dfeac1943-20260902",
+  "execution_line_id": "exec-provider-readiness-4a3dfeac1943-20260902",
+  "generation": "provider-readiness-4a3dfeac1943-20260902",
+  "harness_status": "PASS",
+  "launchctl_mutation": 0,
+  "legacy_identity_markers_absent": true,
+  "legacy_identity_red": "RED_EXPECTED",
+  "network_calls": 0,
+  "production_mutation": 0,
+  "provider_calls": 0,
+  "provider_fix_sha": "2d03f97a7750e23cb1e67dd850e841fa35e3e194",
+  "receipt_binding_verification": true,
+  "runtime_identity_digest": "a6f7ac78b0a6659ccc884a9c712a999b1d6fed0661d8b631809c073cdc41284a",
+  "status": "PASS",
+  "task_id": "PANTHEON-PROVIDER-RUNTIME-GENERATION-READINESS-20260902",
+  "verified_steps": [
+    "create",
+    "run",
+    "select",
+    "publish",
+    "transaction",
+    "tag",
+    "push"
+  ]
+}
