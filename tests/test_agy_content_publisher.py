@@ -20,6 +20,14 @@ from scripts.agy_seo_copy_pipeline import article_sha256, body_sha256
 from tests.test_agy_multilingual_pipeline import approved_stage_fixture, replacement_approved_stage_fixture
 
 
+@pytest.fixture(autouse=True)
+def _fixed_publication_success_quota(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "PANTHEON_PUBLICATION_SUCCESS_QUOTA",
+        '{"schema_version":1,"timezone":"Asia/Taipei","new":1,"rewrite":1,"translation":1,"total":3}',
+    )
+
+
 def make_publication_policy(
     *,
     canonical: str,
@@ -4979,24 +4987,17 @@ def test_replacement_publish_prepared_before_remote_push(
     candidate = "c" * 40
     base = "b" * 40
     namespace_plan = _release_stage_plan(tmp_path, "0.3.59")
+    publisher._reserve_publication_success(state_root, "translation", ["replacement-01"])
     context = {
-        "stage_receipt_sha256": "1" * 64, "approved_candidate_file_sha256": "2" * 64,
-        "approved_article_sha256": "3" * 64, "approved_review_file_sha256": "4" * 64,
-        "formal_review_result_sha256": "5" * 64, "formal_job_id": "6" * 40,
-        "formal_request_sha256": "6" * 64, "replacement_of": "old-run",
-        "replacement_reason": "reviewed replacement", "record_before_sha256": "7" * 64,
-        "record_after_sha256": "8" * 64, "module_before_sha256": "9" * 64,
-        "module_after_sha256": "a" * 64, "manifest_sha256": "d" * 64,
-        "base_sha": base, "expected_remote_main_before": base,
-        "publication_plan_digest": "e" * 64,
-        "ledger_path": str(state_root / "ledger.json"),
-        "publish_evidence_path": str(evidence_dir / "translation-evidence.json"),
-        "recorded_at": "2026-08-30T00:00:00+00:00",
+        "ledger_entries": [{"run_id": "replacement-01", "version": "0.3.59", "published_at": "2026-08-30T00:00:00+00:00"}],
+        "publish_evidence": {"schema_version": 1, "status": "PUBLISHED_TRANSLATION", "base_sha": base, "version": "0.3.59", "run_ids": ["replacement-01"], "pushed": True},
     }
 
     def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
         if args == ["rev-parse", "HEAD"]:
             return candidate
+        if args[:2] == ["diff", "--name-only"]:
+            return "app/web/owned.js"
         if args[:2] == ["push", "--atomic"]:
             prepared = json.loads(publisher._unresolved_push_path(state_root).read_text())
             assert prepared["status"] == "PUSH_PREPARED"
@@ -5008,7 +5009,7 @@ def test_replacement_publish_prepared_before_remote_push(
         tmp_path, "0.3.59", fake_git, namespace_plan=namespace_plan,
         push=True, release_gate=False, outcome_evidence_dir=evidence_dir,
         state_root=state_root, phase="translation", run_ids=["replacement-01"],
-        prepared_context=context,
+        publication_context=context,
     )
 
     assert publisher._unresolved_push_path(state_root).is_file()
@@ -5079,17 +5080,28 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
     )
     version = "0.3.998"; base = "b" * 40; target = "c" * 40
     evidence_dir = state_root / "evidence" / f"translation-{version}"
-    published = [(candidate["run_id"], "en", candidate["articles"][0]["source_article_id"],
-                  state["_approved_revision_stage"]["receipt_sha256"], state["_approved_revision_stage"])]
-    context = publisher._translation_prepared_context(
-        published, [candidate["run_id"]], base, version, state_root, evidence_dir
-    )
+    publisher._reserve_publication_success(state_root, "translation", [candidate["run_id"]])
+    context = {
+        "ledger_entries": [{
+            "run_id": candidate["run_id"], "locale": "en",
+            "article_id": candidate["articles"][0]["source_article_id"],
+            "version": version, "published_at": "2026-09-02T23:59:00+08:00",
+            "staging_receipt_sha256": state["_approved_revision_stage"]["receipt_sha256"],
+        }],
+        "publish_evidence": {
+            "schema_version": 1, "status": "PUBLISHED_TRANSLATION", "base_sha": base,
+            "version": version, "run_ids": [candidate["run_id"]], "locales": ["en"],
+            "article_ids": [candidate["articles"][0]["source_article_id"]], "pushed": True,
+        },
+    }
     namespace_plan = _release_stage_plan(tmp_path, version)
     pushes: list[list[str]] = []
 
     def first_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
         if args == ["rev-parse", "HEAD"]:
             return target
+        if args[:2] == ["diff", "--name-only"]:
+            return fixture["module_path"].relative_to(repo_root).as_posix()
         if args[:2] == ["push", "--atomic"]:
             pushes.append(args)
         return ""
@@ -5098,7 +5110,7 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
     publisher._stage_commit_tag_push(
         repo_root, version, first_git, namespace_plan=namespace_plan, push=True,
         release_gate=False, outcome_evidence_dir=evidence_dir, state_root=state_root,
-        phase="translation", run_ids=[candidate["run_id"]], prepared_context=context,
+        phase="translation", run_ids=[candidate["run_id"]], publication_context=context,
     )
 
     converged = False; local_only = False
@@ -5136,8 +5148,8 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
 
     if expected_second_push in {"BLOCKED", "BLOCKED_TAG"}:
         with pytest.raises(publisher.PublishBlocked, match="remote refs diverged|tag identity"):
-            publisher._resume_prepared_translation(
-                repo_root, queue_root, state_root, reconcile_git,
+            publisher._resume_prepared_publication(
+                repo_root, state_root, reconcile_git,
                 json.loads(publisher._unresolved_push_path(state_root).read_text()),
             )
         assert len(pushes) == 1
@@ -5151,7 +5163,7 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
                 raise RuntimeError("crash after ledger")
         monkeypatch.setattr(publisher, "_atomic_write_json", crash_after_ledger_write)
         with pytest.raises(RuntimeError, match="crash after ledger"):
-            publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+            publisher._resume_prepared_publication(repo_root, state_root, reconcile_git,
                                                    json.loads(publisher._unresolved_push_path(state_root).read_text()))
         monkeypatch.setattr(publisher, "_atomic_write_json", atomic_write)
         local_only = True
@@ -5163,22 +5175,23 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
             ledger["translation_published_runs"][-1]["published_at"] = "drift"
             publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
             with pytest.raises(publisher.PublishBlocked, match="ledger differs"):
-                publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+                publisher._resume_prepared_publication(repo_root, state_root, reconcile_git,
                                                        json.loads(publisher._unresolved_push_path(state_root).read_text()))
             assert len(pushes) == 1
             return
         remove_control = publisher._remove_prepared_control
         monkeypatch.setattr(publisher, "_remove_prepared_control", lambda _state: (_ for _ in ()).throw(RuntimeError("crash before control cleanup")))
         with pytest.raises(RuntimeError, match="crash before control cleanup"):
-            publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+            publisher._resume_prepared_publication(repo_root, state_root, reconcile_git,
                                                    json.loads(publisher._unresolved_push_path(state_root).read_text()))
         evidence_path = state_root / "evidence" / f"translation-{version}" / "translation-evidence.json"
         evidence_before_cleanup = evidence_path.read_bytes()
         monkeypatch.setattr(publisher, "_remove_prepared_control", remove_control)
     prepared_control = json.loads(publisher._unresolved_push_path(state_root).read_text())
-    canonical_entry, canonical_evidence = publisher._translation_finalization_records(repo_root, reconcile_git, prepared_control, candidate, state["_approved_revision_stage"]["public_replacement"])
-    result = publisher._resume_prepared_translation(
-        repo_root, queue_root, state_root, reconcile_git,
+    canonical_entry = prepared_control["ledger_entries"][0]
+    canonical_evidence = prepared_control["publish_evidence"]
+    result = publisher._resume_prepared_publication(
+        repo_root, state_root, reconcile_git,
         prepared_control,
     )
 
@@ -5196,7 +5209,7 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
         assert {path: path.read_bytes() for path in protected_paths} == protected_before
     if initial_main == initial_tag == "target" and not crash_after_ledger:
         publisher._atomic_write_json(publisher._unresolved_push_path(state_root), prepared_control)
-        assert publisher._resume_prepared_translation(repo_root, queue_root, state_root, reconcile_git,
+        assert publisher._resume_prepared_publication(repo_root, state_root, reconcile_git,
                                                       prepared_control)["status"] == "ALREADY_PUBLISHED"
         assert len(pushes) == 1
 
@@ -6053,3 +6066,272 @@ def test_main_runs_real_publish_in_isolated_worktree(
     assert transaction_roots[0] != actor
     assert not transaction_roots[0].exists()
     assert (actor / "app/web/owned.txt").read_bytes() == b"concurrent-user\n"
+
+
+def test_publication_success_quota_is_fixed_and_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert publisher._require_publication_success_quota() == {
+        "schema_version": 1,
+        "timezone": "Asia/Taipei",
+        "new": 1,
+        "rewrite": 1,
+        "translation": 1,
+        "total": 3,
+    }
+    for value in (None, "{}", "not-json"):
+        if value is None:
+            monkeypatch.delenv("PANTHEON_PUBLICATION_SUCCESS_QUOTA", raising=False)
+        else:
+            monkeypatch.setenv("PANTHEON_PUBLICATION_SUCCESS_QUOTA", value)
+        with pytest.raises(publisher.PublishBlocked, match="publication success quota config"):
+            publisher._require_publication_success_quota()
+
+
+def test_publication_success_quota_config_is_projected_by_installer() -> None:
+    installer = (
+        Path(__file__).resolve().parents[1]
+        / "scripts/install_agy_content_publisher_launchd.sh"
+    ).read_text(encoding="utf-8")
+    assert (
+        'PUBLICATION_SUCCESS_QUOTA='
+        "'{\"schema_version\":1,\"timezone\":\"Asia/Taipei\",\"new\":1,"
+        "\"rewrite\":1,\"translation\":1,\"total\":3}'"
+    ) in installer
+    assert "PANTHEON_PUBLICATION_SUCCESS_QUOTA string ${PUBLICATION_SUCCESS_QUOTA}" in installer
+
+
+def test_publication_success_quota_classes_total_replay_and_midnight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(publisher, "_taipei_business_date", lambda: "2026-09-02")
+    for phase, run_id in (
+        ("create", "new-1"),
+        ("rewrite", "rewrite-1"),
+        ("translation", "i18n-new-1"),
+    ):
+        publisher._reserve_publication_success(state_root, phase, [run_id])
+
+    with pytest.raises(publisher.PublishBlocked, match="total quota is exhausted"):
+        publisher._reserve_publication_success(state_root, "translation", ["i18n-rewrite-1"])
+    ledger = publisher._load_ledger(state_root)
+    assert len(ledger["publication_success_reservations"]) == 3
+
+    monkeypatch.setattr(publisher, "_taipei_business_date", lambda: "2026-09-03")
+    replay = publisher._reserve_publication_success(state_root, "create", ["new-1"])
+    assert replay["admission_date"] == "2026-09-02"
+    assert len(publisher._load_ledger(state_root)["publication_success_reservations"]) == 3
+    publisher._reserve_publication_success(state_root, "translation", ["i18n-rewrite-1"])
+
+
+@pytest.mark.parametrize(
+    ("phase", "ledger_key", "terminal_status"),
+    [
+        ("create", "published_runs", "PUBLISHED"),
+        ("rewrite", "rewrite_released_runs", "PUBLISHED_REWRITE"),
+        ("translation", "translation_published_runs", "PUBLISHED_TRANSLATION"),
+    ],
+)
+@pytest.mark.parametrize("remote_already_published", [False, True])
+def test_all_publication_phases_resume_prepared_and_atomically_terminalize_quota(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+    ledger_key: str,
+    terminal_status: str,
+    remote_already_published: bool,
+) -> None:
+    repo_root = tmp_path / "repo"
+    state_root = tmp_path / "state"
+    (repo_root / "app/web").mkdir(parents=True)
+    base = "b" * 40
+    target = "c" * 40
+    tag_object = "d" * 40
+    version = "0.3.999"
+    run_id = f"{phase}-run"
+    publisher._reserve_publication_success(state_root, phase, [run_id])
+    publisher._prepare_publication_control(
+        state_root,
+        phase=phase,
+        run_ids=[run_id],
+        base_sha=base,
+        target_commit_sha=target,
+        version=version,
+        ledger_entries=[{"run_id": run_id, "version": version, "published_at": "2026-09-02T23:59:00+08:00"}],
+        publish_evidence={
+            "schema_version": 1,
+            "status": terminal_status,
+            "base_sha": base,
+            "version": version,
+            "run_ids": [run_id],
+            "changed": ["app/web/owned.js"],
+            "pushed": True,
+        },
+    )
+    remote = {"main": target if remote_already_published else base, "tag": remote_already_published}
+    pushes: list[list[str]] = []
+
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        if args == ["rev-parse", "HEAD"]:
+            return target
+        if args == ["rev-parse", f"v{version}^{{}}"]:
+            return target
+        if args == ["rev-parse", f"refs/tags/v{version}"]:
+            return tag_object
+        if args == ["rev-parse", f"{target}^"]:
+            return base
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args[:2] == ["diff", "--name-only"]:
+            return "app/web/owned.js"
+        if args == ["rev-parse", "origin/main"]:
+            return remote["main"]
+        if args[:2] == ["ls-remote", "origin"]:
+            return (
+                f"{tag_object}\trefs/tags/v{version}\n"
+                f"{target}\trefs/tags/v{version}^{{}}\n"
+                if remote["tag"]
+                else ""
+            )
+        if args and args[0] == "push":
+            pushes.append(args)
+            remote.update(main=target, tag=True)
+        return ""
+
+    atomic_snapshots: list[dict[str, object]] = []
+    atomic_write = publisher._atomic_write_json
+
+    def capture_atomic_write(path: Path, payload: object) -> None:
+        atomic_write(path, payload)
+        if path == publisher._ledger_path(state_root):
+            atomic_snapshots.append(json.loads(json.dumps(payload)))
+
+    monkeypatch.setattr(publisher, "_atomic_write_json", capture_atomic_write)
+    result = publisher._resume_prepared_publication(
+        repo_root,
+        state_root,
+        fake_git,
+        publisher._read_json(publisher._unresolved_push_path(state_root)),
+    )
+
+    assert result["status"] == terminal_status
+    assert len(pushes) == (0 if remote_already_published else 1)
+    terminal = atomic_snapshots[-1]
+    assert terminal[ledger_key][0]["run_id"] == run_id
+    assert terminal[ledger_key][0]["commit_sha"] == target
+    reservation = terminal["publication_success_reservations"][0]
+    assert reservation["status"] == "success"
+    assert reservation["commit_sha"] == target
+    assert reservation["admission_date"] == "2026-09-02"
+    assert not publisher._unresolved_push_path(state_root).exists()
+
+
+def test_scheduled_restart_without_exact_run_ids_auto_resumes_prepared(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    (repo_root / ".git").mkdir(parents=True)
+    state_root.mkdir()
+    publisher._atomic_write_json(
+        publisher._unresolved_push_path(state_root),
+        {"status": "PUSH_PREPARED", "run_ids": ["rewrite-run"]},
+    )
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *_args: None)
+    monkeypatch.setattr(
+        publisher,
+        "_resume_prepared_publication",
+        lambda *_args: {"schema_version": 1, "status": "PUBLISHED_REWRITE", "run_ids": ["rewrite-run"]},
+    )
+
+    @publisher._recoverable_publish("create", "published")
+    def must_not_select(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("scheduled restart must resume before selection")
+
+    result = must_not_select(
+        repo_root,
+        queue_root,
+        state_root,
+        git=lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else "",
+    )
+    assert result["status"] == "PUBLISHED_REWRITE"
+
+
+def test_publication_lock_prevents_concurrent_second_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    (repo_root / ".git").mkdir(parents=True)
+    state_root.mkdir()
+    publisher._reserve_publication_success(state_root, "create", ["first-run"])
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *_args: None)
+    lock_path = state_root / "publisher.lock"
+    with lock_path.open("a+") as held:
+        fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        result = publisher.publish_ready_runs(
+            repo_root,
+            queue_root,
+            state_root,
+            git=lambda _repo, args, _input=None: ".git" if args == ["rev-parse", "--git-common-dir"] else "",
+        )
+    assert result == {"schema_version": 1, "status": "busy", "published": 0}
+    assert [
+        item["run_id"]
+        for item in publisher._load_ledger(state_root)["publication_success_reservations"]
+    ] == ["first-run"]
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+def test_non_dry_quota_admits_only_first_ready_run_but_dry_run_reports_all(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str,
+) -> None:
+    class Plan:
+        def receipt(self) -> dict[str, object]:
+            return {}
+
+    ready = [
+        ({"run_id": f"{phase}-first"}, {"articles": []}, {}, {}),
+        ({"run_id": f"{phase}-second"}, {"articles": []}, {}, {}),
+    ]
+    if phase == "create":
+        function = publisher.publish_ready_runs.__wrapped__
+        ready = [(state, candidate, review) for state, candidate, review, _ in ready]
+        monkeypatch.setattr(publisher, "collect_ready_runs", lambda *_args, **_kwargs: ready)
+        kwargs = {"seed_translations": False}
+    elif phase == "rewrite":
+        function = publisher.publish_ready_rewrite_runs.__wrapped__
+        monkeypatch.setattr(publisher, "legacy_article_records", lambda *_args: [])
+        monkeypatch.setattr(publisher, "summarize_legacy_rewrite_backlog", lambda *_args, **_kwargs: {})
+        monkeypatch.setattr(publisher, "collect_ready_rewrite_runs", lambda *_args, **_kwargs: ready)
+        monkeypatch.setattr(publisher, "_filter_rewrite_runs_with_current_sources", lambda _repo, _state, runs, **_kwargs: runs)
+        kwargs = {}
+    else:
+        function = publisher.publish_ready_translation_runs.__wrapped__
+        monkeypatch.setattr(publisher, "collect_ready_translation_runs", lambda *_args, **_kwargs: ready)
+        kwargs = {}
+    monkeypatch.setattr(publisher, "plan_release_namespace", lambda *_args: Plan())
+    state_root = tmp_path / "state"
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    git = lambda *_args, **_kwargs: ""
+
+    dry = function(repo_root, queue_root, state_root, dry_run=True, git=git, _transaction_base_sha="b" * 40, **kwargs)
+    assert dry["ready_runs"] == [f"{phase}-first", f"{phase}-second"]
+
+    reservations: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(publisher, "_reserve_publication_success", lambda _state, name, run_ids: reservations.append((name, list(run_ids))))
+    class BeforeMutation(Exception):
+        pass
+    def stop_before_mutation(_journal: publisher.MutationJournal) -> None:
+        raise BeforeMutation
+    monkeypatch.setattr(publisher.MutationJournal, "begin", stop_before_mutation)
+    with pytest.raises(BeforeMutation):
+        function(repo_root, queue_root, state_root, git=git, _transaction_base_sha="b" * 40, **kwargs)
+    assert reservations == [(phase, [f"{phase}-first"])]

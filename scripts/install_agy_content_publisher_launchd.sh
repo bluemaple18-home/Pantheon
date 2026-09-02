@@ -18,6 +18,7 @@ PYTHON_PATH="${PANTHEON_PYTHON_PATH:-${REPO_ROOT}/.venv/bin/python}"
 MAX_RUNS="${PANTHEON_PUBLISH_MAX_RUNS:-3}"
 EXACT_RUN_ID="${PANTHEON_PUBLISH_EXACT_RUN_ID:-}"
 NEW_ONLY="${PANTHEON_PUBLISH_NEW_ONLY:-0}"
+PUBLICATION_SUCCESS_QUOTA='{"schema_version":1,"timezone":"Asia/Taipei","new":1,"rewrite":1,"translation":1,"total":3}'
 LAUNCHD_PATH="${PANTHEON_LAUNCHD_PATH:-/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
 LAUNCH_AGENTS_DIR="${USER_HOME_DIR}/Library/LaunchAgents"
 TARGET_PLIST="${LAUNCH_AGENTS_DIR}/com.pantheon.agy-content-publisher.plist"
@@ -191,6 +192,7 @@ cp "${TEMPLATE_PLIST}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_QUEUE_ROOT ${QUEUE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT ${STATE_ROOT}" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:PANTHEON_RUNTIME_LOG_ROOT ${LOG_DIR}" "${TEMP_PLIST}"
+/usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_PUBLICATION_SUCCESS_QUOTA string ${PUBLICATION_SUCCESS_QUOTA}" "${TEMP_PLIST}"
 if [[ -n "${RUNTIME_ACTOR_HEAD}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:PANTHEON_RUNTIME_ACTOR_HEAD string ${RUNTIME_ACTOR_HEAD}" "${TEMP_PLIST}"
 fi

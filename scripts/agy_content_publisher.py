@@ -21,6 +21,7 @@ import subprocess
 import tempfile
 import time
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
@@ -34,6 +35,19 @@ from scripts.pantheon_runtime_fs_authority import (
 
 
 SCHEMA_VERSION = 1
+PUBLICATION_SUCCESS_QUOTA = {
+    "schema_version": 1,
+    "timezone": "Asia/Taipei",
+    "new": 1,
+    "rewrite": 1,
+    "translation": 1,
+    "total": 3,
+}
+PUBLICATION_PHASES = {
+    "create": ("new", "published_runs", "PUBLISHED", "publish-evidence.json"),
+    "rewrite": ("rewrite", "rewrite_released_runs", "PUBLISHED_REWRITE", "rewrite-evidence.json"),
+    "translation": ("translation", "translation_published_runs", "PUBLISHED_TRANSLATION", "translation-evidence.json"),
+}
 RUNTIME_MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_MAX_RUNS = 3
 PUBLISHER_ID = "agy-content-publisher"
@@ -87,6 +101,7 @@ SUCCESS_STATUSES = {
     "busy",
     "dry-run",
     "policy_rejected",
+    "ALREADY_PUBLISHED",
 }
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
@@ -2402,143 +2417,160 @@ def _recover_failed_publish(
     return evidence_path
 
 
-def _resume_prepared_translation(
-    repo_root: Path, queue_root: Path, state_root: Path, git: GitRunner,
-    control: dict[str, Any],
-) -> dict[str, Any]:
-    keys = set("schema_version status phase run_id stage_receipt_sha256 approved_candidate_file_sha256 approved_article_sha256 approved_review_file_sha256 formal_review_result_sha256 formal_job_id formal_request_sha256 replacement_of replacement_reason record_before_sha256 record_after_sha256 module_before_sha256 module_after_sha256 manifest_sha256 base_sha target_commit_sha version target_tag expected_remote_main_before expected_remote_tag_before publication_plan_digest ledger_path publish_evidence_path recorded_at".split())
-    if set(control) != keys or control.get("schema_version") != SCHEMA_VERSION or control.get("status") != "PUSH_PREPARED" or control.get("phase") != "translation" or control.get("expected_remote_tag_before") is not None:
-        raise PublishBlocked("prepared translation control is invalid")
-    run_id = str(control["run_id"]); target = str(control["target_commit_sha"]); base = str(control["base_sha"])
-    version = str(control["version"]); tag = str(control["target_tag"])
-    if not re.fullmatch(r"[0-9a-f]{40}", target) or not re.fullmatch(r"[0-9a-f]{40}", base) or tag != f"v{version}" or control.get("expected_remote_main_before") != base:
-        raise PublishBlocked("prepared translation Git identity is invalid")
-    local_tag_object = git(repo_root, ["rev-parse", f"refs/tags/{tag}"], None)
-    if git(repo_root, ["rev-parse", "HEAD"], None) != target or git(repo_root, ["rev-parse", f"{tag}^{{}}"], None) != target or git(repo_root, ["rev-parse", f"{target}^"], None) != base or not re.fullmatch(r"[0-9a-f]{40}", local_tag_object) or any(_publisher_owned_path(line[3:]) for line in git(repo_root, ["status", "--porcelain"], None).splitlines()):
-        raise PublishBlocked("prepared translation local commit or tag differs")
-    ledger_path = _ledger_path(state_root); ledger = _load_ledger(state_root)
-    entries = [item for item in ledger["translation_published_runs"] if item.get("run_id") == run_id]
-    if entries:
-        state_paths = _selected_run_files(queue_root, state_root, "translation", frozenset({run_id}))
-        if len(state_paths) != 1:
-            raise PublishBlocked("prepared translation run is not uniquely sealed")
-        state = _read_json(state_paths[0]); approved = multilingual.load_approved_edited_candidate_stage(Path(str(state.get("run_dir") or "")))
-        seal = approved["seal"]
-        if state.get("run_id") != run_id or _file_sha256(state_paths[0]) != seal.get("queue_state_sha256"):
-            raise PublishBlocked("prepared translation queue identity differs")
-        candidate = approved["candidate"]
-        staged = {"receipt_sha256": approved["receipt_sha256"], **{key: seal[key] for key in ("terminal_owner", "public_replacement", "formal_job_id", "formal_request_sha256", "approved_candidate_file_sha256", "approved_article_sha256", "approved_review_file_sha256", "formal_review_result_sha256")}}
-    else:
-        ready = collect_ready_translation_runs(repo_root, queue_root, state_root, limit=1, exact_run_ids=[run_id])
-        if len(ready) != 1:
-            raise PublishBlocked("prepared translation run is not uniquely stageable")
-        state, _brief, candidate, _review = ready[0]; staged = state.get("_approved_revision_stage") or {}
-    replacement = staged.get("public_replacement") or {}
-    multilingual._locale_replacement_plan(repo_root, replacement, candidate["articles"][0], run_id)
-    expected = {
-        "stage_receipt_sha256": staged.get("receipt_sha256"),
-        "approved_candidate_file_sha256": staged.get("approved_candidate_file_sha256"),
-        "approved_article_sha256": staged.get("approved_article_sha256"),
-        "approved_review_file_sha256": staged.get("approved_review_file_sha256"),
-        "formal_review_result_sha256": staged.get("formal_review_result_sha256"),
-        "formal_job_id": staged.get("formal_job_id"), "formal_request_sha256": staged.get("formal_request_sha256"),
-        "replacement_of": replacement.get("old_run_id"),
-        "replacement_reason": (staged.get("terminal_owner") or {}).get("replacement_reason"),
-        "record_before_sha256": replacement.get("old_record_sha256"),
-        "record_after_sha256": replacement.get("replacement_record_sha256"),
-        "module_before_sha256": replacement.get("module_before_sha256"),
-        "module_after_sha256": replacement.get("module_after_sha256"),
-        "manifest_sha256": replacement.get("manifest_sha256"),
-    }
-    if any(control.get(key) != value for key, value in expected.items()):
-        raise PublishBlocked("prepared translation stage lineage differs")
-    plan_digest = hashlib.sha256(pipeline.compact_json_bytes({
-        "run_id": run_id, "stage_receipt_sha256": staged["receipt_sha256"],
-        "replacement": replacement, "base_sha": base, "version": version, "target_tag": tag,
-    })).hexdigest()
-    evidence_path = state_root / "evidence" / f"translation-{version}" / "translation-evidence.json"
-    if control.get("publication_plan_digest") != plan_digest or Path(str(control.get("ledger_path"))) != ledger_path or Path(str(control.get("publish_evidence_path"))) != evidence_path:
-        raise PublishBlocked("prepared translation publication plan differs")
-    entry, evidence = _translation_finalization_records(repo_root, git, control, candidate, replacement)
-    if entries and entries != [entry]:
-        raise PublishBlocked("prepared translation ledger differs")
-    if not entries and evidence_path.exists(): raise PublishBlocked("translation evidence exists before ledger finalization")
-    if entries:
-        canonical_bytes = json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n"
-        evidence_existed = evidence_path.is_file()
-        if evidence_existed and evidence_path.read_bytes() != canonical_bytes:
-            raise PublishBlocked("prepared translation evidence differs")
-        if not evidence_path.exists():
-            if evidence_path.is_symlink() or evidence_path.parent.is_symlink() or evidence_path.parent.resolve() != evidence_path.parent:
-                raise PublishBlocked("prepared translation evidence path is not canonical")
-            _atomic_write_json(evidence_path, evidence)
-            if evidence_path.read_bytes() != canonical_bytes:
-                raise PublishBlocked("prepared translation evidence write differs")
-        _remove_prepared_control(state_root)
-        return {**evidence, "status": "ALREADY_PUBLISHED"} if evidence_existed else evidence
-    git(repo_root, ["fetch", "origin", "main"], None)
-    remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
-    remote_text = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None)
-    tag_lines = [line.split() for line in remote_text.splitlines() if line.strip()]
-    allowed_refs = {f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"}
-    if any(len(line) != 2 or line[1] not in allowed_refs for line in tag_lines) or len(tag_lines) not in {0, 2} or (tag_lines and {line[1] for line in tag_lines} != allowed_refs):
-        raise PublishBlocked("prepared translation remote tag identity is ambiguous")
-    remote_tag = next((line[0] for line in tag_lines if line[1].endswith("^{}")), None)
-    remote_tag_object = next((line[0] for line in tag_lines if not line[1].endswith("^{}")), None)
-    if remote_main not in {base, target} or remote_tag not in {None, target} or remote_tag_object not in {None, local_tag_object}:
-        raise PublishBlocked("prepared translation remote refs diverged")
-    if entries and (remote_main != target or remote_tag != target):
-        raise PublishBlocked("finalized translation remote refs differ")
-    if not entries and remote_main == base and remote_tag is None:
-        git(repo_root, release_git_plan(version)["push"], None)
-    elif not entries and remote_main == target and remote_tag is None:
-        git(repo_root, ["push", "origin", f"refs/tags/{tag}"], None)
-    elif not entries and remote_main == base and remote_tag == target:
-        git(repo_root, ["push", "origin", "HEAD:refs/heads/main"], None)
-    if remote_main != target or remote_tag != target:
-        git(repo_root, ["fetch", "origin", "main"], None)
-        verified_main = git(repo_root, ["rev-parse", "origin/main"], None)
-        verified_tags = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None)
-        verified_lines = verified_tags.splitlines()
-        if verified_main != target or len(verified_lines) != 2 or set(verified_lines) != {f"{local_tag_object}\trefs/tags/{tag}", f"{target}\trefs/tags/{tag}^{{}}"}:
-            raise PublishBlocked("prepared translation remote convergence was not verified")
-    if not entries:
-        if evidence_path.is_file():
-            raise PublishBlocked("translation evidence exists before ledger finalization")
-        ledger["translation_published_runs"].append(entry); _atomic_write_json(ledger_path, ledger)
-    already_published = evidence_path.is_file()
-    if already_published and _read_json(evidence_path) != evidence:
-        raise PublishBlocked("prepared translation evidence differs")
-    if not evidence_path.is_file():
-        _atomic_write_json(evidence_path, evidence)
-    if evidence_path.read_bytes() != json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n": raise PublishBlocked("prepared translation evidence write differs")
-    _remove_prepared_control(state_root)
-    return {**evidence, "status": "ALREADY_PUBLISHED"} if already_published else evidence
-
-def _translation_finalization_records(repo_root: Path, git: GitRunner, control: dict[str, Any], candidate: dict[str, Any], replacement: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    run_id = str(control["run_id"]); article = candidate["articles"][0]
-    changed = sorted(line for line in git(repo_root, ["diff", "--name-only", f"{control['base_sha']}..{control['target_commit_sha']}"], None).splitlines() if line)
-    if not changed or any(not _publisher_owned_path(path) for path in changed):
-        raise PublishBlocked("prepared translation commit diff differs")
-    entry = {"run_id": run_id, "locale": article["locale"], "article_id": article["source_article_id"], "version": control["version"], "commit_sha": control["target_commit_sha"], "published_at": control["recorded_at"], "staging_receipt_sha256": control["stage_receipt_sha256"], "replaces_run_id": replacement["old_run_id"], "replaced_record_sha256": replacement["old_record_sha256"], "replacement_record_sha256": replacement["replacement_record_sha256"], "replacement_module_before_sha256": replacement["module_before_sha256"], "replacement_module_after_sha256": replacement["module_after_sha256"], "publication_plan_digest": control["publication_plan_digest"]}
-    evidence = {"schema_version": SCHEMA_VERSION, "status": "PUBLISHED_TRANSLATION", "base_sha": control["base_sha"], "commit_sha": control["target_commit_sha"], "version": control["version"], "run_ids": [run_id], "locales": [entry["locale"]], "article_ids": [entry["article_id"]], "changed": changed, "public_article_count": _public_article_count(repo_root), "pushed": True, "reconciled": True}
-    return entry, evidence
 def _remove_prepared_control(state_root: Path) -> None:
     path = _unresolved_push_path(state_root); path.unlink()
     directory_fd = os.open(path.parent, os.O_RDONLY)
     try: os.fsync(directory_fd)
     finally: os.close(directory_fd)
 
-def _translation_prepared_context(
-    published: list[tuple[str, str, str, str | None, dict[str, Any] | None]],
-    run_ids: list[str], base_sha: str, version: str, state_root: Path, evidence_dir: Path,
-) -> dict[str, Any] | None:
-    staged = published[0][4] if len(published) == 1 else None
-    replacement = staged.get("public_replacement") if isinstance(staged, dict) else None
-    if replacement is None:
-        return None
-    digest = hashlib.sha256(pipeline.compact_json_bytes({"run_id": run_ids[0], "stage_receipt_sha256": staged["receipt_sha256"], "replacement": replacement, "base_sha": base_sha, "version": version, "target_tag": f"v{version}"})).hexdigest()
-    return {"stage_receipt_sha256": staged["receipt_sha256"], **{key: staged[key] for key in ("approved_candidate_file_sha256", "approved_article_sha256", "approved_review_file_sha256", "formal_review_result_sha256", "formal_job_id", "formal_request_sha256")}, "replacement_of": replacement["old_run_id"], "replacement_reason": staged["terminal_owner"]["replacement_reason"], "record_before_sha256": replacement["old_record_sha256"], "record_after_sha256": replacement["replacement_record_sha256"], "module_before_sha256": replacement["module_before_sha256"], "module_after_sha256": replacement["module_after_sha256"], "manifest_sha256": replacement["manifest_sha256"], "base_sha": base_sha, "expected_remote_main_before": base_sha, "publication_plan_digest": digest, "ledger_path": str(_ledger_path(state_root)), "publish_evidence_path": str(evidence_dir / "translation-evidence.json"), "recorded_at": _now()}
+
+def _prepare_publication_control(
+    state_root: Path, *, phase: str, run_ids: list[str], base_sha: str,
+    target_commit_sha: str, version: str, ledger_entries: list[dict[str, Any]],
+    publish_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    if phase not in PUBLICATION_PHASES or len(run_ids) != 1:
+        raise PublishBlocked("prepared publication context is invalid")
+    _, _, expected_status, evidence_name = PUBLICATION_PHASES[phase]
+    entries = [{**entry, "commit_sha": target_commit_sha} for entry in ledger_entries]
+    evidence = {
+        **publish_evidence, "status": expected_status, "base_sha": base_sha,
+        "commit_sha": target_commit_sha, "version": version,
+        "run_ids": list(run_ids), "pushed": True,
+    }
+    control = {
+        "schema_version": SCHEMA_VERSION, "status": "PUSH_PREPARED", "phase": phase,
+        "run_ids": list(run_ids), "base_sha": base_sha,
+        "target_commit_sha": target_commit_sha, "version": version,
+        "target_tag": f"v{version}", "expected_remote_main_before": base_sha,
+        "expected_remote_tag_before": None, "ledger_path": str(_ledger_path(state_root)),
+        "publish_evidence_path": str(state_root / "evidence" / f"{phase if phase != 'create' else 'publish'}-{version}" / evidence_name),
+        "ledger_entries": entries, "publish_evidence": evidence,
+    }
+    control["publication_plan_digest"] = hashlib.sha256(
+        pipeline.compact_json_bytes(control)
+    ).hexdigest()
+    ledger_entries[:] = entries
+    publish_evidence.clear(); publish_evidence.update(evidence)
+    _atomic_write_json(_unresolved_push_path(state_root), control)
+    return control
+
+
+def _publication_terminal_matches(
+    ledger: dict[str, Any], phase: str, run_ids: list[str],
+    entries: list[dict[str, Any]], target: str, version: str,
+) -> bool:
+    _, ledger_key, _, _ = PUBLICATION_PHASES[phase]
+    existing = [item for item in ledger[ledger_key] if item.get("run_id") in run_ids]
+    if existing and existing != entries:
+        raise PublishBlocked("prepared publication ledger differs")
+    reservations = {item["run_id"]: item for item in _publication_success_reservations(ledger)}
+    terminal = existing == entries
+    for run_id in run_ids:
+        reservation = reservations.get(run_id)
+        if reservation is None or reservation["phase"] != phase:
+            raise PublishBlocked("prepared publication reservation differs")
+        if reservation["status"] == "success":
+            if reservation["commit_sha"] != target or reservation["version"] != version:
+                raise PublishBlocked("prepared publication quota terminal differs")
+        elif reservation["status"] != "reserved":
+            raise PublishBlocked("prepared publication reservation is not active")
+        terminal = terminal and reservation["status"] == "success"
+    return terminal
+
+
+def _finalize_publication_success(
+    state_root: Path, phase: str, entries: list[dict[str, Any]],
+    target: str, version: str,
+) -> None:
+    ledger = _load_ledger(state_root)
+    run_ids = [str(entry["run_id"]) for entry in entries]
+    if _publication_terminal_matches(ledger, phase, run_ids, entries, target, version):
+        return
+    _, ledger_key, _, _ = PUBLICATION_PHASES[phase]
+    if not any(item.get("run_id") in run_ids for item in ledger[ledger_key]):
+        ledger[ledger_key].extend(entries)
+    reservations = {item["run_id"]: item for item in _publication_success_reservations(ledger)}
+    for run_id in run_ids:
+        reservations[run_id].update(
+            status="success", commit_sha=target, version=version, target_tag=f"v{version}"
+        )
+    _atomic_write_json(_ledger_path(state_root), ledger)
+
+
+def _record_publication_result(
+    state_root: Path, phase: str, entries: list[dict[str, Any]],
+    evidence_path: Path, evidence: dict[str, Any], *, pushed: bool,
+) -> None:
+    if pushed:
+        _finalize_publication_success(
+            state_root, phase, entries, str(evidence["commit_sha"]), str(evidence["version"])
+        )
+    else:
+        ledger = _load_ledger(state_root)
+        ledger[PUBLICATION_PHASES[phase][1]].extend(entries)
+        _atomic_write_json(_ledger_path(state_root), ledger)
+        _release_publication_success(state_root, phase, [str(item["run_id"]) for item in entries])
+    _atomic_write_json(evidence_path, evidence)
+    if pushed:
+        _remove_prepared_control(state_root)
+
+
+def _resume_prepared_publication(
+    repo_root: Path, state_root: Path, git: GitRunner, control: dict[str, Any],
+) -> dict[str, Any]:
+    keys = set("schema_version status phase run_ids base_sha target_commit_sha version target_tag expected_remote_main_before expected_remote_tag_before ledger_path publish_evidence_path ledger_entries publish_evidence publication_plan_digest".split())
+    if set(control) != keys or control.get("schema_version") != SCHEMA_VERSION or control.get("status") != "PUSH_PREPARED":
+        raise PublishBlocked("prepared publication control is invalid")
+    phase = str(control["phase"]); run_ids = control["run_ids"]
+    base = str(control["base_sha"]); target = str(control["target_commit_sha"])
+    version = str(control["version"]); tag = str(control["target_tag"])
+    if phase not in PUBLICATION_PHASES or not isinstance(run_ids, list) or len(run_ids) != 1 or not EXACT_RUN_ID_PATTERN.fullmatch(str(run_ids[0])) or not re.fullmatch(r"[0-9a-f]{40}", base) or not re.fullmatch(r"[0-9a-f]{40}", target) or tag != f"v{version}" or control["expected_remote_main_before"] != base or control["expected_remote_tag_before"] is not None:
+        raise PublishBlocked("prepared publication identity is invalid")
+    digest_payload = {key: value for key, value in control.items() if key != "publication_plan_digest"}
+    if control["publication_plan_digest"] != hashlib.sha256(pipeline.compact_json_bytes(digest_payload)).hexdigest():
+        raise PublishBlocked("prepared publication plan differs")
+    _, _, expected_status, evidence_name = PUBLICATION_PHASES[phase]
+    evidence_path = state_root / "evidence" / f"{phase if phase != 'create' else 'publish'}-{version}" / evidence_name
+    entries = control["ledger_entries"]; evidence = control["publish_evidence"]
+    if Path(str(control["ledger_path"])) != _ledger_path(state_root) or Path(str(control["publish_evidence_path"])) != evidence_path or not isinstance(entries, list) or [entry.get("run_id") for entry in entries] != run_ids or any(entry.get("commit_sha") != target or entry.get("version") != version for entry in entries) or not isinstance(evidence, dict) or evidence.get("status") != expected_status or evidence.get("base_sha") != base or evidence.get("commit_sha") != target or evidence.get("version") != version or evidence.get("run_ids") != run_ids:
+        raise PublishBlocked("prepared publication payload differs")
+    local_tag_object = git(repo_root, ["rev-parse", f"refs/tags/{tag}"], None)
+    if git(repo_root, ["rev-parse", "HEAD"], None) != target or git(repo_root, ["rev-parse", f"{tag}^{{}}"], None) != target or git(repo_root, ["rev-parse", f"{target}^"], None) != base or not re.fullmatch(r"[0-9a-f]{40}", local_tag_object) or any(_publisher_owned_path(line[3:]) for line in git(repo_root, ["status", "--porcelain"], None).splitlines()):
+        raise PublishBlocked("prepared publication local commit or tag differs")
+    ledger = _load_ledger(state_root)
+    terminal = _publication_terminal_matches(ledger, phase, run_ids, entries, target, version)
+    if not terminal:
+        git(repo_root, ["fetch", "origin", "main"], None)
+        remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
+        remote_text = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None)
+        tag_lines = [line.split() for line in remote_text.splitlines() if line.strip()]
+        allowed_refs = {f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"}
+        if any(len(line) != 2 or line[1] not in allowed_refs for line in tag_lines) or len(tag_lines) not in {0, 2} or (tag_lines and {line[1] for line in tag_lines} != allowed_refs):
+            raise PublishBlocked("prepared publication remote tag identity is ambiguous")
+        remote_tag = next((line[0] for line in tag_lines if line[1].endswith("^{}")), None)
+        remote_tag_object = next((line[0] for line in tag_lines if not line[1].endswith("^{}")), None)
+        if remote_main not in {base, target} or remote_tag not in {None, target} or remote_tag_object not in {None, local_tag_object}:
+            raise PublishBlocked("prepared publication remote refs diverged")
+        if remote_main == base and remote_tag is None:
+            git(repo_root, release_git_plan(version)["push"], None)
+        elif remote_main == target and remote_tag is None:
+            git(repo_root, ["push", "origin", f"refs/tags/{tag}"], None)
+        elif remote_main == base and remote_tag == target:
+            git(repo_root, ["push", "origin", "HEAD:refs/heads/main"], None)
+        git(repo_root, ["fetch", "origin", "main"], None)
+        verified_main = git(repo_root, ["rev-parse", "origin/main"], None)
+        verified_tags = git(repo_root, ["ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"], None).splitlines()
+        if verified_main != target or set(verified_tags) != {f"{local_tag_object}\trefs/tags/{tag}", f"{target}\trefs/tags/{tag}^{{}}"}:
+            raise PublishBlocked("prepared publication remote convergence was not verified")
+        _finalize_publication_success(state_root, phase, entries, target, version)
+    canonical = json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n"
+    if evidence_path.is_file() and evidence_path.read_bytes() != canonical:
+        raise PublishBlocked("prepared publication evidence differs")
+    if not evidence_path.is_file():
+        _atomic_write_json(evidence_path, evidence)
+    _remove_prepared_control(state_root)
+    return {**evidence, "status": "ALREADY_PUBLISHED"} if terminal else evidence
 
 
 def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
@@ -2563,8 +2595,17 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                 if control_path.is_file():
                     control = _read_json(control_path)
                     selected = _normalize_exact_run_ids(kwargs.get("exact_run_ids"))
-                    if phase == "translation" and control.get("status") == "PUSH_PREPARED" and selected == frozenset({str(control.get("run_id"))}):
-                        return _resume_prepared_translation(repo_root, queue_root, state_root, git, control)
+                    if control.get("status") == "PUSH_PREPARED":
+                        control_runs = _normalize_exact_run_ids(control.get("run_ids"))
+                        if selected is not None and selected != control_runs:
+                            raise PublishBlocked("prepared publication requires matching exact run ids")
+                        with (state_root / "publisher.lock").open("a+") as publisher_lock:
+                            try:
+                                fcntl.flock(publisher_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            except BlockingIOError:
+                                return {"schema_version": SCHEMA_VERSION, "status": "busy", count_key: 0}
+                            _require_publication_success_quota()
+                            return _resume_prepared_publication(repo_root, state_root, git, control)
                     _assert_no_unresolved_push(state_root)
                 base_sha = _assert_clean_origin_head(repo_root, git)
                 journal = MutationJournal(repo_root, git)
@@ -2577,6 +2618,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     raise
                 except PolicyRejected as error:
                     if not journal.mutation_started:
+                        _release_publication_success(state_root, phase, journal.selected_run_ids)
                         raise
                     recovery_path = _recover_failed_publish(
                         repo_root,
@@ -2595,6 +2637,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         journal.selected_run_ids,
                         error,
                     )
+                    _release_publication_success(state_root, phase, journal.selected_run_ids)
                     return {
                         "schema_version": SCHEMA_VERSION,
                         "status": "policy_rejected",
@@ -2619,9 +2662,10 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         _unresolved_push_path(state_root)
                     ).get("status") == "PUSH_PREPARED":
                         raise PushOutcomeUnknown(
-                            "prepared translation requires exact reconciliation"
+                            "prepared publication requires reconciliation"
                         ) from error
                     if not journal.mutation_started:
+                        _release_publication_success(state_root, phase, journal.selected_run_ids)
                         raise
                     evidence_path = _recover_failed_publish(
                         repo_root,
@@ -2640,6 +2684,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         error,
                         evidence_path,
                     )
+                    _release_publication_success(state_root, phase, journal.selected_run_ids)
                     return {
                         "schema_version": SCHEMA_VERSION,
                         "status": "failed_recovered",
@@ -2710,6 +2755,7 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
             "superseded_runs": [],
             "translation_published_runs": [],
             "translation_deferred_runs": [],
+            "publication_success_reservations": [],
         }
     ledger = _read_json(path)
     if ledger.get("schema_version") != SCHEMA_VERSION:
@@ -2720,7 +2766,87 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
     ledger.setdefault("superseded_runs", [])
     ledger.setdefault("translation_published_runs", [])
     ledger.setdefault("translation_deferred_runs", [])
+    ledger.setdefault("publication_success_reservations", [])
+    _publication_success_reservations(ledger)
     return ledger
+
+
+def _require_publication_success_quota() -> dict[str, Any]:
+    raw = os.environ.get("PANTHEON_PUBLICATION_SUCCESS_QUOTA")
+    try:
+        configured = json.loads(raw) if raw is not None else None
+    except json.JSONDecodeError as error:
+        raise PublishBlocked("publication success quota config is malformed") from error
+    if configured != PUBLICATION_SUCCESS_QUOTA:
+        raise PublishBlocked("publication success quota config is missing or invalid")
+    return configured
+
+
+def _taipei_business_date() -> str:
+    return datetime.now(ZoneInfo("Asia/Taipei")).date().isoformat()
+
+
+def _publication_success_reservations(ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    reservations = ledger.get("publication_success_reservations")
+    required = {"run_id", "phase", "publication_class", "admission_date", "status", "reserved_at", "commit_sha", "version", "target_tag"}
+    if not isinstance(reservations, list):
+        raise PublishBlocked("publication success quota ledger schema is invalid")
+    seen: set[str] = set()
+    for item in reservations:
+        if not isinstance(item, dict) or set(item) != required:
+            raise PublishBlocked("publication success quota reservation is invalid")
+        run_id = item.get("run_id"); phase = item.get("phase")
+        if not isinstance(run_id, str) or not EXACT_RUN_ID_PATTERN.fullmatch(run_id) or run_id in seen or phase not in PUBLICATION_PHASES or item.get("publication_class") != PUBLICATION_PHASES[phase][0] or item.get("status") not in {"reserved", "success", "released"} or not isinstance(item.get("reserved_at"), str):
+            raise PublishBlocked("publication success quota reservation is invalid")
+        try:
+            date.fromisoformat(str(item["admission_date"]))
+        except ValueError as error:
+            raise PublishBlocked("publication success quota reservation is invalid") from error
+        identity = (item["commit_sha"], item["version"], item["target_tag"])
+        if item["status"] == "success" and (not re.fullmatch(r"[0-9a-f]{40}", str(identity[0])) or not re.fullmatch(r"\d+\.\d+\.\d+", str(identity[1])) or identity[2] != f"v{identity[1]}"):
+            raise PublishBlocked("publication success quota terminal is invalid")
+        if item["status"] != "success" and identity != (None, None, None):
+            raise PublishBlocked("publication success quota reservation identity is invalid")
+        seen.add(run_id)
+    return reservations
+
+
+def _reserve_publication_success(
+    state_root: Path, phase: str, run_ids: list[str],
+) -> dict[str, Any]:
+    config = _require_publication_success_quota()
+    if phase not in PUBLICATION_PHASES or len(run_ids) != 1 or not EXACT_RUN_ID_PATTERN.fullmatch(run_ids[0]):
+        raise PublishBlocked("publication success quota run identity is invalid")
+    ledger = _load_ledger(state_root); reservations = _publication_success_reservations(ledger)
+    existing = next((item for item in reservations if item["run_id"] == run_ids[0]), None)
+    if existing is not None:
+        if existing["phase"] != phase:
+            raise PublishBlocked("publication success quota run class conflicts")
+        if existing["status"] == "released":
+            existing.update(status="reserved", reserved_at=_now())
+            _atomic_write_json(_ledger_path(state_root), ledger)
+        return existing
+    admission_date = _taipei_business_date(); publication_class = PUBLICATION_PHASES[phase][0]
+    active = [item for item in reservations if item["admission_date"] == admission_date and item["status"] in {"reserved", "success"}]
+    if len(active) >= config["total"]:
+        raise PublishBlocked("publication success total quota is exhausted")
+    if sum(item["publication_class"] == publication_class for item in active) >= config[publication_class]:
+        raise PublishBlocked(f"publication success {publication_class} quota is exhausted")
+    reservation = {"run_id": run_ids[0], "phase": phase, "publication_class": publication_class, "admission_date": admission_date, "status": "reserved", "reserved_at": _now(), "commit_sha": None, "version": None, "target_tag": None}
+    reservations.append(reservation)
+    _atomic_write_json(_ledger_path(state_root), ledger)
+    return reservation
+
+
+def _release_publication_success(state_root: Path, phase: str, run_ids: list[str]) -> None:
+    ledger = _load_ledger(state_root); reservations = {item["run_id"]: item for item in _publication_success_reservations(ledger)}
+    changed = False
+    for run_id in run_ids:
+        item = reservations.get(run_id)
+        if item is not None and item["phase"] == phase and item["status"] == "reserved":
+            item["status"] = "released"; changed = True
+    if changed:
+        _atomic_write_json(_ledger_path(state_root), ledger)
 
 
 def _ledger_article_ids(entry: object, label: str) -> list[str]:
@@ -3871,7 +3997,7 @@ def _stage_commit_tag_push(
     phase: str | None = None,
     run_ids: list[str] | None = None,
     checked_runner: Callable[[Path, list[str]], None] | None = None,
-    prepared_context: dict[str, Any] | None = None,
+    publication_context: dict[str, Any] | None = None,
 ) -> str:
     if namespace_plan.selected_version != version:
         raise PublishBlocked("release version differs from frozen namespace plan")
@@ -3897,16 +4023,20 @@ def _stage_commit_tag_push(
                 "--require-head-tag",
             ],
         )
-    if prepared_context is not None and push:
-        context_keys = set("stage_receipt_sha256 approved_candidate_file_sha256 approved_article_sha256 approved_review_file_sha256 formal_review_result_sha256 formal_job_id formal_request_sha256 replacement_of replacement_reason record_before_sha256 record_after_sha256 module_before_sha256 module_after_sha256 manifest_sha256 base_sha expected_remote_main_before publication_plan_digest ledger_path publish_evidence_path recorded_at".split())
-        if state_root is None or phase != "translation" or len(run_ids or []) != 1 or set(prepared_context) != context_keys:
-            raise PublishBlocked("prepared translation context is invalid")
-        prepared = {
-            "schema_version": SCHEMA_VERSION, "status": "PUSH_PREPARED", "phase": "translation",
-            "run_id": run_ids[0], **prepared_context, "target_commit_sha": commit_sha,
-            "version": version, "target_tag": f"v{version}", "expected_remote_tag_before": None,
-        }
-        _atomic_write_json(_unresolved_push_path(state_root), prepared)
+    if publication_context is not None and push:
+        if state_root is None or phase not in PUBLICATION_PHASES or len(run_ids or []) != 1 or set(publication_context) != {"ledger_entries", "publish_evidence"}:
+            raise PublishBlocked("prepared publication context is invalid")
+        changed = sorted(line for line in git(repo_root, ["diff", "--name-only", f"{publication_context['publish_evidence']['base_sha']}..{commit_sha}"], None).splitlines() if line)
+        if not changed or any(not _publisher_owned_path(path) for path in changed):
+            raise PublishBlocked("prepared publication commit diff differs")
+        publication_context["publish_evidence"]["changed"] = changed
+        _prepare_publication_control(
+            state_root, phase=phase, run_ids=list(run_ids),
+            base_sha=str(publication_context["publish_evidence"]["base_sha"]),
+            target_commit_sha=commit_sha, version=version,
+            ledger_entries=publication_context["ledger_entries"],
+            publish_evidence=publication_context["publish_evidence"],
+        )
     if push:
         try:
             git(repo_root, release_plan["push"], None)
@@ -3933,7 +4063,7 @@ def _stage_commit_tag_push(
                     git(repo_root, ["update-ref", "-d", reconcile_ref], None)
             if remote_main == commit_sha and remote_tag == commit_sha:
                 return commit_sha
-            if prepared_context is not None:
+            if publication_context is not None:
                 evidence_dir = outcome_evidence_dir or repo_root / ".git"
                 evidence_path = evidence_dir / "push-outcome-unknown.json"
                 _atomic_write_json(evidence_path, {
@@ -4177,11 +4307,7 @@ def publish_ready_runs(
         except BlockingIOError:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
-        recovered_translation_runs = (
-            []
-            if dry_run or selected_run_ids is not None or not seed_translations
-            else _seed_pending_translations(repo_root, queue_root, state_root)
-        )
+        recovered_translation_runs: list[str] = []
         ready = collect_ready_runs(
             queue_root,
             state_root,
@@ -4199,8 +4325,6 @@ def publish_ready_runs(
             }
         run_ids = [str(state["run_id"]) for state, _, _ in ready]
         namespace_plan = plan_release_namespace(repo_root, git)
-        journal = _mutation_journal or MutationJournal(repo_root, git)
-        journal.select_runs(run_ids)
         if dry_run:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -4211,6 +4335,13 @@ def publish_ready_runs(
                 "release_plan": namespace_plan.receipt(),
             }
 
+        ready = ready[:1]
+        run_ids = [str(state["run_id"]) for state, _, _ in ready]
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(run_ids)
+        _reserve_publication_success(state_root, "create", run_ids)
+        if selected_run_ids is None and seed_translations:
+            recovered_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
         journal.begin()
         changed: list[str] = []
         approved_articles: list[dict[str, Any]] = []
@@ -4269,6 +4400,28 @@ def publish_ready_runs(
         )
         if run_tests:
             _run_release_tests(repo_root)
+        articles_by_run = {
+            str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
+            for state, candidate, _ in ready
+        }
+        entries = [
+            {
+                "run_id": run_id, "version": version, "commit_sha": None,
+                "published_at": _now(), "article_ids": articles_by_run[run_id],
+                "translation_seed_status": "pending",
+            }
+            for run_id in run_ids
+        ]
+        evidence = {
+            "schema_version": SCHEMA_VERSION, "status": "PUBLISHED", "base_sha": base_sha,
+            "version": version, "run_ids": run_ids, "changed": sorted(set(changed)),
+            "public_article_count": article_count, "seeded_translation_runs": [], "pushed": push,
+            "policy_version": pipeline.publication_policy_version(), "validator_result": "PASS",
+            "article_ids": sorted(str(article["id"]) for _, candidate, _ in ready for article in candidate["articles"]),
+            "failure_codes": [],
+            "input_hash": hashlib.sha256(pipeline.compact_json_bytes([candidate for _, candidate, _ in ready])).hexdigest(),
+        }
+        publication_context = {"ledger_entries": entries, "publish_evidence": evidence}
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,
@@ -4280,24 +4433,14 @@ def publish_ready_runs(
             state_root=state_root,
             phase="create",
             run_ids=run_ids,
+            publication_context=publication_context if push else None,
         )
-        ledger = _load_ledger(state_root)
-        articles_by_run = {
-            str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
-            for state, candidate, _ in ready
-        }
-        for run_id in run_ids:
-            ledger["published_runs"].append(
-                {
-                    "run_id": run_id,
-                    "version": version,
-                    "commit_sha": commit_sha,
-                    "published_at": _now(),
-                    "article_ids": articles_by_run[run_id],
-                    "translation_seed_status": "pending",
-                }
-            )
-        _write_json(_ledger_path(state_root), ledger)
+        for entry in entries:
+            entry["commit_sha"] = commit_sha
+        evidence["commit_sha"] = commit_sha
+        _record_publication_result(
+            state_root, "create", entries, evidence_dir / "publish-evidence.json", evidence, pushed=push
+        )
         seeded_translation_runs = (
             []
             if selected_run_ids is not None or not seed_translations
@@ -4306,32 +4449,8 @@ def publish_ready_runs(
                 *_seed_pending_translations(repo_root, queue_root, state_root),
             ]
         )
-        evidence = {
-            "schema_version": SCHEMA_VERSION,
-            "status": "PUBLISHED",
-            "base_sha": base_sha,
-            "commit_sha": commit_sha,
-            "version": version,
-            "run_ids": run_ids,
-            "changed": sorted(set(changed)),
-            "public_article_count": article_count,
-            "seeded_translation_runs": seeded_translation_runs,
-            "pushed": push,
-            "policy_version": pipeline.publication_policy_version(),
-            "validator_result": "PASS",
-            "article_ids": sorted(
-                str(article["id"])
-                for candidate in [candidate for _, candidate, _ in ready]
-                for article in candidate["articles"]
-            ),
-            "failure_codes": [],
-            "input_hash": hashlib.sha256(
-                pipeline.compact_json_bytes(
-                    [candidate for _, candidate, _ in ready]
-                )
-            ).hexdigest(),
-        }
-        _write_json(evidence_dir / "publish-evidence.json", evidence)
+        evidence["seeded_translation_runs"] = seeded_translation_runs
+        _atomic_write_json(evidence_dir / "publish-evidence.json", evidence)
         return evidence
 
 
@@ -4376,7 +4495,8 @@ def publish_ready_rewrite_runs(
             repo_root=repo_root,
             exact_run_ids=selected_run_ids,
         )
-        ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
+        if dry_run:
+            ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=False)
         if not ready:
             backlog_summary = summarize_legacy_rewrite_backlog(
                 queue_root,
@@ -4396,10 +4516,8 @@ def publish_ready_rewrite_runs(
         run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
         candidates = [candidate for _, candidate, _, _ in ready]
         article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
-        namespace_plan = plan_release_namespace(repo_root, git)
-        journal = _mutation_journal or MutationJournal(repo_root, git)
-        journal.select_runs(run_ids)
         if dry_run:
+            namespace_plan = plan_release_namespace(repo_root, git)
             return {
                 "schema_version": SCHEMA_VERSION,
                 "status": "dry-run",
@@ -4412,6 +4530,29 @@ def publish_ready_rewrite_runs(
                 "release_plan": namespace_plan.receipt(),
             }
 
+        ready = _filter_rewrite_runs_with_current_sources(
+            repo_root, state_root, ready[:1], quarantine=True
+        )
+        if not ready:
+            backlog_summary = summarize_legacy_rewrite_backlog(
+                queue_root, state_root, allowed_article_ids=allowed_article_ids,
+                legacy_records=legacy_records,
+            )
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "idle_rejects_only" if backlog_summary["repair_rejects_allowed"] else "idle",
+                "rewritten": 0,
+                "base_sha": base_sha,
+                "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+                "legacy_rewrite_backlog": backlog_summary,
+            }
+        run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        candidates = [candidate for _, candidate, _, _ in ready]
+        article_ids = [str(article["article_id"]) for candidate in candidates for article in candidate["articles"]]
+        namespace_plan = plan_release_namespace(repo_root, git)
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(run_ids)
+        _reserve_publication_success(state_root, "rewrite", run_ids)
         journal.begin()
         release_id = _next_rewrite_release_id(repo_root)
         changed = [
@@ -4449,6 +4590,27 @@ def publish_ready_rewrite_runs(
         )
         if run_tests:
             _run_release_tests(repo_root)
+        entries = [
+            {
+                "run_id": run_id, "version": version, "commit_sha": None,
+                "published_at": _now(),
+                "article_ids": [
+                    str(article["article_id"]) for candidate in candidates
+                    for article in candidate["articles"] if str(candidate["run_id"]) == run_id
+                ], "translation_seed_status": "pending",
+            }
+            for run_id in run_ids
+        ]
+        evidence = {
+            "schema_version": SCHEMA_VERSION, "status": "PUBLISHED_REWRITE", "base_sha": base_sha,
+            "version": version, "run_ids": run_ids, "article_ids": article_ids,
+            "changed": sorted(set(changed)), "public_article_count": article_count,
+            "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
+            "legacy_rewrite_backlog": backlog_summary, "seeded_translation_runs": [], "pushed": push,
+            "policy_version": pipeline.publication_policy_version(), "validator_result": "PASS",
+            "failure_codes": [], "input_hash": hashlib.sha256(pipeline.compact_json_bytes(candidates)).hexdigest(),
+        }
+        publication_context = {"ledger_entries": entries, "publish_evidence": evidence}
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,
@@ -4462,48 +4624,17 @@ def publish_ready_rewrite_runs(
             state_root=state_root,
             phase="rewrite",
             run_ids=run_ids,
+            publication_context=publication_context if push else None,
         )
-        ledger = _load_ledger(state_root)
-        for run_id in run_ids:
-            ledger["rewrite_released_runs"].append(
-                {
-                    "run_id": run_id,
-                    "version": version,
-                    "commit_sha": commit_sha,
-                    "published_at": _now(),
-                    "article_ids": [
-                        str(article["article_id"])
-                        for candidate in candidates
-                        for article in candidate["articles"]
-                        if str(candidate["run_id"]) == run_id
-                    ],
-                    "translation_seed_status": "pending",
-                }
-            )
-        _write_json(_ledger_path(state_root), ledger)
+        for entry in entries:
+            entry["commit_sha"] = commit_sha
+        evidence["commit_sha"] = commit_sha
+        _record_publication_result(
+            state_root, "rewrite", entries, evidence_dir / "rewrite-evidence.json", evidence, pushed=push
+        )
         seeded_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
-        evidence = {
-            "schema_version": SCHEMA_VERSION,
-            "status": "PUBLISHED_REWRITE",
-            "base_sha": base_sha,
-            "commit_sha": commit_sha,
-            "version": version,
-            "run_ids": run_ids,
-            "article_ids": article_ids,
-            "changed": sorted(set(changed)),
-            "public_article_count": article_count,
-            "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
-            "legacy_rewrite_backlog": backlog_summary,
-            "seeded_translation_runs": seeded_translation_runs,
-            "pushed": push,
-            "policy_version": pipeline.publication_policy_version(),
-            "validator_result": "PASS",
-            "failure_codes": [],
-            "input_hash": hashlib.sha256(
-                pipeline.compact_json_bytes(candidates)
-            ).hexdigest(),
-        }
-        _write_json(evidence_dir / "rewrite-evidence.json", evidence)
+        evidence["seeded_translation_runs"] = seeded_translation_runs
+        _atomic_write_json(evidence_dir / "rewrite-evidence.json", evidence)
         return evidence
 
 
@@ -4546,8 +4677,6 @@ def publish_ready_translation_runs(
             return {"schema_version": SCHEMA_VERSION, "status": status, "translated": 0, "base_sha": base_sha}
         ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
         namespace_plan = plan_release_namespace(repo_root, git)
-        journal = _mutation_journal or MutationJournal(repo_root, git)
-        journal.select_runs(ready_run_ids)
         if dry_run:
             replacements = []
             for state, _brief, candidate, _review in ready:
@@ -4565,6 +4694,11 @@ def publish_ready_translation_runs(
                 "replacement_plans": replacements,
             }
 
+        ready = ready[:1]
+        ready_run_ids = [str(state["run_id"]) for state, _, _, _ in ready]
+        journal = _mutation_journal or MutationJournal(repo_root, git)
+        journal.select_runs(ready_run_ids)
+        _reserve_publication_success(state_root, "translation", ready_run_ids)
         journal.begin()
         changed: list[str] = []
         published: list[tuple[str, str, str, str | None, dict[str, Any] | None]] = []
@@ -4614,6 +4748,7 @@ def publish_ready_translation_runs(
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
             published.append((run_id, locale, article_id, staging_receipt_sha256, approved_stage))
         if not published:
+            _release_publication_success(state_root, "translation", ready_run_ids)
             return {
                 "schema_version": SCHEMA_VERSION,
                 "status": "idle_rejects_only",
@@ -4652,6 +4787,31 @@ def publish_ready_translation_runs(
         )
         if run_tests:
             _run_release_tests(repo_root)
+        entries: list[dict[str, Any]] = []
+        for run_id, locale, article_id, staging_receipt_sha256, approved_stage in published:
+            entry = {
+                "run_id": run_id, "locale": locale, "article_id": article_id,
+                "version": version, "commit_sha": None, "published_at": _now(),
+            }
+            if staging_receipt_sha256 is not None:
+                entry["staging_receipt_sha256"] = staging_receipt_sha256
+            replacement = approved_stage.get("public_replacement") if isinstance(approved_stage, dict) else None
+            if replacement is not None:
+                entry.update({
+                    "replaces_run_id": replacement["old_run_id"],
+                    "replaced_record_sha256": replacement["old_record_sha256"],
+                    "replacement_record_sha256": replacement["replacement_record_sha256"],
+                    "replacement_module_before_sha256": replacement["module_before_sha256"],
+                    "replacement_module_after_sha256": replacement["module_after_sha256"],
+                    "publication_plan_digest": hashlib.sha256(pipeline.compact_json_bytes(replacement)).hexdigest(),
+                })
+            entries.append(entry)
+        evidence = {
+            "schema_version": SCHEMA_VERSION, "status": "PUBLISHED_TRANSLATION", "base_sha": base_sha,
+            "version": version, "run_ids": run_ids, "locales": locales, "article_ids": article_ids,
+            "changed": sorted(set(changed)), "public_article_count": article_count, "pushed": push,
+        }
+        publication_context = {"ledger_entries": entries, "publish_evidence": evidence}
         commit_sha = _stage_commit_tag_push(
             repo_root,
             version,
@@ -4664,60 +4824,14 @@ def publish_ready_translation_runs(
             state_root=state_root,
             phase="translation",
             run_ids=run_ids,
-            prepared_context=(prepared_context := _translation_prepared_context(
-                published, run_ids, base_sha, version, state_root, evidence_dir
-            )),
+            publication_context=publication_context if push else None,
         )
-        canonical_finalization = None
-        if prepared_context is not None and push:
-            control = _read_json(_unresolved_push_path(state_root))
-            canonical_finalization = _translation_finalization_records(repo_root, git, control, ready[0][2], ready[0][0]["_approved_revision_stage"]["public_replacement"])
-        ledger = _load_ledger(state_root)
-        for run_id, locale, article_id, staging_receipt_sha256, approved_stage in published:
-            entry = canonical_finalization[0] if canonical_finalization is not None else {
-                "run_id": run_id,
-                "locale": locale,
-                "article_id": article_id,
-                "version": version,
-                "commit_sha": commit_sha,
-                "published_at": prepared_context["recorded_at"] if prepared_context is not None else _now(),
-            }
-            if staging_receipt_sha256 is not None:
-                entry["staging_receipt_sha256"] = staging_receipt_sha256
-            replacement = approved_stage.get("public_replacement") if isinstance(approved_stage, dict) else None
-            if replacement is not None:
-                entry.update({
-                    "replaces_run_id": replacement["old_run_id"],
-                    "replaced_record_sha256": replacement["old_record_sha256"],
-                    "replacement_record_sha256": replacement["replacement_record_sha256"],
-                    "replacement_module_before_sha256": replacement["module_before_sha256"],
-                    "replacement_module_after_sha256": replacement["module_after_sha256"],
-                    "publication_plan_digest": prepared_context["publication_plan_digest"],
-                })
-            ledger["translation_published_runs"].append(entry)
-        _atomic_write_json(_ledger_path(state_root), ledger)
-        evidence = canonical_finalization[1] if canonical_finalization is not None else {
-            "schema_version": SCHEMA_VERSION,
-            "status": "PUBLISHED_TRANSLATION",
-            "base_sha": base_sha,
-            "commit_sha": commit_sha,
-            "version": version,
-            "run_ids": run_ids,
-            "locales": locales,
-            "article_ids": article_ids,
-            "changed": sorted(set(changed)),
-            "public_article_count": article_count,
-            "pushed": push,
-        }
-        _atomic_write_json(evidence_dir / "translation-evidence.json", evidence)
-        if (evidence_dir / "translation-evidence.json").read_bytes() != json.dumps(evidence, ensure_ascii=False, indent=2).encode() + b"\n":
-            raise PublishBlocked("translation evidence write differs")
-        control_path = _unresolved_push_path(state_root)
-        if prepared_context is not None and control_path.is_file():
-            control = _read_json(control_path)
-            if control.get("target_commit_sha") != commit_sha or control.get("run_id") != run_ids[0]:
-                raise PublishBlocked("prepared translation control differs at finalization")
-            _remove_prepared_control(state_root)
+        for entry in entries:
+            entry["commit_sha"] = commit_sha
+        evidence["commit_sha"] = commit_sha
+        _record_publication_result(
+            state_root, "translation", entries, evidence_dir / "translation-evidence.json", evidence, pushed=push
+        )
         return evidence
 
 
