@@ -67,4 +67,3 @@ C-C/T archive 不再維護 go-live acceptance。新的 canonical 邊界為：
 
 任何 activation 仍需 Owner 另行明示授權；本索引本身不授權 Gate D/E、service
 start、真實 `launchctl`、provider call、deploy 或 production/public mutation。
-
