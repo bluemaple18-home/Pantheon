@@ -14,6 +14,7 @@ import pytest
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import agy_seo_copy_pipeline as pipeline
+from scripts import pantheon_content_capacity_guard as capacity_guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
@@ -8083,8 +8084,9 @@ def _write_installer_runtime_manifest(
     *,
     publisher_root: Path | None = None,
     python_executable: Path | None = None,
+    actor_root: Path | None = None,
 ) -> tuple[Path, Path, Path, Path]:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = actor_root or Path(__file__).resolve().parents[1]
     queue_root = tmp_path / "runtime-queue"
     state_root = publisher_root or tmp_path / "runtime-publisher-state"
     log_root = tmp_path / "runtime-logs"
@@ -8112,6 +8114,7 @@ def _installer_test_env(
     fail_plutil_call: int | None = None,
     python_executable: Path | None = None,
     python_path: Path | None = None,
+    actor_root: Path | None = None,
 ) -> tuple[dict[str, str], Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_home = tmp_path / "home"
@@ -8151,6 +8154,7 @@ def _installer_test_env(
     manifest_path, queue_root, publisher_root, _log_root = _write_installer_runtime_manifest(
         tmp_path,
         python_executable=python_executable,
+        actor_root=actor_root,
     )
     manifest_digest = runtime_manifest.load_manifest(manifest_path)["manifest_digest"]
     env = os.environ.copy()
@@ -8357,6 +8361,928 @@ def _write_activation_only_live_plists(
     return payloads
 
 
+def _write_malformed_cohort_launchctl(
+    path: Path,
+    *,
+    launch_agents: Path,
+    loaded: Path,
+    mutation_log: Path,
+    ready_root: Path,
+    readiness_fixture: Path,
+    fail_bootstrap_at: int = 0,
+    tamper_first_rollback_restore: bool = False,
+) -> None:
+    tamper = "1" if tamper_first_rollback_restore else "0"
+    counter = path.parent.parent / "malformed-bootstrap-count"
+    path.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ]; then\n"
+        "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
+        "  label=${2##*/}\n"
+        f"  [ -f '{loaded}/'$label ] || exit 113\n"
+        "  printf '%s\\n' \"gui/$(id -u)/$label = {\"\n"
+        f"  printf '\\tpath = %s\\n' '{launch_agents}/'$label'.plist'\n"
+        "  printf '%s\\n' '\tstate = not running'\n"
+        "  printf '%s\\n' '\tlast exit code = 78'\n"
+        "  printf '%s\\n' '}'\n"
+        "  exit 0\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
+        "if [ \"$1\" = \"bootout\" ]; then\n"
+        "  label=${2##*/}\n"
+        f"  rm -f '{loaded}/'$label\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$1\" = \"bootstrap\" ]; then\n"
+        f"  count=$(cat '{counter}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{counter}'\n"
+        f"  if [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -eq {fail_bootstrap_at} ]; then exit 1; fi\n"
+        "  label=${3##*/}\n"
+        "  label=${label%.plist}\n"
+        f"  touch '{loaded}/'$label\n"
+        f"  mkdir -p '{ready_root}'\n"
+        f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
+        f"  if [ '{tamper}' = '1' ] && [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -gt {fail_bootstrap_at} ]; then\n"
+        "    printf '%s\\n' '<!-- rollback tamper -->' >> \"$3\"\n"
+        "  fi\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o700)
+
+
+def _complete_malformed_recovery_stage(
+    stage_dir: Path,
+    manifest: dict[str, object],
+    manifest_path: Path,
+) -> None:
+    for label in (
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    ):
+        stage_path = stage_dir / f"{label}.plist"
+        _write_activation_stage_plist(stage_path, label=label, manifest=manifest)
+        _replace_plist_manifest_path(stage_path, manifest_path)
+
+
+def _prepare_malformed_activation_only_cohort_fixture(
+    tmp_path: Path,
+) -> tuple[dict[str, str], Path, Path, dict[str, object], Path, Path]:
+    source_root = Path(__file__).resolve().parents[1]
+    repo_root = tmp_path / "isolated-repo"
+    for directory in ("scripts", "ops", "config"):
+        shutil.copytree(source_root / directory, repo_root / directory)
+    pool, _manifest_sha256 = _write_installer_pool(tmp_path)
+    env, fake_home, mutation_log = _installer_test_env(
+        tmp_path,
+        pool=pool,
+        state=tmp_path / "state.json",
+        actor_root=repo_root,
+    )
+    env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "malformed-cohort-recovery-red"
+    env["PANTHEON_USER_HOME_DIR"] = str(fake_home)
+    manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+
+    staged = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            "--install",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    _complete_malformed_recovery_stage(
+        stage_dir,
+        manifest,
+        Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]),
+    )
+    live_fingerprints: dict[str, str] = {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        live_path = launch_agents / f"{label}.plist"
+        _write_activation_stage_plist(
+            live_path,
+            label=label,
+            manifest=manifest,
+        )
+        _replace_plist_manifest_path(
+            live_path,
+            Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]),
+        )
+        live_fingerprints[label] = hashlib.sha256(live_path.read_bytes()).hexdigest()
+
+    production_fingerprints = {
+        "com.pantheon.agy-content-publisher": "4acf50b23652565d3f4aebd18c393e40e371436eb1a898e1833687c70733fefd",
+        "com.pantheon.agy-gemini-coordinator": "5b5d4ac37991a98ef8da8430e06e96037f1627e693347f7c3f1d39241298876c",
+        "com.pantheon.agy-gemini-new": "90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712",
+        "com.pantheon.agy-gemini-rewrite": "373b8162c967e4bd368a5971ea238ab850b0b7b02b5b2ff79c5098041bafe530",
+        "com.pantheon.agy-gemini-i18n-new": "80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc",
+        "com.pantheon.agy-gemini-i18n-rewrite": "5aa0ebeb148bbe792f79b951bb5358893ffc9c6879d33433b0479a296c12a88b",
+        "com.pantheon.content-capacity-guard": "e0ba76e9df2124cb0d93d5ccd01ab5b460f20ef3810d2abf412f8e9d70df3c49",
+    }
+    production_installer = (
+        source_root / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    ).read_text(encoding="utf-8")
+    isolated_installer = repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    isolated_source = isolated_installer.read_text(encoding="utf-8")
+    for label, production_hash in production_fingerprints.items():
+        assert production_installer.count(production_hash) == 1
+        assert isolated_source.count(production_hash) == 1
+        isolated_source = isolated_source.replace(
+            production_hash,
+            live_fingerprints[label],
+            1,
+        )
+    isolated_installer.write_text(isolated_source, encoding="utf-8")
+    isolated_installer.chmod(0o700)
+
+    loaded = tmp_path / "malformed-cohort-loaded"
+    loaded.mkdir()
+    for label in runtime_manifest.SERVICE_LABELS:
+        (loaded / label).touch()
+    readiness_fixture = tmp_path / "malformed-cohort-readiness"
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(readiness_fixture, manifest, label)
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    runtime_manifest.activate_barrier(barrier, readiness_fixture, manifest)
+    ready_root = stage_dir / "readiness" / str(manifest["generation"])
+    launchctl = tmp_path / "bin" / "launchctl"
+    _write_malformed_cohort_launchctl(
+        launchctl,
+        launch_agents=launch_agents,
+        loaded=loaded,
+        mutation_log=mutation_log,
+        ready_root=ready_root,
+        readiness_fixture=readiness_fixture,
+    )
+    sysctl = tmp_path / "bin" / "sysctl"
+    sysctl.write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'total = 0.00M  used = 0.00M  free = 0.00M'\n",
+        encoding="utf-8",
+    )
+    sysctl.chmod(0o700)
+    return env, launch_agents, mutation_log, manifest, loaded, repo_root
+
+
+def test_recovers_exact_malformed_activation_only_cohort(tmp_path: Path) -> None:
+    env, launch_agents, mutation_log, manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+
+    recovered = subprocess.run(
+        [
+            "/bin/bash",
+            str(
+                repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"
+            ),
+            "--recover-malformed-activation-only-cohort",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert recovered.returncode == 0, f"{recovered.stdout}\n{recovered.stderr}"
+    assert "RECOVERY_COMMITTED" in recovered.stdout
+    assert mutation_log.read_text(encoding="utf-8").count("bootout") == len(
+        runtime_manifest.SERVICE_LABELS
+    )
+    success_receipt = json.loads(
+        (
+            launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+        ).read_text(encoding="utf-8")
+    )
+    _assert_recovery_receipt_sha(success_receipt)
+    assert success_receipt["operation_counts"] == {
+        "barrier_transition": 1,
+        "capacity_preflight_invocations": 1,
+        "launchctl_bootout": 7,
+        "launchctl_bootstrap": 7,
+        "live_plist_replacements": 7,
+    }
+    assert success_receipt["mutation_count"] == 22
+    assert success_receipt["capacity_binding"] == {
+        "before": "CLASSIFIER_EMPTY_SET_PID_REQUIRED",
+        "after": "PASS",
+    }
+    assert success_receipt["authoritative_service_order"] == list(
+        runtime_manifest.SERVICE_LABELS
+    )
+    assert success_receipt["authoritative_service_order"] == [
+        *capacity_guard.SERVICE_LABELS,
+        capacity_guard.CAPACITY_GUARD_LABEL,
+    ]
+    assert success_receipt["transaction_service_order"] == [
+        "com.pantheon.agy-gemini-coordinator",
+        "com.pantheon.agy-gemini-new",
+        "com.pantheon.agy-gemini-rewrite",
+        "com.pantheon.agy-gemini-i18n-new",
+        "com.pantheon.agy-gemini-i18n-rewrite",
+        "com.pantheon.agy-content-publisher",
+        "com.pantheon.content-capacity-guard",
+    ]
+    assert len(success_receipt["services"]) == 7
+    assert all(
+        item["outer_separator_index"] >= 0
+        and item["before_outer_activation_only_count"] == 0
+        and item["after_outer_activation_only_count"] == 1
+        and item["state"] == "not running"
+        and item["last_exit"] == 78
+        and item["safe_program_arguments"]
+        for item in success_receipt["services"]
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        receipt = runtime_manifest.plist_receipt(
+            launch_agents / f"{label}.plist",
+            expected_activation_mode="activation-only",
+        )
+        assert receipt["manifest_digest"] == manifest["manifest_digest"]
+
+
+def _run_malformed_cohort_recovery(
+    repo_root: Path,
+    tmp_path: Path,
+    env: dict[str, str],
+    action: str = "--recover-malformed-activation-only-cohort",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/bash",
+            str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+            action,
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _recovery_transaction_root(launch_agents: Path) -> Path:
+    return launch_agents / ".pantheon-four-lane-stage/malformed-cohort-transaction"
+
+
+def _recovery_rollback_receipt(launch_agents: Path) -> Path:
+    return launch_agents / ".pantheon-four-lane-stage/malformed-cohort-rollback-receipt.json"
+
+
+def _tree_bytes(root: Path) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _last_recovery_receipt(completed: subprocess.CompletedProcess[str]) -> dict[str, object]:
+    receipts = []
+    for line in completed.stdout.splitlines():
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and "receipt_sha256" in payload:
+            receipts.append(payload)
+    assert receipts, completed.stdout
+    return receipts[-1]
+
+
+def _assert_recovery_receipt_sha(receipt: dict[str, object]) -> None:
+    payload = dict(receipt)
+    expected = payload.pop("receipt_sha256")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    assert hashlib.sha256(canonical.encode()).hexdigest() == expected
+
+
+def _bind_isolated_recovery_fingerprint(
+    repo_root: Path,
+    label: str,
+    target: Path,
+) -> None:
+    installer = repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    source = installer.read_text(encoding="utf-8")
+    marker = f'"{label}='
+    start = source.index(marker) + len(marker)
+    assert len(source[start : start + 64]) == 64
+    replacement = hashlib.sha256(target.read_bytes()).hexdigest()
+    installer.write_text(
+        source[:start] + replacement + source[start + 64 :],
+        encoding="utf-8",
+    )
+
+
+def _rewrite_plist(path: Path, mutator) -> None:
+    with path.open("rb") as stream:
+        payload = plistlib.load(stream)
+    mutator(payload)
+    with path.open("wb") as stream:
+        plistlib.dump(payload, stream)
+    path.chmod(0o600)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "sha-drift",
+        "mixed-zero-one",
+        "count-greater-than-one",
+        "missing-outer-separator",
+        "label-mismatch",
+        "invalid-plist",
+        "identity-generation-drift",
+        "manifest-drift",
+        "barrier-drift",
+        "barrier-missing",
+        "topology-drift",
+        "topology-missing-last-exit",
+        "topology-wrong-last-exit",
+        "topology-waiting-state",
+    ],
+)
+def test_malformed_cohort_admission_matrix_is_zero_mutation_fail_closed(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    label = "com.pantheon.agy-content-publisher"
+    target = launch_agents / f"{label}.plist"
+    committed_receipt = (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    )
+    committed_bytes = b'{"status":"RECOVERY_COMMITTED","sentinel":true}\n'
+    committed_receipt.write_bytes(committed_bytes)
+    before = {
+        item: (launch_agents / f"{item}.plist").read_bytes()
+        for item in runtime_manifest.SERVICE_LABELS
+    }
+    if variant == "sha-drift":
+        _rewrite_plist(target, lambda payload: payload.__setitem__("SyntheticDrift", True))
+    elif variant == "mixed-zero-one":
+        _rewrite_plist(
+            target,
+            lambda payload: payload["ProgramArguments"].insert(
+                payload["ProgramArguments"].index("--"), "--activation-only"
+            ),
+        )
+    elif variant == "count-greater-than-one":
+        def add_duplicate_flags(payload: dict[str, object]) -> None:
+            arguments = payload["ProgramArguments"]
+            separator = arguments.index("--")
+            arguments[separator:separator] = ["--activation-only", "--activation-only"]
+
+        _rewrite_plist(target, add_duplicate_flags)
+    elif variant == "missing-outer-separator":
+        _rewrite_plist(
+            target,
+            lambda payload: payload["ProgramArguments"].remove("--"),
+        )
+    elif variant == "label-mismatch":
+        _rewrite_plist(
+            target,
+            lambda payload: payload.__setitem__("Label", "com.pantheon.other"),
+        )
+    elif variant == "invalid-plist":
+        target.write_bytes(b"not-a-plist")
+        target.chmod(0o600)
+    elif variant == "identity-generation-drift":
+        _rewrite_plist(
+            target,
+            lambda payload: payload["EnvironmentVariables"].__setitem__(
+                "PANTHEON_RUNTIME_GENERATION", "drift-generation"
+            ),
+        )
+    elif variant == "manifest-drift":
+        def drift_manifest(payload: dict[str, object]) -> None:
+            arguments = payload["ProgramArguments"]
+            arguments[arguments.index("--manifest") + 1] = str(tmp_path / "drift.json")
+
+        _rewrite_plist(target, drift_manifest)
+    elif variant == "barrier-drift":
+        def drift_barrier(payload: dict[str, object]) -> None:
+            arguments = payload["ProgramArguments"]
+            arguments[arguments.index("--barrier") + 1] = str(tmp_path / "drift.barrier")
+
+        _rewrite_plist(target, drift_barrier)
+    elif variant == "barrier-missing":
+        barrier = (
+            Path(str(_manifest["publisher_state_root"]))
+            / f"four-lane-activation-{_manifest['generation']}.barrier"
+        )
+        barrier.unlink()
+    elif variant == "topology-drift":
+        (loaded / label).unlink()
+    else:
+        launchctl = tmp_path / "bin" / "launchctl"
+        source = launchctl.read_text(encoding="utf-8")
+        if variant == "topology-missing-last-exit":
+            source = source.replace("last exit code = 78", "", 1)
+        elif variant == "topology-wrong-last-exit":
+            source = source.replace("last exit code = 78", "last exit code = 1")
+        else:
+            source = source.replace("state = not running", "state = waiting")
+        launchctl.write_text(source, encoding="utf-8")
+        launchctl.chmod(0o700)
+
+    if variant in {
+        "mixed-zero-one",
+        "count-greater-than-one",
+        "missing-outer-separator",
+        "label-mismatch",
+        "invalid-plist",
+        "identity-generation-drift",
+        "manifest-drift",
+        "barrier-drift",
+    }:
+        _bind_isolated_recovery_fingerprint(repo_root, label, target)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    receipt = _last_recovery_receipt(completed)
+    assert receipt["status"] == "NO-GO"
+    _assert_recovery_receipt_sha(receipt)
+    assert receipt["first_mismatch"]
+    assert receipt["mutation_count"] == 0
+    assert receipt["transaction_root_created"] is False
+    assert len(receipt["receipt_sha256"]) == 64
+    assert not mutation_log.exists()
+    assert not _recovery_transaction_root(launch_agents).exists()
+    assert committed_receipt.read_bytes() == committed_bytes
+    for item in runtime_manifest.SERVICE_LABELS:
+        actual = (launch_agents / f"{item}.plist").read_bytes()
+        if item == label and variant not in {
+            "barrier-missing",
+            "topology-drift",
+            "topology-missing-last-exit",
+            "topology-wrong-last-exit",
+            "topology-waiting-state",
+        }:
+            assert actual != before[item]
+        else:
+            assert actual == before[item]
+
+
+def test_malformed_cohort_admission_nogo_does_not_create_committed_receipt(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    target = launch_agents / "com.pantheon.agy-content-publisher.plist"
+    _rewrite_plist(target, lambda payload: payload.__setitem__("SyntheticDrift", True))
+    committed_receipt = (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    )
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    assert _last_recovery_receipt(completed)["status"] == "NO-GO"
+    assert not committed_receipt.exists()
+    assert not mutation_log.exists()
+
+
+def test_malformed_cohort_recovery_rerun_is_already_recovered_without_mutation(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    first = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+    assert first.returncode == 0, f"{first.stdout}\n{first.stderr}"
+    mutation_log.unlink()
+    staged = _run_malformed_cohort_recovery(repo_root, tmp_path, env, "--install")
+    assert staged.returncode == 0, staged.stderr
+    _complete_malformed_recovery_stage(
+        launch_agents / ".pantheon-four-lane-stage",
+        manifest,
+        Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]),
+    )
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    committed_receipt = (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    )
+    before_stage = _tree_bytes(stage_dir)
+    before_live = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    before_barrier = barrier.read_bytes()
+    before_manifest = Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]).read_bytes()
+    before_committed_receipt = committed_receipt.read_bytes()
+
+    second = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert second.returncode == 0, second.stderr
+    receipt = _last_recovery_receipt(second)
+    assert receipt["status"] == "ALREADY_RECOVERED"
+    assert receipt["mutation_count"] == 0
+    assert receipt["transaction_root_created"] is False
+    assert receipt["operation_counts"]["capacity_preflight_invocations"] == 1
+    assert not mutation_log.exists()
+    assert not _recovery_transaction_root(launch_agents).exists()
+    assert _tree_bytes(stage_dir) == before_stage
+    assert {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    } == before_live
+    assert barrier.read_bytes() == before_barrier
+    assert Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]).read_bytes() == before_manifest
+    assert committed_receipt.read_bytes() == before_committed_receipt
+
+
+def test_already_recovered_requires_formal_capacity_pass(tmp_path: Path) -> None:
+    env, launch_agents, mutation_log, manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    first = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+    assert first.returncode == 0, f"{first.stdout}\n{first.stderr}"
+    mutation_log.unlink()
+    staged = _run_malformed_cohort_recovery(repo_root, tmp_path, env, "--install")
+    assert staged.returncode == 0, staged.stderr
+    _complete_malformed_recovery_stage(
+        launch_agents / ".pantheon-four-lane-stage",
+        manifest,
+        Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]),
+    )
+    committed_receipt = (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    )
+    committed_bytes = committed_receipt.read_bytes()
+    (tmp_path / "bin" / "sysctl").write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'malformed swap telemetry'\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "bin" / "sysctl").chmod(0o700)
+
+    second = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert second.returncode != 0
+    receipt = _last_recovery_receipt(second)
+    assert receipt["status"] == "NO-GO"
+    assert receipt["first_mismatch"] == "formal_capacity_preflight"
+    assert receipt["operation_counts"]["capacity_preflight_invocations"] == 1
+    assert receipt["mutation_count"] == 0
+    assert committed_receipt.read_bytes() == committed_bytes
+    assert not mutation_log.exists()
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_capacity_snapshot_drift_fails_closed(tmp_path: Path) -> None:
+    env, launch_agents, _mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    capacity_installer = (
+        repo_root / "scripts/install_pantheon_content_capacity_guard_launchd.sh"
+    )
+    source = capacity_installer.read_text(encoding="utf-8").replace(
+        "set -euo pipefail\n",
+        "set -euo pipefail\n"
+        "printf '%s\\n' '<!-- snapshot drift -->' >> "
+        '"${PANTHEON_USER_HOME_DIR}/Library/LaunchAgents/'
+        'com.pantheon.agy-content-publisher.plist"\n',
+        1,
+    )
+    capacity_installer.write_text(source, encoding="utf-8")
+    capacity_installer.chmod(0o700)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    assert not (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    ).exists()
+    assert not list(tmp_path.glob("pantheon-capacity-home.*"))
+    failure = json.loads(
+        (launch_agents / ".pantheon-four-lane-stage/failure-receipt.json").read_text()
+    )
+    assert failure["exit_reason"]["phase"] == "malformed_cohort_formal_capacity_preflight"
+
+
+def test_malformed_cohort_partial_stage_cleanup_keeps_committed_state(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, _mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    committed = launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    fake_rm = tmp_path / "bin" / "rm"
+    fake_rm.write_text(
+        "#!/bin/sh\n"
+        f"if [ \"$1\" = -rf ] && [ \"$2\" = '{stage_dir}' ] && [ -f '{committed}' ]; then\n"
+        f"  /bin/rm -f '{stage_dir}/manifest-digest'; exit 1\n"
+        "fi\n"
+        "exec /bin/rm \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_rm.chmod(0o700)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    receipt = json.loads(committed.read_text(encoding="utf-8"))
+    _assert_recovery_receipt_sha(receipt)
+    assert receipt["status"] == "RECOVERY_COMMITTED"
+    assert receipt["after_fingerprints"] == {
+        label: hashlib.sha256(
+            (launch_agents / f"{label}.plist").read_bytes()
+        ).hexdigest()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    assert stage_dir.is_dir()
+    assert not _recovery_rollback_receipt(launch_agents).exists()
+
+
+def test_malformed_cohort_receipt_redacts_inline_and_following_secrets(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, _mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    label = "com.pantheon.agy-content-publisher"
+    target = launch_agents / f"{label}.plist"
+
+    def add_secrets(payload: dict[str, object]) -> None:
+        payload["ProgramArguments"].extend(
+            ["super-secret-token", "--token=inline-secret", "--api-key", "following-secret"]
+        )
+
+    _rewrite_plist(target, add_secrets)
+    _bind_isolated_recovery_fingerprint(repo_root, label, target)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode == 0, completed.stderr
+    receipt = json.loads(
+        (launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json").read_text()
+    )
+    arguments = next(
+        item["safe_program_arguments"]
+        for item in receipt["services"]
+        if item["label"] == label
+    )
+    assert "--token=inline-secret" not in arguments
+    assert "super-secret-token" not in arguments
+    assert "following-secret" not in arguments
+    assert arguments[-4:] == ["<redacted>", "<redacted>", "--api-key", "<redacted>"]
+
+
+@pytest.mark.parametrize(
+    ("tamper_rollback", "expected_status"),
+    [(False, "ROLLBACK_COMPLETE"), (True, "ROLLBACK_FAILED")],
+)
+def test_malformed_cohort_partial_replacement_restores_exact_seven_service_state(
+    tmp_path: Path,
+    tamper_rollback: bool,
+    expected_status: str,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    barrier_before = barrier.read_bytes()
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    readiness_fixture = tmp_path / "malformed-cohort-readiness"
+    _write_malformed_cohort_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        loaded=loaded,
+        mutation_log=mutation_log,
+        ready_root=stage_dir / "readiness" / str(manifest["generation"]),
+        readiness_fixture=readiness_fixture,
+        fail_bootstrap_at=7,
+        tamper_first_rollback_restore=tamper_rollback,
+    )
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    _assert_recovery_receipt_sha(rollback_receipt)
+    assert rollback_receipt["status"] == expected_status
+    evidence = rollback_receipt["details"]
+    assert evidence["before_fingerprints"] == {
+        label: hashlib.sha256(payload).hexdigest() for label, payload in before.items()
+    }
+    assert receipt["status"] == expected_status
+    assert receipt["exit_reason"]["phase"] == "bootstrap_staged_services"
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    if tamper_rollback:
+        assert "rollback.recovery.verification" in receipt["rollback_check_ids"]
+        assert _recovery_transaction_root(launch_agents).is_dir()
+        assert any(
+            (launch_agents / f"{label}.plist").read_bytes() != before[label]
+            for label in runtime_manifest.SERVICE_LABELS
+        )
+    else:
+        assert receipt["rollback_check_ids"] == []
+        assert evidence["restored_fingerprints"] == evidence[
+            "before_fingerprints"
+        ]
+        assert not _recovery_transaction_root(launch_agents).exists()
+        for label in runtime_manifest.SERVICE_LABELS:
+            assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+        assert barrier.read_bytes() == barrier_before
+    assert not (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    ).exists()
+    mutations = mutation_log.read_text(encoding="utf-8")
+    assert mutations.count("bootout") >= 7
+    assert mutations.count("bootstrap") >= 7
+
+
+def test_malformed_cohort_revalidates_fingerprints_after_snapshot(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    launchctl = tmp_path / "bin" / "launchctl"
+    base = tmp_path / "bin" / "launchctl-base"
+    launchctl.rename(base)
+    counter = tmp_path / "coordinator-print-count"
+    target = launch_agents / "com.pantheon.agy-gemini-coordinator.plist"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ] && case \"$2\" in *com.pantheon.agy-gemini-coordinator) true;; *) false;; esac; then\n"
+        f"  count=$(cat '{counter}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{counter}'\n"
+        "  if [ \"$count\" -eq 3 ]; then\n"
+        f"    printf '%s\\n' '<!-- toctou drift -->' >> '{target}'\n"
+        "  fi\n"
+        "fi\n"
+        f"exec '{base}' \"$@\"\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    assert not mutation_log.exists()
+    transaction_root = _recovery_transaction_root(launch_agents)
+    assert not transaction_root.exists()
+    assert not (
+        launch_agents / ".pantheon-malformed-cohort-recovery-receipt.json"
+    ).exists()
+    failure = json.loads(
+        (launch_agents / ".pantheon-four-lane-stage/failure-receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert failure["exit_reason"]["phase"] == "malformed_cohort_toctou_validation"
+
+
+def test_malformed_cohort_revalidates_before_any_shared_stage_write(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    stage_before = _tree_bytes(stage_dir)
+    launchctl = tmp_path / "bin" / "launchctl"
+    base = tmp_path / "bin" / "launchctl-base"
+    launchctl.rename(base)
+    counter = tmp_path / "coordinator-print-count"
+    target = launch_agents / "com.pantheon.agy-gemini-coordinator.plist"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"print\" ] && case \"$2\" in *com.pantheon.agy-gemini-coordinator) true;; *) false;; esac; then\n"
+        f"  count=$(cat '{counter}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{counter}'\n"
+        "  if [ \"$count\" -eq 2 ]; then\n"
+        f"    printf '%s\\n' '<!-- admission drift -->' >> '{target}'\n"
+        "  fi\n"
+        "fi\n"
+        f"exec '{base}' \"$@\"\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o700)
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    assert not mutation_log.exists()
+    assert _tree_bytes(stage_dir) == stage_before
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_stage_drift_never_creates_transaction_root(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, _loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    (stage_dir / "model-route-digest").write_text("0" * 64 + "\n", encoding="utf-8")
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    assert not mutation_log.exists()
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_binds_classifier_empty_set_to_pid_required_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env, launch_agents, _mutation_log, _manifest, _loaded, _repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    monkeypatch.setenv("PANTHEON_USER_HOME_DIR", env["PANTHEON_USER_HOME_DIR"])
+    runtime_receipt = {"status": "PASS"}
+
+    assert capacity_guard._activation_only_service_labels(runtime_receipt) == frozenset()
+    monkeypatch.setattr(
+        capacity_guard.formal_runtime,
+        "validate_runtime_tick",
+        lambda *_args, **_kwargs: {"status": "PASS", "config_version": "runtime-v2"},
+    )
+    monkeypatch.setattr(
+        capacity_guard,
+        "_disk_sample",
+        lambda _path: (200 * capacity_guard.GIB, 100 * capacity_guard.GIB),
+    )
+
+    def fake_runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[:2] == ["launchctl", "print"]:
+            label = command[-1].rsplit("/", 1)[-1]
+            target = launch_agents / f"{label}.plist"
+            output = (
+                f"gui/{os.getuid()}/{label} = {{\n"
+                f"\tpath = {target}\n"
+                "\tstate = not running\n"
+                "}\n"
+            )
+            return subprocess.CompletedProcess(command, 0, output, "")
+        if command == ["sysctl", "-n", "vm.swapusage"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                "total = 0.00M  used = 0.00M  free = 0.00M\n",
+                "",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = capacity_guard.preflight(
+        Path(env["AGY_GEMINI_QUEUE_ROOT"]),
+        Path(env["PANTHEON_CONTENT_PUBLISHER_ROOT"]),
+        tmp_path / "runtime-logs",
+        runner=fake_runner,
+    )
+
+    assert result["status"] == "NO-GO"
+    assert result["process_policy"] == {
+        "topology": "RSS_REQUIRED",
+        "pid_required": True,
+        "measurement_required": True,
+    }
+    assert result["rss_error"] == (
+        "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
+    )
+
+
 def _write_publisher_terminal_live(source: Path, target: Path) -> None:
     _write_publisher_normal_live(source, target, start_interval=None)
 
@@ -8537,6 +9463,9 @@ def _replace_plist_manifest_path(path: Path, manifest_path: Path) -> None:
         payload = plistlib.load(stream)
     arguments = payload["ProgramArguments"]
     arguments[arguments.index("--manifest") + 1] = str(manifest_path)
+    payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST"] = str(
+        manifest_path
+    )
     with path.open("wb") as stream:
         plistlib.dump(payload, stream)
     path.chmod(0o600)

@@ -31,6 +31,7 @@ TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-coordinator.pli
 LANE_TEMPLATE_PLIST="${REPO_ROOT}/ops/launchd/com.pantheon.agy-gemini-lane.plist.example"
 TEMP_PLIST=""
 PUBLISHER_RESET_TEMP=""
+RECOVERY_ADMISSION_TMP="" RECOVERY_CAPACITY_SNAPSHOT_HOME=""
 LANE_TEMP_PLISTS=()
 LANE_TARGET_PLISTS=()
 ACTIVATION_BARRIER=""
@@ -45,6 +46,10 @@ cleanup() {
   if [[ -n "${PUBLISHER_RESET_TEMP}" ]]; then
     rm -f "${PUBLISHER_RESET_TEMP}"
   fi
+  if [[ -n "${RECOVERY_ADMISSION_TMP}" ]]; then
+    rm -rf "${RECOVERY_ADMISSION_TMP}"
+  fi
+  [[ -z "${RECOVERY_CAPACITY_SNAPSHOT_HOME}" ]] || rm -rf "${RECOVERY_CAPACITY_SNAPSHOT_HOME}"
   if (( ${#LANE_TEMP_PLISTS[@]} > 0 )); then
     for LANE_TEMP_PLIST in "${LANE_TEMP_PLISTS[@]}"; do
       rm -f "${LANE_TEMP_PLIST}"
@@ -57,8 +62,9 @@ trap cleanup EXIT
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" \
   && "${ACTION}" != "--activate-publisher-only" \
-  && "${ACTION}" != "--reset-publisher-activation-only" ]]; then
-  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only|--activate-publisher-only|--reset-publisher-activation-only]" >&2
+  && "${ACTION}" != "--reset-publisher-activation-only" \
+  && "${ACTION}" != "--recover-malformed-activation-only-cohort" ]]; then
+  echo "用法：scripts/install_agy_gemini_coordinator_launchd.sh [--preflight|--install|--activate|--activate-only|--activate-publisher-only|--reset-publisher-activation-only|--recover-malformed-activation-only-cohort]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -403,8 +409,13 @@ if [[ "${ACTION}" == "--install" ]]; then
 fi
 
 ACTIVATION_ONLY=0
-if [[ "${ACTION}" == "--activate-only" ]]; then
+if [[ "${ACTION}" == "--activate-only" \
+  || "${ACTION}" == "--recover-malformed-activation-only-cohort" ]]; then
   ACTIVATION_ONLY=1
+fi
+MALFORMED_COHORT_RECOVERY=0
+if [[ "${ACTION}" == "--recover-malformed-activation-only-cohort" ]]; then
+  MALFORMED_COHORT_RECOVERY=1
 fi
 PUBLISHER_ONLY_ACTIVATION=0
 if [[ "${ACTION}" == "--activate-publisher-only" ]]; then
@@ -449,6 +460,323 @@ if [[ -n "${PANTHEON_ACTIVATION_CORRELATION_ID:-}" ]]; then
   fi
   ACTIVATION_CORRELATION_ID="${PANTHEON_ACTIVATION_CORRELATION_ID}"
 fi
+RECOVERY_TRANSACTION_ROOT="${STAGE_DIR}/malformed-cohort-transaction" RECOVERY_SUCCESS_RECEIPT="${LAUNCH_AGENTS_DIR}/.pantheon-malformed-cohort-recovery-receipt.json" RECOVERY_SUCCESS_CANDIDATE="${STAGE_DIR}/malformed-cohort-transaction/committed-receipt.json" RECOVERY_ROLLBACK_RECEIPT="${STAGE_DIR}/malformed-cohort-rollback-receipt.json"
+RECOVERY_AUTHORITATIVE_LABELS=(
+  "com.pantheon.agy-content-publisher" "com.pantheon.agy-gemini-coordinator" "com.pantheon.agy-gemini-new" "com.pantheon.agy-gemini-rewrite"
+  "com.pantheon.agy-gemini-i18n-new" "com.pantheon.agy-gemini-i18n-rewrite" "com.pantheon.content-capacity-guard"
+)
+RECOVERY_EXPECTED_HASH_BINDINGS=(
+  "com.pantheon.agy-content-publisher=4acf50b23652565d3f4aebd18c393e40e371436eb1a898e1833687c70733fefd" "com.pantheon.agy-gemini-coordinator=5b5d4ac37991a98ef8da8430e06e96037f1627e693347f7c3f1d39241298876c"
+  "com.pantheon.agy-gemini-new=90aba48482a30ac2d53c5d4018e166f7c3e5bebe89a33b15007de9f76b1e3712" "com.pantheon.agy-gemini-rewrite=373b8162c967e4bd368a5971ea238ab850b0b7b02b5b2ff79c5098041bafe530"
+  "com.pantheon.agy-gemini-i18n-new=80614f9e1d356a2b29f4ae26a7822141e49802586e7809b3f3926874d1d844dc" "com.pantheon.agy-gemini-i18n-rewrite=5aa0ebeb148bbe792f79b951bb5358893ffc9c6879d33433b0479a296c12a88b"
+  "com.pantheon.content-capacity-guard=e0ba76e9df2124cb0d93d5ccd01ab5b460f20ef3810d2abf412f8e9d70df3c49"
+)
+RECOVERY_PLIST_REPLACE_COUNT=0 RECOVERY_BOOTOUT_COUNT=0 RECOVERY_BOOTSTRAP_COUNT=0 RECOVERY_BARRIER_TRANSITION_COUNT=0 RECOVERY_CAPACITY_PREFLIGHT_COUNT=0
+recovery_probe() {
+  local MODE="$1" REASON="${2:-}" INDEX LABEL STATUS
+  RECOVERY_ADMISSION_TMP="$(mktemp -d "${TMPDIR:-/tmp}/pantheon-malformed-cohort.XXXXXX")"
+  for INDEX in 0 1 2 3 4 5 6; do
+    LABEL="${LABELS[${INDEX}]}"
+    if ! launchctl print "gui/${USER_ID}/${LABEL}" \
+      > "${RECOVERY_ADMISSION_TMP}/${LABEL}.identity" 2>/dev/null; then
+      : > "${RECOVERY_ADMISSION_TMP}/${LABEL}.not-loaded"
+    fi
+  done
+  if RECOVERY_PROBE_OUTPUT="$(
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" - "${MODE}" "${REASON}" "${RUNTIME_MANIFEST_FILE}" \
+      "${EXPECTED_RUNTIME_MANIFEST_DIGEST}" "${ACTIVATION_BARRIER}" \
+      "${RECOVERY_TRANSACTION_ROOT}" "${RECOVERY_ADMISSION_TMP}" \
+      "${RECOVERY_SUCCESS_CANDIDATE}" "${ACTIVATION_CORRELATION_ID}" \
+      "${RECOVERY_PLIST_REPLACE_COUNT}" "${RECOVERY_BOOTOUT_COUNT}" \
+      "${RECOVERY_BOOTSTRAP_COUNT}" "${RECOVERY_BARRIER_TRANSITION_COUNT}" \
+      "${RECOVERY_CAPACITY_PREFLIGHT_COUNT}" \
+      --authoritative-labels "${RECOVERY_AUTHORITATIVE_LABELS[@]}" \
+      --transaction-labels "${LABELS[@]}" --targets "${TARGET_PLISTS[@]}" \
+      --hash-bindings "${RECOVERY_EXPECTED_HASH_BINDINGS[@]}" <<'PY'
+import hashlib, json, os, plistlib, re, stat, sys
+from pathlib import Path
+
+from scripts import pantheon_content_capacity_guard as capacity_guard, pantheon_content_runtime_manifest as runtime_manifest
+
+mode, reason, manifest_path, expected_digest = *sys.argv[1:3], Path(sys.argv[3]), sys.argv[4]; barrier_path, transaction_root, identity_dir = map(Path, sys.argv[5:8])
+receipt_path, correlation_id = Path(sys.argv[8]), sys.argv[9]; counts = list(map(int, sys.argv[10:15]))
+am, lm = sys.argv.index("--authoritative-labels"), sys.argv.index("--transaction-labels")
+tm, hm = sys.argv.index("--targets"), sys.argv.index("--hash-bindings")
+authoritative, labels = sys.argv[am + 1 : lm], sys.argv[lm + 1 : tm]
+targets = [Path(value) for value in sys.argv[tm + 1 : hm]]
+
+
+def bindings(values: list[str], code: str) -> dict[str, str]:
+    try:
+        result = dict(value.split("=", 1) for value in values)
+    except ValueError:
+        reject(code)
+    if len(result) != len(values): reject(code)
+    return result
+
+
+def seal(payload: dict) -> None:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")); payload["receipt_sha256"] = hashlib.sha256(canonical.encode()).hexdigest(); output = json.dumps(payload, sort_keys=True)
+    if mode == "success":
+        temporary = receipt_path.with_name(receipt_path.name + f".tmp.{os.getpid()}")
+        temporary.write_text(output + "\n", encoding="utf-8"); temporary.chmod(0o600); temporary.replace(receipt_path)
+    print(output)
+
+
+def emit(status: str, details: dict, mismatch: str | None = None) -> None:
+    payload = {"schema_version": 1,
+        "status": status,
+        "correlation_id": correlation_id,
+        "mutation_count": sum(counts[:4]),
+        "operation_counts": dict(zip(("live_plist_replacements", "launchctl_bootout", "launchctl_bootstrap", "barrier_transition", "capacity_preflight_invocations"), counts)),
+        "transaction_root_created": transaction_root.exists(),
+        "details": details,
+    }
+    if mismatch: payload["first_mismatch"] = mismatch
+    seal(payload)
+
+
+def reject(code: str, details: object = None) -> None:
+    emit("NO-GO", {"mismatch_details": details}, code); raise SystemExit(1)
+
+
+if mode in {"reject", "capacity-fail"}:
+    source = transaction_root / "admission-receipt.json"
+    try:
+        details = json.loads(source.read_text())["details"]
+    except (OSError, ValueError, KeyError):
+        details = {}
+    emit("NO-GO", details, reason or "formal_capacity_preflight")
+    raise SystemExit(1)
+
+formal_labels = [*capacity_guard.SERVICE_LABELS, capacity_guard.CAPACITY_GUARD_LABEL]
+expected_order = [
+    "com.pantheon.agy-gemini-coordinator", "com.pantheon.agy-gemini-new", "com.pantheon.agy-gemini-rewrite",
+    "com.pantheon.agy-gemini-i18n-new", "com.pantheon.agy-gemini-i18n-rewrite",
+    "com.pantheon.agy-content-publisher", "com.pantheon.content-capacity-guard",
+]
+expected_hashes = bindings(sys.argv[hm + 1 :], "hash_binding_format")
+if list(runtime_manifest.SERVICE_LABELS) != formal_labels: reject("runtime_manifest_service_order")
+if authoritative != formal_labels: reject("authoritative_service_order", [formal_labels, authoritative])
+if labels != expected_order or len(targets) != 7: reject("transaction_service_order", [expected_order, labels])
+if set(expected_hashes) != set(formal_labels): reject("hash_binding_labels")
+target_map = {label: target for label, target in zip(labels, targets)}
+if len(target_map) != 7: reject("target_binding_labels")
+if mode == "admission" and transaction_root.exists(): reject("transaction_root_exists")
+if mode in {"revalidate", "success", "rollback"} and not (transaction_root / "admission-receipt.json").is_file(): reject("transaction_root_identity")
+try:
+    manifest = runtime_manifest.load_manifest(manifest_path, expected_digest)
+except Exception as error:
+    reject("manifest_invalid", type(error).__name__)
+
+fingerprints, topology, services, outer_counts = {}, [], [], {}
+for label in formal_labels:
+    target = target_map[label]
+    try:
+        metadata = target.lstat()
+        canonical = target.resolve(strict=True)
+    except OSError:
+        reject("target_missing", label)
+    if (not stat.S_ISREG(metadata.st_mode) or target.is_symlink()
+            or canonical != target or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600):
+        reject("target_file_identity", label)
+    data = target.read_bytes()
+    fingerprints[label] = hashlib.sha256(data).hexdigest()
+    try:
+        payload = plistlib.loads(data)
+    except plistlib.InvalidFileException:
+        reject("plist_invalid", label)
+    if payload.get("Label") != label:
+        reject("plist_label_mismatch", label)
+    arguments = payload.get("ProgramArguments")
+    if not isinstance(arguments, list) or any(type(value) is not str for value in arguments):
+        reject("program_arguments_invalid", label)
+    if arguments.count("--") != 1:
+        reject("outer_separator_count", label)
+    separator = arguments.index("--")
+    outer, child = arguments[:separator], arguments[separator + 1 :]
+    count = outer.count("--activation-only")
+    outer_counts[label] = count
+    controls = {
+        "--barrier": str(barrier_path), "--expected-digest": expected_digest,
+        "--manifest": str(manifest_path), "--service-label": label,
+    }
+    if any(value in {*controls, "--activation-only"} for value in child):
+        reject("child_authority_control", label)
+    for control, expected in controls.items():
+        positions = [index for index, value in enumerate(outer) if value == control]
+        if len(positions) != 1 or positions[0] + 1 >= len(outer):
+            reject("outer_control_count", [label, control])
+        if outer[positions[0] + 1] != expected:
+            reject("outer_control_value", [label, control])
+    identity_path = identity_dir / f"{label}.identity"
+    if (identity_dir / f"{label}.not-loaded").exists() or not identity_path.is_file():
+        reject("topology_not_loaded", label)
+    identity = identity_path.read_text(encoding="utf-8")
+    paths = re.findall(r"^\s*path = (/\S+)\s*$", identity, re.M)
+    states = re.findall(r"^\s*state = (.+?)\s*$", identity, re.M)
+    pids = re.findall(r"^\s*pid = ([0-9]+)\s*$", identity, re.M)
+    exits = re.findall(r"^\s*last exit code = (-?[0-9]+)\s*$", identity, re.M)
+    if paths != [str(target)]:
+        reject("topology_loaded_path", [label, paths])
+    if pids:
+        reject("topology_pid_present", label)
+    if states != ["not running"]:
+        reject("topology_state", [label, states])
+    if exits != ["78"]:
+        reject("topology_last_exit", [label, exits])
+    stable = "\n".join(line for line in identity.splitlines() if not re.match(
+        r"^\s*(runs|successful exits|forks|execs|initialized|trampolined|started|proxy started) = ", line
+    ))
+    item = {"label": label, "loaded_path": paths[0], "state": states[0],
+            "pid": None, "last_exit": 78,
+            "stable_identity_sha256": hashlib.sha256(stable.encode()).hexdigest()}
+    topology.append(item)
+    safe_arguments, redact = [], False
+    for argument in arguments:
+        sensitive = bool(re.search(r"(credential|secret|token|api[-_]?key)", argument, re.I))
+        safe_arguments.append("<redacted>" if redact or (sensitive and (not argument.startswith("--") or "=" in argument)) else argument)
+        redact = sensitive and argument.startswith("--") and "=" not in argument
+    services.append({**item, "fingerprint": fingerprints[label],
+                     "outer_activation_only_count": count,
+                     "outer_separator_index": separator,
+                     "safe_program_arguments": safe_arguments})
+
+try:
+    barrier_stat = barrier_path.lstat()
+except OSError:
+    reject("barrier_missing")
+if (not stat.S_ISREG(barrier_stat.st_mode) or barrier_path.is_symlink()
+        or barrier_path.resolve(strict=True) != barrier_path
+        or barrier_stat.st_uid != os.getuid()
+        or stat.S_IMODE(barrier_stat.st_mode) != 0o600):
+    reject("barrier_file_identity")
+try:
+    runtime_manifest.validate_barrier(barrier_path, manifest)
+except Exception as error:
+    reject("barrier_identity", str(error))
+details = {
+    "fingerprints": fingerprints, "topology": topology, "services": services,
+    "barrier_path": str(barrier_path),
+    "barrier_sha256": hashlib.sha256(barrier_path.read_bytes()).hexdigest(),
+    "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+}
+def rollback_evidence(restored: dict) -> dict:
+    return {"before_fingerprints": before["fingerprints"], "restored_fingerprints": restored["fingerprints"],
+            "before_topology": before["topology"], "restored_topology": restored["topology"],
+            "before_barrier_sha256": before["barrier_sha256"], "restored_barrier_sha256": restored["barrier_sha256"],
+            "before_manifest_sha256": before["manifest_sha256"], "restored_manifest_sha256": restored["manifest_sha256"]}
+
+if mode in {"admission", "revalidate", "rollback"}:
+    if any(count != 0 for count in outer_counts.values()):
+        if mode == "admission" and all(count == 1 for count in outer_counts.values()):
+            runtime_manifest.aggregate_plist_preflight(
+                manifest, [target_map[label] for label in formal_labels],
+                expected_activation_mode="activation-only",
+            )
+            emit("ALREADY_RECOVERED", details)
+            raise SystemExit(10)
+        reject("activation_mode_count", outer_counts)
+    before = json.loads((transaction_root / "admission-receipt.json").read_text())["details"] if mode != "admission" else {}
+    for label in formal_labels:
+        if fingerprints[label] != expected_hashes[label]:
+            if mode == "rollback": emit("ROLLBACK_FAILED", rollback_evidence(details), "rollback_restore_mismatch"); raise SystemExit(1)
+            reject("before_sha256", [label, expected_hashes[label], fingerprints[label]])
+    try:
+        runtime_manifest.aggregate_plist_preflight(
+            manifest, [target_map[label] for label in formal_labels]
+        )
+    except Exception as error:
+        reject("before_state_aggregate", str(error))
+    if mode == "admission":
+        emit("MALFORMED_COHORT_ADMITTED", details)
+    else:
+        keys = ("fingerprints", "topology", "barrier_path", "barrier_sha256", "manifest_sha256")
+        mismatches = [key for key in keys if details[key] != before.get(key)]
+        rollback_checks = json.loads(reason) if mode == "rollback" else []
+        if mismatches or rollback_checks:
+            if mode != "rollback":
+                reject("revalidation_" + mismatches[0])
+            evidence = rollback_evidence(details); evidence["rollback_check_ids"] = rollback_checks
+            emit("ROLLBACK_FAILED", evidence, "rollback_restore_mismatch")
+            raise SystemExit(1)
+        emit("ROLLBACK_COMPLETE", rollback_evidence(details)) if mode == "rollback" else emit("MALFORMED_COHORT_REVALIDATED", details)
+    raise SystemExit(0)
+
+if any(count != 1 for count in outer_counts.values()):
+    reject("after_activation_mode_count", outer_counts)
+try:
+    runtime_manifest.aggregate_plist_preflight(
+        manifest, [target_map[label] for label in formal_labels],
+        expected_activation_mode="activation-only",
+    )
+except Exception as error:
+    reject("after_state_aggregate", str(error))
+before = {}
+if (transaction_root / "admission-receipt.json").is_file():
+    before = json.loads((transaction_root / "admission-receipt.json").read_text())["details"]
+operation_counts = dict(zip(("live_plist_replacements", "launchctl_bootout", "launchctl_bootstrap", "barrier_transition", "capacity_preflight_invocations"), counts))
+before_services = {item["label"]: item for item in before.get("services", [])}
+services = [{**before_services.get(item["label"], {}), "before_fingerprint": before.get("fingerprints", fingerprints).get(item["label"]),
+             "after_fingerprint": item["fingerprint"], "before_outer_activation_only_count": before_services.get(item["label"], {}).get("outer_activation_only_count"),
+             "after_outer_activation_only_count": item["outer_activation_only_count"]} for item in details["services"]]
+payload = {
+    "schema_version": 1,
+    "status": "RECOVERY_COMMITTED" if mode == "success" else "ALREADY_RECOVERED",
+    "correlation_id": correlation_id,
+    "mutation_count": sum(counts[:4]),
+    "transaction_root_created": transaction_root.exists(),
+    "operation_counts": operation_counts,
+    "capacity_preflight": "PASS",
+    "capacity_binding": {"before": "CLASSIFIER_EMPTY_SET_PID_REQUIRED", "after": "PASS"},
+    "authoritative_service_order": authoritative,
+    "transaction_service_order": labels,
+    "before_fingerprints": before.get("fingerprints", fingerprints),
+    "after_fingerprints": fingerprints,
+    "loaded_state_transition": {label: {"before": "loaded:not-running:last-exit-78", "after": "loaded:not-running:last-exit-78"} for label in formal_labels},
+    "barrier_fingerprints": {"before": before.get("barrier_sha256"), "after": details["barrier_sha256"]},
+    "services": services,
+    "details": details,
+}
+seal(payload)
+PY
+  )"; then
+    STATUS=0
+  else
+    STATUS="$?"
+  fi
+  rm -rf "${RECOVERY_ADMISSION_TMP}"
+  RECOVERY_ADMISSION_TMP=""
+  printf '%s\n' "${RECOVERY_PROBE_OUTPUT}"
+  return "${STATUS}"
+}
+run_recovery_capacity_preflight() {
+  local PREFLIGHT_STATUS INDEX LABEL SNAPSHOT_LA SNAPSHOT_VALID=1
+  RECOVERY_CAPACITY_PREFLIGHT_OUTPUT=""
+  RECOVERY_CAPACITY_SNAPSHOT_HOME="$(mktemp -d "${TMPDIR:-/tmp}/pantheon-capacity-home.XXXXXX")" || return 1
+  SNAPSHOT_LA="${RECOVERY_CAPACITY_SNAPSHOT_HOME}/Library/LaunchAgents"
+  if ! chmod 700 "${RECOVERY_CAPACITY_SNAPSHOT_HOME}" || ! mkdir -p "${SNAPSHOT_LA}" || ! chmod 700 "${RECOVERY_CAPACITY_SNAPSHOT_HOME}/Library" "${SNAPSHOT_LA}"; then
+    rm -rf "${RECOVERY_CAPACITY_SNAPSHOT_HOME}"; RECOVERY_CAPACITY_SNAPSHOT_HOME=""; return 1
+  fi
+  for INDEX in 0 1 2 3 4 5 6; do
+    LABEL="${LABELS[${INDEX}]}"
+    if ! install -m 600 "${TARGET_PLISTS[${INDEX}]}" "${SNAPSHOT_LA}/${LABEL}.plist" || ! cmp -s "${TARGET_PLISTS[${INDEX}]}" "${SNAPSHOT_LA}/${LABEL}.plist"; then
+      rm -rf "${RECOVERY_CAPACITY_SNAPSHOT_HOME}"; RECOVERY_CAPACITY_SNAPSHOT_HOME=""; return 1
+    fi
+  done
+  RECOVERY_CAPACITY_PREFLIGHT_COUNT=$((RECOVERY_CAPACITY_PREFLIGHT_COUNT + 1))
+  if RECOVERY_CAPACITY_PREFLIGHT_OUTPUT="$(
+    cd "${REPO_ROOT}"
+    PANTHEON_USER_HOME_DIR="${RECOVERY_CAPACITY_SNAPSHOT_HOME}" /bin/bash scripts/install_pantheon_content_capacity_guard_launchd.sh --preflight
+  )"; then PREFLIGHT_STATUS=0; else PREFLIGHT_STATUS="$?"; fi
+  for INDEX in 0 1 2 3 4 5 6; do cmp -s "${TARGET_PLISTS[${INDEX}]}" "${SNAPSHOT_LA}/${LABELS[${INDEX}]}.plist" || SNAPSHOT_VALID=0; done
+  rm -rf "${RECOVERY_CAPACITY_SNAPSHOT_HOME}"; RECOVERY_CAPACITY_SNAPSHOT_HOME=""
+  [[ "${PREFLIGHT_STATUS}" == "0" && "${SNAPSHOT_VALID}" == "1" ]] || return 1
+  printf '%s\n' "${RECOVERY_CAPACITY_PREFLIGHT_OUTPUT}" \
+    | "${PYTHON_BIN}" -c 'import json,sys; p=json.load(sys.stdin); raise SystemExit(0 if isinstance(p,dict) and p.get("status")=="PASS" else 1)'
+}
 if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
   PUBLISHER_LABEL="com.pantheon.agy-content-publisher"
   PUBLISHER_STAGE_PLIST="${STAGE_DIR}/${PUBLISHER_LABEL}.plist"
@@ -975,6 +1303,24 @@ rollback_activation() {
     && [[ ! -f "${STAGE_DIR}/legacy-capacity-adoption" ]]; then
     record_rollback_failure "rollback.barrier.missing"
   fi
+  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+    RECOVERY_ROLLBACK_OK=1
+    recovery_probe rollback "$(rollback_check_ids_json)" \
+      > "${RECOVERY_ROLLBACK_RECEIPT}.tmp.$$" || RECOVERY_ROLLBACK_OK=0
+    if ! chmod 600 "${RECOVERY_ROLLBACK_RECEIPT}.tmp.$$" \
+      || ! mv "${RECOVERY_ROLLBACK_RECEIPT}.tmp.$$" "${RECOVERY_ROLLBACK_RECEIPT}"; then
+      RECOVERY_ROLLBACK_OK=0
+    fi
+    [[ "${RECOVERY_ROLLBACK_OK}" == "1" ]] || record_rollback_failure "rollback.recovery.verification"
+    if [[ -f "${RECOVERY_SUCCESS_RECEIPT}" ]] && (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -c \
+      'import json,sys; raise SystemExit(json.load(open(sys.argv[1])).get("correlation_id") != sys.argv[2])' \
+      "${RECOVERY_SUCCESS_RECEIPT}" "${ACTIVATION_CORRELATION_ID}"); then
+      rm -f "${RECOVERY_SUCCESS_RECEIPT}" || record_rollback_failure "rollback.committed_receipt.remove"
+    fi
+    if [[ "${RECOVERY_ROLLBACK_OK}" == "1" && "${ROLLBACK_FAILED}" == "0" ]]; then
+      rm -rf "${RECOVERY_TRANSACTION_ROOT}" || record_rollback_failure "rollback.transaction.cleanup"
+    fi
+  fi
   if [[ "${ROLLBACK_FAILED}" == "1" ]]; then
     ROLLBACK_STATUS="ROLLBACK_FAILED"
   else
@@ -1368,6 +1714,56 @@ verify_legacy_capacity_adoption_pre_replace() {
   return 0
 }
 
+reject_recovery_before_live_mutation() {
+  local RETURN_CODE="$1"
+  local EXIT_PHASE="$2"
+  trap - ERR
+  set +e
+  recovery_probe reject "${EXIT_PHASE}" >/dev/null
+  write_failure_receipt "ACTIVATION_REJECTED" "${RETURN_CODE}" "${EXIT_PHASE}"
+  rm -rf "${RECOVERY_TRANSACTION_ROOT}"
+  exit "${RETURN_CODE}"
+}
+
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  ACTIVATION_PHASE="malformed_cohort_admission"
+  if recovery_probe admission; then
+    RECOVERY_ADMISSION_STATUS=0
+  else
+    RECOVERY_ADMISSION_STATUS="$?"
+  fi
+  if [[ "${RECOVERY_ADMISSION_STATUS}" == "10" ]]; then
+    if run_recovery_capacity_preflight; then
+      recovery_probe already >/dev/null
+      printf '%s\n' "${RECOVERY_PROBE_OUTPUT}"
+      trap - ERR
+      exit 0
+    fi
+    recovery_probe capacity-fail formal_capacity_preflight >/dev/null || true
+    printf '%s\n' "${RECOVERY_PROBE_OUTPUT}"
+    trap - ERR
+    exit 1
+  elif [[ "${RECOVERY_ADMISSION_STATUS}" != "0" ]]; then
+    trap - ERR
+    exit 1
+  fi
+  RECOVERY_FIRST_ADMISSION_OUTPUT="${RECOVERY_PROBE_OUTPUT}"
+  ACTIVATION_PHASE="malformed_cohort_admission_revalidation"
+  if ! recovery_probe admission >/dev/null \
+    || [[ "${RECOVERY_PROBE_OUTPUT}" != "${RECOVERY_FIRST_ADMISSION_OUTPUT}" ]]; then
+    recovery_probe reject admission_revalidation_drift >/dev/null || true
+    printf '%s\n' "${RECOVERY_PROBE_OUTPUT}"
+    trap - ERR
+    exit 1
+  fi
+  RECOVERY_PROBE_OUTPUT="${RECOVERY_FIRST_ADMISSION_OUTPUT}"
+  mkdir "${RECOVERY_TRANSACTION_ROOT}"
+  printf '%s\n' "${RECOVERY_PROBE_OUTPUT}" \
+    > "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
+  chmod 600 "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
+  trap 'reject_recovery_before_live_mutation $? "${ACTIVATION_PHASE}"' ERR
+fi
+
 # aggregate activation 前才 snapshot live config/state；stage 不碰 live target 或 barrier。
 ACTIVATION_PHASE="snapshot_previous_state"
 rm -rf "${STAGE_DIR}/backups"
@@ -1426,6 +1822,22 @@ if [[ -f "${STAGE_DIR}/previous-barrier-missing" ]] \
     false
   fi
 fi
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  ACTIVATION_PHASE="malformed_cohort_previous_barrier_snapshot_validation"
+  if [[ ! -f "${STAGE_DIR}/previous-barrier" \
+    || ! -f "${STAGE_DIR}/previous-runtime-manifest.json" \
+    || ! -f "${STAGE_DIR}/previous-manifest-digest" \
+    || ! -f "${STAGE_DIR}/previous-barrier-path" ]]; then
+    echo "malformed cohort previous barrier snapshot 不完整。" >&2
+    false
+  fi
+  if ! cmp -s "${STAGE_DIR}/previous-barrier" "${ACTIVATION_BARRIER}" \
+    || ! cmp -s "${STAGE_DIR}/previous-runtime-manifest.json" \
+      "${RUNTIME_MANIFEST_FILE}"; then
+    echo "malformed cohort previous barrier snapshot fingerprint 不一致。" >&2
+    false
+  fi
+fi
 ACTIVATION_PHASE="normal_transition_barrier_validation"
 if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
   if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
@@ -1442,6 +1854,16 @@ if ! verify_legacy_capacity_adoption_pre_replace; then
   echo "legacy inert plist set 在 replace 前 drift，拒絕 activation。" >&2
   false
 fi
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  ACTIVATION_PHASE="malformed_cohort_toctou_validation"
+  if ! recovery_probe revalidate >/dev/null; then
+    write_failure_receipt "ACTIVATION_REJECTED" 1 "${ACTIVATION_PHASE}"
+    rm -rf "${RECOVERY_TRANSACTION_ROOT}"
+    echo "malformed cohort 在 replace 前 drift，拒絕 recovery。" >&2
+    trap - ERR
+    exit 1
+  fi
+fi
 
 ACTIVATION_PHASE="replace_live_plists"
 trap 'rollback_activation $? "${ACTIVATION_PHASE}"' ERR
@@ -1456,6 +1878,9 @@ for INDEX in 0 1 2 3 4 5 6; do
     /usr/libexec/PlistBuddy -c "Add :ProgramArguments:16 string --activation-only" \
       "${TARGET_PLISTS[${INDEX}]}"
   fi
+  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+    RECOVERY_PLIST_REPLACE_COUNT=$((RECOVERY_PLIST_REPLACE_COUNT + 1))
+  fi
 done
 ACTIVATION_PHASE="bootout_previous_services"
 for INDEX in 0 1 2 3 4 5 6; do
@@ -1463,6 +1888,9 @@ for INDEX in 0 1 2 3 4 5 6; do
   TARGET="${TARGET_PLISTS[${INDEX}]}"
   if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" ]]; then
     launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1
+    if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+      RECOVERY_BOOTOUT_COUNT=$((RECOVERY_BOOTOUT_COUNT + 1))
+    fi
     if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       false
     fi
@@ -1474,6 +1902,9 @@ for INDEX in 0 1 2 3 4 5 6; do
   TARGET="${TARGET_PLISTS[${INDEX}]}"
   STARTED_LABELS+=("${LABEL}")
   launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
+  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+    RECOVERY_BOOTSTRAP_COUNT=$((RECOVERY_BOOTSTRAP_COUNT + 1))
+  fi
   launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
 done
 ACTIVATION_PHASE="live_aggregate_validation"
@@ -1501,16 +1932,35 @@ ACTIVATION_PHASE="barrier_activation"
   --ready-root "${READY_ROOT}" \
   --barrier "${ACTIVATION_BARRIER}" \
   --timeout "${BARRIER_TIMEOUT_SECONDS}") >/dev/null
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  RECOVERY_BARRIER_TRANSITION_COUNT=$((RECOVERY_BARRIER_TRANSITION_COUNT + 1))
+fi
 if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
   ACTIVATION_PHASE="activation_only_postcheck"
   for LABEL in "${LABELS[@]}"; do
     launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
   done
 fi
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  ACTIVATION_PHASE="malformed_cohort_formal_capacity_preflight"
+  if ! run_recovery_capacity_preflight; then
+    printf '%s\n' "${RECOVERY_CAPACITY_PREFLIGHT_OUTPUT}" >&2
+    echo "formal Capacity preflight 未通過，觸發 recovery rollback。" >&2
+    false
+  fi
+  ACTIVATION_PHASE="malformed_cohort_success_receipt"
+  recovery_probe success
+  [[ -f "${RECOVERY_SUCCESS_CANDIDATE}" && ! -L "${RECOVERY_SUCCESS_CANDIDATE}" ]] \
+    && chmod 600 "${RECOVERY_SUCCESS_CANDIDATE}"
+  ACTIVATION_PHASE="malformed_cohort_success_publish"
+  mv "${RECOVERY_SUCCESS_CANDIDATE}" "${RECOVERY_SUCCESS_RECEIPT}"
+fi
 trap - ERR
 rm -rf "${STAGE_DIR}"
 
-if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+  echo "Pantheon malformed activation-only cohort recovery 已完成。"
+elif [[ "${ACTIVATION_ONLY}" == "1" ]]; then
   echo "Pantheon 七服務 activation-only 已完成。"
 else
   echo "Pantheon 七服務 aggregate activation 已完成。"
