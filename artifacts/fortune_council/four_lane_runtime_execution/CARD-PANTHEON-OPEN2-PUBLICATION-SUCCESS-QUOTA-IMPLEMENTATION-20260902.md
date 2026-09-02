@@ -52,3 +52,11 @@ risk: high
 3. 最小 GREEN：延伸既有 ledger 與 prepared/reconcile seam；不得複製三套 phase state machine。
 4. 跑 focused Publisher tests、affected suites、py_compile／bash -n、`git diff --check`；RESULT
    記錄實際數量與 production/public mutation 0。
+
+## Owner-approved refactor gate
+
+- Owner 於 2026-09-02 批准以 production source 淨增不超過 `260` LOC 作為本卡膨脹
+  上限。
+- 此淨值只有在 translation-only prepared/reconcile 特例被刪除／取代，且最終只存在
+  一套 create／rewrite／translation 共用 FSM 時有效；不得保留兩套 protocol 後以刪行
+  抵銷新增行。

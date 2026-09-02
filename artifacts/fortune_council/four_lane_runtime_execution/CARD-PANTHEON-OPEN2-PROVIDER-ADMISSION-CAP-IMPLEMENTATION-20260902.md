@@ -22,9 +22,11 @@ risk: high
 - Authority：`scripts/agy_gemini_allocator.py` 的共用 state／lock 與
   `ProductionSlotAdmission.commit()`；Runner 在真實 provider call 前 commit admission。
 - 固定 config：production service 必須取得值為 `102` 的 cap；缺失、非整數、非 102、
-  state schema/date/count/job identity 損壞均在 provider call 前 fail closed。
-- Accounting：以 exact `job_id` 冪等；同 job crash/replay 不重扣，新的第 103 筆拒絕；
-  admission 已 commit 即計數，provider 後續失敗不退還。
+  state schema/date/count 損壞均在 provider call 前 fail closed。
+- Accounting：以既有 durable production-attempt marker 為 attempt identity；同一 marker
+  的 crash replay 不重扣也不重呼 provider。正式 repair 刪除 marker 後的
+  same-generation retry 是新的付費 attempt，即使沿用相同 `job_id` 也必須再扣。新的
+  第 103 次 attempt 拒絕；admission 已 commit 即計數，provider 後續失敗不退還。
 - 日期：以 allocator admission instant 的 Asia/Taipei 日期計；不得用 host locale、UTC 或
   既有 America/Los_Angeles provider quota reset 冒充。
 
@@ -41,8 +43,9 @@ risk: high
 
 ## RED → GREEN
 
-1. 先建立 RED：第 102 筆原子成功、第 103 筆在 provider call 前拒絕；同 job replay
-   不重扣；跨 Asia/Taipei 午夜重設；malformed／future schema fail closed。
+1. 先建立 RED：第 102 筆原子成功、第 103 筆在 provider call 前拒絕；同 marker replay
+   不重扣；正式刪除 marker 後的同 job retry 再扣；跨 Asia/Taipei 午夜重設；
+   malformed／future schema fail closed。
 2. 最小 GREEN：延伸既有 allocator state schema／lock transaction，不新增另一份 counter。
 3. 覆蓋 Runner crash-after-admission、四 lane 共用 state 與 installer cap projection。
 4. 跑 focused allocator/runner/installer tests、受影響 suites、py_compile／bash -n、

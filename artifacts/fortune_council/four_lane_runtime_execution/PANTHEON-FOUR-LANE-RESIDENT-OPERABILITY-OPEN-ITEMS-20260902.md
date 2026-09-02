@@ -95,6 +95,15 @@ Mainline 依唯讀 mapping 鎖定 `102 provider admissions / Asia/Taipei day`；
 transport jobs。狀態為 `OPEN-2_IMPLEMENTATION_REQUIRED`。在既有持久化 authority 與
 fail-closed 測試閉合以前：
 
+Owner 於 2026-09-02 明確批准：成本 accounting 的冪等邊界是既有 durable
+production-attempt marker，不是 logical `job_id`。同一 marker 的 crash replay 不得
+重扣或重呼 provider；正式 repair 刪除 marker 後的 same-generation retry 是新的付費
+attempt，即使沿用相同 `job_id` 也必須再扣一次。
+
+Owner 同日批准 success-quota generic refactor 的膨脹閘門改以 production source 淨增
+不超過 `260` LOC 判定，前提是刪除／取代 translation-only 特例，只保留一套三 phase
+prepared/reconcile FSM；不得以淨值掩護保留兩套平行 protocol。
+
 - `OPEN-2` 不得標為完成；
 - 不得 activation；
 - 不得把成本無上限記成 Owner 已接受的 known risk。
