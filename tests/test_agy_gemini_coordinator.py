@@ -9187,6 +9187,7 @@ def test_malformed_cohort_pre_bootout_failure_restores_without_launchctl_mutatio
     assert receipt["status"] == "ROLLBACK_COMPLETE"
     assert receipt["exit_reason"]["phase"] == "replace_live_plists"
     assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    assert rollback_receipt["operation_counts"]["live_plist_replacements"] == 1
     mutations = mutation_log.read_text(encoding="utf-8") if mutation_log.exists() else ""
     assert mutations.count("bootout") == 0
     assert mutations.count("bootstrap") == 0
@@ -9359,6 +9360,83 @@ def test_malformed_cohort_bootout_mutates_then_fails_restores_actual_topology(
     assert retried.returncode == 0, f"{retried.stdout}\n{retried.stderr}"
     assert "RECOVERY_COMMITTED" in retried.stdout
     assert not _recovery_transaction_root(launch_agents).exists()
+
+
+@pytest.mark.parametrize("marker_failure", ["write", "chmod", "mv"])
+def test_malformed_cohort_bootout_marker_failure_rolls_back_actual_topology(
+    tmp_path: Path,
+    marker_failure: str,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    barrier_before = barrier.read_bytes()
+    transaction_root = _recovery_transaction_root(launch_agents)
+    if marker_failure == "write":
+        launchctl = tmp_path / "bin/launchctl"
+        source = launchctl.read_text(encoding="utf-8")
+        needle = f"  rm -f '{loaded}/'$label\n"
+        assert source.count(needle) == 1
+        launchctl.write_text(
+            source.replace(
+                needle,
+                needle + f"  /bin/chmod 500 '{transaction_root}/booted-out'\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        launchctl.chmod(0o700)
+    else:
+        command = tmp_path / f"bin/{marker_failure}"
+        system_command = f"/bin/{marker_failure}"
+        command.write_text(
+            "#!/bin/sh\n"
+            f"case \"$*\" in *'{transaction_root}/booted-out/'*) exit 73;; esac\n"
+            f"exec '{system_command}' \"$@\"\n",
+            encoding="utf-8",
+        )
+        command.chmod(0o700)
+
+    failed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert failed.returncode != 0
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["phase"] == "bootout_previous_services"
+    assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    mutation_commands = [
+        line.split()[0]
+        for line in mutation_log.read_text(encoding="utf-8").splitlines()
+    ]
+    assert mutation_commands.count("bootout") == 1
+    assert mutation_commands.count("bootstrap") == 1
+    assert rollback_receipt["operation_counts"]["launchctl_bootout"] == 1
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+        assert subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+    assert barrier.read_bytes() == barrier_before
+    assert not transaction_root.exists()
 
 
 def test_malformed_cohort_bootstrap_mutates_then_fails_removes_started_service(

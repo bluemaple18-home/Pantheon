@@ -1223,15 +1223,29 @@ done
 STARTED_LABELS=()
 BOOTED_OUT_LABELS=()
 record_confirmed_bootout() {
-  local LABEL="$1"
+  local LABEL="$1" MARKER_TMP STATUS
   BOOTED_OUT_LABELS+=("${LABEL}")
   if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
-    printf '%s\n' "${LABEL}" \
-      > "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
-    chmod 600 "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
-    mv "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$" \
-      "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}"
     RECOVERY_BOOTOUT_COUNT=$((RECOVERY_BOOTOUT_COUNT + 1))
+    MARKER_TMP="${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
+    if printf '%s\n' "${LABEL}" > "${MARKER_TMP}"; then
+      :
+    else
+      STATUS="$?"
+      return "${STATUS}"
+    fi
+    if chmod 600 "${MARKER_TMP}"; then
+      :
+    else
+      STATUS="$?"
+      return "${STATUS}"
+    fi
+    if mv "${MARKER_TMP}" "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}"; then
+      :
+    else
+      STATUS="$?"
+      return "${STATUS}"
+    fi
   fi
 }
 propagate_failure_status() {
@@ -1914,12 +1928,12 @@ rm -rf "${READY_ROOT}"
 mkdir -p "${READY_ROOT}"
 for INDEX in 0 1 2 3 4 5 6; do
   install -m 600 "${STAGED_PLISTS[${INDEX}]}" "${TARGET_PLISTS[${INDEX}]}"
+  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+    RECOVERY_PLIST_REPLACE_COUNT=$((RECOVERY_PLIST_REPLACE_COUNT + 1))
+  fi
   if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
     /usr/libexec/PlistBuddy -c "Add :ProgramArguments:16 string --activation-only" \
       "${TARGET_PLISTS[${INDEX}]}"
-  fi
-  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
-    RECOVERY_PLIST_REPLACE_COUNT=$((RECOVERY_PLIST_REPLACE_COUNT + 1))
   fi
 done
 ACTIVATION_PHASE="bootout_previous_services"
