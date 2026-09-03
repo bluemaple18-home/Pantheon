@@ -9202,6 +9202,55 @@ def test_malformed_cohort_pre_bootout_failure_restores_without_launchctl_mutatio
     assert not _recovery_transaction_root(launch_agents).exists()
 
 
+def test_malformed_cohort_transaction_initialization_failure_cleans_up_and_retries(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, _manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    fake_mkdir = tmp_path / "bin/mkdir"
+    failed_once = tmp_path / "malformed-transaction-mkdir-failed-once"
+    transaction_booted_out = _recovery_transaction_root(launch_agents) / "booted-out"
+    fake_mkdir.write_text(
+        "#!/bin/sh\n"
+        f"if [ \"$#\" -eq 1 ] && [ \"$1\" = '{transaction_booted_out}' ] && "
+        f"[ ! -f '{failed_once}' ]; then\n"
+        f"  touch '{failed_once}'\n"
+        "  exit 72\n"
+        "fi\n"
+        "exec /bin/mkdir \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_mkdir.chmod(0o700)
+
+    failed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert failed.returncode == 72
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "ACTIVATION_REJECTED"
+    assert receipt["exit_reason"]["phase"] == "malformed_cohort_transaction_initialization"
+    assert not _recovery_transaction_root(launch_agents).exists()
+    assert not mutation_log.exists()
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+
+    retried = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert retried.returncode == 0, f"{retried.stdout}\n{retried.stderr}"
+    assert "RECOVERY_COMMITTED" in retried.stdout
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
 def test_malformed_cohort_mid_bootout_failure_restarts_only_booted_out_labels(
     tmp_path: Path,
 ) -> None:

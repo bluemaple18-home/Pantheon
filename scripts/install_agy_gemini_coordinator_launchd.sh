@@ -1779,13 +1779,14 @@ if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
     exit 1
   fi
   RECOVERY_PROBE_OUTPUT="${RECOVERY_FIRST_ADMISSION_OUTPUT}"
+  ACTIVATION_PHASE="malformed_cohort_transaction_initialization"
   mkdir "${RECOVERY_TRANSACTION_ROOT}"
+  trap 'reject_recovery_before_live_mutation $? "${ACTIVATION_PHASE}"' ERR
   mkdir "${RECOVERY_TRANSACTION_ROOT}/booted-out"
   chmod 700 "${RECOVERY_TRANSACTION_ROOT}/booted-out"
   printf '%s\n' "${RECOVERY_PROBE_OUTPUT}" \
     > "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
   chmod 600 "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
-  trap 'reject_recovery_before_live_mutation $? "${ACTIVATION_PHASE}"' ERR
 fi
 
 # aggregate activation 前才 snapshot live config/state；stage 不碰 live target 或 barrier。
